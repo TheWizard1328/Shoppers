@@ -11,8 +11,8 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue
-} from
+  SelectValue } from
+
 "@/components/ui/select";
 import { Phone, MapPin, Edit, Trash2, StickyNote, RotateCcw, MoreVertical, User, CheckCircle, Clock, Package, XCircle, Info, FileText, Save, X, Plus, Undo2, Loader2, Navigation } from "lucide-react";
 import { getStoreColor, hexToRgba, getContrastColor } from "../utils/colorGenerator";
@@ -118,7 +118,7 @@ export default function StopCard({
   // Helper to auto-toggle driver online if offline
   const ensureDriverOnline = async () => {
     if (!currentUser?.id) return;
-    
+
     try {
       const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
       if (appUsers && appUsers.length > 0) {
@@ -129,7 +129,7 @@ export default function StopCard({
             driver_status: 'on_duty',
             location_tracking_enabled: true
           });
-          
+
           // Start location tracking
           try {
             await locationTracker.startTracking({
@@ -139,7 +139,7 @@ export default function StopCard({
           } catch (trackingError) {
             console.warn('Could not start location tracking:', trackingError.message);
           }
-          
+
           // Notify parent to refresh UI
           if (onDriverStatusChange) {
             onDriverStatusChange('on_duty');
@@ -213,26 +213,26 @@ export default function StopCard({
   // Check if this is a first delivery based on notes, instructions, or delivery count
   const isFirstDelivery = useMemo(() => {
     if (!delivery || isPickup) return false;
-    
+
     // Check if already marked as first_delivery
     if (delivery.first_delivery) return true;
-    
+
     // Check patient notes for "First Delivery"
     if (patient?.notes?.toLowerCase().includes('first delivery')) return true;
-    
+
     // Check delivery instructions for "First Delivery"
     if (delivery.delivery_instructions?.toLowerCase().includes('first delivery')) return true;
-    
+
     // Check driver notes for "First Delivery"
     if (delivery.delivery_notes?.toLowerCase().includes('first delivery')) return true;
-    
+
     // Check total delivery count for this patient
     if (!patient?.id || !allDeliveries || allDeliveries.length === 0) return false;
-    
-    const patientDeliveryCount = allDeliveries.filter(d => 
-      d && d.patient_id === patient.id && FINISHED_STATUSES.includes(d.status)
+
+    const patientDeliveryCount = allDeliveries.filter((d) =>
+    d && d.patient_id === patient.id && FINISHED_STATUSES.includes(d.status)
     ).length;
-    
+
     // If no completed deliveries, it's a first delivery
     return patientDeliveryCount === 0;
   }, [delivery, patient, isPickup, allDeliveries]);
@@ -378,19 +378,19 @@ export default function StopCard({
     return driverDeliveriesForDate.every((d) => FINISHED_STATUSES.includes(d.status));
   }, [delivery, allDeliveries]);
 
-    const _isProjectedData = useMemo(() => delivery?.isProjected || false, [delivery?.isProjected]);
+  const _isProjectedData = useMemo(() => delivery?.isProjected || false, [delivery?.isProjected]);
 
   const nextAvailableStatuses = useMemo(() => {
     if (!onStatusUpdate || !currentUser) return [];
-    
+
     const canChangeStatus = userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver');
     if (!canChangeStatus) return [];
 
     // No status changes for completed/cancelled/returned
     if (['completed', 'cancelled', 'returned'].includes(delivery.status)) {
-        return [];
+      return [];
     }
-    
+
     let statuses = [];
     if (isPickup) {
       // Pickup statuses: Pending, Ready For Pickup, En Route
@@ -399,7 +399,7 @@ export default function StopCard({
       // Delivery statuses: Pending, Ready For Pickup, In Transit
       statuses = ['pending', 'Ready For Pickup', 'in_transit', 'completed', 'failed'];
     }
-    return statuses.filter(s => s !== delivery.status);
+    return statuses.filter((s) => s !== delivery.status);
   }, [delivery?.status, onStatusUpdate, currentUser, isPickup]);
 
   // CRITICAL: Hide status dropdown when entire route is completed
@@ -500,7 +500,7 @@ export default function StopCard({
       // Find the return patient for this store
       const returnPatientName = `${store.name.replace(/-/g, ' ')} Return`;
       const foundReturnPatient = patients.find((p) =>
-        p && p.full_name === returnPatientName && p.store_id === delivery.store_id
+      p && p.full_name === returnPatientName && p.store_id === delivery.store_id
       );
       if (!foundReturnPatient) {
         alert(`Return patient "${returnPatientName}" not found. Please ensure a patient with this name exists for the store.`);
@@ -562,13 +562,13 @@ export default function StopCard({
                 #{delivery.display_stop_order || delivery.stop_order || 0}
               </Badge>
 
-              {isPickup && pendingPickups && pendingPickups.length > 0 && (
-                <Badge
-                  variant="secondary"
-                  className="font-bold text-xs px-2 py-0.5 bg-purple-500 text-white justify-center rounded-lg">
+              {isPickup && pendingPickups && pendingPickups.length > 0 &&
+              <Badge
+                variant="secondary"
+                className="font-bold text-xs px-2 py-0.5 bg-purple-500 text-white justify-center rounded-lg">
                   P: {pendingPickups.length}
                 </Badge>
-              )}
+              }
 
               <Badge
                 variant="secondary"
@@ -633,26 +633,26 @@ export default function StopCard({
                   }
                 </div>
                 <div className="text-[10px] text-slate-500 min-h-[14px]">
-                  {!FINISHED_STATUSES.includes(delivery.status) && (delivery.time_window_start || delivery.time_window_end) && (
-                    <>
+                  {!FINISHED_STATUSES.includes(delivery.status) && (delivery.time_window_start || delivery.time_window_end) &&
+                  <>
                       {delivery.time_window_start && formatTime12Hour(delivery.time_window_start)}
                       {delivery.time_window_start && delivery.time_window_end && ' - '}
                       {delivery.time_window_end && formatTime12Hour(delivery.time_window_end)}
                     </>
-                  )}
+                  }
                 </div>
               </div>
             </div>
 
             <div className="flex flex-col gap-1 items-end items-center">
               <div className="flex items-center gap-1">
-                {showStatusDropdown ? (
-                  <DropdownMenu>
+                {showStatusDropdown ?
+                <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <button 
-                        className={`font-medium inline-flex items-center gap-1 rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-xs font-bold px-2 py-0.5 cursor-pointer hover:opacity-80 ${statusConfig[delivery.status]?.color || 'bg-slate-100 text-slate-800'}`}
-                        onClick={(e) => e.stopPropagation()}
-                      >
+                      <button
+                      className={`font-medium inline-flex items-center gap-1 rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-xs font-bold px-2 py-0.5 cursor-pointer hover:opacity-80 ${statusConfig[delivery.status]?.color || 'bg-slate-100 text-slate-800'}`}
+                      onClick={(e) => e.stopPropagation()}>
+
                         {statusConfig[delivery.status]?.label || delivery.status}
                         <MoreVertical className="w-3 h-3" />
                       </button>
@@ -660,30 +660,30 @@ export default function StopCard({
                     <DropdownMenuContent align="end" className="z-[99999]">
                       <DropdownMenuLabel>Change Status</DropdownMenuLabel>
                       <DropdownMenuSeparator />
-                      {nextAvailableStatuses.map(status => (
-                          <DropdownMenuItem 
-                              key={status} 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                // Pass skipAutoCenter=false for finished statuses so ETAs get recalculated
-                                const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-                                const skipAutoCenter = !finishedStatuses.includes(status);
-                                onStatusUpdate(delivery.id, status, {}, skipAutoCenter);
-                              }}
-                              className="capitalize"
-                          >
+                      {nextAvailableStatuses.map((status) =>
+                    <DropdownMenuItem
+                      key={status}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // Pass skipAutoCenter=false for finished statuses so ETAs get recalculated
+                        const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+                        const skipAutoCenter = !finishedStatuses.includes(status);
+                        onStatusUpdate(delivery.id, status, {}, skipAutoCenter);
+                      }}
+                      className="capitalize">
+
                               {statusConfig[status]?.label || status}
                           </DropdownMenuItem>
-                      ))}
+                    )}
                     </DropdownMenuContent>
-                  </DropdownMenu>
-                ) : (
-                  <Badge
-                    variant="secondary"
-                    className={`font-medium inline-flex items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-xs font-bold px-2 py-0.5 ${statusConfig[delivery.status]?.color || 'bg-slate-100 text-slate-800'}`}>
+                  </DropdownMenu> :
+
+                <Badge
+                  variant="secondary"
+                  className={`font-medium inline-flex items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-xs font-bold px-2 py-0.5 ${statusConfig[delivery.status]?.color || 'bg-slate-100 text-slate-800'}`}>
                     {statusConfig[delivery.status]?.label || delivery.status}
                   </Badge>
-                )}
+                }
               </div>
 
               {delivery.tracking_number && store?.abbreviation &&
@@ -706,7 +706,7 @@ export default function StopCard({
           <div className="border-t border-slate-200"></div>
 
           <div className="flex flex-col gap-1">
-            <div className="flex items-center justify-between gap-1">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-1 flex-1 min-w-0">
                 {finalDisplayAddress ?
                 <div className="flex items-start gap-2 text-sm text-slate-700">
@@ -719,34 +719,34 @@ export default function StopCard({
               
               {/* Navigation and Phone buttons - right justified */}
               <div className="flex items-center gap-1 flex-shrink-0">
-                {finalDisplayAddress && (
-                  <a 
-                    href={(() => {
-                      if (!shouldRedact && !isPickup && patient?.latitude && patient?.longitude) {
-                        return `https://www.google.com/maps/dir/?api=1&destination=${patient.latitude},${patient.longitude}`;
-                      } else if (!shouldRedact && isPickup && store?.latitude && store?.longitude) {
-                        return `https://www.google.com/maps/dir/?api=1&destination=${store.latitude},${store.longitude}`;
-                      } else {
-                        return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(finalDisplayAddress)}`;
-                      }
-                    })()}
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    onClick={(e) => e.stopPropagation()}
-                    className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 transition-colors"
-                  >
+                {finalDisplayAddress &&
+                <a
+                  href={(() => {
+                    if (!shouldRedact && !isPickup && patient?.latitude && patient?.longitude) {
+                      return `https://www.google.com/maps/dir/?api=1&destination=${patient.latitude},${patient.longitude}`;
+                    } else if (!shouldRedact && isPickup && store?.latitude && store?.longitude) {
+                      return `https://www.google.com/maps/dir/?api=1&destination=${store.latitude},${store.longitude}`;
+                    } else {
+                      return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(finalDisplayAddress)}`;
+                    }
+                  })()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 transition-colors">
+
                     <Navigation className="w-4 h-4" />
                   </a>
-                )}
-                {finalDisplayPhone && (
-                  <a 
-                    href={`tel:${finalDisplayPhone.replace(/\D/g, '')}`} 
-                    onClick={(e) => e.stopPropagation()}
-                    className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-600 transition-colors"
-                  >
+                }
+                {finalDisplayPhone &&
+                <a
+                  href={`tel:${finalDisplayPhone.replace(/\D/g, '')}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-600 transition-colors">
+
                     <Phone className="w-4 h-4" />
                   </a>
-                )}
+                }
               </div>
             </div>
           </div>
@@ -931,10 +931,10 @@ export default function StopCard({
                           </span>
                     )}
                       </span>
-                      {(!FINISHED_STATUSES.includes(delivery.status) && userHasRole(currentUser, 'driver')) || 
-                       (FINISHED_STATUSES.includes(delivery.status) && userHasRole(currentUser, 'admin')) ?
-                  <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={(e) => {e.stopPropagation();setShowCODCollection(!showCODCollection);}}>Edit</Button>
-                  : null}
+                      {!FINISHED_STATUSES.includes(delivery.status) && userHasRole(currentUser, 'driver') ||
+                  FINISHED_STATUSES.includes(delivery.status) && userHasRole(currentUser, 'admin') ?
+                  <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={(e) => {e.stopPropagation();setShowCODCollection(!showCODCollection);}}>Edit</Button> :
+                  null}
                     </div>
                 }
 
@@ -1019,12 +1019,12 @@ export default function StopCard({
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-slate-700 mb-0.5">Patient Notes:</p>
                         <div className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded px-2 py-1.5">
-                          {(patient.unit_number || delivery?.unit_number) && (
-                            <p className="font-medium">Unit: {delivery?.unit_number || patient.unit_number}</p>
-                          )}
-                          {patient.notes && (
-                            <p className={`whitespace-pre-wrap break-words ${(patient.unit_number || delivery?.unit_number) ? 'mt-1' : ''}`}>{patient.notes}</p>
-                          )}
+                          {(patient.unit_number || delivery?.unit_number) &&
+                      <p className="font-medium">Unit: {delivery?.unit_number || patient.unit_number}</p>
+                      }
+                          {patient.notes &&
+                      <p className={`whitespace-pre-wrap break-words ${patient.unit_number || delivery?.unit_number ? 'mt-1' : ''}`}>{patient.notes}</p>
+                      }
                         </div>
                       </div>
                     </div>
@@ -1039,173 +1039,173 @@ export default function StopCard({
                           Pending Pickup List ({pendingPickups.length})
                         </h4>
                         <Button
-                          size="sm"
-                          variant="default"
-                          className="h-6 px-2 text-xs bg-emerald-600 hover:bg-emerald-700"
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            console.log('🟢 [Accept Button] Clicked!');
-                            console.log('  onStatusUpdate exists:', !!onStatusUpdate);
-                            console.log('  pendingPickups count:', pendingPickups?.length || 0);
-                            
-                            if (!onStatusUpdate) {
-                              console.error('❌ [Accept Button] No onStatusUpdate handler!');
-                              return;
-                            }
+                      size="sm"
+                      variant="default"
+                      className="h-6 px-2 text-xs bg-emerald-600 hover:bg-emerald-700"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        console.log('🟢 [Accept Button] Clicked!');
+                        console.log('  onStatusUpdate exists:', !!onStatusUpdate);
+                        console.log('  pendingPickups count:', pendingPickups?.length || 0);
 
-                            // Get pickup's TR# as the base
-                            const pickupTR = parseInt(delivery.tracking_number, 10);
-                            const baseTR = isNaN(pickupTR) ? 0 : pickupTR;
-                            console.log('  Pickup TR#:', delivery.tracking_number, '→ baseTR:', baseTR);
+                        if (!onStatusUpdate) {
+                          console.error('❌ [Accept Button] No onStatusUpdate handler!');
+                          return;
+                        }
 
-                            // Filter to only pending deliveries that don't already have a valid TR# assigned
-                            const pendingWithoutTR = pendingPickups.filter(p => {
-                              const tr = parseInt(p.tracking_number, 10);
-                              return isNaN(tr) || tr === 99 || tr === 0 || !p.tracking_number;
-                            });
-                            console.log('  Pending without TR#:', pendingWithoutTR.length);
+                        // Get pickup's TR# as the base
+                        const pickupTR = parseInt(delivery.tracking_number, 10);
+                        const baseTR = isNaN(pickupTR) ? 0 : pickupTR;
+                        console.log('  Pickup TR#:', delivery.tracking_number, '→ baseTR:', baseTR);
 
-                            // Get the highest TR# already assigned to this pickup's deliveries
-                            const existingTRs = pendingPickups
-                              .map(p => parseInt(p.tracking_number, 10))
-                              .filter(tr => !isNaN(tr) && tr !== 99 && tr !== 0 && tr > baseTR);
-                            const highestExistingTR = existingTRs.length > 0 ? Math.max(...existingTRs) : baseTR;
-                            console.log('  Highest existing TR#:', highestExistingTR);
+                        // Filter to only pending deliveries that don't already have a valid TR# assigned
+                        const pendingWithoutTR = pendingPickups.filter((p) => {
+                          const tr = parseInt(p.tracking_number, 10);
+                          return isNaN(tr) || tr === 99 || tr === 0 || !p.tracking_number;
+                        });
+                        console.log('  Pending without TR#:', pendingWithoutTR.length);
 
-                            // Sort pending without TR by patient name for consistent TR# assignment
-                            const sortedPendingWithoutTR = [...pendingWithoutTR].sort((a, b) => 
-                              (a.patient_name || '').localeCompare(b.patient_name || '')
-                            );
+                        // Get the highest TR# already assigned to this pickup's deliveries
+                        const existingTRs = pendingPickups.
+                        map((p) => parseInt(p.tracking_number, 10)).
+                        filter((tr) => !isNaN(tr) && tr !== 99 && tr !== 0 && tr > baseTR);
+                        const highestExistingTR = existingTRs.length > 0 ? Math.max(...existingTRs) : baseTR;
+                        console.log('  Highest existing TR#:', highestExistingTR);
 
-                            // Assign sequential TR#s starting after the highest existing TR#
-                            for (let i = 0; i < sortedPendingWithoutTR.length; i++) {
-                              const pendingDelivery = sortedPendingWithoutTR[i];
-                              const newTR = String(highestExistingTR + i + 1);
-                              console.log(`  Accepting: ${pendingDelivery.patient_name} → TR#${newTR}`);
-                              
-                              // Update with new tracking number AND status (skip auto-center), do NOT touch isNextDelivery
-                              await onStatusUpdate(pendingDelivery.id, 'in_transit', { tracking_number: newTR }, true);
-                            }
-                            
-                            console.log('✅ [Accept Button] All pending deliveries accepted');
-                          }}
-                        >
+                        // Sort pending without TR by patient name for consistent TR# assignment
+                        const sortedPendingWithoutTR = [...pendingWithoutTR].sort((a, b) =>
+                        (a.patient_name || '').localeCompare(b.patient_name || '')
+                        );
+
+                        // Assign sequential TR#s starting after the highest existing TR#
+                        for (let i = 0; i < sortedPendingWithoutTR.length; i++) {
+                          const pendingDelivery = sortedPendingWithoutTR[i];
+                          const newTR = String(highestExistingTR + i + 1);
+                          console.log(`  Accepting: ${pendingDelivery.patient_name} → TR#${newTR}`);
+
+                          // Update with new tracking number AND status (skip auto-center), do NOT touch isNextDelivery
+                          await onStatusUpdate(pendingDelivery.id, 'in_transit', { tracking_number: newTR }, true);
+                        }
+
+                        console.log('✅ [Accept Button] All pending deliveries accepted');
+                      }}>
+
                           Accept
                         </Button>
                       </div>
                       <div
-                        className="space-y-1.5 max-h-64 overflow-y-auto custom-scrollbar"
-                        onWheel={(e) => {
-                          const el = e.currentTarget;
-                          // If the list isn't scrollable, don't interfere with the event.
-                          if (el.scrollHeight <= el.clientHeight) {
-                            return;
-                          }
+                    className="space-y-1.5 max-h-64 overflow-y-auto custom-scrollbar"
+                    onWheel={(e) => {
+                      const el = e.currentTarget;
+                      // If the list isn't scrollable, don't interfere with the event.
+                      if (el.scrollHeight <= el.clientHeight) {
+                        return;
+                      }
 
-                          // Scrolling up
-                          if (e.deltaY < 0) {
-                            // If we're not at the very top, stop the event from bubbling up.
-                            if (el.scrollTop > 0) {
-                              e.stopPropagation();
-                            }
-                          }
-                          // Scrolling down
-                          else if (e.deltaY > 0) {
-                            // If we're not at the very bottom, stop the event from bubbling up.
-                            // A 1px buffer is for potential floating point rounding errors.
-                            if (el.scrollTop < el.scrollHeight - el.clientHeight - 1) {
-                              e.stopPropagation();
-                            }
-                          }
-                        }}
-                      >
-                        {[...pendingPickups].sort((a, b) => {
-                          const trA = parseInt(a.tracking_number || '999', 10);
-                          const trB = parseInt(b.tracking_number || '999', 10);
-                          return trA - trB;
-                        }).map((projectedDelivery, idx) => {
-                        if (!projectedDelivery) {
-                          console.warn('[StopCard] Skipping undefined projected delivery at index', idx);
-                          return null;
+                      // Scrolling up
+                      if (e.deltaY < 0) {
+                        // If we're not at the very top, stop the event from bubbling up.
+                        if (el.scrollTop > 0) {
+                          e.stopPropagation();
                         }
+                      }
+                      // Scrolling down
+                      else if (e.deltaY > 0) {
+                        // If we're not at the very bottom, stop the event from bubbling up.
+                        // A 1px buffer is for potential floating point rounding errors.
+                        if (el.scrollTop < el.scrollHeight - el.clientHeight - 1) {
+                          e.stopPropagation();
+                        }
+                      }
+                    }}>
 
-                        const deliveryId = projectedDelivery.id || `projected-${delivery.id}-${idx}`;
-                        
-                        // Calculate special badges for this pending delivery
-                        const projPatient = patients.find(p => p?.id === projectedDelivery.patient_id);
-                        
-                        // FIXED: Check if first delivery - must explicitly be marked OR have no completed deliveries
-                        const projIsFirstDelivery = projectedDelivery.first_delivery === true ||
-                          (projPatient?.notes?.toLowerCase().includes('first delivery')) ||
-                          (projectedDelivery.delivery_instructions?.toLowerCase().includes('first delivery')) ||
-                          (projectedDelivery.delivery_notes?.toLowerCase().includes('first delivery'));
-                        
-                        const hasCOD = projectedDelivery.cod_total_amount_required > 0;
-                        const hasOversized = projectedDelivery.oversized === true;
-                        const hasFridge = projectedDelivery.fridge_item === true;
-                        const hasSignature = projectedDelivery.signature_needed === true;
-                        
-                        const hasSpecialBadge = hasCOD || projIsFirstDelivery || hasOversized || hasFridge || hasSignature;
+                        {[...pendingPickups].sort((a, b) => {
+                      const trA = parseInt(a.tracking_number || '999', 10);
+                      const trB = parseInt(b.tracking_number || '999', 10);
+                      return trA - trB;
+                    }).map((projectedDelivery, idx) => {
+                      if (!projectedDelivery) {
+                        console.warn('[StopCard] Skipping undefined projected delivery at index', idx);
+                        return null;
+                      }
 
-                        return (
-                          <div 
-                            key={deliveryId} 
-                            className="flex items-center justify-between gap-2 bg-white border border-slate-200 px-2.5 py-1.5 rounded-md cursor-pointer hover:bg-slate-50 transition-colors"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (onEditDelivery && projectedDelivery.id) {
-                                onEditDelivery(projectedDelivery);
-                              }
-                            }}
-                          >
+                      const deliveryId = projectedDelivery.id || `projected-${delivery.id}-${idx}`;
+
+                      // Calculate special badges for this pending delivery
+                      const projPatient = patients.find((p) => p?.id === projectedDelivery.patient_id);
+
+                      // FIXED: Check if first delivery - must explicitly be marked OR have no completed deliveries
+                      const projIsFirstDelivery = projectedDelivery.first_delivery === true ||
+                      projPatient?.notes?.toLowerCase().includes('first delivery') ||
+                      projectedDelivery.delivery_instructions?.toLowerCase().includes('first delivery') ||
+                      projectedDelivery.delivery_notes?.toLowerCase().includes('first delivery');
+
+                      const hasCOD = projectedDelivery.cod_total_amount_required > 0;
+                      const hasOversized = projectedDelivery.oversized === true;
+                      const hasFridge = projectedDelivery.fridge_item === true;
+                      const hasSignature = projectedDelivery.signature_needed === true;
+
+                      const hasSpecialBadge = hasCOD || projIsFirstDelivery || hasOversized || hasFridge || hasSignature;
+
+                      return (
+                        <div
+                          key={deliveryId}
+                          className="flex items-center justify-between gap-2 bg-white border border-slate-200 px-2.5 py-1.5 rounded-md cursor-pointer hover:bg-slate-50 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onEditDelivery && projectedDelivery.id) {
+                              onEditDelivery(projectedDelivery);
+                            }
+                          }}>
+
                                 <span className="text-xs font-medium text-slate-900 truncate flex-1">
                                   {projectedDelivery.patient_name || 'Unknown Patient'}
                                 </span>
                                 <div className="flex items-center gap-1 flex-shrink-0">
                                   {/* Special badge on the RIGHT, to the LEFT of TR# */}
-                                  {hasSpecialBadge && (
-                                    <Badge className="bg-yellow-400 text-black text-[9px] px-1 py-0 h-4 font-bold">
+                                  {hasSpecialBadge &&
+                            <Badge className="bg-yellow-400 text-black text-[9px] px-1 py-0 h-4 font-bold">
                                       {hasCOD && '$'}
                                       {projIsFirstDelivery && (hasCOD ? ' N' : 'N')}
                                       {hasOversized && (hasCOD || projIsFirstDelivery ? ' O' : 'O')}
                                       {hasFridge && (hasCOD || projIsFirstDelivery || hasOversized ? ' F' : 'F')}
                                       {hasSignature && (hasCOD || projIsFirstDelivery || hasOversized || hasFridge ? ' S' : 'S')}
                                     </Badge>
-                                  )}
+                            }
                                   <span className="text-xs font-semibold text-slate-600">
                                     TR#{projectedDelivery.tracking_number || '??'}
                                   </span>
                                         {/* Individual accept button */}
                                         <Button
-                                          size="sm"
-                                          variant="ghost"
-                                          className="h-5 w-5 p-0 ml-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-700"
-                                          onClick={async (e) => {
-                                            e.stopPropagation();
-                                            if (!onStatusUpdate) return;
-                                            
-                                            // Get pickup's TR# as base
-                                            const pickupTR = parseInt(delivery.tracking_number, 10);
-                                            const baseTR = isNaN(pickupTR) ? 0 : pickupTR;
-                                            
-                                            // Find the highest TR# already assigned to this pickup's deliveries
-                                            const existingTRs = pendingPickups
-                                              .map(p => parseInt(p.tracking_number, 10))
-                                              .filter(tr => !isNaN(tr) && tr !== 99 && tr !== 0 && tr > baseTR);
-                                            const highestExistingTR = existingTRs.length > 0 ? Math.max(...existingTRs) : baseTR;
-                                            
-                                            // Assign the next sequential TR#
-                                            const newTR = String(highestExistingTR + 1);
-                                            
-                                            // Update this single delivery to in_transit (don't touch isNextDelivery)
-                                            await onStatusUpdate(projectedDelivery.id, 'in_transit', { tracking_number: newTR }, true);
-                                          }}
-                                        >
+                              size="sm"
+                              variant="ghost"
+                              className="h-5 w-5 p-0 ml-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-700"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (!onStatusUpdate) return;
+
+                                // Get pickup's TR# as base
+                                const pickupTR = parseInt(delivery.tracking_number, 10);
+                                const baseTR = isNaN(pickupTR) ? 0 : pickupTR;
+
+                                // Find the highest TR# already assigned to this pickup's deliveries
+                                const existingTRs = pendingPickups.
+                                map((p) => parseInt(p.tracking_number, 10)).
+                                filter((tr) => !isNaN(tr) && tr !== 99 && tr !== 0 && tr > baseTR);
+                                const highestExistingTR = existingTRs.length > 0 ? Math.max(...existingTRs) : baseTR;
+
+                                // Assign the next sequential TR#
+                                const newTR = String(highestExistingTR + 1);
+
+                                // Update this single delivery to in_transit (don't touch isNextDelivery)
+                                await onStatusUpdate(projectedDelivery.id, 'in_transit', { tracking_number: newTR }, true);
+                              }}>
+
                                           <Plus className="w-3 h-3" />
                                         </Button>
                                 </div>
                               </div>);
-                      })}
+                    })}
                       </div>
                     </div>
                 }
@@ -1250,28 +1250,28 @@ export default function StopCard({
                       {/* Start/Complete/Retry button and menu - right aligned */}
                       <div className="flex items-center ml-auto">
                         {delivery.status === 'failed' && onStatusUpdate ?
-                        <Button
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            setIsRetrying(true);
-                            try {
-                              await ensureDriverOnline();
-                              await onStatusUpdate(delivery.id, isPickup ? 'en_route' : 'in_transit');
-                            } finally {
-                              setIsRetrying(false);
-                            }
-                          }}
-                          size="sm"
-                          className="bg-blue-600 hover:bg-blue-700 h-8 rounded-r-none border-r border-blue-500 !text-white"
-                          disabled={isRetrying || !canRetry || hasFutureRetry}
-                        >
+                    <Button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        setIsRetrying(true);
+                        try {
+                          await ensureDriverOnline();
+                          await onStatusUpdate(delivery.id, isPickup ? 'en_route' : 'in_transit');
+                        } finally {
+                          setIsRetrying(false);
+                        }
+                      }}
+                      size="sm"
+                      className="bg-blue-600 hover:bg-blue-700 h-8 rounded-r-none border-r border-blue-500 !text-white"
+                      disabled={isRetrying || !canRetry || hasFutureRetry}>
+
                           {isRetrying ? <Loader2 className="w-3 h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-3 h-3 mr-1 !text-white" />}
                           <span className="text-white">Retry</span>
                         </Button> :
-                        delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'returned' && (
-                        isNextDelivery ?
-                        <Button 
-                        onClick={async (e) => {
+                    delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'returned' && (
+                    isNextDelivery ?
+                    <Button
+                      onClick={async (e) => {
                         e.stopPropagation();
                         setIsCompleting(true);
                         try {
@@ -1286,28 +1286,28 @@ export default function StopCard({
 
                             // Filter to only pending deliveries that don't already have a valid TR# assigned
                             // (i.e., they haven't been individually accepted yet)
-                            const pendingWithoutTR = (pendingPickups || []).filter(p => {
+                            const pendingWithoutTR = (pendingPickups || []).filter((p) => {
                               const tr = parseInt(p.tracking_number, 10);
                               // Consider it needing a TR# if: no TR#, TR# is 99, or TR# is 0
                               return isNaN(tr) || tr === 99 || tr === 0 || !p.tracking_number;
                             });
 
                             // Get the highest TR# already assigned to this pickup's deliveries
-                            const existingTRs = (pendingPickups || [])
-                              .map(p => parseInt(p.tracking_number, 10))
-                              .filter(tr => !isNaN(tr) && tr !== 99 && tr !== 0 && tr > baseTR);
+                            const existingTRs = (pendingPickups || []).
+                            map((p) => parseInt(p.tracking_number, 10)).
+                            filter((tr) => !isNaN(tr) && tr !== 99 && tr !== 0 && tr > baseTR);
                             const highestExistingTR = existingTRs.length > 0 ? Math.max(...existingTRs) : baseTR;
 
                             // Sort pending without TR by patient name for consistent TR# assignment
-                            const sortedPendingWithoutTR = [...pendingWithoutTR].sort((a, b) => 
-                              (a.patient_name || '').localeCompare(b.patient_name || '')
+                            const sortedPendingWithoutTR = [...pendingWithoutTR].sort((a, b) =>
+                            (a.patient_name || '').localeCompare(b.patient_name || '')
                             );
 
                             // Assign sequential TR#s starting after the highest existing TR#
                             for (let i = 0; i < sortedPendingWithoutTR.length; i++) {
                               const pendingDelivery = sortedPendingWithoutTR[i];
                               const newTR = String(highestExistingTR + i + 1);
-                              
+
                               // Update with new tracking number AND status (skip auto-center), do NOT touch isNextDelivery
                               await onStatusUpdate(pendingDelivery.id, 'in_transit', { tracking_number: newTR }, true);
                             }
@@ -1321,19 +1321,19 @@ export default function StopCard({
                         } finally {
                           setIsCompleting(false);
                         }
-                        }} 
-                        size="sm" 
-                        disabled={isCompleting}
-                        className="rounded-md bg-emerald-600 px-3 text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-emerald-700 h-8 border-r border-emerald-500 !text-white">
+                      }}
+                      size="sm"
+                      disabled={isCompleting}
+                      className="rounded-md bg-emerald-600 px-3 text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-emerald-700 h-8 border-r border-emerald-500 !text-white">
                               {isCompleting ? <Loader2 className="w-3 h-3 mr-1 !text-white animate-spin" /> : <CheckCircle className="w-3 h-3 mr-1 !text-white" />}
                               <span className="text-white">Complete</span>
                             </Button> :
-                        onStartDelivery &&
-                        <Button onClick={async (e) => {e.stopPropagation();setIsStarting(true);try{await ensureDriverOnline();await onStartDelivery(delivery.id);}finally{setIsStarting(false);}}} size="sm" disabled={isStarting} className="bg-blue-600 px-3 text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-8 border-r border-blue-500 !text-white">
+                    onStartDelivery &&
+                    <Button onClick={async (e) => {e.stopPropagation();setIsStarting(true);try {await ensureDriverOnline();await onStartDelivery(delivery.id);} finally {setIsStarting(false);}}} size="sm" disabled={isStarting} className="bg-blue-600 px-3 text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-8 border-r border-blue-500 !text-white">
                               {isStarting ? <Loader2 className="w-3 h-3 mr-1 !text-white animate-spin" /> : <Clock className="w-3 h-3 mr-1 !text-white" />}
                               <span className="text-white">Start</span>
                             </Button>)
-                        }
+                    }
                         
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
@@ -1342,41 +1342,41 @@ export default function StopCard({
                             </Button>
                           </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="z-[99999]" onClick={(e) => e.stopPropagation()}>
-                              {onEditDelivery && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (
-                                <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEditDelivery(delivery);}}>
+                              {onEditDelivery && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
+                        <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEditDelivery(delivery);}}>
                                   <Edit className="w-4 h-4 mr-2" />
                                   {isPickup ? 'Edit Pickup' : 'Edit Delivery'}
                                 </DropdownMenuItem>
-                              )}
+                        }
 
-                              {!isPickup && patient && onEditPatient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) && (
-                                <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEditPatient(patient);}}>
+                              {!isPickup && patient && onEditPatient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
+                        <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEditPatient(patient);}}>
                                   <User className="w-4 h-4 mr-2" />
                                   Edit Patient
                                 </DropdownMenuItem>
-                              )}
+                        }
 
-                              {isCompleted && onRestart && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd') && !isRouteCompleted && (
-                                <>
+                              {isCompleted && onRestart && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd') && !isRouteCompleted &&
+                        <>
                                   <DropdownMenuSeparator className="bg-slate-200" />
                                   <DropdownMenuItem onClick={(e) => {e.stopPropagation();onRestart(delivery.id);}}>
                                     <RotateCcw className="w-4 h-4 mr-2" />
                                     Restart Delivery
                                   </DropdownMenuItem>
                                 </>
-                              )}
+                        }
 
-                              {onDeleteDelivery && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (onEditDelivery || (!isPickup && patient && onEditPatient) || (isCompleted && onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd'))) && <DropdownMenuSeparator className="bg-slate-200" />}
+                              {onDeleteDelivery && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (onEditDelivery || !isPickup && patient && onEditPatient || isCompleted && onRestart && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd')) && <DropdownMenuSeparator className="bg-slate-200" />}
 
-                              {onDeleteDelivery && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && (
-                                <DropdownMenuItem
-                                  onClick={(e) => {e.stopPropagation();setShowDeleteConfirm(true);}}
-                                  className="text-red-600"
-                                  disabled={isRouteCompleted}>
+                              {onDeleteDelivery && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
+                        <DropdownMenuItem
+                          onClick={(e) => {e.stopPropagation();setShowDeleteConfirm(true);}}
+                          className="text-red-600"
+                          disabled={isRouteCompleted}>
                                   <Trash2 className="w-4 h-4 mr-2" />
                                   Delete
                                 </DropdownMenuItem>
-                              )}
+                        }
 
 
                             </DropdownMenuContent>
