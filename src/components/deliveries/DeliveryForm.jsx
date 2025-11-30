@@ -23,7 +23,7 @@ import { getUserAgentInfo } from '../utils/deviceUtils';
 import { shouldShowStoreBadges, isAppOwner } from '../utils/userRoles';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
-  <div className="flex items-center space-x-2">
+<div className="flex items-center space-x-2">
     <Checkbox id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} />
     <Label htmlFor={id} className={`text-sm font-medium leading-none ${disabled ? 'text-slate-400' : ''}`}>
       {label}
@@ -60,8 +60,8 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+  Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 };
@@ -189,7 +189,7 @@ export default function DeliveryForm({
   // Update all staged deliveries when date or driver changes
   useEffect(() => {
     if (delivery || stagedDeliveries.length === 0) return;
-    
+
     setStagedDeliveries((prev) => prev.map((staged) => ({
       ...staged,
       delivery_date: formData.delivery_date,
@@ -321,10 +321,10 @@ export default function DeliveryForm({
   }, [delivery, patients]);
 
   const hasFormData = useMemo(() => !!(
-    formData.patient_id || formData.patient_name || formData.patient_phone ||
-    formData.unit_number || formData.delivery_notes || formData.prescription_number ||
-    formData.cod_total_amount_required > 0 || formData.recurring),
-    [formData]);
+  formData.patient_id || formData.patient_name || formData.patient_phone ||
+  formData.unit_number || formData.delivery_notes || formData.prescription_number ||
+  formData.cod_total_amount_required > 0 || formData.recurring),
+  [formData]);
 
   const buttonState = useMemo(() => {
     if (delivery) return 'update';
@@ -336,8 +336,8 @@ export default function DeliveryForm({
   const cancelButtonState = useMemo(() => hasFormData ? 'clear' : 'cancel', [hasFormData]);
 
   const isCompletionStatus = useMemo(() =>
-    ['completed', 'cancelled', 'failed'].includes(formData.status),
-    [formData.status]
+  ['completed', 'cancelled', 'failed'].includes(formData.status),
+  [formData.status]
   );
 
   useEffect(() => {
@@ -442,7 +442,7 @@ export default function DeliveryForm({
       const dispatcherStoreIds = currentUser.store_ids || [];
       if (dispatcherStoreIds.length > 0) {
         availablePatients = availablePatients.filter((p) =>
-          p && p.store_id && dispatcherStoreIds.includes(p.store_id)
+        p && p.store_id && dispatcherStoreIds.includes(p.store_id)
         );
       }
     }
@@ -451,32 +451,32 @@ export default function DeliveryForm({
       if (!patient) return false;
       // Exclude patients already in staged list
       if (stagedPatientIds.has(patient.id)) return false;
-      
+
       // Filter out inactive patients
       if (patient.status === 'inactive') return false;
-      
+
       // Filter out Deceased and (Old
       const name = patient.full_name?.toLowerCase() || '';
       if (name.includes('deceased') || name.includes('(old')) return false;
-      
+
       return patient.full_name?.toLowerCase().includes(searchLower) ||
-        patient.address?.toLowerCase().includes(searchLower) ||
-        patient.phone?.toLowerCase().includes(searchLower);
+      patient.address?.toLowerCase().includes(searchLower) ||
+      patient.phone?.toLowerCase().includes(searchLower);
     });
 
     // Sort: Most recently delivered first, then (Temp to the bottom
     results.sort((a, b) => {
       const aIsTemp = a.full_name?.toLowerCase().includes('(temp') || false;
       const bIsTemp = b.full_name?.toLowerCase().includes('(temp') || false;
-      
+
       // (Temp items always to the bottom
       if (aIsTemp && !bIsTemp) return 1;
       if (!aIsTemp && bIsTemp) return -1;
-      
+
       // Sort by most recent delivery date (descending)
       const aDate = a.last_delivery_date ? new Date(a.last_delivery_date).getTime() : 0;
       const bDate = b.last_delivery_date ? new Date(b.last_delivery_date).getTime() : 0;
-      
+
       return bDate - aDate;
     });
 
@@ -485,9 +485,9 @@ export default function DeliveryForm({
 
   const hasAnyDaySelected = useMemo(() => {
     return formData.recurring_weekly_mon || formData.recurring_weekly_tue ||
-      formData.recurring_weekly_wed || formData.recurring_weekly_thu ||
-      formData.recurring_weekly_fri || formData.recurring_weekly_sat ||
-      formData.recurring_weekly_sun;
+    formData.recurring_weekly_wed || formData.recurring_weekly_thu ||
+    formData.recurring_weekly_fri || formData.recurring_weekly_sat ||
+    formData.recurring_weekly_sun;
   }, [formData]);
 
   const currentFrequency = useMemo(() => {
@@ -553,8 +553,8 @@ export default function DeliveryForm({
             const isSunday = dayOfWeek === 0;
 
             return isSaturday && (store.saturday_am_driver_id === currentUser.id || store.saturday_pm_driver_id === currentUser.id) ||
-              isSunday && (store.sunday_am_driver_id === currentUser.id || store.sunday_pm_driver_id === currentUser.id) ||
-              !isSaturday && !isSunday && (store.weekday_am_driver_id === currentUser.id || store.weekday_pm_driver_id === currentUser.id);
+            isSunday && (store.sunday_am_driver_id === currentUser.id || store.sunday_pm_driver_id === currentUser.id) ||
+            !isSaturday && !isSunday && (store.weekday_am_driver_id === currentUser.id || store.weekday_pm_driver_id === currentUser.id);
           });
           storeIdsToPredict = driverStores.map((s) => s.id);
         }
@@ -597,10 +597,10 @@ export default function DeliveryForm({
                 }
 
                 // Weekly: exclude if last delivery was more than 2 weeks (14 days) ago
-                if ((patient.recurring_weekly_mon || patient.recurring_weekly_tue || 
-                     patient.recurring_weekly_wed || patient.recurring_weekly_thu || 
-                     patient.recurring_weekly_fri || patient.recurring_weekly_sat || 
-                     patient.recurring_weekly_sun) && daysSinceLastDelivery > 14) {
+                if ((patient.recurring_weekly_mon || patient.recurring_weekly_tue ||
+                patient.recurring_weekly_wed || patient.recurring_weekly_thu ||
+                patient.recurring_weekly_fri || patient.recurring_weekly_sat ||
+                patient.recurring_weekly_sun) && daysSinceLastDelivery > 14) {
                   return false;
                 }
 
@@ -640,7 +640,7 @@ export default function DeliveryForm({
     if (!patient) return;
 
     const hasCompletedDelivery = allDeliveries?.some((d) =>
-      d && d.patient_id === patient.id && d.status === 'completed'
+    d && d.patient_id === patient.id && d.status === 'completed'
     );
     const isFirstDelivery = !hasCompletedDelivery;
 
@@ -698,8 +698,8 @@ export default function DeliveryForm({
       patient_name: patient.full_name,
       patient_phone: patient.phone || '',
       unit_number: patient.unit_number || '',
-      time_window_start: (patient.time_window_start || patient.time_window_end) ? (patient.time_window_start || '') : '',
-      time_window_end: (patient.time_window_start || patient.time_window_end) ? (patient.time_window_end || '') : '',
+      time_window_start: patient.time_window_start || patient.time_window_end ? patient.time_window_start || '' : '',
+      time_window_end: patient.time_window_start || patient.time_window_end ? patient.time_window_end || '' : '',
       mailbox_ok: patient.mailbox_ok || false,
       call_upon_arrival: patient.call_upon_arrival || false,
       ring_bell: patient.ring_bell || false,
@@ -832,13 +832,13 @@ export default function DeliveryForm({
 
   const handleAddSelectedPatients = useCallback(async () => {
     if (selectedPatientIds.size === 0) return;
-    
-    const patientsToAdd = filteredPatients.filter(p => selectedPatientIds.has(p.id));
-    
+
+    const patientsToAdd = filteredPatients.filter((p) => selectedPatientIds.has(p.id));
+
     for (const patient of patientsToAdd) {
       await handlePatientSelect(patient);
     }
-    
+
     setSelectedPatientIds(new Set());
   }, [selectedPatientIds, filteredPatients, handlePatientSelect]);
 
@@ -849,16 +849,16 @@ export default function DeliveryForm({
     console.log('📦 AMPM in staged:', staged.ampm_deliveries);
 
     setEditingStagedId(staged._tempId);
-    
+
     let formDataToSet = {
       ...staged,
-      cod_total_amount_required: staged.cod_total_amount_required > 0 ? staged.cod_total_amount_required * 100 : 0,
+      cod_total_amount_required: staged.cod_total_amount_required > 0 ? staged.cod_total_amount_required * 100 : 0
     };
 
     // If it's a patient delivery and has a PUID, find the parent pickup to get the correct AM/PM slot.
     if (staged.patient_id && staged.puid) {
       const allPossiblePickups = [...stagedDeliveries, ...(allDeliveries || [])];
-      const parentPickup = allPossiblePickups.find(d => d && !d.patient_id && d.stop_id === staged.puid);
+      const parentPickup = allPossiblePickups.find((d) => d && !d.patient_id && d.stop_id === staged.puid);
 
       if (parentPickup && parentPickup.ampm_deliveries) {
         console.log(`📦 Matched to pickup with PUID ${staged.puid}. Using its AM/PM slot: ${parentPickup.ampm_deliveries}`);
@@ -913,11 +913,11 @@ export default function DeliveryForm({
     if (delivery) return true;
     if (isPickupMode) return selectedPickupOption !== '' && !!formData.delivery_date && !!formData.driver_id;
     return (!!formData.patient_id || !!formData.patient_name) && !!formData.store_id &&
-      !!formData.delivery_date && !!formData.driver_id && !isFormDisabled;
+    !!formData.delivery_date && !!formData.driver_id && !isFormDisabled;
   }, [formData, selectedPickupOption, isPickupMode, delivery, isFormDisabled]);
 
   const handleAddToStaging = useCallback(async () => {
-    if (!isFormValid || (!isPickupMode && !formData.patient_id && !formData.patient_name) || !formData.store_id) {
+    if (!isFormValid || !isPickupMode && !formData.patient_id && !formData.patient_name || !formData.store_id) {
       setError('Please fill all required fields.');
       return;
     }
@@ -983,19 +983,19 @@ export default function DeliveryForm({
     const timeSlot = getStoreAssignedTimeSlot(store, formData.delivery_date, allDeliveries);
 
     const existingPickup = allDeliveries.find((d) =>
-      d &&
-      !d.patient_id &&
-      d.store_id === store.id &&
-      d.delivery_date === formData.delivery_date &&
-      d.driver_id === formData.driver_id &&
-      d.ampm_deliveries === timeSlot
+    d &&
+    !d.patient_id &&
+    d.store_id === store.id &&
+    d.delivery_date === formData.delivery_date &&
+    d.driver_id === formData.driver_id &&
+    d.ampm_deliveries === timeSlot
     );
 
     if (existingPickup) {
       const now = new Date();
       const isNotCompleted = existingPickup.status !== 'completed';
       const wasCompletedRecently = existingPickup.actual_delivery_time &&
-        now - new Date(existingPickup.actual_delivery_time) < 60 * 60 * 1000; // 60 minutes
+      now - new Date(existingPickup.actual_delivery_time) < 60 * 60 * 1000; // 60 minutes
 
       if (isNotCompleted || wasCompletedRecently) {
         puid = existingPickup.stop_id;
@@ -1051,7 +1051,7 @@ export default function DeliveryForm({
   const handleUpdateStaged = useCallback(async () => {
     if (!editingStagedId) return;
 
-    if (!isFormValid || (!isPickupMode && !formData.patient_id && !formData.patient_name) || !formData.store_id) {
+    if (!isFormValid || !isPickupMode && !formData.patient_id && !formData.patient_name || !formData.store_id) {
       setError('Please fill all required fields.');
       return;
     }
@@ -1113,23 +1113,23 @@ export default function DeliveryForm({
     }
 
     setStagedDeliveries((prev) => prev.map((staged) =>
-      staged._tempId === editingStagedId ?
-        {
-          ...formData,
-          cod_total_amount_required: codAmount,
-          _tempId: editingStagedId,
-          patient_name: formData.patient_name || patient?.full_name || 'N/A (Pickup)',
-          store_name: store.name,
-          store_abbreviation: store.abbreviation,
-          distanceFromStore: distanceFromStore,
-          delivery_address: patient?.address || store.address,
-          // Ensure special flags are preserved
-          first_delivery: formData.first_delivery || false,
-          oversized: formData.oversized || false,
-          fridge_item: formData.fridge_item || false,
-          signature_needed: formData.signature_needed || false
-        } :
-        staged
+    staged._tempId === editingStagedId ?
+    {
+      ...formData,
+      cod_total_amount_required: codAmount,
+      _tempId: editingStagedId,
+      patient_name: formData.patient_name || patient?.full_name || 'N/A (Pickup)',
+      store_name: store.name,
+      store_abbreviation: store.abbreviation,
+      distanceFromStore: distanceFromStore,
+      delivery_address: patient?.address || store.address,
+      // Ensure special flags are preserved
+      first_delivery: formData.first_delivery || false,
+      oversized: formData.oversized || false,
+      fridge_item: formData.fridge_item || false,
+      signature_needed: formData.signature_needed || false
+    } :
+    staged
     ));
 
     setError(null);
@@ -1158,11 +1158,11 @@ export default function DeliveryForm({
     console.log('='.repeat(50));
     console.log('[AddToRoute] 🎯 DeliveryForm: handleBatchSave initiated');
     console.log('[AddToRoute] 📦 Staged deliveries count:', stagedDeliveries.length);
-    console.log('[AddToRoute] 📦 Staged deliveries:', stagedDeliveries.map(s => ({ 
-      id: s.id, 
-      _tempId: s._tempId, 
+    console.log('[AddToRoute] 📦 Staged deliveries:', stagedDeliveries.map((s) => ({
+      id: s.id,
+      _tempId: s._tempId,
       patient_name: s.patient_name,
-      hasId: !!s.id 
+      hasId: !!s.id
     })));
 
     if (stagedDeliveries.length === 0) {
@@ -1171,12 +1171,12 @@ export default function DeliveryForm({
     }
 
     // Filter out deliveries that already exist (have an id) - only save NEW staged stops
-    const newDeliveries = stagedDeliveries.filter(staged => !staged.id);
-    
+    const newDeliveries = stagedDeliveries.filter((staged) => !staged.id);
+
     console.log('[AddToRoute] 🔍 Total staged:', stagedDeliveries.length, '| New:', newDeliveries.length, '| Already pending:', stagedDeliveries.length - newDeliveries.length);
-    console.log('[AddToRoute] 🔍 New deliveries to save:', newDeliveries.map(s => ({ 
-      _tempId: s._tempId, 
-      patient_name: s.patient_name 
+    console.log('[AddToRoute] 🔍 New deliveries to save:', newDeliveries.map((s) => ({
+      _tempId: s._tempId,
+      patient_name: s.patient_name
     })));
 
     if (newDeliveries.length === 0) {
@@ -1191,8 +1191,8 @@ export default function DeliveryForm({
     const calculateSequentialTRs = (deliveries) => {
       // Group by store_id + driver_id + ampm_deliveries (pickup group key)
       const groups = {};
-      
-      deliveries.forEach(del => {
+
+      deliveries.forEach((del) => {
         const groupKey = `${del.store_id}_${del.driver_id}_${del.ampm_deliveries || 'AM'}`;
         if (!groups[groupKey]) {
           groups[groupKey] = {
@@ -1205,17 +1205,17 @@ export default function DeliveryForm({
       });
 
       // For each group, find the pickup's TR# and count existing deliveries
-      Object.keys(groups).forEach(groupKey => {
+      Object.keys(groups).forEach((groupKey) => {
         const [storeId, driverId, ampm] = groupKey.split('_');
-        
+
         // Find the pickup for this group in allDeliveries
-        const existingPickup = allDeliveries?.find(d => 
-          d && 
-          !d.patient_id && // Is a pickup
-          d.store_id === storeId &&
-          d.driver_id === driverId &&
-          d.delivery_date === formData.delivery_date &&
-          (d.ampm_deliveries || 'AM') === ampm
+        const existingPickup = allDeliveries?.find((d) =>
+        d &&
+        !d.patient_id && // Is a pickup
+        d.store_id === storeId &&
+        d.driver_id === driverId &&
+        d.delivery_date === formData.delivery_date &&
+        (d.ampm_deliveries || 'AM') === ampm
         );
 
         if (existingPickup && existingPickup.tracking_number !== undefined && existingPickup.tracking_number !== null && existingPickup.tracking_number !== '') {
@@ -1227,26 +1227,26 @@ export default function DeliveryForm({
         }
 
         // Count existing deliveries for this group (already saved, not in new deliveries)
-        const existingDeliveriesForGroup = allDeliveries?.filter(d =>
-          d &&
-          d.patient_id && // Is a delivery, not pickup
-          d.store_id === storeId &&
-          d.driver_id === driverId &&
-          d.delivery_date === formData.delivery_date &&
-          (d.ampm_deliveries || 'AM') === ampm
+        const existingDeliveriesForGroup = allDeliveries?.filter((d) =>
+        d &&
+        d.patient_id && // Is a delivery, not pickup
+        d.store_id === storeId &&
+        d.driver_id === driverId &&
+        d.delivery_date === formData.delivery_date &&
+        (d.ampm_deliveries || 'AM') === ampm
         ) || [];
-        
+
         groups[groupKey].existingDeliveryCount = existingDeliveriesForGroup.length;
         console.log(`[AddToRoute] 📊 Group ${groupKey} has ${existingDeliveriesForGroup.length} existing deliveries`);
 
         // If no pickup TR found, check staged deliveries for a pickup
         if (groups[groupKey].pickupTR === null) {
-          const stagedPickup = stagedDeliveries.find(d =>
-            d &&
-            !d.patient_id &&
-            d.store_id === storeId &&
-            d.driver_id === driverId &&
-            (d.ampm_deliveries || 'AM') === ampm
+          const stagedPickup = stagedDeliveries.find((d) =>
+          d &&
+          !d.patient_id &&
+          d.store_id === storeId &&
+          d.driver_id === driverId &&
+          (d.ampm_deliveries || 'AM') === ampm
           );
           if (stagedPickup && stagedPickup.tracking_number !== undefined && stagedPickup.tracking_number !== null && stagedPickup.tracking_number !== '') {
             const baseTR = parseInt(stagedPickup.tracking_number, 10);
@@ -1263,10 +1263,10 @@ export default function DeliveryForm({
       });
 
       // Assign sequential TR#s starting from pickup TR# + existing count + 1
-      const updatedDeliveries = deliveries.map(del => {
+      const updatedDeliveries = deliveries.map((del) => {
         const groupKey = `${del.store_id}_${del.driver_id}_${del.ampm_deliveries || 'AM'}`;
         const group = groups[groupKey];
-        
+
         // Only assign TR# to patient deliveries (not pickups)
         if (del.patient_id) {
           // CRITICAL: If no pickup TR found (still null), assign 99
@@ -1277,24 +1277,24 @@ export default function DeliveryForm({
               tracking_number: '99'
             };
           }
-          
+
           // Find this delivery's index within NEW deliveries for this group (sorted by patient name)
-          const newDeliveriesInGroup = [...group.deliveries]
-            .filter(d => d.patient_id) // Only patient deliveries
-            .sort((a, b) => (a.patient_name || '').localeCompare(b.patient_name || ''));
-          
-          const indexInNewDeliveries = newDeliveriesInGroup.findIndex(d => d._tempId === del._tempId);
+          const newDeliveriesInGroup = [...group.deliveries].
+          filter((d) => d.patient_id) // Only patient deliveries
+          .sort((a, b) => (a.patient_name || '').localeCompare(b.patient_name || ''));
+
+          const indexInNewDeliveries = newDeliveriesInGroup.findIndex((d) => d._tempId === del._tempId);
           // TR# = pickup TR + existing deliveries count + new delivery index + 1
           const newTR = group.pickupTR + group.existingDeliveryCount + indexInNewDeliveries + 1;
-          
+
           console.log(`[AddToRoute] 🔢 ${del.patient_name}: TR# ${newTR} (pickup: ${group.pickupTR}, existing: ${group.existingDeliveryCount}, newIndex: ${indexInNewDeliveries})`);
-          
+
           return {
             ...del,
             tracking_number: String(newTR)
           };
         }
-        
+
         return del;
       });
 
@@ -1304,51 +1304,51 @@ export default function DeliveryForm({
     const deliveriesWithTRs = calculateSequentialTRs(newDeliveries);
 
     // STEP 2: Re-number ALL existing deliveries for affected pickup groups
-    const affectedGroups = new Set(newDeliveries.map(del => 
-      `${del.store_id}_${del.driver_id}_${del.ampm_deliveries || 'AM'}`
+    const affectedGroups = new Set(newDeliveries.map((del) =>
+    `${del.store_id}_${del.driver_id}_${del.ampm_deliveries || 'AM'}`
     ));
-    
+
     console.log('[AddToRoute] 🔄 Affected pickup groups:', Array.from(affectedGroups));
 
     // Collect existing deliveries that need TR# updates
     const existingDeliveriesToUpdate = [];
-    
+
     for (const groupKey of affectedGroups) {
       const [storeId, driverId, ampm] = groupKey.split('_');
-      
+
       // Find the pickup for this group
-      const existingPickup = allDeliveries?.find(d => 
-        d && 
-        !d.patient_id && 
-        d.store_id === storeId &&
-        d.driver_id === driverId &&
-        d.delivery_date === formData.delivery_date &&
-        (d.ampm_deliveries || 'AM') === ampm
+      const existingPickup = allDeliveries?.find((d) =>
+      d &&
+      !d.patient_id &&
+      d.store_id === storeId &&
+      d.driver_id === driverId &&
+      d.delivery_date === formData.delivery_date &&
+      (d.ampm_deliveries || 'AM') === ampm
       );
-      
+
       if (!existingPickup || existingPickup.tracking_number === undefined || existingPickup.tracking_number === null || existingPickup.tracking_number === '') {
         console.log(`[AddToRoute] ⚠️ No pickup found for group ${groupKey}, skipping existing delivery renumbering`);
         continue;
       }
-      
+
       const pickupTR = parseInt(existingPickup.tracking_number, 10);
       const effectivePickupTR = isNaN(pickupTR) ? 0 : pickupTR;
       console.log(`[AddToRoute] 🔢 Using pickup TR# ${effectivePickupTR} for group ${groupKey} (raw: "${existingPickup.tracking_number}")`);
-      
-      
+
+
       // Get all existing deliveries for this group (already saved in DB)
-      const existingDeliveriesInGroup = (allDeliveries || []).filter(d =>
-        d &&
-        d.patient_id && // Is a delivery, not pickup
-        d.store_id === storeId &&
-        d.driver_id === driverId &&
-        d.delivery_date === formData.delivery_date &&
-        (d.ampm_deliveries || 'AM') === ampm
+      const existingDeliveriesInGroup = (allDeliveries || []).filter((d) =>
+      d &&
+      d.patient_id && // Is a delivery, not pickup
+      d.store_id === storeId &&
+      d.driver_id === driverId &&
+      d.delivery_date === formData.delivery_date &&
+      (d.ampm_deliveries || 'AM') === ampm
       );
-      
+
       // Sort by patient name for consistent ordering
       existingDeliveriesInGroup.sort((a, b) => (a.patient_name || '').localeCompare(b.patient_name || ''));
-      
+
       // Re-assign sequential TR#s starting from pickup TR + 1
       existingDeliveriesInGroup.forEach((delivery, index) => {
         const correctTR = String(effectivePickupTR + index + 1);
@@ -1462,23 +1462,23 @@ export default function DeliveryForm({
       }
 
       // Check if status changed to a completion status (completed, cancelled, failed)
-      const statusChangedToCompletion = delivery && 
-        ['completed', 'cancelled', 'failed'].includes(formData.status) && 
-        delivery.status !== formData.status;
+      const statusChangedToCompletion = delivery &&
+      ['completed', 'cancelled', 'failed'].includes(formData.status) &&
+      delivery.status !== formData.status;
 
       await onSave(dataToSave);
 
       // If status changed to completion, recalculate stop orders for remaining deliveries
       if (statusChangedToCompletion && delivery.driver_id && delivery.delivery_date) {
         console.log('[DeliveryForm] Status changed to completion, recalculating stop orders...');
-        
+
         // Get all deliveries for this driver on this date that are NOT completed/cancelled/failed
         const remainingDeliveries = allDeliveries.filter((d) =>
-          d &&
-          d.id !== delivery.id &&
-          d.delivery_date === delivery.delivery_date &&
-          d.driver_id === delivery.driver_id &&
-          !['completed', 'cancelled', 'failed', 'returned'].includes(d.status)
+        d &&
+        d.id !== delivery.id &&
+        d.delivery_date === delivery.delivery_date &&
+        d.driver_id === delivery.driver_id &&
+        !['completed', 'cancelled', 'failed', 'returned'].includes(d.status)
         );
 
         // Sort by current stop_order
@@ -1492,19 +1492,19 @@ export default function DeliveryForm({
             console.log(`[DeliveryForm] Updated stop_order for ${remainingDeliveries[i].patient_name || 'Pickup'}: ${remainingDeliveries[i].stop_order} -> ${newStopOrder}`);
           }
         }
-        
+
         console.log(`[DeliveryForm] Recalculated stop orders for ${remainingDeliveries.length} remaining deliveries`);
       }
 
       if (isPickupMode && delivery && formData.status === 'completed' && formData.store_id && formData.ampm_deliveries) {
         const relatedDeliveries = allDeliveries.filter((d) =>
-          d &&
-          d.id !== delivery.id &&
-          d.delivery_date === formData.delivery_date &&
-          d.store_id === formData.store_id &&
-          d.ampm_deliveries === formData.ampm_deliveries &&
-          d.status === 'pending' &&
-          d.patient_id
+        d &&
+        d.id !== delivery.id &&
+        d.delivery_date === formData.delivery_date &&
+        d.store_id === formData.store_id &&
+        d.ampm_deliveries === formData.ampm_deliveries &&
+        d.status === 'pending' &&
+        d.patient_id
         );
 
         if (relatedDeliveries.length > 0) {
@@ -1547,8 +1547,8 @@ export default function DeliveryForm({
 
   const handleCancelClick = useCallback(() => {
     // Only show confirmation if there are NEW staged deliveries (without an id)
-    const hasNewStagedDeliveries = stagedDeliveries.some(d => !d.id);
-    
+    const hasNewStagedDeliveries = stagedDeliveries.some((d) => !d.id);
+
     if (hasNewStagedDeliveries && !delivery) {
       const confirmed = window.confirm('You have unsaved deliveries. Discard them?');
       if (confirmed) {
@@ -1698,11 +1698,11 @@ export default function DeliveryForm({
 
     setFormData((prev) => {
       const anyDaySelected = prev.recurring_weekly_mon || prev.recurring_weekly_tue || prev.recurring_weekly_wed ||
-        prev.recurring_weekly_thu || prev.recurring_weekly_fri || prev.recurring_weekly_sat ||
-        prev.recurring_weekly_sun;
+      prev.recurring_weekly_thu || prev.recurring_weekly_fri || prev.recurring_weekly_sat ||
+      prev.recurring_weekly_sun;
 
       const newRecurringState = anyDaySelected || prev.recurring_daily || prev.recurring_biweekly ||
-        prev.recurring_weekly_x4 || prev.recurring_monthly || prev.recurring_bimonthly;
+      prev.recurring_weekly_x4 || prev.recurring_monthly || prev.recurring_bimonthly;
 
       return { ...prev, recurring: newRecurringState };
     });
@@ -1715,7 +1715,7 @@ export default function DeliveryForm({
       console.log('⏸️ [DeliveryForm] Skipping auto-load - editing existing delivery');
       return;
     }
-    
+
     // Skip if already loaded
     if (hasLoadedPending.current) {
       console.log('⏸️ [DeliveryForm] Skipping auto-load - already loaded');
@@ -1742,16 +1742,16 @@ export default function DeliveryForm({
     console.log('  - Current user store_ids:', currentUser.store_ids);
 
     // Filter pending deliveries based on user role
-    let pendingDeliveries = allDeliveries.filter(d => 
-      d && 
-      d.status === 'pending' && 
-      d.delivery_date === formData.delivery_date &&
-      d.patient_id // Only patient deliveries, not pickups
+    let pendingDeliveries = allDeliveries.filter((d) =>
+    d &&
+    d.status === 'pending' &&
+    d.delivery_date === formData.delivery_date &&
+    d.patient_id // Only patient deliveries, not pickups
     );
 
     console.log('  - Found pending deliveries for date (before role filter):', pendingDeliveries.length);
     if (pendingDeliveries.length > 0) {
-      console.log('  - Pending deliveries:', pendingDeliveries.map(d => ({
+      console.log('  - Pending deliveries:', pendingDeliveries.map((d) => ({
         patient_name: d.patient_name,
         driver_id: d.driver_id,
         store_id: d.store_id
@@ -1766,17 +1766,17 @@ export default function DeliveryForm({
       // Dispatchers: only pending stops for their stores
       const dispatcherStoreIds = currentUser.store_ids || [];
       console.log(`  - Dispatcher mode: checking stores ${dispatcherStoreIds.join(', ')}`);
-      pendingDeliveries = pendingDeliveries.filter(d => dispatcherStoreIds.includes(d.store_id));
+      pendingDeliveries = pendingDeliveries.filter((d) => dispatcherStoreIds.includes(d.store_id));
       console.log(`  - Dispatcher mode: filtered to ${pendingDeliveries.length} pending stops for dispatcher stores`);
       if (pendingDeliveries.length > 0) {
-        console.log('  - Dispatcher pending deliveries:', pendingDeliveries.map(d => ({
+        console.log('  - Dispatcher pending deliveries:', pendingDeliveries.map((d) => ({
           patient_name: d.patient_name,
           store_id: d.store_id
         })));
       }
     } else if (userHasRole(currentUser, 'driver')) {
       // Drivers (not admin/dispatcher): only their pending stops
-      pendingDeliveries = pendingDeliveries.filter(d => d.driver_id === currentUser.id);
+      pendingDeliveries = pendingDeliveries.filter((d) => d.driver_id === currentUser.id);
       console.log(`  - Driver mode: filtered to ${pendingDeliveries.length} pending stops for driver ${currentUser.id}`);
     }
 
@@ -1785,13 +1785,13 @@ export default function DeliveryForm({
       hasLoadedPending.current = true;
       return;
     }
-    
+
     console.log('✅ [DeliveryForm] Found pending deliveries to auto-load:', pendingDeliveries.length);
 
     // Convert pending deliveries to staged format
     const newStagedItems = pendingDeliveries.map((delivery, index) => {
-      const patient = patients.find(p => p && p.id === delivery.patient_id);
-      const store = stores.find(s => s && s.id === delivery.store_id);
+      const patient = patients.find((p) => p && p.id === delivery.patient_id);
+      const store = stores.find((s) => s && s.id === delivery.store_id);
 
       if (!patient || !store) return null;
 
@@ -1806,13 +1806,13 @@ export default function DeliveryForm({
 
       if (puid) {
         // Find the parent pickup by PUID (stop_id)
-        const parentPickup = allDeliveries.find(d => d && !d.patient_id && d.stop_id === puid);
+        const parentPickup = allDeliveries.find((d) => d && !d.patient_id && d.stop_id === puid);
         if (parentPickup && parentPickup.ampm_deliveries) {
           timeSlot = parentPickup.ampm_deliveries;
           console.log(`📦 [AutoLoad] Delivery for ${delivery.patient_name} linked to pickup PUID ${puid}, using AM/PM: ${timeSlot}`);
         }
       }
-      
+
       // Fallback: calculate if no PUID or no parent pickup found
       if (!timeSlot) {
         timeSlot = getStoreAssignedTimeSlot(store, delivery.delivery_date, allDeliveries);
@@ -1830,14 +1830,14 @@ export default function DeliveryForm({
         cod_total_amount_required: delivery.cod_total_amount_required || 0,
         cod_payments: delivery.cod_payments || [],
         ampm_deliveries: timeSlot,
-        puid: puid || '',
+        puid: puid || ''
       };
     }).filter(Boolean); // Filter out nulls if patient/store not found
 
     // Force state update with timeout to ensure re-render
     setTimeout(() => {
       console.log('💾 [DeliveryForm] Setting staged deliveries state with', newStagedItems.length, 'items');
-      console.log('💾 [DeliveryForm] Items:', newStagedItems.map(item => ({
+      console.log('💾 [DeliveryForm] Items:', newStagedItems.map((item) => ({
         patient_name: item.patient_name,
         _tempId: item._tempId,
         id: item.id
@@ -1851,15 +1851,15 @@ export default function DeliveryForm({
   useEffect(() => {
     // Auto-update PUID when store changes for an existing delivery
     if (delivery && !isPickupMode && formData.store_id && formData.delivery_date && allDeliveries && stores) {
-        const store = stores.find((s) => s && s.id === formData.store_id);
-        if (store) {
-            const timeSlot = getStoreAssignedTimeSlot(store, formData.delivery_date, allDeliveries);
-            const newPuid = getPickupStopIdForDelivery(store.id, formData.delivery_date, timeSlot, allDeliveries);
-            
-            if (newPuid !== formData.puid) {
-                setFormData(prev => ({...prev, puid: newPuid || ''}));
-            }
+      const store = stores.find((s) => s && s.id === formData.store_id);
+      if (store) {
+        const timeSlot = getStoreAssignedTimeSlot(store, formData.delivery_date, allDeliveries);
+        const newPuid = getPickupStopIdForDelivery(store.id, formData.delivery_date, timeSlot, allDeliveries);
+
+        if (newPuid !== formData.puid) {
+          setFormData((prev) => ({ ...prev, puid: newPuid || '' }));
         }
+      }
     }
   }, [formData.store_id, delivery, isPickupMode, formData.delivery_date, stores, allDeliveries]);
 
@@ -1925,19 +1925,19 @@ export default function DeliveryForm({
 
     const autoDriverId = autoSelectedDriverId || formData.driver_id;
     const existingPickup = allDeliveries.find((d) =>
-      d &&
-      !d.patient_id &&
-      d.store_id === projected.store_id &&
-      d.delivery_date === formData.delivery_date &&
-      d.driver_id === autoDriverId &&
-      d.ampm_deliveries === timeSlot
+    d &&
+    !d.patient_id &&
+    d.store_id === projected.store_id &&
+    d.delivery_date === formData.delivery_date &&
+    d.driver_id === autoDriverId &&
+    d.ampm_deliveries === timeSlot
     );
 
     if (existingPickup) {
       const now = new Date();
       const isNotCompleted = existingPickup.status !== 'completed';
       const wasCompletedRecently = existingPickup.actual_delivery_time &&
-        now - new Date(existingPickup.actual_delivery_time) < 60 * 60 * 1000; // 60 minutes
+      now - new Date(existingPickup.actual_delivery_time) < 60 * 60 * 1000; // 60 minutes
 
       if (isNotCompleted || wasCompletedRecently) {
         puid = existingPickup.stop_id;
@@ -2016,7 +2016,7 @@ export default function DeliveryForm({
       // First: Sort new staged (no id) to top, pending (with id) below
       const aIsPending = !!a.id;
       const bIsPending = !!b.id;
-      
+
       if (!aIsPending && bIsPending) return -1;
       if (aIsPending && !bIsPending) return 1;
 
@@ -2057,21 +2057,21 @@ export default function DeliveryForm({
                 </CardTitle>
 
                 {!delivery &&
-                  <div className="flex gap-2 ml-4">
+                <div className="flex gap-2 ml-4">
                     <Button
-                      type="button"
-                      variant={!isPickupMode ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setIsPickupMode(false)} className="bg-emerald-600 text-white px-3 text-xs font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-8 hover:bg-emerald-700">
+                    type="button"
+                    variant={!isPickupMode ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setIsPickupMode(false)} className="bg-emerald-600 text-white px-3 text-xs font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-8 hover:bg-emerald-700">
 
                       Add Delivery
                     </Button>
                     <Button
-                      type="button"
-                      variant={isPickupMode ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setIsPickupMode(true)}
-                      className={isPickupMode ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}>
+                    type="button"
+                    variant={isPickupMode ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setIsPickupMode(true)}
+                    className={isPickupMode ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}>
                       Add Pickup
                     </Button>
                   </div>
@@ -2090,238 +2090,238 @@ export default function DeliveryForm({
               {/* Section 1: Patient Search - STATIC */}
               <div className={`flex gap-3 ${isMobile ? 'flex-wrap' : ''} ${!delivery && !isMobile ? 'flex-shrink-0' : ''}`}>
                 {!delivery && !isPickupMode &&
-                  <div className={`${isMobile ? 'w-full' : 'flex-[2]'} space-y-1 relative bg-slate-50 p-3 rounded-lg border border-slate-200`}>
+                <div className={`${isMobile ? 'w-full' : 'flex-[2]'} space-y-1 relative bg-slate-50 p-3 rounded-lg border border-slate-200`}>
                     <div className="flex items-center justify-between mb-1">
                       <Label className="text-sm font-semibold">Patient Search</Label>
                       {selectedPatient &&
-                        <div className="p-1.5 px-2.5 bg-emerald-50 border border-emerald-200 rounded text-xs flex items-center gap-1.5 max-w-[200px]">
+                    <div className="p-1.5 px-2.5 bg-emerald-50 border border-emerald-200 rounded text-xs flex items-center gap-1.5 max-w-[200px]">
                           <span className="text-emerald-700 font-medium truncate">
                             ✓ {selectedPatient.full_name}
                           </span>
                           {stores && selectedPatient.store_id && (() => {
-                            const patientStore = stores.find((s) => s && s.id === selectedPatient.store_id);
-                            const storeAbbr = patientStore?.abbreviation;
-                            const storeColor = patientStore ? getStoreColor(patientStore) : '#64748b';
-                            const ampm = determineDeliveryAMPM(selectedPatient);
-                            const showBadge = shouldShowStoreBadges(currentUser);
-                            return (
-                              <>
+                        const patientStore = stores.find((s) => s && s.id === selectedPatient.store_id);
+                        const storeAbbr = patientStore?.abbreviation;
+                        const storeColor = patientStore ? getStoreColor(patientStore) : '#64748b';
+                        const ampm = determineDeliveryAMPM(selectedPatient);
+                        const showBadge = shouldShowStoreBadges(currentUser);
+                        return (
+                          <>
                                 {storeAbbr && showBadge &&
-                                  <Badge
-                                    className="text-white text-[10px] px-1.5 py-0 h-4"
-                                    style={{ backgroundColor: storeColor }}>
+                            <Badge
+                              className="text-white text-[10px] px-1.5 py-0 h-4"
+                              style={{ backgroundColor: storeColor }}>
                                     {storeAbbr}
                                   </Badge>
-                                }
+                            }
                                 {ampm &&
-                                  <Badge className="bg-slate-200 text-slate-700 text-[10px] px-1.5 py-0 h-4">
+                            <Badge className="bg-slate-200 text-slate-700 text-[10px] px-1.5 py-0 h-4">
                                     {ampm.toUpperCase()}
                                   </Badge>
-                                }
+                            }
                               </>);
 
-                          })()}
+                      })()}
                         </div>
-                      }
+                    }
                     </div>
                     <div className="relative">
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 z-10" />
                       <Input
-                        ref={patientSearchInputRef}
-                        type="text"
-                        placeholder="Search by name, address, phone..."
-                        value={patientSearch}
-                        onChange={(e) => {
-                          setPatientSearch(e.target.value);
-                          setHighlightedPatientIndex(-1);
-                        }}
-                        onKeyDown={handleSearchKeyDown}
-                        className="pl-10 h-9"
-                        disabled={isSaving} />
+                      ref={patientSearchInputRef}
+                      type="text"
+                      placeholder="Search by name, address, phone..."
+                      value={patientSearch}
+                      onChange={(e) => {
+                        setPatientSearch(e.target.value);
+                        setHighlightedPatientIndex(-1);
+                      }}
+                      onKeyDown={handleSearchKeyDown}
+                      className="pl-10 h-9"
+                      disabled={isSaving} />
 
                       {patientSearch &&
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPatientSearch('');
-                            setHighlightedPatientIndex(-1);
-                          }}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 z-10">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPatientSearch('');
+                        setHighlightedPatientIndex(-1);
+                      }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 z-10">
                           <X className="w-4 h-4" />
                         </button>
-                      }
+                    }
                     </div>
 
                     {patientSearch && !formData.patient_id &&
-                      <div className="absolute top-full left-0 right-0 mt-1 max-h-64 overflow-y-auto border rounded-lg bg-white shadow-lg z-[100]">
+                  <div className="absolute top-full left-0 right-0 mt-1 max-h-64 overflow-y-auto border rounded-lg bg-white shadow-lg z-[100]">
                         {selectedPatientIds.size > 1 &&
-                          <div className="sticky top-0 bg-emerald-50 border-b border-emerald-200 p-2 flex items-center justify-between z-10">
+                    <div className="sticky top-0 bg-emerald-50 border-b border-emerald-200 p-2 flex items-center justify-between z-10">
                             <span className="text-sm font-medium text-emerald-700">
                               {selectedPatientIds.size} selected
                             </span>
                             <div className="flex gap-2">
                               <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-xs"
-                                onClick={() => setSelectedPatientIds(new Set())}>
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => setSelectedPatientIds(new Set())}>
                                 Clear
                               </Button>
                               <Button
-                                type="button"
-                                size="sm"
-                                className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700"
-                                onClick={handleAddSelectedPatients}>
+                          type="button"
+                          size="sm"
+                          className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700"
+                          onClick={handleAddSelectedPatients}>
                                 Add Selected
                               </Button>
                             </div>
                           </div>
-                        }
+                    }
                         {filteredPatients.length === 0 ?
-                          <div className="p-4 text-center text-slate-500 text-sm">
+                    <div className="p-4 text-center text-slate-500 text-sm">
                             No patients found
                             {onCreatePatient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="w-full mt-3 gap-2"
-                                onClick={() => onCreatePatient((newPatient) => {
-                                  handlePatientSelect(newPatient);
-                                  setPatientSearch('');
-                                })}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    onCreatePatient((newPatient) => {
-                                      handlePatientSelect(newPatient);
-                                      setPatientSearch('');
-                                    });
-                                  }
-                                }}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full mt-3 gap-2"
+                        onClick={() => onCreatePatient((newPatient) => {
+                          handlePatientSelect(newPatient);
+                          setPatientSearch('');
+                        })}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            onCreatePatient((newPatient) => {
+                              handlePatientSelect(newPatient);
+                              setPatientSearch('');
+                            });
+                          }
+                        }}>
                                 <Plus className="w-4 h-4" />
                                 Add New Patient
                               </Button>
-                            }
+                      }
                           </div> :
 
-                          <div className="divide-y">
+                    <div className="divide-y">
                             {filteredPatients.map((patient, index) => {
-                              const patientStore = stores?.find((s) => s && s.id === patient.store_id);
-                              const storeAbbr = patientStore?.abbreviation || '';
-                              const isHighlighted = index === highlightedPatientIndex;
-                              const isSelected = selectedPatientIds.has(patient.id);
+                        const patientStore = stores?.find((s) => s && s.id === patient.store_id);
+                        const storeAbbr = patientStore?.abbreviation || '';
+                        const isHighlighted = index === highlightedPatientIndex;
+                        const isSelected = selectedPatientIds.has(patient.id);
 
-                              return (
-                                <div
-                                  key={patient.id}
-                                  id={`patient-item-${index}`}
-                                  className={`w-full text-left p-2 transition-colors text-sm flex items-start gap-2 ${isHighlighted ? 'bg-emerald-50 border-l-4 border-emerald-500' : 'hover:bg-slate-50'} ${isSelected ? 'bg-blue-50' : ''}`
-                                  }>
+                        return (
+                          <div
+                            key={patient.id}
+                            id={`patient-item-${index}`}
+                            className={`w-full text-left p-2 transition-colors text-sm flex items-start gap-2 ${isHighlighted ? 'bg-emerald-50 border-l-4 border-emerald-500' : 'hover:bg-slate-50'} ${isSelected ? 'bg-blue-50' : ''}`
+                            }>
                                   {(isMultiSelectMode || selectedPatientIds.size > 0) &&
-                                    <Checkbox
-                                      checked={isSelected}
-                                      onCheckedChange={(checked) => {
-                                        setSelectedPatientIds(prev => {
-                                          const newSet = new Set(prev);
-                                          if (checked) {
-                                            newSet.add(patient.id);
-                                          } else {
-                                            newSet.delete(patient.id);
-                                          }
-                                          return newSet;
-                                        });
-                                      }}
-                                      className="mt-0.5"
-                                    />
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={(checked) => {
+                                setSelectedPatientIds((prev) => {
+                                  const newSet = new Set(prev);
+                                  if (checked) {
+                                    newSet.add(patient.id);
+                                  } else {
+                                    newSet.delete(patient.id);
                                   }
+                                  return newSet;
+                                });
+                              }}
+                              className="mt-0.5" />
+
+                            }
                                   <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      if (e.shiftKey || e.ctrlKey || e.metaKey) {
-                                        // Multi-select mode
-                                        setSelectedPatientIds(prev => {
-                                          const newSet = new Set(prev);
-                                          if (newSet.has(patient.id)) {
-                                            newSet.delete(patient.id);
-                                          } else {
-                                            newSet.add(patient.id);
-                                          }
-                                          return newSet;
-                                        });
-                                      } else {
-                                        // Direct add
-                                        handlePatientSelect(patient);
-                                        setPatientSearch('');
-                                        setHighlightedPatientIndex(-1);
-                                      }
-                                    }}
-                                    className="flex-1 text-left">
+                              type="button"
+                              onClick={(e) => {
+                                if (e.shiftKey || e.ctrlKey || e.metaKey) {
+                                  // Multi-select mode
+                                  setSelectedPatientIds((prev) => {
+                                    const newSet = new Set(prev);
+                                    if (newSet.has(patient.id)) {
+                                      newSet.delete(patient.id);
+                                    } else {
+                                      newSet.add(patient.id);
+                                    }
+                                    return newSet;
+                                  });
+                                } else {
+                                  // Direct add
+                                  handlePatientSelect(patient);
+                                  setPatientSearch('');
+                                  setHighlightedPatientIndex(-1);
+                                }
+                              }}
+                              className="flex-1 text-left">
                                     <div className="font-medium truncate flex items-center gap-1.5">
                                       {patient.full_name}
                                       {storeAbbr && shouldShowStoreBadges(currentUser) && (() => {
-                                        const patientStoreData = stores?.find((s) => s && s.id === patient.store_id);
-                                        const storeColor = patientStoreData ? getStoreColor(patientStoreData) : '#64748b';
-                                        return (
-                                          <Badge
-                                            className="text-white text-[10px] px-1.5 py-0 h-4"
-                                            style={{ backgroundColor: storeColor }}>
+                                  const patientStoreData = stores?.find((s) => s && s.id === patient.store_id);
+                                  const storeColor = patientStoreData ? getStoreColor(patientStoreData) : '#64748b';
+                                  return (
+                                    <Badge
+                                      className="text-white text-[10px] px-1.5 py-0 h-4"
+                                      style={{ backgroundColor: storeColor }}>
                                             {storeAbbr}
                                           </Badge>);
 
-                                      })()}
+                                })()}
                                     </div>
                                     <div className="text-xs text-slate-600 truncate">{patient.address}</div>
                                     {patient.phone && <div className="text-xs text-slate-500 truncate">{patient.phone}</div>}
                                   </button>
                                 </div>);
 
-                            })}
+                      })}
                           </div>
                     }
                       </div>
-                    }
+                  }
                   </div>
                 }
 
                 {/* Section 2: Pickup Location (for pickup mode) - STATIC */}
                 {isPickupMode && !delivery &&
-                  <div className={`${isMobile ? 'w-full' : 'flex-[2]'} space-y-1 bg-slate-50 p-3 rounded-lg border border-slate-200`}>
+                <div className={`${isMobile ? 'w-full' : 'flex-[2]'} space-y-1 bg-slate-50 p-3 rounded-lg border border-slate-200`}>
                     <Label className="text-sm font-semibold">Pickup Location *</Label>
                     <Select
-                      value={selectedPickupOption}
-                      onValueChange={(value) => {
-                        setSelectedPickupOption(value);
-                        const selectedStore = availableStores.find((s) => s.id === value);
-                        const storeId = selectedStore?._originalStoreId || value;
-                        const timeSlot = selectedStore?._timeSlot || null;
-                        
-                        // Calculate new PUID based on selected store and time slot
-                        const newPuid = getPickupStopIdForDelivery(storeId, formData.delivery_date, timeSlot || 'AM', allDeliveries);
-                        
-                        setFormData((prev) => ({
-                          ...prev,
-                          store_id: storeId,
-                          ampm_deliveries: timeSlot,
-                          puid: newPuid || ''
-                        }));
-                      }}
-                      disabled={isSaving}>
+                    value={selectedPickupOption}
+                    onValueChange={(value) => {
+                      setSelectedPickupOption(value);
+                      const selectedStore = availableStores.find((s) => s.id === value);
+                      const storeId = selectedStore?._originalStoreId || value;
+                      const timeSlot = selectedStore?._timeSlot || null;
+
+                      // Calculate new PUID based on selected store and time slot
+                      const newPuid = getPickupStopIdForDelivery(storeId, formData.delivery_date, timeSlot || 'AM', allDeliveries);
+
+                      setFormData((prev) => ({
+                        ...prev,
+                        store_id: storeId,
+                        ampm_deliveries: timeSlot,
+                        puid: newPuid || ''
+                      }));
+                    }}
+                    disabled={isSaving}>
                       <SelectTrigger className="h-9">
                         <SelectValue placeholder="Select store" />
                       </SelectTrigger>
                       <SelectContent className="z-[999999]">
                         {availableStores.map((store) => {
-                          const baseStoreId = store._originalStoreId || store.id;
-                          const timeSlot = store._timeSlot || null;
-                          const puid = getPickupStopIdForDelivery(baseStoreId, formData.delivery_date, timeSlot || 'AM', allDeliveries);
-                          const baseStoreName = store._originalStoreId ? store.name.replace(/ \[AM\]| \[PM\]/, '') : store.name;
-                          const displayName = `${baseStoreName}${store._timeSlot ? ` [${store._timeSlot}]` : ''}${isAppOwner(currentUser) && puid ? ` {${puid}}` : ''}`;
-                          return (
-                            <SelectItem key={store.id} value={store.id}>{displayName}</SelectItem>
-                          );
-                        })}
+                        const baseStoreId = store._originalStoreId || store.id;
+                        const timeSlot = store._timeSlot || null;
+                        const puid = getPickupStopIdForDelivery(baseStoreId, formData.delivery_date, timeSlot || 'AM', allDeliveries);
+                        const baseStoreName = store._originalStoreId ? store.name.replace(/ \[AM\]| \[PM\]/, '') : store.name;
+                        const displayName = `${baseStoreName}${store._timeSlot ? ` [${store._timeSlot}]` : ''}${isAppOwner(currentUser) && puid ? ` {${puid}}` : ''}`;
+                        return (
+                          <SelectItem key={store.id} value={store.id}>{displayName}</SelectItem>);
+
+                      })}
                       </SelectContent>
                     </Select>
                   </div>
@@ -2358,7 +2358,7 @@ export default function DeliveryForm({
                     </SelectTrigger>
                     <SelectContent className="z-[999999]">
                       {allDrivers.map((driver) =>
-                        <SelectItem key={driver.id} value={driver.id}>
+                      <SelectItem key={driver.id} value={driver.id}>
                           {getDriverDisplayName(driver)}
                         </SelectItem>
                       )}
@@ -2367,68 +2367,68 @@ export default function DeliveryForm({
                 </div>
               </div>
 
-              {isAppOwner(currentUser) && delivery && (
-                <div className="space-y-1 bg-slate-100 p-3 rounded-lg border border-slate-200">
+              {isAppOwner(currentUser) && delivery &&
+              <div className="space-y-1 bg-slate-100 p-3 rounded-lg border border-slate-200">
                     <Label className="text-sm font-semibold">Delivery Identifiers</Label>
                     <div className="flex gap-3">
                         <div className="flex-1 space-y-1">
                             <Label htmlFor="tracking_number" className="text-xs">TR#</Label>
                             <Input
-                                id="tracking_number"
-                                value={formData.tracking_number}
-                                onChange={(e) => setFormData((prev) => ({ ...prev, tracking_number: e.target.value }))}
-                                className="h-9 text-sm"
-                                disabled={isSaving}
-                            />
+                      id="tracking_number"
+                      value={formData.tracking_number}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, tracking_number: e.target.value }))}
+                      className="h-9 text-sm"
+                      disabled={isSaving} />
+
                         </div>
                         <div className="flex-1 space-y-1">
                             <Label htmlFor="stop_id" className="text-xs">SID</Label>
                             <Input
-                                id="stop_id"
-                                value={formData.stop_id}
-                                onChange={(e) => setFormData((prev) => ({ ...prev, stop_id: e.target.value }))}
-                                className="h-9 text-sm"
-                                disabled={isSaving}
-                            />
+                      id="stop_id"
+                      value={formData.stop_id}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, stop_id: e.target.value }))}
+                      className="h-9 text-sm"
+                      disabled={isSaving} />
+
                         </div>
                         <div className="flex-1 space-y-1">
                             <Label htmlFor="puid" className="text-xs">PUID</Label>
                             <Input
-                                id="puid"
-                                value={formData.puid || ''}
-                                onChange={(e) => setFormData((prev) => ({ ...prev, puid: e.target.value }))}
-                                className="h-9 text-sm"
-                                disabled={isSaving}
-                            />
+                      id="puid"
+                      value={formData.puid || ''}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, puid: e.target.value }))}
+                      className="h-9 text-sm"
+                      disabled={isSaving} />
+
                         </div>
                     </div>
                 </div>
-              )}
+              }
 
               {/* Scrollable container for Sections 4 & 5 on desktop */}
               <div className={`flex gap-3 max-w-full ${delivery || isMobile ? 'overflow-y-auto flex-1' : 'flex-1 min-h-0 overflow-hidden'}`}>
                 <div className={`flex flex-col gap-3 ${delivery || isMobile ? 'flex-1' : 'flex-[13] overflow-y-auto'} ${isFormDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
                   {/* Section 4a: Patient Name/Phone/Address/Unit */}
                   {!isPickupMode &&
-                    <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                  <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
                       <div className="flex gap-3">
                         <div className="flex-1 space-y-1">
                           <Label className="text-sm font-semibold">Patient Name *</Label>
                           <Input
-                            value={formData.patient_name}
-                            onChange={(e) => setFormData((prev) => ({ ...prev, patient_name: e.target.value }))}
-                            placeholder="Patient name"
-                            disabled={isSaving}
-                            className="h-9 text-sm" />
+                          value={formData.patient_name}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, patient_name: e.target.value }))}
+                          placeholder="Patient name"
+                          disabled={isSaving}
+                          className="h-9 text-sm" />
                         </div>
 
                         <div className="flex-1 space-y-1">
                           <Label className="text-sm font-semibold">Phone</Label>
                           <PhoneInput
-                            value={formData.patient_phone}
-                            onChange={(value) => setFormData((prev) => ({ ...prev, patient_phone: value }))}
-                            disabled={isSaving}
-                            className="h-9 text-sm" />
+                          value={formData.patient_phone}
+                          onChange={(value) => setFormData((prev) => ({ ...prev, patient_phone: value }))}
+                          disabled={isSaving}
+                          className="h-9 text-sm" />
                         </div>
                       </div>
 
@@ -2436,20 +2436,20 @@ export default function DeliveryForm({
                         <div className="flex-[65] space-y-1">
                           <Label className="text-sm font-semibold">Patient Address</Label>
                           <Input
-                            value={selectedPatient?.address || ''}
-                            disabled
-                            placeholder="Address from patient record"
-                            className="bg-white h-9 text-sm" />
+                          value={selectedPatient?.address || ''}
+                          disabled
+                          placeholder="Address from patient record"
+                          className="bg-white h-9 text-sm" />
                         </div>
 
                         <div className="flex-[35] space-y-1">
                           <Label className="text-sm font-semibold">Unit #</Label>
                           <Input
-                            value={formData.unit_number}
-                            onChange={(e) => setFormData((prev) => ({ ...prev, unit_number: e.target.value }))}
-                            placeholder="Unit #"
-                            disabled={isSaving}
-                            className="h-9 text-sm" />
+                          value={formData.unit_number}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, unit_number: e.target.value }))}
+                          placeholder="Unit #"
+                          disabled={isSaving}
+                          className="h-9 text-sm" />
                         </div>
                       </div>
                     </div>
@@ -2474,10 +2474,10 @@ export default function DeliveryForm({
                             const selectedStore = availableStores.find((s) => s.id === value);
                             const storeId = selectedStore?._originalStoreId || value;
                             const timeSlot = selectedStore?._timeSlot || null;
-                            
+
                             // Calculate new PUID based on selected store and time slot
                             const newPuid = getPickupStopIdForDelivery(storeId, formData.delivery_date, timeSlot || 'AM', allDeliveries);
-                            
+
                             setFormData((prev) => ({
                               ...prev,
                               store_id: storeId,
@@ -2501,8 +2501,8 @@ export default function DeliveryForm({
                               const baseStoreName = store._originalStoreId ? store.name.replace(/ \[AM\]| \[PM\]/, '') : store.name;
                               const displayName = `${baseStoreName}${store._timeSlot ? ` [${store._timeSlot}]` : ''}${isAppOwner(currentUser) && puid ? ` {${puid}}` : ''}`;
                               return (
-                                <SelectItem key={store.id} value={store.id}>{displayName}</SelectItem>
-                              );
+                                <SelectItem key={store.id} value={store.id}>{displayName}</SelectItem>);
+
                             })}
                           </SelectContent>
                         </Select>
@@ -2526,13 +2526,13 @@ export default function DeliveryForm({
                             <SelectItem value="pending">Pending</SelectItem>
                             <SelectItem value="Ready For Pickup">Ready For Pickup</SelectItem>
                             {isPickupMode ?
-                              <SelectItem value="en_route">En Route</SelectItem> :
-                              <SelectItem value="in_transit">In Transit</SelectItem>
+                            <SelectItem value="en_route">En Route</SelectItem> :
+                            <SelectItem value="in_transit">In Transit</SelectItem>
                             }
                             <SelectItem value="completed">Completed</SelectItem>
                             {isPickupMode ?
-                              <SelectItem value="cancelled">Cancelled</SelectItem> :
-                              <>
+                            <SelectItem value="cancelled">Cancelled</SelectItem> :
+                            <>
                                 <SelectItem value="failed">Failed</SelectItem>
                                 <SelectItem value="returned">Returned</SelectItem>
                               </>
@@ -2543,55 +2543,55 @@ export default function DeliveryForm({
                     </div>
 
                     {isCompletionStatus && delivery ?
-                      <div className="space-y-1">
+                    <div className="space-y-1">
                         <Label className="text-sm font-semibold">Completion Time *</Label>
                         <Input
-                          type="time"
-                          value={completionTime}
-                          onChange={(e) => setCompletionTime(e.target.value)}
-                          disabled={isSaving}
-                          className="h-9 text-sm" />
+                        type="time"
+                        value={completionTime}
+                        onChange={(e) => setCompletionTime(e.target.value)}
+                        disabled={isSaving}
+                        className="h-9 text-sm" />
                       </div> :
 
-                      <div className="space-y-1">
+                    <div className="space-y-1">
                         <Label className="text-sm font-semibold">Time Windows</Label>
                         <div className="flex gap-3">
                           <div className="flex-1 relative">
                             <Input
-                              type="time"
-                              value={formData.time_window_start}
-                              onChange={(e) => setFormData((prev) => ({ ...prev, time_window_start: e.target.value }))}
-                              disabled={isSaving}
-                              placeholder="Start"
-                              className="h-9 text-sm pr-8" />
+                            type="time"
+                            value={formData.time_window_start}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, time_window_start: e.target.value }))}
+                            disabled={isSaving}
+                            placeholder="Start"
+                            className="h-9 text-sm pr-8" />
                             {formData.time_window_start &&
-                              <button
-                                type="button"
-                                onClick={() => setFormData((prev) => ({ ...prev, time_window_start: '' }))}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                                disabled={isSaving}>
+                          <button
+                            type="button"
+                            onClick={() => setFormData((prev) => ({ ...prev, time_window_start: '' }))}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                            disabled={isSaving}>
                                 <X className="w-3.5 h-3.5" />
                               </button>
-                            }
+                          }
                           </div>
 
                           <div className="flex-1 relative">
                             <Input
-                              type="time"
-                              value={formData.time_window_end}
-                              onChange={(e) => setFormData((prev) => ({ ...prev, time_window_end: e.target.value }))}
-                              disabled={isSaving}
-                              placeholder="End"
-                              className="h-9 text-sm pr-8" />
+                            type="time"
+                            value={formData.time_window_end}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, time_window_end: e.target.value }))}
+                            disabled={isSaving}
+                            placeholder="End"
+                            className="h-9 text-sm pr-8" />
                             {formData.time_window_end &&
-                              <button
-                                type="button"
-                                onClick={() => setFormData((prev) => ({ ...prev, time_window_end: '' }))}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                                disabled={isSaving}>
+                          <button
+                            type="button"
+                            onClick={() => setFormData((prev) => ({ ...prev, time_window_end: '' }))}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                            disabled={isSaving}>
                                 <X className="w-3.5 h-3.5" />
                               </button>
-                            }
+                          }
                           </div>
                         </div>
                       </div>
@@ -2600,45 +2600,45 @@ export default function DeliveryForm({
 
                   {/* Section 4c: Patient Preferences & Recurring */}
                   {!isPickupMode &&
-                    <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                  <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
                       <div className="flex gap-3">
                         <div className="flex-1 space-y-2">
                           <Label className="text-sm font-semibold">Patient Preferences</Label>
                           <div className="space-y-3">
                             <CheckboxField
-                              id="mailbox_ok"
-                              label="MailBox OK"
-                              checked={formData.mailbox_ok}
-                              onChange={(checked) => setFormData((prev) => ({ ...prev, mailbox_ok: checked }))}
-                              disabled={isSaving} />
+                            id="mailbox_ok"
+                            label="MailBox OK"
+                            checked={formData.mailbox_ok}
+                            onChange={(checked) => setFormData((prev) => ({ ...prev, mailbox_ok: checked }))}
+                            disabled={isSaving} />
 
                             <CheckboxField
-                              id="ring_bell"
-                              label="Ring Bell"
-                              checked={formData.ring_bell}
-                              onChange={(checked) => setFormData((prev) => ({ ...prev, ring_bell: checked }))}
-                              disabled={isSaving} />
+                            id="ring_bell"
+                            label="Ring Bell"
+                            checked={formData.ring_bell}
+                            onChange={(checked) => setFormData((prev) => ({ ...prev, ring_bell: checked }))}
+                            disabled={isSaving} />
 
                             <CheckboxField
-                              id="call_upon_arrival"
-                              label="Call Upon Arrival"
-                              checked={formData.call_upon_arrival}
-                              onChange={(checked) => setFormData((prev) => ({ ...prev, call_upon_arrival: checked }))}
-                              disabled={isSaving} />
+                            id="call_upon_arrival"
+                            label="Call Upon Arrival"
+                            checked={formData.call_upon_arrival}
+                            onChange={(checked) => setFormData((prev) => ({ ...prev, call_upon_arrival: checked }))}
+                            disabled={isSaving} />
 
                             <CheckboxField
-                              id="dont_ring_bell"
-                              label="Don't Ring Bell"
-                              checked={formData.dont_ring_bell}
-                              onChange={(checked) => setFormData((prev) => ({ ...prev, dont_ring_bell: checked }))}
-                              disabled={isSaving} />
+                            id="dont_ring_bell"
+                            label="Don't Ring Bell"
+                            checked={formData.dont_ring_bell}
+                            onChange={(checked) => setFormData((prev) => ({ ...prev, dont_ring_bell: checked }))}
+                            disabled={isSaving} />
 
                             <CheckboxField
-                              id="back_door"
-                              label="Back Door"
-                              checked={formData.back_door}
-                              onChange={(checked) => setFormData((prev) => ({ ...prev, back_door: checked }))}
-                              disabled={isSaving} />
+                            id="back_door"
+                            label="Back Door"
+                            checked={formData.back_door}
+                            onChange={(checked) => setFormData((prev) => ({ ...prev, back_door: checked }))}
+                            disabled={isSaving} />
                           </div>
                         </div>
 
@@ -2658,8 +2658,8 @@ export default function DeliveryForm({
                         <RadioGroup
                           value={currentFrequency}
                           onValueChange={handleFrequencyChange}
-                          disabled={!formData.recurring || isSaving}
-                          className="space-y-3">
+                          disabled={!formData.recurring || isSaving} className="space-y-3">
+
 
                           <div className="flex items-center space-x-2">
                             <RadioGroupItem value="daily" id="daily" disabled={!formData.recurring || isSaving} />
@@ -2720,99 +2720,99 @@ export default function DeliveryForm({
                   {/* Section 6: Notes */}
                   <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
                     {!isPickupMode ?
-                      <div className="flex gap-3">
+                    <div className="flex gap-3">
                         <div className="flex-1 space-y-1">
                           <Label className="text-sm font-semibold">Patient Notes</Label>
                           <Textarea
-                            value={formData.delivery_instructions || selectedPatient?.notes || ''}
-                            onChange={(e) => setFormData((prev) => ({ ...prev, delivery_instructions: e.target.value }))}
-                            placeholder="Patient delivery instructions..."
-                            className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-[100px] text-sm resize-none"
-                            disabled={isSaving} />
+                          value={formData.delivery_instructions || selectedPatient?.notes || ''}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, delivery_instructions: e.target.value }))}
+                          placeholder="Patient delivery instructions..."
+                          className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-[100px] text-sm resize-none"
+                          disabled={isSaving} />
                         </div>
 
                         <div className="flex-1 space-y-1">
                           <Label className="text-sm font-semibold">Driver Notes</Label>
                           <Textarea
-                            value={formData.delivery_notes}
-                            onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))}
-                            placeholder="Driver notes for this delivery..."
-                            className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-[100px] text-sm resize-none"
-                            disabled={isSaving} />
-                        </div>
-                      </div> :
-                      <div className="space-y-1">
-                        <Label className="text-sm font-semibold">Pickup Notes</Label>
-                        <Textarea
                           value={formData.delivery_notes}
                           onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))}
-                          placeholder="Notes for this pickup..."
+                          placeholder="Driver notes for this delivery..."
                           className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-[100px] text-sm resize-none"
                           disabled={isSaving} />
+                        </div>
+                      </div> :
+                    <div className="space-y-1">
+                        <Label className="text-sm font-semibold">Pickup Notes</Label>
+                        <Textarea
+                        value={formData.delivery_notes}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))}
+                        placeholder="Notes for this pickup..."
+                        className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-[100px] text-sm resize-none"
+                        disabled={isSaving} />
                       </div>
                     }
                   </div>
 
                   {/* Section 7: Delivery Options & COD */}
                   {!isPickupMode &&
-                    <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                  <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
                       <div className="flex gap-3">
                         <div className="flex gap-3">
                           <div className="flex-1 space-y-2">
                             <Label className="text-sm font-semibold">Delivery Options</Label>
                             <div className="space-y-3">
                               <CheckboxField
-                                id="fridge_item"
-                                label="Fridge Item"
-                                checked={formData.fridge_item}
-                                onChange={(checked) => setFormData((prev) => ({ ...prev, fridge_item: checked }))}
-                                disabled={isSaving} />
+                              id="fridge_item"
+                              label="Fridge Item"
+                              checked={formData.fridge_item}
+                              onChange={(checked) => setFormData((prev) => ({ ...prev, fridge_item: checked }))}
+                              disabled={isSaving} />
 
 
                               <CheckboxField
-                                id="oversized"
-                                label="Oversized"
-                                checked={formData.oversized}
-                                onChange={(checked) => setFormData((prev) => ({ ...prev, oversized: checked }))}
-                                disabled={isSaving} />
+                              id="oversized"
+                              label="Oversized"
+                              checked={formData.oversized}
+                              onChange={(checked) => setFormData((prev) => ({ ...prev, oversized: checked }))}
+                              disabled={isSaving} />
 
 
                               <CheckboxField
-                                id="signature_needed"
-                                label="Signature Needed"
-                                checked={formData.signature_needed}
-                                onChange={(checked) => setFormData((prev) => ({ ...prev, signature_needed: checked }))}
-                                disabled={isSaving} />
+                              id="signature_needed"
+                              label="Signature Needed"
+                              checked={formData.signature_needed}
+                              onChange={(checked) => setFormData((prev) => ({ ...prev, signature_needed: checked }))}
+                              disabled={isSaving} />
 
 
                               <CheckboxField
-                                id="no_charge"
-                                label="No Charge Delivery"
-                                checked={formData.no_charge}
-                                onChange={(checked) => setFormData((prev) => ({ ...prev, no_charge: checked }))}
-                                disabled={isSaving} />
+                              id="no_charge"
+                              label="No Charge Delivery"
+                              checked={formData.no_charge}
+                              onChange={(checked) => setFormData((prev) => ({ ...prev, no_charge: checked }))}
+                              disabled={isSaving} />
 
                             </div>
                           </div>
 
                           {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
-                            <div className="flex-1 space-y-2">
+                        <div className="flex-1 space-y-2">
                               <Label className="text-sm font-semibold">COD</Label>
                               <div className="space-y-3">
                                 <div className="flex items-center space-x-2">
                                   <Checkbox
-                                    id="cod_enabled"
-                                    checked={formData.cod_total_amount_required > 0}
-                                    onCheckedChange={(checked) => {
-                                      setFormData((prev) => ({
-                                        ...prev,
-                                        cod_total_amount_required: checked ? 0 : 0
-                                      }));
-                                      if (checked) {
-                                        setTimeout(() => codAmountInputRef.current?.focus(), 100);
-                                      }
-                                    }}
-                                    disabled={isSaving} />
+                                id="cod_enabled"
+                                checked={formData.cod_total_amount_required > 0}
+                                onCheckedChange={(checked) => {
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    cod_total_amount_required: checked ? 0 : 0
+                                  }));
+                                  if (checked) {
+                                    setTimeout(() => codAmountInputRef.current?.focus(), 100);
+                                  }
+                                }}
+                                disabled={isSaving} />
 
                                   <Label htmlFor="cod_enabled" className="text-sm font-medium">
                                     COD Required
@@ -2820,44 +2820,44 @@ export default function DeliveryForm({
                                 </div>
 
                                 {formData.cod_total_amount_required >= 0 &&
-                                  <div className="relative">
+                            <div className="relative">
                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">$</span>
                                     <Input
-                                      ref={codAmountInputRef}
-                                      type="text"
-                                      value={formData.cod_total_amount_required > 0 ? (formData.cod_total_amount_required / 100).toFixed(2) : formData.cod_total_amount_required === 0 ? '0.00' : ''}
-                                      onChange={(e) => {
-                                        const cleaned = e.target.value.replace(/[^\d]/g, '');
-                                        const cents = parseInt(cleaned) || 0;
-                                        setFormData((prev) => ({
-                                          ...prev,
-                                          cod_total_amount_required: cents
-                                        }));
-                                      }}
-                                      placeholder="0.00"
-                                      className="w-full pl-6 h-9 text-sm"
-                                      disabled={isSaving} />
+                                ref={codAmountInputRef}
+                                type="text"
+                                value={formData.cod_total_amount_required > 0 ? (formData.cod_total_amount_required / 100).toFixed(2) : formData.cod_total_amount_required === 0 ? '0.00' : ''}
+                                onChange={(e) => {
+                                  const cleaned = e.target.value.replace(/[^\d]/g, '');
+                                  const cents = parseInt(cleaned) || 0;
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    cod_total_amount_required: cents
+                                  }));
+                                }}
+                                placeholder="0.00"
+                                className="w-full pl-6 h-9 text-sm"
+                                disabled={isSaving} />
 
                                   </div>
-                                }
+                            }
                               </div>
                             </div>
-                          }
+                        }
                         </div>
                       </div>
                     </div>
                   }
 
                   {isPickupMode &&
-                    <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                  <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
                       <Label className="text-sm font-semibold">Pickup Options</Label>
                       <div className="space-y-3">
                         <CheckboxField
-                          id="after_hours_pickup"
-                          label="After Hours Pickup"
-                          checked={formData.after_hours_pickup}
-                          onChange={(checked) => setFormData((prev) => ({ ...prev, after_hours_pickup: checked }))}
-                          disabled={isSaving} />
+                        id="after_hours_pickup"
+                        label="After Hours Pickup"
+                        checked={formData.after_hours_pickup}
+                        onChange={(checked) => setFormData((prev) => ({ ...prev, after_hours_pickup: checked }))}
+                        disabled={isSaving} />
                       </div>
                     </div>
                   }
@@ -2865,24 +2865,24 @@ export default function DeliveryForm({
 
                 {/* Staged Panel - STATIC */}
                 {!delivery && !isMobile &&
-                  <div className="w-[21rem] flex-shrink-0 bg-slate-50 p-3 rounded-lg border-2 border-slate-400 flex flex-col h-full">
+                <div className="w-[21rem] flex-shrink-0 bg-slate-50 p-3 rounded-lg border-2 border-slate-400 flex flex-col h-full">
                     <Label className="text-sm font-semibold mb-2">Staged: (S: {stagedDeliveries.length} P: {projectedDeliveries.length})</Label>
                     <div className="space-y-1 flex-1 overflow-y-auto min-h-0">
                       {sortedStagedDeliveries.map((staged) => {
-                        const stagedStore = stores?.find((s) => s && s.id === staged.store_id);
-                        const storeColor = stagedStore ? getStoreColor(stagedStore) : '#64748b';
-                        const fadedBgColor = hexToRgba(storeColor, 0.1);
-                        const isPendingStop = !!staged.id;
+                      const stagedStore = stores?.find((s) => s && s.id === staged.store_id);
+                      const storeColor = stagedStore ? getStoreColor(stagedStore) : '#64748b';
+                      const fadedBgColor = hexToRgba(storeColor, 0.1);
+                      const isPendingStop = !!staged.id;
 
-                        return (
-                          <div
-                            key={staged._tempId}
-                            className={`flex flex-col p-2 rounded border text-xs cursor-pointer transition-colors ${editingStagedId === staged._tempId ? 'border-blue-300' : 'hover:bg-slate-50'}`
-                            }
-                            style={{
-                              backgroundColor: editingStagedId === staged._tempId ? hexToRgba(storeColor, 0.2) : fadedBgColor
-                            }}
-                            onClick={() => handleStagedDeliveryClick(staged)}>
+                      return (
+                        <div
+                          key={staged._tempId}
+                          className={`flex flex-col p-2 rounded border text-xs cursor-pointer transition-colors ${editingStagedId === staged._tempId ? 'border-blue-300' : 'hover:bg-slate-50'}`
+                          }
+                          style={{
+                            backgroundColor: editingStagedId === staged._tempId ? hexToRgba(storeColor, 0.2) : fadedBgColor
+                          }}
+                          onClick={() => handleStagedDeliveryClick(staged)}>
 
                             <div className="flex items-start justify-between">
                               <div className="flex-1 min-w-0">
@@ -2890,137 +2890,137 @@ export default function DeliveryForm({
                                   <span className="truncate flex-shrink min-w-0">{staged.patient_name}</span>
                                   <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
                                     {staged.store_abbreviation && shouldShowStoreBadges(currentUser) &&
-                                      <Badge
-                                        className="text-white text-[10px] px-1.5 py-0 h-4"
-                                        style={{ backgroundColor: storeColor }}>
+                                  <Badge
+                                    className="text-white text-[10px] px-1.5 py-0 h-4"
+                                    style={{ backgroundColor: storeColor }}>
                                         {staged.store_abbreviation}
                                       </Badge>
-                                    }
-                                    {staged.distanceFromStore !== null && (
-                                      <Badge
-                                        className="text-white text-[10px] px-1.5 py-0 h-4"
-                                        style={{ 
-                                          backgroundColor: staged.distanceFromStore <= 10 ? '#10b981' : 
-                                                          staged.distanceFromStore <= 15 ? '#f59e0b' : '#ef4444' 
-                                        }}>
+                                  }
+                                    {staged.distanceFromStore !== null &&
+                                  <Badge
+                                    className="text-white text-[10px] px-1.5 py-0 h-4"
+                                    style={{
+                                      backgroundColor: staged.distanceFromStore <= 10 ? '#10b981' :
+                                      staged.distanceFromStore <= 15 ? '#f59e0b' : '#ef4444'
+                                    }}>
                                         {staged.distanceFromStore.toFixed(1)} km
                                       </Badge>
-                                    )}
+                                  }
                                   </div>
                                 </div>
                               </div>
                               <Button
-                                type="button"
-                                size="sm"
-                                variant="ghost"
-                                className="h-5 w-5 p-0 text-red-600 flex-shrink-0"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (staged.id) {
-                                    setDeleteConfirmation({ show: true, staged });
-                                  } else {
-                                    if (staged._wasProjected && staged._originalProjected) {
-                                      setProjectedDeliveries((prev) => [...prev, staged._originalProjected]);
-                                    }
-                                    setStagedDeliveries((prev) => prev.filter((item) => item._tempId !== staged._tempId));
-                                    if (editingStagedId === staged._tempId) {
-                                      setEditingStagedId(null);
-                                      handleClearForm();
-                                    }
-                                    // Trigger projections refresh after removing staged item
-                                    setPredictionTrigger(prev => prev + 1);
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-5 w-5 p-0 text-red-600 flex-shrink-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (staged.id) {
+                                  setDeleteConfirmation({ show: true, staged });
+                                } else {
+                                  if (staged._wasProjected && staged._originalProjected) {
+                                    setProjectedDeliveries((prev) => [...prev, staged._originalProjected]);
                                   }
-                                }}>
+                                  setStagedDeliveries((prev) => prev.filter((item) => item._tempId !== staged._tempId));
+                                  if (editingStagedId === staged._tempId) {
+                                    setEditingStagedId(null);
+                                    handleClearForm();
+                                  }
+                                  // Trigger projections refresh after removing staged item
+                                  setPredictionTrigger((prev) => prev + 1);
+                                }
+                              }}>
                                 <Trash2 className="w-3 h-3" />
                               </Button>
                             </div>
                             {/* Second row: Address on left, badges on right */}
                             <div className="flex items-center justify-between">
                               <div className="text-slate-600 truncate flex-1 min-w-0">{staged.delivery_address}</div>
-                              {((staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed) || staged.ampm_deliveries) && (
-                                <div className="flex items-center gap-1 flex-shrink-0 ml-1">
+                              {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed || staged.ampm_deliveries) &&
+                            <div className="flex items-center gap-1 flex-shrink-0 ml-1">
                                   {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed) &&
-                                    <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold">
+                              <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold">
                                       {staged.cod_total_amount_required > 0 && '$'}
                                       {staged.first_delivery && (staged.cod_total_amount_required > 0 ? ' N' : 'N')}
                                       {staged.oversized && (staged.cod_total_amount_required > 0 || staged.first_delivery ? ' O' : 'O')}
                                       {staged.fridge_item && (staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized ? ' F' : 'F')}
                                       {staged.signature_needed && (staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item ? ' S' : 'S')}
                                     </Badge>
-                                  }
+                              }
                                   {staged.ampm_deliveries &&
-                                    <Badge className={`text-[10px] px-1.5 py-0 h-4 ${staged.ampm_deliveries === 'AM' ? 'bg-sky-100 text-sky-700 rounded-full' : 'bg-indigo-100 text-indigo-700 rounded-lg'}`}>
+                              <Badge className={`text-[10px] px-1.5 py-0 h-4 ${staged.ampm_deliveries === 'AM' ? 'bg-sky-100 text-sky-700 rounded-full' : 'bg-indigo-100 text-indigo-700 rounded-lg'}`}>
                                       {staged.ampm_deliveries}
                                     </Badge>
-                                  }
+                              }
                                 </div>
-                              )}
+                            }
                             </div>
                           </div>);
 
-                      })}
+                    })}
 
                       {projectedDeliveries.map((projected) => {
-                        const projectedStore = stores?.find((s) => s && s.id === projected.store_id);
-                        const storeColor = projectedStore ? getStoreColor(projectedStore) : '#64748b';
+                      const projectedStore = stores?.find((s) => s && s.id === projected.store_id);
+                      const storeColor = projectedStore ? getStoreColor(projectedStore) : '#64748b';
 
-                        return (
-                          <div
-                            key={`proj-${projected.patient_id}`}
-                            className="flex items-start justify-between p-2 rounded border border-yellow-400 bg-yellow-50 text-xs transition-colors">
+                      return (
+                        <div
+                          key={`proj-${projected.patient_id}`}
+                          className="flex items-start justify-between p-2 rounded border border-yellow-400 bg-yellow-50 text-xs transition-colors">
 
                             <div className="flex-1 min-w-0">
                               <div className="font-medium flex items-center gap-1.5 min-w-0 w-full">
                                 <span className="truncate flex-shrink min-w-0">{projected.patient_name}</span>
                                 <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
                                   {projectedStore?.abbreviation && shouldShowStoreBadges(currentUser) &&
-                                    <Badge
-                                      className="text-white text-[10px] px-1.5 py-0 h-4"
-                                      style={{ backgroundColor: storeColor }}>
+                                <Badge
+                                  className="text-white text-[10px] px-1.5 py-0 h-4"
+                                  style={{ backgroundColor: storeColor }}>
                                       {projectedStore.abbreviation}
                                     </Badge>
-                                  }
+                                }
                                   <Badge className="bg-yellow-500 text-white text-[10px] px-1.5 py-0 h-4">PROJ</Badge>
                                 </div>
                               </div>
                               <div className="text-slate-600 text-[10px] mt-0.5 truncate">{projected.reason}</div>
                             </div>
                             <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              className="h-5 w-5 p-0 text-emerald-600 flex-shrink-0 hover:bg-emerald-100"
-                              onClick={() => confirmAddProjectedToStaged(projected)}
-                              title="Add to route">
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-5 w-5 p-0 text-emerald-600 flex-shrink-0 hover:bg-emerald-100"
+                            onClick={() => confirmAddProjectedToStaged(projected)}
+                            title="Add to route">
 
                               <Plus className="w-3 h-3" />
                             </Button>
                           </div>);
 
-                      })}
+                    })}
 
                       {isLoadingPredictions &&
-                        <div className="p-4 text-center text-slate-500 text-xs flex items-center justify-center gap-2">
+                    <div className="p-4 text-center text-slate-500 text-xs flex items-center justify-center gap-2">
                           <div className="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full"></div>
                           Analyzing patterns...
                         </div>
-                      }
+                    }
 
                       {!isLoadingPredictions && stagedDeliveries.length === 0 && projectedDeliveries.length === 0 &&
-                        <div className="p-4 text-center text-slate-400 text-xs">
+                    <div className="p-4 text-center text-slate-400 text-xs">
                           No deliveries staged yet
                         </div>
-                      }
+                    }
                     </div>
                     
                     {/* Refresh Projections Button */}
                     <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="w-full mt-2 text-xs"
-                      onClick={() => setPredictionTrigger(prev => prev + 1)}
-                      disabled={isLoadingPredictions}>
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full mt-2 text-xs"
+                    onClick={() => setPredictionTrigger((prev) => prev + 1)}
+                    disabled={isLoadingPredictions}>
                       {isLoadingPredictions ? 'Analyzing...' : 'Refresh Projections'}
                     </Button>
                   </div>
@@ -3031,19 +3031,19 @@ export default function DeliveryForm({
             {/* Mobile Staged Panel */}
             <AnimatePresence>
               {!delivery && isMobile && showStagedPanel &&
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="absolute inset-0 bg-black/60 z-50"
-                  onClick={() => setShowStagedPanel(false)}>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-black/60 z-50"
+                onClick={() => setShowStagedPanel(false)}>
                   <motion.div
-                    initial={{ x: '100%' }}
-                    animate={{ x: 0 }}
-                    exit={{ x: '100%' }}
-                    transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                    onClick={(e) => e.stopPropagation()}
-                    className="absolute right-0 top-0 bottom-0 w-[75%] bg-white shadow-2xl flex flex-col">
+                  initial={{ x: '100%' }}
+                  animate={{ x: 0 }}
+                  exit={{ x: '100%' }}
+                  transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute right-0 top-0 bottom-0 w-[75%] bg-white shadow-2xl flex flex-col">
                     
                     <div className="border-b p-4 flex items-center justify-between bg-slate-50">
                       <h3 className="text-lg font-semibold">Staged: (S: {stagedDeliveries.length} P: {projectedDeliveries.length})</h3>
@@ -3054,20 +3054,20 @@ export default function DeliveryForm({
 
                     <div className="flex-1 overflow-y-auto p-3 space-y-1">
                       {sortedStagedDeliveries.map((staged) => {
-                        const stagedStore = stores?.find((s) => s && s.id === staged.store_id);
-                        const storeColor = stagedStore ? getStoreColor(stagedStore) : '#64748b';
-                        const fadedBgColor = hexToRgba(storeColor, 0.1);
-                        const isPendingStop = !!staged.id;
+                      const stagedStore = stores?.find((s) => s && s.id === staged.store_id);
+                      const storeColor = stagedStore ? getStoreColor(stagedStore) : '#64748b';
+                      const fadedBgColor = hexToRgba(storeColor, 0.1);
+                      const isPendingStop = !!staged.id;
 
-                        return (
-                          <div
-                            key={staged._tempId}
-                            className={`flex flex-col p-2 rounded border text-xs cursor-pointer transition-colors ${editingStagedId === staged._tempId ? 'border-blue-300' : 'hover:bg-slate-50'}`
-                            }
-                            style={{
-                              backgroundColor: editingStagedId === staged._tempId ? hexToRgba(storeColor, 0.2) : fadedBgColor
-                            }}
-                            onClick={() => handleStagedDeliveryClick(staged)}>
+                      return (
+                        <div
+                          key={staged._tempId}
+                          className={`flex flex-col p-2 rounded border text-xs cursor-pointer transition-colors ${editingStagedId === staged._tempId ? 'border-blue-300' : 'hover:bg-slate-50'}`
+                          }
+                          style={{
+                            backgroundColor: editingStagedId === staged._tempId ? hexToRgba(storeColor, 0.2) : fadedBgColor
+                          }}
+                          onClick={() => handleStagedDeliveryClick(staged)}>
 
                             <div className="flex items-start justify-between">
                               <div className="flex-1 min-w-0">
@@ -3075,125 +3075,125 @@ export default function DeliveryForm({
                                   <span className="truncate flex-shrink min-w-0">{staged.patient_name}</span>
                                   <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
                                     {staged.store_abbreviation && shouldShowStoreBadges(currentUser) &&
-                                      <Badge
-                                        className="text-white text-[10px] px-1.5 py-0 h-4"
-                                        style={{ backgroundColor: storeColor }}>
+                                  <Badge
+                                    className="text-white text-[10px] px-1.5 py-0 h-4"
+                                    style={{ backgroundColor: storeColor }}>
                                         {staged.store_abbreviation}
                                       </Badge>
-                                    }
-                                    {staged.distanceFromStore !== null && (
-                                      <Badge
-                                        className="text-white text-[10px] px-1.5 py-0 h-4"
-                                        style={{ 
-                                          backgroundColor: staged.distanceFromStore <= 10 ? '#10b981' : 
-                                                          staged.distanceFromStore <= 15 ? '#f59e0b' : '#ef4444' 
-                                        }}>
+                                  }
+                                    {staged.distanceFromStore !== null &&
+                                  <Badge
+                                    className="text-white text-[10px] px-1.5 py-0 h-4"
+                                    style={{
+                                      backgroundColor: staged.distanceFromStore <= 10 ? '#10b981' :
+                                      staged.distanceFromStore <= 15 ? '#f59e0b' : '#ef4444'
+                                    }}>
                                         {staged.distanceFromStore.toFixed(1)} km
                                       </Badge>
-                                    )}
+                                  }
                                   </div>
                                 </div>
                               </div>
                               <Button
-                                type="button"
-                                size="sm"
-                                variant="ghost"
-                                className="h-5 w-5 p-0 text-red-600 flex-shrink-0"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (staged.id) {
-                                    setDeleteConfirmation({ show: true, staged });
-                                  } else {
-                                    if (staged._wasProjected && staged._originalProjected) {
-                                      setProjectedDeliveries((prev) => [...prev, staged._originalProjected]);
-                                    }
-                                    setStagedDeliveries((prev) => prev.filter((item) => item._tempId !== staged._tempId));
-                                    if (editingStagedId === staged._tempId) {
-                                      setEditingStagedId(null);
-                                      handleClearForm();
-                                    }
-                                    // Trigger projections refresh after removing staged item
-                                    setPredictionTrigger(prev => prev + 1);
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-5 w-5 p-0 text-red-600 flex-shrink-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (staged.id) {
+                                  setDeleteConfirmation({ show: true, staged });
+                                } else {
+                                  if (staged._wasProjected && staged._originalProjected) {
+                                    setProjectedDeliveries((prev) => [...prev, staged._originalProjected]);
                                   }
-                                }}>
+                                  setStagedDeliveries((prev) => prev.filter((item) => item._tempId !== staged._tempId));
+                                  if (editingStagedId === staged._tempId) {
+                                    setEditingStagedId(null);
+                                    handleClearForm();
+                                  }
+                                  // Trigger projections refresh after removing staged item
+                                  setPredictionTrigger((prev) => prev + 1);
+                                }
+                              }}>
                                 <Trash2 className="w-3 h-3" />
                               </Button>
                             </div>
                             {/* Second row: Address on left, badges on right */}
                             <div className="flex items-center justify-between">
                               <div className="text-slate-600 truncate flex-1 min-w-0">{staged.delivery_address}</div>
-                              {((staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed) || staged.ampm_deliveries) && (
-                                <div className="flex items-center gap-1 flex-shrink-0 ml-1">
+                              {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed || staged.ampm_deliveries) &&
+                            <div className="flex items-center gap-1 flex-shrink-0 ml-1">
                                   {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed) &&
-                                    <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold">
+                              <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold">
                                       {staged.cod_total_amount_required > 0 && '$'}
                                       {staged.first_delivery && (staged.cod_total_amount_required > 0 ? ' N' : 'N')}
                                       {staged.oversized && (staged.cod_total_amount_required > 0 || staged.first_delivery ? ' O' : 'O')}
                                       {staged.fridge_item && (staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized ? ' F' : 'F')}
                                       {staged.signature_needed && (staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item ? ' S' : 'S')}
                                     </Badge>
-                                  }
+                              }
                                   {staged.ampm_deliveries &&
-                                    <Badge className={`text-[10px] px-1.5 py-0 h-4 ${staged.ampm_deliveries === 'AM' ? 'bg-sky-100 text-sky-700 rounded-full' : 'bg-indigo-100 text-indigo-700 rounded-lg'}`}>
+                              <Badge className={`text-[10px] px-1.5 py-0 h-4 ${staged.ampm_deliveries === 'AM' ? 'bg-sky-100 text-sky-700 rounded-full' : 'bg-indigo-100 text-indigo-700 rounded-lg'}`}>
                                       {staged.ampm_deliveries}
                                     </Badge>
-                                  }
+                              }
                                 </div>
-                              )}
+                            }
                             </div>
                           </div>);
 
-                      })}
+                    })}
 
                       {projectedDeliveries.map((projected) => {
-                        const projectedStore = stores?.find((s) => s && s.id === projected.store_id);
-                        const storeColor = projectedStore ? getStoreColor(projectedStore) : '#64748b';
+                      const projectedStore = stores?.find((s) => s && s.id === projected.store_id);
+                      const storeColor = projectedStore ? getStoreColor(projectedStore) : '#64748b';
 
-                        return (
-                          <div
-                            key={`proj-${projected.patient_id}`}
-                            className="flex items-start justify-between p-2 rounded border border-yellow-400 bg-yellow-50 text-xs transition-colors">
+                      return (
+                        <div
+                          key={`proj-${projected.patient_id}`}
+                          className="flex items-start justify-between p-2 rounded border border-yellow-400 bg-yellow-50 text-xs transition-colors">
                             <div className="flex-1 min-w-0">
                               <div className="font-medium flex items-center gap-1.5 min-w-0 w-full">
                                 <span className="truncate flex-shrink min-w-0">{projected.patient_name}</span>
                                 <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
                                   {projectedStore?.abbreviation && shouldShowStoreBadges(currentUser) &&
-                                    <Badge
-                                      className="text-white text-[10px] px-1.5 py-0 h-4"
-                                      style={{ backgroundColor: storeColor }}>
+                                <Badge
+                                  className="text-white text-[10px] px-1.5 py-0 h-4"
+                                  style={{ backgroundColor: storeColor }}>
                                       {projectedStore.abbreviation}
                                     </Badge>
-                                  }
+                                }
                                   <Badge className="bg-yellow-500 text-white text-[10px] px-1.5 py-0 h-4">PROJ</Badge>
                                 </div>
                               </div>
                               <div className="text-slate-600 text-[10px] mt-0.5 truncate">{projected.reason}</div>
                             </div>
                             <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              className="h-5 w-5 p-0 text-emerald-600 flex-shrink-0 hover:bg-emerald-100"
-                              onClick={() => confirmAddProjectedToStaged(projected)}
-                              title="Add to route">
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-5 w-5 p-0 text-emerald-600 flex-shrink-0 hover:bg-emerald-100"
+                            onClick={() => confirmAddProjectedToStaged(projected)}
+                            title="Add to route">
                               <Plus className="w-3 h-3" />
                             </Button>
                           </div>);
 
-                      })}
+                    })}
 
                       {isLoadingPredictions &&
-                        <div className="p-4 text-center text-slate-500 text-xs flex items-center justify-center gap-2">
+                    <div className="p-4 text-center text-slate-500 text-xs flex items-center justify-center gap-2">
                           <div className="animate-spin w-3 h-3 border-2 border-slate-300 border-t-transparent rounded-full"></div>
                           Analyzing patterns...
                         </div>
-                      }
+                    }
 
                       {!isLoadingPredictions && stagedDeliveries.length === 0 && projectedDeliveries.length === 0 &&
-                        <div className="p-4 text-center text-slate-400 text-xs">
+                    <div className="p-4 text-center text-slate-400 text-xs">
                           No deliveries staged yet
                         </div>
-                      }
+                    }
                     </div>
                   </motion.div>
                 </motion.div>
@@ -3204,12 +3204,12 @@ export default function DeliveryForm({
           <CardFooter className="border-t p-3 bg-slate-50 flex-shrink-0">
             <div className="flex items-center justify-between w-full gap-4">
               {!delivery && isMobile && (stagedDeliveries.length > 0 || projectedDeliveries.length > 0) &&
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowStagedPanel(!showStagedPanel)}
-                  className="gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowStagedPanel(!showStagedPanel)}
+                className="gap-2">
                   <Package className="w-4 h-4" />
                   Staged: (S: {stagedDeliveries.length} P: {projectedDeliveries.length})
                 </Button>
@@ -3225,62 +3225,62 @@ export default function DeliveryForm({
                 </Button>
 
                 {buttonState === 'done' ?
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => handleBatchSave()}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
-                    disabled={isSaving || stagedDeliveries.length === 0}>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => handleBatchSave()}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                  disabled={isSaving || stagedDeliveries.length === 0}>
                     {isSaving ?
-                      <>
+                  <>
                         <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
                         Saving...
                       </> :
 
-                      <>
+                  <>
                         <CheckCircle className="w-4 h-4" />
                         Done
                       </>
-                    }
+                  }
                   </Button> :
-                  buttonState === 'updateStaged' ?
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={handleUpdateStaged}
-                      className="bg-blue-600 hover:bg-blue-700 gap-2"
-                      disabled={isSaving || !isFormValid}>
+                buttonState === 'updateStaged' ?
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleUpdateStaged}
+                  className="bg-blue-600 hover:bg-blue-700 gap-2"
+                  disabled={isSaving || !isFormValid}>
                       <Edit2 className="w-4 h-4" />
                       Update
                     </Button> :
-                    buttonState === 'add' ?
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={handleAddToStaging}
-                        className="bg-blue-600 hover:bg-blue-700 gap-2"
-                        disabled={isSaving || !isFormValid}>
+                buttonState === 'add' ?
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleAddToStaging}
+                  className="bg-blue-600 hover:bg-blue-700 gap-2"
+                  disabled={isSaving || !isFormValid}>
                         <Plus className="w-4 h-4" />
                         Add
                       </Button> :
 
-                      <Button
-                        type="submit"
-                        size="sm"
-                        onClick={handleSubmit}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
-                        disabled={isSaving || !isFormValid}>
+                <Button
+                  type="submit"
+                  size="sm"
+                  onClick={handleSubmit}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                  disabled={isSaving || !isFormValid}>
                         {isSaving ?
-                          <>
+                  <>
                             <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
                             Saving...
                           </> :
 
-                          <>
+                  <>
                             <Save className="w-4 h-4" />
                             {isPickupMode ? 'Update Pickup' : 'Update Delivery'}
                           </>
-                        }
+                  }
                       </Button>
                 }
               </div>
