@@ -548,11 +548,10 @@ export default function StopCard({
         onClick={() => {
           onClick && onClick(delivery);
         }}>
-        <CardContent className="p-5 mx-1 pt-1 pr-1 pb-2 pl-1 flex flex-col">
+        <CardContent className="p-5 mx-1 pt-1 pr-1 pb-1 pl-1 flex flex-col">
           {/* HEADER SECTION - Always Visible */}
           <div className="flex items-start gap-2">
-            {/* Left column: Stop Order + Special symbols */}
-            <div className="flex flex-col gap-1 items-center flex-shrink-0">
+            <div className="flex flex-col gap-1 items-start items-center">
               <Badge
                 variant="secondary"
                 className={`font-bold text-xs px-2 py-0.5 text-white w-[40px] justify-center ${delivery.ampm_deliveries === 'AM' ? 'rounded-full' : 'rounded-xs'}`}
@@ -563,11 +562,19 @@ export default function StopCard({
                 #{delivery.display_stop_order || delivery.stop_order || 0}
               </Badge>
 
-              {/* Special symbols badge - below stop order */}
-              {(hasCODRequired || isFirstDelivery || delivery.oversized || delivery.fridge_item || delivery.signature_needed) &&
+              {isPickup && pendingPickups && pendingPickups.length > 0 &&
               <Badge
                 variant="secondary"
-                className="inline-flex items-center gap-0.5 border-transparent font-bold text-xs px-1.5 py-0.5 bg-slate-300 text-white min-w-[25px] justify-center rounded-full">
+                className="font-bold text-xs px-2 py-0.5 bg-purple-500 text-white justify-center rounded-lg">
+                  P: {pendingPickups.length}
+                </Badge>
+              }
+
+              <Badge
+                variant="secondary"
+                className={`inline-flex items-center gap-0.5 border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 font-bold text-xs px-1.5 py-0.5 bg-slate-300 text-white min-w-[25px] justify-center rounded-full ${
+                !(hasCODRequired || isFirstDelivery || delivery.oversized || delivery.fridge_item || delivery.signature_needed) ? 'invisible' : ''}`
+                }>
                 {hasCODRequired &&
                 <span className="relative inline-flex items-center justify-center">
                     $
@@ -597,38 +604,25 @@ export default function StopCard({
                 {delivery.fridge_item && (hasCODRequired || isFirstDelivery ? ' F' : 'F')}
                 {delivery.signature_needed && (hasCODRequired || isFirstDelivery || delivery.fridge_item ? ' S' : 'S')}
               </Badge>
-              }
-
-              {/* Pending pickups count for pickup stops */}
-              {isPickup && pendingPickups && pendingPickups.length > 0 &&
-              <Badge
-                variant="secondary"
-                className="font-bold text-xs px-2 py-0.5 bg-purple-500 text-white justify-center rounded-lg">
-                  P: {pendingPickups.length}
-                </Badge>
-              }
             </div>
 
-            {/* Center: Name + Time info */}
             <div className="flex-1 min-w-0">
               <h3 className="text-slate-900 text-lg font-semibold text-center truncate">
                 {finalDisplayName}
               </h3>
               <div className="flex flex-col items-center gap-0.5">
-                <div className="flex items-center justify-center gap-2 text-xs text-slate-600 flex-wrap">
-                  {/* Time display */}
+                <div className="flex items-center justify-center text-xs text-slate-600">
                   {FINISHED_STATUSES.includes(delivery.status) && delivery.actual_delivery_time ?
                   <>
                       <Clock className="w-3 h-3" />
                       <span className="font-medium">{formatTime12Hour(format(new Date(delivery.actual_delivery_time), 'HH:mm'))}</span>
                     </> :
+
                   <span className="font-medium">ETA: {formatTime12Hour(delivery.delivery_time_eta || delivery.delivery_time_start || delivery.time_window_start || '--:--')}</span>
                   }
-
-                  {/* Driver badge */}
                   {showDriverName && safeDriver &&
                   <>
-                      <span className="text-slate-400">•</span>
+                      <span className="bg-secondary text-secondary-foreground px-2 py-0.5 text-xs font-semibold opacity-60 rounded-full inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80">•</span>
                       <Badge
                       variant="secondary"
                       className="px-2 py-0.5 rounded-full text-xs font-semibold"
@@ -638,7 +632,6 @@ export default function StopCard({
                     </>
                   }
                 </div>
-                {/* Time window */}
                 <div className="text-[10px] text-slate-500 min-h-[14px]">
                   {!FINISHED_STATUSES.includes(delivery.status) && (delivery.time_window_start || delivery.time_window_end) &&
                   <>
@@ -651,8 +644,7 @@ export default function StopCard({
               </div>
             </div>
 
-            {/* Right column: Status + TR# */}
-            <div className="flex flex-col gap-1 items-center flex-shrink-0">
+            <div className="flex flex-col gap-1 items-end items-center">
               <div className="flex items-center gap-1">
                 {showStatusDropdown ?
                 <DropdownMenu>
@@ -673,6 +665,7 @@ export default function StopCard({
                       key={status}
                       onClick={(e) => {
                         e.stopPropagation();
+                        // Pass skipAutoCenter=false for finished statuses so ETAs get recalculated
                         const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
                         const skipAutoCenter = !finishedStatuses.includes(status);
                         onStatusUpdate(delivery.id, status, {}, skipAutoCenter);
@@ -693,11 +686,9 @@ export default function StopCard({
                 }
               </div>
 
-              {/* Tracking number badge - below status */}
               {delivery.tracking_number && store?.abbreviation &&
               <Badge
-                variant="secondary" 
-                className="inline-flex items-center rounded-full border-transparent font-mono text-xs font-bold px-2 py-0.5"
+                variant="secondary" className="inline-flex items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 font-mono text-xs font-bold px-2 py-0.5"
                 style={{ backgroundColor: `${storeColor}20`, color: storeColor }}>
                   {(() => {
                   const storeAbbr = store.abbreviation.slice(0, 2).toUpperCase();
