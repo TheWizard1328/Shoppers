@@ -706,60 +706,15 @@ export default function StopCard({
           <div className="border-t border-slate-200"></div>
 
           <div className="flex flex-col gap-1">
-            <div className="mt-2 flex items-start justify-between">
-              <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-                {finalDisplayAddress ? (
-                  <>
-                    {/* Main address without unit/buzzer */}
-                    <div className="flex items-start gap-2 text-sm text-slate-700">
-                      <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
-                      <span className="text-lg font-medium truncate">
-                        {(() => {
-                          if (isStrippedDelivery) return finalDisplayAddress;
-                          if (shouldRedact) return finalDisplayAddress;
-                          
-                          // Extract base address without unit/buzzer
-                          const fullAddress = isPickup ? (store?.address || '') : (patient?.address || '');
-                          // Remove common unit/buzzer patterns
-                          const baseAddress = fullAddress
-                            .replace(/,?\s*(#|unit|apt|suite|ste|buzzer|buzz)\s*[\d]+\s*$/i, '')
-                            .replace(/,?\s*(#|unit|apt|suite|ste|buzzer|buzz)\s*[\d]+,/i, ',')
-                            .trim();
-                          return baseAddress || fullAddress;
-                        })()}
-                      </span>
-                    </div>
-                    
-                    {/* Unit/Buzzer + Phone on second row */}
-                    {!isStrippedDelivery && !shouldRedact && (
-                      <div className="flex items-center gap-2 text-xs text-slate-600 pl-6">
-                        {/* Unit and Buzzer info */}
-                        {(() => {
-                          const unitNum = !isPickup ? (delivery?.unit_number || patient?.unit_number) : null;
-                          const fullAddress = isPickup ? (store?.address || '') : (patient?.address || '');
-                          const buzzerMatch = fullAddress.match(/buzz(?:er)?\s*(\d+)/i);
-                          const buzzerNum = buzzerMatch ? buzzerMatch[1] : null;
-                          
-                          if (!unitNum && !buzzerNum) return null;
-                          
-                          return (
-                            <>
-                              {unitNum && <span className="font-medium"># {unitNum}</span>}
-                              {buzzerNum && <span className="font-medium">Buzz {buzzerNum}</span>}
-                            </>
-                          );
-                        })()}
-                        
-                        {/* Phone number */}
-                        {finalDisplayPhone && (
-                          <span className="font-medium">{formatPhoneNumber(finalDisplayPhone)}</span>
-                        )}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="w-full h-[26px]" />
-                )}
+            <div className="mt-2 flex items-center justify-between">
+              <div className="flex items-center gap-1 flex-1 min-w-0">
+                {finalDisplayAddress ?
+                <div className="flex items-start gap-2 text-sm text-slate-700">
+                    <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
+                    <span className="text-lg font-medium truncate">{finalDisplayAddress}</span>
+                  </div> :
+                <div className="w-full h-[26px]" />
+                }
               </div>
               
               {/* Navigation and Phone buttons - right justified */}
@@ -1058,13 +1013,18 @@ export default function StopCard({
                   }
                   </AnimatePresence>
 
-                  {!isPickup && patient && patient.notes &&
+                  {!isPickup && patient && (patient.unit_number || delivery?.unit_number || patient.notes) &&
                 <div className="flex items-start gap-2">
                       <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-slate-700 mb-0.5">Patient Notes:</p>
                         <div className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded px-2 py-1.5">
-                          <p className="whitespace-pre-wrap break-words">{patient.notes}</p>
+                          {(patient.unit_number || delivery?.unit_number) &&
+                      <p className="font-medium">Unit: {delivery?.unit_number || patient.unit_number}</p>
+                      }
+                          {patient.notes &&
+                      <p className={`whitespace-pre-wrap break-words ${patient.unit_number || delivery?.unit_number ? 'mt-1' : ''}`}>{patient.notes}</p>
+                      }
                         </div>
                       </div>
                     </div>
