@@ -1476,7 +1476,7 @@ export default function StopCard({
 
 
             </div>
-          </div>
+          </div>}
         </CardContent>
       </Card>
     </motion.div>);
