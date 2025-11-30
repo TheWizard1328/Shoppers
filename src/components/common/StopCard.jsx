@@ -550,7 +550,7 @@ export default function StopCard({
         }}>
         <CardContent className="p-5 mx-1 pt-1 pr-1 pb-2 pl-1 flex flex-col">
           {/* HEADER SECTION - Always Visible */}
-          <div className="flex items-center gap-2 mb-0">
+          <div className="flex items-center gap-2">
             <div className="flex flex-col gap-1 items-start items-center">
               <Badge
                 variant="secondary"
@@ -705,7 +705,7 @@ export default function StopCard({
 
           <div className="border-t border-slate-200"></div>
 
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col">
             <div className="mt-2 flex items-start justify-between">
               <div className="flex flex-col gap-0.5 flex-1 min-w-0">
                 {finalDisplayAddress ?
