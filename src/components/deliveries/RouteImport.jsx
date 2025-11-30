@@ -1576,4 +1576,379 @@ export default function RouteImport({
                         }
                       </SelectContent>
                     </Select>
-                    {availableDrivers.
+                    {availableDrivers.length === 0 &&
+                    <p className="text-xs text-red-600">
+                        No drivers found. Please ensure users have the 'driver' or 'admin' role assigned.
+                      </p>
+                    }
+                  </div>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
+                  <h4 className="font-semibold mb-2">CSV Format</h4>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li>Date metadata: <code className="font-mono">#YYYY-MM-DD#,TotalDeliveries,...</code></li>
+                    <li>Positional data (no headers): <code className="font-mono">Store Abbr (col 1), AM/PM (col 2), TR# (col 3), Stop Order (col 4), ?, Time (col 6), ..., COD Total (col 10), ..., SID (col 13), PID (col 14), ?, Notes (col 16)</code></li>
+                    <li>Matching by Stop ID (SID) + Date for updates.</li>
+                    <li>PUIDs auto-assigned by matching pickups to patient deliveries.</li>
+                  </ul>
+                </div>
+              </div>
+
+              {files.length > 0 &&
+              <div className="space-y-2">
+                  <Label className="text-sm font-medium">Selected Files ({files.length})</Label>
+                  <div className="space-y-1 max-h-32 overflow-y-auto border rounded-lg p-2">
+                    {files.map((file, index) =>
+                  <div key={index} className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded text-sm">
+                        <span className="truncate flex-1">{file.name}</span>
+                        {!isParsing && !isProcessing && !showProgress &&
+                    <button onClick={() => removeFile(index)} className="ml-2 text-slate-400 hover:text-red-600">
+                            <X className="w-4 h-4" />
+                          </button>
+                    }
+                      </div>
+                  )}
+                  </div>
+                </div>
+              }
+
+              {previewData.errors.length > 0 &&
+              <div className="space-y-1 mt-4">
+                  <div className="flex items-center gap-2 text-red-600 font-semibold">
+                    <XCircle className="w-5 h-5" />
+                    <span>Parsing Errors: {previewData.errors.length}</span>
+                  </div>
+                  <div className="max-h-32 overflow-y-auto bg-red-50 p-2 rounded text-xs">
+                    {previewData.errors.map((err, i) =>
+                  <div key={`parse-err-${i}`} className="text-red-800">{err}</div>
+                  )}
+                  </div>
+                </div>
+              }
+
+              {previewData.skippedItems.length > 0 &&
+              <div className="space-y-1 mt-4">
+                  <div className="flex items-center gap-2 text-orange-600 font-semibold">
+                    <AlertCircle className="w-5 h-5" />
+                    <span>Skipped Items: {previewData.skippedItems.length}</span>
+                  </div>
+                  <div className="max-h-32 overflow-y-auto bg-orange-50 p-2 rounded text-xs">
+                    {previewData.skippedItems.map((item, i) =>
+                  <div key={`skipped-item-${i}`} className="text-orange-800">
+                        Line {item.lineNumber}: {item.reason} - <span className="font-mono text-[10px]">{item.rawData}</span>
+                      </div>
+                  )}
+                  </div>
+                </div>
+              }
+            </div>
+          </div> :
+
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-shrink-0 p-6 pb-4">
+              <div className="flex items-center justify-between gap-4 mb-4">
+                <h3 className="text-lg font-semibold text-slate-800">Preview: {filteredPreviewDeliveries.length} Total Deliveries ({previewData.skippedItems.length} Skipped)</h3>
+                <div className="flex items-center gap-3">
+                  <Select value={previewFilterDate} onValueChange={setPreviewFilterDate}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="Filter by date" />
+                    </SelectTrigger>
+                    <SelectContent className="z-[10002]">
+                      <SelectItem value="all">All Dates</SelectItem>
+                      {previewDates.map((date) =>
+                      <SelectItem key={date} value={date}>{date}</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {previewData.errors.length > 0 &&
+              <div className="flex-shrink-0 px-6 pb-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 text-red-600 font-semibold">
+                      <XCircle className="w-5 h-5" />
+                      <span>Parsing Errors: {previewData.errors.length}</span>
+                    </div>
+                    <div className="max-h-32 overflow-y-auto bg-red-50 p-2 rounded text-xs">
+                      {previewData.errors.map((err, i) =>
+                    <div key={`preview-parse-err-${i}`} className="text-red-800">{err}</div>
+                    )}
+                    </div>
+                  </div>
+                </div>
+              }
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="flex flex-col items-center bg-green-50 border border-green-200 rounded-lg p-3">
+                <div className="text-xs text-green-700 mb-1">New Deliveries</div>
+                <div className="text-2xl font-bold text-green-800">{previewStats.creates}</div>
+            </div>
+
+            <div className="flex flex-col items-center bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="text-xs text-blue-700 mb-1">Updates</div>
+                <div className="text-2xl font-bold text-blue-800">{previewStats.updates}</div>
+            </div>
+
+            <div className="flex flex-col items-center bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                <div className="text-xs text-emerald-700 mb-1">Completed</div>
+                <div className="text-2xl font-bold text-emerald-800">{previewStats.completed}</div>
+            </div>
+
+            <div className="flex flex-col items-center bg-red-50 border border-red-200 rounded-lg p-3">
+                <div className="text-xs text-red-700 mb-1">Failed/Returned</div>
+                <div className="text-2xl font-bold text-red-800">
+                {previewStats.failed}/{previewStats.returned}
+                </div>
+            </div>
+
+            {previewData.skippedItems.length > 0 && (
+                <div className="flex flex-col items-center bg-orange-50 border border-orange-200 rounded-lg p-3">
+                <div className="text-xs text-orange-700 mb-1">Skipped Items</div>
+                <div className="text-2xl font-bold text-orange-800">{previewStats.skipped}</div>
+                </div>
+            )}
+            </div>  
+          </div>
+
+            {filteredPreviewDeliveries.length === 0 ?
+            <div className="text-center text-slate-500 py-8 flex-1 flex items-center justify-center px-6">
+                No deliveries detected for import or matching filters.
+              </div> :
+
+            <div className="flex-1 border rounded-lg flex flex-col overflow-hidden bg-white min-h-0">
+                <div className="flex-shrink-0 bg-slate-100 border-b">
+                  <table className="w-full text-sm table-fixed">
+                    <thead>
+                      <tr>
+                        <th className="p-1 text-left w-20">Type</th>
+                        <th className="p-1 text-left w-24">Date</th>
+                        <th className="p-1 text-left w-12">A/P</th>
+                        <th className="p-1 text-left w-14">Order</th>
+                        <th className="p-1 text-left w-22">TR#</th>
+                        <th className="p-1 text-left w-22">SID/PID</th>
+                        <th className="p-1 text-left w-48">Patient/Pickup</th>
+                        <th className="p-1 text-left w-24">Status</th>
+                        <th className="p-1 text-left w-20">COD $</th>
+                        <th className="p-1 text-left w-42">Notes</th>
+                        <th className="p-1 text-left w-14">1st</th>
+                        <th className="p-1 text-left flex-1">Changes</th>
+                      </tr>
+                    </thead>
+                  </table>
+                </div>
+
+                <div className="flex-1 overflow-y-auto min-h-0">
+                  <table className="w-full text-sm table-fixed">
+                    <tbody>
+                      {filteredPreviewDeliveries.map((delivery, idx) => {
+                      const store = stores.find((s) => s.id === delivery.store_id);
+                      const newTimeFormatted = delivery.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : 'none';
+                      const patient = delivery.patient_id ? patients.find((p) => p.id === delivery.patient_id) : null;
+
+                      const displayAddress = delivery.patient_id ?
+                      formatAddressWithUnit(patient?.address || delivery.delivery_address || '', patient?.unit_number || '') :
+                      formatAddressWithUnit(delivery.delivery_address || store?.address || '', delivery.unit_number || '');
+
+                      return (
+                        <tr key={`${delivery.action}-${idx}`} className={`border-b ${delivery.action === 'create' ? 'bg-green-50 hover:bg-green-100' : 'bg-blue-50 hover:bg-blue-100'}`}>
+                            <td className="p-1 w-20">
+                              <Badge className={delivery.action === 'create' ? "bg-green-200 text-green-800" : "bg-blue-200 text-blue-800"}>
+                                {delivery.action === 'create' ? 'New' : 'Update'}
+                              </Badge>
+                            </td>
+                            <td className="p-1 w-24">
+                              <div className="flex flex-col">
+                                <span className="font-medium">{delivery.delivery_date}</span>
+                                {newTimeFormatted !== 'none' && <span className="text-xs text-slate-500">{newTimeFormatted}</span>}
+                              </div>
+                            </td>
+                            <td className="p-1 w-12 text-xs font-mono">{delivery.ampm_deliveries || '-'}</td>
+                            <td className="p-1 font-mono text-xs w-14">{delivery.stop_order}</td>
+                            <td className="p-1 font-mono text-xs w-22">{delivery.tracking_number}</td>
+                            <td className="p-1 font-mono text-xs w-22">
+                              <div className="flex flex-col">
+                                {delivery.stop_id && <span className="font-semibold">{delivery.stop_id}</span>}
+                                {patient?.patient_id && <span className="text-slate-600">{patient.patient_id}</span>}
+                                {!delivery.stop_id && !patient?.patient_id && <span>N/A</span>}
+                              </div>
+                            </td>
+                            <td className="p-1 w-48">
+                              <div className="flex flex-col gap-1">
+                                {delivery.patient_id ?
+                              <>
+                                    <span className="font-medium">{delivery.patient_name}</span>
+                                    <span className="text-xs text-slate-600">{displayAddress}</span>
+                                  </> :
+                              <>
+                                    <span className="text-blue-600 font-semibold">{delivery.patient_name || store?.name || 'Store Pickup'}</span>
+                                    <span className="text-xs text-slate-600">{displayAddress}</span>
+                                  </>
+                              }
+                              </div>
+                            </td>
+                            <td className="p-1 w-24">{getStatusBadge(delivery.status)}</td>
+                            <td className="p-1 font-mono text-xs w-20">
+                              {delivery.cod_total_amount_required > 0 ? (
+                                <div className="flex flex-col">
+                                  <span className="text-slate-500 text-[10px]">{delivery.cod_payments?.[0]?.type || delivery.cod_payment_type || 'Cash'}</span>
+                                  <span className="font-semibold">${delivery.cod_total_amount_required.toFixed(2)}</span>
+                                </div>
+                              ) : '-'}
+                            </td>
+                            <td className="p-1 text-xs w-42">
+                              <span className="text-slate-600">{delivery.delivery_notes || '-'}</span>
+                            </td>
+                            <td className="p-1 text-xs w-14">
+                              {delivery.first_delivery ? <CheckCircle className="w-4 h-4 text-green-500" /> : <XCircle className="w-4 h-4 text-red-500" />}
+                            </td>
+                            <td className="p-1 text-xs flex-1">
+                              <div className="space-y-1">
+                                {delivery._matchReason &&
+                              <div className={`font-semibold ${delivery.action === 'create' ? 'text-red-600' : 'text-green-600'}`}>
+                                    {delivery._matchReason}
+                                  </div>
+                              }
+                                {delivery.action === 'update' && delivery._changes && delivery._changes.length > 0 &&
+                              <>
+                                    {delivery._changes.map((change, changeIdx) =>
+                                <div key={changeIdx} className="text-orange-700 font-medium">
+                                        {change}
+                                      </div>
+                                )}
+                                  </>
+                              }
+                                {!delivery._matchReason && (!delivery._changes || delivery._changes.length === 0) &&
+                              <span className="text-slate-400">-</span>
+                              }
+                              </div>
+                            </td>
+                          </tr>);
+                    })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            }
+          </div>
+          }
+
+        <div className="bg-white px-6 py-2 flex flex-col gap-3 border-t border-slate-200 flex-shrink-0">
+          <div className="flex gap-3">
+            {!showPreview ?
+              <>
+                <Button onClick={handlePreview} disabled={isParsing || isProcessing || files.length === 0 || !selectedDriverId || showProgress}>
+                  {isParsing ?
+                  <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Parsing...
+                    </> :
+                  'Preview Import'
+                  }
+                </Button>
+                <Button variant="outline" onClick={onCancel} disabled={isParsing || isProcessing || showProgress}>
+                  Cancel
+                </Button>
+              </> :
+              importResult ?
+              <>
+                  <Button
+                  onClick={() => {
+                    setFiles([]);
+                    setSelectedDriverId('');
+                    setIsProcessing(false);
+                    setImportResult(null);
+                    setShowPreview(false);
+                    setPreviewData({ deliveriesToCreate: [], deliveriesToUpdate: [], skippedItems: [], errors: [] });
+                    setIsParsing(false);
+                    setProgressPercent(0);
+                    setProgressMessage('');
+                    setShowProgress(false);
+                    setPatients([]);
+                    setPreviewFilterDriver('all');
+                    setPreviewFilterDate('all');
+                    setImportProgress({
+                      current: 0,
+                      total: 0,
+                      phase: '',
+                      created: 0,
+                      updated: 0,
+                      errors: 0,
+                      currentFile: '',
+                      filesCompleted: 0,
+                      totalFiles: 0
+                    });
+                  }}
+                  variant="outline"
+                  className="flex-1">
+                    Start New Import
+                  </Button>
+                  <Button
+                  onClick={() => {
+                    if (onImportComplete) {
+                      onImportComplete();
+                    }
+                  }}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700">
+                    Done - Close Import
+                  </Button>
+                </> :
+              <>
+                  <Button variant="outline" onClick={() => setShowPreview(false)} disabled={isProcessing || showProgress} className="flex-1">
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Back
+                  </Button>
+                  <Button onClick={handleConfirmImport} disabled={isProcessing || filteredPreviewDeliveries.length === 0 || showProgress} className="flex-1 bg-emerald-600 hover:bg-emerald-700">
+                    {isProcessing ?
+                  <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Importing...
+                      </> :
+                  `Confirm Import (${filteredPreviewDeliveries.length})`
+                  }
+                  </Button>
+                </>
+              }
+          </div>
+
+          {importResult &&
+            <div className="space-y-4 p-6 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-6 h-6 text-green-600" />
+                <h3 className="font-bold text-green-800">Import Complete!</h3>
+              </div>
+              <div className="grid grid-cols-3 gap-4 text-sm">
+              <div className="flex items-center justify-center gap-1">
+                <span className="text-slate-700">Created:</span>
+                <span className="font-semibold">{importResult.created}</span>
+              </div>
+
+              <div className="flex items-center justify-center gap-1">
+                <span className="text-slate-700">Updated:</span>
+                <span className="font-semibold">{importResult.updated}</span>
+              </div>
+
+              <div className="flex items-center justify-center gap-1">
+                <span className="text-slate-700">Skipped:</span>
+                <span className="font-semibold">{importResult.skipped}</span>
+              </div>
+            </div>
+            {importResult.errors && importResult.errors.length > 0 &&
+              <div className="mt-4">
+                  <h4 className="font-semibold text-red-600 mb-2">Errors ({importResult.errors.length}):</h4>
+                  <div className="bg-white border border-red-200 rounded p-3 max-h-40 overflow-y-auto text-xs">
+                    {importResult.errors.map((err, idx) =>
+                  <div key={idx} className="text-red-700 mb-1">{err}</div>
+                  )}
+                  </div>
+                </div>
+              }
+            </div>
+            }
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>);
+
+}
