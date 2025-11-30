@@ -184,7 +184,8 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
       ref={containerRef} className="flex gap-3 overflow-x-auto overflow-y-visible items-end min-h-[145px] pointer-events-auto"
 
       style={{
-        scrollbarWidth: 'thin'
+        scrollbarWidth: 'thin',
+        scrollbarColor: 'rgba(0,0,0,0.15) transparent'
       }}
       onWheel={(e) => {
         e.currentTarget.scrollLeft += e.deltaY;
