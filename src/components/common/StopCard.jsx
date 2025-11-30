@@ -115,6 +115,28 @@ export default function StopCard({
   const [isPreparingReturn, setIsPreparingReturn] = useState(false);
   const codAmountInputRefs = useRef([]);
 
+  // Detect if this is a stripped delivery (from other store)
+  // For dispatchers: strip deliveries that aren't from their assigned stores
+  // CRITICAL: Must be defined BEFORE isExpanded which depends on it
+  const isStrippedDelivery = useMemo(() => {
+    if (delivery?._isStripped === true) return true;
+    
+    // Check if current user is a dispatcher (but not admin)
+    if (!currentUser) return false;
+    const isDispatcher = userHasRole(currentUser, 'dispatcher');
+    const isAdmin = userHasRole(currentUser, 'admin');
+    
+    // Admins see everything, drivers see their own deliveries (handled elsewhere)
+    if (isAdmin || !isDispatcher) return false;
+    
+    // For dispatchers, check if this delivery's store is in their assigned stores
+    const dispatcherStoreIds = currentUser.store_ids || [];
+    if (dispatcherStoreIds.length === 0) return false;
+    
+    // If the delivery's store is not in dispatcher's stores, strip it
+    return delivery?.store_id && !dispatcherStoreIds.includes(delivery.store_id);
+  }, [delivery?._isStripped, delivery?.store_id, currentUser]);
+
   // Helper to auto-toggle driver online if offline
   const ensureDriverOnline = async () => {
     if (!currentUser?.id) return;
