@@ -1769,7 +1769,7 @@ export default function RouteImport({
                             <td className="p-1 font-mono text-xs w-22">
                               <div className="flex flex-col">
                                 <span>{delivery.tracking_number || '-'}</span>
-                                {delivery.puid && <span className="text-purple-600 text-[10px]">PUID: {delivery.puid}</span>}
+                                {delivery.puid && <span className="text-purple-600 text-[10px]">{delivery.puid}</span>}
                               </div>
                             </td>
                             <td className="p-1 font-mono text-xs w-22">
