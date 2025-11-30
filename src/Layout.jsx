@@ -1327,8 +1327,23 @@ export default function Layout({ children, currentPageName }) {
       const mergedUsers = Array.from(mergedUsersMap.values()).filter(Boolean);
       console.log(`✅ [Layout] Merged ${mergedUsers.length} users`);
 
-      const activeDrivers = getActiveDriversForCity(mergedUsers, selectedCityId);
-      console.log(`✅ [Layout] Populated ${activeDrivers.length} active drivers for selected city: ${selectedCityId}`);
+      // For admins, get drivers from all nearby cities; for others, just selected city
+      let activeDrivers;
+      if (isAdmin && relevantCityIds.length > 1) {
+        // Get all drivers from nearby cities
+        activeDrivers = mergedUsers.filter(user => {
+          if (!user || !user.app_roles || !Array.isArray(user.app_roles)) return false;
+          if (!user.app_roles.includes('driver') && !user.app_roles.includes('admin')) return false;
+          if (!user.user_name) return false;
+          if (user.status !== 'active') return false;
+          return relevantCityIds.includes(user.city_id);
+        });
+        activeDrivers = sortUsers(activeDrivers);
+        console.log(`✅ [Layout] Populated ${activeDrivers.length} active drivers from ${relevantCityIds.length} nearby cities`);
+      } else {
+        activeDrivers = getActiveDriversForCity(mergedUsers, selectedCityId);
+        console.log(`✅ [Layout] Populated ${activeDrivers.length} active drivers for selected city: ${selectedCityId}`);
+      }
 
 
       console.log('💾 [Layout] Updating Layout state with Stage 1 data...');
