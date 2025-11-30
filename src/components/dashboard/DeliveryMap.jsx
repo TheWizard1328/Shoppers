@@ -643,7 +643,8 @@ export default function DeliveryMap({
   statsCardRect = null, // NEW: Stats card bounding rect for legend positioning
   highlightedDeliveryId = null, // NEW: ID of delivery to highlight (from card hover/selection)
   STOP_CARDS_BASE_HEIGHT = 145, // NEW: Base height for stop cards
-  areStopCardsVisible = false // NEW: Whether stop cards are visible
+  areStopCardsVisible = false, // NEW: Whether stop cards are visible
+  onDriverRoutesCalculated = () => {} // NEW: Callback to pass driver routes to parent
 }) {
   const mapRef = useRef(null);
   const [map, setMap] = useState(null);
@@ -1609,6 +1610,13 @@ export default function DeliveryMap({
 
     return sortedRoutes;
   }, [deliveryMarkers, pickupMarkers, showRoutes, isSingleDriverMode, safeUsers, currentZoom, currentUser, currentDriverLocation, isViewingCurrentDate]);
+  
+  // Pass driver routes to parent component
+  useEffect(() => {
+    if (onDriverRoutesCalculated) {
+      onDriverRoutesCalculated(driverRoutes);
+    }
+  }, [driverRoutes, onDriverRoutesCalculated]);
 
   // NEW: Calculate legend position centered below stats card (AFTER driverRoutes is defined)
   useEffect(() => {
@@ -2484,38 +2492,7 @@ export default function DeliveryMap({
         </div>
       }
 
-      {/* Route Legend - Centered below stats card */}
-      {showLegend && showRoutes && driverRoutes.length > 0 && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
-        <div
-          ref={legendRef}
-          className="bg-white px-3 py-2 rounded-lg absolute w-auto max-w-[340px] shadow-lg border border-slate-200 transition-all duration-300 cursor-pointer"
-          style={{ 
-            opacity: areCardsVisible ? 1 : 0.3,
-            top: statsCardRect ? `${statsCardRect.bottom + 8}px` : '110px',
-            left: legendLeft !== null ? `${legendLeft}px` : '50%',
-            transform: legendLeft !== null ? 'none' : 'translateX(-50%)',
-            zIndex: isStatsCardExpanded ? 19 : 15
-          }}
-          onMouseEnter={() => onLegendInteraction(true)}
-          onMouseLeave={() => onLegendInteraction(false)}
-          onClick={() => onLegendInteraction(true)}>
-          <div className={`grid ${driverRoutes.length === 1 ? 'grid-cols-1' : driverRoutes.length <= 4 ? 'grid-cols-2' : 'grid-cols-3'} gap-x-4 gap-y-2`}>
-            {driverRoutes.map((route) =>
-              <div key={route.driverId} className="flex items-center gap-2 text-xs whitespace-nowrap">
-                <div
-                  className="w-4 h-1 rounded flex-shrink-0"
-                  style={{ backgroundColor: route.color }} />
-                <span className="text-slate-600 truncate">
-                  {route.driverName}
-                </span>
-                <span className="text-slate-600 font-medium">
-                  ({route.totalStops})
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-      }
+
 
       {/* NEW: Zoom Level Overlay */}
       {showZoomOverlay &&
