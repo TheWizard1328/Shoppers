@@ -13,7 +13,7 @@ const formatPhoneNumber = (phoneString) => {
   
   // Handle 11 digits (with country code)
   if (cleaned.length === 11 && cleaned[0] === '1') {
-    return `+1 (${cleaned.slice(1, 4)}) ${cleaned.slice(4, 7)}-${cleaned.slice(7, 11)}`;
+    return `(${cleaned.slice(1, 4)}) ${cleaned.slice(4, 7)}-${cleaned.slice(7, 11)}`;
   }
   
   // Truncate to 10 digits if longer
