@@ -2605,14 +2605,7 @@ export default function DeliveryForm({
                         }
                     </div>
 
-                    }
-                  </div>
-
-                  </div>
-
-                  {/* Section 5: Patient Preferences & Recurring */}
-                  {!isPickupMode &&
-                    <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                    {!isPickupMode &&
                       <div className="flex gap-3">
                         <div className="flex-1 space-y-2">
                           <Label className="text-sm font-semibold">Patient Preferences</Label>
@@ -2726,10 +2719,10 @@ export default function DeliveryForm({
                         </RadioGroup>
                         </div>
                       </div>
-                    </div>
-                  }
+                    }
+                  </div>
 
-                  {/* Section 6: Notes */}
+                  {/* Section 5: Patient & Driver Notes with Delivery Options & COD */}
                   <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
                     {!isPickupMode ?
                       <div className="flex gap-3">
@@ -2741,6 +2734,7 @@ export default function DeliveryForm({
                             placeholder="Patient delivery instructions..."
                             className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-[100px] text-sm resize-none"
                             disabled={isSaving} />
+
                         </div>
 
                         <div className="flex-1 space-y-1">
@@ -2751,8 +2745,10 @@ export default function DeliveryForm({
                             placeholder="Driver notes for this delivery..."
                             className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-[100px] text-sm resize-none"
                             disabled={isSaving} />
+
                         </div>
                       </div> :
+
                       <div className="space-y-1">
                         <Label className="text-sm font-semibold">Pickup Notes</Label>
                         <Textarea
@@ -2761,14 +2757,12 @@ export default function DeliveryForm({
                           placeholder="Notes for this pickup..."
                           className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-[100px] text-sm resize-none"
                           disabled={isSaving} />
+
                       </div>
                     }
-                  </div>
 
-                  {/* Section 7: Delivery Options & COD */}
-                  {!isPickupMode &&
-                    <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                      <div className="flex gap-3">
+                    {!isPickupMode &&
+                      <div className="space-y-2 pt-2 border-t border-slate-300">
                         <div className="flex gap-3">
                           <div className="flex-1 space-y-2">
                             <Label className="text-sm font-semibold">Delivery Options</Label>
