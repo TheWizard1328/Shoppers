@@ -2608,44 +2608,129 @@ export default function DeliveryForm({
                     }
                   </div>
 
-                  {/* Section 5: Patient & Driver Notes with Delivery Options & COD */}
-                  <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                    {!isPickupMode ?
+                  </div>
+
+                  {/* Section 5: Patient Preferences & Recurring */}
+                  {!isPickupMode &&
+                    <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
                       <div className="flex gap-3">
-                        <div className="flex-1 space-y-1">
-                          <Label className="text-sm font-semibold">Patient Notes</Label>
-                          <Textarea
-                            value={formData.delivery_instructions || selectedPatient?.notes || ''}
-                            onChange={(e) => setFormData((prev) => ({ ...prev, delivery_instructions: e.target.value }))}
-                            placeholder="Patient delivery instructions..."
-                            className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-[100px] text-sm resize-none"
-                            disabled={isSaving} />
+                        <div className="flex-1 space-y-2">
+                          <Label className="text-sm font-semibold">Patient Preferences</Label>
+                          <div className="space-y-3">
+                            <CheckboxField
+                              id="mailbox_ok"
+                              label="MailBox OK"
+                              checked={formData.mailbox_ok}
+                              onChange={(checked) => setFormData((prev) => ({ ...prev, mailbox_ok: checked }))}
+                              disabled={isSaving} />
 
+                            <CheckboxField
+                              id="ring_bell"
+                              label="Ring Bell"
+                              checked={formData.ring_bell}
+                              onChange={(checked) => setFormData((prev) => ({ ...prev, ring_bell: checked }))}
+                              disabled={isSaving} />
+
+                            <CheckboxField
+                              id="call_upon_arrival"
+                              label="Call Upon Arrival"
+                              checked={formData.call_upon_arrival}
+                              onChange={(checked) => setFormData((prev) => ({ ...prev, call_upon_arrival: checked }))}
+                              disabled={isSaving} />
+
+                            <CheckboxField
+                              id="dont_ring_bell"
+                              label="Don't Ring Bell"
+                              checked={formData.dont_ring_bell}
+                              onChange={(checked) => setFormData((prev) => ({ ...prev, dont_ring_bell: checked }))}
+                              disabled={isSaving} />
+
+                            <CheckboxField
+                              id="back_door"
+                              label="Back Door"
+                              checked={formData.back_door}
+                              onChange={(checked) => setFormData((prev) => ({ ...prev, back_door: checked }))}
+                              disabled={isSaving} />
+                          </div>
                         </div>
 
-                        <div className="flex-1 space-y-1">
-                          <Label className="text-sm font-semibold">Driver Notes</Label>
-                          <Textarea
-                            value={formData.delivery_notes}
-                            onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))}
-                            placeholder="Driver notes for this delivery..."
-                            className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-[100px] text-sm resize-none"
+                        <div className="flex-1 space-y-2 relative">
+                        <div className="py-1 flex items-center space-x-2">
+                          <Checkbox
+                            id="recurring"
+                            checked={formData.recurring}
+                            onCheckedChange={handleRecurringChange}
                             disabled={isSaving} />
 
+                          <Label htmlFor="recurring" className="text-sm font-medium">
+                            Recurring
+                          </Label>
                         </div>
-                      </div> :
 
-                      <div className="space-y-1">
-                        <Label className="text-sm font-semibold">Pickup Notes</Label>
-                        <Textarea
-                          value={formData.delivery_notes}
-                          onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))}
-                          placeholder="Notes for this pickup..."
-                          className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-[100px] text-sm resize-none"
-                          disabled={isSaving} />
+                        <RadioGroup
+                          value={currentFrequency}
+                          onValueChange={handleFrequencyChange}
+                          disabled={!formData.recurring || isSaving}
+                          className="space-y-3">
 
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="daily" id="daily" disabled={!formData.recurring || isSaving} />
+                            <Label htmlFor="daily" className={`text-sm ${!formData.recurring ? 'text-slate-400' : ''}`}>
+                              Daily
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem
+                              value="weekly"
+                              id="weekly"
+                              disabled={!formData.recurring || isSaving} />
+
+                            <Label
+                              htmlFor="weekly"
+                              className={`text-sm cursor-pointer ${!formData.recurring ? 'text-slate-400' : ''}`}>
+
+                              {weeklyLabel}
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem
+                              value="bi-weekly"
+                              id="bi-weekly"
+                              disabled={!formData.recurring || isSaving} />
+
+                            <Label
+                              htmlFor="bi-weekly"
+                              className={`text-sm cursor-pointer ${!formData.recurring ? 'text-slate-400' : ''}`}>
+
+                              {biWeeklyLabel}
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="weekly-x4" id="weekly-x4" disabled={!formData.recurring || isSaving} />
+                            <Label htmlFor="weekly-x4" className={`text-sm ${!formData.recurring ? 'text-slate-400' : ''}`}>
+                              Weekly x4
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="monthly" id="monthly" disabled={!formData.recurring || isSaving} />
+                            <Label htmlFor="monthly" className={`text-sm ${!formData.recurring ? 'text-slate-400' : ''}`}>
+                              Monthly
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="bi-monthly" id="bi-monthly" disabled={!formData.recurring || isSaving} />
+                            <Label htmlFor="bi-monthly" className={`text-sm ${!formData.recurring ? 'text-slate-400' : ''}`}>
+                              Bi-Monthly
+                            </Label>
+                          </div>
+                        </RadioGroup>
+                        </div>
                       </div>
-                    }
+                    </div>
+                  }
+
+                  {/* Section 6: Patient & Driver Notes with Delivery Options & COD */}
+                  <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
 
                     {!isPickupMode &&
                       <div className="space-y-2 pt-2 border-t border-slate-300">
