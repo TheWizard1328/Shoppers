@@ -544,11 +544,9 @@ export default function StopCard({
       className={`min-w-[325px] max-w-[325px] cursor-pointer transition-all self-end ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
       style={{ scrollSnapAlign: 'center' }}>
       <Card
-        className={`${isNextDelivery && !isCompleted ? 'border-2 border-emerald-500 ring-2 ring-emerald-300' : isPickup ? 'border-emerald-500' : 'border-blue-500'} ${isSelected && !isStrippedDelivery ? 'ring-2 ring-blue-400 shadow-xl' : 'shadow-md'} ${isProjected ? 'border-2 border-dashed border-purple-400 bg-purple-50/30' : ''} ${!isStrippedDelivery ? 'cursor-pointer hover:shadow-lg' : 'cursor-default'} transition-all duration-200`}
+        className={`${isNextDelivery && !isCompleted ? 'border-2 border-emerald-500 ring-2 ring-emerald-300' : isPickup ? 'border-emerald-500' : 'border-blue-500'} ${isSelected ? 'ring-2 ring-blue-400 shadow-xl' : 'shadow-md'} ${isProjected ? 'border-2 border-dashed border-purple-400 bg-purple-50/30' : ''} cursor-pointer hover:shadow-lg transition-all duration-200`}
         onClick={() => {
-          if (!isStrippedDelivery) {
-            onClick && onClick(delivery);
-          }
+          onClick && onClick(delivery);
         }}>
         <CardContent className="mx-1 px-3 py-2 flex flex-col">
           {/* HEADER SECTION - Always Visible */}
@@ -939,7 +937,7 @@ export default function StopCard({
             }
           </AnimatePresence>
 
-          {/* BODY SECTION - Expandable - Hidden for stripped deliveries */}
+          {/* BODY SECTION - Expandable */}
           <AnimatePresence>
             {isExpanded && !isStrippedDelivery &&
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
@@ -1298,8 +1296,7 @@ export default function StopCard({
             }
           </AnimatePresence>
 
-          {/* FOOTER SECTION - Hidden for stripped deliveries */}
-          {!isStrippedDelivery && (
+          {/* FOOTER SECTION - Always Visible */}
           <div className="space-y-3 mt-2">
             <div className="border-t border-slate-200">
               <div className="mx-auto mt-2 flex justify-between items-center">
@@ -1459,7 +1456,6 @@ export default function StopCard({
 
             </div>
           </div>
-          )}
         </CardContent>
       </Card>
     </motion.div>);
