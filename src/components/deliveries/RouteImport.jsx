@@ -1224,7 +1224,15 @@ export default function RouteImport({
 
     } catch (error) {
       console.error("❌ Preview error:", error);
-      alert(`Preview failed: ${error.message}`);
+      setImportError({
+        message: error.message,
+        record: {
+          driver: availableDrivers.find(d => d.id === selectedDriverId)?.user_name || 'Unknown',
+          files: files.map(f => f.name).join(', ')
+        },
+        lineNumber: null,
+        phase: 'preview'
+      });
       setShowProgress(false);
     } finally {
       setIsParsing(false);
