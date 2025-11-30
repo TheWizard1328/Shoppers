@@ -1,4 +1,3 @@
-
 // Dashboard.js - Delivery Management Dashboard
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -1611,15 +1610,26 @@ function Dashboard() {
   }, [isDataLoaded, deliveriesWithStopOrder]);
 
   // Register smart refresh callback to update map when in phase 2 (locked)
+  // CRITICAL: Use a ref to track current lock state to avoid stale closure issues
+  const isMapViewLockedRef = useRef(isMapViewLocked);
+  useEffect(() => {
+    isMapViewLockedRef.current = isMapViewLocked;
+  }, [isMapViewLocked]);
+
   useEffect(() => {
     if (!setOnSmartRefreshComplete) return;
     
     const handleSmartRefreshComplete = () => {
+      // CRITICAL: Use ref to get current lock state (avoids stale closure)
+      const currentlyLocked = isMapViewLockedRef.current;
+      
+      console.log('🗺️ [Smart Refresh] Callback triggered - Phase:', mapViewPhase, 'Locked (ref):', currentlyLocked);
+      
       // CRITICAL: Only re-apply map view if:
       // 1. Phase 2 is active
-      // 2. Map is LOCKED (blue FAB)
+      // 2. Map is LOCKED (blue FAB) - checked via ref for current value
       // 3. We have driver location and next stop coordinates
-      if (mapViewPhase === 2 && isMapViewLocked && isDriver && driverLocation && nextStopCoordinates) {
+      if (mapViewPhase === 2 && currentlyLocked && isDriver && driverLocation && nextStopCoordinates) {
         console.log('🗺️ [Smart Refresh] Phase 2 + LOCKED - re-centering map on driver + next stop');
         
         // Mark that we're doing a programmatic map move (debounces interaction handler)
@@ -1658,8 +1668,10 @@ function Dashboard() {
         });
         setMapCenter(null);
         setMapZoom(null);
-      } else if (mapViewPhase === 2 && !isMapViewLocked) {
+      } else if (mapViewPhase === 2 && !currentlyLocked) {
         console.log('🗺️ [Smart Refresh] Phase 2 but UNLOCKED (gray FAB) - NOT re-centering map');
+      } else {
+        console.log('🗺️ [Smart Refresh] Not phase 2 or missing data - NOT re-centering map');
       }
     };
     
@@ -1668,7 +1680,7 @@ function Dashboard() {
     return () => {
       setOnSmartRefreshComplete(null);
     };
-  }, [setOnSmartRefreshComplete, mapViewPhase, isMapViewLocked, isDriver, driverLocation, nextStopCoordinates, STOP_CARDS_BASE_HEIGHT, currentUser]);
+  }, [setOnSmartRefreshComplete, mapViewPhase, isDriver, driverLocation, nextStopCoordinates, STOP_CARDS_BASE_HEIGHT, currentUser]);
 
   // Auto-center on next stop on initial load
   const hasAutoSelectedRef = useRef(false);
