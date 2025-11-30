@@ -2608,8 +2608,6 @@ export default function DeliveryForm({
                     }
                   </div>
 
-                  </div>
-
                   {/* Section 5: Patient Preferences & Recurring */}
                   {!isPickupMode &&
                     <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
