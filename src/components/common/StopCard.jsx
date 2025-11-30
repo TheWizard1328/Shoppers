@@ -553,7 +553,6 @@ export default function StopCard({
         <CardContent className="mx-1 px-3 py-2 flex flex-col">
           {/* HEADER SECTION - Always Visible */}
           <div className="flex items-start gap-2">
-            {!isStrippedDelivery &&
             <div className="flex flex-col gap-2 items-start items-center">
               <Badge
                 variant="secondary"
@@ -608,7 +607,6 @@ export default function StopCard({
                 {delivery.signature_needed && (hasCODRequired || isFirstDelivery || delivery.fridge_item ? ' S' : 'S')}
               </Badge>
             </div>
-            }
 
             <div className="flex-1 min-w-0">
               <h3 className="text-slate-900 pt-1 text-lg font-semibold text-center truncate">
@@ -650,14 +648,47 @@ export default function StopCard({
 
             <div className="flex flex-col gap-2 items-end items-center">
               <div className="flex items-center gap-1">
+                {showStatusDropdown ?
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                      className={`font-medium inline-flex items-center gap-1 rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-xs font-bold px-2 py-0.5 cursor-pointer hover:opacity-80 ${statusConfig[delivery.status]?.color || 'bg-slate-100 text-slate-800'}`}
+                      onClick={(e) => e.stopPropagation()}>
+
+                        {statusConfig[delivery.status]?.label || delivery.status}
+                        <MoreVertical className="w-3 h-3" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="z-[99999]">
+                      <DropdownMenuLabel>Change Status</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {nextAvailableStatuses.map((status) =>
+                    <DropdownMenuItem
+                      key={status}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // Pass skipAutoCenter=false for finished statuses so ETAs get recalculated
+                        const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+                        const skipAutoCenter = !finishedStatuses.includes(status);
+                        onStatusUpdate(delivery.id, status, {}, skipAutoCenter);
+                      }}
+                      className="capitalize">
+
+                              {statusConfig[status]?.label || status}
+                          </DropdownMenuItem>
+                    )}
+                    </DropdownMenuContent>
+                  </DropdownMenu> :
+
                 <Badge
                   variant="secondary"
                   className={`font-medium inline-flex items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-xs font-bold px-2 py-0.5 ${statusConfig[delivery.status]?.color || 'bg-slate-100 text-slate-800'}`}>
                     {statusConfig[delivery.status]?.label || delivery.status}
                   </Badge>
+                }
               </div>
 
-              {!isStrippedDelivery && delivery.tracking_number && store?.abbreviation &&
+              {delivery.tracking_number && store?.abbreviation &&
               <Badge
                 variant="secondary" className="inline-flex items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 font-mono text-xs font-bold px-2 py-0.5"
                 style={{ backgroundColor: `${storeColor}20`, color: storeColor }}>
@@ -674,8 +705,86 @@ export default function StopCard({
             </div>
           </div>
 
-          {!isStrippedDelivery && <div className="border-t border-slate-200"></div>}
+          <div className="border-t border-slate-200"></div>
 
+          <div className="flex flex-col">
+            <div className="mt-2 flex items-start justify-between">
+              <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+                {finalDisplayAddress ?
+                <>
+                    {/* Main address without unit/buzzer */}
+                    <div className="flex items-start gap-2 text-sm text-slate-700">
+                      <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
+                      <span className="text-lg font-medium truncate">
+                        {isPickup ? store?.address || '' : patient?.address || ''}
+                      </span>
+                    </div>
+                    
+                    {/* Unit/Buzzer + Phone on second row */}
+                    {!isStrippedDelivery && !shouldRedact &&
+                  <div className="flex items-center gap-2 text-xs text-slate-600 pl-6">
+                        {/* Unit and Buzzer info */}
+                        {(() => {
+                      const unitNum = !isPickup ? delivery?.unit_number || patient?.unit_number : null;
+                      const fullAddress = isPickup ? store?.address || '' : patient?.address || '';
+                      const buzzerMatch = fullAddress.match(/buzz(?:er)?\s*(\d+)/i);
+                      const buzzerNum = buzzerMatch ? buzzerMatch[1] : null;
+
+                      if (!unitNum && !buzzerNum) return null;
+
+                      return (
+                        <>
+                              {unitNum && <span className="font-medium">#{unitNum}</span>}
+                              {buzzerNum && <span className="font-medium">Buzz {buzzerNum}</span>}
+                            </>);
+
+                    })()}
+                        
+                        {/* Phone number */}
+                        {finalDisplayPhone &&
+                    <span className="font-medium">Ph: {formatPhoneNumber(finalDisplayPhone)}</span>
+                    }
+                      </div>
+                  }
+                  </> :
+
+                <div className="w-full h-[26px]" />
+                }
+              </div>
+              
+              {/* Navigation and Phone buttons - right justified */}
+              <div className="py-1 flex items-center gap-2 flex-shrink-0">
+                {finalDisplayAddress &&
+                <a
+                  href={(() => {
+                    if (!shouldRedact && !isPickup && patient?.latitude && patient?.longitude) {
+                      return `https://www.google.com/maps/dir/?api=1&destination=${patient.latitude},${patient.longitude}`;
+                    } else if (!shouldRedact && isPickup && store?.latitude && store?.longitude) {
+                      return `https://www.google.com/maps/dir/?api=1&destination=${store.latitude},${store.longitude}`;
+                    } else {
+                      return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(finalDisplayAddress)}`;
+                    }
+                  })()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex items-center justify-center w-9 h-9 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 transition-colors">
+
+                    <Navigation className="w-4 h-4" />
+                  </a>
+                }
+                {finalDisplayPhone &&
+                <a
+                  href={`tel:${finalDisplayPhone.replace(/\D/g, '')}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex items-center justify-center w-9 h-9 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-600 transition-colors">
+
+                    <Phone className="w-4 h-4" />
+                  </a>
+                }
+              </div>
+            </div>
+          </div>
 
           {/* Delete Confirmation Dialog */}
           <AnimatePresence>
