@@ -2845,22 +2845,22 @@ export default function DeliveryForm({
                           }
                         </div>
                       </div>
-                    }
+                    </div>
+                  }
 
-                    {isPickupMode &&
-                      <div className="space-y-2 pt-2 border-t border-slate-300">
-                        <Label className="text-sm font-semibold">Pickup Options</Label>
-                        <div className="space-y-3">
-                          <CheckboxField
-                            id="after_hours_pickup"
-                            label="After Hours Pickup"
-                            checked={formData.after_hours_pickup}
-                            onChange={(checked) => setFormData((prev) => ({ ...prev, after_hours_pickup: checked }))}
-                            disabled={isSaving} />
-                        </div>
+                  {isPickupMode &&
+                    <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                      <Label className="text-sm font-semibold">Pickup Options</Label>
+                      <div className="space-y-3">
+                        <CheckboxField
+                          id="after_hours_pickup"
+                          label="After Hours Pickup"
+                          checked={formData.after_hours_pickup}
+                          onChange={(checked) => setFormData((prev) => ({ ...prev, after_hours_pickup: checked }))}
+                          disabled={isSaving} />
                       </div>
-                    }
-                  </div>
+                    </div>
+                  }
                 </div>
 
                 {/* Staged Panel - STATIC */}
