@@ -1,3 +1,4 @@
+
 // Dashboard.js - Delivery Management Dashboard
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -245,6 +246,7 @@ function Dashboard() {
   const [scrollToNextCardAfter, setScrollToNextCardAfter] = useState(null);
   const [dailyPolylineCount, setDailyPolylineCount] = useState(null);
   const [highlightedCardId, setHighlightedCardId] = useState(null);
+  const [driverRoutes, setDriverRoutes] = useState([]);
   
   // Track if we've done initial driver selection (prevent re-running on data changes)
   const hasSetInitialDriverDashboard = useRef(false);
@@ -1071,7 +1073,7 @@ function Dashboard() {
       
       console.log(`⏰ [FAB Click] Timer started with ID: ${mapLockTimeoutRef.current}`);
     }
-  }, [mapViewPhase, isMapViewLocked, isDriver, driverLocation, nextStopCoordinates]);
+  }, [mapViewPhase, isMapViewLocked, isDriver, driverLocation, nextStopCoordinates, isDispatcher]);
 
   // Track if the current map positioning was triggered by FAB (not by data refresh)
   const mapPositioningTriggerRef = useRef(null);
@@ -1443,7 +1445,7 @@ function Dashboard() {
       default:
         break;
     }
-  }, [mapViewPhase, driverLocation, nextStopCoordinates, deliveriesWithStopOrder, patients, stores, isDriver, STOP_CARDS_BASE_HEIGHT, mapViewTrigger, isDispatcher, StopCardsHeight]);
+  }, [mapViewPhase, driverLocation, nextStopCoordinates, deliveriesWithStopOrder, patients, stores, isDriver, STOP_CARDS_BASE_HEIGHT, mapViewTrigger, isDispatcher, StopCardsHeight, currentUser]);
 
   // Apply initial map view on first load - SKIP if settings already handled it
   useEffect(() => {
@@ -1493,7 +1495,7 @@ function Dashboard() {
       // THEN select card and scroll after a delay to ensure DOM is ready
       if (incompleteDeliveries.length > 0) {
         const nextDelivery = incompleteDeliveries[0];
-        console.log(`📍 [Initial Load Phase 2] Will select next stop: ${nextDelivery.patient_name || 'Pickup'} (id: ${nextDelivery.id})`);
+        console.log(`📍 [Initial Load Phase 2] Will select next stop: ${nextDelivery.patient_name || 'Pickup'}`);
         
         // Delay setting selectedCardId to ensure HorizontalStopCards is rendered
         setTimeout(() => {
@@ -1557,7 +1559,7 @@ function Dashboard() {
         }
       }, lockDuration);
     }
-  }, [initialMapViewApplied, isDataLoaded, deliveriesWithStopOrder.length, isDriver, driverLocation, userSettingsLoaded, mapViewPhase]);
+  }, [initialMapViewApplied, isDataLoaded, deliveriesWithStopOrder.length, isDriver, driverLocation, userSettingsLoaded, mapViewPhase, STOP_CARDS_BASE_HEIGHT]);
 
   // CRITICAL: Dedicated effect to scroll to next delivery card on initial load
   // This runs AFTER cards are rendered and handles ALL phases
@@ -1666,7 +1668,7 @@ function Dashboard() {
     return () => {
       setOnSmartRefreshComplete(null);
     };
-  }, [setOnSmartRefreshComplete, mapViewPhase, isMapViewLocked, isDriver, driverLocation, nextStopCoordinates]);
+  }, [setOnSmartRefreshComplete, mapViewPhase, isMapViewLocked, isDriver, driverLocation, nextStopCoordinates, STOP_CARDS_BASE_HEIGHT, currentUser]);
 
   // Auto-center on next stop on initial load
   const hasAutoSelectedRef = useRef(false);
@@ -1747,7 +1749,7 @@ function Dashboard() {
         hasAutoSelectedRef.current = true;
       }
     }
-  }, [isDataLoaded, deliveriesWithStopOrder, isLoadingUser, patients, stores, initialMapViewApplied]);
+  }, [isDataLoaded, deliveriesWithStopOrder, isLoadingUser, patients, stores, initialMapViewApplied, StopCardsHeight]);
 
   // PHASE 4: Apply driver selection AFTER data is loaded
   // Only for pure drivers who MUST see their own route (override settings)
@@ -1790,7 +1792,7 @@ function Dashboard() {
     if (savedDriverId && savedDriverId !== selectedDriverId) {
       setSelectedDriverId(savedDriverId);
     }
-  }, [globalFilters.getSelectedDriverId()]);
+  }, [selectedDriverId]); // Add selectedDriverId as dependency
 
   const handleDateChange = (date) => {
     setSelectedDate(date);
@@ -3171,6 +3173,7 @@ function Dashboard() {
           time_window_end: stop.time_window_end || stop.delivery_time_end,
           status: stop.status,
           stop_id: stop.stop_id,
+          puid: stop.puid || null,
           stop_order: stop.stop_order,
           tracking_number: stop.tracking_number,
           delivery_notes: stop.delivery_notes || '',
@@ -3205,6 +3208,7 @@ function Dashboard() {
           // NEVER auto-update TR# for existing stops with TR#s during route optimization
           const updatePayload = {
             stop_id: payload.stop_id,
+            puid: payload.puid,
             stop_order: payload.stop_order,
             delivery_time_start: payload.delivery_time_start,
             delivery_time_end: payload.delivery_time_end,
