@@ -77,11 +77,24 @@ export async function loadUserSettings(userId) {
       return cachedSettings;
     }
 
-    // No settings found, return defaults (don't create until user makes a change)
-    console.log('ℹ️ [UserSettings] No settings found, using defaults');
-    cachedSettings = { ...DEFAULT_SETTINGS };
-    currentUserId = userId;
-    return cachedSettings;
+    // No settings found for this user/device combo - create a new record
+    console.log('ℹ️ [UserSettings] No settings found, creating new record for user/device combo');
+    try {
+      const newSettings = await UserSettings.create({
+        user_id: userId,
+        device_id: deviceId,
+        ...DEFAULT_SETTINGS
+      });
+      cachedSettings = { ...DEFAULT_SETTINGS, ...newSettings };
+      currentUserId = userId;
+      console.log('✅ [UserSettings] Created new settings record:', cachedSettings);
+      return cachedSettings;
+    } catch (createError) {
+      console.error('❌ [UserSettings] Error creating new settings record:', createError);
+      cachedSettings = { ...DEFAULT_SETTINGS };
+      currentUserId = userId;
+      return cachedSettings;
+    }
 
   } catch (error) {
     console.error('❌ [UserSettings] Error loading settings:', error);
