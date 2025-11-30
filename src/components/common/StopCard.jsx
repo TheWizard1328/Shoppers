@@ -708,50 +708,50 @@ export default function StopCard({
           <div className="flex flex-col gap-1">
             <div className="mt-2 flex items-start justify-between">
               <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-                {finalDisplayAddress ? (
-                  <>
+                {finalDisplayAddress ?
+                <>
                     {/* Main address without unit/buzzer */}
                     <div className="flex items-start gap-2 text-sm text-slate-700">
                       <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
                       <span className="text-lg font-medium truncate">
-                        {isPickup ? (store?.address || '') : (patient?.address || '')}
+                        {isPickup ? store?.address || '' : patient?.address || ''}
                       </span>
                     </div>
                     
                     {/* Unit/Buzzer + Phone on second row */}
-                    {!isStrippedDelivery && !shouldRedact && (
-                      <div className="flex items-center gap-2 text-xs text-slate-600 pl-6">
+                    {!isStrippedDelivery && !shouldRedact &&
+                  <div className="flex items-center gap-2 text-xs text-slate-600 pl-6">
                         {/* Unit and Buzzer info */}
                         {(() => {
-                          const unitNum = !isPickup ? (delivery?.unit_number || patient?.unit_number) : null;
-                          const fullAddress = isPickup ? (store?.address || '') : (patient?.address || '');
-                          const buzzerMatch = fullAddress.match(/buzz(?:er)?\s*(\d+)/i);
-                          const buzzerNum = buzzerMatch ? buzzerMatch[1] : null;
-                          
-                          if (!unitNum && !buzzerNum) return null;
-                          
-                          return (
-                            <>
+                      const unitNum = !isPickup ? delivery?.unit_number || patient?.unit_number : null;
+                      const fullAddress = isPickup ? store?.address || '' : patient?.address || '';
+                      const buzzerMatch = fullAddress.match(/buzz(?:er)?\s*(\d+)/i);
+                      const buzzerNum = buzzerMatch ? buzzerMatch[1] : null;
+
+                      if (!unitNum && !buzzerNum) return null;
+
+                      return (
+                        <>
                               {unitNum && <span className="font-medium"># {unitNum}</span>}
                               {buzzerNum && <span className="font-medium">Buzz {buzzerNum}</span>}
-                            </>
-                          );
-                        })()}
+                            </>);
+
+                    })()}
                         
                         {/* Phone number */}
-                        {finalDisplayPhone && (
-                          <span className="font-medium">{formatPhoneNumber(finalDisplayPhone)}</span>
-                        )}
+                        {finalDisplayPhone &&
+                    <span className="font-medium">{formatPhoneNumber(finalDisplayPhone)}</span>
+                    }
                       </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="w-full h-[26px]" />
-                )}
+                  }
+                  </> :
+
+                <div className="w-full h-[26px]" />
+                }
               </div>
               
               {/* Navigation and Phone buttons - right justified */}
-              <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="py-1 flex items-center gap-2 flex-shrink-0">
                 {finalDisplayAddress &&
                 <a
                   href={(() => {
@@ -1053,45 +1053,45 @@ export default function StopCard({
                         <p className="text-xs font-semibold text-slate-700 mb-0.5">Patient Info:</p>
                         <div className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded px-2 py-1.5 space-y-1">
                           {/* Delivery Preferences */}
-                          {(patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door) && (
-                            <div className="flex flex-wrap gap-1">
+                          {(patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door) &&
+                      <div className="flex flex-wrap gap-1">
                               {patient.mailbox_ok && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-blue-50 border-blue-200 text-blue-700">Mailbox OK</Badge>}
                               {patient.call_upon_arrival && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-amber-50 border-amber-200 text-amber-700">Call on Arrival</Badge>}
                               {patient.dont_ring_bell && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-red-50 border-red-200 text-red-700">Don't Ring Bell</Badge>}
                               {patient.back_door && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-purple-50 border-purple-200 text-purple-700">Back Door</Badge>}
                             </div>
-                          )}
+                      }
                           
                           {/* Recurring Schedule */}
-                          {patient.recurring && (
-                            <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">
+                          {patient.recurring &&
+                      <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">
                               {(() => {
-                                if (patient.recurring_daily) return 'Daily';
-                                if (patient.recurring_monthly) return 'Monthly';
-                                if (patient.recurring_bimonthly) return 'Bi-Monthly';
-                                if (patient.recurring_biweekly) return 'Bi-Weekly';
-                                if (patient.recurring_weekly_x4) return '4x Weekly';
-                                
-                                // Weekly with specific days
-                                const days = [];
-                                if (patient.recurring_weekly_mon) days.push('Mon');
-                                if (patient.recurring_weekly_tue) days.push('Tue');
-                                if (patient.recurring_weekly_wed) days.push('Wed');
-                                if (patient.recurring_weekly_thu) days.push('Thu');
-                                if (patient.recurring_weekly_fri) days.push('Fri');
-                                if (patient.recurring_weekly_sat) days.push('Sat');
-                                if (patient.recurring_weekly_sun) days.push('Sun');
-                                
-                                if (days.length > 0) return `Weekly(${days.join(', ')})`;
-                                return 'Recurring';
-                              })()}
+                          if (patient.recurring_daily) return 'Daily';
+                          if (patient.recurring_monthly) return 'Monthly';
+                          if (patient.recurring_bimonthly) return 'Bi-Monthly';
+                          if (patient.recurring_biweekly) return 'Bi-Weekly';
+                          if (patient.recurring_weekly_x4) return '4x Weekly';
+
+                          // Weekly with specific days
+                          const days = [];
+                          if (patient.recurring_weekly_mon) days.push('Mon');
+                          if (patient.recurring_weekly_tue) days.push('Tue');
+                          if (patient.recurring_weekly_wed) days.push('Wed');
+                          if (patient.recurring_weekly_thu) days.push('Thu');
+                          if (patient.recurring_weekly_fri) days.push('Fri');
+                          if (patient.recurring_weekly_sat) days.push('Sat');
+                          if (patient.recurring_weekly_sun) days.push('Sun');
+
+                          if (days.length > 0) return `Weekly(${days.join(', ')})`;
+                          return 'Recurring';
+                        })()}
                             </Badge>
-                          )}
+                      }
                           
                           {/* Patient Notes */}
-                          {patient.notes && (
-                            <p className="whitespace-pre-wrap break-words">{patient.notes}</p>
-                          )}
+                          {patient.notes &&
+                      <p className="whitespace-pre-wrap break-words">{patient.notes}</p>
+                      }
                         </div>
                       </div>
                     </div>
