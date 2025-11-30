@@ -1124,9 +1124,14 @@ export default function RouteImport({
 
       console.log(`[RouteImport] Fetching fresh store data from ALL cities...`);
       setProgressMessage('Fetching store data from all cities...');
-      const freshStoresAll = await getData('Store', '-created_date');
+      // CRITICAL: Fetch ALL stores without any city filter - this ensures we can match
+      // store abbreviations regardless of which city the user is currently viewing
+      const freshStoresAll = await base44.entities.Store.list('-created_date');
       setAllStores(freshStoresAll || []);
-      console.log(`[RouteImport] Fresh store data loaded: ${freshStoresAll?.length || 0} stores from all cities`);
+      console.log(`[RouteImport] Fresh store data loaded: ${freshStoresAll?.length || 0} stores from ALL cities`);
+      if (freshStoresAll && freshStoresAll.length > 0) {
+        console.log(`[RouteImport] Store abbreviations available:`, freshStoresAll.map(s => `${s.abbreviation || 'N/A'} (${s.name})`).slice(0, 30));
+      }
 
       console.log(`[RouteImport] Fetching fresh patient data...`);
       setProgressMessage('Fetching fresh patient data...');
