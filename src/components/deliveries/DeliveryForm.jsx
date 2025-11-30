@@ -2658,7 +2658,8 @@ export default function DeliveryForm({
                         <RadioGroup
                           value={currentFrequency}
                           onValueChange={handleFrequencyChange}
-                          disabled={!formData.recurring || isSaving} className="grid space-y-2">
+                          disabled={!formData.recurring || isSaving}
+                          className="space-y-1">
 
                           <div className="flex items-center space-x-2">
                             <RadioGroupItem value="daily" id="daily" disabled={!formData.recurring || isSaving} />
