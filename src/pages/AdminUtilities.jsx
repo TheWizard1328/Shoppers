@@ -2747,7 +2747,7 @@ export default function AdminUtilities() {
       });
     }
 
-    if (selectedDriver !== 'all') {
+    if (selectedDriver && selectedDriver !== 'all') {
       const targetDriver = driversForDropdown.find(d => d.user_name === selectedDriver);
       if (targetDriver) {
         filtered = filtered.filter(delivery => 
@@ -2755,8 +2755,6 @@ export default function AdminUtilities() {
           delivery.driver_name === targetDriver.full_name ||
           delivery.driver_name === targetDriver.user_name
         );
-      } else {
-        filtered = [];
       }
     }
 
