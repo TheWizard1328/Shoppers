@@ -2604,8 +2604,6 @@ export default function DeliveryForm({
                           </div>
                         }
                     </div>
-
-                    }
                   </div>
 
                   {/* Section 5: Patient Preferences & Recurring */}
