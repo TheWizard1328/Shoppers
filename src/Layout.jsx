@@ -2192,7 +2192,7 @@ export default function Layout({ children, currentPageName }) {
                                   <SelectTrigger className="w-full bg-white border-slate-300 h-9">
                                     <SelectValue placeholder="Select city..." />
                                   </SelectTrigger>
-                                  <SelectContent className="max-h-[300px] overflow-y-auto">
+                                  <SelectContent className="max-h-[300px] overflow-y-auto z-[10002]">
                                     {cities.map((city) => (
                                       <SelectItem key={city.id} value={city.id}>
                                         {city.name}
@@ -2551,7 +2551,7 @@ export default function Layout({ children, currentPageName }) {
                                 <SelectTrigger className="w-full bg-white border-slate-300 h-9">
                                   <SelectValue placeholder="City" />
                                 </SelectTrigger>
-                                <SelectContent className="max-h-[300px] overflow-y-auto">
+                                <SelectContent className="max-h-[300px] overflow-y-auto z-[10002]">
                                   {cities.map((city) => (
                                     <SelectItem key={city.id} value={city.id}>
                                       {city.name}
