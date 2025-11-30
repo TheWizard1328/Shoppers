@@ -2477,15 +2477,15 @@ export default function DeliveryMap({
       }
 
       {/* Route Legend - Centered below stats card */}
-      {showLegend && showRoutes && driverRoutes.length > 0 && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
+      {showLegend && showRoutes && driverRoutes.length > 0 && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
         <div
           ref={legendRef}
           className="bg-white px-3 py-2 rounded-lg absolute w-auto max-w-[340px] shadow-lg border border-slate-200 transition-all duration-300 cursor-pointer"
           style={{ 
             opacity: areCardsVisible ? 1 : 0.3,
             top: statsCardRect ? `${statsCardRect.bottom + 8}px` : '110px',
-            left: legendLeft ? `${legendLeft}px` : '50%',
-            transform: legendLeft ? 'none' : 'translateX(-50%)',
+            left: statsCardRect ? `${statsCardRect.left + (statsCardRect.width / 2)}px` : '50%',
+            transform: 'translateX(-50%)',
             zIndex: isStatsCardExpanded ? 19 : 15
           }}
           onMouseEnter={() => onLegendInteraction(true)}
