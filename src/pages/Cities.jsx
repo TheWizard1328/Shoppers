@@ -1,30 +1,37 @@
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { City } from '@/entities/City';
+import { AppUser } from '@/entities/AppUser';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, Edit, MapPin, Trash2 } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card'; // New import
+import { Plus, Search, Edit, MapPin, Trash2, Truck, Headphones } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import CityForm from '@/components/cities/CityForm';
 import DeleteConfirmDialog from '@/components/deliveries/DeleteConfirmDialog';
 import { sortCities } from '@/components/utils/sorting';
 
 export default function CitiesPage() {
     const [allCities, setAllCities] = useState([]);
+    const [appUsers, setAppUsers] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState(''); // Renamed from searchQuery
+    const [searchTerm, setSearchTerm] = useState('');
     const [editingCity, setEditingCity] = useState(null);
     const [deletingCity, setDeletingCity] = useState(null);
-    const [showForm, setShowForm] = useState(false); // Renamed from showCityForm
+    const [showForm, setShowForm] = useState(false);
 
     const loadCities = useCallback(async () => {
         setIsLoading(true);
         try {
-            const citiesData = await City.list();
+            const [citiesData, usersData] = await Promise.all([
+                City.list(),
+                AppUser.list()
+            ]);
             setAllCities(sortCities(citiesData || []));
+            setAppUsers(usersData || []);
         } catch (error) {
             console.error("Failed to load cities:", error);
             setAllCities([]);
+            setAppUsers([]);
         } finally {
             setIsLoading(false);
         }
@@ -75,8 +82,16 @@ export default function CitiesPage() {
         allCities.filter(city => 
             (city.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
             (city.province_state || '').toLowerCase().includes(searchTerm.toLowerCase())
-        ), [allCities, searchTerm] // Using new state name
+        ), [allCities, searchTerm]
     );
+
+    // Calculate driver and dispatcher counts per city
+    const getCityCounts = useCallback((cityId) => {
+        const cityUsers = appUsers.filter(u => u && u.city_id === cityId && u.status === 'active');
+        const drivers = cityUsers.filter(u => u.app_roles?.includes('driver')).length;
+        const dispatchers = cityUsers.filter(u => u.app_roles?.includes('dispatcher')).length;
+        return { drivers, dispatchers };
+    }, [appUsers]);
 
     return (
         <div className="h-full overflow-y-auto bg-slate-50 p-6">
@@ -126,7 +141,12 @@ export default function CitiesPage() {
                         ) : (
                             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                                 {filteredCities.map((city) => (
-                                    <Card key={city.id} className="hover:shadow-lg transition-shadow">
+                                    <Card key={city.id} className="hover:shadow-lg transition-shadow relative">
+                                        {city.sort_order !== undefined && (
+                                            <Badge className="absolute top-2 left-2 bg-slate-200 text-slate-700 text-xs">
+                                                {city.sort_order}
+                                            </Badge>
+                                        )}
                                         <CardContent className="p-6">
                                             <div className="flex items-start justify-between mb-4">
                                                 <div className="flex items-center gap-3">
@@ -153,12 +173,16 @@ export default function CitiesPage() {
                                                     <MapPin className="w-4 h-4" />
                                                     <span>Lat: {city.latitude?.toFixed(6)}, Lng: {city.longitude?.toFixed(6)}</span>
                                                 </div>
-                                                {city.sort_order !== undefined && (
-                                                    <div className="flex items-center gap-2 text-slate-600">
-                                                        <span className="font-medium">Sort Order:</span>
-                                                        <span>{city.sort_order}</span>
+                                                <div className="flex items-center gap-4 text-slate-600">
+                                                    <div className="flex items-center gap-1">
+                                                        <Truck className="w-4 h-4 text-emerald-600" />
+                                                        <span>{getCityCounts(city.id).drivers} Drivers</span>
                                                     </div>
-                                                )}
+                                                    <div className="flex items-center gap-1">
+                                                        <Headphones className="w-4 h-4 text-blue-600" />
+                                                        <span>{getCityCounts(city.id).dispatchers} Dispatchers</span>
+                                                    </div>
+                                                </div>
                                             </div>
 
                                             <div className="mt-4 pt-4 border-t border-slate-200">
