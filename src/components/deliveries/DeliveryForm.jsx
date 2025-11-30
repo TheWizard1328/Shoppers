@@ -2408,205 +2408,197 @@ export default function DeliveryForm({
               {/* Scrollable container for Sections 4 & 5 on desktop */}
               <div className={`flex gap-3 max-w-full ${delivery || isMobile ? 'overflow-y-auto flex-1' : 'flex-1 min-h-0 overflow-hidden'}`}>
                 <div className={`flex flex-col gap-3 ${delivery || isMobile ? 'flex-1' : 'flex-[13] overflow-y-auto'} ${isFormDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
-                  {/* Section 4: Patient and Store Info */}
-                  <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                    {!isPickupMode &&
-                      <div className="space-y-2">
-                        <div className="flex gap-3">
-                          <div className="flex-1 space-y-1">
-                            <Label className="text-sm font-semibold">Patient Name *</Label>
-                            <Input
-                              value={formData.patient_name}
-                              onChange={(e) => setFormData((prev) => ({ ...prev, patient_name: e.target.value }))}
-                              placeholder="Patient name"
-                              disabled={isSaving}
-                              className="h-9 text-sm" />
-
-                          </div>
-
-                          <div className="flex-1 space-y-1">
-                            <Label className="text-sm font-semibold">Phone</Label>
-                            <PhoneInput
-                              value={formData.patient_phone}
-                              onChange={(value) => setFormData((prev) => ({ ...prev, patient_phone: value }))}
-                              disabled={isSaving}
-                              className="h-9 text-sm" />
-
-                          </div>
+                  {/* Section 4a: Patient Name/Phone/Address/Unit */}
+                  {!isPickupMode &&
+                    <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                      <div className="flex gap-3">
+                        <div className="flex-1 space-y-1">
+                          <Label className="text-sm font-semibold">Patient Name *</Label>
+                          <Input
+                            value={formData.patient_name}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, patient_name: e.target.value }))}
+                            placeholder="Patient name"
+                            disabled={isSaving}
+                            className="h-9 text-sm" />
                         </div>
 
-                        <div className="flex gap-3">
-                          <div className="flex-[65] space-y-1">
-                            <Label className="text-sm font-semibold">Patient Address</Label>
-                            <Input
-                              value={selectedPatient?.address || ''}
-                              disabled
-                              placeholder="Address from patient record"
-                              className="bg-white h-9 text-sm" />
+                        <div className="flex-1 space-y-1">
+                          <Label className="text-sm font-semibold">Phone</Label>
+                          <PhoneInput
+                            value={formData.patient_phone}
+                            onChange={(value) => setFormData((prev) => ({ ...prev, patient_phone: value }))}
+                            disabled={isSaving}
+                            className="h-9 text-sm" />
+                        </div>
+                      </div>
 
+                      <div className="flex gap-3">
+                        <div className="flex-[65] space-y-1">
+                          <Label className="text-sm font-semibold">Patient Address</Label>
+                          <Input
+                            value={selectedPatient?.address || ''}
+                            disabled
+                            placeholder="Address from patient record"
+                            className="bg-white h-9 text-sm" />
+                        </div>
+
+                        <div className="flex-[35] space-y-1">
+                          <Label className="text-sm font-semibold">Unit #</Label>
+                          <Input
+                            value={formData.unit_number}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, unit_number: e.target.value }))}
+                            placeholder="Unit #"
+                            disabled={isSaving}
+                            className="h-9 text-sm" />
+                        </div>
+                      </div>
+                    </div>
+                  }
+
+                  {/* Section 4b: Store/Status/Time Windows */}
+                  <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                    <div className="flex gap-3">
+                      <div className="flex-1 space-y-1">
+                        <Label className="text-sm font-semibold">{isPickupMode ? 'Pickup Store *' : 'Store *'}</Label>
+                        <Select
+                          value={(() => {
+                            // For stores with AM/PM variants, find the correct variant based on store_id and ampm_deliveries
+                            if (formData.store_id && formData.ampm_deliveries) {
+                              const variantId = `${formData.store_id}_${formData.ampm_deliveries}`;
+                              const variantExists = availableStores.some((s) => s && s.id === variantId);
+                              if (variantExists) return variantId;
+                            }
+                            return formData.store_id || "";
+                          })()}
+                          onValueChange={(value) => {
+                            const selectedStore = availableStores.find((s) => s.id === value);
+                            const storeId = selectedStore?._originalStoreId || value;
+                            const timeSlot = selectedStore?._timeSlot || null;
+                            
+                            // Calculate new PUID based on selected store and time slot
+                            const newPuid = getPickupStopIdForDelivery(storeId, formData.delivery_date, timeSlot || 'AM', allDeliveries);
+                            
+                            setFormData((prev) => ({
+                              ...prev,
+                              store_id: storeId,
+                              ampm_deliveries: timeSlot || prev.ampm_deliveries,
+                              puid: newPuid || ''
+                            }));
+                            // Update pickup option if in pickup mode
+                            if (isPickupMode) {
+                              setSelectedPickupOption(value);
+                            }
+                          }}
+                          disabled={isSaving || isPickupMode && delivery}>
+                          <SelectTrigger className="h-9">
+                            <SelectValue placeholder="Select store" />
+                          </SelectTrigger>
+                          <SelectContent className="z-[999999]">
+                            {availableStores.map((store) => {
+                              const baseStoreId = store._originalStoreId || store.id;
+                              const timeSlot = store._timeSlot || null;
+                              const puid = getPickupStopIdForDelivery(baseStoreId, formData.delivery_date, timeSlot || 'AM', allDeliveries);
+                              const baseStoreName = store._originalStoreId ? store.name.replace(/ \[AM\]| \[PM\]/, '') : store.name;
+                              const displayName = `${baseStoreName}${store._timeSlot ? ` [${store._timeSlot}]` : ''}${isAppOwner(currentUser) && puid ? ` {${puid}}` : ''}`;
+                              return (
+                                <SelectItem key={store.id} value={store.id}>{displayName}</SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="flex-1 space-y-1">
+                        <Label className="text-sm font-semibold">{isPickupMode ? 'Pickup Status' : 'Delivery Status'}</Label>
+                        <Select
+                          value={formData.status}
+                          onValueChange={(value) => {
+                            setFormData((prev) => ({ ...prev, status: value }));
+                            if (delivery && ['completed', 'failed', 'cancelled'].includes(value)) {
+                              setCompletionTime(format(new Date(), 'HH:mm'));
+                            }
+                          }}
+                          disabled={isSaving}>
+                          <SelectTrigger className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="z-[999999]">
+                            <SelectItem value="pending">Pending</SelectItem>
+                            <SelectItem value="Ready For Pickup">Ready For Pickup</SelectItem>
+                            {isPickupMode ?
+                              <SelectItem value="en_route">En Route</SelectItem> :
+                              <SelectItem value="in_transit">In Transit</SelectItem>
+                            }
+                            <SelectItem value="completed">Completed</SelectItem>
+                            {isPickupMode ?
+                              <SelectItem value="cancelled">Cancelled</SelectItem> :
+                              <>
+                                <SelectItem value="failed">Failed</SelectItem>
+                                <SelectItem value="returned">Returned</SelectItem>
+                              </>
+                            }
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {isCompletionStatus && delivery ?
+                      <div className="space-y-1">
+                        <Label className="text-sm font-semibold">Completion Time *</Label>
+                        <Input
+                          type="time"
+                          value={completionTime}
+                          onChange={(e) => setCompletionTime(e.target.value)}
+                          disabled={isSaving}
+                          className="h-9 text-sm" />
+                      </div> :
+
+                      <div className="space-y-1">
+                        <Label className="text-sm font-semibold">Time Windows</Label>
+                        <div className="flex gap-3">
+                          <div className="flex-1 relative">
+                            <Input
+                              type="time"
+                              value={formData.time_window_start}
+                              onChange={(e) => setFormData((prev) => ({ ...prev, time_window_start: e.target.value }))}
+                              disabled={isSaving}
+                              placeholder="Start"
+                              className="h-9 text-sm pr-8" />
+                            {formData.time_window_start &&
+                              <button
+                                type="button"
+                                onClick={() => setFormData((prev) => ({ ...prev, time_window_start: '' }))}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                disabled={isSaving}>
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            }
                           </div>
 
-                          <div className="flex-[35] space-y-1">
-                            <Label className="text-sm font-semibold">Unit #</Label>
+                          <div className="flex-1 relative">
                             <Input
-                              value={formData.unit_number}
-                              onChange={(e) => setFormData((prev) => ({ ...prev, unit_number: e.target.value }))}
-                              placeholder="Unit #"
+                              type="time"
+                              value={formData.time_window_end}
+                              onChange={(e) => setFormData((prev) => ({ ...prev, time_window_end: e.target.value }))}
                               disabled={isSaving}
-                              className="h-9 text-sm" />
-
+                              placeholder="End"
+                              className="h-9 text-sm pr-8" />
+                            {formData.time_window_end &&
+                              <button
+                                type="button"
+                                onClick={() => setFormData((prev) => ({ ...prev, time_window_end: '' }))}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                disabled={isSaving}>
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            }
                           </div>
                         </div>
                       </div>
                     }
-
-                    <div className="space-y-2 pt-2 border-t border-slate-300">
-                        <div className="flex gap-3">
-                          <div className="flex-1 space-y-1">
-                            <Label className="text-sm font-semibold">{isPickupMode ? 'Pickup Store *' : 'Store *'}</Label>
-                            <Select
-                              value={(() => {
-                                // For stores with AM/PM variants, find the correct variant based on store_id and ampm_deliveries
-                                if (formData.store_id && formData.ampm_deliveries) {
-                                  const variantId = `${formData.store_id}_${formData.ampm_deliveries}`;
-                                  const variantExists = availableStores.some((s) => s && s.id === variantId);
-                                  if (variantExists) return variantId;
-                                }
-                                return formData.store_id || "";
-                              })()}
-                              onValueChange={(value) => {
-                                const selectedStore = availableStores.find((s) => s.id === value);
-                                const storeId = selectedStore?._originalStoreId || value;
-                                const timeSlot = selectedStore?._timeSlot || null;
-                                
-                                // Calculate new PUID based on selected store and time slot
-                                const newPuid = getPickupStopIdForDelivery(storeId, formData.delivery_date, timeSlot || 'AM', allDeliveries);
-                                
-                                setFormData((prev) => ({
-                                  ...prev,
-                                  store_id: storeId,
-                                  ampm_deliveries: timeSlot || prev.ampm_deliveries,
-                                  puid: newPuid || ''
-                                }));
-                                // Update pickup option if in pickup mode
-                                if (isPickupMode) {
-                                  setSelectedPickupOption(value);
-                                }
-                              }}
-                              disabled={isSaving || isPickupMode && delivery}>
-                              <SelectTrigger className="h-9">
-                                <SelectValue placeholder="Select store" />
-                              </SelectTrigger>
-                              <SelectContent className="z-[999999]">
-                                {availableStores.map((store) => {
-                                  const baseStoreId = store._originalStoreId || store.id;
-                                  const timeSlot = store._timeSlot || null;
-                                  const puid = getPickupStopIdForDelivery(baseStoreId, formData.delivery_date, timeSlot || 'AM', allDeliveries);
-                                  const baseStoreName = store._originalStoreId ? store.name.replace(/ \[AM\]| \[PM\]/, '') : store.name;
-                                  const displayName = `${baseStoreName}${store._timeSlot ? ` [${store._timeSlot}]` : ''}${isAppOwner(currentUser) && puid ? ` {${puid}}` : ''}`;
-                                  return (
-                                    <SelectItem key={store.id} value={store.id}>{displayName}</SelectItem>
-                                  );
-                                })}
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          <div className="flex-1 space-y-1">
-                            <Label className="text-sm font-semibold">{isPickupMode ? 'Pickup Status' : 'Delivery Status'}</Label>
-                            <Select
-                              value={formData.status}
-                              onValueChange={(value) => {
-                                setFormData((prev) => ({ ...prev, status: value }));
-                                if (delivery && ['completed', 'failed', 'cancelled'].includes(value)) {
-                                  setCompletionTime(format(new Date(), 'HH:mm'));
-                                }
-                              }}
-                              disabled={isSaving}>
-                              <SelectTrigger className="h-9">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent className="z-[999999]">
-                                <SelectItem value="pending">Pending</SelectItem>
-                                <SelectItem value="Ready For Pickup">Ready For Pickup</SelectItem>
-                                {isPickupMode ?
-                                  <SelectItem value="en_route">En Route</SelectItem> :
-                                  <SelectItem value="in_transit">In Transit</SelectItem>
-                                }
-                                <SelectItem value="completed">Completed</SelectItem>
-                                {isPickupMode ?
-                                  <SelectItem value="cancelled">Cancelled</SelectItem> :
-
-                                  <>
-                                    <SelectItem value="failed">Failed</SelectItem>
-                                    <SelectItem value="returned">Returned</SelectItem>
-                                  </>
-                                }
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-
-                        {isCompletionStatus && delivery ?
-                          <div className="space-y-1">
-                            <Label className="text-sm font-semibold">Completion Time *</Label>
-                            <Input
-                              type="time"
-                              value={completionTime}
-                              onChange={(e) => setCompletionTime(e.target.value)}
-                              disabled={isSaving}
-                              className="h-9 text-sm" />
-                          </div> :
-
-                          <div className="space-y-1">
-                            <Label className="text-sm font-semibold">Time Windows</Label>
-                            <div className="flex gap-3">
-                              <div className="flex-1 relative">
-                                <Input
-                                  type="time"
-                                  value={formData.time_window_start}
-                                  onChange={(e) => setFormData((prev) => ({ ...prev, time_window_start: e.target.value }))}
-                                  disabled={isSaving}
-                                  placeholder="Start"
-                                  className="h-9 text-sm pr-8" />
-                                {formData.time_window_start &&
-                                  <button
-                                    type="button"
-                                    onClick={() => setFormData((prev) => ({ ...prev, time_window_start: '' }))}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                                    disabled={isSaving}>
-
-                                    <X className="w-3.5 h-3.5" />
-                                  </button>
-                                }
-                              </div>
-
-                              <div className="flex-1 relative">
-                                <Input
-                                  type="time"
-                                  value={formData.time_window_end}
-                                  onChange={(e) => setFormData((prev) => ({ ...prev, time_window_end: e.target.value }))}
-                                  disabled={isSaving}
-                                  placeholder="End"
-                                  className="h-9 text-sm pr-8" />
-                                {formData.time_window_end &&
-                                  <button
-                                    type="button"
-                                    onClick={() => setFormData((prev) => ({ ...prev, time_window_end: '' }))}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                                    disabled={isSaving}>
-
-                                    <X className="w-3.5 h-3.5" />
-                                  </button>
-                                }
-                              </div>
-                            </div>
-                          </div>
-                        }
-                    </div>
                   </div>
 
-                  {/* Section 5: Patient Preferences & Recurring */}
+                  {/* Section 4c: Patient Preferences & Recurring */}
                   {!isPickupMode &&
                     <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
                       <div className="flex gap-3">
@@ -2853,22 +2845,22 @@ export default function DeliveryForm({
                           }
                         </div>
                       </div>
-                    }
+                    </div>
+                  }
 
-                    {isPickupMode &&
-                      <div className="space-y-2 pt-2 border-t border-slate-300">
-                        <Label className="text-sm font-semibold">Pickup Options</Label>
-                        <div className="space-y-3">
-                          <CheckboxField
-                            id="after_hours_pickup"
-                            label="After Hours Pickup"
-                            checked={formData.after_hours_pickup}
-                            onChange={(checked) => setFormData((prev) => ({ ...prev, after_hours_pickup: checked }))}
-                            disabled={isSaving} />
-                        </div>
+                  {isPickupMode &&
+                    <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                      <Label className="text-sm font-semibold">Pickup Options</Label>
+                      <div className="space-y-3">
+                        <CheckboxField
+                          id="after_hours_pickup"
+                          label="After Hours Pickup"
+                          checked={formData.after_hours_pickup}
+                          onChange={(checked) => setFormData((prev) => ({ ...prev, after_hours_pickup: checked }))}
+                          disabled={isSaving} />
                       </div>
-                    }
-                  </div>
+                    </div>
+                  }
                 </div>
 
                 {/* Staged Panel - STATIC */}
