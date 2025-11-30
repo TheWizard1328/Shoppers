@@ -541,12 +541,14 @@ export default function StopCard({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className={`min-w-[325px] max-w-[325px] cursor-pointer transition-all self-end ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
+      className={`min-w-[325px] max-w-[325px] transition-all self-end ${isStrippedDelivery ? '' : 'cursor-pointer'} ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
       style={{ scrollSnapAlign: 'center' }}>
       <Card
-        className={`${isNextDelivery && !isCompleted ? 'border-2 border-emerald-500 ring-2 ring-emerald-300' : isPickup ? 'border-emerald-500' : 'border-blue-500'} ${isSelected ? 'ring-2 ring-blue-400 shadow-xl' : 'shadow-md'} ${isProjected ? 'border-2 border-dashed border-purple-400 bg-purple-50/30' : ''} cursor-pointer hover:shadow-lg transition-all duration-200`}
+        className={`${isNextDelivery && !isCompleted ? 'border-2 border-emerald-500 ring-2 ring-emerald-300' : isPickup ? 'border-emerald-500' : 'border-blue-500'} ${isSelected ? 'ring-2 ring-blue-400 shadow-xl' : 'shadow-md'} ${isProjected ? 'border-2 border-dashed border-purple-400 bg-purple-50/30' : ''} ${isStrippedDelivery ? '' : 'cursor-pointer hover:shadow-lg'} transition-all duration-200`}
         onClick={() => {
-          onClick && onClick(delivery);
+          if (!isStrippedDelivery) {
+            onClick && onClick(delivery);
+          }
         }}>
         <CardContent className="mx-1 px-3 py-2 flex flex-col">
           {/* HEADER SECTION - Always Visible */}
@@ -937,9 +939,9 @@ export default function StopCard({
             }
           </AnimatePresence>
 
-          {/* BODY SECTION - Expandable */}
+          {/* BODY SECTION - Expandable - HIDDEN for stripped deliveries */}
           <AnimatePresence>
-            {isExpanded && !isStrippedDelivery &&
+            {!isStrippedDelivery && isExpanded &&
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
                 <div className="pt-3 space-y-3 border-t border-slate-200 mt-2">
                   {/* COD Information - Moved to expandable section */}
@@ -1296,7 +1298,8 @@ export default function StopCard({
             }
           </AnimatePresence>
 
-          {/* FOOTER SECTION - Always Visible */}
+          {/* FOOTER SECTION - HIDDEN for stripped deliveries */}
+          {!isStrippedDelivery &&
           <div className="space-y-3 mt-2">
             <div className="border-t border-slate-200">
               <div className="mx-auto mt-2 flex justify-between items-center">
@@ -1456,6 +1459,7 @@ export default function StopCard({
 
             </div>
           </div>
+          }
         </CardContent>
       </Card>
     </motion.div>);
