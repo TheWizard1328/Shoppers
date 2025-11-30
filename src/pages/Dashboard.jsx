@@ -619,6 +619,64 @@ function Dashboard() {
 
   // Track when the last programmatic map move happened (to debounce interaction handler)
   const lastProgrammaticMapMoveRef = useRef(0);
+  
+  // Track previous values for detecting changes that should trigger map repositioning
+  const prevDeliveriesLengthRef = useRef(0);
+  const prevSelectedDriverIdRef = useRef(selectedDriverId);
+  const prevSelectedDateRef = useRef(format(selectedDate, 'yyyy-MM-dd'));
+  
+  // Effect to reposition map when data changes (after date or driver change)
+  useEffect(() => {
+    const currentDeliveriesLength = deliveriesWithStopOrder.length;
+    const currentDateStr = format(selectedDate, 'yyyy-MM-dd');
+    
+    // Check if driver or date changed
+    const driverChanged = prevSelectedDriverIdRef.current !== selectedDriverId;
+    const dateChanged = prevSelectedDateRef.current !== currentDateStr;
+    
+    // Update refs
+    prevSelectedDriverIdRef.current = selectedDriverId;
+    prevSelectedDateRef.current = currentDateStr;
+    prevDeliveriesLengthRef.current = currentDeliveriesLength;
+    
+    // Only trigger map repositioning if driver or date changed AND we have data loaded
+    if ((driverChanged || dateChanged) && isDataLoaded && mapViewPhase > 0) {
+      console.log(`🗺️ [Data Change] Driver or date changed, triggering FAB phase ${mapViewPhase}`);
+      console.log(`   Driver: ${driverChanged ? 'changed' : 'same'}, Date: ${dateChanged ? 'changed' : 'same'}`);
+      console.log(`   Deliveries count: ${currentDeliveriesLength}`);
+      
+      // Small delay to ensure map tiles have loaded
+      setTimeout(() => {
+        setIsMapViewLocked(true);
+        setMapViewTrigger(prev => prev + 1);
+        
+        // Set appropriate lock behavior based on phase
+        if (mapViewPhase === 2) {
+          // Phase 2: Persistent lock
+          mapLockExpiresAtRef.current = null;
+          mapLockTimeoutRef.current = null;
+        } else {
+          // Phase 1 and 3: 3-second auto-unlock timer
+          const lockDuration = 3000;
+          const expiresAt = Date.now() + lockDuration;
+          mapLockExpiresAtRef.current = expiresAt;
+          
+          if (mapLockTimeoutRef.current) {
+            clearTimeout(mapLockTimeoutRef.current);
+          }
+          
+          mapLockTimeoutRef.current = window.setTimeout(() => {
+            if (mapLockExpiresAtRef.current === expiresAt) {
+              console.log(`⚫ [Data Change] Phase ${mapViewPhase} auto-unlocking`);
+              setIsMapViewLocked(false);
+              mapLockExpiresAtRef.current = null;
+              mapLockTimeoutRef.current = null;
+            }
+          }, lockDuration);
+        }
+      }, 300); // 300ms delay to let map tiles load
+    }
+  }, [selectedDriverId, selectedDate, isDataLoaded, deliveriesWithStopOrder.length, mapViewPhase]);
 
   const handleMapInteraction = useCallback(() => {
     console.log('🗺️ [Map Interaction] Called');
