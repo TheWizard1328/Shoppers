@@ -713,21 +713,7 @@ export default function StopCard({
                     {/* Main address without unit/buzzer */}
                     <div className="flex items-start gap-2 text-sm text-slate-700">
                       <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
-                      <span className="text-lg font-medium truncate">
-                        {(() => {
-                          if (isStrippedDelivery) return finalDisplayAddress;
-                          if (shouldRedact) return finalDisplayAddress;
-                          
-                          // Extract base address without unit/buzzer
-                          const fullAddress = isPickup ? (store?.address || '') : (patient?.address || '');
-                          // Remove common unit/buzzer patterns
-                          const baseAddress = fullAddress
-                            .replace(/,?\s*(#|unit|apt|suite|ste|buzzer|buzz)\s*[\d]+\s*$/i, '')
-                            .replace(/,?\s*(#|unit|apt|suite|ste|buzzer|buzz)\s*[\d]+,/i, ',')
-                            .trim();
-                          return baseAddress || fullAddress;
-                        })()}
-                      </span>
+                      <span className="text-lg font-medium truncate">{finalDisplayAddress}</span>
                     </div>
                     
                     {/* Unit/Buzzer + Phone on second row */}
