@@ -1429,6 +1429,26 @@ export default function RouteImport({
             console.warn(`⚠️ Update failed for delivery ID ${deliveryData.id}, will retry later:`, error.message);
             failedUpdates.push({ data: deliveryData, error: error.message });
             setImportProgress((prev) => ({ ...prev, current: i + 1 }));
+            
+            // Check for Invalid time value error and show detailed popup
+            if (error.message && error.message.includes('Invalid time value')) {
+              setImportError({
+                message: `Invalid time value error`,
+                record: {
+                  driver: deliveryData.driver_name || 'Unknown',
+                  date: deliveryData.delivery_date || 'Unknown',
+                  store: freshStores.find(s => s.id === deliveryData.store_id)?.name || deliveryData.store_id || 'Unknown',
+                  patient: deliveryData.patient_name || 'Store Pickup',
+                  stopId: deliveryData.stop_id || 'N/A',
+                  trackingNumber: deliveryData.tracking_number || 'N/A',
+                  time: deliveryData.actual_delivery_time || 'N/A',
+                  deliveryId: deliveryData.delivery_id || deliveryData.id || 'N/A'
+                },
+                lineNumber: null,
+                phase: 'update'
+              });
+              throw new Error(`Import stopped due to invalid time value. See error details.`);
+            }
             await delay(300);
           }
         }
