@@ -787,8 +787,15 @@ export default function RouteImport({
       // PUID assignment will be done after all rows are parsed (see below)
 
       if (completionTimeStr && currentDate) {
-        newDeliveryData.actual_delivery_time = `${currentDate}T${completionTimeStr}:00`;
-        console.log(`🕒 Row ${lineNumber}: Set local time "${completionTimeStr}" on date "${currentDate}" as: "${newDeliveryData.actual_delivery_time}"`);
+        // Validate time format before setting
+        const timeRegex = /^([01]?[0-9]|2[0-3]):([0-5][0-9])$/;
+        if (timeRegex.test(completionTimeStr)) {
+          newDeliveryData.actual_delivery_time = `${currentDate}T${completionTimeStr}:00`;
+          console.log(`🕒 Row ${lineNumber}: Set local time "${completionTimeStr}" on date "${currentDate}" as: "${newDeliveryData.actual_delivery_time}"`);
+        } else {
+          console.warn(`⚠️ Row ${lineNumber}: Invalid time format "${completionTimeStr}", skipping time assignment`);
+          // Don't throw - just skip the time but continue with the record
+        }
       }
 
       console.log(`🔢 Row ${lineNumber}: Set stop_order to ${stopOrder} (from column 4)`);
