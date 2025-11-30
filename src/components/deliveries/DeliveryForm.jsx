@@ -2663,7 +2663,8 @@ export default function DeliveryForm({
                         <RadioGroup
                           value={currentFrequency}
                           onValueChange={handleFrequencyChange}
-                          disabled={!formData.recurring || isSaving}>
+                          disabled={!formData.recurring || isSaving}
+                          className="space-y-3">
 
                           <div className="flex items-center space-x-2">
                             <RadioGroupItem value="daily" id="daily" disabled={!formData.recurring || isSaving} />
@@ -2716,44 +2717,6 @@ export default function DeliveryForm({
                             </Label>
                           </div>
                         </RadioGroup>
-
-                        {showDayPopup && formData.recurring && (activeRecurringType === 'weekly' || activeRecurringType === 'bi-weekly') &&
-                          <div className="absolute left-0 top-[-120px] w-full bg-white border-2 border-emerald-400 rounded-lg p-4 shadow-xl z-20">
-                            <p className="text-sm font-semibold text-slate-700 mb-3">Select Days:</p>
-                            <div className="space-y-2">
-                              {[
-                                { key: 'mon', label: 'Monday' },
-                                { key: 'tue', label: 'Tuesday' },
-                                { key: 'wed', label: 'Wednesday' },
-                                { key: 'thu', label: 'Thursday' },
-                                { key: 'fri', label: 'Friday' },
-                                { key: 'sat', label: 'Saturday' },
-                                { key: 'sun', label: 'Sunday' }].
-                                map(({ key, label }) =>
-                                  <div key={key} className="flex items-center space-x-2">
-                                    <Checkbox
-                                      id={`day-${key}`}
-                                      checked={formData[`recurring_weekly_${key}`]}
-                                      onCheckedChange={(checked) =>
-                                        setFormData((prev) => ({ ...prev, [`recurring_weekly_${key}`]: checked }))
-                                      } />
-
-                                    <Label htmlFor={`day-${key}`} className="text-sm capitalize cursor-pointer">
-                                      {label}
-                                    </Label>
-                                  </div>
-                                )}
-                            </div>
-                            <Button
-                              type="button"
-                              onClick={handleWeeklyDaysDone}
-                              size="sm"
-                              className="w-full mt-3 bg-emerald-600 hover:bg-emerald-700 text-white">
-
-                              Done
-                            </Button>
-                          </div>
-                        }
                         </div>
                       </div>
                     }
