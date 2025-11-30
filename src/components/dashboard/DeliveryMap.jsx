@@ -1612,15 +1612,23 @@ export default function DeliveryMap({
 
   // NEW: Calculate legend position centered below stats card (AFTER driverRoutes is defined)
   useEffect(() => {
-    if (!statsCardRect || !legendRef.current) {
+    if (!statsCardRect) {
       setLegendLeft(null);
       return;
     }
 
-    const legendWidth = legendRef.current.offsetWidth;
-    const calculatedLeft = statsCardRect.left + (statsCardRect.width / 2) - (legendWidth / 2);
+    // Calculate the center of the stats card
+    const statsCardCenterX = statsCardRect.left + (statsCardRect.width / 2);
     
-    setLegendLeft(calculatedLeft);
+    // If legendRef is available, account for legend width, otherwise just use stats card center
+    if (legendRef.current) {
+      const legendWidth = legendRef.current.offsetWidth;
+      const calculatedLeft = statsCardCenterX - (legendWidth / 2);
+      setLegendLeft(calculatedLeft);
+    } else {
+      // Fallback: position at stats card center (will be adjusted on next render when ref is available)
+      setLegendLeft(statsCardCenterX);
+    }
   }, [statsCardRect, driverRoutes.length, isStatsCardExpanded]);
 
   // REMOVED: Auto-fit logic that was interfering with FAB-controlled map positioning
