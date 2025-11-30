@@ -1815,38 +1815,8 @@ function Dashboard() {
       saveSetting(currentUser.id, 'selected_date', dateStr);
     }
     
-    // CRITICAL: Reactivate current FAB phase when date changes
-    // This ensures the map repositions to show the new date's data
-    if (mapViewPhase > 0) {
-      console.log(`📅 [Date Change] Reactivating FAB phase ${mapViewPhase}`);
-      setIsMapViewLocked(true);
-      setMapViewTrigger(prev => prev + 1);
-      
-      // Set appropriate lock behavior based on phase
-      if (mapViewPhase === 2) {
-        // Phase 2: Persistent lock
-        mapLockExpiresAtRef.current = null;
-        mapLockTimeoutRef.current = null;
-      } else {
-        // Phase 1 and 3: 3-second auto-unlock timer
-        const lockDuration = 3000;
-        const expiresAt = Date.now() + lockDuration;
-        mapLockExpiresAtRef.current = expiresAt;
-        
-        if (mapLockTimeoutRef.current) {
-          clearTimeout(mapLockTimeoutRef.current);
-        }
-        
-        mapLockTimeoutRef.current = window.setTimeout(() => {
-          if (mapLockExpiresAtRef.current === expiresAt) {
-            console.log(`⚫ [Date Change] Phase ${mapViewPhase} auto-unlocking`);
-            setIsMapViewLocked(false);
-            mapLockExpiresAtRef.current = null;
-            mapLockTimeoutRef.current = null;
-          }
-        }, lockDuration);
-      }
-    }
+    // NOTE: Map repositioning is handled by the useEffect that watches deliveriesWithStopOrder
+    // This ensures the map only repositions AFTER the new date's data has loaded
   };
 
   const handleDriverChange = (driverId) => {
