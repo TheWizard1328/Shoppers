@@ -2504,6 +2504,48 @@ export default function DeliveryMap({
         </div>
       }
 
+      {/* Driver Legend - Shows driver colors when in "All Drivers" mode */}
+      {showLegend && driverRoutes.length > 0 && (
+        <div
+          ref={legendRef}
+          className="absolute z-[10] pointer-events-auto transition-opacity duration-300"
+          style={{
+            top: isStatsCardExpanded ? '220px' : '120px',
+            left: legendLeft ? `${legendLeft}px` : '50%',
+            transform: legendLeft ? 'none' : 'translateX(-50%)'
+          }}
+          onMouseEnter={() => onLegendInteraction(true)}
+          onMouseLeave={() => onLegendInteraction(false)}
+        >
+          <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 px-3 py-2">
+            <div className="flex flex-wrap gap-x-3 gap-y-1.5 items-center justify-center">
+              {driverRoutes
+                .sort((a, b) => a.sortOrder - b.sortOrder)
+                .map((route) => (
+                  <div
+                    key={route.driverId}
+                    className="flex items-center gap-1.5 cursor-pointer hover:opacity-70 transition-opacity"
+                    onMouseEnter={() => setHighlightedRouteId(route.driverId)}
+                    onMouseLeave={() => setHighlightedRouteId(null)}
+                    onClick={() => setHighlightedRouteId(highlightedRouteId === route.driverId ? null : route.driverId)}
+                  >
+                    <div
+                      className="w-3 h-3 rounded-full border-2 border-white shadow-sm flex-shrink-0"
+                      style={{ backgroundColor: route.color }}
+                    />
+                    <span className="text-xs font-medium text-slate-700 whitespace-nowrap">
+                      {route.driverName}
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      ({route.stops.length})
+                    </span>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         .custom-popup .leaflet-popup-content-wrapper {
           padding: 6px;
