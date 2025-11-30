@@ -558,12 +558,15 @@ export default function StopCard({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className={`min-w-[325px] max-w-[325px] cursor-pointer transition-all self-end ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
+      className={`${isStrippedDelivery ? 'min-w-[280px] max-w-[280px]' : 'min-w-[325px] max-w-[325px]'} cursor-pointer transition-all self-end ${isSelected && !isStrippedDelivery ? 'ring-2 ring-blue-500' : ''}`}
       style={{ scrollSnapAlign: 'center' }}>
       <Card
-        className={`${isNextDelivery && !isCompleted ? 'border-2 border-emerald-500 ring-2 ring-emerald-300' : isPickup ? 'border-emerald-500' : 'border-blue-500'} ${isSelected ? 'ring-2 ring-blue-400 shadow-xl' : 'shadow-md'} ${isProjected ? 'border-2 border-dashed border-purple-400 bg-purple-50/30' : ''} cursor-pointer hover:shadow-lg transition-all duration-200`}
+        className={`${isNextDelivery && !isCompleted ? 'border-2 border-emerald-500 ring-2 ring-emerald-300' : isPickup ? 'border-emerald-500' : 'border-blue-500'} ${isSelected && !isStrippedDelivery ? 'ring-2 ring-blue-400 shadow-xl' : 'shadow-md'} ${isProjected ? 'border-2 border-dashed border-purple-400 bg-purple-50/30' : ''} ${isStrippedDelivery ? 'opacity-80' : ''} cursor-pointer hover:shadow-lg transition-all duration-200`}
         onClick={() => {
-          onClick && onClick(delivery);
+          // Don't trigger click/expand for stripped deliveries
+          if (!isStrippedDelivery) {
+            onClick && onClick(delivery);
+          }
         }}>
         <CardContent className="mx-1 px-3 py-2 flex flex-col">
           {/* HEADER SECTION - Always Visible */}
