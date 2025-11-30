@@ -241,11 +241,10 @@ function Dashboard() {
   const [showAIRoutePlanner, setShowAIRoutePlanner] = useState(false);
   const [useAIOptimization, setUseAIOptimization] = useState(true);
   const [isAIAnalyzing, setIsAIAnalyzing] = useState(false);
-  const [statsCardRect, setStatsCardRect] = useState(null);
+  const [driverRoutes, setDriverRoutes] = useState([]);
   const [scrollToNextCardAfter, setScrollToNextCardAfter] = useState(null);
   const [dailyPolylineCount, setDailyPolylineCount] = useState(null);
   const [highlightedCardId, setHighlightedCardId] = useState(null);
-  const [driverRoutes, setDriverRoutes] = useState([]);
   
   // Track if we've done initial driver selection (prevent re-running on data changes)
   const hasSetInitialDriverDashboard = useRef(false);
@@ -683,18 +682,11 @@ function Dashboard() {
 
     const measureStatsCard = () => {
       if (statsCardRef.current) {
-        const rect = statsCardRef.current.getBoundingClientRect();
         const width = statsCardRef.current.offsetWidth;
         
         if (width > 0 && width !== cardWidth) {
           setCardWidth(width);
         }
-        
-        // Store the card's position and dimensions for legend positioning
-        setStatsCardRect({
-          left: rect.left,
-          width: rect.width
-        });
       }
     };
 
@@ -4775,23 +4767,24 @@ function Dashboard() {
       </AnimatePresence>
 
       <div className={statsCardPositioning}>
-        <motion.div
-          ref={statsCardRef}
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: areCardsVisible ? 1 : 0.4, y: 0 }}
-          transition={{ duration: 0.3 }}
-          onMouseEnter={() => handleCardInteraction(true)}
-          onMouseLeave={() => handleCardInteraction(false)}
-          onClick={(e) => {
-            e.stopPropagation();
-            handleCardInteraction(true);
-            if (retractClustersRef.current) {
-              retractClustersRef.current();
-            }
-          }} 
-          className={`bg-white px-2 py-2 rounded-2xl shadow-xl border min-w-[340px] cursor-pointer z-[8888] ${
-            currentUser?.location_tracking_enabled ? 'border-2 border-emerald-500' : 'border-slate-200'
-          }`}>
+        <div className="flex flex-col items-center gap-3">
+          <motion.div
+            ref={statsCardRef}
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: areCardsVisible ? 1 : 0.4, y: 0 }}
+            transition={{ duration: 0.3 }}
+            onMouseEnter={() => handleCardInteraction(true)}
+            onMouseLeave={() => handleCardInteraction(false)}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCardInteraction(true);
+              if (retractClustersRef.current) {
+                retractClustersRef.current();
+              }
+            }} 
+            className={`bg-white px-2 py-2 rounded-2xl shadow-xl border min-w-[340px] cursor-pointer z-[8888] ${
+              currentUser?.location_tracking_enabled ? 'border-2 border-emerald-500' : 'border-slate-200'
+            }`}>
 
 
 
@@ -5018,7 +5011,42 @@ function Dashboard() {
                 </motion.div>
               }
             </AnimatePresence>
-        </motion.div>
+          </motion.div>
+
+          {/* Driver Legend - positioned directly below stats card */}
+          {isAllDriversMode && driverRoutes.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: areCardsVisible ? 1 : 0.4, y: 0 }}
+              transition={{ duration: 0.3 }}
+              onMouseEnter={() => handleCardInteraction(true)}
+              onMouseLeave={() => handleCardInteraction(false)}
+              className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 px-3 py-2"
+            >
+              <div className="flex flex-wrap gap-x-3 gap-y-1.5 items-center justify-center">
+                {driverRoutes
+                  .sort((a, b) => a.sortOrder - b.sortOrder)
+                  .map((route) => (
+                    <div
+                      key={route.driverId}
+                      className="flex items-center gap-1.5"
+                    >
+                      <div
+                        className="w-3 h-3 rounded-full border-2 border-white shadow-sm flex-shrink-0"
+                        style={{ backgroundColor: route.color }}
+                      />
+                      <span className="text-xs font-medium text-slate-700 whitespace-nowrap">
+                        {route.driverName}
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        ({route.stops.length})
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </motion.div>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 w-full relative min-h-0">
@@ -5049,13 +5077,11 @@ function Dashboard() {
             onMapModeChange={setMapMode}
             autoFitBounds={true}
             showRoutes={showRoutes}
-            showLegend={isAllDriversMode}
+            showLegend={false}
             areCardsVisible={areCardsVisible}
             onLegendInteraction={handleCardInteraction}
-            statsCardPositioning={statsCardPositioning}
-            isStatsCardExpanded={isExpanded}
-            statsCardRect={statsCardRect}
             googleApiKey={googleApiKey}
+            onDriverRoutesCalculated={setDriverRoutes}
             onMapInteraction={handleMapInteraction}
             retractClustersRef={retractClustersRef}
             STOP_CARDS_BASE_HEIGHT={STOP_CARDS_BASE_HEIGHT}
