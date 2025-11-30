@@ -2300,7 +2300,7 @@ export default function AdminUtilities() {
   const [deliverySortDirection, setDeliverySortDirection] = useState('desc');
   const [selectedDeliveryYear, setSelectedDeliveryYear] = useState(() => new Date().getFullYear().toString());
   const [selectedDeliveryMonth, setSelectedDeliveryMonth] = useState(() => (new Date().getMonth() + 1).toString());
-  const [selectedDriver, setSelectedDriver] = useState(null);
+  const [selectedDriver, setSelectedDriver] = useState('all');
   const [availableDeliveryYears, setAvailableDeliveryYears] = useState([]);
   const [filtersReady, setFiltersReady] = useState(false);
 
@@ -2504,7 +2504,7 @@ export default function AdminUtilities() {
   }, []);
 
   useEffect(() => {
-    if (!currentUser || selectedDriver !== null || !stores || !driversForDropdown) {
+    if (!currentUser || !stores || !driversForDropdown || driversForDropdown.length === 0) {
       return;
     }
 
@@ -2554,10 +2554,10 @@ export default function AdminUtilities() {
 
     console.log('🎯 [AdminUtilities] Setting default driver:', defaultDriver);
     setSelectedDriver(defaultDriver);
-  }, [currentUser, selectedDriver, stores, driversForDropdown]);
+  }, [currentUser, stores, driversForDropdown]);
 
   useEffect(() => {
-    if (filtersReady || deliveriesLoading || !stores || !driversForDropdown || selectedDriver === null) {
+    if (filtersReady || deliveriesLoading || !stores || !driversForDropdown || driversForDropdown.length === 0) {
       return;
     }
 
@@ -2570,7 +2570,7 @@ export default function AdminUtilities() {
     setFiltersReady(true);
 
     console.log('✅ [AdminUtilities] Filters ready, deliveries will now load');
-  }, [filtersReady, deliveriesLoading, stores, driversForDropdown, selectedDriver]);
+  }, [filtersReady, deliveriesLoading, stores, driversForDropdown]);
 
   useEffect(() => {
     if (!filtersReady || !allDeliveries || deliveriesLoading) {
