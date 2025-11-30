@@ -2408,54 +2408,7 @@ export default function DeliveryForm({
               {/* Scrollable container for Sections 4 & 5 on desktop */}
               <div className={`flex gap-3 max-w-full ${delivery || isMobile ? 'overflow-y-auto flex-1' : 'flex-1 min-h-0 overflow-hidden'}`}>
                 <div className={`flex flex-col gap-3 ${delivery || isMobile ? 'flex-1' : 'flex-[13] overflow-y-auto'} ${isFormDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
-                  {/* Section 4a: Patient Name/Phone/Address/Unit */}
-                  {!isPickupMode &&
-                  <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                      <div className="flex gap-3">
-                        <div className="flex-1 space-y-1">
-                          <Label className="text-sm font-semibold">Patient Name *</Label>
-                          <Input
-                          value={formData.patient_name}
-                          onChange={(e) => setFormData((prev) => ({ ...prev, patient_name: e.target.value }))}
-                          placeholder="Patient name"
-                          disabled={isSaving}
-                          className="h-9 text-sm" />
-                        </div>
-
-                        <div className="flex-1 space-y-1">
-                          <Label className="text-sm font-semibold">Phone</Label>
-                          <PhoneInput
-                          value={formData.patient_phone}
-                          onChange={(value) => setFormData((prev) => ({ ...prev, patient_phone: value }))}
-                          disabled={isSaving}
-                          className="h-9 text-sm" />
-                        </div>
-                      </div>
-
-                      <div className="flex gap-3">
-                        <div className="flex-[65] space-y-1">
-                          <Label className="text-sm font-semibold">Patient Address</Label>
-                          <Input
-                          value={selectedPatient?.address || ''}
-                          disabled
-                          placeholder="Address from patient record"
-                          className="bg-white h-9 text-sm" />
-                        </div>
-
-                        <div className="flex-[35] space-y-1">
-                          <Label className="text-sm font-semibold">Unit #</Label>
-                          <Input
-                          value={formData.unit_number}
-                          onChange={(e) => setFormData((prev) => ({ ...prev, unit_number: e.target.value }))}
-                          placeholder="Unit #"
-                          disabled={isSaving}
-                          className="h-9 text-sm" />
-                        </div>
-                      </div>
-                    </div>
-                  }
-
-                  {/* Section 4b: Store/Status/Time Windows */}
+                  {/* Section 4a: Store/Status/Time Windows */}
                   <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
                     <div className="flex gap-3">
                       <div className="flex-1 space-y-1">
@@ -2597,6 +2550,53 @@ export default function DeliveryForm({
                       </div>
                     }
                   </div>
+
+                  {/* Section 4b: Patient Name/Phone/Address/Unit */}
+                  {!isPickupMode &&
+                  <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                      <div className="flex gap-3">
+                        <div className="flex-1 space-y-1">
+                          <Label className="text-sm font-semibold">Patient Name *</Label>
+                          <Input
+                          value={formData.patient_name}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, patient_name: e.target.value }))}
+                          placeholder="Patient name"
+                          disabled={isSaving}
+                          className="h-9 text-sm" />
+                        </div>
+
+                        <div className="flex-1 space-y-1">
+                          <Label className="text-sm font-semibold">Phone</Label>
+                          <PhoneInput
+                          value={formData.patient_phone}
+                          onChange={(value) => setFormData((prev) => ({ ...prev, patient_phone: value }))}
+                          disabled={isSaving}
+                          className="h-9 text-sm" />
+                        </div>
+                      </div>
+
+                      <div className="flex gap-3">
+                        <div className="flex-[65] space-y-1">
+                          <Label className="text-sm font-semibold">Patient Address</Label>
+                          <Input
+                          value={selectedPatient?.address || ''}
+                          disabled
+                          placeholder="Address from patient record"
+                          className="bg-white h-9 text-sm" />
+                        </div>
+
+                        <div className="flex-[35] space-y-1">
+                          <Label className="text-sm font-semibold">Unit #</Label>
+                          <Input
+                          value={formData.unit_number}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, unit_number: e.target.value }))}
+                          placeholder="Unit #"
+                          disabled={isSaving}
+                          className="h-9 text-sm" />
+                        </div>
+                      </div>
+                    </div>
+                  }
 
                   {/* Section 4c: Patient Preferences & Recurring */}
                   {!isPickupMode &&
