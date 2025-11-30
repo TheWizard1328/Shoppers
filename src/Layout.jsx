@@ -745,15 +745,12 @@ export default function Layout({ children, currentPageName }) {
       const isDriver = userHasRole(currentUser, 'driver');
       const isDispatcher = userHasRole(currentUser, 'dispatcher');
 
-      if (!isAdmin) {
-        if (isDriver && !isDispatcher) {
-          filters.deliveryFilter.driver_id = currentUser.id;
-        }
-        // CRITICAL: Dispatchers in "All Drivers" mode get ALL city deliveries (not filtered by store)
-        // This allows simple circle markers to display for other stores
-        // Individual pages/components handle the detailed filtering
+      // 75KM RADIUS: Pure drivers (not dispatcher/admin) only see their own deliveries
+      if (isDriver && !isDispatcher && !isAdmin) {
+        filters.deliveryFilter.driver_id = currentUser.id;
       }
-
+      
+      // Single driver filter (when not in "All Drivers" mode)
       if (selectedDriverId && selectedDriverId !== 'all') {
         filters.deliveryFilter.driver_id = selectedDriverId;
       }
