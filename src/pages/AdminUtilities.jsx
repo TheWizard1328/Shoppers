@@ -1907,6 +1907,122 @@ const UserDataTable = ({ users, onEdit, onDelete, onDeleteSelected, isLoadingDat
   );
 };
 
+const UserSettingsTable = ({ appUsers, mergedUsers }) => {
+  const [userSettings, setUserSettings] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      setIsLoading(true);
+      try {
+        const settings = await UserSettings.list();
+        setUserSettings(settings || []);
+      } catch (error) {
+        console.error('Failed to load user settings:', error);
+        setUserSettings([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadSettings();
+  }, []);
+
+  const getUserName = (userId) => {
+    if (!userId) return 'Unknown';
+    const user = mergedUsers.find(u => u && u.id === userId);
+    if (user) return user.user_name || user.full_name || 'Unknown';
+    const appUser = appUsers.find(au => au && au.user_id === userId);
+    if (appUser) return appUser.user_name || 'Unknown';
+    return userId.substring(0, 8) + '...';
+  };
+
+  const handleDeleteSetting = async (settingId) => {
+    if (!window.confirm('Are you sure you want to delete this user setting?')) return;
+    try {
+      await UserSettings.delete(settingId);
+      setUserSettings(prev => prev.filter(s => s.id !== settingId));
+    } catch (error) {
+      console.error('Failed to delete setting:', error);
+      alert('Failed to delete setting: ' + error.message);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Settings className="w-5 h-5" />
+          User Settings
+        </CardTitle>
+        <CardDescription>
+          View and manage per-user, per-device settings stored in the database.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex justify-center items-center h-40">
+            <Loader2 className="w-6 h-6 animate-spin text-emerald-500" />
+            <span className="ml-2 text-slate-600">Loading user settings...</span>
+          </div>
+        ) : userSettings.length === 0 ? (
+          <div className="text-center py-8 text-slate-500">
+            No user settings found.
+          </div>
+        ) : (
+          <div className="border rounded-md overflow-hidden">
+            <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-100 sticky top-0 z-10">
+                  <tr>
+                    <th className="text-left p-3 font-semibold">User</th>
+                    <th className="text-left p-3 font-semibold">Device ID</th>
+                    <th className="text-left p-3 font-semibold">Selected Driver</th>
+                    <th className="text-left p-3 font-semibold">Selected Date</th>
+                    <th className="text-left p-3 font-semibold">Sidebar Width</th>
+                    <th className="text-left p-3 font-semibold">Theme</th>
+                    <th className="text-left p-3 font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {userSettings.map(setting => {
+                    const selectedDriverName = setting.selected_driver_id 
+                      ? (setting.selected_driver_id === 'all' ? 'All Drivers' : getUserName(setting.selected_driver_id))
+                      : '-';
+                    
+                    return (
+                      <tr key={setting.id} className="border-t hover:bg-slate-50">
+                        <td className="p-3 font-medium">{getUserName(setting.user_id)}</td>
+                        <td className="p-3 font-mono text-xs text-slate-500" title={setting.device_id}>
+                          {setting.device_id ? setting.device_id.substring(0, 16) + '...' : '-'}
+                        </td>
+                        <td className="p-3">{selectedDriverName}</td>
+                        <td className="p-3">{setting.selected_date || '-'}</td>
+                        <td className="p-3">{setting.sidebar_width || 240}px</td>
+                        <td className="p-3">
+                          <Badge variant="secondary">{setting.theme_preference || 'auto'}</Badge>
+                        </td>
+                        <td className="p-3">
+                          <Button 
+                            variant="destructive" 
+                            size="sm"
+                            onClick={() => handleDeleteSetting(setting.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
 const CityDataTable = ({ cities, onEdit, onDelete, onDeleteSelected, isLoadingData }) => {
   const { visibleColumns, toggleColumn, config } = useColumnVisibility('cities');
   const [columnWidths, setColumnWidths] = useState(() => {
@@ -2078,8 +2194,7 @@ export default function AdminUtilities() {
   const [hasAccess, setHasAccess] = useState(true);
   const [initialLoading, setInitialLoading] = useState(true);
 
-  const [showUserMigration, setShowUserMigration] = useState(false);
-  const [migrationStatus, setMigrationStatus] = useState('');
+
 
   const [activeDataTab, setActiveDataTab] = useState('deliveries');
   const [activeUtilityTab, setActiveUtilityTab] = useState('data');
@@ -2501,48 +2616,7 @@ export default function AdminUtilities() {
     };
   }, [activeDataTab, filtersReady, dataLoading, allDeliveries, patients, appUsers, selectedDeliveryYear, selectedDeliveryMonth, queryClient, refetchPatients, refetchAppUsers]);
 
-  const loadUsersForMigration = async () => {
-    queryClient.invalidateQueries(['authUsers']);
-    queryClient.invalidateQueries(['appUsers']);
-    setMigrationStatus('');
-  };
 
-  const handleMigrateUser = async (user, existingAppUser) => {
-    setMigrationStatus(`⏳ Migrating ${user.full_name}...`);
-    try {
-      if (existingAppUser) {
-        setMigrationStatus(`ℹ️ User ${user.full_name} already migrated.`);
-        return;
-      }
-
-      const appUserData = {
-        user_id: user.id,
-        app_roles: user.role === 'admin' ? ['admin'] : ['driver'],
-        user_name: user.full_name,
-        status: 'active',
-        phone: '',
-        city_id: '',
-        store_ids: [],
-        sort_order: 0,
-        home_latitude: null,
-        home_longitude: null,
-        current_latitude: null,
-        current_longitude: null,
-        location_updated_at: null,
-        location_tracking_enabled: true
-      };
-
-      await AppUser.create(appUserData);
-      setMigrationStatus(`✅ Migrated ${user.full_name}`);
-      queryClient.invalidateQueries(['appUsers']);
-      
-      console.log('🔄 [AdminUtilities] Triggering global data refresh after user migration');
-      await refreshData();
-    } catch (error) {
-      console.error('Migration error:', error);
-      setMigrationStatus(`❌ Failed to migrate ${user.full_name}: ${error.message}`);
-    }
-  };
 
   const handleSortChange = useCallback((column, currentSortColumn, currentSortDirection, setSortColumn, setSortDirection) => {
     if (currentSortColumn === column) {
