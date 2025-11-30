@@ -14,7 +14,7 @@ import {
   SelectValue
 } from
 "@/components/ui/select";
-import { Phone, MapPin, Edit, Trash2, StickyNote, RotateCcw, MoreVertical, User, CheckCircle, Clock, Package, XCircle, Info, FileText, Save, X, Plus, Undo2, Loader2 } from "lucide-react";
+import { Phone, MapPin, Edit, Trash2, StickyNote, RotateCcw, MoreVertical, User, CheckCircle, Clock, Package, XCircle, Info, FileText, Save, X, Plus, Undo2, Loader2, Navigation } from "lucide-react";
 import { getStoreColor, hexToRgba, getContrastColor } from "../utils/colorGenerator";
 import { format, isBefore, startOfDay, addDays } from "date-fns";
 import { getDriverDisplayName } from '../utils/driverUtils';
@@ -706,35 +706,48 @@ export default function StopCard({
           <div className="border-t border-slate-200"></div>
 
           <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-1">
-              {finalDisplayAddress ?
-              (() => {
-                let navigationUrl;
-                if (!shouldRedact && !isPickup && patient?.latitude && patient?.longitude) {
-                  navigationUrl = `https://www.google.com/maps/dir/?api=1&destination=${patient.latitude},${patient.longitude}`;
-                } else if (!shouldRedact && isPickup && store?.latitude && store?.longitude) {
-                  navigationUrl = `https://www.google.com/maps/dir/?api=1&destination=${store.latitude},${store.longitude}`;
-                } else {
-                  navigationUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(finalDisplayAddress)}`;
+            <div className="flex items-center justify-between gap-1">
+              <div className="flex items-center gap-1 flex-1 min-w-0">
+                {finalDisplayAddress ?
+                <div className="flex items-start gap-2 text-sm text-slate-700">
+                    <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
+                    <span className="text-lg font-medium truncate">{finalDisplayAddress}</span>
+                  </div> :
+                <div className="w-full h-[26px]" />
                 }
-                return (
-                  <a href={navigationUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="flex items-start gap-2 text-sm text-slate-700 group">
-                      <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5 group-hover:text-blue-600" />
-                      <span className="text-lg font-medium underline truncate">{finalDisplayAddress}</span>
-                    </a>);
-              })() :
-              <div className="w-full h-[26px]" />
-              }
-            </div>
-
-            <div className="flex items-center gap-1">
-              {finalDisplayPhone ?
-              <a href={`tel:${finalDisplayPhone.replace(/\D/g, '')}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-2 text-sm text-emerald-600 hover:text-emerald-700 hover:underline transition-colors group">
-                  <Phone className="w-4 h-4 text-slate-400 flex-shrink-0 group-hover:text-blue-600" />
-                  <span className="text-base underline decoration-transparent group-hover:decoration-emerald-700">{formatPhoneNumber(finalDisplayPhone)}</span>
-                </a> :
-              <div className="w-full h-[26px]" />
-              }
+              </div>
+              
+              {/* Navigation and Phone buttons - right justified */}
+              <div className="flex items-center gap-1 flex-shrink-0">
+                {finalDisplayAddress && (
+                  <a 
+                    href={(() => {
+                      if (!shouldRedact && !isPickup && patient?.latitude && patient?.longitude) {
+                        return `https://www.google.com/maps/dir/?api=1&destination=${patient.latitude},${patient.longitude}`;
+                      } else if (!shouldRedact && isPickup && store?.latitude && store?.longitude) {
+                        return `https://www.google.com/maps/dir/?api=1&destination=${store.latitude},${store.longitude}`;
+                      } else {
+                        return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(finalDisplayAddress)}`;
+                      }
+                    })()}
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 transition-colors"
+                  >
+                    <Navigation className="w-4 h-4" />
+                  </a>
+                )}
+                {finalDisplayPhone && (
+                  <a 
+                    href={`tel:${finalDisplayPhone.replace(/\D/g, '')}`} 
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-600 transition-colors"
+                  >
+                    <Phone className="w-4 h-4" />
+                  </a>
+                )}
+              </div>
             </div>
           </div>
 
