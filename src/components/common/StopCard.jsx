@@ -1064,21 +1064,28 @@ export default function StopCard({
                           
                           {/* Recurring Schedule */}
                           {patient.recurring && (
-                            <div className="flex flex-wrap gap-1">
-                              <span className="text-[10px] font-semibold text-slate-500">Recurring:</span>
-                              {patient.recurring_daily && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">Daily</Badge>}
-                              {patient.recurring_weekly_mon && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">Mon</Badge>}
-                              {patient.recurring_weekly_tue && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">Tue</Badge>}
-                              {patient.recurring_weekly_wed && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">Wed</Badge>}
-                              {patient.recurring_weekly_thu && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">Thu</Badge>}
-                              {patient.recurring_weekly_fri && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">Fri</Badge>}
-                              {patient.recurring_weekly_sat && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">Sat</Badge>}
-                              {patient.recurring_weekly_sun && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">Sun</Badge>}
-                              {patient.recurring_biweekly && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">Bi-Weekly</Badge>}
-                              {patient.recurring_weekly_x4 && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">4x Weekly</Badge>}
-                              {patient.recurring_monthly && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">Monthly</Badge>}
-                              {patient.recurring_bimonthly && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">Bi-Monthly</Badge>}
-                            </div>
+                            <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">
+                              {(() => {
+                                if (patient.recurring_daily) return 'Daily';
+                                if (patient.recurring_monthly) return 'Monthly';
+                                if (patient.recurring_bimonthly) return 'Bi-Monthly';
+                                if (patient.recurring_biweekly) return 'Bi-Weekly';
+                                if (patient.recurring_weekly_x4) return '4x Weekly';
+                                
+                                // Weekly with specific days
+                                const days = [];
+                                if (patient.recurring_weekly_mon) days.push('Mon');
+                                if (patient.recurring_weekly_tue) days.push('Tue');
+                                if (patient.recurring_weekly_wed) days.push('Wed');
+                                if (patient.recurring_weekly_thu) days.push('Thu');
+                                if (patient.recurring_weekly_fri) days.push('Fri');
+                                if (patient.recurring_weekly_sat) days.push('Sat');
+                                if (patient.recurring_weekly_sun) days.push('Sun');
+                                
+                                if (days.length > 0) return `Weekly(${days.join(', ')})`;
+                                return 'Recurring';
+                              })()}
+                            </Badge>
                           )}
                           
                           {/* Patient Notes */}
