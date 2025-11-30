@@ -1215,13 +1215,17 @@ export default function Layout({ children, currentPageName }) {
       // ADMIN FEATURE: Load data from nearby cities (within 75km) for admins in "All Drivers" mode ONLY
       const isAdmin = userHasRole(currentUser, 'admin');
       const selectedCity = cities.find(c => c && c.id === selectedCityId);
-      const currentDriverFilter = globalFilters.getSelectedDriverId();
+      
+      // CRITICAL: Use selectedDriverId parameter (from triggerFullDataLoad call) NOT globalFilters
+      // This ensures we use the CURRENT filter value during data load
+      const currentDriverFilter = selectedDriverId;
 
       let relevantCityIds = [selectedCityId];
       if (isAdmin && selectedCity && currentDriverFilter === 'all') {
         const nearbyCities = getCitiesWithinRadius(selectedCity, cities, 75);
         relevantCityIds = nearbyCities.map(c => c.id);
         console.log(`🌐 [Layout] Admin in "All Drivers" mode: Loading data from ${relevantCityIds.length} cities within 75km`);
+        console.log(`   Cities: ${nearbyCities.map(c => c.name).join(', ')}`);
       } else if (isAdmin && currentDriverFilter !== 'all') {
         console.log(`🌐 [Layout] Admin in single driver mode: Loading data from selected city only`);
       }
