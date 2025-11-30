@@ -723,9 +723,10 @@ export default function StopCard({
             </div>
           </div>
 
-          <div className="border-t border-slate-200"></div>
+          {/* Hide address/phone section for stripped deliveries */}
+          {!isStrippedDelivery && <div className="border-t border-slate-200"></div>}
 
-          <div className="flex flex-col">
+          {!isStrippedDelivery && <div className="flex flex-col">
             <div className="mt-2 flex items-start justify-between">
               <div className="flex flex-col gap-0.5 flex-1 min-w-0">
                 {finalDisplayAddress ?
