@@ -1939,37 +1939,63 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
 
     const performRefresh = async () => {
       try {
-        const lastTimestamp = userSettings.reduce((latest, s) => {
-          const updated = s.updated_date ? new Date(s.updated_date) : null;
-          return updated && (!latest || updated > latest) ? updated : latest;
-        }, null);
-
-        if (lastTimestamp) {
-          const recentSettings = await base44.entities.UserSettings.filter({
-            updated_date: { $gte: lastTimestamp.toISOString() }
-          });
-
-          if (recentSettings && recentSettings.length > 0) {
-            console.log('✅ [UserSettingsTable] Smart refresh detected changes');
-            await loadSettings();
+        console.log('🔄 [UserSettingsTable] Checking for UserSettings changes...');
+        const freshSettings = await UserSettings.list();
+        
+        if (!freshSettings) return;
+        
+        // Compare counts first
+        if (freshSettings.length !== userSettings.length) {
+          console.log('✅ [UserSettingsTable] Count changed, updating...');
+          setUserSettings(freshSettings);
+          return;
+        }
+        
+        // Compare each setting for changes
+        let hasChanges = false;
+        for (const fresh of freshSettings) {
+          const existing = userSettings.find(s => s.id === fresh.id);
+          if (!existing) {
+            hasChanges = true;
+            break;
           }
+          // Check key fields that might change
+          if (existing.selected_driver_id !== fresh.selected_driver_id ||
+              existing.selected_date !== fresh.selected_date ||
+              existing.sidebar_width !== fresh.sidebar_width ||
+              existing.theme_preference !== fresh.theme_preference) {
+            console.log(`✅ [UserSettingsTable] Setting ${fresh.id} changed:`, {
+              driver: `${existing.selected_driver_id} → ${fresh.selected_driver_id}`,
+              date: `${existing.selected_date} → ${fresh.selected_date}`
+            });
+            hasChanges = true;
+            break;
+          }
+        }
+        
+        if (hasChanges) {
+          console.log('✅ [UserSettingsTable] Updating with fresh data');
+          setUserSettings(freshSettings);
         } else {
-          // No existing data, do a full load
-          await loadSettings();
+          console.log('ℹ️ [UserSettingsTable] No changes detected');
         }
       } catch (error) {
         console.error('❌ [UserSettingsTable] Smart refresh error:', error);
       }
     };
 
+    // Initial check after mount
+    const initialTimeout = setTimeout(performRefresh, 2000);
+    
     refreshIntervalRef.current = setInterval(performRefresh, 15000);
 
     return () => {
+      clearTimeout(initialTimeout);
       if (refreshIntervalRef.current) {
         clearInterval(refreshIntervalRef.current);
       }
     };
-  }, [isLoading, userSettings, loadSettings]);
+  }, [isLoading, userSettings]);
 
   const getUserName = (userId) => {
     if (!userId) return 'Unknown';
