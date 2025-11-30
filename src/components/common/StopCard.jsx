@@ -706,7 +706,7 @@ export default function StopCard({
           <div className="border-t border-slate-200"></div>
 
           <div className="flex flex-col gap-1">
-            <div className="flex items-center justify-between">
+            <div className="mt-2 flex items-center justify-between">
               <div className="flex items-center gap-1 flex-1 min-w-0">
                 {finalDisplayAddress ?
                 <div className="flex items-start gap-2 text-sm text-slate-700">
