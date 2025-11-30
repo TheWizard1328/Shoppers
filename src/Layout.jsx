@@ -1240,7 +1240,7 @@ export default function Layout({ children, currentPageName }) {
       console.log(`✅ [Layout] Loaded ${cityStores.length} Stores for nearby cities (75km radius)`);
 
 
-      // All users load all city data - UI filtering happens in components
+      // 75KM RADIUS: All users load data from nearby cities - UI filtering happens in components
       let patientFilter = {};
       let deliveryFilter = {};
 
@@ -1252,12 +1252,9 @@ export default function Layout({ children, currentPageName }) {
         deliveryFilter.id = { $in: [] };
       }
 
-      // CRITICAL: For admins, always load deliveries from all stores in nearby cities
+      // 75KM RADIUS: Always load all deliveries from all stores in nearby cities
       // Individual driver filter is applied in Dashboard's filteredDeliveries
-      // This ensures map shows all drivers in the 75km radius
-      if (!isAdmin && currentDriverFilter && currentDriverFilter !== 'all') {
-        deliveryFilter.driver_id = currentDriverFilter;
-      }
+      // This ensures map and UI show all data within 75km radius
 
       console.log('📦 [Layout] Delivery filter:', JSON.stringify(deliveryFilter));
 
