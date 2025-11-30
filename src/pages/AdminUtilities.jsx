@@ -6,6 +6,7 @@ import { ActiveDeliveries } from '@/entities/ActiveDeliveries';
 import { City } from '@/entities/City';
 import { Store } from '@/entities/Store';
 import { Patient } from '@/entities/Patient';
+import { UserSettings } from '@/entities/UserSettings';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -3401,7 +3402,7 @@ export default function AdminUtilities() {
         <Tabs value={activeUtilityTab} onValueChange={setActiveUtilityTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="data">Data Management</TabsTrigger>
-            <TabsTrigger value="user-migration">User Migration</TabsTrigger>
+            <TabsTrigger value="user-settings">User Settings</TabsTrigger>
           </TabsList>
 
           <TabsContent value="data">
@@ -3512,113 +3513,11 @@ export default function AdminUtilities() {
             )}
           </TabsContent>
 
-          <TabsContent value="user-migration">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="w-5 h-5" />
-                  User Data Migration to AppUser
-                </CardTitle>
-                <CardDescription>
-                  Migrate user data from the platform's User entity to the application-specific AppUser entity.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Button
-                  onClick={async () => {
-                    setShowUserMigration(!showUserMigration);
-                    if (!showUserMigration) await loadUsersForMigration();
-                  }}
-                  variant="outline"
-                  disabled={dataLoading}
-                >
-                  {showUserMigration ? 'Hide' : 'Show'} User Migration Tool
-                </Button>
-
-                {showUserMigration && (
-                  <div className="mt-4 space-y-4">
-                    {migrationStatus && (
-                      <div className={`p-3 rounded-lg text-sm ${
-                        migrationStatus.startsWith('❌') ? 'bg-red-100 text-red-800' :
-                        migrationStatus.startsWith('✅') ? 'bg-emerald-100 text-emerald-800' :
-                        'bg-slate-100 text-slate-800'
-                      }`}>
-                        {migrationStatus}
-                      </div>
-                    )}
-
-                    <div className="border rounded-lg overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead className="bg-slate-100">
-                          <tr>
-                            <th className="text-left p-3">ID (Hidden)</th>
-                            <th className="text-left p-3">Email</th>
-                            <th className="text-left p-3">Full Name</th>
-                            <th className="text-left p-3">Platform Role</th>
-                            <th className="text-left p-3">AppUser Status</th>
-                            <th className="text-left p-3">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {(authUsers || []).map(user => {
-                            const existingAppUser = (appUsers || []).find(au => au.user_id === user.id);
-
-                            return (
-                              <tr key={user.id} className="border-t hover:bg-slate-50">
-                                <td className="p-3 font-mono text-xs text-slate-500" title={user.id}>
-                                  {user.id.substring(0, 8)}...
-                                </td>
-                                <td className="p-3">{user.email}</td>
-                                <td className="p-3">{user.full_name}</td>
-                                <td className="p-3">
-                                  <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
-                                    {user.role}
-                                  </Badge>
-                                </td>
-                                <td className="p-3">
-                                  {existingAppUser ? (
-                                    <Badge className="bg-emerald-100 text-emerald-800">
-                                      ✓ Migrated
-                                    </Badge>
-                                  ) : (
-                                    <Badge variant="destructive">
-                                      Not Migrated
-                                    </Badge>
-                                  )}
-                                </td>
-                                <td className="p-3">
-                                  {!existingAppUser ? (
-                                    <Button
-                                      size="sm"
-                                      onClick={() => handleMigrateUser(user, null)}
-                                      disabled={dataLoading}
-                                    >
-                                      Migrate
-                                    </Button>
-                                  ) : (
-                                    <span className="text-slate-500 text-sm">Complete</span>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                      <h4 className="font-semibold text-blue-900 mb-2">Migration Instructions:</h4>
-                      <ol className="list-decimal list-inside space-y-1 text-sm text-blue-800">
-                        <li>This will create AppUser records linked to each User via their system ID</li>
-                        <li>The hidden User ID is shown in the first column (hover to see full ID)</li>
-                        <li>After migration, edit AppUser records in Dashboard → Data → AppUser</li>
-                        <li>Assign roles, stores, cities, and other app-specific data there</li>
-                      </ol>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+          <TabsContent value="user-settings">
+            <UserSettingsTable 
+              appUsers={appUsers || []}
+              mergedUsers={mergedUsers}
+            />
           </TabsContent>
         </Tabs>
       </div>
