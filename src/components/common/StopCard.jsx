@@ -551,7 +551,7 @@ export default function StopCard({
         <CardContent className="mx-1 px-3 py-2 flex flex-col">
           {/* HEADER SECTION - Always Visible */}
           <div className="flex items-start gap-2">
-            <div className="flex flex-col gap-1 items-start items-center">
+            <div className="flex flex-col gap-2 items-start items-center">
               <Badge
                 variant="secondary"
                 className={`font-bold text-xs px-2 py-0.5 text-white w-[40px] justify-center ${delivery.ampm_deliveries === 'AM' ? 'rounded-full' : 'rounded-xs'}`}
@@ -611,7 +611,7 @@ export default function StopCard({
                 {finalDisplayName}
               </h3>
               <div className="flex flex-col items-center">
-                <div className="flex items-center justify-center text-xs text-slate-600">
+                <div className="text-slate-600 text-xs flex items-center justify-center">
                   {FINISHED_STATUSES.includes(delivery.status) && delivery.actual_delivery_time ?
                   <>
                       <Clock className="w-3 h-3" />
@@ -644,7 +644,7 @@ export default function StopCard({
               </div>
             </div>
 
-            <div className="flex flex-col gap-1 items-end items-center">
+            <div className="flex flex-col gap-2 items-end items-center">
               <div className="flex items-center gap-1">
                 {showStatusDropdown ?
                 <DropdownMenu>
