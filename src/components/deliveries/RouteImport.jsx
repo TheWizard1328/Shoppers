@@ -182,10 +182,16 @@ export default function RouteImport({
 
   const findStoreByAbbreviation = useCallback((abbr) => {
     if (!abbr) return null;
-    // First check allStores (fetched from all cities), then fallback to props stores
+    // CRITICAL: Always use allStores which contains stores from ALL cities
+    // Do NOT fallback to props stores as they may be filtered by current city
     const storesToSearch = allStores.length > 0 ? allStores : (stores || []);
     if (!Array.isArray(storesToSearch)) return null;
-    return storesToSearch.find((s) => s.abbreviation?.toLowerCase() === abbr.toLowerCase());
+    const found = storesToSearch.find((s) => s.abbreviation?.toLowerCase() === abbr.toLowerCase());
+    if (!found) {
+      console.warn(`[RouteImport] Store abbreviation "${abbr}" not found in ${storesToSearch.length} stores. Available abbreviations:`, 
+        storesToSearch.map(s => s.abbreviation).filter(Boolean).slice(0, 20));
+    }
+    return found;
   }, [allStores, stores]);
 
   const findDispatcherByStore = useCallback((store) => {
