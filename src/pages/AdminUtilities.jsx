@@ -2537,7 +2537,8 @@ export default function AdminUtilities() {
     }
   }, [allDeliveries, deliveriesLoading, filtersReady]);
 
-  // Smart refresh polling based on active tab
+  // Simple polling for Admin Utilities - NO smart refresh filtering
+  // Admin Utilities needs ALL data, not filtered incremental updates
   useEffect(() => {
     if (!filtersReady || dataLoading) {
       if (refreshIntervalRef.current) {
@@ -2547,85 +2548,36 @@ export default function AdminUtilities() {
       return;
     }
 
-    console.log('🚀 [AdminUtilities] Starting smart refresh for tab:', activeDataTab);
+    console.log('🚀 [AdminUtilities] Starting simple polling (no smart refresh) for tab:', activeDataTab);
 
     const performRefresh = async () => {
       try {
-        let hasUpdates = false;
-
+        console.log('🔄 [AdminUtilities] Polling refetch for tab:', activeDataTab);
+        
         switch (activeDataTab) {
           case 'deliveries':
-            if (allDeliveries && selectedDeliveryYear && selectedDeliveryMonth) {
-              const currentData = { deliveries: allDeliveries };
-              const filters = { deliveryFilter: {} };
-              
-              const updates = await smartRefreshManager.performSmartRefresh(currentData, filters);
-              if (updates?.deliveries) {
-                await queryClient.setQueryData(['deliveries'], updates.deliveries);
-                hasUpdates = true;
-              }
-            }
+            await refetchDeliveries();
             break;
-
           case 'patients':
-            if (patients) {
-              const lastTimestamp = patients.reduce((latest, p) => {
-                const updated = p.updated_date ? new Date(p.updated_date) : null;
-                return updated && (!latest || updated > latest) ? updated : latest;
-              }, null);
-
-              if (lastTimestamp) {
-                const recentPatients = await base44.entities.Patient.filter({
-                  updated_date: { $gte: lastTimestamp.toISOString() }
-                });
-
-                if (recentPatients && recentPatients.length > 0) {
-                  await refetchPatients();
-                  hasUpdates = true;
-                }
-              }
-            }
+            await refetchPatients();
             break;
-
           case 'stores':
-            // Stores rarely change, refresh less frequently
+            await refetchStores();
             break;
-
           case 'users':
-            if (appUsers) {
-              const lastTimestamp = appUsers.reduce((latest, u) => {
-                const updated = u.updated_date ? new Date(u.updated_date) : null;
-                return updated && (!latest || updated > latest) ? updated : latest;
-              }, null);
-
-              if (lastTimestamp) {
-                const recentUsers = await base44.entities.AppUser.filter({
-                  updated_date: { $gte: lastTimestamp.toISOString() }
-                });
-
-                if (recentUsers && recentUsers.length > 0) {
-                  await refetchAppUsers();
-                  hasUpdates = true;
-                }
-              }
-            }
+            await refetchAppUsers();
             break;
-
           case 'cities':
-            // Cities rarely change, refresh less frequently
+            await refetchCities();
             break;
-        }
-
-        if (hasUpdates) {
-          console.log('✅ [AdminUtilities] Smart refresh detected changes for', activeDataTab);
         }
       } catch (error) {
-        console.error('❌ [AdminUtilities] Error during smart refresh:', error);
+        console.error('❌ [AdminUtilities] Error during polling refresh:', error);
       }
     };
 
-    performRefresh();
-    refreshIntervalRef.current = setInterval(performRefresh, 15000);
+    // Poll every 30 seconds (less aggressive since this is admin view)
+    refreshIntervalRef.current = setInterval(performRefresh, 30000);
 
     return () => {
       if (refreshIntervalRef.current) {
@@ -2633,7 +2585,7 @@ export default function AdminUtilities() {
         refreshIntervalRef.current = null;
       }
     };
-  }, [activeDataTab, filtersReady, dataLoading, allDeliveries, patients, appUsers, selectedDeliveryYear, selectedDeliveryMonth, queryClient, refetchPatients, refetchAppUsers]);
+  }, [activeDataTab, filtersReady, dataLoading, refetchDeliveries, refetchPatients, refetchStores, refetchAppUsers, refetchCities]);
 
 
 
