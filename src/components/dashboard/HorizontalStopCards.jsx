@@ -42,7 +42,7 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
   // Auto-scroll to selected card - always center when card is expanded
   const prevSelectedCardIdRef = React.useRef(null);
   const autoScrollEnabledRef = React.useRef(true);
-  
+
   React.useEffect(() => {
     // Skip if no selection or container
     if (!selectedCardId || !containerRef.current) {
@@ -57,7 +57,7 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
 
     // Capture the ID we intend to scroll to
     const targetCardId = selectedCardId;
-    
+
     console.log(`🎯 [HorizontalStopCards] selectedCardId changed to: ${targetCardId}`);
 
     // Function to perform the scroll with a delay to let cards render
@@ -76,14 +76,14 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
         // Get the actual bounding rects to account for any padding/margins
         const containerRect = container.getBoundingClientRect();
         const elementRect = element.getBoundingClientRect();
-        
+
         // Calculate how much to scroll to center the element
-        const elementCenterOffset = elementRect.left + (elementRect.width / 2);
-        const containerCenterOffset = containerRect.left + (containerRect.width / 2);
+        const elementCenterOffset = elementRect.left + elementRect.width / 2;
+        const containerCenterOffset = containerRect.left + containerRect.width / 2;
         const scrollAdjustment = elementCenterOffset - containerCenterOffset;
-        
+
         console.log(`📍 [HorizontalStopCards] Scrolling to card ${targetCardId}, adjustment: ${scrollAdjustment.toFixed(0)}px`);
-        
+
         // Only scroll if adjustment is significant (more than 5px)
         if (Math.abs(scrollAdjustment) > 5) {
           container.scrollTo({
@@ -110,8 +110,8 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
     return (
       <div className="text-center py-1 text-slate-500">
         No pickups scheduled
-      </div>
-    );
+      </div>);
+
   }
 
   // Sort pickup cards: completed deliveries first (by actual_delivery_time), then incomplete (by ETA/stop_order)
@@ -119,7 +119,7 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
   const sortedPickupCards = [...validCards].sort((a, b) => {
     // CRITICAL: Add defensive null checks
     if (!a || !b) return 0;
-    
+
     const isACompleted = finishedStatuses.includes(a.status);
     const isBCompleted = finishedStatuses.includes(b.status);
 
@@ -180,10 +180,10 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
   });
 
   return (
-    <div 
-      ref={containerRef}
-      className="py-1 flex gap-3 overflow-x-auto overflow-y-visible items-end min-h-[145px] pointer-events-auto"
-      style={{ 
+    <div
+      ref={containerRef} className="flex gap-3 overflow-x-auto overflow-y-visible items-end min-h-[145px] pointer-events-auto"
+
+      style={{
         scrollbarWidth: 'thin'
       }}
       onWheel={(e) => {
@@ -201,7 +201,7 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
       {sortedPickupCards.map((card) => {
         // CRITICAL: Add defensive check for card
         if (!card) return null;
-        
+
         const store = (stores || []).find((s) => s && s.id === card.store_id);
         const driver = (drivers || []).find((d) => d && d.id === card.driver_id);
 
@@ -209,39 +209,39 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
         const isProjected = card.is_projected;
 
         // Get projected deliveries for this pickup card
-        const projectedDeliveriesForCard = (card.projected_deliveries || [])
-          .filter(delivery => delivery && delivery.patient_id) // CRITICAL: Filter out null deliveries
-          .sort((a, b) => {
-            // CRITICAL: Add defensive null checks
-            if (!a || !b) return 0;
-            
-            const timeA = a.delivery_time_start || '';
-            const timeB = b.delivery_time_start || '';
+        const projectedDeliveriesForCard = (card.projected_deliveries || []).
+        filter((delivery) => delivery && delivery.patient_id) // CRITICAL: Filter out null deliveries
+        .sort((a, b) => {
+          // CRITICAL: Add defensive null checks
+          if (!a || !b) return 0;
 
-            if (timeA !== timeB) {
-              return timeA.localeCompare(timeB);
+          const timeA = a.delivery_time_start || '';
+          const timeB = b.delivery_time_start || '';
+
+          if (timeA !== timeB) {
+            return timeA.localeCompare(timeB);
+          }
+
+          // If times are equal, sort by distance from store (closest first)
+          if (store && store.latitude && store.longitude) {
+            const patientA = (patients || []).find((p) => p && p.id === a.patient_id);
+            const patientB = (patients || []).find((p) => p && p.id === b.patient_id);
+
+            if (patientA?.latitude && patientA?.longitude && patientB?.latitude && patientB?.longitude) {
+              const distA = Math.sqrt(
+                Math.pow(store.latitude - patientA.latitude, 2) +
+                Math.pow(store.longitude - patientA.longitude, 2)
+              );
+              const distB = Math.sqrt(
+                Math.pow(store.latitude - patientB.latitude, 2) +
+                Math.pow(store.longitude - patientB.longitude, 2)
+              );
+              return distA - distB;
             }
+          }
 
-            // If times are equal, sort by distance from store (closest first)
-            if (store && store.latitude && store.longitude) {
-              const patientA = (patients || []).find((p) => p && p.id === a.patient_id);
-              const patientB = (patients || []).find((p) => p && p.id === b.patient_id);
-
-              if (patientA?.latitude && patientA?.longitude && patientB?.latitude && patientB?.longitude) {
-                const distA = Math.sqrt(
-                  Math.pow(store.latitude - patientA.latitude, 2) +
-                  Math.pow(store.longitude - patientA.longitude, 2)
-                );
-                const distB = Math.sqrt(
-                  Math.pow(store.latitude - patientB.latitude, 2) +
-                  Math.pow(store.longitude - patientB.longitude, 2)
-                );
-                return distA - distB;
-              }
-            }
-
-            return 0;
-          });
+          return 0;
+        });
 
         const cardSelectedDeliveries = selectedDeliveryIds[card.id] || [];
         // CRITICAL: Use isNextDelivery directly from the entity instead of calculating it
@@ -287,11 +287,11 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
               selectedDate={selectedDate}
               drivers={drivers}
               stores={stores}
-              onDriverStatusChange={onDriverStatusChange}
-            />
-          </div>
-        );
+              onDriverStatusChange={onDriverStatusChange} />
+
+          </div>);
+
       })}
-    </div>
-  );
+    </div>);
+
 }
