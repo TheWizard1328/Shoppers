@@ -2503,61 +2503,10 @@ export default function AdminUtilities() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!currentUser || !stores || !driversForDropdown || driversForDropdown.length === 0) {
-      return;
-    }
 
-    console.log('🔄 [AdminUtilities] Initializing driver filter...');
-
-    let defaultDriver = 'all';
-
-    if (userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')) {
-      defaultDriver = currentUser.user_name || currentUser.full_name;
-      console.log('👤 [AdminUtilities] Driver user - auto-selecting self:', defaultDriver);
-    } else if (userHasRole(currentUser, 'dispatcher')) {
-      const dispatcherStores = stores.filter(s =>
-        s.dispatcher_id === currentUser.id || s.dispatcher_name === currentUser.user_name || s.dispatcher_name === currentUser.full_name
-      );
-
-      if (dispatcherStores.length > 0) {
-        const driverCounts = {};
-
-        dispatcherStores.forEach(store => {
-          const driverIds = [
-            store.weekday_am_driver_id,
-            store.weekday_pm_driver_id,
-            store.saturday_am_driver_id,
-            store.saturday_pm_driver_id,
-            store.sunday_am_driver_id,
-            store.sunday_pm_driver_id
-          ].filter(Boolean);
-
-          driverIds.forEach(driverId => {
-            driverCounts[driverId] = (driverCounts[driverId] || 0) + 1;
-          });
-        });
-
-        if (Object.keys(driverCounts).length > 0) {
-          const mostCommonDriverId = Object.keys(driverCounts).reduce((a, b) =>
-            driverCounts[a] > driverCounts[b] ? a : b
-          );
-
-          const mostCommonDriver = driversForDropdown.find(d => d.id === mostCommonDriverId);
-          if (mostCommonDriver) {
-            defaultDriver = mostCommonDriver.user_name;
-            console.log('👔 [AdminUtilities] Dispatcher - auto-selecting most common driver:', defaultDriver);
-          }
-        }
-      }
-    }
-
-    console.log('🎯 [AdminUtilities] Setting default driver:', defaultDriver);
-    setSelectedDriver(defaultDriver);
-  }, [currentUser, stores, driversForDropdown]);
 
   useEffect(() => {
-    if (filtersReady || deliveriesLoading || !stores || !driversForDropdown || driversForDropdown.length === 0) {
+    if (filtersReady) {
       return;
     }
 
@@ -2570,7 +2519,7 @@ export default function AdminUtilities() {
     setFiltersReady(true);
 
     console.log('✅ [AdminUtilities] Filters ready, deliveries will now load');
-  }, [filtersReady, deliveriesLoading, stores, driversForDropdown]);
+  }, [filtersReady]);
 
   useEffect(() => {
     if (!filtersReady || !allDeliveries || deliveriesLoading) {
