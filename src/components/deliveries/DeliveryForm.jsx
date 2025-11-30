@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -37,7 +38,9 @@ const statusColorMap = {
   'in_transit': 'text-blue-700 bg-blue-100 border-blue-100',
   'completed': 'text-emerald-700 bg-emerald-100 border-emerald-200',
   'failed': 'text-red-700 bg-red-100 border-red-200',
-  'cancelled': 'text-red-700 bg-red-100 border-red-200'
+  'cancelled': 'text-red-700 bg-red-100 border-red-200',
+  'en_route': 'text-blue-700 bg-blue-100 border-blue-100',
+  'returned': 'text-red-700 bg-red-100 border-red-200'
 };
 
 const getStatusColorClass = (status) => statusColorMap[status] || 'text-slate-700 bg-slate-100 border-slate-200';
@@ -336,7 +339,7 @@ export default function DeliveryForm({
   const cancelButtonState = useMemo(() => hasFormData ? 'clear' : 'cancel', [hasFormData]);
 
   const isCompletionStatus = useMemo(() =>
-  ['completed', 'cancelled', 'failed'].includes(formData.status),
+  ['completed', 'cancelled', 'failed', 'returned'].includes(formData.status),
   [formData.status]
   );
 
@@ -1211,7 +1214,7 @@ export default function DeliveryForm({
         // Find the pickup for this group in allDeliveries
         const existingPickup = allDeliveries?.find((d) =>
         d &&
-        !d.patient_id && // Is a pickup
+        !d.patient_id &&
         d.store_id === storeId &&
         d.driver_id === driverId &&
         d.delivery_date === formData.delivery_date &&
@@ -1463,7 +1466,7 @@ export default function DeliveryForm({
 
       // Check if status changed to a completion status (completed, cancelled, failed)
       const statusChangedToCompletion = delivery &&
-      ['completed', 'cancelled', 'failed'].includes(formData.status) &&
+      ['completed', 'cancelled', 'failed', 'returned'].includes(formData.status) &&
       delivery.status !== formData.status;
 
       await onSave(dataToSave);
@@ -2062,7 +2065,7 @@ export default function DeliveryForm({
                     type="button"
                     variant={!isPickupMode ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setIsPickupMode(false)} className="bg-emerald-600 text-white px-3 text-xs font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-8 hover:bg-emerald-700">
+                    onClick={() => setIsPickupMode(false)} className="bg-emerald-600 text-white px-3 text-xs font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-8 hover:bg-emerald-700">
 
                       Add Delivery
                     </Button>
@@ -2541,7 +2544,12 @@ export default function DeliveryForm({
                   }
 
                   {/* Section 3: Store/Status/Time Windows */}
-                  <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                  {/* Disable for dispatchers when status is completed, failed, returned, cancelled, in_transit, or en_route */}
+                  <div className={`space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200 ${
+                    delivery && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') &&
+                    ['completed', 'failed', 'returned', 'cancelled', 'in_transit', 'en_route'].includes(formData.status)
+                      ? 'opacity-50 pointer-events-none' : ''
+                  }`}>
                     <div className="flex gap-3">
                       <div className="flex-1 space-y-1">
                         <Label className="text-sm font-semibold">{isPickupMode ? 'Pickup Store *' : 'Store *'}</Label>
@@ -2599,7 +2607,7 @@ export default function DeliveryForm({
                           value={formData.status}
                           onValueChange={(value) => {
                             setFormData((prev) => ({ ...prev, status: value }));
-                            if (delivery && ['completed', 'failed', 'cancelled'].includes(value)) {
+                            if (delivery && ['completed', 'failed', 'cancelled', 'returned'].includes(value)) {
                               setCompletionTime(format(new Date(), 'HH:mm'));
                             }
                           }}
