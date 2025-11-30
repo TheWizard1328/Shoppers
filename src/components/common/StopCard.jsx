@@ -152,7 +152,8 @@ export default function StopCard({
   };
 
   // Use isSelected prop to control expansion (parent controls state)
-  const isExpanded = isSelected;
+  // CRITICAL: Stripped deliveries cannot be expanded
+  const isExpanded = isSelected && !isStrippedDelivery;
 
   // Sync state with delivery prop changes
   useEffect(() => {
