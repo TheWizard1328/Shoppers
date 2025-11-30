@@ -2408,7 +2408,139 @@ export default function DeliveryForm({
               {/* Scrollable container for Sections 4 & 5 on desktop */}
               <div className={`flex gap-3 max-w-full ${delivery || isMobile ? 'overflow-y-auto flex-1' : 'flex-1 min-h-0 overflow-hidden'}`}>
                 <div className={`flex flex-col gap-3 ${delivery || isMobile ? 'flex-1' : 'flex-[13] overflow-y-auto'} ${isFormDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
-                  {/* Section 4a: Store/Status/Time Windows */}
+                  
+                  {/* Section 1: Notes */}
+                  <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                    {!isPickupMode ?
+                    <div className="flex gap-3">
+                        <div className="flex-1 space-y-1">
+                          <Label className="text-sm font-semibold">Patient Notes</Label>
+                          <Textarea
+                          value={formData.delivery_instructions || selectedPatient?.notes || ''}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, delivery_instructions: e.target.value }))}
+                          placeholder="Patient delivery instructions..."
+                          className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-[100px] text-sm resize-none"
+                          disabled={isSaving} />
+                        </div>
+
+                        <div className="flex-1 space-y-1">
+                          <Label className="text-sm font-semibold">Driver Notes</Label>
+                          <Textarea
+                          value={formData.delivery_notes}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))}
+                          placeholder="Driver notes for this delivery..."
+                          className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-[100px] text-sm resize-none"
+                          disabled={isSaving} />
+                        </div>
+                      </div> :
+                    <div className="space-y-1">
+                        <Label className="text-sm font-semibold">Pickup Notes</Label>
+                        <Textarea
+                        value={formData.delivery_notes}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))}
+                        placeholder="Notes for this pickup..."
+                        className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-[100px] text-sm resize-none"
+                        disabled={isSaving} />
+                      </div>
+                    }
+                  </div>
+
+                  {/* Section 2: Delivery Options & COD */}
+                  {!isPickupMode &&
+                  <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                      <div className="flex gap-3">
+                        <div className="flex gap-3">
+                          <div className="flex-1 space-y-2">
+                            <Label className="text-sm font-semibold">Delivery Options</Label>
+                            <div className="space-y-3">
+                              <CheckboxField
+                              id="fridge_item"
+                              label="Fridge Item"
+                              checked={formData.fridge_item}
+                              onChange={(checked) => setFormData((prev) => ({ ...prev, fridge_item: checked }))}
+                              disabled={isSaving} />
+
+
+                              <CheckboxField
+                              id="oversized"
+                              label="Oversized"
+                              checked={formData.oversized}
+                              onChange={(checked) => setFormData((prev) => ({ ...prev, oversized: checked }))}
+                              disabled={isSaving} />
+
+
+                              <CheckboxField
+                              id="signature_needed"
+                              label="Signature Needed"
+                              checked={formData.signature_needed}
+                              onChange={(checked) => setFormData((prev) => ({ ...prev, signature_needed: checked }))}
+                              disabled={isSaving} />
+
+
+                              <CheckboxField
+                              id="no_charge"
+                              label="No Charge Delivery"
+                              checked={formData.no_charge}
+                              onChange={(checked) => setFormData((prev) => ({ ...prev, no_charge: checked }))}
+                              disabled={isSaving} />
+
+                            </div>
+                          </div>
+
+                          {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
+                        <div className="flex-1 space-y-2">
+                              <Label className="text-sm font-semibold">COD</Label>
+                              <div className="space-y-3">
+                                <div className="flex items-center space-x-2">
+                                  <Checkbox
+                                id="cod_enabled"
+                                checked={formData.cod_total_amount_required > 0}
+                                onCheckedChange={(checked) => {
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    cod_total_amount_required: checked ? 0 : 0
+                                  }));
+                                  if (checked) {
+                                    setTimeout(() => codAmountInputRef.current?.focus(), 100);
+                                  }
+                                }}
+                                disabled={isSaving} />
+
+                                  <Label htmlFor="cod_enabled" className="text-sm font-medium">
+                                    COD Required
+                                  </Label>
+                                </div>
+
+                                {formData.cod_total_amount_required >= 0 &&
+                            <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">$</span>
+                                    <Input
+                                ref={codAmountInputRef}
+                                type="text"
+                                value={formData.cod_total_amount_required > 0 ? (formData.cod_total_amount_required / 100).toFixed(2) : formData.cod_total_amount_required === 0 ? '0.00' : ''}
+                                onChange={(e) => {
+                                  const cleaned = e.target.value.replace(/[^\d]/g, '');
+                                  const cents = parseInt(cleaned) || 0;
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    cod_total_amount_required: cents
+                                  }));
+                                }}
+                                placeholder="0.00"
+                                className="w-full pl-6 h-9 text-sm"
+                                disabled={isSaving} />
+
+                                  </div>
+                            }
+                              </div>
+                            </div>
+                        }
+                        </div>
+                      </div>
+                    </div>
+                  }
+
+                  {/* Section 3: Store/Status/Time Windows */}
                   <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
                     <div className="flex gap-3">
                       <div className="flex-1 space-y-1">
@@ -2551,7 +2683,7 @@ export default function DeliveryForm({
                     }
                   </div>
 
-                  {/* Section 4b: Patient Name/Phone/Address/Unit */}
+                  {/* Section 4: Patient Name/Phone/Address/Unit */}
                   {!isPickupMode &&
                   <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
                       <div className="flex gap-3">
@@ -2598,43 +2730,7 @@ export default function DeliveryForm({
                     </div>
                   }
 
-                  {/* Section 5: Notes */}
-                  <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                    {!isPickupMode ?
-                    <div className="flex gap-3">
-                        <div className="flex-1 space-y-1">
-                          <Label className="text-sm font-semibold">Patient Notes</Label>
-                          <Textarea
-                          value={formData.delivery_instructions || selectedPatient?.notes || ''}
-                          onChange={(e) => setFormData((prev) => ({ ...prev, delivery_instructions: e.target.value }))}
-                          placeholder="Patient delivery instructions..."
-                          className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-[100px] text-sm resize-none"
-                          disabled={isSaving} />
-                        </div>
-
-                        <div className="flex-1 space-y-1">
-                          <Label className="text-sm font-semibold">Driver Notes</Label>
-                          <Textarea
-                          value={formData.delivery_notes}
-                          onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))}
-                          placeholder="Driver notes for this delivery..."
-                          className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-[100px] text-sm resize-none"
-                          disabled={isSaving} />
-                        </div>
-                      </div> :
-                    <div className="space-y-1">
-                        <Label className="text-sm font-semibold">Pickup Notes</Label>
-                        <Textarea
-                        value={formData.delivery_notes}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))}
-                        placeholder="Notes for this pickup..."
-                        className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-[100px] text-sm resize-none"
-                        disabled={isSaving} />
-                      </div>
-                    }
-                  </div>
-
-                  {/* Section 6: Patient Preferences & Recurring */}
+                  {/* Section 5: Patient Preferences & Recurring */}
                   {!isPickupMode &&
                   <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
                       <div className="flex gap-3">
@@ -2747,101 +2843,6 @@ export default function DeliveryForm({
                             </Label>
                           </div>
                         </RadioGroup>
-                        </div>
-                      </div>
-                    </div>
-                  }
-
-                  {/* Section 7: Delivery Options & COD */}
-                  {!isPickupMode &&
-                  <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                      <div className="flex gap-3">
-                        <div className="flex gap-3">
-                          <div className="flex-1 space-y-2">
-                            <Label className="text-sm font-semibold">Delivery Options</Label>
-                            <div className="space-y-3">
-                              <CheckboxField
-                              id="fridge_item"
-                              label="Fridge Item"
-                              checked={formData.fridge_item}
-                              onChange={(checked) => setFormData((prev) => ({ ...prev, fridge_item: checked }))}
-                              disabled={isSaving} />
-
-
-                              <CheckboxField
-                              id="oversized"
-                              label="Oversized"
-                              checked={formData.oversized}
-                              onChange={(checked) => setFormData((prev) => ({ ...prev, oversized: checked }))}
-                              disabled={isSaving} />
-
-
-                              <CheckboxField
-                              id="signature_needed"
-                              label="Signature Needed"
-                              checked={formData.signature_needed}
-                              onChange={(checked) => setFormData((prev) => ({ ...prev, signature_needed: checked }))}
-                              disabled={isSaving} />
-
-
-                              <CheckboxField
-                              id="no_charge"
-                              label="No Charge Delivery"
-                              checked={formData.no_charge}
-                              onChange={(checked) => setFormData((prev) => ({ ...prev, no_charge: checked }))}
-                              disabled={isSaving} />
-
-                            </div>
-                          </div>
-
-                          {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
-                        <div className="flex-1 space-y-2">
-                              <Label className="text-sm font-semibold">COD</Label>
-                              <div className="space-y-3">
-                                <div className="flex items-center space-x-2">
-                                  <Checkbox
-                                id="cod_enabled"
-                                checked={formData.cod_total_amount_required > 0}
-                                onCheckedChange={(checked) => {
-                                  setFormData((prev) => ({
-                                    ...prev,
-                                    cod_total_amount_required: checked ? 0 : 0
-                                  }));
-                                  if (checked) {
-                                    setTimeout(() => codAmountInputRef.current?.focus(), 100);
-                                  }
-                                }}
-                                disabled={isSaving} />
-
-                                  <Label htmlFor="cod_enabled" className="text-sm font-medium">
-                                    COD Required
-                                  </Label>
-                                </div>
-
-                                {formData.cod_total_amount_required >= 0 &&
-                            <div className="relative">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">$</span>
-                                    <Input
-                                ref={codAmountInputRef}
-                                type="text"
-                                value={formData.cod_total_amount_required > 0 ? (formData.cod_total_amount_required / 100).toFixed(2) : formData.cod_total_amount_required === 0 ? '0.00' : ''}
-                                onChange={(e) => {
-                                  const cleaned = e.target.value.replace(/[^\d]/g, '');
-                                  const cents = parseInt(cleaned) || 0;
-                                  setFormData((prev) => ({
-                                    ...prev,
-                                    cod_total_amount_required: cents
-                                  }));
-                                }}
-                                placeholder="0.00"
-                                className="w-full pl-6 h-9 text-sm"
-                                disabled={isSaving} />
-
-                                  </div>
-                            }
-                              </div>
-                            </div>
-                        }
                         </div>
                       </div>
                     </div>
