@@ -1587,8 +1587,161 @@ export default function RouteImport({
     return <Badge className={color}>{status}</Badge>;
   };
 
+  const handleErrorStartOver = () => {
+    setImportError(null);
+    setFiles([]);
+    setSelectedDriverId('');
+    setIsProcessing(false);
+    setImportResult(null);
+    setShowPreview(false);
+    setPreviewData({ deliveriesToCreate: [], deliveriesToUpdate: [], skippedItems: [], errors: [] });
+    setIsParsing(false);
+    setProgressPercent(0);
+    setProgressMessage('');
+    setShowProgress(false);
+    setPatients([]);
+    setPreviewFilterDriver('all');
+    setPreviewFilterDate('all');
+    setImportProgress({
+      current: 0,
+      total: 0,
+      phase: '',
+      created: 0,
+      updated: 0,
+      errors: 0,
+      currentFile: '',
+      filesCompleted: 0,
+      totalFiles: 0
+    });
+  };
+
+  const handleErrorCancel = () => {
+    setImportError(null);
+    if (onCancel) onCancel();
+  };
+
   return (
     <>
+      {/* Error Popup Dialog */}
+      {importError && (
+        <Dialog open={true} onOpenChange={() => setImportError(null)}>
+          <DialogContent className="fixed left-[50%] top-[50%] z-[70000] translate-x-[-50%] translate-y-[-50%] gap-4 border bg-white shadow-lg duration-200 sm:rounded-lg w-full max-w-lg p-0">
+            <DialogHeader className="px-6 py-4 border-b border-red-200 bg-red-50">
+              <DialogTitle className="text-xl flex items-center gap-2 text-red-800">
+                <XCircle className="w-6 h-6 text-red-600" />
+                Import Error
+              </DialogTitle>
+              <DialogDescription className="text-red-700">
+                An error occurred during the {importError.phase || 'import'} phase
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="p-6 space-y-4">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="font-semibold text-red-800 mb-2">Error Message:</p>
+                <p className="text-red-700 text-sm font-mono">{importError.message}</p>
+              </div>
+              
+              {importError.record && (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                  <p className="font-semibold text-slate-800 mb-3">Record Details:</p>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    {importError.record.driver && (
+                      <>
+                        <span className="text-slate-600">Driver:</span>
+                        <span className="font-medium">{importError.record.driver}</span>
+                      </>
+                    )}
+                    {importError.record.date && (
+                      <>
+                        <span className="text-slate-600">Date:</span>
+                        <span className="font-medium">{importError.record.date}</span>
+                      </>
+                    )}
+                    {importError.record.store && (
+                      <>
+                        <span className="text-slate-600">Store:</span>
+                        <span className="font-medium">{importError.record.store}</span>
+                      </>
+                    )}
+                    {importError.record.patient && (
+                      <>
+                        <span className="text-slate-600">Patient:</span>
+                        <span className="font-medium">{importError.record.patient}</span>
+                      </>
+                    )}
+                    {importError.record.stopId && importError.record.stopId !== 'N/A' && (
+                      <>
+                        <span className="text-slate-600">Stop ID:</span>
+                        <span className="font-medium font-mono">{importError.record.stopId}</span>
+                      </>
+                    )}
+                    {importError.record.trackingNumber && importError.record.trackingNumber !== 'N/A' && (
+                      <>
+                        <span className="text-slate-600">TR#:</span>
+                        <span className="font-medium font-mono">{importError.record.trackingNumber}</span>
+                      </>
+                    )}
+                    {importError.record.time && importError.record.time !== 'N/A' && (
+                      <>
+                        <span className="text-slate-600">Time Value:</span>
+                        <span className="font-medium font-mono text-red-600">{importError.record.time}</span>
+                      </>
+                    )}
+                    {importError.record.deliveryId && importError.record.deliveryId !== 'N/A' && (
+                      <>
+                        <span className="text-slate-600">Delivery ID:</span>
+                        <span className="font-medium font-mono text-xs">{importError.record.deliveryId}</span>
+                      </>
+                    )}
+                    {importError.record.files && (
+                      <>
+                        <span className="text-slate-600">Files:</span>
+                        <span className="font-medium text-xs">{importError.record.files}</span>
+                      </>
+                    )}
+                    {importError.record.created !== undefined && (
+                      <>
+                        <span className="text-slate-600">Created before error:</span>
+                        <span className="font-medium">{importError.record.created}</span>
+                      </>
+                    )}
+                    {importError.record.updated !== undefined && (
+                      <>
+                        <span className="text-slate-600">Updated before error:</span>
+                        <span className="font-medium">{importError.record.updated}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              {importError.lineNumber && (
+                <div className="text-sm text-slate-600">
+                  <span className="font-medium">Line Number:</span> {importError.lineNumber}
+                </div>
+              )}
+            </div>
+            
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex gap-3">
+              <Button 
+                onClick={handleErrorStartOver} 
+                className="flex-1 bg-blue-600 hover:bg-blue-700"
+              >
+                Start Over
+              </Button>
+              <Button 
+                onClick={handleErrorCancel} 
+                variant="outline"
+                className="flex-1"
+              >
+                Cancel Import
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
       <style>{`
         [data-radix-dialog-overlay] {
           z-index: 60000 !important;
