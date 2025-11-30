@@ -803,7 +803,7 @@ export default function StopCard({
                 }
               </div>
             </div>
-          </div>
+          </div>}
 
           {/* Delete Confirmation Dialog */}
           <AnimatePresence>
