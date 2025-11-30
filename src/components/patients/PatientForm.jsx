@@ -785,7 +785,12 @@ export default function PatientForm({
                     </div>
                   </div>
 
-                  <RadioGroup value={frequency} onValueChange={setFrequency} disabled={!isRecurring} className="mt-3 space-y-3 [&_button[data-disabled]_span]:hidden [&_button:disabled_span]:hidden [&_[data-state=unchecked][data-disabled]_*]:hidden">
+                  <RadioGroup
+                    value={frequency}
+                    onValueChange={setFrequency}
+                    disabled={!isRecurring}
+                    className="mt-3 space-y-3">
+
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="daily" id="daily" disabled={!isRecurring} />
                       <Label htmlFor="daily" className={`text-sm ${!isRecurring ? 'text-slate-400' : ''}`}>
