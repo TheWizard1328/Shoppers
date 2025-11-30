@@ -1364,6 +1364,26 @@ export default function RouteImport({
               } catch (individualError) {
                 console.warn(`⚠️ Individual create failed for ${cleanData.delivery_id || 'unknown'}:`, individualError.message);
                 failedCreations.push({ data: cleanData, error: individualError.message });
+                
+                // Check for Invalid time value error and show detailed popup
+                if (individualError.message && individualError.message.includes('Invalid time value')) {
+                  setImportError({
+                    message: `Invalid time value error`,
+                    record: {
+                      driver: cleanData.driver_name || 'Unknown',
+                      date: cleanData.delivery_date || 'Unknown',
+                      store: freshStores.find(s => s.id === cleanData.store_id)?.name || cleanData.store_id || 'Unknown',
+                      patient: cleanData.patient_name || 'Store Pickup',
+                      stopId: cleanData.stop_id || 'N/A',
+                      trackingNumber: cleanData.tracking_number || 'N/A',
+                      time: cleanData.actual_delivery_time || 'N/A',
+                      deliveryId: cleanData.delivery_id || 'N/A'
+                    },
+                    lineNumber: null,
+                    phase: 'create'
+                  });
+                  throw new Error(`Import stopped due to invalid time value. See error details.`);
+                }
               }
             }
           }
