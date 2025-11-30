@@ -1215,10 +1215,6 @@ export default function Layout({ children, currentPageName }) {
       // ADMIN FEATURE: Load data from nearby cities (within 75km) for admins ALWAYS
       const isAdmin = userHasRole(currentUser, 'admin');
       const selectedCity = cities.find(c => c && c.id === selectedCityId);
-      
-      // CRITICAL: ALWAYS read the CURRENT driver filter value from globalFilters
-      const currentDriverFilter = globalFilters.getSelectedDriverId();
-      console.log(`🔍 [Layout] Current driver filter: ${currentDriverFilter}`);
 
       let relevantCityIds = [selectedCityId];
       if (isAdmin && selectedCity) {
@@ -1256,7 +1252,10 @@ export default function Layout({ children, currentPageName }) {
         deliveryFilter.id = { $in: [] };
       }
 
-      if (currentDriverFilter && currentDriverFilter !== 'all') {
+      // CRITICAL: For admins, always load deliveries from all stores in nearby cities
+      // Individual driver filter is applied in Dashboard's filteredDeliveries
+      // This ensures map shows all drivers in the 75km radius
+      if (!isAdmin && currentDriverFilter && currentDriverFilter !== 'all') {
         deliveryFilter.driver_id = currentDriverFilter;
       }
 
