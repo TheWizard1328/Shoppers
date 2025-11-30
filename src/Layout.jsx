@@ -1212,33 +1212,35 @@ export default function Layout({ children, currentPageName }) {
 
       console.log(`📅 [Layout] Starting three-stage delivery loading...`);
 
-      // CRITICAL: Load data from nearby cities (within 75km) for ALL users
+      // ADMIN FEATURE: Load data from nearby cities (within 75km) for admins ALWAYS
       const isAdmin = userHasRole(currentUser, 'admin');
       const selectedCity = cities.find(c => c && c.id === selectedCityId);
 
       let relevantCityIds = [selectedCityId];
-      if (selectedCity) {
+      if (isAdmin && selectedCity) {
         const nearbyCities = getCitiesWithinRadius(selectedCity, cities, 75);
         relevantCityIds = nearbyCities.map(c => c.id);
-        console.log(`🌐 [Layout] Loading data from ${relevantCityIds.length} cities within 75km (includes ${selectedCity.name})`);
+        console.log(`🌐 [Layout] Admin mode: Loading data from ${relevantCityIds.length} cities within 75km (includes ${selectedCity.name})`);
         console.log(`   Cities: ${nearbyCities.map(c => c.name).join(', ')}`);
+      } else if (!isAdmin) {
+        console.log(`🌐 [Layout] Non-admin user: Loading data from selected city only (${selectedCity?.name})`);
       }
 
       const allAppUsers = await getData('AppUser', null, null, forceRefresh);
-      // Get AppUsers from all nearby cities (75km radius) - ALL USERS
+      // For admins, get AppUsers from all nearby cities (75km radius)
       const cityAppUsers = allAppUsers.filter(au => au && relevantCityIds.includes(au.city_id));
-      console.log(`✅ [Layout] Loaded ${cityAppUsers.length} AppUsers for nearby cities (75km radius)`);
+      console.log(`✅ [Layout] Loaded ${cityAppUsers.length} AppUsers for ${isAdmin ? `nearby cities (75km radius)` : 'selected city'}`);
 
 
       const allStores = await getData('Store', null, null, forceRefresh);
-      // Get stores from all nearby cities (75km radius) - ALL USERS
+      // For admins, get stores from all nearby cities (75km radius)
       const cityStores = allStores.filter(store => store && relevantCityIds.includes(store.city_id));
       cityStores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
       const cityStoreIds = cityStores.map(store => store && store.id).filter(Boolean);
-      console.log(`✅ [Layout] Loaded ${cityStores.length} Stores for nearby cities (75km radius)`);
+      console.log(`✅ [Layout] Loaded ${cityStores.length} Stores for ${isAdmin ? `nearby cities (75km radius)` : 'selected city'}`);
 
 
-      // All users load data from 75km radius - UI filtering happens in components
+      // All users load all city data - UI filtering happens in components
       let patientFilter = {};
       let deliveryFilter = {};
 
@@ -1250,9 +1252,9 @@ export default function Layout({ children, currentPageName }) {
         deliveryFilter.id = { $in: [] };
       }
 
-      // CRITICAL: For non-admins in single-driver mode, filter deliveries by driver
-      // For "All Drivers" mode, load all deliveries from 75km radius (for all user types)
-      const currentDriverFilter = globalFilters.getSelectedDriverId();
+      // CRITICAL: For admins, always load deliveries from all stores in nearby cities
+      // Individual driver filter is applied in Dashboard's filteredDeliveries
+      // This ensures map shows all drivers in the 75km radius
       if (!isAdmin && currentDriverFilter && currentDriverFilter !== 'all') {
         deliveryFilter.driver_id = currentDriverFilter;
       }
@@ -1331,9 +1333,10 @@ export default function Layout({ children, currentPageName }) {
       const mergedUsers = Array.from(mergedUsersMap.values()).filter(Boolean);
       console.log(`✅ [Layout] Merged ${mergedUsers.length} users`);
 
-      // Get all drivers from nearby cities (75km radius) - ALL USERS
+      // For admins, get drivers from all nearby cities (75km radius); for others, just selected city
       let activeDrivers;
-      if (relevantCityIds.length > 0) {
+      if (isAdmin && relevantCityIds.length > 0) {
+        // Get all drivers from nearby cities (75km radius) - regardless of driver filter
         activeDrivers = mergedUsers.filter(user => {
           if (!user || !user.app_roles || !Array.isArray(user.app_roles)) return false;
           if (!user.app_roles.includes('driver') && !user.app_roles.includes('admin')) return false;
@@ -1342,10 +1345,10 @@ export default function Layout({ children, currentPageName }) {
           return relevantCityIds.includes(user.city_id);
         });
         activeDrivers = sortUsers(activeDrivers);
-        console.log(`✅ [Layout] Populated ${activeDrivers.length} active drivers from ${relevantCityIds.length} nearby cities (75km radius)`);
+        console.log(`✅ [Layout] Admin mode: Populated ${activeDrivers.length} active drivers from ${relevantCityIds.length} nearby cities (75km radius)`);
       } else {
-        activeDrivers = [];
-        console.log(`⚠️ [Layout] No nearby cities found`);
+        activeDrivers = getActiveDriversForCity(mergedUsers, selectedCityId);
+        console.log(`✅ [Layout] Populated ${activeDrivers.length} active drivers for selected city: ${selectedCityId}`);
       }
 
 
