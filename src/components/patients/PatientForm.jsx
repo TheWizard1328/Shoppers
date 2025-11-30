@@ -734,12 +734,13 @@ export default function PatientForm({
               </div>
 
               <div className="grid grid-cols-2 gap-2">
-                <div className="bg-slate-100 px-3 py-2 rounded-[10px] space-y-3">
-                  <div className="border-b border-slate-200 pb-2">
+                <div className="bg-slate-100 px-3 py-2 rounded-[10px]">
+                  <div className="border-b border-slate-200 pb-2 mb-3">
                     <h3 className="text-sm font-semibold text-slate-700">Delivery Preferences</h3>
                   </div>
 
-                  <CheckboxField
+                  <div className="space-y-3">
+                    <CheckboxField
                     id="mailbox_ok"
                     label="Mailbox OK"
                     checked={formData.mailbox_ok}
@@ -763,14 +764,15 @@ export default function PatientForm({
                     checked={formData.call_upon_arrival}
                     onChange={(checked) => setFormData((prev) => ({ ...prev, call_upon_arrival: checked }))} />
 
-                  <CheckboxField
-                    id="dont_ring_bell"
-                    label="DON'T Ring Bell"
-                    checked={formData.dont_ring_bell}
-                    onChange={(checked) => setFormData((prev) => ({ ...prev, dont_ring_bell: checked }))} />
+                    <CheckboxField
+                      id="dont_ring_bell"
+                      label="DON'T Ring Bell"
+                      checked={formData.dont_ring_bell}
+                      onChange={(checked) => setFormData((prev) => ({ ...prev, dont_ring_bell: checked }))} />
+                  </div>
                 </div>
 
-                <div className="bg-slate-100 px-3 py-2 rounded-[10px] space-y-3 relative">
+                <div className="bg-slate-100 px-3 py-2 rounded-[10px] relative">
                   <div className="border-b border-slate-200 pb-2">
                     <div className="flex items-center space-x-2">
                       <Checkbox
@@ -783,8 +785,9 @@ export default function PatientForm({
                     </div>
                   </div>
 
-                  <RadioGroup value={frequency} onValueChange={setFrequency} disabled={!isRecurring}>
-                    <div className="flex items-center space-x-2">
+                  <div className="space-y-3 mt-3">
+                    <RadioGroup value={frequency} onValueChange={setFrequency} disabled={!isRecurring}>
+                      <div className="flex items-center space-x-2">
                       <RadioGroupItem value="daily" id="daily" disabled={!isRecurring} />
                       <Label htmlFor="daily" className={`text-sm ${!isRecurring ? 'text-slate-400' : ''}`}>
                         Daily
@@ -852,13 +855,14 @@ export default function PatientForm({
                         Monthly
                       </Label>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="bi-monthly" id="bi-monthly" disabled={!isRecurring} />
-                      <Label htmlFor="bi-monthly" className={`text-sm ${!isRecurring ? 'text-slate-400' : ''}`}>
-                        Bi-Monthly
-                      </Label>
-                    </div>
-                  </RadioGroup>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="bi-monthly" id="bi-monthly" disabled={!isRecurring} />
+                        <Label htmlFor="bi-monthly" className={`text-sm ${!isRecurring ? 'text-slate-400' : ''}`}>
+                          Bi-Monthly
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
 
                   {showWeeklyDays && isRecurring && (frequency === 'weekly' || frequency === 'bi-weekly') &&
                     <div className="absolute left-0 top-[-120px] w-full bg-white border-2 border-emerald-400 rounded-lg p-4 shadow-xl z-20">
