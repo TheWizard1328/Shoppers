@@ -1407,9 +1407,12 @@ export default function Layout({ children, currentPageName }) {
       console.log('🔄 [Layout] Global filters changed, reloading data...', newFilters);
 
       if (globalFilters.isReadyForDataFetch()) {
+        // CRITICAL: Force full reload to re-calculate relevantCityIds based on new driver filter
         invalidate('User');
         invalidate('AppUser');
         invalidate('Store');
+        invalidate('Delivery');
+        invalidate('Patient');
         triggerFullDataLoad(true);
       }
     });
