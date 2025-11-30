@@ -785,9 +785,8 @@ export default function PatientForm({
                     </div>
                   </div>
 
-                  <div className="space-y-3 mt-3">
-                    <RadioGroup value={frequency} onValueChange={setFrequency} disabled={!isRecurring} className="[&_button[data-disabled]>span]:hidden">
-                      <div className="flex items-center space-x-2">
+                  <RadioGroup value={frequency} onValueChange={setFrequency} disabled={!isRecurring} className="mt-3 space-y-3">
+                    <div className="flex items-center space-x-2">
                       <RadioGroupItem value="daily" id="daily" disabled={!isRecurring} />
                       <Label htmlFor="daily" className={`text-sm ${!isRecurring ? 'text-slate-400' : ''}`}>
                         Daily
@@ -804,7 +803,6 @@ export default function PatientForm({
                             handleWeeklyClick();
                           }
                         }} />
-
                       <Label
                         htmlFor="weekly"
                         className={`text-sm cursor-pointer ${!isRecurring ? 'text-slate-400' : ''}`}
@@ -814,7 +812,6 @@ export default function PatientForm({
                             handleWeeklyClick();
                           }
                         }}>
-
                         {getWeeklyLabel()}
                       </Label>
                     </div>
@@ -829,7 +826,6 @@ export default function PatientForm({
                             handleBiWeeklyClick();
                           }
                         }} />
-
                       <Label
                         htmlFor="bi-weekly"
                         className={`text-sm cursor-pointer ${!isRecurring ? 'text-slate-400' : ''}`}
@@ -839,7 +835,6 @@ export default function PatientForm({
                             handleBiWeeklyClick();
                           }
                         }}>
-
                         {getBiWeeklyLabel()}
                       </Label>
                     </div>
@@ -855,14 +850,13 @@ export default function PatientForm({
                         Monthly
                       </Label>
                     </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="bi-monthly" id="bi-monthly" disabled={!isRecurring} />
-                        <Label htmlFor="bi-monthly" className={`text-sm ${!isRecurring ? 'text-slate-400' : ''}`}>
-                          Bi-Monthly
-                        </Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="bi-monthly" id="bi-monthly" disabled={!isRecurring} />
+                      <Label htmlFor="bi-monthly" className={`text-sm ${!isRecurring ? 'text-slate-400' : ''}`}>
+                        Bi-Monthly
+                      </Label>
+                    </div>
+                  </RadioGroup>
 
                   {showWeeklyDays && isRecurring && (frequency === 'weekly' || frequency === 'bi-weekly') &&
                     <div className="absolute left-0 top-[-120px] w-full bg-white border-2 border-emerald-400 rounded-lg p-4 shadow-xl z-20">
