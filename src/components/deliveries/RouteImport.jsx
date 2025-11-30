@@ -178,10 +178,15 @@ export default function RouteImport({
     return user && user.app_roles && user.app_roles.includes(role);
   }, []);
 
+  const [allStores, setAllStores] = useState([]);
+
   const findStoreByAbbreviation = useCallback((abbr) => {
-    if (!abbr || !stores || !Array.isArray(stores)) return null;
-    return stores.find((s) => s.abbreviation?.toLowerCase() === abbr.toLowerCase());
-  }, [stores]);
+    if (!abbr) return null;
+    // First check allStores (fetched from all cities), then fallback to props stores
+    const storesToSearch = allStores.length > 0 ? allStores : (stores || []);
+    if (!Array.isArray(storesToSearch)) return null;
+    return storesToSearch.find((s) => s.abbreviation?.toLowerCase() === abbr.toLowerCase());
+  }, [allStores, stores]);
 
   const findDispatcherByStore = useCallback((store) => {
     if (!store || !allUsers) return null;
