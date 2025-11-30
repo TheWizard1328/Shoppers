@@ -1515,6 +1515,17 @@ export default function RouteImport({
         errors: prev.errors + 1
       }));
       setProgressMessage('Import failed!');
+      setImportError({
+        message: error.message,
+        record: {
+          driver: availableDrivers.find(d => d.id === selectedDriverId)?.user_name || 'Unknown',
+          files: files.map(f => f.name).join(', '),
+          created: overallResults.created,
+          updated: overallResults.updated
+        },
+        lineNumber: null,
+        phase: 'import'
+      });
     } finally {
       setIsProcessing(false);
       setTimeout(() => setShowProgress(false), 1000);
