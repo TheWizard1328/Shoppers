@@ -119,6 +119,25 @@ const formatAddressWithUnit = (address, unit_number) => {
   return address;
 };
 
+// Helper function to clean delivery data before saving
+const cleanDeliveryData = (deliveryData) => {
+  const cleanData = { ...deliveryData };
+  if (cleanData.patient_id === '') cleanData.patient_id = null;
+  if (cleanData.stop_id === '') cleanData.stop_id = null;
+  if (cleanData.puid === '') cleanData.puid = null;
+  if (cleanData.dispatcher_id === '') cleanData.dispatcher_id = null;
+  if (cleanData.delivery_notes === '') cleanData.delivery_notes = null;
+  if (cleanData.delivery_instructions === '') cleanData.delivery_instructions = null;
+  if (cleanData.unit_number === '') cleanData.unit_number = null;
+  if (cleanData.cod_amount === '') cleanData.cod_amount = null;
+  if (cleanData.cod_total_amount_required === 0) cleanData.cod_total_amount_required = null;
+  if (cleanData.ampm_deliveries === '') cleanData.ampm_deliveries = null;
+  delete cleanData._changes;
+  delete cleanData.action;
+  delete cleanData._matchReason;
+  return cleanData;
+};
+
 
 export default function RouteImport({
   onImportComplete,
@@ -233,7 +252,6 @@ export default function RouteImport({
         console.log(`⚠️ [RouteImport] Found ${patientDeliveriesInSlot.length} deliveries for patient "${importedPatient?.full_name}" in ${importedAMPM} slot - REQUIRING SID match`);
       }
     }
-    // Note: Pickups do NOT require SID match even if multiple in same slot - fallback matching will handle it
 
     if (hasMultipleInSlot) {
       if (importedDeliveryStopId) {
@@ -275,20 +293,17 @@ export default function RouteImport({
         sameDateDeliveries.map((d) => d.stop_id).filter(Boolean));
         console.log(`🔍 [RouteImport] SID not matched - attempting highly probable match based on PID, stop order, time, and TR range...`);
 
-        // NEW: Highly probable match when SID doesn't match
         if (importedDeliveryPatientId) {
           const importedStopOrder = importedDelivery.stop_order;
           const importedTime = importedDelivery.actual_delivery_time ? new Date(importedDelivery.actual_delivery_time).getTime() : null;
           const importedTR = importedTrackingNumber ? parseInt(importedTrackingNumber, 10) : null;
 
           const highProbabilityMatches = sameDateDeliveries.filter((d) => {
-            // Must have matching patient_id
             if (d.patient_id !== importedDeliveryPatientId) return false;
 
             let score = 0;
             let reasons = [];
 
-            // Check stop order proximity (within ±5)
             if (importedStopOrder && d.stop_order) {
               const orderDiff = Math.abs(importedStopOrder - d.stop_order);
               if (orderDiff <= 5) {
@@ -297,7 +312,6 @@ export default function RouteImport({
               }
             }
 
-            // Check time proximity (within 60 minutes)
             if (importedTime && d.actual_delivery_time) {
               const existingTime = new Date(d.actual_delivery_time).getTime();
               const timeDiff = Math.abs(importedTime - existingTime);
@@ -307,7 +321,6 @@ export default function RouteImport({
               }
             }
 
-            // Check TR range (same 20-digit bucket: 0-19, 20-39, etc.)
             if (importedTR !== null && d.tracking_number) {
               const existingTR = parseInt(d.tracking_number, 10);
               if (!isNaN(existingTR)) {
@@ -322,7 +335,7 @@ export default function RouteImport({
 
             d._probScore = score;
             d._probReasons = reasons;
-            return score >= 20; // Need at least 2 of the 3 criteria
+            return score >= 20;
           });
 
           if (highProbabilityMatches.length === 1) {
@@ -331,7 +344,6 @@ export default function RouteImport({
             console.log(`✅ [RouteImport] Highly probable match found (score: ${match._probScore}): ${reasonText}`);
             return { match, reason: reasonText };
           } else if (highProbabilityMatches.length > 1) {
-            // Multiple high probability matches - pick the one with highest score
             highProbabilityMatches.sort((a, b) => (b._probScore || 0) - (a._probScore || 0));
             const bestMatch = highProbabilityMatches[0];
             const reasonText = `Highly Probable (Best): PID + ${bestMatch._probReasons.join(' + ')}`;
@@ -347,7 +359,6 @@ export default function RouteImport({
     }
 
     if (importedDeliveryPatientId) {
-      // First try exact PID match
       const patientIdMatches = sameDateDeliveries.filter((d) => {
         const existingPID = (d.patient_id || '').trim();
         return existingPID === importedDeliveryPatientId;
@@ -359,7 +370,6 @@ export default function RouteImport({
         console.log(`✅ [RouteImport] Matched by patient_id (${importedDeliveryPatientId}), date, and driver. Delivery ID: ${patientIdMatch.id}`);
         return { match: patientIdMatch, reason: `PID Match (${importedDeliveryPatientId})` };
       } else if (patientIdMatches.length > 1) {
-        // Multiple PID matches - use fuzzy logic to find best match
         console.log(`🔍 [RouteImport] Found ${patientIdMatches.length} deliveries with PID "${importedDeliveryPatientId}", applying fuzzy matching...`);
 
         const importedTime = importedDelivery.actual_delivery_time ? new Date(importedDelivery.actual_delivery_time).getTime() : null;
@@ -372,20 +382,18 @@ export default function RouteImport({
           let score = 0;
           let reasons = [];
 
-          // Check time proximity (within 60 minutes = +/- 3600000 ms)
           if (importedTime && candidate.actual_delivery_time) {
             const candidateTime = new Date(candidate.actual_delivery_time).getTime();
             const timeDiff = Math.abs(importedTime - candidateTime);
             const timeDiffMinutes = Math.round(timeDiff / 60000);
 
-            if (timeDiff <= 3600000) {// Within 60 minutes
+            if (timeDiff <= 3600000) {
               score += 10;
               reasons.push(`Time ±${timeDiffMinutes}min`);
               console.log(`✅ [RouteImport] Time match: ${timeDiffMinutes} minutes difference (within 60min threshold)`);
             }
           }
 
-          // Check stop order proximity (within +/- 3)
           if (importedStopOrder !== null && candidate.stop_order !== null) {
             const orderDiff = Math.abs(importedStopOrder - candidate.stop_order);
             if (orderDiff <= 3) {
@@ -448,7 +456,6 @@ export default function RouteImport({
       }
     }
 
-    // NEW: Highly probable pickup match when SID doesn't match
     if (!importedDeliveryPatientId && importedDelivery.store_id) {
       const importedTime = importedDelivery.actual_delivery_time ? new Date(importedDelivery.actual_delivery_time).getTime() : null;
       const importedAddress = (importedDelivery.delivery_address || '').toLowerCase().trim();
@@ -458,23 +465,18 @@ export default function RouteImport({
       console.log(`🔍 [RouteImport] Attempting highly probable pickup match for store_id: ${importedDelivery.store_id}`);
 
       const highProbabilityPickups = sameDateDeliveries.filter((d) => {
-        // Must be a pickup (no patient_id)
         if (d.patient_id) return false;
-
-        // Must match store_id
         if (d.store_id !== importedDelivery.store_id) return false;
 
         let score = 0;
         let reasons = [];
 
-        // Check address match
         const existingAddress = (d.delivery_address || '').toLowerCase().trim();
         if (importedAddress && existingAddress && importedAddress === existingAddress) {
           score += 15;
           reasons.push('Address');
         }
 
-        // Check time proximity (within 60 minutes)
         if (importedTime && d.actual_delivery_time) {
           const existingTime = new Date(d.actual_delivery_time).getTime();
           const timeDiff = Math.abs(importedTime - existingTime);
@@ -484,7 +486,6 @@ export default function RouteImport({
           }
         }
 
-        // Check stop order proximity (within ±5)
         if (importedStopOrder && d.stop_order) {
           const orderDiff = Math.abs(importedStopOrder - d.stop_order);
           if (orderDiff <= 5) {
@@ -493,7 +494,6 @@ export default function RouteImport({
           }
         }
 
-        // Check exact TR# match (bonus points)
         if (importedTR && d.tracking_number) {
           const existingTR = (d.tracking_number || '').trim();
           if (importedTR === existingTR) {
@@ -504,7 +504,7 @@ export default function RouteImport({
 
         d._pickupProbScore = score;
         d._pickupProbReasons = reasons;
-        return score >= 15; // Need at least address OR time match (plus store + date)
+        return score >= 15;
       });
 
       if (highProbabilityPickups.length === 1) {
@@ -513,7 +513,6 @@ export default function RouteImport({
         console.log(`✅ [RouteImport] Highly probable pickup match found (score: ${match._pickupProbScore}): ${reasonText}`);
         return { match, reason: reasonText };
       } else if (highProbabilityPickups.length > 1) {
-        // Multiple matches - pick the one with highest score
         highProbabilityPickups.sort((a, b) => (b._pickupProbScore || 0) - (a._pickupProbScore || 0));
         const bestMatch = highProbabilityPickups[0];
         const reasonText = `Highly Probable Pickup (Best): Store + ${bestMatch._pickupProbReasons.join(' + ')}`;
@@ -560,7 +559,6 @@ export default function RouteImport({
           changes.push(`${field.label}: ${existingTimeStr || 'none'} → ${importedTimeStr || 'none'}`);
         }
       } else if (field.key === 'cod_total_amount_required') {
-        // Treat null and 0 as equivalent (both mean no COD)
         const existingCod = normalizedExisting ?? 0;
         const importedCod = normalizedImported ?? 0;
         if (existingCod !== importedCod) {
@@ -766,24 +764,19 @@ export default function RouteImport({
         after_hours_pickup: false,
         delivery_notes: rawNotes,
         first_delivery: false,
-        puid: null // Will be calculated below
+        puid: null
       };
 
-      // Determine AM/PM slot for this delivery
       const assignedAMPM = ampmValue || determineDeliveryAMPM(newDeliveryData, allDeliveriesData);
       newDeliveryData.ampm_deliveries = assignedAMPM;
 
-      // Calculate PUID early so it's available for change detection
       if (!isPickup && patientId) {
-        // For patient deliveries, get the PUID from an existing pickup
-        // For patient deliveries, look for a pickup that matches driver, store, date, and AM/PM
-        // CRITICAL: Only assign PUID if a matching pickup exists for THIS driver
         const matchingPickup = allDeliveriesData.find(d => 
           d && 
-          !d.patient_id && // Is a pickup
+          !d.patient_id &&
           d.store_id === store.id && 
           d.delivery_date === currentDate && 
-          d.driver_id === selectedDriver.id && // Must match the assigned driver
+          d.driver_id === selectedDriver.id &&
           d.ampm_deliveries === assignedAMPM &&
           d.stop_id
         );
@@ -795,17 +788,12 @@ export default function RouteImport({
           console.log(`⚠️ Row ${lineNumber}: No pickup found for driver "${selectedDriver.user_name || selectedDriver.full_name}" on store/date/AMPM - PUID left blank`);
         }
       } else if (isPickup) {
-        // For pickups, PUID is its own stop_id
         newDeliveryData.puid = newDeliveryData.stop_id || null;
         console.log(`📌 Row ${lineNumber}: Pickup PUID set to stop_id: "${newDeliveryData.puid}"`);
       }
 
-      // Store completion time as local ISO string (no UTC conversion)
-      // This ensures time matching works correctly without timezone offset issues
       if (completionTimeStr && currentDate) {
-        // Combine date and time directly as local ISO string (YYYY-MM-DDTHH:mm:00)
         newDeliveryData.actual_delivery_time = `${currentDate}T${completionTimeStr}:00`;
-
         console.log(`🕒 Row ${lineNumber}: Set local time "${completionTimeStr}" on date "${currentDate}" as: "${newDeliveryData.actual_delivery_time}"`);
       }
 
@@ -875,9 +863,6 @@ export default function RouteImport({
         newDeliveryData.after_hours_pickup = true;
       }
 
-      // COD extraction: ONLY for patient deliveries (not pickups), ONLY from Notes column
-      // Supports multiple COD entries (e.g., "COD $50 Cash, COD $20 Debit")
-      // DOD = Debit on Delivery, so DOD entries should be mapped to Debit type
       if (patientId) {
         const codRegex = /(cod|dod)\s*[\$]?\s*([\d.]+)\s*(cash|debit|credit|check|cheque)?/gi;
         const codMatches = [...cleanedNotes.matchAll(codRegex)];
@@ -887,12 +872,10 @@ export default function RouteImport({
           let totalCodAmount = 0;
 
           codMatches.forEach((match, idx) => {
-            const codType = (match[1] || '').toLowerCase(); // 'cod' or 'dod'
+            const codType = (match[1] || '').toLowerCase();
             const amount = parseFloat(match[2]);
             let paymentType = (match[3] || '').toLowerCase();
 
-            // Map payment type to standard format
-            // CRITICAL: If the entry is "DOD" (Debit on Delivery), force type to Debit
             if (codType === 'dod') {
               paymentType = 'Debit';
               console.log(`💳 Row ${lineNumber}: DOD detected - forcing payment type to Debit`);
@@ -905,7 +888,6 @@ export default function RouteImport({
             } else if (paymentType === 'check' || paymentType === 'cheque') {
               paymentType = 'Check';
             } else {
-              // Default to Cash if no type specified (only for COD, not DOD)
               paymentType = 'Cash';
             }
 
@@ -919,7 +901,7 @@ export default function RouteImport({
           if (codPayments.length > 0) {
             newDeliveryData.cod_payments = codPayments;
             newDeliveryData.cod_total_amount_required = totalCodAmount;
-            newDeliveryData.cod_payment_type = codPayments[0].type; // Legacy field - use first payment type
+            newDeliveryData.cod_payment_type = codPayments[0].type;
             newDeliveryData.cod_amount = totalCodAmount.toString();
             console.log(`💰 Row ${lineNumber}: Total COD for patient delivery: $${totalCodAmount} (${codPayments.length} payment(s))`);
           } else {
@@ -929,7 +911,6 @@ export default function RouteImport({
           console.log(`💰 Row ${lineNumber}: No COD/DOD found in notes for patient delivery`);
         }
       } else {
-        // Pickups: ensure COD fields remain null/default
         console.log(`💰 Row ${lineNumber}: Pickup delivery - COD extraction skipped`);
       }
 
@@ -953,7 +934,6 @@ export default function RouteImport({
 
         if (!noteLineLower) return false;
 
-        // Preserve InterStore data - never remove lines containing "interstore"
         if (noteLineLower.includes('interstore')) {
           return true;
         }
@@ -1169,7 +1149,6 @@ export default function RouteImport({
         setProgressPercent(50 + currentParsingProgress);
       }
 
-      // PUID assignment is now handled directly in processCSVData during parsing
       console.log(`📌 [RouteImport] PUID assignment was done during parsing. Total: ${totalToCreate.length} to create, ${totalToUpdate.length} to update`);
 
       setProgressPercent(100);
@@ -1247,8 +1226,7 @@ export default function RouteImport({
       console.log(`📤 [RouteImport] Batch updating AM/PM for ${deliveriesToUpdateFiltered.length} deliveries to update...`);
       batchUpdateAMPM(deliveriesToUpdateFiltered);
 
-      let delayMs = 100;
-
+      // BATCH CREATE: Use bulkCreate for new deliveries (much faster than individual creates)
       if (deliveriesToCreateFiltered.length > 0) {
         setImportProgress((prev) => ({
           ...prev,
@@ -1256,49 +1234,81 @@ export default function RouteImport({
           total: deliveriesToCreateFiltered.length,
           current: 0
         }));
-        setProgressMessage(`Creating ${deliveriesToCreateFiltered.length} new deliveries...`);
+        setProgressMessage(`Creating ${deliveriesToCreateFiltered.length} new deliveries using batch insert...`);
 
-        for (let i = 0; i < deliveriesToCreateFiltered.length; i++) {
-          const deliveryData = deliveriesToCreateFiltered[i];
-          const cleanData = { ...deliveryData };
-          if (cleanData.patient_id === '') cleanData.patient_id = null;
-          if (cleanData.stop_id === '') cleanData.stop_id = null;
-          if (cleanData.puid === '') cleanData.puid = null;
-          if (cleanData.dispatcher_id === '') cleanData.dispatcher_id = null;
-          if (cleanData.delivery_notes === '') cleanData.delivery_notes = null;
-          if (cleanData.delivery_instructions === '') cleanData.delivery_instructions = null;
-          if (cleanData.unit_number === '') cleanData.unit_number = null;
-          if (cleanData.cod_amount === '') cleanData.cod_amount = null;
-          if (cleanData.cod_total_amount_required === 0) cleanData.cod_total_amount_required = null;
-          if (cleanData.ampm_deliveries === '') cleanData.ampm_deliveries = null;
-          delete cleanData._changes;
-          delete cleanData.action;
-          delete cleanData._matchReason;
+        // Clean all deliveries for batch creation
+        const cleanedDeliveries = deliveriesToCreateFiltered.map(cleanDeliveryData);
 
+        // Batch create in chunks of 50 to avoid API limits
+        const BATCH_SIZE = 50;
+        const batches = [];
+        for (let i = 0; i < cleanedDeliveries.length; i += BATCH_SIZE) {
+          batches.push(cleanedDeliveries.slice(i, i + BATCH_SIZE));
+        }
+
+        console.log(`📤 [RouteImport] Creating ${cleanedDeliveries.length} deliveries in ${batches.length} batch(es) of up to ${BATCH_SIZE}...`);
+
+        let totalCreated = 0;
+        for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+          const batch = batches[batchIndex];
           try {
-            console.log(`📤 [RouteImport] Creating delivery ${i + 1}/${deliveriesToCreateFiltered.length}: ${cleanData.patient_name || 'Store Pickup'}`);
-            await base44.entities.Delivery.create(cleanData);
+            console.log(`📤 [RouteImport] Batch ${batchIndex + 1}/${batches.length}: Creating ${batch.length} deliveries...`);
+            
+            await retryWithBackoff(async () => {
+              await base44.entities.Delivery.bulkCreate(batch);
+            }, 3, 1000, 2);
 
-            overallResults.created++;
-            overallResults.completed++;
-            if (cleanData.status === 'returned' || isReturnDelivery(cleanData, freshPatients, freshStores)) {
-              overallResults.returned++;
-            }
+            // Count successful creates
+            batch.forEach((cleanData) => {
+              overallResults.created++;
+              overallResults.completed++;
+              if (cleanData.status === 'returned' || isReturnDelivery(cleanData, freshPatients, freshStores)) {
+                overallResults.returned++;
+              }
+            });
+
+            totalCreated += batch.length;
             setImportProgress((prev) => ({
               ...prev,
-              created: prev.created + 1,
-              current: i + 1
+              created: totalCreated,
+              current: totalCreated
             }));
-            await delay(delayMs);
+
+            console.log(`✅ [RouteImport] Batch ${batchIndex + 1} complete: ${batch.length} deliveries created`);
+            
+            // Small delay between batches
+            if (batchIndex < batches.length - 1) {
+              await delay(500);
+            }
           } catch (error) {
-            console.warn(`⚠️ Create failed for delivery ${cleanData.delivery_id || 'unknown'}, will retry later:`, error.message);
-            failedCreations.push({ data: cleanData, error: error.message });
-            setImportProgress((prev) => ({ ...prev, current: i + 1 }));
-            await delay(300);
+            console.warn(`⚠️ Batch ${batchIndex + 1} failed, falling back to individual creates:`, error.message);
+            
+            // Fallback: try individual creates for this batch
+            for (const cleanData of batch) {
+              try {
+                await base44.entities.Delivery.create(cleanData);
+                overallResults.created++;
+                overallResults.completed++;
+                if (cleanData.status === 'returned' || isReturnDelivery(cleanData, freshPatients, freshStores)) {
+                  overallResults.returned++;
+                }
+                totalCreated++;
+                setImportProgress((prev) => ({
+                  ...prev,
+                  created: totalCreated,
+                  current: totalCreated
+                }));
+                await delay(100);
+              } catch (individualError) {
+                console.warn(`⚠️ Individual create failed for ${cleanData.delivery_id || 'unknown'}:`, individualError.message);
+                failedCreations.push({ data: cleanData, error: individualError.message });
+              }
+            }
           }
         }
       }
 
+      // Updates still need to be individual (no bulk update API for different records)
       if (deliveriesToUpdateFiltered.length > 0) {
         setImportProgress((prev) => ({
           ...prev,
@@ -1317,23 +1327,14 @@ export default function RouteImport({
               throw new Error('Missing delivery ID');
             }
 
-            if (updatePayload.patient_id === '') updatePayload.patient_id = null;
-            if (updatePayload.stop_id === '') updatePayload.stop_id = null;
-            if (updatePayload.puid === '') updatePayload.puid = null;
-            if (updatePayload.dispatcher_id === '') updatePayload.dispatcher_id = null;
-            if (updatePayload.delivery_notes === '') updatePayload.delivery_notes = null;
-            if (updatePayload.delivery_instructions === '') updatePayload.delivery_instructions = null;
-            if (updatePayload.unit_number === '') updatePayload.unit_number = null;
-            if (updatePayload.cod_amount === '') updatePayload.cod_amount = null;
-            if (updatePayload.cod_total_amount_required === 0) updatePayload.cod_total_amount_required = null;
-            if (updatePayload.ampm_deliveries === '') updatePayload.ampm_deliveries = null;
+            const cleanPayload = cleanDeliveryData(updatePayload);
 
-            console.log(`🔄 [RouteImport] Updating delivery ${i + 1}/${deliveriesToUpdateFiltered.length}: ${updatePayload.patient_name || 'Store Pickup'}`);
-            await base44.entities.Delivery.update(id, updatePayload);
+            console.log(`🔄 [RouteImport] Updating delivery ${i + 1}/${deliveriesToUpdateFiltered.length}: ${cleanPayload.patient_name || 'Store Pickup'}`);
+            await base44.entities.Delivery.update(id, cleanPayload);
 
             overallResults.updated++;
             overallResults.completed++;
-            if (updatePayload.status === 'returned' || isReturnDelivery(updatePayload, freshPatients, freshStores)) {
+            if (cleanPayload.status === 'returned' || isReturnDelivery(cleanPayload, freshPatients, freshStores)) {
               overallResults.returned++;
             }
             setImportProgress((prev) => ({
@@ -1341,7 +1342,7 @@ export default function RouteImport({
               updated: prev.updated + 1,
               current: i + 1
             }));
-            await delay(delayMs);
+            await delay(100);
           } catch (error) {
             console.warn(`⚠️ Update failed for delivery ID ${deliveryData.id}, will retry later:`, error.message);
             failedUpdates.push({ data: deliveryData, error: error.message });
@@ -1351,6 +1352,7 @@ export default function RouteImport({
         }
       }
 
+      // Retry failed operations
       const totalFailed = failedCreations.length + failedUpdates.length;
       if (totalFailed > 0) {
         console.log(`🔄 [RouteImport] Retrying ${totalFailed} failed operations (${failedCreations.length} creates, ${failedUpdates.length} updates)...`);
@@ -1405,7 +1407,7 @@ export default function RouteImport({
             console.log(`🔄 [RouteImport] Retrying update ${i + 1}/${failedUpdates.length}: ${updatePayload.patient_name || 'Store Pickup'}`);
 
             await retryWithBackoff(async () => {
-              await base44.entities.Delivery.update(id, updatePayload);
+              await base44.entities.Delivery.update(id, cleanDeliveryData(updatePayload));
             }, 5, 500, 1.5);
 
             overallResults.updated++;
@@ -1574,379 +1576,4 @@ export default function RouteImport({
                         }
                       </SelectContent>
                     </Select>
-                    {availableDrivers.length === 0 &&
-                    <p className="text-xs text-red-600">
-                        No drivers found. Please ensure users have the 'driver' or 'admin' role assigned.
-                      </p>
-                    }
-                  </div>
-                </div>
-
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-                  <h4 className="font-semibold mb-2">CSV Format</h4>
-                  <ul className="list-disc list-inside space-y-1">
-                    <li>Date metadata: <code className="font-mono">#YYYY-MM-DD#,TotalDeliveries,...</code></li>
-                    <li>Positional data (no headers): <code className="font-mono">Store Abbr (col 1), AM/PM (col 2), TR# (col 3), Stop Order (col 4), ?, Time (col 6), ..., COD Total (col 10), ..., SID (col 13), PID (col 14), ?, Notes (col 16)</code></li>
-                    <li>Matching by Stop ID (SID) + Date for updates.</li>
-                    <li>PUIDs auto-assigned by matching pickups to patient deliveries.</li>
-                  </ul>
-                </div>
-              </div>
-
-              {files.length > 0 &&
-              <div className="space-y-2">
-                  <Label className="text-sm font-medium">Selected Files ({files.length})</Label>
-                  <div className="space-y-1 max-h-32 overflow-y-auto border rounded-lg p-2">
-                    {files.map((file, index) =>
-                  <div key={index} className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded text-sm">
-                        <span className="truncate flex-1">{file.name}</span>
-                        {!isParsing && !isProcessing && !showProgress &&
-                    <button onClick={() => removeFile(index)} className="ml-2 text-slate-400 hover:text-red-600">
-                            <X className="w-4 h-4" />
-                          </button>
-                    }
-                      </div>
-                  )}
-                  </div>
-                </div>
-              }
-
-              {previewData.errors.length > 0 &&
-              <div className="space-y-1 mt-4">
-                  <div className="flex items-center gap-2 text-red-600 font-semibold">
-                    <XCircle className="w-5 h-5" />
-                    <span>Parsing Errors: {previewData.errors.length}</span>
-                  </div>
-                  <div className="max-h-32 overflow-y-auto bg-red-50 p-2 rounded text-xs">
-                    {previewData.errors.map((err, i) =>
-                  <div key={`parse-err-${i}`} className="text-red-800">{err}</div>
-                  )}
-                  </div>
-                </div>
-              }
-
-              {previewData.skippedItems.length > 0 &&
-              <div className="space-y-1 mt-4">
-                  <div className="flex items-center gap-2 text-orange-600 font-semibold">
-                    <AlertCircle className="w-5 h-5" />
-                    <span>Skipped Items: {previewData.skippedItems.length}</span>
-                  </div>
-                  <div className="max-h-32 overflow-y-auto bg-orange-50 p-2 rounded text-xs">
-                    {previewData.skippedItems.map((item, i) =>
-                  <div key={`skipped-item-${i}`} className="text-orange-800">
-                        Line {item.lineNumber}: {item.reason} - <span className="font-mono text-[10px]">{item.rawData}</span>
-                      </div>
-                  )}
-                  </div>
-                </div>
-              }
-            </div>
-          </div> :
-
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex-shrink-0 p-6 pb-4">
-              <div className="flex items-center justify-between gap-4 mb-4">
-                <h3 className="text-lg font-semibold text-slate-800">Preview: {filteredPreviewDeliveries.length} Total Deliveries ({previewData.skippedItems.length} Skipped)</h3>
-                <div className="flex items-center gap-3">
-                  <Select value={previewFilterDate} onValueChange={setPreviewFilterDate}>
-                    <SelectTrigger className="w-40">
-                      <SelectValue placeholder="Filter by date" />
-                    </SelectTrigger>
-                    <SelectContent className="z-[10002]">
-                      <SelectItem value="all">All Dates</SelectItem>
-                      {previewDates.map((date) =>
-                      <SelectItem key={date} value={date}>{date}</SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {previewData.errors.length > 0 &&
-              <div className="flex-shrink-0 px-6 pb-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 text-red-600 font-semibold">
-                      <XCircle className="w-5 h-5" />
-                      <span>Parsing Errors: {previewData.errors.length}</span>
-                    </div>
-                    <div className="max-h-32 overflow-y-auto bg-red-50 p-2 rounded text-xs">
-                      {previewData.errors.map((err, i) =>
-                    <div key={`preview-parse-err-${i}`} className="text-red-800">{err}</div>
-                    )}
-                    </div>
-                  </div>
-                </div>
-              }
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="flex flex-col items-center bg-green-50 border border-green-200 rounded-lg p-3">
-                <div className="text-xs text-green-700 mb-1">New Deliveries</div>
-                <div className="text-2xl font-bold text-green-800">{previewStats.creates}</div>
-            </div>
-
-            <div className="flex flex-col items-center bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <div className="text-xs text-blue-700 mb-1">Updates</div>
-                <div className="text-2xl font-bold text-blue-800">{previewStats.updates}</div>
-            </div>
-
-            <div className="flex flex-col items-center bg-emerald-50 border border-emerald-200 rounded-lg p-3">
-                <div className="text-xs text-emerald-700 mb-1">Completed</div>
-                <div className="text-2xl font-bold text-emerald-800">{previewStats.completed}</div>
-            </div>
-
-            <div className="flex flex-col items-center bg-red-50 border border-red-200 rounded-lg p-3">
-                <div className="text-xs text-red-700 mb-1">Failed/Returned</div>
-                <div className="text-2xl font-bold text-red-800">
-                {previewStats.failed}/{previewStats.returned}
-                </div>
-            </div>
-
-            {previewData.skippedItems.length > 0 && (
-                <div className="flex flex-col items-center bg-orange-50 border border-orange-200 rounded-lg p-3">
-                <div className="text-xs text-orange-700 mb-1">Skipped Items</div>
-                <div className="text-2xl font-bold text-orange-800">{previewStats.skipped}</div>
-                </div>
-            )}
-            </div>  
-          </div>
-
-            {filteredPreviewDeliveries.length === 0 ?
-            <div className="text-center text-slate-500 py-8 flex-1 flex items-center justify-center px-6">
-                No deliveries detected for import or matching filters.
-              </div> :
-
-            <div className="flex-1 border rounded-lg flex flex-col overflow-hidden bg-white min-h-0">
-                <div className="flex-shrink-0 bg-slate-100 border-b">
-                  <table className="w-full text-sm table-fixed">
-                    <thead>
-                      <tr>
-                        <th className="p-1 text-left w-20">Type</th>
-                        <th className="p-1 text-left w-24">Date</th>
-                        <th className="p-1 text-left w-12">A/P</th>
-                        <th className="p-1 text-left w-14">Order</th>
-                        <th className="p-1 text-left w-22">TR#</th>
-                        <th className="p-1 text-left w-22">SID/PID</th>
-                        <th className="p-1 text-left w-48">Patient/Pickup</th>
-                        <th className="p-1 text-left w-24">Status</th>
-                        <th className="p-1 text-left w-20">COD $</th>
-                        <th className="p-1 text-left w-42">Notes</th>
-                        <th className="p-1 text-left w-14">1st</th>
-                        <th className="p-1 text-left flex-1">Changes</th>
-                      </tr>
-                    </thead>
-                  </table>
-                </div>
-
-                <div className="flex-1 overflow-y-auto min-h-0">
-                  <table className="w-full text-sm table-fixed">
-                    <tbody>
-                      {filteredPreviewDeliveries.map((delivery, idx) => {
-                      const store = stores.find((s) => s.id === delivery.store_id);
-                      const newTimeFormatted = delivery.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : 'none';
-                      const patient = delivery.patient_id ? patients.find((p) => p.id === delivery.patient_id) : null;
-
-                      const displayAddress = delivery.patient_id ?
-                      formatAddressWithUnit(patient?.address || delivery.delivery_address || '', patient?.unit_number || '') :
-                      formatAddressWithUnit(delivery.delivery_address || store?.address || '', delivery.unit_number || '');
-
-                      return (
-                        <tr key={`${delivery.action}-${idx}`} className={`border-b ${delivery.action === 'create' ? 'bg-green-50 hover:bg-green-100' : 'bg-blue-50 hover:bg-blue-100'}`}>
-                            <td className="p-1 w-20">
-                              <Badge className={delivery.action === 'create' ? "bg-green-200 text-green-800" : "bg-blue-200 text-blue-800"}>
-                                {delivery.action === 'create' ? 'New' : 'Update'}
-                              </Badge>
-                            </td>
-                            <td className="p-1 w-24">
-                              <div className="flex flex-col">
-                                <span className="font-medium">{delivery.delivery_date}</span>
-                                {newTimeFormatted !== 'none' && <span className="text-xs text-slate-500">{newTimeFormatted}</span>}
-                              </div>
-                            </td>
-                            <td className="p-1 w-12 text-xs font-mono">{delivery.ampm_deliveries || '-'}</td>
-                            <td className="p-1 font-mono text-xs w-14">{delivery.stop_order}</td>
-                            <td className="p-1 font-mono text-xs w-22">{delivery.tracking_number}</td>
-                            <td className="p-1 font-mono text-xs w-22">
-                              <div className="flex flex-col">
-                                {delivery.stop_id && <span className="font-semibold">{delivery.stop_id}</span>}
-                                {patient?.patient_id && <span className="text-slate-600">{patient.patient_id}</span>}
-                                {!delivery.stop_id && !patient?.patient_id && <span>N/A</span>}
-                              </div>
-                            </td>
-                            <td className="p-1 w-48">
-                              <div className="flex flex-col gap-1">
-                                {delivery.patient_id ?
-                              <>
-                                    <span className="font-medium">{delivery.patient_name}</span>
-                                    <span className="text-xs text-slate-600">{displayAddress}</span>
-                                  </> :
-                              <>
-                                    <span className="text-blue-600 font-semibold">{delivery.patient_name || store?.name || 'Store Pickup'}</span>
-                                    <span className="text-xs text-slate-600">{displayAddress}</span>
-                                  </>
-                              }
-                              </div>
-                            </td>
-                            <td className="p-1 w-24">{getStatusBadge(delivery.status)}</td>
-                            <td className="p-1 font-mono text-xs w-20">
-                              {delivery.cod_total_amount_required > 0 ? (
-                                <div className="flex flex-col">
-                                  <span className="text-slate-500 text-[10px]">{delivery.cod_payments?.[0]?.type || delivery.cod_payment_type || 'Cash'}</span>
-                                  <span className="font-semibold">${delivery.cod_total_amount_required.toFixed(2)}</span>
-                                </div>
-                              ) : '-'}
-                            </td>
-                            <td className="p-1 text-xs w-42">
-                              <span className="text-slate-600">{delivery.delivery_notes || '-'}</span>
-                            </td>
-                            <td className="p-1 text-xs w-14">
-                              {delivery.first_delivery ? <CheckCircle className="w-4 h-4 text-green-500" /> : <XCircle className="w-4 h-4 text-red-500" />}
-                            </td>
-                            <td className="p-1 text-xs flex-1">
-                              <div className="space-y-1">
-                                {delivery._matchReason &&
-                              <div className={`font-semibold ${delivery.action === 'create' ? 'text-red-600' : 'text-green-600'}`}>
-                                    {delivery._matchReason}
-                                  </div>
-                              }
-                                {delivery.action === 'update' && delivery._changes && delivery._changes.length > 0 &&
-                              <>
-                                    {delivery._changes.map((change, changeIdx) =>
-                                <div key={changeIdx} className="text-orange-700 font-medium">
-                                        {change}
-                                      </div>
-                                )}
-                                  </>
-                              }
-                                {!delivery._matchReason && (!delivery._changes || delivery._changes.length === 0) &&
-                              <span className="text-slate-400">-</span>
-                              }
-                              </div>
-                            </td>
-                          </tr>);
-                    })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            }
-          </div>
-          }
-
-        <div className="bg-white px-6 py-2 flex flex-col gap-3 border-t border-slate-200 flex-shrink-0">
-          <div className="flex gap-3">
-            {!showPreview ?
-              <>
-                <Button onClick={handlePreview} disabled={isParsing || isProcessing || files.length === 0 || !selectedDriverId || showProgress}>
-                  {isParsing ?
-                  <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Parsing...
-                    </> :
-                  'Preview Import'
-                  }
-                </Button>
-                <Button variant="outline" onClick={onCancel} disabled={isParsing || isProcessing || showProgress}>
-                  Cancel
-                </Button>
-              </> :
-              importResult ?
-              <>
-                  <Button
-                  onClick={() => {
-                    setFiles([]);
-                    setSelectedDriverId('');
-                    setIsProcessing(false);
-                    setImportResult(null);
-                    setShowPreview(false);
-                    setPreviewData({ deliveriesToCreate: [], deliveriesToUpdate: [], skippedItems: [], errors: [] });
-                    setIsParsing(false);
-                    setProgressPercent(0);
-                    setProgressMessage('');
-                    setShowProgress(false);
-                    setPatients([]);
-                    setPreviewFilterDriver('all');
-                    setPreviewFilterDate('all');
-                    setImportProgress({
-                      current: 0,
-                      total: 0,
-                      phase: '',
-                      created: 0,
-                      updated: 0,
-                      errors: 0,
-                      currentFile: '',
-                      filesCompleted: 0,
-                      totalFiles: 0
-                    });
-                  }}
-                  variant="outline"
-                  className="flex-1">
-                    Start New Import
-                  </Button>
-                  <Button
-                  onClick={() => {
-                    if (onImportComplete) {
-                      onImportComplete();
-                    }
-                  }}
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-700">
-                    Done - Close Import
-                  </Button>
-                </> :
-              <>
-                  <Button variant="outline" onClick={() => setShowPreview(false)} disabled={isProcessing || showProgress} className="flex-1">
-                    <ArrowLeft className="w-4 h-4 mr-2" />
-                    Back
-                  </Button>
-                  <Button onClick={handleConfirmImport} disabled={isProcessing || filteredPreviewDeliveries.length === 0 || showProgress} className="flex-1 bg-emerald-600 hover:bg-emerald-700">
-                    {isProcessing ?
-                  <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Importing...
-                      </> :
-                  `Confirm Import (${filteredPreviewDeliveries.length})`
-                  }
-                  </Button>
-                </>
-              }
-          </div>
-
-          {importResult &&
-            <div className="space-y-4 p-6 bg-green-50 border border-green-200 rounded-lg">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-6 h-6 text-green-600" />
-                <h3 className="font-bold text-green-800">Import Complete!</h3>
-              </div>
-              <div className="grid grid-cols-3 gap-4 text-sm">
-              <div className="flex items-center justify-center gap-1">
-                <span className="text-slate-700">Created:</span>
-                <span className="font-semibold">{importResult.created}</span>
-              </div>
-
-              <div className="flex items-center justify-center gap-1">
-                <span className="text-slate-700">Updated:</span>
-                <span className="font-semibold">{importResult.updated}</span>
-              </div>
-
-              <div className="flex items-center justify-center gap-1">
-                <span className="text-slate-700">Skipped:</span>
-                <span className="font-semibold">{importResult.skipped}</span>
-              </div>
-            </div>
-            {importResult.errors && importResult.errors.length > 0 &&
-              <div className="mt-4">
-                  <h4 className="font-semibold text-red-600 mb-2">Errors ({importResult.errors.length}):</h4>
-                  <div className="bg-white border border-red-200 rounded p-3 max-h-40 overflow-y-auto text-xs">
-                    {importResult.errors.map((err, idx) =>
-                  <div key={idx} className="text-red-700 mb-1">{err}</div>
-                  )}
-                  </div>
-                </div>
-              }
-            </div>
-            }
-        </div>
-      </DialogContent>
-    </Dialog>
-    </>);
-
-}
+                    {availableDrivers.
