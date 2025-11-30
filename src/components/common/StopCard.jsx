@@ -550,11 +550,12 @@ export default function StopCard({
         }}>
         <CardContent className="p-5 mx-1 pt-1 pr-1 pb-2 pl-1 flex flex-col">
           {/* HEADER SECTION - Always Visible */}
-          <div className="flex items-start gap-2">
-            <div className="flex flex-col gap-1 items-center flex-shrink-0">
+          <div className="flex flex-col gap-1">
+            {/* Row 1: Stop Order, Name, Status */}
+            <div className="flex items-center gap-2">
               <Badge
                 variant="secondary"
-                className={`font-bold text-xs px-2 py-0.5 text-white w-[40px] justify-center ${delivery.ampm_deliveries === 'AM' ? 'rounded-full' : 'rounded-xs'}`}
+                className={`font-bold text-xs px-2 py-0.5 text-white w-[40px] justify-center flex-shrink-0 ${delivery.ampm_deliveries === 'AM' ? 'rounded-full' : 'rounded-xs'}`}
                 style={{
                   backgroundColor: storeColor || '#10B981',
                   color: 'white'
@@ -562,19 +563,58 @@ export default function StopCard({
                 #{delivery.display_stop_order || delivery.stop_order || 0}
               </Badge>
 
-              {isPickup && pendingPickups && pendingPickups.length > 0 &&
-              <Badge
-                variant="secondary"
-                className="font-bold text-xs px-2 py-0.5 bg-purple-500 text-white justify-center rounded-lg">
-                  P: {pendingPickups.length}
-                </Badge>
-              }
+              <h3 className="text-slate-900 text-lg font-semibold text-center truncate flex-1 min-w-0">
+                {finalDisplayName}
+              </h3>
 
+              <div className="flex items-center gap-1 flex-shrink-0">
+                {showStatusDropdown ?
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                      className={`font-medium inline-flex items-center gap-1 rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-xs font-bold px-2 py-0.5 cursor-pointer hover:opacity-80 ${statusConfig[delivery.status]?.color || 'bg-slate-100 text-slate-800'}`}
+                      onClick={(e) => e.stopPropagation()}>
+
+                        {statusConfig[delivery.status]?.label || delivery.status}
+                        <MoreVertical className="w-3 h-3" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="z-[99999]">
+                      <DropdownMenuLabel>Change Status</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {nextAvailableStatuses.map((status) =>
+                    <DropdownMenuItem
+                      key={status}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+                        const skipAutoCenter = !finishedStatuses.includes(status);
+                        onStatusUpdate(delivery.id, status, {}, skipAutoCenter);
+                      }}
+                      className="capitalize">
+
+                              {statusConfig[status]?.label || status}
+                          </DropdownMenuItem>
+                    )}
+                    </DropdownMenuContent>
+                  </DropdownMenu> :
+
+                <Badge
+                  variant="secondary"
+                  className={`font-medium inline-flex items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-xs font-bold px-2 py-0.5 ${statusConfig[delivery.status]?.color || 'bg-slate-100 text-slate-800'}`}>
+                    {statusConfig[delivery.status]?.label || delivery.status}
+                  </Badge>
+                }
+              </div>
+            </div>
+
+            {/* Row 2: Special symbols, Time, Driver, TR# */}
+            <div className="flex items-center justify-center gap-2 flex-wrap">
+              {/* Special symbols badge */}
+              {(hasCODRequired || isFirstDelivery || delivery.oversized || delivery.fridge_item || delivery.signature_needed) &&
               <Badge
                 variant="secondary"
-                className={`inline-flex items-center gap-0.5 border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 font-bold text-xs px-1.5 py-0.5 bg-slate-300 text-white min-w-[25px] justify-center rounded-full ${
-                !(hasCODRequired || isFirstDelivery || delivery.oversized || delivery.fridge_item || delivery.signature_needed) ? 'invisible' : ''}`
-                }>
+                className="inline-flex items-center gap-0.5 border-transparent font-bold text-xs px-1.5 py-0.5 bg-slate-300 text-white min-w-[25px] justify-center rounded-full">
                 {hasCODRequired &&
                 <span className="relative inline-flex items-center justify-center">
                     $
@@ -604,91 +644,52 @@ export default function StopCard({
                 {delivery.fridge_item && (hasCODRequired || isFirstDelivery ? ' F' : 'F')}
                 {delivery.signature_needed && (hasCODRequired || isFirstDelivery || delivery.fridge_item ? ' S' : 'S')}
               </Badge>
-            </div>
+              }
 
-            <div className="flex-1 min-w-0">
-              <h3 className="text-slate-900 text-lg font-semibold text-center truncate">
-                {finalDisplayName}
-              </h3>
-              <div className="flex flex-col items-center gap-0.5">
-                <div className="flex items-center justify-center text-xs text-slate-600">
-                  {FINISHED_STATUSES.includes(delivery.status) && delivery.actual_delivery_time ?
-                  <>
-                      <Clock className="w-3 h-3" />
-                      <span className="font-medium">{formatTime12Hour(format(new Date(delivery.actual_delivery_time), 'HH:mm'))}</span>
-                    </> :
+              {/* Pending pickups count for pickup stops */}
+              {isPickup && pendingPickups && pendingPickups.length > 0 &&
+              <Badge
+                variant="secondary"
+                className="font-bold text-xs px-2 py-0.5 bg-purple-500 text-white justify-center rounded-lg">
+                  P: {pendingPickups.length}
+                </Badge>
+              }
 
-                  <span className="font-medium">ETA: {formatTime12Hour(delivery.delivery_time_eta || delivery.delivery_time_start || delivery.time_window_start || '--:--')}</span>
-                  }
-                  {showDriverName && safeDriver &&
-                  <>
-                      <span className="bg-secondary text-secondary-foreground px-2 py-0.5 text-xs font-semibold opacity-60 rounded-full inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80">•</span>
-                      <Badge
-                      variant="secondary"
-                      className="px-2 py-0.5 rounded-full text-xs font-semibold"
-                      style={{ backgroundColor: driverBadgeColor, color: driverBadgeTextColor }}>
-                        {getDriverDisplayName(safeDriver)}
-                      </Badge>
-                    </>
-                  }
-                </div>
-                <div className="text-[10px] text-slate-500 min-h-[14px]">
-                  {!FINISHED_STATUSES.includes(delivery.status) && (delivery.time_window_start || delivery.time_window_end) &&
-                  <>
-                      {delivery.time_window_start && formatTime12Hour(delivery.time_window_start)}
-                      {delivery.time_window_start && delivery.time_window_end && ' - '}
-                      {delivery.time_window_end && formatTime12Hour(delivery.time_window_end)}
-                    </>
-                  }
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-1 items-center flex-shrink-0">
-              <div className="flex items-center gap-1">
-                {showStatusDropdown ?
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                      className={`font-medium inline-flex items-center gap-1 rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-xs font-bold px-2 py-0.5 cursor-pointer hover:opacity-80 ${statusConfig[delivery.status]?.color || 'bg-slate-100 text-slate-800'}`}
-                      onClick={(e) => e.stopPropagation()}>
-
-                        {statusConfig[delivery.status]?.label || delivery.status}
-                        <MoreVertical className="w-3 h-3" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="z-[99999]">
-                      <DropdownMenuLabel>Change Status</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      {nextAvailableStatuses.map((status) =>
-                    <DropdownMenuItem
-                      key={status}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // Pass skipAutoCenter=false for finished statuses so ETAs get recalculated
-                        const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-                        const skipAutoCenter = !finishedStatuses.includes(status);
-                        onStatusUpdate(delivery.id, status, {}, skipAutoCenter);
-                      }}
-                      className="capitalize">
-
-                              {statusConfig[status]?.label || status}
-                          </DropdownMenuItem>
-                    )}
-                    </DropdownMenuContent>
-                  </DropdownMenu> :
-
-                <Badge
-                  variant="secondary"
-                  className={`font-medium inline-flex items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-xs font-bold px-2 py-0.5 ${statusConfig[delivery.status]?.color || 'bg-slate-100 text-slate-800'}`}>
-                    {statusConfig[delivery.status]?.label || delivery.status}
-                  </Badge>
+              {/* Time display */}
+              <div className="flex items-center text-xs text-slate-600">
+                {FINISHED_STATUSES.includes(delivery.status) && delivery.actual_delivery_time ?
+                <>
+                    <Clock className="w-3 h-3 mr-0.5" />
+                    <span className="font-medium">{formatTime12Hour(format(new Date(delivery.actual_delivery_time), 'HH:mm'))}</span>
+                  </> :
+                <span className="font-medium">ETA: {formatTime12Hour(delivery.delivery_time_eta || delivery.delivery_time_start || delivery.time_window_start || '--:--')}</span>
                 }
               </div>
 
+              {/* Time window */}
+              {!FINISHED_STATUSES.includes(delivery.status) && (delivery.time_window_start || delivery.time_window_end) &&
+              <div className="text-[10px] text-slate-500">
+                  {delivery.time_window_start && formatTime12Hour(delivery.time_window_start)}
+                  {delivery.time_window_start && delivery.time_window_end && ' - '}
+                  {delivery.time_window_end && formatTime12Hour(delivery.time_window_end)}
+                </div>
+              }
+
+              {/* Driver badge */}
+              {showDriverName && safeDriver &&
+              <Badge
+                variant="secondary"
+                className="px-2 py-0.5 rounded-full text-xs font-semibold"
+                style={{ backgroundColor: driverBadgeColor, color: driverBadgeTextColor }}>
+                  {getDriverDisplayName(safeDriver)}
+                </Badge>
+              }
+
+              {/* Tracking number badge */}
               {delivery.tracking_number && store?.abbreviation &&
               <Badge
-                variant="secondary" className="inline-flex items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 font-mono text-xs font-bold px-2 py-0.5"
+                variant="secondary" 
+                className="inline-flex items-center rounded-full border-transparent font-mono text-xs font-bold px-2 py-0.5"
                 style={{ backgroundColor: `${storeColor}20`, color: storeColor }}>
                   {(() => {
                   const storeAbbr = store.abbreviation.slice(0, 2).toUpperCase();
