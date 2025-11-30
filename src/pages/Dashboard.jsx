@@ -1561,6 +1561,7 @@ function Dashboard() {
 
   // CRITICAL: Dedicated effect to scroll to next delivery card on initial load
   // This runs AFTER cards are rendered and handles ALL phases
+  // CHANGED: Only center (scroll), do NOT select the card
   useEffect(() => {
     // Skip if already scrolled or data not ready
     if (hasScrolledToNextCardRef.current || !isDataLoaded || deliveriesWithStopOrder.length === 0) {
@@ -1582,13 +1583,14 @@ function Dashboard() {
     
     const nextDelivery = incompleteDeliveries[0];
     console.log(`📍 [Card Scroll Effect] Next delivery: ${nextDelivery.patient_name || 'Pickup'} (id: ${nextDelivery.id})`);
+    console.log(`📍 [Card Scroll Effect] Will center but NOT select`);
     
     // Wait for cards to render, then scroll
     const scrollTimer = setTimeout(() => {
       const cardElement = document.getElementById(`stop-card-${nextDelivery.id}`);
       if (cardElement) {
         cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-        console.log(`✅ [Card Scroll Effect] Scrolled to next card: ${nextDelivery.id}`);
+        console.log(`✅ [Card Scroll Effect] Scrolled to next card (NOT selected): ${nextDelivery.id}`);
       } else {
         console.warn(`⚠️ [Card Scroll Effect] Card not found: stop-card-${nextDelivery.id}`);
         // Try again after more delay
@@ -1596,7 +1598,7 @@ function Dashboard() {
           const retryElement = document.getElementById(`stop-card-${nextDelivery.id}`);
           if (retryElement) {
             retryElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-            console.log(`✅ [Card Scroll Effect] Retry scroll succeeded: ${nextDelivery.id}`);
+            console.log(`✅ [Card Scroll Effect] Retry scroll succeeded (NOT selected): ${nextDelivery.id}`);
           }
         }, 500);
       }
@@ -1681,6 +1683,7 @@ function Dashboard() {
     }
     
     // Auto-center on next stop when data is ready
+    // CHANGED: Only scroll to center card, do NOT select it
     if (!hasAutoSelectedRef.current && isDataLoaded && deliveriesWithStopOrder.length > 0 && !isLoadingUser) {
       console.log('🎯 [Auto-Center] Checking for next stop to auto-center...');
       
@@ -1694,17 +1697,17 @@ function Dashboard() {
       if (incompleteDeliveries.length > 0) {
         const nextDelivery = incompleteDeliveries[0];
         console.log(`✅ [Auto-Center] Auto-centering on: ${nextDelivery.patient_name || 'Pickup'} (stop_order: ${nextDelivery.stop_order})`);
+        console.log(`📍 [Auto-Center] Will center but NOT select card`);
         
-        // CRITICAL: Select the card to trigger marker selection AND auto-scroll in HorizontalStopCards
-        setSelectedCardId(nextDelivery.id);
-        console.log(`📍 [Auto-Center] Set selectedCardId to: ${nextDelivery.id}`);
+        // CHANGED: Do NOT set selectedCardId - only scroll to center
+        // setSelectedCardId(nextDelivery.id); // REMOVED
         
         // Scroll card into view after a longer delay to ensure cards are rendered
         setTimeout(() => {
           const cardElement = document.getElementById(`stop-card-${nextDelivery.id}`);
           if (cardElement) {
             cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-            console.log(`📍 [Auto-Center] Scrolled to next card: ${nextDelivery.id}`);
+            console.log(`📍 [Auto-Center] Scrolled to next card (NOT selected): ${nextDelivery.id}`);
           } else {
             console.warn(`⚠️ [Auto-Center] Card element not found: stop-card-${nextDelivery.id}`);
           }
