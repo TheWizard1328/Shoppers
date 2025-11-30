@@ -1642,51 +1642,48 @@ export default function DeliveryMap({
   // REMOVED: Auto-fit logic that was interfering with FAB-controlled map positioning
   // The FAB (via Dashboard's shouldFitBounds prop) now controls ALL map positioning
 
-  // Handle dynamic map center and zoom changes - FIXED: Actually apply the changes
-  // NEW: With visual center offset to account for stop cards height
+  // Handle dynamic map center and zoom changes - ONLY when shouldFitBounds is explicitly set
   useEffect(() => {
     if (!map) {
-      console.log('[MapCenter] DYNAMIC VIEW - waiting for map...');
       return;
     }
 
     // SAFETY: Ensure map is fully loaded before attempting operations
     if (!map.getCenter) {
-      console.log('[MapCenter] DYNAMIC VIEW - map not fully initialized');
+      return;
+    }
+
+    // CRITICAL: Only apply map changes when shouldFitBounds is explicitly set
+    // This prevents auto-centering when other props change
+    if (!shouldFitBounds) {
       return;
     }
 
     try {
-      if (shouldFitBounds) {
-        console.log('[MapCenter] EXECUTING fitBounds with', shouldFitBounds.bounds.length, 'coordinates');
-        const bounds = L.latLngBounds(shouldFitBounds.bounds);
-        
-        // CRITICAL FIX: Use stopCardsHeight directly as bottom padding
-        const modifiedOptions = { ...shouldFitBounds.options };
-        
-        if (stopCardsHeight > 0) {
-          modifiedOptions.paddingBottomRight = [
-            modifiedOptions.paddingBottomRight?.[0] || 50,
-            stopCardsHeight + 40
-          ];
-        }
-        
-        console.log('[MapCenter] Calling map.fitBounds with options:', modifiedOptions);
-        map.fitBounds(bounds, modifiedOptions);
-        console.log('[MapCenter] fitBounds completed');
+      console.log('[MapCenter] EXECUTING fitBounds with', shouldFitBounds.bounds.length, 'coordinates');
+      const bounds = L.latLngBounds(shouldFitBounds.bounds);
+      
+      // CRITICAL FIX: Use stopCardsHeight directly as bottom padding
+      const modifiedOptions = { ...shouldFitBounds.options };
+      
+      if (stopCardsHeight > 0) {
+        modifiedOptions.paddingBottomRight = [
+          modifiedOptions.paddingBottomRight?.[0] || 50,
+          stopCardsHeight + 40
+        ];
+      }
+      
+      console.log('[MapCenter] Calling map.fitBounds with options:', modifiedOptions);
+      map.fitBounds(bounds, modifiedOptions);
+      console.log('[MapCenter] fitBounds completed');
 
-        if (onBoundsFitted && typeof onBoundsFitted === 'function') {
-          onBoundsFitted();
-        }
-      } else if (center && Array.isArray(center) && center.length === 2 && zoom) {
-        console.log('[MapCenter] EXECUTING setView - center:', center, 'zoom:', zoom);
-        map.setView(center, zoom, { animate: true, duration: 1 });
-        console.log('[MapCenter] setView completed');
+      if (onBoundsFitted && typeof onBoundsFitted === 'function') {
+        onBoundsFitted();
       }
     } catch (error) {
       console.error('[MapCenter] DYNAMIC VIEW error:', error);
     }
-  }, [map, center, zoom, shouldFitBounds, onBoundsFitted, stopCardsHeight]);
+  }, [map, shouldFitBounds, stopCardsHeight, onBoundsFitted]);
 
   // Handle marker drag end
   const handleMarkerDragEnd = useCallback((markerId, event, type) => {

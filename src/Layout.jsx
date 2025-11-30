@@ -1212,29 +1212,32 @@ export default function Layout({ children, currentPageName }) {
 
       console.log(`📅 [Layout] Starting three-stage delivery loading...`);
 
-      // ADMIN FEATURE: Load data from nearby cities (within 75km) for admins
+      // ADMIN FEATURE: Load data from nearby cities (within 75km) for admins in "All Drivers" mode ONLY
       const isAdmin = userHasRole(currentUser, 'admin');
       const selectedCity = cities.find(c => c && c.id === selectedCityId);
+      const currentDriverFilter = globalFilters.getSelectedDriverId();
 
       let relevantCityIds = [selectedCityId];
-      if (isAdmin && selectedCity) {
+      if (isAdmin && selectedCity && currentDriverFilter === 'all') {
         const nearbyCities = getCitiesWithinRadius(selectedCity, cities, 75);
         relevantCityIds = nearbyCities.map(c => c.id);
-        console.log(`🌐 [Layout] Admin mode: Loading data from ${relevantCityIds.length} cities within 75km`);
+        console.log(`🌐 [Layout] Admin in "All Drivers" mode: Loading data from ${relevantCityIds.length} cities within 75km`);
+      } else if (isAdmin && currentDriverFilter !== 'all') {
+        console.log(`🌐 [Layout] Admin in single driver mode: Loading data from selected city only`);
       }
 
       const allAppUsers = await getData('AppUser', null, null, forceRefresh);
-      // For admins, get AppUsers from all nearby cities
+      // For admins in "All Drivers" mode, get AppUsers from all nearby cities
       const cityAppUsers = allAppUsers.filter(au => au && relevantCityIds.includes(au.city_id));
-      console.log(`✅ [Layout] Loaded ${cityAppUsers.length} AppUsers for ${isAdmin ? 'nearby cities' : 'city'}`);
+      console.log(`✅ [Layout] Loaded ${cityAppUsers.length} AppUsers for ${isAdmin && currentDriverFilter === 'all' ? `nearby cities (75km radius)` : 'selected city'}`);
 
 
       const allStores = await getData('Store', null, null, forceRefresh);
-      // For admins, get stores from all nearby cities
+      // For admins in "All Drivers" mode, get stores from all nearby cities
       const cityStores = allStores.filter(store => store && relevantCityIds.includes(store.city_id));
       cityStores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
       const cityStoreIds = cityStores.map(store => store && store.id).filter(Boolean);
-      console.log(`✅ [Layout] Loaded ${cityStores.length} Stores for ${isAdmin ? 'nearby cities' : 'city'}`);
+      console.log(`✅ [Layout] Loaded ${cityStores.length} Stores for ${isAdmin && currentDriverFilter === 'all' ? `nearby cities (75km radius)` : 'selected city'}`);
 
 
       // All users load all city data - UI filtering happens in components
@@ -1249,8 +1252,8 @@ export default function Layout({ children, currentPageName }) {
         deliveryFilter.id = { $in: [] };
       }
 
-      if (selectedDriverId && selectedDriverId !== 'all') {
-        deliveryFilter.driver_id = selectedDriverId;
+      if (currentDriverFilter && currentDriverFilter !== 'all') {
+        deliveryFilter.driver_id = currentDriverFilter;
       }
 
       console.log('📦 [Layout] Delivery filter:', JSON.stringify(deliveryFilter));
@@ -1327,10 +1330,10 @@ export default function Layout({ children, currentPageName }) {
       const mergedUsers = Array.from(mergedUsersMap.values()).filter(Boolean);
       console.log(`✅ [Layout] Merged ${mergedUsers.length} users`);
 
-      // For admins, get drivers from all nearby cities; for others, just selected city
+      // For admins in "All Drivers" mode, get drivers from all nearby cities; for others, just selected city
       let activeDrivers;
-      if (isAdmin && relevantCityIds.length > 1) {
-        // Get all drivers from nearby cities
+      if (isAdmin && currentDriverFilter === 'all' && relevantCityIds.length > 1) {
+        // Get all drivers from nearby cities (75km radius)
         activeDrivers = mergedUsers.filter(user => {
           if (!user || !user.app_roles || !Array.isArray(user.app_roles)) return false;
           if (!user.app_roles.includes('driver') && !user.app_roles.includes('admin')) return false;
@@ -1339,7 +1342,7 @@ export default function Layout({ children, currentPageName }) {
           return relevantCityIds.includes(user.city_id);
         });
         activeDrivers = sortUsers(activeDrivers);
-        console.log(`✅ [Layout] Populated ${activeDrivers.length} active drivers from ${relevantCityIds.length} nearby cities`);
+        console.log(`✅ [Layout] Admin "All Drivers": Populated ${activeDrivers.length} active drivers from ${relevantCityIds.length} nearby cities (75km radius)`);
       } else {
         activeDrivers = getActiveDriversForCity(mergedUsers, selectedCityId);
         console.log(`✅ [Layout] Populated ${activeDrivers.length} active drivers for selected city: ${selectedCityId}`);
