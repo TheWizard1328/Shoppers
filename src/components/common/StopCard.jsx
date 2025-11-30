@@ -1046,13 +1046,45 @@ export default function StopCard({
                   }
                   </AnimatePresence>
 
-                  {!isPickup && patient && patient.notes &&
+                  {!isPickup && patient && (patient.notes || patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door || patient.recurring) &&
                 <div className="flex items-start gap-2">
                       <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-slate-700 mb-0.5">Patient Notes:</p>
-                        <div className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded px-2 py-1.5">
-                          <p className="whitespace-pre-wrap break-words">{patient.notes}</p>
+                        <p className="text-xs font-semibold text-slate-700 mb-0.5">Patient Info:</p>
+                        <div className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded px-2 py-1.5 space-y-1">
+                          {/* Delivery Preferences */}
+                          {(patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door) && (
+                            <div className="flex flex-wrap gap-1">
+                              {patient.mailbox_ok && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-blue-50 border-blue-200 text-blue-700">Mailbox OK</Badge>}
+                              {patient.call_upon_arrival && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-amber-50 border-amber-200 text-amber-700">Call on Arrival</Badge>}
+                              {patient.dont_ring_bell && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-red-50 border-red-200 text-red-700">Don't Ring Bell</Badge>}
+                              {patient.back_door && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-purple-50 border-purple-200 text-purple-700">Back Door</Badge>}
+                            </div>
+                          )}
+                          
+                          {/* Recurring Schedule */}
+                          {patient.recurring && (
+                            <div className="flex flex-wrap gap-1">
+                              <span className="text-[10px] font-semibold text-slate-500">Recurring:</span>
+                              {patient.recurring_daily && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">Daily</Badge>}
+                              {patient.recurring_weekly_mon && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">Mon</Badge>}
+                              {patient.recurring_weekly_tue && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">Tue</Badge>}
+                              {patient.recurring_weekly_wed && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">Wed</Badge>}
+                              {patient.recurring_weekly_thu && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">Thu</Badge>}
+                              {patient.recurring_weekly_fri && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">Fri</Badge>}
+                              {patient.recurring_weekly_sat && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">Sat</Badge>}
+                              {patient.recurring_weekly_sun && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">Sun</Badge>}
+                              {patient.recurring_biweekly && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">Bi-Weekly</Badge>}
+                              {patient.recurring_weekly_x4 && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">4x Weekly</Badge>}
+                              {patient.recurring_monthly && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">Monthly</Badge>}
+                              {patient.recurring_bimonthly && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-50 border-green-200 text-green-700">Bi-Monthly</Badge>}
+                            </div>
+                          )}
+                          
+                          {/* Patient Notes */}
+                          {patient.notes && (
+                            <p className="whitespace-pre-wrap break-words">{patient.notes}</p>
+                          )}
                         </div>
                       </div>
                     </div>
