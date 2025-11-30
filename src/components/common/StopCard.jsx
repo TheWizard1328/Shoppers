@@ -742,7 +742,7 @@ export default function StopCard({
                 <a
                   href={`tel:${finalDisplayPhone.replace(/\D/g, '')}`}
                   onClick={(e) => e.stopPropagation()}
-                  className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-600 transition-colors">
+                  className="flex items-center justify-center w-9 h-9 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-600 transition-colors">
 
                     <Phone className="w-4 h-4" />
                   </a>
