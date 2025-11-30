@@ -462,6 +462,7 @@ function Dashboard() {
   }, [selectedDate, filteredDeliveries]);
 
   // CRITICAL: Dispatchers in "All Drivers" mode only see drivers with deliveries for their stores
+  // ADMIN FEATURE: Admins get ALL drivers from Layout (includes nearby cities within 75km)
   const driversList = useMemo(() => {
     console.log('🔍 [Dashboard driversList] Computing driver list...');
     console.log('  - drivers array length:', drivers?.length || 0);
@@ -475,9 +476,9 @@ function Dashboard() {
       return [];
     }
     
-    // Admins get all drivers
+    // ADMIN FEATURE: Admins get all drivers (Layout already filtered to 75km radius)
     if (userHasRole(currentUser, 'admin')) {
-      console.log('✅ [Dashboard driversList] Admin - returning all drivers');
+      console.log(`✅ [Dashboard driversList] Admin - returning all ${drivers.length} drivers (includes nearby cities within 75km)`);
       return drivers;
     }
     
