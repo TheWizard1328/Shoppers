@@ -1910,22 +1910,66 @@ const UserDataTable = ({ users, onEdit, onDelete, onDeleteSelected, isLoadingDat
 const UserSettingsTable = ({ appUsers, mergedUsers }) => {
   const [userSettings, setUserSettings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const refreshIntervalRef = useRef(null);
+
+  const loadSettings = useCallback(async () => {
+    try {
+      const settings = await UserSettings.list();
+      setUserSettings(settings || []);
+      return settings || [];
+    } catch (error) {
+      console.error('Failed to load user settings:', error);
+      setUserSettings([]);
+      return [];
+    }
+  }, []);
 
   useEffect(() => {
-    const loadSettings = async () => {
+    const init = async () => {
       setIsLoading(true);
+      await loadSettings();
+      setIsLoading(false);
+    };
+    init();
+  }, [loadSettings]);
+
+  // Smart refresh for UserSettings - poll every 15 seconds
+  useEffect(() => {
+    if (isLoading) return;
+
+    const performRefresh = async () => {
       try {
-        const settings = await UserSettings.list();
-        setUserSettings(settings || []);
+        const lastTimestamp = userSettings.reduce((latest, s) => {
+          const updated = s.updated_date ? new Date(s.updated_date) : null;
+          return updated && (!latest || updated > latest) ? updated : latest;
+        }, null);
+
+        if (lastTimestamp) {
+          const recentSettings = await base44.entities.UserSettings.filter({
+            updated_date: { $gte: lastTimestamp.toISOString() }
+          });
+
+          if (recentSettings && recentSettings.length > 0) {
+            console.log('✅ [UserSettingsTable] Smart refresh detected changes');
+            await loadSettings();
+          }
+        } else {
+          // No existing data, do a full load
+          await loadSettings();
+        }
       } catch (error) {
-        console.error('Failed to load user settings:', error);
-        setUserSettings([]);
-      } finally {
-        setIsLoading(false);
+        console.error('❌ [UserSettingsTable] Smart refresh error:', error);
       }
     };
-    loadSettings();
-  }, []);
+
+    refreshIntervalRef.current = setInterval(performRefresh, 15000);
+
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+      }
+    };
+  }, [isLoading, userSettings, loadSettings]);
 
   const getUserName = (userId) => {
     if (!userId) return 'Unknown';
