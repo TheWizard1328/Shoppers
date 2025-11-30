@@ -974,6 +974,47 @@ export default function RouteImport({
       }
     }
 
+    // PUID Assignment Pass: Now that all rows are parsed, assign PUIDs
+    // For pickups: PUID = own stop_id
+    // For patient deliveries: Find pickup with same store abbreviation + AM/PM in this file's parsed data
+    console.log(`📌 [RouteImport] Starting PUID assignment pass for ${deliveriesToCreate.length + deliveriesToUpdate.length} deliveries...`);
+    
+    // Build a map of pickups by store_id + ampm_deliveries for quick lookup
+    const allParsedDeliveries = [...deliveriesToCreate, ...deliveriesToUpdate];
+    const pickupMap = new Map();
+    
+    allParsedDeliveries.forEach((d) => {
+      if (!d.patient_id && d.store_id && d.stop_id) {
+        // This is a pickup - index by store_id + ampm
+        const key = `${d.store_id}_${d.ampm_deliveries || 'none'}`;
+        if (!pickupMap.has(key)) {
+          pickupMap.set(key, d.stop_id);
+          console.log(`📌 [RouteImport] Indexed pickup: store=${d.store_id}, AM/PM=${d.ampm_deliveries || 'none'}, SID=${d.stop_id}`);
+        }
+      }
+    });
+    
+    console.log(`📌 [RouteImport] Pickup map has ${pickupMap.size} entries`);
+    
+    // Now assign PUIDs
+    allParsedDeliveries.forEach((d) => {
+      if (!d.patient_id && d.stop_id) {
+        // Pickup: PUID = own stop_id
+        d.puid = d.stop_id;
+      } else if (d.patient_id) {
+        // Patient delivery: find matching pickup by store + AM/PM
+        const key = `${d.store_id}_${d.ampm_deliveries || 'none'}`;
+        const matchingPuid = pickupMap.get(key);
+        if (matchingPuid) {
+          d.puid = matchingPuid;
+          console.log(`📌 [RouteImport] Assigned PUID "${matchingPuid}" to patient delivery (SID: ${d.stop_id}, store: ${d.store_id}, AM/PM: ${d.ampm_deliveries})`);
+        } else {
+          d.puid = null;
+          console.log(`⚠️ [RouteImport] No pickup found for patient delivery (SID: ${d.stop_id}, store: ${d.store_id}, AM/PM: ${d.ampm_deliveries}) - PUID left blank`);
+        }
+      }
+    });
+
     const totalToCreate = deliveriesToCreate.length;
     const totalToUpdate = deliveriesToUpdate.length;
     const totalForThisFile = totalToCreate + totalToUpdate;
