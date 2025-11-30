@@ -770,27 +770,7 @@ export default function RouteImport({
       const assignedAMPM = ampmValue || determineDeliveryAMPM(newDeliveryData, allDeliveriesData);
       newDeliveryData.ampm_deliveries = assignedAMPM;
 
-      if (!isPickup && patientId) {
-        const matchingPickup = allDeliveriesData.find(d => 
-          d && 
-          !d.patient_id &&
-          d.store_id === store.id && 
-          d.delivery_date === currentDate && 
-          d.driver_id === selectedDriver.id &&
-          d.ampm_deliveries === assignedAMPM &&
-          d.stop_id
-        );
-        const calculatedPuid = matchingPickup ? matchingPickup.stop_id : null;
-        newDeliveryData.puid = calculatedPuid || null;
-        if (calculatedPuid) {
-          console.log(`📌 Row ${lineNumber}: Assigned PUID "${calculatedPuid}" for patient delivery (SID: "${newDeliveryData.stop_id}", PID: "${patientPID}")`);
-        } else {
-          console.log(`⚠️ Row ${lineNumber}: No pickup found for driver "${selectedDriver.user_name || selectedDriver.full_name}" on store/date/AMPM - PUID left blank`);
-        }
-      } else if (isPickup) {
-        newDeliveryData.puid = newDeliveryData.stop_id || null;
-        console.log(`📌 Row ${lineNumber}: Pickup PUID set to stop_id: "${newDeliveryData.puid}"`);
-      }
+      // PUID assignment will be done after all rows are parsed (see below)
 
       if (completionTimeStr && currentDate) {
         newDeliveryData.actual_delivery_time = `${currentDate}T${completionTimeStr}:00`;
