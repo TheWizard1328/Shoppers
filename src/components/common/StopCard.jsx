@@ -553,6 +553,7 @@ export default function StopCard({
         <CardContent className="mx-1 px-3 py-2 flex flex-col">
           {/* HEADER SECTION - Always Visible */}
           <div className="flex items-start gap-2">
+            {!isStrippedDelivery &&
             <div className="flex flex-col gap-2 items-start items-center">
               <Badge
                 variant="secondary"
@@ -607,6 +608,7 @@ export default function StopCard({
                 {delivery.signature_needed && (hasCODRequired || isFirstDelivery || delivery.fridge_item ? ' S' : 'S')}
               </Badge>
             </div>
+            }
 
             <div className="flex-1 min-w-0">
               <h3 className="text-slate-900 pt-1 text-lg font-semibold text-center truncate">
@@ -648,47 +650,14 @@ export default function StopCard({
 
             <div className="flex flex-col gap-2 items-end items-center">
               <div className="flex items-center gap-1">
-                {showStatusDropdown ?
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                      className={`font-medium inline-flex items-center gap-1 rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-xs font-bold px-2 py-0.5 cursor-pointer hover:opacity-80 ${statusConfig[delivery.status]?.color || 'bg-slate-100 text-slate-800'}`}
-                      onClick={(e) => e.stopPropagation()}>
-
-                        {statusConfig[delivery.status]?.label || delivery.status}
-                        <MoreVertical className="w-3 h-3" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="z-[99999]">
-                      <DropdownMenuLabel>Change Status</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      {nextAvailableStatuses.map((status) =>
-                    <DropdownMenuItem
-                      key={status}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // Pass skipAutoCenter=false for finished statuses so ETAs get recalculated
-                        const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-                        const skipAutoCenter = !finishedStatuses.includes(status);
-                        onStatusUpdate(delivery.id, status, {}, skipAutoCenter);
-                      }}
-                      className="capitalize">
-
-                              {statusConfig[status]?.label || status}
-                          </DropdownMenuItem>
-                    )}
-                    </DropdownMenuContent>
-                  </DropdownMenu> :
-
                 <Badge
                   variant="secondary"
                   className={`font-medium inline-flex items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-xs font-bold px-2 py-0.5 ${statusConfig[delivery.status]?.color || 'bg-slate-100 text-slate-800'}`}>
                     {statusConfig[delivery.status]?.label || delivery.status}
                   </Badge>
-                }
               </div>
 
-              {delivery.tracking_number && store?.abbreviation &&
+              {!isStrippedDelivery && delivery.tracking_number && store?.abbreviation &&
               <Badge
                 variant="secondary" className="inline-flex items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 font-mono text-xs font-bold px-2 py-0.5"
                 style={{ backgroundColor: `${storeColor}20`, color: storeColor }}>
@@ -705,8 +674,9 @@ export default function StopCard({
             </div>
           </div>
 
-          <div className="border-t border-slate-200"></div>
+          {!isStrippedDelivery && <div className="border-t border-slate-200"></div>}
 
+          {!isStrippedDelivery &&
           <div className="flex flex-col">
             <div className="mt-2 flex items-start justify-between">
               <div className="flex flex-col gap-0.5 flex-1 min-w-0">
@@ -752,7 +722,8 @@ export default function StopCard({
                 }
               </div>
               
-              {/* Navigation and Phone buttons - right justified */}
+              {/* Navigation and Phone buttons - HIDDEN for stripped deliveries */}
+              {!isStrippedDelivery &&
               <div className="py-1 flex items-center gap-2 flex-shrink-0">
                 {finalDisplayAddress &&
                 <a
@@ -783,6 +754,7 @@ export default function StopCard({
                   </a>
                 }
               </div>
+              }
             </div>
           </div>
 
