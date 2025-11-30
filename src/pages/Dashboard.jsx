@@ -621,13 +621,12 @@ function Dashboard() {
   const lastProgrammaticMapMoveRef = useRef(0);
   
   // Track previous values for detecting changes that should trigger map repositioning
-  const prevDeliveriesLengthRef = useRef(0);
   const prevSelectedDriverIdRef = useRef(selectedDriverId);
   const prevSelectedDateRef = useRef(format(selectedDate, 'yyyy-MM-dd'));
+  const pendingMapRepositionRef = useRef(false);
   
-  // Effect to reposition map when data changes (after date or driver change)
+  // Effect to detect driver/date changes and flag for repositioning
   useEffect(() => {
-    const currentDeliveriesLength = deliveriesWithStopOrder.length;
     const currentDateStr = format(selectedDate, 'yyyy-MM-dd');
     
     // Check if driver or date changed
@@ -637,46 +636,65 @@ function Dashboard() {
     // Update refs
     prevSelectedDriverIdRef.current = selectedDriverId;
     prevSelectedDateRef.current = currentDateStr;
-    prevDeliveriesLengthRef.current = currentDeliveriesLength;
     
-    // Only trigger map repositioning if driver or date changed AND we have data loaded
-    if ((driverChanged || dateChanged) && isDataLoaded && mapViewPhase > 0) {
-      console.log(`🗺️ [Data Change] Driver or date changed, triggering FAB phase ${mapViewPhase}`);
+    // Flag that we need to reposition when markers are ready
+    if (driverChanged || dateChanged) {
+      console.log(`🗺️ [Filter Change] Flagging pending map reposition`);
       console.log(`   Driver: ${driverChanged ? 'changed' : 'same'}, Date: ${dateChanged ? 'changed' : 'same'}`);
-      console.log(`   Deliveries count: ${currentDeliveriesLength}`);
-      
-      // Small delay to ensure map tiles have loaded
-      setTimeout(() => {
-        setIsMapViewLocked(true);
-        setMapViewTrigger(prev => prev + 1);
-        
-        // Set appropriate lock behavior based on phase
-        if (mapViewPhase === 2) {
-          // Phase 2: Persistent lock
-          mapLockExpiresAtRef.current = null;
-          mapLockTimeoutRef.current = null;
-        } else {
-          // Phase 1 and 3: 3-second auto-unlock timer
-          const lockDuration = 3000;
-          const expiresAt = Date.now() + lockDuration;
-          mapLockExpiresAtRef.current = expiresAt;
-          
-          if (mapLockTimeoutRef.current) {
-            clearTimeout(mapLockTimeoutRef.current);
-          }
-          
-          mapLockTimeoutRef.current = window.setTimeout(() => {
-            if (mapLockExpiresAtRef.current === expiresAt) {
-              console.log(`⚫ [Data Change] Phase ${mapViewPhase} auto-unlocking`);
-              setIsMapViewLocked(false);
-              mapLockExpiresAtRef.current = null;
-              mapLockTimeoutRef.current = null;
-            }
-          }, lockDuration);
-        }
-      }, 300); // 300ms delay to let map tiles load
+      pendingMapRepositionRef.current = true;
     }
-  }, [selectedDriverId, selectedDate, isDataLoaded, deliveriesWithStopOrder.length, mapViewPhase]);
+  }, [selectedDriverId, selectedDate]);
+  
+  // Effect to reposition map AFTER deliveries have been rendered (markers exist)
+  useEffect(() => {
+    // Only run if we have a pending reposition and data is loaded
+    if (!pendingMapRepositionRef.current || !isDataLoaded) {
+      return;
+    }
+    
+    // Wait for markers to render before repositioning
+    // Use requestAnimationFrame to ensure DOM has updated, then add delay for map tiles
+    const frameId = requestAnimationFrame(() => {
+      setTimeout(() => {
+        if (pendingMapRepositionRef.current && mapViewPhase > 0) {
+          console.log(`🗺️ [Markers Ready] Triggering FAB phase ${mapViewPhase}`);
+          console.log(`   Deliveries count: ${deliveriesWithStopOrder.length}`);
+          
+          pendingMapRepositionRef.current = false;
+          
+          setIsMapViewLocked(true);
+          setMapViewTrigger(prev => prev + 1);
+          
+          // Set appropriate lock behavior based on phase
+          if (mapViewPhase === 2) {
+            // Phase 2: Persistent lock
+            mapLockExpiresAtRef.current = null;
+            mapLockTimeoutRef.current = null;
+          } else {
+            // Phase 1 and 3: 3-second auto-unlock timer
+            const lockDuration = 3000;
+            const expiresAt = Date.now() + lockDuration;
+            mapLockExpiresAtRef.current = expiresAt;
+            
+            if (mapLockTimeoutRef.current) {
+              clearTimeout(mapLockTimeoutRef.current);
+            }
+            
+            mapLockTimeoutRef.current = window.setTimeout(() => {
+              if (mapLockExpiresAtRef.current === expiresAt) {
+                console.log(`⚫ [Markers Ready] Phase ${mapViewPhase} auto-unlocking`);
+                setIsMapViewLocked(false);
+                mapLockExpiresAtRef.current = null;
+                mapLockTimeoutRef.current = null;
+              }
+            }, lockDuration);
+          }
+        }
+      }, 500); // 500ms delay after RAF to ensure markers and tiles are rendered
+    });
+    
+    return () => cancelAnimationFrame(frameId);
+  }, [deliveriesWithStopOrder, isDataLoaded, mapViewPhase]);
 
   const handleMapInteraction = useCallback(() => {
     console.log('🗺️ [Map Interaction] Called');
