@@ -1711,10 +1711,16 @@ export default function DeliveryForm({
   // Auto-load pending deliveries on form mount
   useEffect(() => {
     // Skip if editing existing delivery
-    if (delivery) return;
+    if (delivery) {
+      console.log('⏸️ [DeliveryForm] Skipping auto-load - editing existing delivery');
+      return;
+    }
     
     // Skip if already loaded
-    if (hasLoadedPending.current) return;
+    if (hasLoadedPending.current) {
+      console.log('⏸️ [DeliveryForm] Skipping auto-load - already loaded');
+      return;
+    }
 
     // Wait for all required data (driver_id NOT required)
     if (!allDeliveries || !formData.delivery_date || !currentUser || !patients || !stores) {
@@ -1731,6 +1737,9 @@ export default function DeliveryForm({
     console.log('🔄 [DeliveryForm] Auto-loading pending deliveries based on role...');
     console.log('  - Date:', formData.delivery_date);
     console.log('  - Total deliveries:', allDeliveries.length);
+    console.log('  - Current user:', currentUser.user_name || currentUser.full_name);
+    console.log('  - Current user roles:', currentUser.app_roles);
+    console.log('  - Current user store_ids:', currentUser.store_ids);
 
     // Filter pending deliveries based on user role
     let pendingDeliveries = allDeliveries.filter(d => 
@@ -1740,28 +1749,44 @@ export default function DeliveryForm({
       d.patient_id // Only patient deliveries, not pickups
     );
 
-    console.log('  - Found pending deliveries for date:', pendingDeliveries.length);
+    console.log('  - Found pending deliveries for date (before role filter):', pendingDeliveries.length);
+    if (pendingDeliveries.length > 0) {
+      console.log('  - Pending deliveries:', pendingDeliveries.map(d => ({
+        patient_name: d.patient_name,
+        driver_id: d.driver_id,
+        store_id: d.store_id
+      })));
+    }
 
     // Role-based filtering
     if (userHasRole(currentUser, 'driver')) {
       // Drivers: only their pending stops
       pendingDeliveries = pendingDeliveries.filter(d => d.driver_id === currentUser.id);
-      console.log(`  - Driver mode: filtered to ${pendingDeliveries.length} pending stops`);
+      console.log(`  - Driver mode: filtered to ${pendingDeliveries.length} pending stops for driver ${currentUser.id}`);
     } else if (userHasRole(currentUser, 'dispatcher')) {
       // Dispatchers: only pending stops for their stores
       const dispatcherStoreIds = currentUser.store_ids || [];
+      console.log(`  - Dispatcher mode: checking stores ${dispatcherStoreIds.join(', ')}`);
       pendingDeliveries = pendingDeliveries.filter(d => dispatcherStoreIds.includes(d.store_id));
       console.log(`  - Dispatcher mode: filtered to ${pendingDeliveries.length} pending stops for dispatcher stores`);
+      if (pendingDeliveries.length > 0) {
+        console.log('  - Dispatcher pending deliveries:', pendingDeliveries.map(d => ({
+          patient_name: d.patient_name,
+          store_id: d.store_id
+        })));
+      }
     } else {
       // Admins: all pending stops (no additional filtering)
       console.log(`  - Admin mode: ${pendingDeliveries.length} pending stops`);
     }
 
     if (pendingDeliveries.length === 0) {
-      console.log('  - No pending deliveries to load');
+      console.log('  - No pending deliveries to load after role filtering');
       hasLoadedPending.current = true;
       return;
     }
+    
+    console.log('✅ [DeliveryForm] Found pending deliveries to auto-load:', pendingDeliveries.length);
 
     // Convert pending deliveries to staged format
     const newStagedItems = pendingDeliveries.map((delivery, index) => {
@@ -1811,6 +1836,12 @@ export default function DeliveryForm({
 
     // Force state update with timeout to ensure re-render
     setTimeout(() => {
+      console.log('💾 [DeliveryForm] Setting staged deliveries state with', newStagedItems.length, 'items');
+      console.log('💾 [DeliveryForm] Items:', newStagedItems.map(item => ({
+        patient_name: item.patient_name,
+        _tempId: item._tempId,
+        id: item.id
+      })));
       setStagedDeliveries(newStagedItems);
       hasLoadedPending.current = true;
       console.log(`✅ [DeliveryForm] Auto-loaded ${newStagedItems.length} pending deliveries to staged list`);
