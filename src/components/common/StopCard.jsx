@@ -550,8 +550,8 @@ export default function StopCard({
         }}>
         <CardContent className="p-5 mx-1 pt-1 pr-1 pb-2 pl-1 flex flex-col">
           {/* HEADER SECTION - Always Visible */}
-          <div className="flex items-center gap-2">
-            <div className="flex flex-col gap-1 items-start items-center">
+          <div className="flex items-start gap-2">
+            <div className="flex flex-col gap-1 items-center flex-shrink-0">
               <Badge
                 variant="secondary"
                 className={`font-bold text-xs px-2 py-0.5 text-white w-[40px] justify-center ${delivery.ampm_deliveries === 'AM' ? 'rounded-full' : 'rounded-xs'}`}
