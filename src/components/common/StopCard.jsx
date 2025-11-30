@@ -677,7 +677,6 @@ export default function StopCard({
           {!isStrippedDelivery && <div className="border-t border-slate-200"></div>}
 
 
-
           {/* Delete Confirmation Dialog */}
           <AnimatePresence>
             {showDeleteConfirm &&
