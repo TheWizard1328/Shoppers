@@ -2660,7 +2660,6 @@ export default function DeliveryForm({
                           onValueChange={handleFrequencyChange}
                           disabled={!formData.recurring || isSaving} className="grid space-y-2">
 
-
                           <div className="flex items-center space-x-2">
                             <RadioGroupItem value="daily" id="daily" disabled={!formData.recurring || isSaving} />
                             <Label htmlFor="daily" className={`text-sm ${!formData.recurring ? 'text-slate-400' : ''}`}>
