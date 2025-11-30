@@ -1758,11 +1758,10 @@ export default function DeliveryForm({
       })));
     }
 
-    // Role-based filtering
-    if (userHasRole(currentUser, 'driver')) {
-      // Drivers: only their pending stops
-      pendingDeliveries = pendingDeliveries.filter(d => d.driver_id === currentUser.id);
-      console.log(`  - Driver mode: filtered to ${pendingDeliveries.length} pending stops for driver ${currentUser.id}`);
+    // Role-based filtering - ADMIN takes priority over other roles
+    if (userHasRole(currentUser, 'admin')) {
+      // Admins: all pending stops (no additional filtering)
+      console.log(`  - Admin mode: ${pendingDeliveries.length} pending stops (no filtering)`);
     } else if (userHasRole(currentUser, 'dispatcher')) {
       // Dispatchers: only pending stops for their stores
       const dispatcherStoreIds = currentUser.store_ids || [];
@@ -1775,9 +1774,10 @@ export default function DeliveryForm({
           store_id: d.store_id
         })));
       }
-    } else {
-      // Admins: all pending stops (no additional filtering)
-      console.log(`  - Admin mode: ${pendingDeliveries.length} pending stops`);
+    } else if (userHasRole(currentUser, 'driver')) {
+      // Drivers (not admin/dispatcher): only their pending stops
+      pendingDeliveries = pendingDeliveries.filter(d => d.driver_id === currentUser.id);
+      console.log(`  - Driver mode: filtered to ${pendingDeliveries.length} pending stops for driver ${currentUser.id}`);
     }
 
     if (pendingDeliveries.length === 0) {
