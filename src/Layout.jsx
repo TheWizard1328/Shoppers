@@ -66,7 +66,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { userHasRole, getPrimaryRole, formatRoles, isAppOwner, canAccessImports } from './components/utils/userRoles';
 import { getDriverDisplayName } from './components/utils/driverUtils';
 import { formatPhoneNumber } from './components/utils/phoneFormatter';
-import { sortUsers } from './components/utils/sorting';
+import { sortUsers, sortStores } from './components/utils/sorting';
 import { UserProvider } from './components/utils/UserContext';
 import { AppDataProvider } from './components/utils/AppDataContext';
 import { ResizableDivider } from './components/ui/resizable-divider';
