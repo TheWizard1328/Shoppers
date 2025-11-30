@@ -1212,16 +1212,29 @@ export default function Layout({ children, currentPageName }) {
 
       console.log(`📅 [Layout] Starting three-stage delivery loading...`);
 
+      // ADMIN FEATURE: Load data from nearby cities (within 75km) for admins
+      const isAdmin = userHasRole(currentUser, 'admin');
+      const selectedCity = cities.find(c => c && c.id === selectedCityId);
+
+      let relevantCityIds = [selectedCityId];
+      if (isAdmin && selectedCity) {
+        const nearbyCities = getCitiesWithinRadius(selectedCity, cities, 75);
+        relevantCityIds = nearbyCities.map(c => c.id);
+        console.log(`🌐 [Layout] Admin mode: Loading data from ${relevantCityIds.length} cities within 75km`);
+      }
+
       const allAppUsers = await getData('AppUser', null, null, forceRefresh);
-      const cityAppUsers = allAppUsers.filter(au => au && au.city_id === selectedCityId);
-      console.log(`✅ [Layout] Loaded ${cityAppUsers.length} AppUsers for city`);
+      // For admins, get AppUsers from all nearby cities
+      const cityAppUsers = allAppUsers.filter(au => au && relevantCityIds.includes(au.city_id));
+      console.log(`✅ [Layout] Loaded ${cityAppUsers.length} AppUsers for ${isAdmin ? 'nearby cities' : 'city'}`);
 
 
       const allStores = await getData('Store', null, null, forceRefresh);
-      const cityStores = allStores.filter(store => store && store.city_id === selectedCityId);
+      // For admins, get stores from all nearby cities
+      const cityStores = allStores.filter(store => store && relevantCityIds.includes(store.city_id));
       cityStores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
       const cityStoreIds = cityStores.map(store => store && store.id).filter(Boolean);
-      console.log(`✅ [Layout] Loaded ${cityStores.length} Stores for city`);
+      console.log(`✅ [Layout] Loaded ${cityStores.length} Stores for ${isAdmin ? 'nearby cities' : 'city'}`);
 
 
       // All users load all city data - UI filtering happens in components
