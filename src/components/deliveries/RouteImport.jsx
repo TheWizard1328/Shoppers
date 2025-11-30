@@ -1766,7 +1766,12 @@ export default function RouteImport({
                             </td>
                             <td className="p-1 w-12 text-xs font-mono">{delivery.ampm_deliveries || '-'}</td>
                             <td className="p-1 font-mono text-xs w-14">{delivery.stop_order}</td>
-                            <td className="p-1 font-mono text-xs w-22">{delivery.tracking_number}</td>
+                            <td className="p-1 font-mono text-xs w-22">
+                              <div className="flex flex-col">
+                                <span>{delivery.tracking_number || '-'}</span>
+                                {delivery.puid && <span className="text-purple-600 text-[10px]">PUID: {delivery.puid}</span>}
+                              </div>
+                            </td>
                             <td className="p-1 font-mono text-xs w-22">
                               <div className="flex flex-col">
                                 {delivery.stop_id && <span className="font-semibold">{delivery.stop_id}</span>}
