@@ -1212,32 +1212,32 @@ export default function Layout({ children, currentPageName }) {
 
       console.log(`📅 [Layout] Starting three-stage delivery loading...`);
 
-      // ADMIN FEATURE: Load data from nearby cities (within 75km) for admins ALWAYS
+      // 75KM RADIUS FEATURE: Load data from nearby cities (within 75km) for ALL users
       const isAdmin = userHasRole(currentUser, 'admin');
       const selectedCity = cities.find(c => c && c.id === selectedCityId);
 
       let relevantCityIds = [selectedCityId];
-      if (isAdmin && selectedCity) {
+      if (selectedCity) {
         const nearbyCities = getCitiesWithinRadius(selectedCity, cities, 75);
         relevantCityIds = nearbyCities.map(c => c.id);
-        console.log(`🌐 [Layout] Admin mode: Loading data from ${relevantCityIds.length} cities within 75km (includes ${selectedCity.name})`);
+        console.log(`🌐 [Layout] Loading data from ${relevantCityIds.length} cities within 75km (includes ${selectedCity.name})`);
         console.log(`   Cities: ${nearbyCities.map(c => c.name).join(', ')}`);
-      } else if (!isAdmin) {
-        console.log(`🌐 [Layout] Non-admin user: Loading data from selected city only (${selectedCity?.name})`);
+      } else {
+        console.log(`🌐 [Layout] No selected city - loading from current city only`);
       }
 
       const allAppUsers = await getData('AppUser', null, null, forceRefresh);
-      // For admins, get AppUsers from all nearby cities (75km radius)
+      // Get AppUsers from all nearby cities (75km radius) - ALL USERS
       const cityAppUsers = allAppUsers.filter(au => au && relevantCityIds.includes(au.city_id));
-      console.log(`✅ [Layout] Loaded ${cityAppUsers.length} AppUsers for ${isAdmin ? `nearby cities (75km radius)` : 'selected city'}`);
+      console.log(`✅ [Layout] Loaded ${cityAppUsers.length} AppUsers for nearby cities (75km radius)`);
 
 
       const allStores = await getData('Store', null, null, forceRefresh);
-      // For admins, get stores from all nearby cities (75km radius)
+      // Get stores from all nearby cities (75km radius) - ALL USERS
       const cityStores = allStores.filter(store => store && relevantCityIds.includes(store.city_id));
       cityStores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
       const cityStoreIds = cityStores.map(store => store && store.id).filter(Boolean);
-      console.log(`✅ [Layout] Loaded ${cityStores.length} Stores for ${isAdmin ? `nearby cities (75km radius)` : 'selected city'}`);
+      console.log(`✅ [Layout] Loaded ${cityStores.length} Stores for nearby cities (75km radius)`);
 
 
       // All users load all city data - UI filtering happens in components
@@ -1333,9 +1333,9 @@ export default function Layout({ children, currentPageName }) {
       const mergedUsers = Array.from(mergedUsersMap.values()).filter(Boolean);
       console.log(`✅ [Layout] Merged ${mergedUsers.length} users`);
 
-      // For admins, get drivers from all nearby cities (75km radius); for others, just selected city
+      // Get drivers from all nearby cities (75km radius) - ALL USERS
       let activeDrivers;
-      if (isAdmin && relevantCityIds.length > 0) {
+      if (relevantCityIds.length > 0) {
         // Get all drivers from nearby cities (75km radius) - regardless of driver filter
         activeDrivers = mergedUsers.filter(user => {
           if (!user || !user.app_roles || !Array.isArray(user.app_roles)) return false;
@@ -1345,7 +1345,7 @@ export default function Layout({ children, currentPageName }) {
           return relevantCityIds.includes(user.city_id);
         });
         activeDrivers = sortUsers(activeDrivers);
-        console.log(`✅ [Layout] Admin mode: Populated ${activeDrivers.length} active drivers from ${relevantCityIds.length} nearby cities (75km radius)`);
+        console.log(`✅ [Layout] Populated ${activeDrivers.length} active drivers from ${relevantCityIds.length} nearby cities (75km radius)`);
       } else {
         activeDrivers = getActiveDriversForCity(mergedUsers, selectedCityId);
         console.log(`✅ [Layout] Populated ${activeDrivers.length} active drivers for selected city: ${selectedCityId}`);

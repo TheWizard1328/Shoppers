@@ -461,8 +461,7 @@ function Dashboard() {
     return allFinished;
   }, [selectedDate, filteredDeliveries]);
 
-  // CRITICAL: Dispatchers in "All Drivers" mode only see drivers with deliveries for their stores
-  // ADMIN FEATURE: Admins get ALL drivers from Layout (includes nearby cities within 75km)
+  // 75KM RADIUS FEATURE: All users get drivers from Layout (includes nearby cities within 75km)
   const driversList = useMemo(() => {
     console.log('🔍 [Dashboard driversList] Computing driver list...');
     console.log('  - drivers array length:', drivers?.length || 0);
@@ -476,46 +475,10 @@ function Dashboard() {
       return [];
     }
     
-    // ADMIN FEATURE: Admins get all drivers (Layout already filtered to 75km radius)
-    if (userHasRole(currentUser, 'admin')) {
-      console.log(`✅ [Dashboard driversList] Admin - returning all ${drivers.length} drivers (includes nearby cities within 75km)`);
-      return drivers;
-    }
-    
-    // CRITICAL: Dispatchers in "All Drivers" mode - filter to drivers with deliveries for their stores
-    if (userHasRole(currentUser, 'dispatcher') && selectedDriverId === 'all') {
-      const dispatcherStoreIds = currentUser.store_ids || [];
-      const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      
-      console.log('🔍 [Dashboard driversList] Dispatcher in All Drivers mode');
-      console.log('  - Dispatcher stores:', dispatcherStoreIds);
-      console.log('  - Selected date:', dateStr);
-      
-      // Get deliveries for the selected date and dispatcher's stores
-      const relevantDeliveries = deliveries.filter(d => 
-        d && 
-        d.delivery_date === dateStr && 
-        dispatcherStoreIds.includes(d.store_id)
-      );
-      
-      // Get unique driver IDs from these deliveries
-      const driverIdsWithDeliveries = new Set(
-        relevantDeliveries.map(d => d.driver_id).filter(Boolean)
-      );
-      
-      console.log('  - Drivers with deliveries for dispatcher stores:', Array.from(driverIdsWithDeliveries));
-      
-      // Filter drivers to only those with deliveries
-      const filteredDrivers = drivers.filter(d => d && driverIdsWithDeliveries.has(d.id));
-      
-      console.log(`✅ [Dashboard driversList] Dispatcher - filtered to ${filteredDrivers.length} drivers with deliveries`);
-      return filteredDrivers;
-    }
-    
-    // For dispatchers in single driver mode or other users
-    console.log('✅ [Dashboard driversList] Returning all drivers');
+    // ALL USERS: Get all drivers (Layout already filtered to 75km radius)
+    console.log(`✅ [Dashboard driversList] Returning all ${drivers.length} drivers (includes nearby cities within 75km)`);
     return drivers;
-  }, [drivers, currentUser, selectedDriverId, deliveries, selectedDate]);
+  }, [drivers, currentUser]);
 
   const shouldShowLocationToggle = useMemo(() =>
     isMobile && isDriver && !userHasRole(currentUser, 'dispatcher'),
