@@ -718,7 +718,7 @@ export default function StopCard({
               </div>
               
               {/* Navigation and Phone buttons - right justified */}
-              <div className="flex items-center gap-1 flex-shrink-0">
+              <div className="flex items-center gap-2 flex-shrink-0">
                 {finalDisplayAddress &&
                 <a
                   href={(() => {
