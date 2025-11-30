@@ -1083,6 +1083,13 @@ function Dashboard() {
   useEffect(() => {
     console.log(`🗺️ [Map Position] useEffect triggered - phase: ${mapViewPhase}, locked: ${isMapViewLocked}, trigger: ${mapViewTrigger}`);
     
+    // CRITICAL: Only run map positioning when FAB is LOCKED (user just clicked it)
+    // This prevents the map from re-centering on every render or data change
+    if (!isMapViewLocked) {
+      console.log('⏭️ [Map Position] Skipping - FAB is unlocked (gray)');
+      return;
+    }
+    
     // Skip if mapViewPhase is 0 (reset state - should not happen with new logic)
     if (mapViewPhase === 0) {
       console.log('⏭️ [FAB Click] Skipping map positioning - phase is 0');
@@ -1095,9 +1102,6 @@ function Dashboard() {
       console.log('⏭️ [Map Position] Skipping phase 2/3 - not driver or no location');
       return;
     }
-
-    // CRITICAL: Don't require lock check - this prevents FAB from working after unlock
-    // Instead, only run when mapViewTrigger changes (FAB was clicked)
     
     // Mark that this positioning is from a FAB interaction
     mapPositioningTriggerRef.current = 'fab';
