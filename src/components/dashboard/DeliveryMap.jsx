@@ -2484,8 +2484,8 @@ export default function DeliveryMap({
           style={{ 
             opacity: areCardsVisible ? 1 : 0.3,
             top: statsCardRect ? `${statsCardRect.bottom + 8}px` : '110px',
-            left: statsCardRect ? `${statsCardRect.left + (statsCardRect.width / 2)}px` : '50%',
-            transform: 'translateX(-50%)',
+            left: legendLeft !== null ? `${legendLeft}px` : '50%',
+            transform: legendLeft !== null ? 'none' : 'translateX(-50%)',
             zIndex: isStatsCardExpanded ? 19 : 15
           }}
           onMouseEnter={() => onLegendInteraction(true)}
