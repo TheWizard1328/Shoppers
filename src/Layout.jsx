@@ -1216,9 +1216,10 @@ export default function Layout({ children, currentPageName }) {
       const isAdmin = userHasRole(currentUser, 'admin');
       const selectedCity = cities.find(c => c && c.id === selectedCityId);
       
-      // CRITICAL: Use selectedDriverId parameter (from triggerFullDataLoad call) NOT globalFilters
-      // This ensures we use the CURRENT filter value during data load
-      const currentDriverFilter = selectedDriverId;
+      // CRITICAL: ALWAYS read the CURRENT driver filter value from globalFilters
+      // Do NOT use the parameter - it may be stale
+      const currentDriverFilter = globalFilters.getSelectedDriverId();
+      console.log(`🔍 [Layout] Current driver filter: ${currentDriverFilter}`);
 
       let relevantCityIds = [selectedCityId];
       if (isAdmin && selectedCity && currentDriverFilter === 'all') {
@@ -1227,7 +1228,9 @@ export default function Layout({ children, currentPageName }) {
         console.log(`🌐 [Layout] Admin in "All Drivers" mode: Loading data from ${relevantCityIds.length} cities within 75km`);
         console.log(`   Cities: ${nearbyCities.map(c => c.name).join(', ')}`);
       } else if (isAdmin && currentDriverFilter !== 'all') {
-        console.log(`🌐 [Layout] Admin in single driver mode: Loading data from selected city only`);
+        console.log(`🌐 [Layout] Admin in single driver mode: Loading data from selected city only (${selectedCity?.name})`);
+      } else if (!isAdmin) {
+        console.log(`🌐 [Layout] Non-admin user: Loading data from selected city only (${selectedCity?.name})`);
       }
 
       const allAppUsers = await getData('AppUser', null, null, forceRefresh);
