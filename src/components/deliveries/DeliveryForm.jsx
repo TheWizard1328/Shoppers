@@ -2598,7 +2598,43 @@ export default function DeliveryForm({
                     </div>
                   }
 
-                  {/* Section 4c: Patient Preferences & Recurring */}
+                  {/* Section 5: Notes */}
+                  <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                    {!isPickupMode ?
+                    <div className="flex gap-3">
+                        <div className="flex-1 space-y-1">
+                          <Label className="text-sm font-semibold">Patient Notes</Label>
+                          <Textarea
+                          value={formData.delivery_instructions || selectedPatient?.notes || ''}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, delivery_instructions: e.target.value }))}
+                          placeholder="Patient delivery instructions..."
+                          className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-[100px] text-sm resize-none"
+                          disabled={isSaving} />
+                        </div>
+
+                        <div className="flex-1 space-y-1">
+                          <Label className="text-sm font-semibold">Driver Notes</Label>
+                          <Textarea
+                          value={formData.delivery_notes}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))}
+                          placeholder="Driver notes for this delivery..."
+                          className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-[100px] text-sm resize-none"
+                          disabled={isSaving} />
+                        </div>
+                      </div> :
+                    <div className="space-y-1">
+                        <Label className="text-sm font-semibold">Pickup Notes</Label>
+                        <Textarea
+                        value={formData.delivery_notes}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))}
+                        placeholder="Notes for this pickup..."
+                        className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-[100px] text-sm resize-none"
+                        disabled={isSaving} />
+                      </div>
+                    }
+                  </div>
+
+                  {/* Section 6: Patient Preferences & Recurring */}
                   {!isPickupMode &&
                   <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
                       <div className="flex gap-3">
@@ -2715,42 +2751,6 @@ export default function DeliveryForm({
                       </div>
                     </div>
                   }
-
-                  {/* Section 6: Notes */}
-                  <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                    {!isPickupMode ?
-                    <div className="flex gap-3">
-                        <div className="flex-1 space-y-1">
-                          <Label className="text-sm font-semibold">Patient Notes</Label>
-                          <Textarea
-                          value={formData.delivery_instructions || selectedPatient?.notes || ''}
-                          onChange={(e) => setFormData((prev) => ({ ...prev, delivery_instructions: e.target.value }))}
-                          placeholder="Patient delivery instructions..."
-                          className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-[100px] text-sm resize-none"
-                          disabled={isSaving} />
-                        </div>
-
-                        <div className="flex-1 space-y-1">
-                          <Label className="text-sm font-semibold">Driver Notes</Label>
-                          <Textarea
-                          value={formData.delivery_notes}
-                          onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))}
-                          placeholder="Driver notes for this delivery..."
-                          className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-[100px] text-sm resize-none"
-                          disabled={isSaving} />
-                        </div>
-                      </div> :
-                    <div className="space-y-1">
-                        <Label className="text-sm font-semibold">Pickup Notes</Label>
-                        <Textarea
-                        value={formData.delivery_notes}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))}
-                        placeholder="Notes for this pickup..."
-                        className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-[100px] text-sm resize-none"
-                        disabled={isSaving} />
-                      </div>
-                    }
-                  </div>
 
                   {/* Section 7: Delivery Options & COD */}
                   {!isPickupMode &&
