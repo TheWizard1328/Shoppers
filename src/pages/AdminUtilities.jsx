@@ -1,0 +1,3690 @@
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { User } from '@/entities/User';
+import { AppUser } from '@/entities/AppUser';
+import { Delivery } from '@/entities/Delivery';
+import { ActiveDeliveries } from '@/entities/ActiveDeliveries';
+import { City } from '@/entities/City';
+import { Store } from '@/entities/Store';
+import { Patient } from '@/entities/Patient';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { RefreshCw, Users, Loader2, AlertCircle, ArrowUpDown, Edit, Trash2, Database, Settings } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { getEffectiveUser } from '@/components/utils/auth';
+import { isAppOwner, userHasRole } from '../components/utils/userRoles';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { getDriverDisplayName } from '../components/utils/driverUtils';
+import { mergeUsersWithAppUsers } from '../components/utils/driverUtils';
+import { sortUsers } from '../components/utils/sorting';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { format, parse, parseISO } from 'date-fns';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useAppData } from '../components/utils/AppDataContext';
+import { findFuzzyMatch, normalizeText } from '../components/utils/fuzzyMatching';
+import { smartRefreshManager } from '../components/utils/smartRefreshManager';
+import { base44 } from '@/api/base44Client';
+
+// Custom Confirmation Dialog Component
+const ConfirmationDialog = ({ open, onOpenChange, title, description, onConfirm, confirmText = "Delete", variant = "destructive" }) => {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-red-600" />
+            {title}
+          </DialogTitle>
+          <DialogDescription className="text-base pt-2">
+            {description}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant={variant}
+            onClick={() => {
+              onConfirm();
+              onOpenChange(false);
+            }}
+          >
+            {confirmText}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// --- Updated RouteImport component with fuzzy matching ---
+const RouteImport = ({ onImportComplete, onCancel, stores, drivers, allUsers, currentUser, allDeliveries }) => {
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState('');
+  const [csvFile, setCSVFile] = useState(null);
+
+  const handleFileUpload = (event) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setCSVFile(file);
+      setStatus(`File selected: ${file.name}`);
+    }
+  };
+
+  const handleImport = async () => {
+    if (!csvFile) {
+      alert('Please select a CSV file first');
+      return;
+    }
+
+    setLoading(true);
+    setStatus('Reading CSV file...');
+
+    try {
+      const text = await csvFile.text();
+      const lines = text.split('\n').filter(line => line.trim());
+      
+      if (lines.length < 2) {
+        throw new Error("CSV file is empty or only contains a header.");
+      }
+
+      setStatus(`Processing ${lines.length - 1} rows...`);
+      
+      const allPatients = await Patient.list();
+      
+      let exactMatched = 0;
+      let fuzzyMatched = 0;
+      let skipped = 0;
+      let errors = 0;
+
+      for (let i = 1; i < lines.length; i++) {
+        const row = lines[i].split(',').map(cell => cell.trim());
+        
+        if (row.length < 2) {
+          console.warn(`Skipping row ${i} due to insufficient columns:`, lines[i]);
+          errors++;
+          continue;
+        }
+
+        const ampmIndicator = row[1];
+        const ampm = ampmIndicator === '1' ? 'AM' : ampmIndicator === '2' ? 'PM' : null;
+        
+        if (!ampm) {
+          console.warn(`Skipping row ${i} due to invalid AM/PM indicator:`, ampmIndicator);
+          skipped++;
+          continue;
+        }
+        
+        try {
+          const identifier = row[0];
+          
+          if (!identifier) {
+            console.warn(`Skipping row ${i} due to missing identifier`);
+            skipped++;
+            continue;
+          }
+          
+          // STEP 1: Try EXACT MATCH
+          const exactMatch = (allDeliveries || []).find(d => 
+            (d.stop_id && normalizeText(d.stop_id) === normalizeText(identifier)) || 
+            (d.tracking_number && normalizeText(d.tracking_number) === normalizeText(identifier))
+          );
+          
+          if (exactMatch) {
+            await Delivery.update(exactMatch.id, { ampm_deliveries: ampm });
+            exactMatched++;
+            console.log(`✅ EXACT MATCH: Updated delivery ${identifier} with AM/PM: ${ampm}`);
+            continue;
+          }
+          
+          // STEP 2: Try FUZZY MATCHING
+          const importedData = {
+            stop_id: identifier,
+            tracking_number: row[2] || null,
+            patient_name: row[3] || null,
+            address: row[4] || null,
+            phone: row[5] || null,
+            delivery_date: row[6] || null,
+            actual_delivery_time: row[7] || null,
+            store_id: row[8] || null,
+            prescription_number: row[9] || null,
+            driver_name: row[10] || null
+          };
+          
+          let candidateDeliveries = allDeliveries || [];
+          if (importedData.delivery_date) {
+            const parsedImportDate = parseFlexibleDate(importedData.delivery_date);
+            if (parsedImportDate) {
+              const formattedImportDate = format(parsedImportDate, 'yyyy-MM-dd');
+              candidateDeliveries = candidateDeliveries.filter(d => 
+                d.delivery_date && d.delivery_date === formattedImportDate
+              );
+            }
+          }
+          
+          if (candidateDeliveries.length > 0 && (importedData.patient_name || importedData.address || importedData.phone)) {
+            const fuzzyResult = findFuzzyMatch(importedData, candidateDeliveries, allPatients);
+            
+            if (fuzzyResult) {
+              console.log(`🔍 FUZZY MATCH: Row ${i} - Score: ${fuzzyResult.score}, Tier: ${fuzzyResult.tier}`);
+              console.log(`   Details: ${fuzzyResult.details.join(', ')}`);
+            }
+            
+            if (fuzzyResult && (fuzzyResult.tier === 'strong' || fuzzyResult.tier === 'moderate')) {
+              await Delivery.update(fuzzyResult.match.id, { ampm_deliveries: ampm });
+              fuzzyMatched++;
+              console.log(`✅ FUZZY MATCH (${fuzzyResult.tier.toUpperCase()}, score: ${fuzzyResult.score}): Updated delivery ${fuzzyResult.match.id} with AM/PM: ${ampm}`);
+              continue;
+            }
+          }
+          
+          // STEP 3: No match found - Skip
+          console.warn(`⚠️ NO MATCH: No suitable match for identifier ${identifier}`);
+          skipped++;
+          
+        } catch (error) {
+          console.error(`Error processing row ${i}:`, error);
+          errors++;
+        }
+      }
+
+      setStatus(`✅ Import complete! Exact: ${exactMatched}, Fuzzy: ${fuzzyMatched}, Skipped: ${skipped}, Errors: ${errors}`);
+      setLoading(false);
+      
+      setTimeout(() => {
+        onImportComplete();
+      }, 1500);
+      
+    } catch (error) {
+      console.error('Import error:', error);
+      setStatus(`❌ Import failed: ${error.message}`);
+      setLoading(false);
+    }
+  };
+
+  const parseFlexibleDate = (dateString) => {
+    if (!dateString || typeof dateString !== 'string') return null;
+
+    let date = parseISO(dateString);
+    if (!isNaN(date.getTime())) return date;
+
+    date = parse(dateString, 'M/d/yyyy', new Date());
+    if (!isNaN(date.getTime())) return date;
+
+    date = parse(dateString, 'MM/dd/yyyy', new Date());
+    if (!isNaN(date.getTime())) return date;
+
+    return null;
+  };
+
+  return (
+    <Dialog open={true} onOpenChange={onCancel}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Import AM/PM Designations</DialogTitle>
+          <DialogDescription>
+            Upload a CSV file to update delivery AM/PM designations. Uses exact matching (SID/TR#) and fuzzy matching when needed.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <Input
+            type="file"
+            accept=".csv"
+            onChange={handleFileUpload}
+            disabled={loading}
+          />
+          <div className="text-xs text-slate-600 bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <p className="font-semibold mb-1">CSV Format:</p>
+            <ul className="list-disc list-inside space-y-1">
+              <li>Column 1: Stop ID (SID) or Tracking Number (TR#)</li>
+              <li>Column 2: AM/PM indicator (1 = AM, 2 = PM)</li>
+              <li>First row is treated as header and will be skipped</li>
+            </ul>
+          </div>
+          <p className="text-sm text-slate-600">
+            {status || "Select a CSV file to begin import."}
+          </p>
+          {loading && <Loader2 className="h-6 w-6 animate-spin mx-auto text-emerald-500" />}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel} disabled={loading}>
+            Cancel
+          </Button>
+          <Button onClick={handleImport} disabled={loading || !csvFile}>
+            {loading ? 'Importing...' : 'Import AM/PM Data'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+const COLUMN_CONFIGS = {
+  deliveries: [
+    { id: 'date', label: 'Date / Time', defaultVisible: true },
+    { id: 'order', label: 'Order', defaultVisible: true },
+    { id: 'sid_pid', label: 'SID / PID', defaultVisible: true },
+    { id: 'tracking', label: 'TR#', defaultVisible: true },
+    { id: 'delivery_to', label: 'Delivery To', defaultVisible: true },
+    { id: 'driver', label: 'Driver', defaultVisible: true },
+    { id: 'status', label: 'Status', defaultVisible: true },
+    { id: 'actions', label: 'Actions', defaultVisible: true, alwaysVisible: true }
+  ],
+  patients: [
+    { id: 'id', label: 'ID', defaultVisible: false },
+    { id: 'full_name', label: 'Full Name', defaultVisible: true },
+    { id: 'patient_id', label: 'PID', defaultVisible: true },
+    { id: 'phone', label: 'Phone', defaultVisible: true },
+    { id: 'address', label: 'Address', defaultVisible: true },
+    { id: 'unit', label: 'Unit', defaultVisible: false },
+    { id: 'store', label: 'Store', defaultVisible: true },
+    { id: 'last_delivery_date', label: 'Last Delivery', defaultVisible: true },
+    { id: 'actions', label: 'Actions', defaultVisible: true, alwaysVisible: true }
+  ],
+  stores: [
+    { id: 'id', label: 'ID', defaultVisible: false },
+    { id: 'name', label: 'Name', defaultVisible: true },
+    { id: 'abbreviation', label: 'Abbr', defaultVisible: true },
+    { id: 'address', label: 'Address', defaultVisible: true },
+    { id: 'phone', label: 'Phone', defaultVisible: true },
+    { id: 'city', label: 'City', defaultVisible: false },
+    { id: 'actions', label: 'Actions', defaultVisible: true, alwaysVisible: true }
+  ],
+  users: [
+    { id: 'id', label: 'ID', defaultVisible: false },
+    { id: 'user_name', label: 'User Name', defaultVisible: true },
+    { id: 'phone', label: 'Phone', defaultVisible: true },
+    { id: 'roles', label: 'Roles', defaultVisible: true },
+    { id: 'status', label: 'Status', defaultVisible: true },
+    { id: 'location_tracking', label: 'Location Tracking', defaultVisible: true },
+    { id: 'home_coords', label: 'Home Coords', defaultVisible: false },
+    { id: 'current_coords', label: 'Current Coords', defaultVisible: false },
+    { id: 'city', label: 'City', defaultVisible: false },
+    { id: 'stores', label: 'Stores', defaultVisible: false },
+    { id: 'actions', label: 'Actions', defaultVisible: true, alwaysVisible: true }
+  ],
+  cities: [
+    { id: 'id', label: 'ID', defaultVisible: false },
+    { id: 'name', label: 'Name', defaultVisible: true },
+    { id: 'province', label: 'Province/State', defaultVisible: true },
+    { id: 'country', label: 'Country', defaultVisible: true },
+    { id: 'actions', label: 'Actions', defaultVisible: true, alwaysVisible: true }
+  ]
+};
+
+const useColumnVisibility = (entityType) => {
+  const storageKey = `admin_columns_${entityType}`;
+  const config = COLUMN_CONFIGS[entityType] || [];
+
+  const [visibleColumns, setVisibleColumns] = useState(() => {
+    const saved = localStorage.getItem(storageKey);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Failed to parse column visibility from localStorage:', e);
+      }
+    }
+    return config.filter(c => c.defaultVisible || c.alwaysVisible).map(c => c.id);
+  });
+
+  const toggleColumn = useCallback((columnId) => {
+    setVisibleColumns(prev => {
+      const newVisible = prev.includes(columnId)
+        ? prev.filter(id => id !== columnId)
+        : [...prev, columnId];
+      localStorage.setItem(storageKey, JSON.stringify(newVisible));
+      return newVisible;
+    });
+  }, [storageKey]);
+
+  return { visibleColumns, toggleColumn, config };
+};
+
+const ResizableColumnHeader = ({ children, onResize, width, minWidth = 80 }) => {
+  const [isResizing, setIsResizing] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [startWidth, setStartWidth] = useState(width);
+
+  const handleMouseDown = (e) => {
+    e.preventDefault();
+    setIsResizing(true);
+    setStartX(e.clientX);
+    setStartWidth(width);
+  };
+
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e) => {
+      const delta = e.clientX - startX;
+      const newWidth = Math.max(minWidth, startWidth + delta);
+      onResize(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, startX, startWidth, minWidth, onResize]);
+
+  return (
+    <th className="relative p-2 text-left group" style={{ width: `${width}px`, minWidth: `${minWidth}px`, maxWidth: `${width}px` }}>
+      {children}
+      <div
+        className="absolute right-0 top-0 bottom-0 w-1 bg-transparent hover:bg-emerald-300 transition-colors cursor-col-resize z-10"
+        onMouseDown={handleMouseDown}
+        style={{ userSelect: 'none' }}
+      />
+    </th>
+  );
+};
+
+const ColumnVisibilityControl = ({ config, visibleColumns, onToggle }) => {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-2">
+          <Settings className="w-4 h-4" />
+          Columns ({visibleColumns.length}/{config.length})
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-2" align="end">
+        <div className="space-y-2">
+          <h4 className="font-semibold text-sm mb-3 px-1">Toggle Columns</h4>
+          {config.map(column => (
+            <div key={column.id} className="flex items-center gap-2 p-1 hover:bg-slate-50 rounded-sm">
+              <Checkbox
+                id={`column-${column.id}`}
+                checked={visibleColumns.includes(column.id)}
+                onCheckedChange={() => !column.alwaysVisible && onToggle(column.id)}
+                disabled={column.alwaysVisible}
+              />
+              <label
+                htmlFor={`column-${column.id}`}
+                className={`text-sm cursor-pointer ${column.alwaysVisible ? 'text-slate-400' : ''}`}
+              >
+                {column.label}
+                {column.alwaysVisible && ' (required)'}
+              </label>
+            </div>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
+const getData = async (entityName, sortKey) => {
+  let data = [];
+  try {
+    switch (entityName) {
+      case 'Patient':
+        data = await Patient.list();
+        break;
+      case 'Store':
+        data = await Store.list();
+        break;
+      case 'User':
+        data = await User.list();
+        break;
+      case 'AppUser':
+        data = await AppUser.list();
+        break;
+      case 'Delivery':
+        data = await Delivery.list();
+        break;
+      case 'ActiveDeliveries':
+        data = await ActiveDeliveries.list();
+        break;
+      case 'City':
+        data = await City.list();
+        break;
+      default:
+        data = [];
+    }
+  } catch (error) {
+    console.error(`[getData] Error fetching ${entityName} data:`, error);
+    data = [];
+  }
+
+  if (!Array.isArray(data)) {
+    console.warn(`[getData] ${entityName} data is not an array, returning empty array`);
+    return [];
+  }
+
+  if (sortKey && data.length > 0) {
+    const isDesc = sortKey.startsWith('-');
+    const actualKey = isDesc ? sortKey.substring(1) : sortKey;
+    data.sort((a, b) => {
+      const aVal = a[actualKey];
+      const bVal = b[actualKey];
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return isDesc ? bVal.localeCompare(aVal) : aVal.localeCompare(bVal);
+      }
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return isDesc ? bVal - aVal : aVal - bVal;
+      }
+      return 0;
+    });
+  }
+  return data;
+};
+
+const parseFlexibleDate = (dateString) => {
+  if (!dateString || typeof dateString !== 'string') return null;
+
+  let date = parseISO(dateString);
+  if (!isNaN(date.getTime())) return date;
+
+  date = parse(dateString, 'M/d/yyyy', new Date());
+  if (!isNaN(date.getTime())) return date;
+
+  date = parse(dateString, 'MM/dd/yyyy', new Date());
+  if (!isNaN(date.getTime())) return date;
+
+  return null;
+};
+
+const DeliveryDataTable = ({
+  deliveries, patients, stores, drivers, onEdit, onDelete, onDeleteAll, onDeleteSelected,
+  filterText, onFilterChange, sortColumn, sortDirection, onSortChange,
+  isLoadingData,
+  selectedYear, onYearChange, availableYears,
+  selectedMonth, onMonthChange,
+  selectedDriver, onDriverChange,
+  onBackfillPUIDs
+}) => {
+  const { visibleColumns, toggleColumn, config } = useColumnVisibility('deliveries');
+  const [columnWidths, setColumnWidths] = useState(() => {
+    const saved = localStorage.getItem('admin_delivery_column_widths');
+    return saved ? JSON.parse(saved) : {
+      checkbox: 50,
+      date: 150,
+      order: 80,
+      sid_pid: 120,
+      tracking: 100,
+      delivery_to: 250,
+      driver: 120,
+      status: 120,
+      actions: 150
+    };
+  });
+
+  const [selectedDeliveries, setSelectedDeliveries] = useState(new Set());
+
+  const updateColumnWidth = useCallback((columnId, width) => {
+    setColumnWidths(prev => {
+      const newWidths = { ...prev, [columnId]: width };
+      localStorage.setItem('admin_delivery_column_widths', JSON.stringify(newWidths));
+      return newWidths;
+    });
+  }, []);
+
+  const getSortIcon = (columnName) => {
+    if (sortColumn === columnName) {
+      return sortDirection === 'asc' ? <ArrowUpDown className="w-4 h-4 inline ml-1 transform rotate-180" /> : <ArrowUpDown className="w-4 h-4 inline ml-1" />;
+    }
+    return <ArrowUpDown className="w-4 h-4 inline ml-1 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />;
+  };
+
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+  const getDriverName = (delivery) => {
+    if (!delivery || !delivery.driver_name) return 'Unassigned';
+    if (!drivers || !Array.isArray(drivers)) return delivery.driver_name.split(' ')[0];
+    const driver = drivers.find(d => d && (d.full_name === delivery.driver_name || d.user_name === delivery.driver_name));
+    if (driver) {
+      return getDriverDisplayName(driver);
+    }
+    return delivery.driver_name.split(' ')[0];
+  };
+
+  const getDeliveryInfo = (delivery) => {
+    if (!delivery || !delivery.patient_id) {
+      const store = (stores || []).find(s => s && s.id === delivery?.store_id);
+      return {
+        name: 'Store Pickup',
+        address: store?.address || 'Unknown Store',
+        patientPID: null
+      };
+    }
+    const patient = (patients || []).find(p => p && p.id === delivery.patient_id);
+    const address = patient?.address || 'Unknown Address';
+    const unitNumber = patient?.unit_number ? `, Unit: ${patient.unit_number}` : '';
+    return {
+      name: patient?.full_name || 'Unknown Patient',
+      address: `${address}${unitNumber}`,
+      patientPID: patient?.patient_id || null
+    };
+  };
+
+  const getDeliveryDateTime = (delivery) => {
+    let date = 'N/A';
+    let time = 'Not completed';
+
+    if (delivery.delivery_date && typeof delivery.delivery_date === 'string') {
+      const dateParts = delivery.delivery_date.split('-');
+      if (dateParts.length === 3) {
+        const [year, month, day] = dateParts;
+        const localDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        date = format(localDate, 'MMM d, yyyy');
+      } else {
+        date = delivery.delivery_date;
+      }
+    }
+
+    if (delivery.actual_delivery_time && typeof delivery.actual_delivery_time === 'string') {
+      const timeParts = delivery.actual_delivery_time.match(/(\d{2}):(\d{2})/);
+      if (timeParts) {
+        const hours = parseInt(timeParts[1]);
+        const minutes = timeParts[2];
+        const isPM = hours >= 12;
+        const displayHours = hours > 12 ? hours - 12 : (hours === 0 ? 12 : hours);
+        time = `${displayHours}:${minutes} ${isPM ? 'PM' : 'AM'}`;
+      } else {
+        try {
+          const dateTime = new Date(delivery.actual_delivery_time);
+          if (!isNaN(dateTime.getTime())) {
+            time = dateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+          }
+        } catch (e) {
+          // Fallback
+        }
+      }
+    } else if (delivery.delivery_time_eta && typeof delivery.delivery_time_eta === 'string') {
+      time = `ETA: ${delivery.delivery_time_eta}`;
+    }
+
+    return { date, time };
+  };
+
+  const getStatusBadge = (status) => {
+    return (
+      <Badge variant={
+        status === 'completed' ? 'default' :
+        status === 'failed' ? 'destructive' :
+        'secondary'
+      }>
+        {status}
+      </Badge>
+    );
+  };
+
+  const handleSelectAll = (checked) => {
+    if (checked) {
+      setSelectedDeliveries(new Set((deliveries || []).map(d => d.id)));
+    } else {
+      setSelectedDeliveries(new Set());
+    }
+  };
+
+  const handleSelectDelivery = (deliveryId, checked) => {
+    setSelectedDeliveries(prev => {
+      const newSet = new Set(prev);
+      if (checked) {
+        newSet.add(deliveryId);
+      } else {
+        newSet.delete(deliveryId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleDeleteSelected = () => {
+    const selectedDeliveriesArray = (deliveries || []).filter(d => selectedDeliveries.has(d.id));
+    onDeleteSelected(selectedDeliveriesArray);
+    setSelectedDeliveries(new Set());
+  };
+
+  const isAllSelected = (deliveries || []).length > 0 && selectedDeliveries.size === (deliveries || []).length;
+  const isSomeSelected = selectedDeliveries.size > 0 && selectedDeliveries.size < (deliveries || []).length;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <span>Deliveries</span>
+          <div className="flex gap-2">
+            <ColumnVisibilityControl
+              config={config}
+              visibleColumns={visibleColumns}
+              onToggle={toggleColumn}
+            />
+            {selectedDeliveries.size > 0 && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const selected = (deliveries || []).filter(d => selectedDeliveries.has(d.id));
+                    onBackfillPUIDs(selected);
+                  }}
+                  disabled={isLoadingData}
+                >
+                  Backfill PUIDs (Selected {selectedDeliveries.size})
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleDeleteSelected}
+                  disabled={isLoadingData}
+                >
+                  Delete Selected ({selectedDeliveries.size})
+                </Button>
+              </>
+            )}
+            {(deliveries || []).length > 0 && selectedDeliveries.size === 0 && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onBackfillPUIDs(deliveries)}
+                  disabled={isLoadingData}
+                >
+                  Backfill PUIDs (All {(deliveries || []).length})
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={onDeleteAll}
+                  disabled={isLoadingData}
+                >
+                  Delete All Filtered ({(deliveries || []).length})
+                </Button>
+              </>
+            )}
+          </div>
+        </CardTitle>
+        <CardDescription>Filtered and sorted list of deliveries by year, month, and driver.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-wrap gap-3 mb-4">
+          <Select value={selectedYear} onValueChange={onYearChange} disabled={isLoadingData}>
+            <SelectTrigger className="w-32">
+              <SelectValue placeholder="Select year" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Years</SelectItem>
+              {(availableYears || []).map(year => (
+                <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={selectedMonth} onValueChange={onMonthChange} disabled={isLoadingData || selectedYear === 'all'}>
+            <SelectTrigger className="w-36">
+              <SelectValue placeholder="Select month" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Months</SelectItem>
+              {monthNames.map((month, index) => (
+                <SelectItem key={index + 1} value={(index + 1).toString()}>{month}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={selectedDriver} onValueChange={onDriverChange} disabled={isLoadingData}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Select driver" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Drivers</SelectItem>
+              {(drivers || [])
+                .filter(d => d && d.user_name)
+                .map(driver => (
+                  <SelectItem key={driver.user_name} value={driver.user_name}>
+                    {getDriverDisplayName(driver)}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+
+          <Input
+            placeholder="Filter by name, address, SID, TR#, or status..."
+            value={filterText}
+            onChange={(e) => onFilterChange(e.target.value)}
+            className="flex-1 min-w-[200px]"
+            disabled={isLoadingData}
+          />
+        </div>
+
+        <div className="mb-2 text-sm text-slate-600">
+          Showing {(deliveries || []).length} deliveries
+          {selectedYear !== 'all' && ` for ${selectedYear}`}
+          {selectedMonth !== 'all' && selectedYear !== 'all' && ` - ${monthNames[parseInt(selectedMonth) - 1]}`}
+          {selectedDriver !== 'all' && ` - Driver: ${
+            (drivers || []).find(d => d && d.user_name === selectedDriver) ? getDriverDisplayName((drivers || []).find(d => d && d.user_name === selectedDriver)) : (selectedDriver || '').split(' ')[0]
+          }`}
+        </div>
+
+        <div className="border rounded-md overflow-hidden">
+          <div className="overflow-x-auto" style={{ maxHeight: '600px' }}>
+            <table className="w-full text-sm table-fixed">
+              <thead className="bg-slate-100 border-b sticky top-0 z-10">
+                <tr>
+                  <ResizableColumnHeader width={columnWidths.checkbox} onResize={(w) => updateColumnWidth('checkbox', w)}>
+                    <Checkbox
+                      checked={isAllSelected}
+                      onCheckedChange={handleSelectAll}
+                      className={isSomeSelected ? 'data-[state=checked]:bg-slate-500' : ''}
+                    />
+                  </ResizableColumnHeader>
+                  {visibleColumns.includes('date') && (
+                    <ResizableColumnHeader width={columnWidths.date} onResize={(w) => updateColumnWidth('date', w)}>
+                      <Button variant="ghost" onClick={() => onSortChange('delivery_date')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">
+                        Date / Time {getSortIcon('delivery_date')}
+                      </Button>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('order') && (
+                    <ResizableColumnHeader width={columnWidths.order} onResize={(w) => updateColumnWidth('order', w)}>
+                      <Button variant="ghost" onClick={() => onSortChange('stop_order')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">
+                        Order {getSortIcon('stop_order')}
+                      </Button>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('sid_pid') && (
+                    <ResizableColumnHeader width={columnWidths.sid_pid} onResize={(w) => updateColumnWidth('sid_pid', w)}>
+                      <Button variant="ghost" onClick={() => onSortChange('stop_id')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">
+                        SID / PID {getSortIcon('stop_id')}
+                      </Button>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('tracking') && (
+                    <ResizableColumnHeader width={columnWidths.tracking} onResize={(w) => updateColumnWidth('tracking', w)}>
+                      <Button variant="ghost" onClick={() => onSortChange('tracking_number')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">
+                        TR# {getSortIcon('tracking_number')}
+                      </Button>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('delivery_to') && (
+                    <ResizableColumnHeader width={columnWidths.delivery_to} onResize={(w) => updateColumnWidth('delivery_to', w)}>
+                      <span className="font-semibold">Delivery To</span>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('driver') && (
+                    <ResizableColumnHeader width={columnWidths.driver} onResize={(w) => updateColumnWidth('driver', w)}>
+                      <Button variant="ghost" onClick={() => onSortChange('driver_name')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">
+                        Driver {getSortIcon('driver_name')}
+                      </Button>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('status') && (
+                    <ResizableColumnHeader width={columnWidths.status} onResize={(w) => updateColumnWidth('status', w)}>
+                      <Button variant="ghost" onClick={() => onSortChange('status')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">
+                        Status {getSortIcon('status')}
+                      </Button>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('actions') && (
+                    <ResizableColumnHeader width={columnWidths.actions} onResize={(w) => updateColumnWidth('actions', w)}>
+                      <span className="font-semibold">Actions</span>
+                    </ResizableColumnHeader>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {isLoadingData ? (
+                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading deliveries...</td></tr>
+                ) : (deliveries || []).length > 0 ? (
+                  (deliveries || []).map(delivery => {
+                    const info = getDeliveryInfo(delivery);
+                    const dateTime = getDeliveryDateTime(delivery);
+                    const driverName = getDriverName(delivery);
+                    return (
+                      <tr key={delivery.id} className="border-b hover:bg-slate-50">
+                        <td className="p-2">
+                          <Checkbox
+                            checked={selectedDeliveries.has(delivery.id)}
+                            onCheckedChange={(checked) => handleSelectDelivery(delivery.id, checked)}
+                          />
+                        </td>
+                        {visibleColumns.includes('date') && (
+                          <td className="p-2">
+                            <div className="flex flex-col">
+                              <span className="font-medium">{dateTime.date}</span>
+                              <span className="text-xs text-slate-600">{dateTime.time}</span>
+                            </div>
+                          </td>
+                        )}
+                        {visibleColumns.includes('order') && (
+                          <td className="p-2 font-mono text-sm">
+                            <div className="flex flex-col">
+                              <span className="font-semibold">
+                                {delivery.stop_order !== null && delivery.stop_order !== undefined ? delivery.stop_order : '-'}
+                              </span>
+                              {delivery.ampm_deliveries && (
+                                <span className="text-xs text-slate-600">{delivery.ampm_deliveries}</span>
+                              )}
+                            </div>
+                          </td>
+                        )}
+                        {visibleColumns.includes('sid_pid') && (
+                          <td className="p-2 font-mono text-xs">
+                            <div className="flex flex-col">
+                              {delivery.stop_id && <span className="font-semibold">{delivery.stop_id}</span>}
+                              {info.patientPID && <span className="text-slate-600">{info.patientPID}</span>}
+                              {!delivery.stop_id && !info.patientPID && <span>-</span>}
+                            </div>
+                          </td>
+                        )}
+                        {visibleColumns.includes('tracking') && (
+                          <td className="p-2 font-mono text-xs">
+                            <div className="flex flex-col">
+                              <span>{delivery.tracking_number || '-'}</span>
+                              {delivery.puid && (
+                                <span className="text-slate-600 text-[10px]">{delivery.puid}</span>
+                              )}
+                            </div>
+                          </td>
+                        )}
+                        {visibleColumns.includes('delivery_to') && (
+                          <td className="p-2">
+                            <div className="flex flex-col">
+                              <span className="font-medium">{info.name}</span>
+                              <span className="text-xs text-slate-600">{info.address}</span>
+                            </div>
+                          </td>
+                        )}
+                        {visibleColumns.includes('driver') && (
+                          <td className="p-2">{driverName}</td>
+                        )}
+                        {visibleColumns.includes('status') && (
+                          <td className="p-2">
+                            {getStatusBadge(delivery.status)}
+                          </td>
+                        )}
+                        {visibleColumns.includes('actions') && (
+                          <td className="p-2 text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => onEdit(delivery)}
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => onDelete(delivery)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500">No deliveries found.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+const PatientDataTable = ({
+  patients, stores, onEdit, onDelete,
+  filterText, onFilterChange, sortColumn, sortDirection, onSortChange,
+  isLoadingData,
+  onDeleteAll, onDeleteSelected
+}) => {
+  const { visibleColumns, toggleColumn, config } = useColumnVisibility('patients');
+  const [columnWidths, setColumnWidths] = useState(() => {
+    const saved = localStorage.getItem('admin_patient_column_widths');
+    return saved ? JSON.parse(saved) : {
+      checkbox: 50,
+      id: 280,
+      full_name: 200,
+      patient_id: 100,
+      phone: 140,
+      address: 250,
+      unit: 100,
+      store: 150,
+      last_delivery_date: 120,
+      actions: 150
+    };
+  });
+
+  const [selectedPatients, setSelectedPatients] = useState(new Set());
+
+  const updateColumnWidth = useCallback((columnId, width) => {
+    setColumnWidths(prev => {
+      const newWidths = { ...prev, [columnId]: width };
+      localStorage.setItem('admin_patient_column_widths', JSON.stringify(newWidths));
+      return newWidths;
+    });
+  }, []);
+
+  const [duplicateFilter, setDuplicateFilter] = useState('none');
+  const [storeFilter, setStoreFilter] = useState('all');
+
+  const getSortIcon = (columnName) => {
+    if (sortColumn === columnName) {
+      return sortDirection === 'asc' ? <ArrowUpDown className="w-4 h-4 inline ml-1 transform rotate-180" /> : <ArrowUpDown className="w-4 h-4 inline ml-1" />;
+    }
+    return <ArrowUpDown className="w-4 h-4 inline ml-1 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />;
+  };
+
+  const handleSelectAll = (checked) => {
+    if (checked) {
+      setSelectedPatients(new Set(filteredPatients.map(p => p.id)));
+    } else {
+      setSelectedPatients(new Set());
+    }
+  };
+
+  const handleSelectPatient = (patientId, checked) => {
+    setSelectedPatients(prev => {
+      const newSet = new Set(prev);
+      if (checked) {
+        newSet.add(patientId);
+      } else {
+        newSet.delete(patientId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleDeleteSelected = () => {
+    const selectedPatientsArray = filteredPatients.filter(p => selectedPatients.has(p.id));
+    onDeleteSelected(selectedPatientsArray);
+    setSelectedPatients(new Set());
+  };
+
+  const detectDuplicates = useMemo(() => {
+    if (!patients || !Array.isArray(patients) || patients.length === 0) {
+      return {
+        address: new Set(),
+        name: new Set(),
+        phone: new Set(),
+        pid: new Set()
+      };
+    }
+
+    const addressMap = new Map();
+    const nameMap = new Map();
+    const phoneMap = new Map();
+    const pidMap = new Map();
+
+    patients.forEach(patient => {
+      if (patient.address) {
+        const addr = patient.address.toLowerCase().trim();
+        if (!addressMap.has(addr)) addressMap.set(addr, []);
+        addressMap.get(addr).push(patient.id);
+      }
+
+      if (patient.full_name) {
+        const name = patient.full_name.toLowerCase().trim();
+        if (!nameMap.has(name)) nameMap.set(name, []);
+        nameMap.get(name).push(patient.id);
+      }
+
+      if (patient.phone) {
+        const phone = patient.phone.replace(/\D/g, '');
+        if (phone) {
+          if (!phoneMap.has(phone)) phoneMap.set(phone, []);
+          phoneMap.get(phone).push(patient.id);
+        }
+      }
+
+      if (patient.patient_id) {
+        const pid = patient.patient_id.toUpperCase().trim();
+        if (!pidMap.has(pid)) pidMap.set(pid, []);
+        pidMap.get(pid).push(patient.id);
+      }
+    });
+
+    const duplicateAddressIds = new Set();
+    const duplicateNameIds = new Set();
+    const duplicatePhoneIds = new Set();
+    const duplicatePidIds = new Set();
+
+    addressMap.forEach(ids => {
+      if (ids.length > 1) ids.forEach(id => duplicateAddressIds.add(id));
+    });
+
+    nameMap.forEach(ids => {
+      if (ids.length > 1) ids.forEach(id => duplicateNameIds.add(id));
+    });
+
+    phoneMap.forEach(ids => {
+      if (ids.length > 1) ids.forEach(id => duplicatePhoneIds.add(id));
+    });
+
+    pidMap.forEach(ids => {
+      if (ids.length > 1) ids.forEach(id => duplicatePidIds.add(id));
+    });
+
+    return {
+      address: duplicateAddressIds,
+      name: duplicateNameIds,
+      phone: duplicatePhoneIds,
+      pid: duplicatePidIds
+    };
+  }, [patients]);
+
+  const filteredPatients = useMemo(() => {
+    let filtered = patients || [];
+
+    if (duplicateFilter !== 'none') {
+      switch (duplicateFilter) {
+        case 'address':
+          filtered = filtered.filter(p => detectDuplicates.address.has(p.id));
+          break;
+        case 'name':
+          filtered = filtered.filter(p => detectDuplicates.name.has(p.id));
+          break;
+        case 'phone':
+          filtered = filtered.filter(p => detectDuplicates.phone.has(p.id));
+          break;
+        case 'pid':
+          filtered = filtered.filter(p => detectDuplicates.pid.has(p.id));
+          break;
+        default:
+          filtered = patients || [];
+      }
+    }
+
+    if (storeFilter !== 'all') {
+      filtered = filtered.filter(patient => patient.store_id === storeFilter);
+    }
+
+    if (filterText && filterText.trim()) {
+      const searchText = filterText.toLowerCase().trim();
+      filtered = filtered.filter(patient => {
+        const patientStore = stores.find(s => s.id === patient.store_id);
+        const storeName = patientStore?.name?.toLowerCase() || '';
+        const lastDeliveryDate = patient.last_delivery_date ? patient.last_delivery_date.toLowerCase() : '';
+
+        return (
+          (patient.id && patient.id.toLowerCase().includes(searchText)) ||
+          (patient.full_name && patient.full_name.toLowerCase().includes(searchText)) ||
+          (patient.phone && patient.phone.toLowerCase().includes(searchText)) ||
+          (patient.address && patient.address.toLowerCase().includes(searchText)) ||
+          (patient.patient_id && patient.patient_id.toLowerCase().includes(searchText)) ||
+          storeName.includes(searchText) ||
+          lastDeliveryDate.includes(searchText)
+        );
+      });
+    }
+
+    if (sortColumn) {
+      filtered.sort((a, b) => {
+        let aValue, bValue;
+
+        if (sortColumn === 'store_id') {
+          const aStore = stores.find(s => s.id === a.store_id);
+          const bStore = stores.find(s => s.id === b.store_id);
+          aValue = aStore?.name || '';
+          bValue = bStore?.name || '';
+        }
+        else if (sortColumn === 'last_delivery_date') {
+          const aDateObj = parseFlexibleDate(a.last_delivery_date);
+          const bDateObj = parseFlexibleDate(b.last_delivery_date);
+
+          const aTime = aDateObj ? aDateObj.getTime() : NaN;
+          const bTime = bDateObj ? bDateObj.getTime() : NaN;
+
+          const aIsEmpty = isNaN(aTime);
+          const bIsEmpty = isNaN(bTime);
+
+          if (aIsEmpty && bIsEmpty) return 0;
+          if (aIsEmpty) return 1;
+          if (bIsEmpty) return -1;
+
+          return sortDirection === 'asc' ? aTime - bTime : bTime - aTime;
+        }
+        else {
+          aValue = a[sortColumn];
+          bValue = b[sortColumn];
+        }
+
+        if (aValue === null || aValue === undefined) return sortDirection === 'asc' ? 1 : -1;
+        if (bValue === null || bValue === undefined) return sortDirection === 'asc' ? -1 : 1;
+
+        if (typeof aValue === 'string' && typeof bValue === 'string') {
+          return sortDirection === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+        }
+        if (typeof aValue === 'number' && typeof bValue === 'number') {
+          return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+        }
+        return 0;
+      });
+    }
+
+    return filtered;
+  }, [patients, duplicateFilter, storeFilter, detectDuplicates, filterText, sortColumn, sortDirection, stores]);
+
+  const duplicateCounts = {
+    address: detectDuplicates.address.size,
+    name: detectDuplicates.name.size,
+    phone: detectDuplicates.phone.size,
+    pid: detectDuplicates.pid.size
+  };
+
+  const isAllSelected = filteredPatients.length > 0 && selectedPatients.size === filteredPatients.length;
+  const isSomeSelected = selectedPatients.size > 0 && selectedPatients.size < filteredPatients.length;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <span>Patients</span>
+          <div className="flex gap-2">
+            <ColumnVisibilityControl
+              config={config}
+              visibleColumns={visibleColumns}
+              onToggle={toggleColumn}
+            />
+            {selectedPatients.size > 0 && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDeleteSelected}
+                disabled={isLoadingData}
+              >
+                Delete Selected ({selectedPatients.size})
+              </Button>
+            )}
+            {filteredPatients.length > 0 && selectedPatients.size === 0 && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => onDeleteAll(filteredPatients)}
+                disabled={isLoadingData}
+              >
+                Delete All ({filteredPatients.length})
+              </Button>
+            )}
+          </div>
+        </CardTitle>
+        <CardDescription>Filtered and sorted list of patients.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3 mb-4">
+          <div className="flex gap-3 flex-wrap">
+            <Input
+              placeholder="Filter by ID, name, PID, phone, address, store, or last delivery date..."
+              value={filterText}
+              onChange={(e) => onFilterChange(e.target.value)}
+              disabled={isLoadingData}
+              className="flex-1 min-w-[250px]"
+            />
+
+            <Select value={storeFilter} onValueChange={setStoreFilter} disabled={isLoadingData}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="All Stores" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Stores</SelectItem>
+                {stores.map(store => (
+                  <SelectItem key={store.id} value={store.id}>
+                    {store.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant={duplicateFilter === 'none' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setDuplicateFilter('none')}
+            >
+              All Patients ({patients?.length || 0})
+            </Button>
+            <Button
+              variant={duplicateFilter === 'address' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setDuplicateFilter('address')}
+              disabled={duplicateCounts.address === 0}
+            >
+              <Database className="w-4 h-4 mr-1" />
+              Duplicate Addresses ({duplicateCounts.address})
+            </Button>
+            <Button
+              variant={duplicateFilter === 'name' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setDuplicateFilter('name')}
+              disabled={duplicateCounts.name === 0}
+            >
+              <Database className="w-4 h-4 mr-1" />
+              Duplicate Names ({duplicateCounts.name})
+            </Button>
+            <Button
+              variant={duplicateFilter === 'phone' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setDuplicateFilter('phone')}
+              disabled={duplicateCounts.phone === 0}
+            >
+              <Database className="w-4 h-4 mr-1" />
+              Duplicate Phones ({duplicateCounts.phone})
+            </Button>
+            <Button
+              variant={duplicateFilter === 'pid' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setDuplicateFilter('pid')}
+              disabled={duplicateCounts.pid === 0}
+            >
+              <Database className="w-4 h-4 mr-1" />
+              Duplicate PIDs ({duplicateCounts.pid})
+            </Button>
+          </div>
+        </div>
+
+        <div className="border rounded-md overflow-hidden">
+          <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+            <table className="w-full text-sm table-fixed">
+              <thead className="bg-slate-100 border-b sticky top-0 z-10">
+                <tr>
+                  <ResizableColumnHeader width={columnWidths.checkbox} onResize={(w) => updateColumnWidth('checkbox', w)}>
+                    <Checkbox
+                      checked={isAllSelected}
+                      onCheckedChange={handleSelectAll}
+                      className={isSomeSelected ? 'data-[state=checked]:bg-slate-500' : ''}
+                    />
+                  </ResizableColumnHeader>
+                  {visibleColumns.includes('id') && (
+                    <ResizableColumnHeader width={columnWidths.id} onResize={(w) => updateColumnWidth('id', w)}>
+                      <Button variant="ghost" onClick={() => onSortChange('id')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">
+                        System ID {getSortIcon('id')}
+                      </Button>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('full_name') && (
+                    <ResizableColumnHeader width={columnWidths.full_name} onResize={(w) => updateColumnWidth('full_name', w)}>
+                      <Button variant="ghost" onClick={() => onSortChange('full_name')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">
+                        Full Name {getSortIcon('full_name')}
+                      </Button>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('patient_id') && (
+                    <ResizableColumnHeader width={columnWidths.patient_id} onResize={(w) => updateColumnWidth('patient_id', w)}>
+                      <Button variant="ghost" onClick={() => onSortChange('patient_id')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">
+                        PID {getSortIcon('patient_id')}
+                      </Button>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('phone') && (
+                    <ResizableColumnHeader width={columnWidths.phone} onResize={(w) => updateColumnWidth('phone', w)}>
+                      <Button variant="ghost" onClick={() => onSortChange('phone')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">
+                        Phone {getSortIcon('phone')}
+                      </Button>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('address') && (
+                    <ResizableColumnHeader width={columnWidths.address} onResize={(w) => updateColumnWidth('address', w)}>
+                      <Button variant="ghost" onClick={() => onSortChange('address')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">
+                        Address {getSortIcon('address')}
+                      </Button>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('unit') && (
+                    <ResizableColumnHeader width={columnWidths.unit} onResize={(w) => updateColumnWidth('unit', w)}>
+                      <span className="font-semibold">Unit</span>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('store') && (
+                    <ResizableColumnHeader width={columnWidths.store} onResize={(w) => updateColumnWidth('store', w)}>
+                      <Button variant="ghost" onClick={() => onSortChange('store_id')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">
+                        Store {getSortIcon('store_id')}
+                      </Button>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('last_delivery_date') && (
+                    <ResizableColumnHeader width={columnWidths.last_delivery_date} onResize={(w) => updateColumnWidth('last_delivery_date', w)}>
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
+                          onSortChange('last_delivery_date');
+                        }}
+                        className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold"
+                      >
+                        Last Delivery {getSortIcon('last_delivery_date')}
+                      </Button>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('actions') && (
+                    <ResizableColumnHeader width={columnWidths.actions} onResize={(w) => updateColumnWidth('actions', w)}>
+                      <span className="font-semibold">Actions</span>
+                    </ResizableColumnHeader>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {isLoadingData ? (
+                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading patients...</td></tr>
+                ) : filteredPatients.length > 0 ? (
+                  filteredPatients.map(patient => {
+                    const isDuplicateAddress = detectDuplicates.address.has(patient.id);
+                    const isDuplicateName = detectDuplicates.name.has(patient.id);
+                    const isDuplicatePhone = detectDuplicates.phone.has(patient.id);
+                    const isDuplicatePid = detectDuplicates.pid.has(patient.id);
+                    const patientStore = stores.find(s => s.id === patient.store_id);
+
+                    return (
+                      <tr key={patient.id} className="border-t hover:bg-slate-50">
+                        <td className="p-3">
+                          <Checkbox
+                            checked={selectedPatients.has(patient.id)}
+                            onCheckedChange={(checked) => handleSelectPatient(patient.id, checked)}
+                          />
+                        </td>
+                        {visibleColumns.includes('id') && (
+                          <td className="p-3 font-mono text-xs text-slate-700 select-all">
+                            {patient.id}
+                          </td>
+                        )}
+                        {visibleColumns.includes('full_name') && (
+                          <td className={`p-3 ${isDuplicateName ? 'bg-yellow-50' : ''}`}>
+                            {patient.full_name}
+                            {isDuplicateName && <Badge variant="destructive" className="ml-2 text-xs">Dup</Badge>}
+                          </td>
+                        )}
+                        {visibleColumns.includes('patient_id') && (
+                          <td className={`p-3 font-mono text-xs ${isDuplicatePid ? 'bg-yellow-50' : ''}`}>
+                            {patient.patient_id || '-'}
+                            {isDuplicatePid && <Badge variant="destructive" className="ml-2 text-xs">Dup</Badge>}
+                          </td>
+                        )}
+                        {visibleColumns.includes('phone') && (
+                          <td className={`p-3 ${isDuplicatePhone ? 'bg-yellow-50' : ''}`}>
+                            {patient.phone}
+                            {isDuplicatePhone && <Badge variant="destructive" className="ml-2 text-xs">Dup</Badge>}
+                          </td>
+                        )}
+                        {visibleColumns.includes('address') && (
+                          <td className={`p-3 ${isDuplicateAddress ? 'bg-yellow-50' : ''}`}>
+                            {patient.address}
+                            {isDuplicateAddress && <Badge variant="destructive" className="ml-2 text-xs">Dup</Badge>}
+                          </td>
+                        )}
+                        {visibleColumns.includes('unit') && (
+                          <td className="p-3 text-xs">{patient.unit_number || '-'}</td>
+                        )}
+                        {visibleColumns.includes('store') && (
+                          <td className="p-3">
+                            {patientStore ? (
+                              <div className="flex flex-col">
+                                <span className="font-medium">{patientStore.name}</span>
+                                <span className="text-xs text-slate-500 font-mono">{patientStore.id}</span>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400">Unassigned</span>
+                            )}
+                          </td>
+                        )}
+                        {visibleColumns.includes('last_delivery_date') && (
+                          <td className="p-3 text-sm">
+                            {patient.last_delivery_date ? (() => {
+                              const dateObj = parseFlexibleDate(patient.last_delivery_date);
+                              if (dateObj && !isNaN(dateObj.getTime())) {
+                                return format(dateObj, 'MMM d, yyyy');
+                              }
+                              return <span className="text-amber-600 text-xs" title="Unrecognized date format">{patient.last_delivery_date}</span>;
+                            })() : (
+                              <span className="text-slate-400">Never</span>
+                            )}
+                          </td>
+                        )}
+                        {visibleColumns.includes('actions') && (
+                          <td className="p-3 text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => onEdit(patient)}
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => onDelete(patient)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500">No patients found.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+const StoreDataTable = ({ stores, onEdit, onDelete, onDeleteSelected, isLoadingData }) => {
+  const { visibleColumns, toggleColumn, config } = useColumnVisibility('stores');
+  const [columnWidths, setColumnWidths] = useState(() => {
+    const saved = localStorage.getItem('admin_store_column_widths');
+    return saved ? JSON.parse(saved) : {
+      checkbox: 50,
+      id: 120,
+      name: 200,
+      abbreviation: 100,
+      address: 300,
+      phone: 140,
+      city: 120,
+      actions: 150
+    };
+  });
+
+  const [selectedStores, setSelectedStores] = useState(new Set());
+
+  const updateColumnWidth = useCallback((columnId, width) => {
+    setColumnWidths(prev => {
+      const newWidths = { ...prev, [columnId]: width };
+      localStorage.setItem('admin_store_column_widths', JSON.stringify(newWidths));
+      return newWidths;
+    });
+  }, []);
+
+  const handleSelectAll = (checked) => {
+    if (checked) {
+      setSelectedStores(new Set((stores || []).map(s => s.id)));
+    } else {
+      setSelectedStores(new Set());
+    }
+  };
+
+  const handleSelectStore = (storeId, checked) => {
+    setSelectedStores(prev => {
+      const newSet = new Set(prev);
+      if (checked) {
+        newSet.add(storeId);
+      } else {
+        newSet.delete(storeId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleDeleteSelected = () => {
+    const selectedStoresArray = (stores || []).filter(s => selectedStores.has(s.id));
+    onDeleteSelected(selectedStoresArray);
+    setSelectedStores(new Set());
+  };
+
+  const isAllSelected = (stores || []).length > 0 && selectedStores.size === (stores || []).length;
+  const isSomeSelected = selectedStores.size > 0 && selectedStores.size < (stores || []).length;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <span>Stores</span>
+          <div className="flex gap-2">
+            <ColumnVisibilityControl
+              config={config}
+              visibleColumns={visibleColumns}
+              onToggle={toggleColumn}
+            />
+            {selectedStores.size > 0 && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDeleteSelected}
+                disabled={isLoadingData}
+              >
+                Delete Selected ({selectedStores.size})
+              </Button>
+            )}
+          </div>
+        </CardTitle>
+        <CardDescription>List of all stores.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="border rounded-md overflow-hidden">
+          <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+            <table className="w-full text-sm table-fixed">
+              <thead className="bg-slate-100 sticky top-0 z-10">
+                <tr>
+                  <ResizableColumnHeader width={columnWidths.checkbox} onResize={(w) => updateColumnWidth('checkbox', w)}>
+                    <Checkbox
+                      checked={isAllSelected}
+                      onCheckedChange={handleSelectAll}
+                      className={isSomeSelected ? 'data-[state=checked]:bg-slate-500' : ''}
+                    />
+                  </ResizableColumnHeader>
+                  {visibleColumns.includes('id') && (
+                    <ResizableColumnHeader width={columnWidths.id} onResize={(w) => updateColumnWidth('id', w)}>
+                      <span className="font-semibold">ID</span>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('name') && (
+                    <ResizableColumnHeader width={columnWidths.name} onResize={(w) => updateColumnWidth('name', w)}>
+                      <span className="font-semibold">Name</span>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('abbreviation') && (
+                    <ResizableColumnHeader width={columnWidths.abbreviation} onResize={(w) => updateColumnWidth('abbreviation', w)}>
+                      <span className="font-semibold">Abbr</span>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('address') && (
+                    <ResizableColumnHeader width={columnWidths.address} onResize={(w) => updateColumnWidth('address', w)}>
+                      <span className="font-semibold">Address</span>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('phone') && (
+                    <ResizableColumnHeader width={columnWidths.phone} onResize={(w) => updateColumnWidth('phone', w)}>
+                      <span className="font-semibold">Phone</span>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('city') && (
+                    <ResizableColumnHeader width={columnWidths.city} onResize={(w) => updateColumnWidth('city', w)}>
+                      <span className="font-semibold">City</span>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('actions') && (
+                    <ResizableColumnHeader width={columnWidths.actions} onResize={(w) => updateColumnWidth('actions', w)}>
+                      <span className="font-semibold">Actions</span>
+                    </ResizableColumnHeader>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {isLoadingData ? (
+                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading stores...</td></tr>
+                ) : stores.length > 0 ? (
+                  stores.map(store => (
+                    <tr key={store.id} className="border-t hover:bg-slate-50">
+                      <td className="p-2">
+                        <Checkbox
+                          checked={selectedStores.has(store.id)}
+                          onCheckedChange={(checked) => handleSelectStore(store.id, checked)}
+                        />
+                      </td>
+                      {visibleColumns.includes('id') && (
+                        <td className="p-3 font-mono text-xs text-slate-500" title={store.id}>{store.id.substring(0, 8)}...</td>
+                      )}
+                      {visibleColumns.includes('name') && (
+                        <td className="p-3">{store.name}</td>
+                      )}
+                      {visibleColumns.includes('abbreviation') && (
+                        <td className="p-3">{store.abbreviation}</td>
+                      )}
+                      {visibleColumns.includes('address') && (
+                        <td className="p-3">{store.address}</td>
+                      )}
+                      {visibleColumns.includes('phone') && (
+                        <td className="p-3">{store.phone}</td>
+                      )}
+                      {visibleColumns.includes('city') && (
+                        <td className="p-3">{store.city_id || '-'}</td>
+                      )}
+                      {visibleColumns.includes('actions') && (
+                        <td className="p-3 text-right">
+                          <Button variant="outline" size="sm" onClick={() => onEdit(store)}>Edit</Button>
+                          <Button variant="destructive" size="sm" className="ml-2" onClick={() => onDelete(store)}>Delete</Button>
+                        </td>
+                      )}
+                    </tr>
+                  ))
+                ) : (
+                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500">No stores found.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+const UserDataTable = ({ users, onEdit, onDelete, onDeleteSelected, isLoadingData }) => {
+  const { visibleColumns, toggleColumn, config } = useColumnVisibility('users');
+  const [columnWidths, setColumnWidths] = useState(() => {
+    const saved = localStorage.getItem('admin_user_column_widths');
+    return saved ? JSON.parse(saved) : {
+      checkbox: 50,
+      id: 120,
+      user_name: 200,
+      phone: 140,
+      roles: 150,
+      status: 120,
+      location_tracking: 140,
+      home_coords: 180,
+      current_coords: 180,
+      city: 120,
+      stores: 150,
+      actions: 150
+    };
+  });
+
+  const [selectedUsers, setSelectedUsers] = useState(new Set());
+
+  const updateColumnWidth = useCallback((columnId, width) => {
+    setColumnWidths(prev => {
+      const newWidths = { ...prev, [columnId]: width };
+      localStorage.setItem('admin_user_column_widths', JSON.stringify(newWidths));
+      return newWidths;
+    });
+  }, []);
+
+  const handleSelectAll = (checked) => {
+    if (checked) {
+      setSelectedUsers(new Set((users || []).map(u => u.id)));
+    } else {
+      setSelectedUsers(new Set());
+    }
+  };
+
+  const handleSelectUser = (userId, checked) => {
+    setSelectedUsers(prev => {
+      const newSet = new Set(prev);
+      if (checked) {
+        newSet.add(userId);
+      } else {
+        newSet.delete(userId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleDeleteSelected = () => {
+    const selectedUsersArray = (users || []).filter(u => selectedUsers.has(u.id));
+    onDeleteSelected(selectedUsersArray);
+    setSelectedUsers(new Set());
+  };
+
+  const isAllSelected = (users || []).length > 0 && selectedUsers.size === (users || []).length;
+  const isSomeSelected = selectedUsers.size > 0 && selectedUsers.size < (users || []).length;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <span>App Users</span>
+          <div className="flex gap-2">
+            <ColumnVisibilityControl
+              config={config}
+              visibleColumns={visibleColumns}
+              onToggle={toggleColumn}
+            />
+            {selectedUsers.size > 0 && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDeleteSelected}
+                disabled={isLoadingData}
+              >
+                Delete Selected ({selectedUsers.size})
+              </Button>
+            )}
+          </div>
+        </CardTitle>
+        <CardDescription>List of all application users.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="border rounded-md overflow-hidden">
+          <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+            <table className="w-full text-sm table-fixed">
+              <thead className="bg-slate-100 sticky top-0 z-10">
+                <tr>
+                  <ResizableColumnHeader width={columnWidths.checkbox} onResize={(w) => updateColumnWidth('checkbox', w)}>
+                    <Checkbox
+                      checked={isAllSelected}
+                      onCheckedChange={handleSelectAll}
+                      className={isSomeSelected ? 'data-[state=checked]:bg-slate-500' : ''}
+                    />
+                  </ResizableColumnHeader>
+                  {visibleColumns.includes('id') && (
+                    <ResizableColumnHeader width={columnWidths.id} onResize={(w) => updateColumnWidth('id', w)}>
+                      <span className="font-semibold">ID</span>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('user_name') && (
+                    <ResizableColumnHeader width={columnWidths.user_name} onResize={(w) => updateColumnWidth('user_name', w)}>
+                      <span className="font-semibold">User Name</span>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('phone') && (
+                    <ResizableColumnHeader width={columnWidths.phone} onResize={(w) => updateColumnWidth('phone', w)}>
+                      <span className="font-semibold">Phone</span>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('roles') && (
+                    <ResizableColumnHeader width={columnWidths.roles} onResize={(w) => updateColumnWidth('roles', w)}>
+                      <span className="font-semibold">Roles</span>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('status') && (
+                    <ResizableColumnHeader width={columnWidths.status} onResize={(w) => updateColumnWidth('status', w)}>
+                      <span className="font-semibold">Status</span>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('location_tracking') && (
+                    <ResizableColumnHeader width={columnWidths.location_tracking} onResize={(w) => updateColumnWidth('location_tracking', w)}>
+                      <span className="font-semibold">Location Tracking</span>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('home_coords') && (
+                    <ResizableColumnHeader width={columnWidths.home_coords} onResize={(w) => updateColumnWidth('home_coords', w)}>
+                      <span className="font-semibold">Home Coords</span>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('current_coords') && (
+                    <ResizableColumnHeader width={columnWidths.current_coords} onResize={(w) => updateColumnWidth('current_coords', w)}>
+                      <span className="font-semibold">Current Coords</span>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('city') && (
+                    <ResizableColumnHeader width={columnWidths.city} onResize={(w) => updateColumnWidth('city', w)}>
+                      <span className="font-semibold">City</span>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('stores') && (
+                    <ResizableColumnHeader width={columnWidths.stores} onResize={(w) => updateColumnWidth('stores', w)}>
+                      <span className="font-semibold">Stores</span>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('actions') && (
+                    <ResizableColumnHeader width={columnWidths.actions} onResize={(w) => updateColumnWidth('actions', w)}>
+                      <span className="font-semibold">Actions</span>
+                    </ResizableColumnHeader>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {isLoadingData ? (
+                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading app users...</td></tr>
+                ) : users.length > 0 ? (
+                  users.map(user => (
+                    <tr key={user.id} className="border-t hover:bg-slate-50">
+                      <td className="p-2">
+                        <Checkbox
+                          checked={selectedUsers.has(user.id)}
+                          onCheckedChange={(checked) => handleSelectUser(user.id, checked)}
+                        />
+                      </td>
+                      {visibleColumns.includes('id') && (
+                        <td className="p-3 font-mono text-xs text-slate-500" title={user.id}>{user.id.substring(0, 8)}...</td>
+                      )}
+                      {visibleColumns.includes('user_name') && (
+                        <td className="p-3">{user.user_name}</td>
+                      )}
+                      {visibleColumns.includes('phone') && (
+                        <td className="p-3">{user.phone}</td>
+                      )}
+                      {visibleColumns.includes('roles') && (
+                        <td className="p-3">{user.app_roles ? user.app_roles.join(', ') : 'N/A'}</td>
+                      )}
+                      {visibleColumns.includes('status') && (
+                        <td className="p-3">{user.status}</td>
+                      )}
+                      {visibleColumns.includes('location_tracking') && (
+                        <td className="p-3">
+                          <Badge variant={user.location_tracking_enabled ? 'default' : 'secondary'}>
+                            {user.location_tracking_enabled ? '✓ Enabled' : 'Disabled'}
+                          </Badge>
+                        </td>
+                      )}
+                      {visibleColumns.includes('home_coords') && (
+                        <td className="p-3 font-mono text-xs">
+                          {user.home_latitude && user.home_longitude 
+                            ? `${user.home_latitude.toFixed(5)}, ${user.home_longitude.toFixed(5)}`
+                            : '-'
+                          }
+                        </td>
+                      )}
+                      {visibleColumns.includes('current_coords') && (
+                        <td className="p-3 font-mono text-xs">
+                          {user.current_latitude && user.current_longitude 
+                            ? `${user.current_latitude.toFixed(5)}, ${user.current_longitude.toFixed(5)}`
+                            : '-'
+                          }
+                        </td>
+                      )}
+                      {visibleColumns.includes('city') && (
+                        <td className="p-3">{user.city_id || '-'}</td>
+                      )}
+                      {visibleColumns.includes('stores') && (
+                        <td className="p-3">
+                          {user.store_ids && user.store_ids.length > 0
+                            ? user.store_ids.map(id => id.substring(0,4)).join(', ') + '...'
+                            : '-'
+                          }
+                        </td>
+                      )}
+                      {visibleColumns.includes('actions') && (
+                        <td className="p-3 text-right">
+                          <Button variant="outline" size="sm" onClick={() => onEdit(user)}>Edit</Button>
+                          <Button variant="destructive" size="sm" className="ml-2" onClick={() => onDelete(user)}>Delete</Button>
+                        </td>
+                      )}
+                    </tr>
+                  ))
+                ) : (
+                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500">No app users found.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+const CityDataTable = ({ cities, onEdit, onDelete, onDeleteSelected, isLoadingData }) => {
+  const { visibleColumns, toggleColumn, config } = useColumnVisibility('cities');
+  const [columnWidths, setColumnWidths] = useState(() => {
+    const saved = localStorage.getItem('admin_city_column_widths');
+    return saved ? JSON.parse(saved) : {
+      checkbox: 50,
+      id: 120,
+      name: 200,
+      province: 150,
+      country: 150,
+      actions: 150
+    };
+  });
+
+  const [selectedCities, setSelectedCities] = useState(new Set());
+
+  const updateColumnWidth = useCallback((columnId, width) => {
+    setColumnWidths(prev => {
+      const newWidths = { ...prev, [columnId]: width };
+      localStorage.setItem('admin_city_column_widths', JSON.stringify(newWidths));
+      return newWidths;
+    });
+  }, []);
+
+  const handleSelectAll = (checked) => {
+    if (checked) {
+      setSelectedCities(new Set((cities || []).map(c => c.id)));
+    } else {
+      setSelectedCities(new Set());
+    }
+  };
+
+  const handleSelectCity = (cityId, checked) => {
+    setSelectedCities(prev => {
+      const newSet = new Set(prev);
+      if (checked) {
+        newSet.add(cityId);
+      } else {
+        newSet.delete(cityId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleDeleteSelected = () => {
+    const selectedCitiesArray = (cities || []).filter(c => selectedCities.has(c.id));
+    onDeleteSelected(selectedCitiesArray);
+    setSelectedCities(new Set());
+  };
+
+  const isAllSelected = (cities || []).length > 0 && selectedCities.size === (cities || []).length;
+  const isSomeSelected = selectedCities.size > 0 && selectedCities.size < (cities || []).length;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <span>Cities</span>
+          <div className="flex gap-2">
+            <ColumnVisibilityControl
+              config={config}
+              visibleColumns={visibleColumns}
+              onToggle={toggleColumn}
+            />
+            {selectedCities.size > 0 && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDeleteSelected}
+                disabled={isLoadingData}
+              >
+                Delete Selected ({selectedCities.size})
+              </Button>
+            )}
+          </div>
+        </CardTitle>
+        <CardDescription>List of all cities.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="border rounded-md overflow-hidden">
+          <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+            <table className="w-full text-sm table-fixed">
+              <thead className="bg-slate-100 sticky top-0 z-10">
+                <tr>
+                  <ResizableColumnHeader width={columnWidths.checkbox} onResize={(w) => updateColumnWidth('checkbox', w)}>
+                    <Checkbox
+                      checked={isAllSelected}
+                      onCheckedChange={handleSelectAll}
+                      className={isSomeSelected ? 'data-[state=checked]:bg-slate-500' : ''}
+                    />
+                  </ResizableColumnHeader>
+                  {visibleColumns.includes('id') && (
+                    <ResizableColumnHeader width={columnWidths.id} onResize={(w) => updateColumnWidth('id', w)}>
+                      <span className="font-semibold">ID</span>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('name') && (
+                    <ResizableColumnHeader width={columnWidths.name} onResize={(w) => updateColumnWidth('name', w)}>
+                      <span className="font-semibold">Name</span>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('province') && (
+                    <ResizableColumnHeader width={columnWidths.province} onResize={(w) => updateColumnWidth('province', w)}>
+                      <span className="font-semibold">Province/State</span>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('country') && (
+                    <ResizableColumnHeader width={columnWidths.country} onResize={(w) => updateColumnWidth('country', w)}>
+                      <span className="font-semibold">Country</span>
+                    </ResizableColumnHeader>
+                  )}
+                  {visibleColumns.includes('actions') && (
+                    <ResizableColumnHeader width={columnWidths.actions} onResize={(w) => updateColumnWidth('actions', w)}>
+                      <span className="font-semibold">Actions</span>
+                    </ResizableColumnHeader>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {isLoadingData ? (
+                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading cities...</td></tr>
+                ) : cities.length > 0 ? (
+                  cities.map(city => (
+                    <tr key={city.id} className="border-t hover:bg-slate-50">
+                      <td className="p-2">
+                        <Checkbox
+                          checked={selectedCities.has(city.id)}
+                          onCheckedChange={(checked) => handleSelectCity(city.id, checked)}
+                        />
+                      </td>
+                      {visibleColumns.includes('id') && (
+                        <td className="p-3 font-mono text-xs text-slate-500" title={city.id}>{city.id.substring(0, 8)}...</td>
+                      )}
+                      {visibleColumns.includes('name') && (
+                        <td className="p-3">{city.name}</td>
+                      )}
+                      {visibleColumns.includes('province') && (
+                        <td className="p-3">{city.province}</td>
+                      )}
+                      {visibleColumns.includes('country') && (
+                        <td className="p-3">{city.country}</td>
+                      )}
+                      {visibleColumns.includes('actions') && (
+                        <td className="p-3 text-right">
+                          <Button variant="outline" size="sm" onClick={() => onEdit(city)}>Edit</Button>
+                          <Button variant="destructive" size="sm" className="ml-2" onClick={() => onDelete(city)}>Delete</Button>
+                        </td>
+                      )}
+                    </tr>
+                  ))
+                ) : (
+                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500">No cities found.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+
+export default function AdminUtilities() {
+  const queryClient = useQueryClient();
+  const { refreshData } = useAppData();
+  
+  const [currentUser, setCurrentUser] = useState(null);
+  const [hasAccess, setHasAccess] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+
+  const [showUserMigration, setShowUserMigration] = useState(false);
+  const [migrationStatus, setMigrationStatus] = useState('');
+
+  const [activeDataTab, setActiveDataTab] = useState('deliveries');
+  const [activeUtilityTab, setActiveUtilityTab] = useState('data');
+
+  const [isBackfilling, setIsBackfilling] = useState(false);
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const [confirmDialog, setConfirmDialog] = useState({
+    open: false,
+    title: '',
+    description: '',
+    onConfirm: () => {},
+    confirmText: 'Delete',
+    variant: 'destructive'
+  });
+
+  const [bulkDelete, setBulkDelete] = useState({
+    open: false,
+    running: false,
+    total: 0,
+    processed: 0,
+    success: 0,
+    failed: 0,
+    currentLabel: "",
+    currentDelay: 0,
+    retryQueue: 0,
+    entityLabel: "",
+  });
+
+  const [deliveryFilterText, setDeliveryFilterText] = useState('');
+  const [deliverySortColumn, setDeliverySortColumn] = useState('delivery_date');
+  const [deliverySortDirection, setDeliverySortDirection] = useState('desc');
+  const [selectedDeliveryYear, setSelectedDeliveryYear] = useState(() => new Date().getFullYear().toString());
+  const [selectedDeliveryMonth, setSelectedDeliveryMonth] = useState(() => (new Date().getMonth() + 1).toString());
+  const [selectedDriver, setSelectedDriver] = useState(null);
+  const [availableDeliveryYears, setAvailableDeliveryYears] = useState([]);
+  const [filtersReady, setFiltersReady] = useState(false);
+
+  const [patientFilterText, setPatientFilterText] = useState('');
+  const [patientSortColumn, setPatientSortColumn] = useState('full_name');
+  const [patientSortDirection, setPatientSortDirection] = useState('asc');
+
+  const [showRouteImport, setShowRouteImport] = useState(false);
+  
+  const refreshIntervalRef = useRef(null);
+
+  const invalidate = async (entityName) => {
+    let queryKey;
+    switch (entityName) {
+      case 'Patient': queryKey = ['patients']; break;
+      case 'Store': queryKey = ['stores']; break;
+      case 'User': queryKey = ['authUsers']; break;
+      case 'AppUser': queryKey = ['appUsers']; break;
+      case 'Delivery': queryKey = ['deliveries']; break;
+      case 'ActiveDeliveries': queryKey = ['activeDeliveries']; break;
+      case 'City': queryKey = ['cities']; break;
+      default: return;
+    }
+    await queryClient.invalidateQueries({ queryKey });
+  };
+
+  const queryOptions = {
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    staleTime: Infinity,
+  };
+
+  const { data: patients, isLoading: patientsLoading, refetch: refetchPatients } = useQuery({
+    queryKey: ['patients'],
+    queryFn: () => getData('Patient', 'full_name'),
+    ...queryOptions
+  });
+
+  const { data: stores, isLoading: storesLoading, refetch: refetchStores } = useQuery({
+    queryKey: ['stores'],
+    queryFn: () => getData('Store', 'name'),
+    ...queryOptions
+  });
+
+  const { data: authUsers, isLoading: authUsersLoading, refetch: refetchAuthUsers } = useQuery({
+    queryKey: ['authUsers'],
+    queryFn: () => getData('User', 'full_name'),
+    ...queryOptions
+  });
+
+  const { data: appUsers, isLoading: appUsersLoading, refetch: refetchAppUsers } = useQuery({
+    queryKey: ['appUsers'],
+    queryFn: () => getData('AppUser', 'user_name'),
+    ...queryOptions
+  });
+
+  const { data: cities, isLoading: citiesLoading, refetch: refetchCities } = useQuery({
+    queryKey: ['cities'],
+    queryFn: () => getData('City', 'name'),
+    ...queryOptions
+  });
+
+  const { data: allDeliveries, isLoading: deliveriesLoading, refetch: refetchDeliveries } = useQuery({
+    queryKey: ['deliveries'],
+    queryFn: () => getData('Delivery', '-created_date'),
+    enabled: filtersReady,
+    ...queryOptions
+  });
+
+
+  const dataLoading = patientsLoading || storesLoading || authUsersLoading || appUsersLoading || citiesLoading || deliveriesLoading;
+
+  const handleRefreshAllData = async () => {
+    setIsRefreshing(true);
+    console.log('🔄 [AdminUtilities] Starting manual data refresh...');
+    
+    try {
+      await queryClient.invalidateQueries(['patients']);
+      await queryClient.invalidateQueries(['stores']);
+      await queryClient.invalidateQueries(['authUsers']);
+      await queryClient.invalidateQueries(['appUsers']);
+      await queryClient.invalidateQueries(['cities']);
+      await queryClient.invalidateQueries(['deliveries']);
+      
+      await Promise.all([
+        refetchPatients(),
+        refetchStores(),
+        refetchAuthUsers(),
+        refetchAppUsers(),
+        refetchCities(),
+        refetchDeliveries()
+      ]);
+      
+      await refreshData();
+      
+      console.log('✅ [AdminUtilities] Manual data refresh complete');
+    } catch (error) {
+      console.error('❌ [AdminUtilities] Error during manual refresh:', error);
+      alert('Error refreshing data. Please try again.');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const mergedUsers = useMemo(() => {
+    if (!authUsers || !appUsers) return [];
+
+    return authUsers
+      .map((authUser) => {
+        const appUser = appUsers.find((au) => au.user_id === authUser.id);
+        if (!appUser) return null;
+
+        return {
+          ...authUser,
+          ...appUser,
+          id: authUser.id,
+          user_name: appUser.user_name || authUser.full_name,
+          app_roles: appUser.app_roles || ['driver'],
+          status: appUser.status || 'active',
+          display_name: appUser.user_name || authUser.full_name,
+          first_name: (appUser.user_name || authUser.full_name).split(' ')[0]
+        };
+      })
+      .filter(Boolean)
+      .filter((u) => u.status === 'active');
+  }, [authUsers, appUsers]);
+
+  const driversForDropdown = useMemo(() => {
+    if (!mergedUsers) return [];
+
+    const drivers = mergedUsers.filter((user) => {
+      const roles = user.app_roles || [];
+      return roles.includes('driver') || roles.includes('admin');
+    });
+    
+    return sortUsers(drivers);
+  }, [mergedUsers]);
+
+
+  const handleRouteImportComplete = async () => {
+    console.log('✅ [AdminUtilities] Route import completed, refreshing data...');
+
+    setShowRouteImport(false);
+
+    try {
+      console.log('🗑️ [AdminUtilities] Invalidating all relevant caches...');
+
+      await invalidate('Delivery');
+      await invalidate('Patient');
+      await invalidate('Store');
+      await invalidate('AppUser');
+      await invalidate('User');
+      await invalidate('City');
+
+      console.log('🔄 [AdminUtilities] Triggering immediate refetches...');
+      await Promise.all([
+        refetchDeliveries(),
+        refetchPatients(),
+        refetchStores(),
+        refetchAppUsers(),
+        refetchAuthUsers(),
+        refetchCities()
+      ]);
+
+      console.log('✅ [AdminUtilities] Data refresh complete after import');
+
+      console.log('🔄 [AdminUtilities] Triggering global data refresh after route import');
+      await refreshData();
+
+    } catch (error) {
+      console.error('❌ [AdminUtilities] Error during post-import refresh:', error);
+      alert('Import completed but there was an error refreshing the display. Please try again.');
+    } finally {
+      setFiltersReady(true);
+    }
+  };
+
+
+  useEffect(() => {
+    const checkAccess = async () => {
+      try {
+        const user = await getEffectiveUser();
+        const realUserData = await User.me();
+        setCurrentUser(user);
+        setHasAccess(isAppOwner(realUserData));
+      } catch (error) {
+        console.error('Access check failed:', error);
+        setHasAccess(false);
+      } finally {
+        setInitialLoading(false);
+      }
+    };
+    checkAccess();
+    
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser || selectedDriver !== null || !stores || !driversForDropdown) {
+      return;
+    }
+
+    console.log('🔄 [AdminUtilities] Initializing driver filter...');
+
+    let defaultDriver = 'all';
+
+    if (userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')) {
+      defaultDriver = currentUser.user_name || currentUser.full_name;
+      console.log('👤 [AdminUtilities] Driver user - auto-selecting self:', defaultDriver);
+    } else if (userHasRole(currentUser, 'dispatcher')) {
+      const dispatcherStores = stores.filter(s =>
+        s.dispatcher_id === currentUser.id || s.dispatcher_name === currentUser.user_name || s.dispatcher_name === currentUser.full_name
+      );
+
+      if (dispatcherStores.length > 0) {
+        const driverCounts = {};
+
+        dispatcherStores.forEach(store => {
+          const driverIds = [
+            store.weekday_am_driver_id,
+            store.weekday_pm_driver_id,
+            store.saturday_am_driver_id,
+            store.saturday_pm_driver_id,
+            store.sunday_am_driver_id,
+            store.sunday_pm_driver_id
+          ].filter(Boolean);
+
+          driverIds.forEach(driverId => {
+            driverCounts[driverId] = (driverCounts[driverId] || 0) + 1;
+          });
+        });
+
+        if (Object.keys(driverCounts).length > 0) {
+          const mostCommonDriverId = Object.keys(driverCounts).reduce((a, b) =>
+            driverCounts[a] > driverCounts[b] ? a : b
+          );
+
+          const mostCommonDriver = driversForDropdown.find(d => d.id === mostCommonDriverId);
+          if (mostCommonDriver) {
+            defaultDriver = mostCommonDriver.user_name;
+            console.log('👔 [AdminUtilities] Dispatcher - auto-selecting most common driver:', defaultDriver);
+          }
+        }
+      }
+    }
+
+    console.log('🎯 [AdminUtilities] Setting default driver:', defaultDriver);
+    setSelectedDriver(defaultDriver);
+  }, [currentUser, selectedDriver, stores, driversForDropdown]);
+
+  useEffect(() => {
+    if (filtersReady || deliveriesLoading || !stores || !driversForDropdown || selectedDriver === null) {
+      return;
+    }
+
+    console.log('📊 [AdminUtilities] Calculating available years from metadata...');
+
+    const currentYear = new Date().getFullYear();
+    const estimatedYears = [currentYear, currentYear - 1, currentYear - 2].sort((a, b) => b - a);
+
+    setAvailableDeliveryYears(estimatedYears);
+    setFiltersReady(true);
+
+    console.log('✅ [AdminUtilities] Filters ready, deliveries will now load');
+  }, [filtersReady, deliveriesLoading, stores, driversForDropdown, selectedDriver]);
+
+  useEffect(() => {
+    if (!filtersReady || !allDeliveries || deliveriesLoading) {
+      return;
+    }
+
+    if (allDeliveries.length > 0) {
+      const years = [...new Set(
+        allDeliveries.map(d => d.delivery_date ? new Date(d.delivery_date).getFullYear() : null)
+          .filter(Boolean)
+      )].sort((a, b) => b - a);
+
+      setAvailableDeliveryYears(years);
+      console.log('📅 [AdminUtilities] Updated available years from actual data:', years);
+    }
+  }, [allDeliveries, deliveriesLoading, filtersReady]);
+
+  // Smart refresh polling based on active tab
+  useEffect(() => {
+    if (!filtersReady || dataLoading) {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
+      }
+      return;
+    }
+
+    console.log('🚀 [AdminUtilities] Starting smart refresh for tab:', activeDataTab);
+
+    const performRefresh = async () => {
+      try {
+        let hasUpdates = false;
+
+        switch (activeDataTab) {
+          case 'deliveries':
+            if (allDeliveries && selectedDeliveryYear && selectedDeliveryMonth) {
+              const currentData = { deliveries: allDeliveries };
+              const filters = { deliveryFilter: {} };
+              
+              const updates = await smartRefreshManager.performSmartRefresh(currentData, filters);
+              if (updates?.deliveries) {
+                await queryClient.setQueryData(['deliveries'], updates.deliveries);
+                hasUpdates = true;
+              }
+            }
+            break;
+
+          case 'patients':
+            if (patients) {
+              const lastTimestamp = patients.reduce((latest, p) => {
+                const updated = p.updated_date ? new Date(p.updated_date) : null;
+                return updated && (!latest || updated > latest) ? updated : latest;
+              }, null);
+
+              if (lastTimestamp) {
+                const recentPatients = await base44.entities.Patient.filter({
+                  updated_date: { $gte: lastTimestamp.toISOString() }
+                });
+
+                if (recentPatients && recentPatients.length > 0) {
+                  await refetchPatients();
+                  hasUpdates = true;
+                }
+              }
+            }
+            break;
+
+          case 'stores':
+            // Stores rarely change, refresh less frequently
+            break;
+
+          case 'users':
+            if (appUsers) {
+              const lastTimestamp = appUsers.reduce((latest, u) => {
+                const updated = u.updated_date ? new Date(u.updated_date) : null;
+                return updated && (!latest || updated > latest) ? updated : latest;
+              }, null);
+
+              if (lastTimestamp) {
+                const recentUsers = await base44.entities.AppUser.filter({
+                  updated_date: { $gte: lastTimestamp.toISOString() }
+                });
+
+                if (recentUsers && recentUsers.length > 0) {
+                  await refetchAppUsers();
+                  hasUpdates = true;
+                }
+              }
+            }
+            break;
+
+          case 'cities':
+            // Cities rarely change, refresh less frequently
+            break;
+        }
+
+        if (hasUpdates) {
+          console.log('✅ [AdminUtilities] Smart refresh detected changes for', activeDataTab);
+        }
+      } catch (error) {
+        console.error('❌ [AdminUtilities] Error during smart refresh:', error);
+      }
+    };
+
+    performRefresh();
+    refreshIntervalRef.current = setInterval(performRefresh, 15000);
+
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
+      }
+    };
+  }, [activeDataTab, filtersReady, dataLoading, allDeliveries, patients, appUsers, selectedDeliveryYear, selectedDeliveryMonth, queryClient, refetchPatients, refetchAppUsers]);
+
+  const loadUsersForMigration = async () => {
+    queryClient.invalidateQueries(['authUsers']);
+    queryClient.invalidateQueries(['appUsers']);
+    setMigrationStatus('');
+  };
+
+  const handleMigrateUser = async (user, existingAppUser) => {
+    setMigrationStatus(`⏳ Migrating ${user.full_name}...`);
+    try {
+      if (existingAppUser) {
+        setMigrationStatus(`ℹ️ User ${user.full_name} already migrated.`);
+        return;
+      }
+
+      const appUserData = {
+        user_id: user.id,
+        app_roles: user.role === 'admin' ? ['admin'] : ['driver'],
+        user_name: user.full_name,
+        status: 'active',
+        phone: '',
+        city_id: '',
+        store_ids: [],
+        sort_order: 0,
+        home_latitude: null,
+        home_longitude: null,
+        current_latitude: null,
+        current_longitude: null,
+        location_updated_at: null,
+        location_tracking_enabled: true
+      };
+
+      await AppUser.create(appUserData);
+      setMigrationStatus(`✅ Migrated ${user.full_name}`);
+      queryClient.invalidateQueries(['appUsers']);
+      
+      console.log('🔄 [AdminUtilities] Triggering global data refresh after user migration');
+      await refreshData();
+    } catch (error) {
+      console.error('Migration error:', error);
+      setMigrationStatus(`❌ Failed to migrate ${user.full_name}: ${error.message}`);
+    }
+  };
+
+  const handleSortChange = useCallback((column, currentSortColumn, currentSortDirection, setSortColumn, setSortDirection) => {
+    if (currentSortColumn === column) {
+      setSortDirection(currentSortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  }, []);
+
+  const handleDeliverySort = useCallback((column) =>
+    handleSortChange(column, deliverySortColumn, deliverySortDirection, setDeliverySortColumn, setDeliverySortDirection),
+    [handleSortChange, deliverySortColumn, deliverySortDirection]
+  );
+
+  const handlePatientSort = useCallback((column) => {
+    handleSortChange(column, patientSortColumn, patientSortDirection, setPatientSortColumn, setPatientSortDirection);
+  }, [handleSortChange, patientSortColumn, patientSortDirection]);
+
+
+  const filteredAndSortedDeliveries = useMemo(() => {
+    let filtered = allDeliveries || [];
+
+    if (selectedDeliveryYear && selectedDeliveryYear !== 'all') {
+      const year = parseInt(selectedDeliveryYear);
+      filtered = filtered.filter(d => {
+        if (!d.delivery_date || typeof d.delivery_date !== 'string') return false;
+        const dateParts = d.delivery_date.split('-');
+        if (dateParts.length === 3) {
+          const deliveryYear = parseInt(dateParts[0]);
+          return deliveryYear === year;
+        }
+        return false;
+      });
+
+      if (selectedDeliveryMonth !== 'all') {
+        const month = parseInt(selectedDeliveryMonth);
+        filtered = filtered.filter(d => {
+          if (!d.delivery_date || typeof d.delivery_date !== 'string') return false;
+          const dateParts = d.delivery_date.split('-');
+          if (dateParts.length === 3) {
+            const deliveryMonth = parseInt(dateParts[1]);
+            return deliveryMonth === month;
+          }
+          return false;
+        });
+      }
+    } else if (selectedDeliveryYear === 'all' && selectedDeliveryMonth !== 'all') {
+      const month = parseInt(selectedDeliveryMonth);
+      filtered = filtered.filter(d => {
+        if (!d.delivery_date || typeof d.delivery_date !== 'string') return false;
+        const dateParts = d.delivery_date.split('-');
+        if (dateParts.length === 3) {
+          const deliveryMonth = parseInt(dateParts[1]);
+          return deliveryMonth === month;
+        }
+        return false;
+      });
+    }
+
+    if (selectedDriver !== 'all') {
+      const targetDriver = driversForDropdown.find(d => d.user_name === selectedDriver);
+      if (targetDriver) {
+        filtered = filtered.filter(delivery => 
+          delivery.driver_id === targetDriver.id || 
+          delivery.driver_name === targetDriver.full_name ||
+          delivery.driver_name === targetDriver.user_name
+        );
+      } else {
+        filtered = [];
+      }
+    }
+
+
+    filtered = filtered.filter(delivery => {
+      const patient = (patients || []).find(p => p.id === delivery.patient_id);
+      const store = (stores || []).find(s => s.id === delivery.store_id);
+      const patientName = patient?.full_name || 'Store Pickup';
+      const address = patient?.address || store?.address || 'Unknown Address';
+      const unitNumber = patient?.unit_number ? `, Unit: ${patient.unit_number}` : '';
+      const stopId = delivery.stop_id ? String(delivery.stop_id) : '';
+      const patientId = patient?.patient_id ? String(patient.patient_id) : '';
+      const trackingNumber = delivery.tracking_number ? String(delivery.tracking_number) : '';
+      const stopOrder = delivery.stop_order ? String(delivery.stop_order) : '';
+
+      const searchText = deliveryFilterText.toLowerCase();
+
+      return (
+        searchText === '' ||
+        patientName.toLowerCase().includes(searchText) ||
+        (address + unitNumber).toLowerCase().includes(searchText) ||
+        (delivery.status && delivery.status.toLowerCase().includes(searchText)) ||
+        stopId.includes(searchText) ||
+        patientId.includes(searchText) ||
+        trackingNumber.includes(searchText) ||
+        stopOrder.includes(searchText)
+      );
+    });
+
+    if (deliverySortColumn) {
+      filtered.sort((a, b) => {
+        const getTimeValue = (delivery) => {
+          if (delivery.actual_delivery_time) {
+            try {
+              const date = new Date(delivery.actual_delivery_time);
+              if (!isNaN(date.getTime())) {
+                return date.getHours() * 60 + date.getMinutes();
+              }
+            } catch (e) {
+              // Fallback
+            }
+          }
+          if (delivery.delivery_time_eta) {
+            const timeParts = delivery.delivery_time_eta.match(/(\d{2}):(\d{2})/);
+            if (timeParts) {
+              const hours = parseInt(timeParts[1]);
+              const minutes = parseInt(timeParts[2]);
+              return hours * 60 + minutes;
+            }
+          }
+          return 9999;
+        };
+
+        if (deliverySortColumn === 'stop_order') {
+          const aOrder = a.stop_order ?? 99999;
+          const bOrder = b.stop_order ?? 99999;
+          
+          if (aOrder !== bOrder) {
+            return deliverySortDirection === 'asc' ? aOrder - bOrder : bOrder - aOrder;
+          }
+          
+          const aDate = a.delivery_date || '';
+          const bDate = b.delivery_date || '';
+          
+          const dateComparison = deliverySortDirection === 'asc' ? aDate.localeCompare(bDate) : bDate.localeCompare(aDate);
+          if (dateComparison !== 0) {
+              return dateComparison;
+          }
+          
+          const aTime = getTimeValue(a);
+          const bTime = getTimeValue(b);
+          
+          return deliverySortDirection === 'asc' ? aTime - bTime : bTime - aTime;
+        } else if (deliverySortColumn === 'delivery_date') {
+          const aDate = a.delivery_date || '';
+          const bDate = b.delivery_date || '';
+          
+          const dateComparison = deliverySortDirection === 'asc' ? aDate.localeCompare(bDate) : bDate.localeCompare(aDate);
+          if (dateComparison !== 0) {
+              return dateComparison;
+          }
+          
+          const aTime = getTimeValue(a);
+          const bTime = getTimeValue(b);
+          
+          return deliverySortDirection === 'asc' ? aTime - bTime : bTime - aTime;
+        } else {
+          const aValue = a[deliverySortColumn];
+          const bValue = b[deliverySortColumn];
+
+          if (aValue === null || aValue === undefined) return deliverySortDirection === 'asc' ? 1 : -1;
+          if (bValue === null || bValue === undefined) return deliverySortDirection === 'asc' ? -1 : 1;
+
+          if (typeof aValue === 'string' && typeof bValue === 'string') {
+            return deliverySortDirection === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+          }
+          if (typeof aValue === 'number' && typeof bValue === 'number') {
+            return deliverySortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+          }
+          return 0;
+        }
+      });
+    }
+    return filtered;
+  }, [allDeliveries, selectedDeliveryYear, selectedDeliveryMonth, selectedDriver, driversForDropdown, patients, stores, deliveryFilterText, deliverySortColumn, deliverySortDirection]);
+
+
+  const filteredPatientsForDetectDuplicates = useMemo(() => {
+    if (!patients || !Array.isArray(patients)) {
+      console.warn('[AdminUtilities] filteredPatientsForDetectDuplicates: patients is not an array');
+      return [];
+    }
+    
+    return patients; 
+  }, [patients]);
+
+  const performBulkDeletePatients = useCallback(async (patientsToDelete) => {
+    if (!patientsToDelete || !Array.isArray(patientsToDelete)) {
+      console.error('[AdminUtilities] performBulkDeletePatients: Invalid input - not an array:', typeof patientsToDelete);
+      alert('Error: Invalid data provided for deletion. Please refresh and try again.');
+      return;
+    }
+    
+    if (patientsToDelete.length === 0) {
+      console.warn('[AdminUtilities] performBulkDeletePatients: Empty array provided');
+      alert('No patients to delete.');
+      return;
+    }
+
+    const count = patientsToDelete.length;
+
+    let delayMs = 100;
+    let trend = 'up';
+    let opsSinceDelayChange = 0;
+    let segmentFailures = 0;
+
+    setBulkDelete({
+      open: true,
+      running: true,
+      total: count,
+      processed: 0,
+      success: 0,
+      failed: 0,
+      currentLabel: "",
+      currentDelay: delayMs,
+      retryQueue: 0,
+      entityLabel: "Patients"
+    });
+
+    const failedDeletions = [];
+    try {
+      let successCount = 0;
+      let failCount = 0;
+      let processed = 0;
+
+      for (const patient of patientsToDelete) {
+        if (!patient || !patient.id) {
+          console.warn('[AdminUtilities] Skipping invalid patient:', patient);
+          processed++;
+          continue;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+
+        const label = patient.full_name || patient.id;
+
+        try {
+          await Patient.delete(patient.id);
+          successCount++;
+        } catch (error) {
+          console.error(`Failed to delete patient ${patient.id}:`, error);
+          failCount++;
+          segmentFailures++;
+          failedDeletions.push(patient);
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        } finally {
+          processed++;
+          setBulkDelete(prev => ({
+            ...prev,
+            processed,
+            success: successCount,
+            failed: failCount,
+            currentLabel: label,
+            currentDelay: delayMs,
+            retryQueue: failedDeletions.length
+          }));
+
+          opsSinceDelayChange++;
+          if (opsSinceDelayChange >= 75) {
+            if (segmentFailures === 0) {
+              if (trend === 'up') {
+                delayMs = Math.min(300, delayMs + 25);
+                if (delayMs === 300) trend = 'down';
+              } else if (trend === 'down') {
+                delayMs = Math.max(100, delayMs - 25);
+                if (delayMs === 100) trend = 'up';
+              }
+            }
+            opsSinceDelayChange = 0;
+            segmentFailures = 0;
+            setBulkDelete(prev => ({ ...prev, currentDelay: delayMs }));
+          }
+        }
+      }
+
+      if (failedDeletions.length > 0) {
+        console.log(`Retrying ${failedDeletions.length} failed patient deletions...`);
+        const retryDelay = 500;
+        setBulkDelete(prev => ({ ...prev, retryQueue: failedDeletions.length }));
+
+        for (let i = 0; i < failedDeletions.length; i++) {
+          const p = failedDeletions[i];
+          if (!p || !p.id) continue;
+          
+          const label = p.full_name || p.id;
+
+          await new Promise((resolve) => setTimeout(resolve, retryDelay));
+
+          try {
+            await Patient.delete(p.id);
+            setBulkDelete(prev => ({
+              ...prev,
+              processed: prev.processed + 1,
+              success: prev.success + 1,
+              failed: prev.failed - 1,
+              currentLabel: label,
+              currentDelay: retryDelay,
+              retryQueue: Math.max(0, prev.retryQueue - 1)
+            }));
+          } catch (error) {
+            console.error(`Retry failed for patient ${p.id}:`, error);
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            setBulkDelete(prev => ({
+              ...prev,
+              processed: prev.processed + 1,
+              failed: prev.failed + 1,
+              currentLabel: label,
+              currentDelay: retryDelay,
+              retryQueue: Math.max(0, prev.retryQueue - 1)
+            }));
+          }
+        }
+      }
+
+      setBulkDelete(prev => ({ ...prev, running: false, currentLabel: "" }));
+      queryClient.invalidateQueries(['patients']);
+      await refetchPatients();
+      
+      console.log('🔄 [AdminUtilities] Triggering global data refresh after bulk patient delete');
+      await refreshData();
+    } catch (error) {
+      console.error('Error during bulk patient delete:', error);
+      setBulkDelete(prev => ({ ...prev, running: false }));
+    }
+  }, [queryClient, refetchPatients, refreshData]);
+
+
+  const performBulkDeleteDeliveries = useCallback(async (deliveriesToDelete) => {
+    if (!deliveriesToDelete || !Array.isArray(deliveriesToDelete)) {
+      console.error('[AdminUtilities] performBulkDeleteDeliveries: Invalid input - not an array:', typeof deliveriesToDelete);
+      alert('Error: Invalid data provided for deletion. Please refresh and try again.');
+      return;
+    }
+    
+    if (deliveriesToDelete.length === 0) {
+      console.warn('[AdminUtilities] performBulkDeleteDeliveries: Empty array provided');
+      alert('No deliveries to delete.');
+      return;
+    }
+
+    const count = deliveriesToDelete.length;
+
+    let delayMs = 100;
+    let trend = 'up';
+    let opsSinceDelayChange = 0;
+    let segmentFailures = 0;
+
+    setBulkDelete({
+      open: true,
+      running: true,
+      total: count,
+      processed: 0,
+      success: 0,
+      failed: 0,
+      currentLabel: "",
+      currentDelay: delayMs,
+      retryQueue: 0,
+      entityLabel: "Deliveries"
+    });
+
+    const failedDeletions = [];
+    try {
+      let successCount = 0;
+      let failCount = 0;
+      let processed = 0;
+
+      for (const delivery of deliveriesToDelete) {
+        if (!delivery || !delivery.id) {
+          console.warn('[AdminUtilities] Skipping invalid delivery:', delivery);
+          processed++;
+          continue;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+
+        const label = delivery.tracking_number || delivery.id;
+
+        try {
+          await Delivery.delete(delivery.id);
+          successCount++;
+        } catch (error) {
+          console.error(`Failed to delete delivery ${delivery.id}:`, error);
+          failCount++;
+          segmentFailures++;
+          failedDeletions.push(delivery);
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        } finally {
+          processed++;
+          setBulkDelete(prev => ({
+            ...prev,
+            processed,
+            success: successCount,
+            failed: failCount,
+            currentLabel: label,
+            currentDelay: delayMs,
+            retryQueue: failedDeletions.length
+          }));
+
+          opsSinceDelayChange++;
+          if (opsSinceDelayChange >= 75) {
+            if (segmentFailures === 0) {
+              if (trend === 'up') {
+                delayMs = Math.min(300, delayMs + 25);
+                if (delayMs === 300) trend = 'down';
+              } else if (trend === 'down') {
+                delayMs = Math.max(100, delayMs - 25);
+                if (delayMs === 100) trend = 'up';
+              }
+            }
+            opsSinceDelayChange = 0;
+            segmentFailures = 0;
+            setBulkDelete(prev => ({ ...prev, currentDelay: delayMs }));
+          }
+        }
+      }
+
+      if (failedDeletions.length > 0) {
+        console.log(`Retrying ${failedDeletions.length} failed delivery deletions...`);
+        const retryDelay = 500;
+        setBulkDelete(prev => ({ ...prev, retryQueue: failedDeletions.length }));
+
+        for (let i = 0; i < failedDeletions.length; i++) {
+          const d = failedDeletions[i];
+          if (!d || !d.id) continue;
+          
+          const label = d.tracking_number || d.id;
+
+          await new Promise((resolve) => setTimeout(resolve, retryDelay));
+
+          try {
+            await Delivery.delete(d.id);
+            setBulkDelete(prev => ({
+              ...prev,
+              processed: prev.processed + 1,
+              success: prev.success + 1,
+              failed: prev.failed - 1,
+              currentLabel: label,
+              currentDelay: retryDelay,
+              retryQueue: Math.max(0, prev.retryQueue - 1)
+            }));
+          } catch (error) {
+            console.error(`Retry failed for delivery ${d.id}:`, error);
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            setBulkDelete(prev => ({
+              ...prev,
+              processed: prev.processed + 1,
+              failed: prev.failed + 1,
+              currentLabel: label,
+              currentDelay: retryDelay,
+              retryQueue: Math.max(0, prev.retryQueue - 1)
+            }));
+          }
+        }
+      }
+
+      setBulkDelete(prev => ({ ...prev, running: false, currentLabel: "" }));
+      queryClient.invalidateQueries(['deliveries']);
+      await refetchDeliveries();
+      
+      console.log('🔄 [AdminUtilities] Triggering global data refresh after bulk delivery delete');
+      await refreshData();
+    } catch (error) {
+      console.error('Error during bulk delivery delete:', error);
+      setBulkDelete(prev => ({ ...prev, running: false }));
+    }
+  }, [queryClient, refetchDeliveries, refreshData]);
+
+  const _confirmDeleteAllDeliveries = useCallback(() => {
+    const count = filteredAndSortedDeliveries.length;
+    setConfirmDialog({
+      open: true,
+      title: `Delete ${count} Deliveries?`,
+      description: `⚠️ WARNING: This will permanently delete ${count} deliveries that are currently filtered. This action CANNOT be undone. Are you absolutely sure?`,
+      confirmText: 'Yes, Delete All',
+      variant: 'destructive',
+      onConfirm: () => performBulkDeleteDeliveries(filteredAndSortedDeliveries)
+    });
+  }, [filteredAndSortedDeliveries, performBulkDeleteDeliveries]);
+
+  const _confirmDeleteSelectedDeliveries = useCallback((deliveriesToDelete) => {
+    const count = deliveriesToDelete.length;
+    setConfirmDialog({
+      open: true,
+      title: `Delete ${count} Selected Deliveries?`,
+      description: `This will permanently delete ${count} selected deliveries. This action cannot be undone.`,
+      confirmText: 'Delete Selected',
+      variant: 'destructive',
+      onConfirm: () => performBulkDeleteDeliveries(deliveriesToDelete)
+    });
+  }, [performBulkDeleteDeliveries]);
+
+  const _confirmDeleteAllPatients = useCallback((patientsToDelete) => {
+    const count = patientsToDelete.length;
+    setConfirmDialog({
+      open: true,
+      title: `Delete ${count} Patients?`,
+      description: `⚠️ WARNING: This will permanently delete ${count} patients that are currently filtered. This action CANNOT be undone. Are you absolutely sure?`,
+      confirmText: 'Yes, Delete All',
+      variant: 'destructive',
+      onConfirm: () => performBulkDeletePatients(patientsToDelete)
+    });
+  }, [performBulkDeletePatients]);
+
+  const _confirmDeleteSelectedPatients = useCallback((patientsToDelete) => {
+    const count = patientsToDelete.length;
+    setConfirmDialog({
+      open: true,
+      title: `Delete ${count} Selected Patients?`,
+      description: `This will permanently delete ${count} selected patients. This action cannot be undone.`,
+      confirmText: 'Delete Selected',
+      variant: 'destructive',
+      onConfirm: () => performBulkDeletePatients(patientsToDelete)
+    });
+  }, [performBulkDeletePatients]);
+
+  const performBulkDeleteStores = useCallback(async (storesToDelete) => {
+    if (!storesToDelete || !Array.isArray(storesToDelete) || storesToDelete.length === 0) {
+      alert('No stores to delete.');
+      return;
+    }
+
+    setBulkDelete({
+      open: true, running: true, total: storesToDelete.length, processed: 0, success: 0, failed: 0,
+      currentLabel: "", currentDelay: 100, retryQueue: 0, entityLabel: "Stores"
+    });
+
+    let successCount = 0, failCount = 0;
+    for (const store of storesToDelete) {
+      if (!store || !store.id) continue;
+      try {
+        await Store.delete(store.id);
+        successCount++;
+      } catch (error) {
+        console.error(`Failed to delete store ${store.id}:`, error);
+        failCount++;
+      }
+      setBulkDelete(prev => ({
+        ...prev, processed: prev.processed + 1, success: successCount, failed: failCount, currentLabel: store.name || store.id
+      }));
+      await new Promise(r => setTimeout(r, 100));
+    }
+
+    setBulkDelete(prev => ({ ...prev, running: false }));
+    await refetchStores();
+    await refreshData();
+  }, [refetchStores, refreshData]);
+
+  const _confirmDeleteSelectedStores = useCallback((storesToDelete) => {
+    setConfirmDialog({
+      open: true,
+      title: `Delete ${storesToDelete.length} Selected Stores?`,
+      description: `This will permanently delete ${storesToDelete.length} selected stores. This action cannot be undone.`,
+      confirmText: 'Delete Selected',
+      variant: 'destructive',
+      onConfirm: () => performBulkDeleteStores(storesToDelete)
+    });
+  }, [performBulkDeleteStores]);
+
+  const performBulkDeleteUsers = useCallback(async (usersToDelete) => {
+    if (!usersToDelete || !Array.isArray(usersToDelete) || usersToDelete.length === 0) {
+      alert('No users to delete.');
+      return;
+    }
+
+    setBulkDelete({
+      open: true, running: true, total: usersToDelete.length, processed: 0, success: 0, failed: 0,
+      currentLabel: "", currentDelay: 100, retryQueue: 0, entityLabel: "App Users"
+    });
+
+    let successCount = 0, failCount = 0;
+    for (const user of usersToDelete) {
+      if (!user || !user.id) continue;
+      try {
+        await AppUser.delete(user.id);
+        successCount++;
+      } catch (error) {
+        console.error(`Failed to delete user ${user.id}:`, error);
+        failCount++;
+      }
+      setBulkDelete(prev => ({
+        ...prev, processed: prev.processed + 1, success: successCount, failed: failCount, currentLabel: user.user_name || user.id
+      }));
+      await new Promise(r => setTimeout(r, 100));
+    }
+
+    setBulkDelete(prev => ({ ...prev, running: false }));
+    await refetchAppUsers();
+    await refreshData();
+  }, [refetchAppUsers, refreshData]);
+
+  const _confirmDeleteSelectedUsers = useCallback((usersToDelete) => {
+    setConfirmDialog({
+      open: true,
+      title: `Delete ${usersToDelete.length} Selected Users?`,
+      description: `This will permanently delete ${usersToDelete.length} selected app users. This action cannot be undone.`,
+      confirmText: 'Delete Selected',
+      variant: 'destructive',
+      onConfirm: () => performBulkDeleteUsers(usersToDelete)
+    });
+  }, [performBulkDeleteUsers]);
+
+  const performBulkDeleteCities = useCallback(async (citiesToDelete) => {
+    if (!citiesToDelete || !Array.isArray(citiesToDelete) || citiesToDelete.length === 0) {
+      alert('No cities to delete.');
+      return;
+    }
+
+    setBulkDelete({
+      open: true, running: true, total: citiesToDelete.length, processed: 0, success: 0, failed: 0,
+      currentLabel: "", currentDelay: 100, retryQueue: 0, entityLabel: "Cities"
+    });
+
+    let successCount = 0, failCount = 0;
+    for (const city of citiesToDelete) {
+      if (!city || !city.id) continue;
+      try {
+        await City.delete(city.id);
+        successCount++;
+      } catch (error) {
+        console.error(`Failed to delete city ${city.id}:`, error);
+        failCount++;
+      }
+      setBulkDelete(prev => ({
+        ...prev, processed: prev.processed + 1, success: successCount, failed: failCount, currentLabel: city.name || city.id
+      }));
+      await new Promise(r => setTimeout(r, 100));
+    }
+
+    setBulkDelete(prev => ({ ...prev, running: false }));
+    await refetchCities();
+    await refreshData();
+  }, [refetchCities, refreshData]);
+
+  const _confirmDeleteSelectedCities = useCallback((citiesToDelete) => {
+    setConfirmDialog({
+      open: true,
+      title: `Delete ${citiesToDelete.length} Selected Cities?`,
+      description: `This will permanently delete ${citiesToDelete.length} selected cities. This action cannot be undone.`,
+      confirmText: 'Delete Selected',
+      variant: 'destructive',
+      onConfirm: () => performBulkDeleteCities(citiesToDelete)
+    });
+  }, [performBulkDeleteCities]);
+
+  const handleBackfillPUIDs = async (deliveriesToProcess) => {
+    const count = deliveriesToProcess.length;
+    const scope = deliveriesToProcess === filteredAndSortedDeliveries ? 'all filtered' : 'selected';
+    
+    setConfirmDialog({
+      open: true,
+      title: `Backfill Missing PUIDs for ${count} ${scope} deliveries?`,
+      description: `This will analyze ${count} ${scope} deliveries and automatically assign PUIDs. Pickups get their own SID as PUID. Patient deliveries are matched to pickups (checks driver transfers too).`,
+      confirmText: 'Yes, Backfill',
+      variant: 'default',
+      onConfirm: async () => {
+        setIsBackfilling(true);
+        let updated = 0;
+        let failed = 0;
+        let skipped = 0;
+
+        try {
+          // Process all deliveries missing PUID
+          const deliveriesNeedingPUID = deliveriesToProcess.filter(d => d && !d.puid);
+
+          console.log(`🔄 [AdminUtilities] Backfilling PUIDs for ${deliveriesNeedingPUID.length} deliveries...`);
+
+          for (const delivery of deliveriesNeedingPUID) {
+            try {
+              let puidToSet = null;
+
+              // If this is a pickup, use its own stop_id as PUID
+              if (!delivery.patient_id && delivery.stop_id) {
+                puidToSet = delivery.stop_id;
+                console.log(`✅ [AdminUtilities] Pickup ${delivery.stop_id} will use own SID as PUID`);
+              } else if (delivery.patient_id) {
+                // This is a patient delivery - find the corresponding pickup
+                // First try same driver
+                let pickup = (allDeliveries || []).find(p => 
+                  p && 
+                  !p.patient_id && // Is a pickup
+                  p.store_id === delivery.store_id &&
+                  p.delivery_date === delivery.delivery_date &&
+                  p.driver_id === delivery.driver_id &&
+                  p.ampm_deliveries === delivery.ampm_deliveries &&
+                  p.stop_id // Has a stop_id to use as PUID
+                );
+
+                // If not found, check other drivers (driver transfer case)
+                if (!pickup) {
+                  pickup = (allDeliveries || []).find(p => 
+                    p && 
+                    !p.patient_id && // Is a pickup
+                    p.store_id === delivery.store_id &&
+                    p.delivery_date === delivery.delivery_date &&
+                    p.ampm_deliveries === delivery.ampm_deliveries &&
+                    p.stop_id // Has a stop_id to use as PUID
+                  );
+                  
+                  if (pickup) {
+                    console.log(`🔄 [AdminUtilities] Found pickup on different driver for ${delivery.patient_name}`);
+                  }
+                }
+
+                if (pickup && pickup.stop_id) {
+                  puidToSet = pickup.stop_id;
+                }
+              }
+
+              if (puidToSet) {
+                await Delivery.update(delivery.id, { puid: puidToSet });
+                updated++;
+                const label = delivery.patient_id ? delivery.patient_name : `Pickup ${delivery.stop_id}`;
+                console.log(`✅ [AdminUtilities] Updated ${label} with PUID: ${puidToSet}`);
+              } else {
+                const label = delivery.patient_id ? delivery.patient_name : `Pickup ${delivery.stop_id}`;
+                console.warn(`⚠️ [AdminUtilities] Skipping ${label}: No PUID could be determined`);
+                skipped++;
+              }
+            } catch (error) {
+              console.error(`❌ [AdminUtilities] Failed to update delivery ${delivery.id}:`, error);
+              failed++;
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+
+          alert(`PUID Backfill complete!\n\nUpdated: ${updated} deliveries.\nFailed: ${failed} deliveries.\nSkipped: ${skipped} deliveries (no matching pickup found).`);
+          queryClient.invalidateQueries(['deliveries']);
+          await refetchDeliveries();
+          
+          console.log('🔄 [AdminUtilities] Triggering global data refresh after PUID backfill');
+          await refreshData();
+
+        } catch (error) {
+          console.error('❌ [AdminUtilities] PUID Backfill error:', error);
+          alert(`PUID Backfill failed: ${error.message}`);
+        } finally {
+          setIsBackfilling(false);
+        }
+      }
+    });
+  };
+
+  const handleEditEntity = (entity) => {
+    console.log('Edit entity:', entity);
+    alert('Edit functionality not implemented yet. Please use the dedicated management pages (Patients, Stores, etc.) to edit records.');
+  };
+
+  const handleDeleteEntity = useCallback(async (entity) => {
+    const entityType = activeDataTab;
+    let entityName = '';
+    let EntityClass = null;
+
+    switch (entityType) {
+      case 'patients':
+        entityName = entity.full_name || entity.id;
+        EntityClass = Patient;
+        break;
+      case 'deliveries':
+        entityName = `Delivery ${entity.tracking_number || entity.id}`;
+        EntityClass = Delivery;
+        break;
+      case 'stores':
+        entityName = entity.name || entity.id;
+        EntityClass = Store;
+        break;
+      case 'users':
+        entityName = entity.user_name || entity.id;
+        EntityClass = AppUser;
+        break;
+      case 'cities':
+        entityName = entity.name || entity.id;
+        EntityClass = City;
+        break;
+      default:
+        alert('Unknown entity type');
+        return;
+    }
+
+    setConfirmDialog({
+      open: true,
+      title: `Delete ${entityName}?`,
+      description: `⚠️ Are you sure you want to delete "${entityName}"? This action cannot be undone.`,
+      confirmText: 'Delete',
+      variant: 'destructive',
+      onConfirm: async () => {
+        try {
+          console.log(`Deleting ${entityType}:`, entity.id);
+          await EntityClass.delete(entity.id);
+          console.log(`✅ Successfully deleted ${entityName}`);
+
+          await invalidate(EntityClass.name);
+
+          switch (entityType) {
+            case 'patients':
+              await refetchPatients();
+              break;
+            case 'deliveries':
+              await refetchDeliveries();
+              break;
+            case 'stores':
+              await refetchStores();
+              break;
+            case 'users':
+              await refetchAppUsers();
+              break;
+            case 'cities':
+              await refetchCities();
+              break;
+          }
+
+          console.log('🔄 [AdminUtilities] Triggering global data refresh after entity delete');
+          await refreshData();
+
+          alert(`✅ Successfully deleted "${entityName}"`);
+        } catch (error) {
+          console.error(`❌ Failed to delete ${entityName}:`, error);
+          alert(`❌ Failed to delete "${entityName}": ${error.message}`);
+        }
+      }
+    });
+  }, [activeDataTab, invalidate, refetchPatients, refetchDeliveries, refetchStores, refetchAppUsers, refetchCities, refreshData]);
+
+
+  if (initialLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+        <span className="ml-3 text-lg text-slate-600">Loading initial data...</span>
+      </div>
+    );
+  }
+
+  if (!hasAccess) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <Card className="p-8 text-center">
+          <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-500" />
+          <h2 className="text-xl font-bold text-slate-900 mb-2">Access Denied</h2>
+          <p className="text-slate-600">Only app owners can access this page.</p>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 p-3">
+      <div className="max-w-full mx-auto space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold text-slate-900">Admin Utilities</h1>
+          <Button onClick={handleRefreshAllData} variant="outline" disabled={isRefreshing}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {isRefreshing ? 'Refreshing...' : 'Refresh All Data'}
+          </Button>
+        </div>
+
+        <Tabs value={activeUtilityTab} onValueChange={setActiveUtilityTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="data">Data Management</TabsTrigger>
+            <TabsTrigger value="user-migration">User Migration</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="data">
+            {(dataLoading && activeDataTab !== 'deliveries') || (dataLoading && activeDataTab === 'deliveries' && !allDeliveries?.length) ? (
+              <div className="flex justify-center items-center h-60">
+                <Loader2 className="h-10 w-10 animate-spin text-emerald-500" />
+                <span className="ml-3 text-lg text-slate-600">Loading data...</span>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <Tabs value={activeDataTab} onValueChange={setActiveDataTab} className="w-full">
+                  <TabsList className="grid w-full grid-cols-5">
+                    <TabsTrigger value="deliveries">Deliveries</TabsTrigger>
+                    <TabsTrigger value="patients">Patients</TabsTrigger>
+                    <TabsTrigger value="stores">Stores</TabsTrigger>
+                    <TabsTrigger value="users">App Users</TabsTrigger>
+                    <TabsTrigger value="cities">Cities</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="deliveries" className="mt-6">
+                    <div className="space-y-4">
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={() => setShowRouteImport(true)}
+                          className="hidden md:inline-flex"
+                        >
+                          Import Routes
+                        </Button>
+                      </div>
+                      <div className="text-sm text-slate-600 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                        <strong>PUID Backfill:</strong> Use the "Backfill PUIDs" button in the table header to automatically link deliveries to their pickups. Works on all filtered deliveries or just selected ones.
+                      </div>
+                      <DeliveryDataTable
+                        deliveries={filteredAndSortedDeliveries}
+                        patients={patients || []}
+                        stores={stores || []}
+                        drivers={driversForDropdown}
+                        onEdit={handleEditEntity}
+                        onDelete={handleDeleteEntity}
+                        onDeleteAll={_confirmDeleteAllDeliveries}
+                        onDeleteSelected={_confirmDeleteSelectedDeliveries}
+                        onBackfillPUIDs={handleBackfillPUIDs}
+                        filterText={deliveryFilterText}
+                        onFilterChange={setDeliveryFilterText}
+                        sortColumn={deliverySortColumn}
+                        sortDirection={deliverySortDirection}
+                        onSortChange={handleDeliverySort}
+                        isLoadingData={deliveriesLoading}
+                        selectedYear={selectedDeliveryYear}
+                        onYearChange={setSelectedDeliveryYear}
+                        availableYears={availableDeliveryYears}
+                        selectedMonth={selectedDeliveryMonth}
+                        onMonthChange={setSelectedDeliveryMonth}
+                        selectedDriver={selectedDriver}
+                        onDriverChange={setSelectedDriver}
+                      />
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="patients" className="mt-6">
+                    <PatientDataTable
+                      patients={filteredPatientsForDetectDuplicates || []}
+                      stores={stores || []}
+                      onEdit={handleEditEntity}
+                      onDelete={handleDeleteEntity}
+                      filterText={patientFilterText}
+                      onFilterChange={setPatientFilterText}
+                      sortColumn={patientSortColumn}
+                      sortDirection={patientSortDirection}
+                      onSortChange={handlePatientSort}
+                      isLoadingData={patientsLoading}
+                      onDeleteAll={_confirmDeleteAllPatients}
+                      onDeleteSelected={_confirmDeleteSelectedPatients}
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="stores" className="mt-6">
+                    <StoreDataTable
+                      stores={stores || []}
+                      onEdit={handleEditEntity}
+                      onDelete={handleDeleteEntity}
+                      onDeleteSelected={_confirmDeleteSelectedStores}
+                      isLoadingData={storesLoading}
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="users" className="mt-6">
+                    <UserDataTable
+                      users={appUsers || []}
+                      onEdit={handleEditEntity}
+                      onDelete={handleDeleteEntity}
+                      onDeleteSelected={_confirmDeleteSelectedUsers}
+                      isLoadingData={appUsersLoading}
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="cities" className="mt-6">
+                    <CityDataTable
+                      cities={cities || []}
+                      onEdit={handleEditEntity}
+                      onDelete={handleDeleteEntity}
+                      onDeleteSelected={_confirmDeleteSelectedCities}
+                      isLoadingData={citiesLoading}
+                    />
+                  </TabsContent>
+                </Tabs>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="user-migration">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  User Data Migration to AppUser
+                </CardTitle>
+                <CardDescription>
+                  Migrate user data from the platform's User entity to the application-specific AppUser entity.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Button
+                  onClick={async () => {
+                    setShowUserMigration(!showUserMigration);
+                    if (!showUserMigration) await loadUsersForMigration();
+                  }}
+                  variant="outline"
+                  disabled={dataLoading}
+                >
+                  {showUserMigration ? 'Hide' : 'Show'} User Migration Tool
+                </Button>
+
+                {showUserMigration && (
+                  <div className="mt-4 space-y-4">
+                    {migrationStatus && (
+                      <div className={`p-3 rounded-lg text-sm ${
+                        migrationStatus.startsWith('❌') ? 'bg-red-100 text-red-800' :
+                        migrationStatus.startsWith('✅') ? 'bg-emerald-100 text-emerald-800' :
+                        'bg-slate-100 text-slate-800'
+                      }`}>
+                        {migrationStatus}
+                      </div>
+                    )}
+
+                    <div className="border rounded-lg overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead className="bg-slate-100">
+                          <tr>
+                            <th className="text-left p-3">ID (Hidden)</th>
+                            <th className="text-left p-3">Email</th>
+                            <th className="text-left p-3">Full Name</th>
+                            <th className="text-left p-3">Platform Role</th>
+                            <th className="text-left p-3">AppUser Status</th>
+                            <th className="text-left p-3">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(authUsers || []).map(user => {
+                            const existingAppUser = (appUsers || []).find(au => au.user_id === user.id);
+
+                            return (
+                              <tr key={user.id} className="border-t hover:bg-slate-50">
+                                <td className="p-3 font-mono text-xs text-slate-500" title={user.id}>
+                                  {user.id.substring(0, 8)}...
+                                </td>
+                                <td className="p-3">{user.email}</td>
+                                <td className="p-3">{user.full_name}</td>
+                                <td className="p-3">
+                                  <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
+                                    {user.role}
+                                  </Badge>
+                                </td>
+                                <td className="p-3">
+                                  {existingAppUser ? (
+                                    <Badge className="bg-emerald-100 text-emerald-800">
+                                      ✓ Migrated
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="destructive">
+                                      Not Migrated
+                                    </Badge>
+                                  )}
+                                </td>
+                                <td className="p-3">
+                                  {!existingAppUser ? (
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleMigrateUser(user, null)}
+                                      disabled={dataLoading}
+                                    >
+                                      Migrate
+                                    </Button>
+                                  ) : (
+                                    <span className="text-slate-500 text-sm">Complete</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <h4 className="font-semibold text-blue-900 mb-2">Migration Instructions:</h4>
+                      <ol className="list-decimal list-inside space-y-1 text-sm text-blue-800">
+                        <li>This will create AppUser records linked to each User via their system ID</li>
+                        <li>The hidden User ID is shown in the first column (hover to see full ID)</li>
+                        <li>After migration, edit AppUser records in Dashboard → Data → AppUser</li>
+                        <li>Assign roles, stores, cities, and other app-specific data there</li>
+                      </ol>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      {showRouteImport && (
+        <RouteImport
+          onImportComplete={handleRouteImportComplete}
+          onCancel={() => setShowRouteImport(false)}
+          stores={stores || []}
+          drivers={driversForDropdown}
+          allUsers={mergedUsers}
+          currentUser={currentUser}
+          allDeliveries={allDeliveries || []}
+        />
+      )}
+
+      <Dialog open={bulkDelete.open} onOpenChange={(open) => {
+        if (!bulkDelete.running) {
+          setBulkDelete(prev => ({ ...prev, open }));
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Deleting {bulkDelete.entityLabel}</DialogTitle>
+            <DialogDescription>
+              {bulkDelete.running
+                ? `Please keep this window open while we delete the filtered ${bulkDelete.entityLabel.toLowerCase()}.`
+                : "Bulk delete completed."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="text-sm text-slate-600">
+              {bulkDelete.processed} / {bulkDelete.total} processed
+              {bulkDelete.currentLabel ? ` • Last: ${bulkDelete.currentLabel}` : ""}
+            </div>
+            <div className="text-xs text-slate-500">
+              Current delay: {Math.round(bulkDelete.currentDelay)} ms • Retrying: {bulkDelete.retryQueue}
+            </div>
+            <Progress value={bulkDelete.total ? (bulkDelete.processed / bulkDelete.total) * 100 : 0} />
+            <div className="flex items-center justify-between text-sm">
+              <div className="text-emerald-600 font-medium">Success: {bulkDelete.success}</div>
+              <div className="text-red-600 font-medium">Failed: {bulkDelete.failed}</div>
+            </div>
+          </div>
+
+          <DialogFooter className="mt-4">
+            <Button
+              onClick={() => setBulkDelete(prev => ({ ...prev, open: false }))}
+              disabled={bulkDelete.running}
+            >
+              {bulkDelete.running ? 'Deleting…' : 'Close'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmationDialog
+        open={confirmDialog.open}
+        onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, open }))}
+        title={confirmDialog.title}
+        description={confirmDialog.description}
+        onConfirm={confirmDialog.onConfirm}
+        confirmText={confirmDialog.confirmText}
+        variant={confirmDialog.variant}
+      />
+    </div>
+  );
+}
