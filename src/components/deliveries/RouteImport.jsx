@@ -1114,6 +1114,12 @@ export default function RouteImport({
       const selectedUser = allUsers.find((u) => u.id === selectedDriverId);
       if (!selectedUser) throw new Error('Selected driver not found');
 
+      console.log(`[RouteImport] Fetching fresh store data from ALL cities...`);
+      setProgressMessage('Fetching store data from all cities...');
+      const freshStoresAll = await getData('Store', '-created_date');
+      setAllStores(freshStoresAll || []);
+      console.log(`[RouteImport] Fresh store data loaded: ${freshStoresAll?.length || 0} stores from all cities`);
+
       console.log(`[RouteImport] Fetching fresh patient data...`);
       setProgressMessage('Fetching fresh patient data...');
       const freshPatients = await getData('Patient', '-created_date');
