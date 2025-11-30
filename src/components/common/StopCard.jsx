@@ -740,7 +740,7 @@ export default function StopCard({
                         
                         {/* Phone number */}
                         {finalDisplayPhone &&
-                    <span className="font-medium">'Ph: ' & {formatPhoneNumber(finalDisplayPhone)}</span>
+                    <span className="font-medium">Ph: {formatPhoneNumber(finalDisplayPhone)}</span>
                     }
                       </div>
                   }
