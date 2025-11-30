@@ -785,76 +785,84 @@ export default function PatientForm({
                     </div>
                   </div>
 
-                  {isRecurring && (
-                    <div className="space-y-3 mt-3">
-                      <RadioGroup value={frequency} onValueChange={setFrequency}>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="daily" id="daily" />
-                          <Label htmlFor="daily" className="text-sm">
-                          Daily
-                        </Label>
-                      </div>
+                  <div className="space-y-3 mt-3">
+                    <RadioGroup value={frequency} onValueChange={setFrequency} disabled={!isRecurring}>
                       <div className="flex items-center space-x-2">
-                        <RadioGroupItem
-                          value="weekly"
-                          id="weekly"
-                          onClick={(e) => {
+                      <RadioGroupItem value="daily" id="daily" disabled={!isRecurring} />
+                      <Label htmlFor="daily" className={`text-sm ${!isRecurring ? 'text-slate-400' : ''}`}>
+                        Daily
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem
+                        value="weekly"
+                        id="weekly"
+                        disabled={!isRecurring}
+                        onClick={(e) => {
+                          if (isRecurring) {
                             e.preventDefault();
                             handleWeeklyClick();
-                          }} />
+                          }
+                        }} />
 
-                        <Label
-                          htmlFor="weekly"
-                          className="text-sm cursor-pointer"
-                          onClick={(e) => {
+                      <Label
+                        htmlFor="weekly"
+                        className={`text-sm cursor-pointer ${!isRecurring ? 'text-slate-400' : ''}`}
+                        onClick={(e) => {
+                          if (isRecurring) {
                             e.preventDefault();
                             handleWeeklyClick();
-                          }}>
+                          }
+                        }}>
 
-                          {getWeeklyLabel()}
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem
-                          value="bi-weekly"
-                          id="bi-weekly"
-                          onClick={(e) => {
+                        {getWeeklyLabel()}
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem
+                        value="bi-weekly"
+                        id="bi-weekly"
+                        disabled={!isRecurring}
+                        onClick={(e) => {
+                          if (isRecurring) {
                             e.preventDefault();
                             handleBiWeeklyClick();
-                          }} />
+                          }
+                        }} />
 
-                        <Label
-                          htmlFor="bi-weekly"
-                          className="text-sm cursor-pointer"
-                          onClick={(e) => {
+                      <Label
+                        htmlFor="bi-weekly"
+                        className={`text-sm cursor-pointer ${!isRecurring ? 'text-slate-400' : ''}`}
+                        onClick={(e) => {
+                          if (isRecurring) {
                             e.preventDefault();
                             handleBiWeeklyClick();
-                          }}>
+                          }
+                        }}>
 
-                          {getBiWeeklyLabel()}
-                        </Label>
-                      </div>
+                        {getBiWeeklyLabel()}
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="weekly-x4" id="weekly-x4" disabled={!isRecurring} />
+                      <Label htmlFor="weekly-x4" className={`text-sm ${!isRecurring ? 'text-slate-400' : ''}`}>
+                        Weekly x4
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="monthly" id="monthly" disabled={!isRecurring} />
+                      <Label htmlFor="monthly" className={`text-sm ${!isRecurring ? 'text-slate-400' : ''}`}>
+                        Monthly
+                      </Label>
+                    </div>
                       <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="weekly-x4" id="weekly-x4" />
-                        <Label htmlFor="weekly-x4" className="text-sm">
-                          Weekly x4
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="monthly" id="monthly" />
-                        <Label htmlFor="monthly" className="text-sm">
-                          Monthly
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="bi-monthly" id="bi-monthly" />
-                        <Label htmlFor="bi-monthly" className="text-sm">
+                        <RadioGroupItem value="bi-monthly" id="bi-monthly" disabled={!isRecurring} />
+                        <Label htmlFor="bi-monthly" className={`text-sm ${!isRecurring ? 'text-slate-400' : ''}`}>
                           Bi-Monthly
                         </Label>
                       </div>
-                      </RadioGroup>
-                    </div>
-                  )}
+                    </RadioGroup>
+                  </div>
 
                   {showWeeklyDays && isRecurring && (frequency === 'weekly' || frequency === 'bi-weekly') &&
                     <div className="absolute left-0 top-[-120px] w-full bg-white border-2 border-emerald-400 rounded-lg p-4 shadow-xl z-20">
