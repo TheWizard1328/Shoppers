@@ -548,7 +548,7 @@ export default function StopCard({
         onClick={() => {
           onClick && onClick(delivery);
         }}>
-        <CardContent className="p-5 mx-1 pt-1 pr-1 pb-1 pl-1 flex flex-col">
+        <CardContent className="mx-1 px-3 py-2 flex flex-col">
           {/* HEADER SECTION - Always Visible */}
           <div className="flex items-start gap-2">
             <div className="flex flex-col gap-1 items-start items-center">
@@ -607,10 +607,10 @@ export default function StopCard({
             </div>
 
             <div className="flex-1 min-w-0">
-              <h3 className="text-slate-900 text-lg font-semibold text-center truncate">
+              <h3 className="text-slate-900 pt-1 text-lg font-semibold text-center truncate">
                 {finalDisplayName}
               </h3>
-              <div className="flex flex-col items-center gap-0.5">
+              <div className="flex flex-col items-center">
                 <div className="flex items-center justify-center text-xs text-slate-600">
                   {FINISHED_STATUSES.includes(delivery.status) && delivery.actual_delivery_time ?
                   <>
