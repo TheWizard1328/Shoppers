@@ -1670,7 +1670,10 @@ export default function RouteImport({
           <div className="flex-1 flex flex-col overflow-hidden">
             <div className="flex-shrink-0 p-6 pb-4">
               <div className="flex items-center justify-between gap-4 mb-4">
-                <h3 className="text-lg font-semibold text-slate-800">Preview: {filteredPreviewDeliveries.length} Total Deliveries ({previewData.skippedItems.length} Skipped)</h3>
+                <div className="flex flex-col">
+                  <span className="text-sm text-slate-500">Importing for: <span className="font-semibold text-slate-700">{availableDrivers.find(d => d.id === selectedDriverId)?.user_name || availableDrivers.find(d => d.id === selectedDriverId)?.full_name || 'Unknown Driver'}</span></span>
+                  <h3 className="text-lg font-semibold text-slate-800">Preview: {filteredPreviewDeliveries.length} Total Deliveries ({previewData.skippedItems.length} Skipped)</h3>
+                </div>
                 <div className="flex items-center gap-3">
                   <Select value={previewFilterDate} onValueChange={setPreviewFilterDate}>
                     <SelectTrigger className="w-40">
