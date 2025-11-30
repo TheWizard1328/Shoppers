@@ -732,7 +732,7 @@ export default function StopCard({
 
                       return (
                         <>
-                              {unitNum && <span className="font-medium"># {unitNum}</span>}
+                              {unitNum && <span className="font-medium">#{unitNum}</span>}
                               {buzzerNum && <span className="font-medium">Buzz {buzzerNum}</span>}
                             </>);
 
