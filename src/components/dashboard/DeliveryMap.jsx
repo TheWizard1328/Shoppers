@@ -1664,7 +1664,11 @@ export default function DeliveryMap({
       const bounds = L.latLngBounds(shouldFitBounds.bounds);
       
       // CRITICAL FIX: Use stopCardsHeight directly as bottom padding
-      const modifiedOptions = { ...shouldFitBounds.options };
+      const modifiedOptions = { 
+        ...shouldFitBounds.options,
+        animate: true,
+        duration: 0.8 // Smooth 800ms animation
+      };
       
       if (stopCardsHeight > 0) {
         modifiedOptions.paddingBottomRight = [
@@ -1673,7 +1677,7 @@ export default function DeliveryMap({
         ];
       }
       
-      console.log('[MapCenter] Calling map.fitBounds with options:', modifiedOptions);
+      console.log('[MapCenter] Calling map.fitBounds with smooth animation');
       map.fitBounds(bounds, modifiedOptions);
       console.log('[MapCenter] fitBounds completed');
 
