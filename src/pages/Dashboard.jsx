@@ -1860,6 +1860,39 @@ function Dashboard() {
       console.log('💾 [Dashboard] Saving driver selection to user settings:', driverId);
       saveSetting(currentUser.id, 'selected_driver_id', driverId);
     }
+    
+    // CRITICAL: Reactivate current FAB phase when driver changes
+    // This ensures the map repositions to show the new driver's data
+    if (mapViewPhase > 0) {
+      console.log(`🚗 [Driver Change] Reactivating FAB phase ${mapViewPhase}`);
+      setIsMapViewLocked(true);
+      setMapViewTrigger(prev => prev + 1);
+      
+      // Set appropriate lock behavior based on phase
+      if (mapViewPhase === 2) {
+        // Phase 2: Persistent lock
+        mapLockExpiresAtRef.current = null;
+        mapLockTimeoutRef.current = null;
+      } else {
+        // Phase 1 and 3: 3-second auto-unlock timer
+        const lockDuration = 3000;
+        const expiresAt = Date.now() + lockDuration;
+        mapLockExpiresAtRef.current = expiresAt;
+        
+        if (mapLockTimeoutRef.current) {
+          clearTimeout(mapLockTimeoutRef.current);
+        }
+        
+        mapLockTimeoutRef.current = window.setTimeout(() => {
+          if (mapLockExpiresAtRef.current === expiresAt) {
+            console.log(`⚫ [Driver Change] Phase ${mapViewPhase} auto-unlocking`);
+            setIsMapViewLocked(false);
+            mapLockExpiresAtRef.current = null;
+            mapLockTimeoutRef.current = null;
+          }
+        }, lockDuration);
+      }
+    }
   };
 
   const handleAIToggle = () => {
