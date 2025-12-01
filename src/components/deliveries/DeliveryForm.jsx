@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -2543,8 +2542,8 @@ export default function DeliveryForm({
                     </div>
                   }
 
-                  {/* Section 3: Store/Status/Time Windows */}
-                  {/* Disable for dispatchers when status is completed, failed, returned, cancelled, in_transit, or en_route */}
+                  {/* Section 3: Store/Status/Time Windows - Only visible to dispatchers and admins */}
+                  {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
                   <div className={`space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200 ${
                     delivery && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') &&
                     ['completed', 'failed', 'returned', 'cancelled', 'in_transit', 'en_route'].includes(formData.status)
