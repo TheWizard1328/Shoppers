@@ -109,7 +109,8 @@ export default function StopCard({
   isNextDelivery = false,
   onStartDelivery,
   allStopsPending = false,
-  onDriverStatusChange
+  onDriverStatusChange,
+  appUsers = []
 }) {
   // CRITICAL FIX: ALL HOOKS MUST BE CALLED UNCONDITIONALLY AT THE TOP
   // Initialize with delivery prop values to maintain consistency
