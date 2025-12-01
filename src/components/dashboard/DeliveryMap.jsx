@@ -1719,23 +1719,27 @@ export default function DeliveryMap({
     
     const mapInstance = useMapEvents({
       zoomstart: () => {
-        // Only unlock if NOT triggered by programmatic map movement
+        // Only unlock if NOT triggered by programmatic map movement (within 800ms)
         const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
-        if (timeSinceProgrammatic > 200) {
-          console.log('🗺️ [Map] User zoom START detected - calling onMapInteraction');
+        if (timeSinceProgrammatic > 800) {
+          console.log('🗺️ [Map] User zoom detected - calling onMapInteraction');
           if (onMapInteraction) {
             onMapInteraction();
           }
+        } else {
+          console.log('🗺️ [Map] Ignoring programmatic zoom (within 800ms window)');
         }
       },
       movestart: () => {
-        // Only unlock if NOT triggered by programmatic map movement
+        // Only unlock if NOT triggered by programmatic map movement (within 800ms)
         const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
-        if (timeSinceProgrammatic > 200) {
-          console.log('🗺️ [Map] User pan START detected - calling onMapInteraction');
+        if (timeSinceProgrammatic > 800) {
+          console.log('🗺️ [Map] User pan detected - calling onMapInteraction');
           if (onMapInteraction) {
             onMapInteraction();
           }
+        } else {
+          console.log('🗺️ [Map] Ignoring programmatic pan (within 800ms window)');
         }
       },
       zoomend: () => {
