@@ -762,12 +762,19 @@ export default function Patients() {
   const handleStoreOverviewClick = useCallback((storeId) => {
     console.log(`[Patients] handleStoreOverviewClick called with storeId: ${storeId}`);
     setStoreFilter(storeId);
+    
+    // Auto-select the store's city
+    const selectedStore = stores.find(s => s.id === storeId);
+    if (selectedStore?.city_id) {
+      setSelectedCityId(selectedStore.city_id);
+    }
+    
     const urlParams = new URLSearchParams(location.search);
     urlParams.set('store', storeId);
     const newUrl = `${location.pathname}?${urlParams.toString()}`;
     console.log(`[Patients] Navigating to: ${newUrl}`);
     navigate(newUrl, { replace: true });
-  }, [navigate, location.pathname, location.search]);
+  }, [navigate, location.pathname, location.search, stores]);
 
   const getStoreName = useCallback((storeId) => {
     const store = stores.find((s) => s.id === storeId);
@@ -1681,11 +1688,19 @@ export default function Patients() {
                     value={selectedCityId}
                     onValueChange={(cityId) => {
                       setSelectedCityId(cityId);
-                      // Reset store filter to 'all' when city changes
-                      if (storeFilter !== 'all') {
+                      
+                      // When selecting "All Cities", also select "All Stores"
+                      if (cityId === 'all') {
                         setStoreFilter('all');
                         const urlParams = new URLSearchParams(location.search);
-                        urlParams.delete('store');
+                        urlParams.set('store', 'all');
+                        navigate(`${location.pathname}?${urlParams.toString()}`, { replace: true });
+                      }
+                      // For specific city, reset store to 'all' but keep on Patient Database screen
+                      else if (storeFilter !== 'all') {
+                        setStoreFilter('all');
+                        const urlParams = new URLSearchParams(location.search);
+                        urlParams.set('store', 'all');
                         navigate(`${location.pathname}?${urlParams.toString()}`, { replace: true });
                       }
                     }}
