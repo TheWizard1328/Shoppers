@@ -3441,7 +3441,11 @@ export default function DeliveriesPage() {
                       <div className="flex-none min-w-[220px] sm:min-w-[260px]">
                         <h2 className="text-2xl font-bold text-slate-900">{getDriverDisplayName(activeDriver)}</h2>
                         <p className="text-slate-600 font-medium">{formatPhoneNumber(activeDriver.phone)}</p>
-                        <p className="text-sm text-slate-500 capitalize">{activeDriver.app_roles?.[0]}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm text-slate-500 capitalize">{activeDriver.app_roles?.[0]}</p>
+                          <span className="text-slate-400">•</span>
+                          <p className="text-sm font-medium text-slate-700">{selectedDate ? format(selectedDate, 'MMM d, yyyy') : ''}</p>
+                        </div>
                       </div>
                       <div className="flex-1 min-w-[260px] ml-auto flex justify-end">
                         {driverOverviewStats &&
