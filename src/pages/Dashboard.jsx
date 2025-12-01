@@ -464,7 +464,7 @@ function Dashboard() {
     return allFinished;
   }, [selectedDate, filteredDeliveries]);
 
-  // 75KM RADIUS FEATURE: All users get drivers from Layout (includes nearby cities within 75km)
+  // Admins get ALL drivers without filtering
   const driversList = useMemo(() => {
     console.log('🔍 [Dashboard driversList] Computing driver list...');
     console.log('  - drivers array length:', drivers?.length || 0);
@@ -478,8 +478,8 @@ function Dashboard() {
       return [];
     }
     
-    // ALL USERS: Get all drivers (Layout already filtered to 75km radius)
-    console.log(`✅ [Dashboard driversList] Returning all ${drivers.length} drivers (includes nearby cities within 75km)`);
+    // ALL USERS: Get all drivers (Layout loads ALL drivers with no geographic filtering)
+    console.log(`✅ [Dashboard driversList] Returning all ${drivers.length} drivers`);
     return drivers;
   }, [drivers, currentUser]);
 

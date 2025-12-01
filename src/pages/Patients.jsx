@@ -1699,10 +1699,12 @@ export default function Patients() {
                             </SelectItem>
                             {stores.
                       filter((store) => {
-                        // Filter by city
+                        // Admins see ALL stores
+                        if (userHasRole(currentUser, 'admin')) return true;
+                        // Filter by city for non-admins
                         if (selectedCityId !== "all" && store.city_id !== selectedCityId) return false;
                         // Filter by dispatcher's assigned stores
-                        if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
+                        if (userHasRole(currentUser, 'dispatcher')) {
                           return currentUser.store_ids?.includes(store.id);
                         }
                         return true;
@@ -1807,10 +1809,12 @@ export default function Patients() {
                             </SelectItem>
                             {stores.
                       filter((store) => {
-                        // Filter by city
+                        // Admins see ALL stores
+                        if (userHasRole(currentUser, 'admin')) return true;
+                        // Filter by city for non-admins
                         if (selectedCityId !== "all" && store.city_id !== selectedCityId) return false;
                         // Filter by dispatcher's assigned stores
-                        if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
+                        if (userHasRole(currentUser, 'dispatcher')) {
                           return currentUser.store_ids?.includes(store.id);
                         }
                         return true;
