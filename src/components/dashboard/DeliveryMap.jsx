@@ -1716,16 +1716,21 @@ export default function DeliveryMap({
   // NEW: Double-tap detection for FAB activation
   function MapController() {
     const lastTapRef = useRef(0);
-    const isUserInteractionRef = useRef(false);
     
     const mapInstance = useMapEvents({
       zoomstart: () => {
-        // Mark as user interaction when zoom starts
-        isUserInteractionRef.current = true;
+        // CRITICAL: Immediately notify parent when user starts zooming
+        console.log('🗺️ [Map] User zoom START detected - calling onMapInteraction');
+        if (onMapInteraction) {
+          onMapInteraction();
+        }
       },
       movestart: () => {
-        // Mark as user interaction when pan starts
-        isUserInteractionRef.current = true;
+        // CRITICAL: Immediately notify parent when user starts panning
+        console.log('🗺️ [Map] User pan START detected - calling onMapInteraction');
+        if (onMapInteraction) {
+          onMapInteraction();
+        }
       },
       zoomend: () => {
         const rawZoom = mapInstance.getZoom();
@@ -1745,15 +1750,6 @@ export default function DeliveryMap({
         // Update visible bounds for debug box
         const bounds = mapInstance.getBounds();
         setVisibleBounds(bounds);
-        
-        // CRITICAL: Only notify parent if this was a user interaction
-        if (isUserInteractionRef.current && onMapInteraction) {
-          console.log('🗺️ [Map] User zoom detected - calling onMapInteraction');
-          onMapInteraction();
-        }
-        
-        // Reset the flag
-        isUserInteractionRef.current = false;
       },
       moveend: () => {
         // Update map center for crosshair - use actual center without adjustments
@@ -1763,15 +1759,6 @@ export default function DeliveryMap({
         // Update visible bounds for debug box
         const bounds = mapInstance.getBounds();
         setVisibleBounds(bounds);
-        
-        // CRITICAL: Only notify parent if this was a user interaction
-        if (isUserInteractionRef.current && onMapInteraction) {
-          console.log('🗺️ [Map] User pan detected - calling onMapInteraction');
-          onMapInteraction();
-        }
-        
-        // Reset the flag
-        isUserInteractionRef.current = false;
       },
       click: () => {
         // Retract clusters on map click
