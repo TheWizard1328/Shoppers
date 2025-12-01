@@ -2316,7 +2316,7 @@ export default function DeliveryForm({
 
                 {/* Section 2: Pickup Location (for pickup mode) - STATIC */}
                 {isPickupMode && !delivery &&
-                <div className={`${isMobile ? 'w-full' : 'flex-[2]'} space-y-1 bg-slate-50 p-3 rounded-lg border border-slate-200`}>
+                <div className={`${useMobileLayout ? 'w-full' : 'flex-[2]'} space-y-1 bg-slate-50 p-3 rounded-lg border border-slate-200`}>
                     <Label className="text-sm font-semibold">Pickup Location *</Label>
                     <Select
                     value={selectedPickupOption}
