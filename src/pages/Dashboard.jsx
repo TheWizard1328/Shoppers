@@ -5259,6 +5259,7 @@ function Dashboard() {
             drivers={drivers}
             onSave={handleSaveDelivery}
             onCancel={() => {
+              console.log('🚪 [Dashboard] DeliveryForm onCancel called - just closing form');
               setShowDeliveryForm(false);
               setEditingDelivery(null);
             }}
