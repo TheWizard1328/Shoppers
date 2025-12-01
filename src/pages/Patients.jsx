@@ -1006,6 +1006,9 @@ export default function Patients() {
     }
 
     // Apply city filter
+    // NOTE: With 75km radius feature, Layout already filters stores/patients by nearby cities
+    // The city dropdown here is for UI organization, not strict filtering
+    // Admins can see "all" cities which includes everything Layout loaded (all nearby cities)
     if (selectedCityId !== "all") {
       const storesInSelectedCity = new Set(stores.filter((s) => s.city_id === selectedCityId).map((s) => s.id));
       availablePatients = availablePatients.filter((p) => p && storesInSelectedCity.has(p.store_id));
