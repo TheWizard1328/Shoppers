@@ -401,7 +401,11 @@ export default function StopCard({
   const nextAvailableStatuses = useMemo(() => {
     if (!onStatusUpdate || !currentUser) return [];
 
-    const canChangeStatus = userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver');
+    // Dispatchers should NOT have access to status changes via dropdown
+    const isDispatcherOnly = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'driver');
+    if (isDispatcherOnly) return [];
+
+    const canChangeStatus = userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver');
     if (!canChangeStatus) return [];
 
     // No status changes for completed/cancelled/returned
