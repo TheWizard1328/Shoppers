@@ -255,6 +255,8 @@ export default function RouteImport({
     // regardless of which city they were created in
     const importedDriverId = importedDelivery.driver_id;
     
+    // CRITICAL: Filter existing deliveries by date AND driver_id (not city-dependent)
+    // This ensures we find matches regardless of which city the delivery was created in
     const sameDateDeliveries = existingDeliveries.filter((d) => {
       if (d.delivery_date !== importedDeliveryDate) return false;
 
@@ -270,7 +272,11 @@ export default function RouteImport({
       return driverMatch;
     });
 
-    console.log(`🔍 [RouteImport] Checking for match - Date: ${importedDeliveryDate}, Driver: "${importedDriverName}", AM/PM: ${importedAMPM || 'N/A'}, Found ${sameDateDeliveries.length} deliveries on same date for same driver`);
+    console.log(`🔍 [RouteImport] Checking for match - Date: ${importedDeliveryDate}, DriverID: "${importedDriverId}", DriverName: "${importedDriverName}", AM/PM: ${importedAMPM || 'N/A'}`);
+    console.log(`🔍 [RouteImport] Found ${sameDateDeliveries.length} existing deliveries on same date for same driver`);
+    if (sameDateDeliveries.length > 0) {
+      console.log(`🔍 [RouteImport] Sample existing SIDs: ${sameDateDeliveries.slice(0, 5).map(d => d.stop_id || 'none').join(', ')}`);
+    }
     console.log(`🔍 [RouteImport] Import details - SID: "${importedDeliveryStopId}", PID: "${importedDeliveryPatientId}", TR: "${importedTrackingNumber}"`);
 
     // Check for multiple patient deliveries in same slot (require SID for patients only)
