@@ -244,11 +244,7 @@ const optimizeStoreRoute = (stops, startLocation, startTime, driverHome, patient
       const travelTime = estimateTravelTime(distanceToStop, minutesToTime(currentTime));
       const arrivalTime = currentTime + travelTime;
       
-      // PRIMARY SCORE: Distance (heavily weighted)
-      const distanceScore = Math.max(0, 200 - distanceToStop * 20);
-      
-      // SECONDARY SCORE: Time window compliance
-      // CRITICAL: Pickups can be late - we already prioritized in_transit deliveries above
+      // PRIMARY SCORE: Time Window Urgency (most important)
       let timeWindowScore = 0;
       const isPickup = !stop.patient_id;
       
@@ -256,28 +252,47 @@ const optimizeStoreRoute = (stops, startLocation, startTime, driverHome, patient
         const windowStart = timeToMinutes(stop.time_window_start);
         const windowEnd = timeToMinutes(stop.time_window_end);
         
+        const minutesUntilWindowEnd = windowEnd - arrivalTime;
+        const minutesUntilWindowStart = windowStart - arrivalTime;
+        
         if (isPickup) {
-          // Pickups: Reduced penalty for being late since in_transit deliveries take priority
-          if (arrivalTime > windowEnd) {
-            // Only a minor penalty for late pickups - we want to complete deliveries first
-            timeWindowScore = -50; // Reduced from -500
-          } else if (arrivalTime < windowStart - 15) {
-            timeWindowScore = -50;
+          // Pickups: Lower priority, but still prefer doing them on time
+          if (arrivalTime >= windowStart && arrivalTime <= windowEnd) {
+            timeWindowScore = 150; // Good to do pickup in window
+          } else if (arrivalTime > windowEnd) {
+            timeWindowScore = 50; // Late pickup - acceptable since deliveries take priority
           } else {
-            timeWindowScore = 100; // Reduced bonus since pickups aren't top priority
+            timeWindowScore = 100; // Early pickup
           }
         } else {
+          // Patient deliveries: Heavily prioritize time window compliance
           if (arrivalTime >= windowStart && arrivalTime <= windowEnd) {
-            timeWindowScore = 30;
+            // Perfect - within window, heavily favor stops with tighter windows
+            timeWindowScore = 500;
+            if (minutesUntilWindowEnd < 60) {
+              timeWindowScore += 200; // Urgent - less than 1 hour until window closes
+            }
+            if (minutesUntilWindowEnd < 30) {
+              timeWindowScore += 300; // Very urgent - less than 30 min
+            }
           } else if (arrivalTime < windowStart) {
-            timeWindowScore = 20;
+            // Too early - prefer later
+            timeWindowScore = 100 - Math.abs(minutesUntilWindowStart);
           } else {
-            timeWindowScore = -Math.min(50, (arrivalTime - windowEnd) / 3);
+            // Late - heavily penalize
+            const minutesLate = arrivalTime - windowEnd;
+            timeWindowScore = -500 - (minutesLate * 10);
           }
         }
+      } else {
+        // No time window - neutral score
+        timeWindowScore = 50;
       }
       
-      // LOOKAHEAD SCORE
+      // SECONDARY SCORE: Distance
+      const distanceScore = Math.max(0, 100 - distanceToStop * 10);
+      
+      // LOOKAHEAD SCORE (reduced weight)
       let lookaheadScore = 0;
       if (remainingCentroid && remaining.length > 1) {
         const distanceToCentroid = calculateDistance(
@@ -286,26 +301,23 @@ const optimizeStoreRoute = (stops, startLocation, startTime, driverHome, patient
           remainingCentroid.lat,
           remainingCentroid.lon
         );
-        lookaheadScore = Math.max(0, 100 - distanceToCentroid * 15);
+        lookaheadScore = Math.max(0, 50 - distanceToCentroid * 5);
       }
       
-      // HOME DESTINATION SCORE
+      // HOME DESTINATION SCORE (reduced weight)
       let homeScore = 0;
-      if (driverHome) {
+      if (driverHome && remaining.length <= 3) {
         const distanceToHomeFromStop = calculateDistance(
           stop.latitude,
           stop.longitude,
           driverHome.lat,
           driverHome.lon
         );
-        
-        const remainingFraction = remaining.length / stops.length;
-        const homeWeight = Math.max(0, (1 - remainingFraction) * 150);
-        homeScore = Math.max(0, homeWeight - distanceToHomeFromStop * 10);
+        homeScore = Math.max(0, 50 - distanceToHomeFromStop * 5);
       }
       
-      // COMBINED SCORE
-      const score = distanceScore + timeWindowScore + lookaheadScore + homeScore;
+      // COMBINED SCORE (time window is now dominant factor)
+      const score = timeWindowScore + distanceScore + lookaheadScore + homeScore;
       
       if (score > bestScore) {
         bestScore = score;
