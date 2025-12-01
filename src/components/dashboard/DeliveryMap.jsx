@@ -2408,7 +2408,7 @@ export default function DeliveryMap({
           ];
         })}
 
-        {/* Driver Location Markers - Green/Orange for current user on other devices, Regular for other drivers */}
+        {/* Driver Location Markers - Green for on_duty, Orange for on_break, with driver initial */}
         {driverLocationMarkers.map((location) => {
           const statusLabel = location.driver_status === 'on_duty' ? 'On Duty' : 'On Break';
           const statusColor = location.driver_status === 'on_duty' ? 'text-emerald-600' : 'text-orange-600';
@@ -2417,7 +2417,7 @@ export default function DeliveryMap({
             <Marker
               key={`driver-location-${location.id || location.user_id}`}
               position={[location.latitude, location.longitude]}
-              icon={createDriverIcon(location.driverColor, location.driverInitial)}
+              icon={createDriverIcon(location.driver_status, location.driverInitial)}
               zIndexOffset={3000}
               eventHandlers={{
                 click: () => onMarkerClick && onMarkerClick(location, 'driver'),
