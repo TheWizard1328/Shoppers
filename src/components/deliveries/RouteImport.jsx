@@ -1229,23 +1229,29 @@ export default function RouteImport({
       }
 
       console.log('[RouteImport] Fetching fresh delivery data from ALL cities for duplicate detection...');
-      setProgressMessage('Fetching delivery data from all cities for duplicate detection...');
-      // CRITICAL: Fetch ALL deliveries without any filter to ensure we can match deliveries
-      // from any city/store - the list() method may have a limit, so we need to fetch more
-      // Using filter with empty object {} and high limit ensures we get ALL deliveries regardless of city
-      const freshDeliveries = await base44.entities.Delivery.filter({}, '-created_date', 10000);
-      console.log(`[RouteImport] Loaded ${freshDeliveries.length} existing deliveries from ALL cities for comparison`);
+      setProgressMessage('Fetching delivery data for selected driver...');
       
-      // Debug: Log sample of deliveries for the selected driver to verify we have their data
-      const selectedDriverDeliveries = freshDeliveries.filter(d => d.driver_id === selectedUser.id);
-      console.log(`[RouteImport] Found ${selectedDriverDeliveries.length} existing deliveries for selected driver "${selectedUser.user_name || selectedUser.full_name}" (ID: ${selectedUser.id})`);
-      if (selectedDriverDeliveries.length > 0) {
-        console.log('[RouteImport] Sample of selected driver\'s deliveries:');
-        selectedDriverDeliveries.slice(0, 5).forEach((d) => {
+      // CRITICAL FIX: Instead of fetching ALL deliveries (which may hit API limits),
+      // fetch deliveries specifically for the selected driver using driver_id filter
+      // This ensures we always get the driver's deliveries regardless of city
+      console.log(`[RouteImport] Fetching deliveries for driver_id: ${selectedUser.id}`);
+      const driverDeliveries = await base44.entities.Delivery.filter(
+        { driver_id: selectedUser.id }, 
+        '-delivery_date', 
+        10000
+      );
+      console.log(`[RouteImport] Loaded ${driverDeliveries.length} existing deliveries for driver "${selectedUser.user_name || selectedUser.full_name}"`);
+      
+      // Use driver's deliveries as the comparison set
+      const freshDeliveries = driverDeliveries;
+      
+      if (freshDeliveries.length > 0) {
+        console.log('[RouteImport] Sample of driver\'s deliveries:');
+        freshDeliveries.slice(0, 5).forEach((d) => {
           console.log(`  - Date: "${d.delivery_date}", SID: "${d.stop_id || 'none'}", PID: "${d.patient_id || 'none'}", Store: "${d.store_id}"`);
         });
       } else {
-        console.warn(`[RouteImport] ⚠️ NO existing deliveries found for driver "${selectedUser.user_name || selectedUser.full_name}". This may be a new driver or data is in a different city.`);
+        console.warn(`[RouteImport] ⚠️ NO existing deliveries found for driver "${selectedUser.user_name || selectedUser.full_name}". This may be a new driver.`);
       }
 
       if (freshDeliveries.length > 0) {
