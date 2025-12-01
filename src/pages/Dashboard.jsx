@@ -1668,7 +1668,7 @@ function Dashboard() {
       if (mapViewPhase === 2 && currentlyLocked && isDriver && driverLocation && nextStopCoordinates) {
         console.log('🗺️ [Smart Refresh] Phase 2 + LOCKED - re-centering map on driver + next stop');
         
-        // Mark that we're doing a programmatic map move (debounces interaction handler)
+        // Mark that we're doing a programmatic map move (debounces interaction handler for 500ms)
         lastProgrammaticMapMoveRef.current = Date.now();
         
         const bounds = [
