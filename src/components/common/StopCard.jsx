@@ -747,12 +747,33 @@ export default function StopCard({
                       {nextAvailableStatuses.map((status) =>
                     <DropdownMenuItem
                       key={status}
-                      onClick={(e) => {
+                      onClick={async (e) => {
                         e.stopPropagation();
                         // Pass skipAutoCenter=false for finished statuses so ETAs get recalculated
                         const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
                         const skipAutoCenter = !finishedStatuses.includes(status);
-                        onStatusUpdate(delivery.id, status, {}, skipAutoCenter);
+                        await onStatusUpdate(delivery.id, status, {}, skipAutoCenter);
+                        
+                        // Send notification for failed status
+                        if (status === 'failed' && userHasRole(currentUser, 'driver')) {
+                          await notifyDriverFailed({
+                            driver: currentUser,
+                            patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
+                            delivery,
+                            store,
+                            appUsers
+                          });
+                        }
+                        // Send notification for completed status
+                        if (status === 'completed' && userHasRole(currentUser, 'driver')) {
+                          await notifyDriverCompleted({
+                            driver: currentUser,
+                            patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
+                            delivery,
+                            store,
+                            appUsers
+                          });
+                        }
                       }}
                       className="capitalize">
 
