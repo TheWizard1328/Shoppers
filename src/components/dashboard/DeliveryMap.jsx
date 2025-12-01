@@ -642,9 +642,11 @@ export default function DeliveryMap({
   isStatsCardExpanded = false, // NEW: Whether stats card is expanded
   statsCardRect = null, // NEW: Stats card bounding rect for legend positioning
   highlightedDeliveryId = null, // NEW: ID of delivery to highlight (from card hover/selection)
+  highlightedStoreId = null, // NEW: ID of store to highlight with pulsing halo when card is selected
   STOP_CARDS_BASE_HEIGHT = 145, // NEW: Base height for stop cards
   areStopCardsVisible = false, // NEW: Whether stop cards are visible
-  onDriverRoutesCalculated = () => {} // NEW: Callback to pass driver routes to parent
+  onDriverRoutesCalculated = () => {}, // NEW: Callback to pass driver routes to parent
+  onCenterOnSelectedStop = null // NEW: Callback to request map centering on selected stop
 }) {
   const mapRef = useRef(null);
   const [map, setMap] = useState(null);
