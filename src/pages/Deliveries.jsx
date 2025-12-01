@@ -3432,47 +3432,46 @@ export default function DeliveriesPage() {
               <div className="absolute top-3 left-3 w-3 h-3 bg-emerald-500 rounded-full ring-2 ring-white"></div>
               }
                   <CardContent className="p-6">
-                    <div className="flex flex-wrap items-start gap-4 w-full overflow-visible">
+                    <div className="flex items-start gap-4 w-full">
                       <div className="flex-shrink-0 w-16 h-16 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center">
                         <span className="text-3xl font-bold text-slate-600">
                           {getDriverDisplayName(activeDriver).charAt(0)}
                         </span>
                       </div>
-                      <div className="flex-none min-w-[220px] sm:min-w-[260px]">
-                        <h2 className="text-2xl font-bold text-slate-900">{getDriverDisplayName(activeDriver)}</h2>
-                        <p className="text-slate-600 font-medium">{formatPhoneNumber(activeDriver.phone)}</p>
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm text-slate-500 capitalize">{activeDriver.app_roles?.[0]}</p>
-                          <span className="text-slate-400">•</span>
-                          <p className="text-sm font-medium text-slate-700">{selectedDate ? format(selectedDate, 'MMM d, yyyy') : ''}</p>
-                        </div>
-                      </div>
-                      <div className="flex-1 min-w-[260px] ml-auto flex justify-end">
-                        {driverOverviewStats &&
-                    <div className="flex flex-wrap gap-3 justify-end w-full">
-                            <StatBox
-                        value={driverOverviewStats.totalStops}
-                        label="Total Stops"
-                        valueClass="text-slate-800"
-                        onMeasure={handleStatMeasure}
-                        fixedWidth={statCardBaseWidth || undefined} />
-
-                            <StatBox
-                        value={driverOverviewStats.completed}
-                        label="Completed"
-                        valueClass="text-emerald-600"
-                        onMeasure={handleStatMeasure}
-                        fixedWidth={statCardBaseWidth || undefined} />
-
-                            <StatBox
-                        value={`${driverOverviewStats.failed}/${driverOverviewStats.returned}`}
-                        label="Failed/Returned" // Label adjusted for clarity
-                        valueClass="text-red-600"
-                        onMeasure={handleStatMeasure}
-                        fixedWidth={statCardBaseWidth || undefined} />
-
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                          <div className="flex-none">
+                            <h2 className="text-2xl font-bold text-slate-900">{getDriverDisplayName(activeDriver)}</h2>
+                            <p className="text-slate-600 font-medium">{formatPhoneNumber(activeDriver.phone)}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm text-slate-500 capitalize">{activeDriver.app_roles?.[0]}</p>
+                              <span className="text-slate-400">•</span>
+                              <p className="text-sm font-medium text-slate-700">{selectedDate ? format(selectedDate, 'MMM d, yyyy') : ''}</p>
+                            </div>
                           </div>
-                    }
+                          {driverOverviewStats &&
+                            <div className="flex gap-3 flex-shrink-0">
+                              <StatBox
+                                value={driverOverviewStats.totalStops}
+                                label="Total Stops"
+                                valueClass="text-slate-800"
+                                onMeasure={handleStatMeasure}
+                                fixedWidth={statCardBaseWidth || undefined} />
+                              <StatBox
+                                value={driverOverviewStats.completed}
+                                label="Completed"
+                                valueClass="text-emerald-600"
+                                onMeasure={handleStatMeasure}
+                                fixedWidth={statCardBaseWidth || undefined} />
+                              <StatBox
+                                value={`${driverOverviewStats.failed}/${driverOverviewStats.returned}`}
+                                label="Failed/Returned"
+                                valueClass="text-red-600"
+                                onMeasure={handleStatMeasure}
+                                fixedWidth={statCardBaseWidth || undefined} />
+                            </div>
+                          }
+                        </div>
                       </div>
                     </div>
                   </CardContent>
