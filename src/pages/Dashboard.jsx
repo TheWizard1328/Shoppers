@@ -649,30 +649,18 @@ function Dashboard() {
   }, [deliveriesWithStopOrder, isDataLoaded, mapViewPhase]);
 
   const handleMapInteraction = useCallback(() => {
-    console.log('🗺️ [Map Interaction] Called');
-    console.log('  - Current lock state:', isMapViewLocked);
-    console.log('  - Current phase:', mapViewPhase);
-    console.log('  - Last programmatic move:', lastProgrammaticMapMoveRef.current);
+    console.log('🗺️ [Map Interaction] Called - FORCE UNLOCK');
     
-    // CRITICAL: Ignore interactions that happen within 1000ms of a programmatic map move
-    // This prevents the FAB from unlocking when we programmatically reposition the map
-    const timeSinceLastProgrammaticMove = Date.now() - lastProgrammaticMapMoveRef.current;
-    if (timeSinceLastProgrammaticMove < 1000) {
-      console.log('⏭️ [Map Interaction] Ignoring - programmatic move within 1000ms');
-      return;
-    }
-    
-    console.log('✅ [Map Interaction] User interacted with map - unlocking FAB');
-    
-    // Always clear lock when user interacts with map
+    // CRITICAL: Clear timers and unlock immediately
     if (mapLockTimeoutRef.current) {
       clearTimeout(mapLockTimeoutRef.current);
       mapLockTimeoutRef.current = null;
     }
     mapLockExpiresAtRef.current = null;
     
+    console.log('🔓 [Map Interaction] Unlocking FAB immediately');
     setIsMapViewLocked(false);
-  }, [isMapViewLocked, mapViewPhase]);
+  }, []);
 
   // NOTE: Removed auto-fit bounds effect that was causing map to re-center unexpectedly
   // The FAB handleMapViewCycle now handles all map positioning
