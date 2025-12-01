@@ -675,6 +675,15 @@ function Dashboard() {
     console.log('🗺️ [Map Interaction] Called');
     console.log('  - Current lock state:', isMapViewLocked);
     console.log('  - Current phase:', mapViewPhase);
+    console.log('  - Last programmatic move:', lastProgrammaticMapMoveRef.current);
+    
+    // CRITICAL: Ignore interactions that happen within 500ms of a programmatic map move
+    // This prevents the FAB from unlocking when we programmatically reposition the map
+    const timeSinceLastProgrammaticMove = Date.now() - lastProgrammaticMapMoveRef.current;
+    if (timeSinceLastProgrammaticMove < 500) {
+      console.log('⏭️ [Map Interaction] Ignoring - programmatic move within 500ms');
+      return;
+    }
     
     // Always clear lock when user interacts with map
     if (mapLockTimeoutRef.current) {
