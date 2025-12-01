@@ -209,17 +209,24 @@ OPTIMIZATION RULES (IN PRIORITY ORDER):
 4. EXCEPTIONS to pickup-before-delivery rule:
    - Deliveries with "interstore" in the name or notes can be ordered BEFORE their pickup store (they are inter-store transfers)
    - Deliveries with a time window that ENDS BEFORE the pickup's time window starts can be placed before the pickup (likely leftovers from prior day or emergency deliveries)
-5. RESPECT TIME WINDOWS: Maintain delivery time windows (delivery_time_start to delivery_time_end) whenever possible
+5. MAXIMIZE DELIVERIES BETWEEN PICKUPS:
+   - CRITICAL: Complete as many deliveries as possible from one pickup BEFORE starting the next pickup
+   - Each pickup should be followed by ALL (or most) of its associated deliveries before moving to the next pickup
+   - This minimizes the number of back-and-forth trips between stores and delivery locations
+   - Example GOOD: Pickup Store A → Deliver A1, A2, A3 → Pickup Store B → Deliver B1, B2
+   - Example BAD: Pickup Store A → Deliver A1 → Pickup Store B → Deliver A2, A3 (wastes time going back)
+   - Only interleave pickups early if absolutely necessary for time window constraints
+6. RESPECT TIME WINDOWS: Maintain delivery time windows (delivery_time_start to delivery_time_end) whenever possible
    - If a stop has a time window, try to schedule it within that window
    - Time windows are commitments to customers and should be prioritized over distance savings
    - Only deviate from time windows if absolutely necessary due to constraints
    - FLEXIBILITY: Stops WITHOUT time windows can be optimized at ANY point in the route (maximum flexibility)
-6. Optimize for shortest total distance from current location - pickups and deliveries should be interleaved based on geographic proximity
+7. Optimize for shortest total distance from current location - within each pickup's delivery group, use geographic proximity
    - Balance distance optimization with time window compliance
    - Use stops without time windows as "flexible filler" to optimize overall route efficiency
-7. Consider priority flags (signature, COD, fridge items, first delivery)
-8. Account for extra time at each stop (typically 5-15 minutes)
-9. Consider traffic patterns typical for this time of day
+8. Consider priority flags (signature, COD, fridge items, first delivery)
+9. Account for extra time at each stop (typically 5-15 minutes)
+10. Consider traffic patterns typical for this time of day
 
 TASK:
 Analyze this route and provide:
