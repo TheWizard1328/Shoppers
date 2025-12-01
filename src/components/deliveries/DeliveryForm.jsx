@@ -3238,7 +3238,7 @@ export default function DeliveryForm({
 
           <CardFooter className="border-t p-3 bg-slate-50 flex-shrink-0">
             <div className="flex items-center justify-between w-full gap-4">
-              {!delivery && useMobileLayout && (stagedDeliveries.length > 0 || projectedDeliveries.length > 0) &&
+              {!delivery && useMobileLayout &&
               <Button
                 type="button"
                 variant="outline"
