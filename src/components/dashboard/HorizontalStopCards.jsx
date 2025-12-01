@@ -27,7 +27,8 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
   onStartDelivery, // NEW: Add onStartDelivery prop
   allDeliveries = [], // NEW: Add allDeliveries prop
   selectedDate, // NEW: Add selectedDate prop
-  onDriverStatusChange // NEW: Add onDriverStatusChange prop
+  onDriverStatusChange, // NEW: Add onDriverStatusChange prop
+  appUsers = [] // NEW: Add appUsers prop for messaging
 }) {
   // CRITICAL: ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
   const containerRef = React.useRef(null);
