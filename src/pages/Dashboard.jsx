@@ -5098,7 +5098,8 @@ function Dashboard() {
             onMapInteraction={handleMapInteraction}
             retractClustersRef={retractClustersRef}
             STOP_CARDS_BASE_HEIGHT={STOP_CARDS_BASE_HEIGHT}
-            areStopCardsVisible={deliveriesWithStopOrder.length > 0} />
+            areStopCardsVisible={deliveriesWithStopOrder.length > 0}
+            highlightedDeliveryId={selectedCardId} />
 
         </div>
 
