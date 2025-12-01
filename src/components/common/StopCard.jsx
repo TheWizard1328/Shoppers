@@ -406,6 +406,35 @@ export default function StopCard({
     return delivery.driver_id === currentUser.id;
   }, [currentUser, delivery]);
 
+  // Check if current user is an assigned dispatcher for this delivery's store
+  const isAssignedDispatcher = useMemo(() => {
+    if (!currentUser || !delivery) return false;
+    if (!userHasRole(currentUser, 'dispatcher')) return false;
+    const dispatcherStoreIds = currentUser.store_ids || [];
+    return dispatcherStoreIds.includes(delivery.store_id);
+  }, [currentUser, delivery]);
+
+  // Check if user can access Accept/Assign buttons (assigned driver, assigned dispatcher, or admin)
+  const canAccessAcceptButtons = useMemo(() => {
+    if (!currentUser || !delivery) return false;
+    // App owner/admin always has access
+    if (isAppOwner(currentUser) || userHasRole(currentUser, 'admin')) return true;
+    // Assigned dispatcher has access
+    if (isAssignedDispatcher) return true;
+    // Assigned driver has access
+    if (userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id) return true;
+    return false;
+  }, [currentUser, delivery, isAssignedDispatcher]);
+
+  // Determine button text based on user role
+  const acceptButtonText = useMemo(() => {
+    if (!currentUser) return 'Assign All';
+    if (userHasRole(currentUser, 'driver') && delivery?.driver_id === currentUser.id && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')) {
+      return 'Accept All';
+    }
+    return 'Assign All';
+  }, [currentUser, delivery?.driver_id]);
+
   const nextAvailableStatuses = useMemo(() => {
     if (!onStatusUpdate || !currentUser) return [];
 
