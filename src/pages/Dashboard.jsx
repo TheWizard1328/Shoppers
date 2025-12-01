@@ -1980,10 +1980,18 @@ function Dashboard() {
       setSelectedCardId(delivery.id);
       setHighlightedCardId(delivery.id);
 
-      // CRITICAL: If FAB is locked on phase 2, unlock it when user selects a card
-      // This allows user interaction to break out of continuous driver tracking
-      if (isMapViewLocked && mapViewPhase === 2) {
-        console.log('🔓 [Card Click] Unlocking FAB phase 2 - user selected a card');
+      // CRITICAL: Unlock FAB when user selects a card (all phases)
+      // This allows user interaction to break out of automatic map positioning
+      if (isMapViewLocked) {
+        console.log('🔓 [Card Click] Unlocking FAB - user selected a card');
+        
+        // Clear any existing timers
+        if (mapLockTimeoutRef.current) {
+          clearTimeout(mapLockTimeoutRef.current);
+          mapLockTimeoutRef.current = null;
+        }
+        mapLockExpiresAtRef.current = null;
+        
         setIsMapViewLocked(false);
       }
 
