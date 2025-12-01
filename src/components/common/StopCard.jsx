@@ -1169,10 +1169,11 @@ export default function StopCard({
                           <Package className="w-3.5 h-3.5" />
                           Pending Pickup List ({pendingPickups.length})
                         </h4>
+                        {canAccessAcceptButtons && (
                         <Button
                       size="sm"
                       variant="default"
-                      className="h-6 px-2 text-xs bg-emerald-600 hover:bg-emerald-700"
+                      className="h-6 px-2 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
                       onClick={async (e) => {
                         e.stopPropagation();
                         console.log('🟢 [Accept Button] Clicked!');
@@ -1221,8 +1222,9 @@ export default function StopCard({
                         console.log('✅ [Accept Button] All pending deliveries accepted');
                       }}>
 
-                          Accept
+                          {acceptButtonText}
                         </Button>
+                        )}
                       </div>
                       <div
                     className="space-y-1.5 max-h-64 overflow-y-auto custom-scrollbar"
