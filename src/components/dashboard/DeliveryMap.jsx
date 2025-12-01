@@ -1707,7 +1707,10 @@ export default function DeliveryMap({
 
   // CRITICAL FIX: Simplified MapController - only sets map reference, no conditional hooks
   // NEW: Track zoom level changes and show overlay AND notify parent of map interactions
+  // NEW: Double-tap detection for FAB activation
   function MapController() {
+    const lastTapRef = useRef(0);
+    
     const mapInstance = useMapEvents({
       zoomend: () => {
         const rawZoom = mapInstance.getZoom();
@@ -1749,6 +1752,20 @@ export default function DeliveryMap({
       click: () => {
         // Retract clusters on map click
         setFannedLocationKey(null);
+        
+        // Double-tap detection for FAB activation
+        const now = Date.now();
+        const timeSinceLastTap = now - lastTapRef.current;
+        
+        if (timeSinceLastTap < 300) {
+          // Double-tap detected - trigger FAB activation
+          console.log('🗺️ [Double-Tap] Detected on map, triggering FAB reactivation');
+          if (onDoubleTap) {
+            onDoubleTap();
+          }
+        }
+        
+        lastTapRef.current = now;
       }
     });
 
