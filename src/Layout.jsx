@@ -1323,10 +1323,10 @@ export default function Layout({ children, currentPageName }) {
       console.log('💾 [Layout] Updating Layout state with Stage 1 data...');
       setUsers(mergedUsers);
       setDrivers(activeDrivers);
-      setStores(cityStores);
+      setStores(allStores);
       setPatients(patientsData);
       setDeliveries(stage1Deliveries); // Start with Stage 1 (last 30 days)
-      setAppUsers(cityAppUsers);
+      setAppUsers(allAppUsers);
 
       setDataLoaded(true);
       console.log("✅ [Layout] === PHASE 3: INITIAL DATA LOAD COMPLETE (Stage 2 & 3 loading in background) ===")
