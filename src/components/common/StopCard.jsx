@@ -783,8 +783,8 @@ export default function StopCard({
                 }
               </div>
               
-              {/* Navigation and Phone buttons - right justified - Hidden for dispatchers */}
-              {!userHasRole(currentUser, 'dispatcher') && (
+              {/* Navigation and Phone buttons - right justified - Only for assigned driver or app owner */}
+              {isAssignedDriverOrAppOwner && (
               <div className="py-1 flex items-center gap-2 flex-shrink-0">
                 {finalDisplayAddress &&
                 <a
