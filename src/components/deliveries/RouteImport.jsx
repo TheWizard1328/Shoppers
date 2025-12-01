@@ -182,12 +182,17 @@ export default function RouteImport({
   const [allStores, setAllStores] = useState([]);
   const [allDriverUsers, setAllDriverUsers] = useState([]);
 
-  const findStoreByAbbreviation = useCallback((abbr) => {
+  // Use a ref to store fresh stores data that won't cause stale closure issues
+  const freshStoresRef = React.useRef([]);
+  
+  const findStoreByAbbreviation = useCallback((abbr, storesOverride = null) => {
     if (!abbr) return null;
-    // CRITICAL: Always use allStores which contains stores from ALL cities
-    // Do NOT fallback to props stores as they may be filtered by current city
-    const storesToSearch = allStores.length > 0 ? allStores : (stores || []);
-    if (!Array.isArray(storesToSearch)) return null;
+    // CRITICAL: Use storesOverride if provided (from handlePreview), else use ref, else fallback
+    const storesToSearch = storesOverride || freshStoresRef.current || allStores || stores || [];
+    if (!Array.isArray(storesToSearch) || storesToSearch.length === 0) {
+      console.warn(`[RouteImport] No stores available to search for abbreviation "${abbr}"`);
+      return null;
+    }
     const found = storesToSearch.find((s) => s.abbreviation?.toLowerCase() === abbr.toLowerCase());
     if (!found) {
       console.warn(`[RouteImport] Store abbreviation "${abbr}" not found in ${storesToSearch.length} stores. Available abbreviations:`, 
@@ -614,10 +619,10 @@ export default function RouteImport({
     setFiles(files.filter((_, index) => index !== indexToRemove));
   };
 
-  const processCSVData = useCallback(async (csvText, fileName, selectedDriver, allDeliveriesData, patientsData) => {
+  const processCSVData = useCallback(async (csvText, fileName, selectedDriver, allDeliveriesData, patientsData, storesData) => {
     console.log(`[RouteImport] Processing file: ${fileName}`);
 
-    if (!csvText || !fileName || !selectedDriver || !patientsData || !stores || !allUsers || !currentUser) {
+    if (!csvText || !fileName || !selectedDriver || !patientsData || !storesData || !currentUser) {
       console.error('[RouteImport] Missing required data for processing');
       return { deliveriesToCreate: [], deliveriesToUpdate: [], skippedItems: [], errors: [] };
     }
@@ -730,7 +735,8 @@ export default function RouteImport({
 
       console.log(`[RouteImport] Row ${lineNumber} - Order: ${stopOrder}, StoreAbbr: "${storeAbbr}", AM/PM: "${ampmValue || 'none'}" (raw: "${ampmRawValue}"), TR: "${trackingNumber}", SID: "${stopId}", PID: "${patientPID}"`);
 
-      const store = findStoreByAbbreviation(storeAbbr);
+      // CRITICAL: Pass storesData directly to avoid stale closure issues
+      const store = findStoreByAbbreviation(storeAbbr, storesData);
       if (!store) {
         skippedItems.push({
           lineNumber,
@@ -1187,6 +1193,7 @@ export default function RouteImport({
       setProgressMessage('Fetching store data from all cities...');
       // CRITICAL: Fetch ALL stores without any city filter
       const freshStoresAll = await base44.entities.Store.list('-created_date');
+      freshStoresRef.current = freshStoresAll || [];
       setAllStores(freshStoresAll || []);
       console.log(`[RouteImport] Fresh store data loaded: ${freshStoresAll?.length || 0} stores from ALL cities`);
       if (freshStoresAll && freshStoresAll.length > 0) {
@@ -1240,7 +1247,8 @@ export default function RouteImport({
         setProgressMessage(`Processing file ${i + 1} of ${files.length}: ${file.name}...`);
 
         const text = await file.text();
-        const result = await processCSVData(text, file.name, selectedUser, freshDeliveries, freshPatients);
+        // CRITICAL: Pass freshStoresAll directly to processCSVData to avoid stale closure
+        const result = await processCSVData(text, file.name, selectedUser, freshDeliveries, freshPatients, freshStoresAll);
 
         console.log(`[RouteImport] Processing complete for file ${file.name}:`, {
           toCreate: result.deliveriesToCreate.length,
