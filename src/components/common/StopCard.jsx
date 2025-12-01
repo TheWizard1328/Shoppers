@@ -1522,7 +1522,26 @@ export default function StopCard({
                               <span className="text-white">Complete</span>
                             </Button> :
                     onStartDelivery &&
-                    <Button onClick={async (e) => {e.stopPropagation();setIsStarting(true);try {await ensureDriverOnline();await onStartDelivery(delivery.id);} finally {setIsStarting(false);}}} size="sm" disabled={isStarting} className="bg-blue-600 px-3 text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-8 border-r border-blue-500 !text-white">
+                    <Button onClick={async (e) => {
+                      e.stopPropagation();
+                      setIsStarting(true);
+                      try {
+                        await ensureDriverOnline();
+                        await onStartDelivery(delivery.id);
+                        // Send notification to dispatchers
+                        if (userHasRole(currentUser, 'driver')) {
+                          await notifyDriverStarted({
+                            driver: currentUser,
+                            patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
+                            delivery,
+                            store,
+                            appUsers
+                          });
+                        }
+                      } finally {
+                        setIsStarting(false);
+                      }
+                    }} size="sm" disabled={isStarting} className="bg-blue-600 px-3 text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-8 border-r border-blue-500 !text-white">
                               {isStarting ? <Loader2 className="w-3 h-3 mr-1 !text-white animate-spin" /> : <Clock className="w-3 h-3 mr-1 !text-white" />}
                               <span className="text-white">Start</span>
                             </Button>)
