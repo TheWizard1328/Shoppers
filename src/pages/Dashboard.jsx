@@ -1017,21 +1017,35 @@ function Dashboard() {
       return;
     }
 
+    // CRITICAL: Clear any existing timeout FIRST (before any logic)
+    if (mapLockTimeoutRef.current) {
+      console.log('🧹 [FAB Click] Clearing existing timeout');
+      clearTimeout(mapLockTimeoutRef.current);
+      mapLockTimeoutRef.current = null;
+    }
+    mapLockExpiresAtRef.current = null;
+
     let newMapViewPhase;
+    let shouldStartTimer = false;
     
     // CRITICAL: If FAB is unlocked (gray), clicking RE-LOCKS the current phase (don't advance)
     if (!isMapViewLocked) {
       newMapViewPhase = mapViewPhase;
-      console.log(`🔄 [FAB Click] Re-locking current phase: ${newMapViewPhase}`);
+      console.log(`🔄 [FAB Click] Unlocked FAB clicked - RE-LOCKING current phase: ${newMapViewPhase}`);
+      
+      // Re-locking should start the timer for phase 1 and 3
+      shouldStartTimer = (newMapViewPhase === 1 || newMapViewPhase === 3);
     } else {
       // FAB is locked - advance to next phase
-      newMapViewPhase = (mapViewPhase % 3) + 1;
+      const nextPhase = (mapViewPhase % 3) + 1;
       
       // Non-drivers (dispatchers/admins) always stay on Phase 1
       if (!isDriver) {
         newMapViewPhase = 1;
         console.log('📋 [FAB Click] Non-driver - staying on Phase 1');
       } else {
+        newMapViewPhase = nextPhase;
+        
         // Skip phase 2 if no next stop coordinates
         if (newMapViewPhase === 2 && !nextStopCoordinates) {
           newMapViewPhase = 3;
@@ -1046,16 +1060,9 @@ function Dashboard() {
         }
       }
       
-      console.log(`➡️ [FAB Click] Phase: ${mapViewPhase} → ${newMapViewPhase}`);
+      console.log(`➡️ [FAB Click] Locked FAB clicked - CYCLING: ${mapViewPhase} → ${newMapViewPhase}`);
+      shouldStartTimer = (newMapViewPhase === 1 || newMapViewPhase === 3);
     }
-
-    // CRITICAL: Clear any existing timeout BEFORE setting new one
-    if (mapLockTimeoutRef.current) {
-      console.log('🧹 [FAB Click] Clearing existing timeout');
-      clearTimeout(mapLockTimeoutRef.current);
-      mapLockTimeoutRef.current = null;
-    }
-    mapLockExpiresAtRef.current = null;
 
     // Set lock to TRUE and trigger map repositioning
     console.log(`🟢 [FAB Click] Setting isMapViewLocked = true, phase = ${newMapViewPhase}`);
@@ -1069,11 +1076,10 @@ function Dashboard() {
     
     setMapViewTrigger(prev => prev + 1);
     
-    // Phase 2: Persistent lock (NO timer)
-    // Phase 1 and 3: 3-second auto-unlock timer
+    // Handle timer based on phase and action
     if (newMapViewPhase === 2) {
       console.log(`🔒 [FAB Click] Phase 2 - Persistent lock (no timer)`);
-    } else {
+    } else if (shouldStartTimer) {
       // Phase 1 or 3: Set up 3-second auto-unlock timer
       const lockDuration = 3000;
       const expiresAt = Date.now() + lockDuration;
