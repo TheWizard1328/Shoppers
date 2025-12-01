@@ -1080,7 +1080,7 @@ function Dashboard() {
         if (newMapViewPhase === 3 && !isMobile) {
           newMapViewPhase = 1;
         }
-        // If we skipped to 3 but no next stop, go to 1
+        // If we ended up on phase 2 but still no next stop, go to 1
         if (newMapViewPhase === 2 && !nextStopCoordinates) {
           newMapViewPhase = 1;
         }
@@ -1090,7 +1090,7 @@ function Dashboard() {
     }
 
     // Set lock to TRUE and trigger map repositioning
-    console.log(`🟢 [FAB Click] Setting isMapViewLocked = true`);
+    console.log(`🟢 [FAB Click] Setting isMapViewLocked = true, phase = ${newMapViewPhase}`);
     setIsMapViewLocked(true);
     setMapViewPhase(newMapViewPhase);
     
@@ -1105,19 +1105,28 @@ function Dashboard() {
     // Phase 1 and 3: 3-second auto-unlock timer
     if (newMapViewPhase === 2) {
       mapLockExpiresAtRef.current = null;
-      mapLockTimeoutRef.current = null;
-      console.log(`🔒 [FAB Click] Phase 2 - Persistent lock`);
+      if (mapLockTimeoutRef.current) {
+        clearTimeout(mapLockTimeoutRef.current);
+        mapLockTimeoutRef.current = null;
+      }
+      console.log(`🔒 [FAB Click] Phase 2 - Persistent lock (no timer)`);
     } else {
+      // Phase 1 or 3: Set up 3-second auto-unlock timer
       const lockDuration = 3000;
       const expiresAt = Date.now() + lockDuration;
       mapLockExpiresAtRef.current = expiresAt;
       
+      console.log(`⏰ [FAB Click] Phase ${newMapViewPhase} - Starting ${lockDuration}ms unlock timer`);
+      
       mapLockTimeoutRef.current = window.setTimeout(() => {
+        console.log(`⏰ [FAB Timer] Timer fired for phase ${newMapViewPhase}, checking expiry...`);
         if (mapLockExpiresAtRef.current === expiresAt) {
-          console.log(`⚫ [FAB Timer] Phase ${newMapViewPhase} - unlocking`);
+          console.log(`⚫ [FAB Timer] Phase ${newMapViewPhase} - auto-unlocking (FAB turns gray)`);
           setIsMapViewLocked(false);
           mapLockExpiresAtRef.current = null;
           mapLockTimeoutRef.current = null;
+        } else {
+          console.log(`⏭️ [FAB Timer] Expiry was reset, ignoring timer`);
         }
       }, lockDuration);
     }
