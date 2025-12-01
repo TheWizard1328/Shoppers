@@ -207,156 +207,134 @@ const getPatientRecurringPriorityValue = (recurringInfo) => {
   }
 };
 
+// Helper to build day order starting from today's day of week
+const getDayOrderFromToday = () => {
+  const allDays = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  const todayIndex = getDay(new Date()); // 0 = Sunday, 1 = Monday, etc.
+  // Rotate array so today is first
+  return [...allDays.slice(todayIndex), ...allDays.slice(0, todayIndex)];
+};
+
 // Main sorting function - matches projection engine logic
 const sortPatients = (patients) => {
   const today = new Date();
   const dayMapForGetDay = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
   const todayDayStr = dayMapForGetDay[getDay(today)];
+  
+  // Day order starts from TODAY, not Monday
+  const dayOrderFromToday = getDayOrderFromToday();
 
   return [...patients].sort((a, b) => {
-    // PRIORITY 1: Projected deliveries to top (Note: not applicable in Patients page, but keeping for consistency)
-
-    // PRIORITY 2: Active deliveries (on today's route) to top, sorted by stop_order
+    // PRIORITY 1: Active deliveries (on today's route) to top, sorted by stop_order
     const aOnRoute = a.todayDelivery && ['picked_up', 'in_transit', 'pending'].includes(a.todayDelivery.status);
     const bOnRoute = b.todayDelivery && ['picked_up', 'in_transit', 'pending'].includes(b.todayDelivery.status);
 
     if (aOnRoute && bOnRoute) {
       return (a.todayDelivery.stop_order || Infinity) - (b.todayDelivery.stop_order || Infinity);
     }
-    if (aOnRoute) return -1; // a on route, goes to top
-    if (bOnRoute) return 1; // b on route, goes to top
+    if (aOnRoute) return -1;
+    if (bOnRoute) return 1;
 
-    // PRIORITY 3: Patients with exclusion keywords should be at the bottom
+    // PRIORITY 2: Patients with exclusion keywords to bottom
     if (a.displayPriority === 'excluded' && b.displayPriority !== 'excluded') return 1;
     if (a.displayPriority !== 'excluded' && b.displayPriority === 'excluded') return -1;
-    // If both are excluded, fall through to default name sort
 
-    // PRIORITY 4: Inactive patients to bottom
+    // PRIORITY 3: Inactive patients to bottom
     if (a.status === 'inactive' && b.status !== 'inactive') return 1;
     if (a.status !== 'inactive' && b.status === 'inactive') return -1;
-    // If both are inactive, fall through to default name sort
 
-    // PRIORITY 5: Patients with no last delivery date to bottom
-    const aHasDate = a.last_delivery_date && a.last_delivery_date !== '';
-    const bHasDate = b.last_delivery_date && b.last_delivery_date !== '';
-
-    if (!aHasDate && !bHasDate) {
-      // Both have no date - sort by name for consistency
-      return (a.full_name || '').localeCompare(b.full_name || '');
-    }
-    if (!aHasDate) return 1; // a has no date, goes to bottom
-    if (!bHasDate) return -1; // b has no date, goes to bottom
-
-    // Now both patients are active, not excluded, and have delivery dates
-
+    // Get recurring info for both
     const aRecurring = getRecurringInfo(a);
     const bRecurring = getRecurringInfo(b);
     const aDaysSince = getDaysSinceLastDelivery(a.last_delivery_date, today);
     const bDaysSince = getDaysSinceLastDelivery(b.last_delivery_date, today);
 
-    // PRIORITY 6: Apply 90-day cutoff
-    const aOver90 = aDaysSince > 90;
-    const bOver90 = bDaysSince > 90;
+    // PRIORITY 4: Recurring patients come before non-recurring
+    const aHasRecurring = aRecurring !== null;
+    const bHasRecurring = bRecurring !== null;
+    
+    if (aHasRecurring && !bHasRecurring) return -1;
+    if (!aHasRecurring && bHasRecurring) return 1;
 
-    if (aOver90 && bOver90) {
-      // Both over 90 days - sort by days since (oldest first, so highest days since first)
-      return bDaysSince - aDaysSince;
-    }
-    if (aOver90) return 1; // a over 90 days, lower priority
-    if (bOver90) return -1; // b over 90 days, lower priority
+    // PRIORITY 5: Among recurring patients, sort by pattern priority and day of week from today
+    if (aHasRecurring && bHasRecurring) {
+      // Sort by recurring pattern priority (daily → weekly → bi-weekly → weekly x4 → monthly → bi-monthly)
+      const aRecurringPriority = getPatientRecurringPriorityValue(aRecurring);
+      const bRecurringPriority = getPatientRecurringPriorityValue(bRecurring);
 
-    // PRIORITY 7: Sort by recurring pattern priority (daily → weekly → bi-weekly → weekly x4 → monthly → bi-monthly)
-    const aRecurringPriority = getPatientRecurringPriorityValue(aRecurring);
-    const bRecurringPriority = getPatientRecurringPriorityValue(bRecurring);
+      if (aRecurringPriority !== bRecurringPriority) {
+        return aRecurringPriority - bRecurringPriority;
+      }
 
-    if (aRecurringPriority !== bRecurringPriority) {
-      return aRecurringPriority - bRecurringPriority;
-    }
-    // If recurring priorities are the same, proceed to sub-sorting or next priority.
-
-    // PRIORITY 8: Sub-sort by day of week for weekly patterns
-    // Sort by day order: Mon, Tue, Wed, Thu, Fri, Sat, Sun
-    if (aRecurring && bRecurring) {
-      // Handle weekly patterns (type = 'weekly')
+      // Same recurring type - sort by day of week (starting from today)
       if (aRecurring.type === 'weekly' && bRecurring.type === 'weekly') {
-        // First prioritize if it's scheduled for today
-        const aIsToday = aRecurring.days && aRecurring.days.includes(todayDayStr);
-        const bIsToday = bRecurring.days && bRecurring.days.includes(todayDayStr);
+        // Find the nearest scheduled day for each (from today's perspective)
+        const aNearestDayIndex = aRecurring.days && aRecurring.days.length > 0 ?
+          Math.min(...aRecurring.days.map(day => dayOrderFromToday.indexOf(day)).filter(i => i >= 0)) :
+          Infinity;
+        const bNearestDayIndex = bRecurring.days && bRecurring.days.length > 0 ?
+          Math.min(...bRecurring.days.map(day => dayOrderFromToday.indexOf(day)).filter(i => i >= 0)) :
+          Infinity;
 
-        if (aIsToday && !bIsToday) return -1;
-        if (!aIsToday && bIsToday) return 1;
-
-        // Both are today or both are not today - sort by day order
-        const dayOrder = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
-
-        // Find the earliest scheduled day for each, based on dayOrder
-        const aFirstDay = aRecurring.days && aRecurring.days.length > 0 ?
-        dayOrder.find((day) => aRecurring.days.includes(day)) :
-        '';
-        const bFirstDay = bRecurring.days && bRecurring.days.length > 0 ?
-        dayOrder.find((day) => bRecurring.days.includes(day)) :
-        '';
-
-        const aDayIndex = dayOrder.indexOf(aFirstDay);
-        const bDayIndex = dayOrder.indexOf(bFirstDay);
-
-        if (aDayIndex !== bDayIndex) {
-          return aDayIndex - bDayIndex;
+        if (aNearestDayIndex !== bNearestDayIndex) {
+          return aNearestDayIndex - bNearestDayIndex;
         }
       }
 
       // Handle multi-weekly patterns (bi-weekly, weekly x4)
       if (aRecurring.type === 'multi-weekly' && bRecurring.type === 'multi-weekly') {
-        // First, differentiate between bi-weekly (2 weeks) and weekly x4 (4 weeks)
-        const aWeeks = aRecurring.weeks || 2; // Default to 2 for bi-weekly if weeks is not explicitly set (though getRecurringInfo ensures it)
+        const aWeeks = aRecurring.weeks || 2;
         const bWeeks = bRecurring.weeks || 2;
 
         if (aWeeks !== bWeeks) {
-          return aWeeks - bWeeks; // Shorter interval = higher priority
+          return aWeeks - bWeeks;
         }
 
-        // Same interval - now sort by day of week
-        const dayOrder = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
-
-        // Find which day(s) they're scheduled for by checking boolean flags
+        // Find scheduled days
         let aScheduledDays = [];
         let bScheduledDays = [];
-
-        dayOrder.forEach((day) => {
+        dayMapForGetDay.forEach((day) => {
           if (a[`recurring_weekly_${day}`]) aScheduledDays.push(day);
           if (b[`recurring_weekly_${day}`]) bScheduledDays.push(day);
         });
 
-        // Prioritize if scheduled for today
-        const aHasToday = aScheduledDays.includes(todayDayStr);
-        const bHasToday = bScheduledDays.includes(todayDayStr);
+        const aNearestDayIndex = aScheduledDays.length > 0 ?
+          Math.min(...aScheduledDays.map(day => dayOrderFromToday.indexOf(day)).filter(i => i >= 0)) :
+          Infinity;
+        const bNearestDayIndex = bScheduledDays.length > 0 ?
+          Math.min(...bScheduledDays.map(day => dayOrderFromToday.indexOf(day)).filter(i => i >= 0)) :
+          Infinity;
 
-        if (aHasToday && !bHasToday) return -1;
-        if (!aHasToday && bHasToday) return 1;
-
-        // Sort by first scheduled day
-        const aFirstDay = aScheduledDays.length > 0 ?
-        dayOrder.find((day) => aScheduledDays.includes(day)) :
-        '';
-        const bFirstDay = bScheduledDays.length > 0 ?
-        dayOrder.find((day) => bScheduledDays.includes(day)) :
-        '';
-
-        const aDayIndex = dayOrder.indexOf(aFirstDay);
-        const bDayIndex = dayOrder.indexOf(bFirstDay);
-
-        if (aDayIndex !== bDayIndex) {
-          return aDayIndex - bDayIndex;
+        if (aNearestDayIndex !== bNearestDayIndex) {
+          return aNearestDayIndex - bNearestDayIndex;
         }
+      }
+
+      // Within same recurring type and day, sort by most recent delivery (most recent first)
+      if (aDaysSince !== bDaysSince) {
+        return aDaysSince - bDaysSince; // Lower days since = more recent = comes first
       }
     }
 
-    // PRIORITY 9: Sort by days since last delivery (older first = more urgent = comes first)
-    if (aDaysSince !== bDaysSince) {
-      return bDaysSince - aDaysSince; // Higher days since means older, so it comes first
+    // PRIORITY 6: Non-recurring patients - sort by most recent delivery first
+    if (!aHasRecurring && !bHasRecurring) {
+      // Patients with no delivery date go to bottom
+      const aHasDate = a.last_delivery_date && a.last_delivery_date !== '';
+      const bHasDate = b.last_delivery_date && b.last_delivery_date !== '';
+
+      if (!aHasDate && !bHasDate) {
+        return (a.full_name || '').localeCompare(b.full_name || '');
+      }
+      if (!aHasDate) return 1;
+      if (!bHasDate) return -1;
+
+      // Sort by most recent delivery first
+      if (aDaysSince !== bDaysSince) {
+        return aDaysSince - bDaysSince;
+      }
     }
 
-    // PRIORITY 10: Sort by distance from store (projection-style routing)
+    // PRIORITY 7: Sort by distance from store
     const aDistance = a.distance_from_store || Infinity;
     const bDistance = b.distance_from_store || Infinity;
 
@@ -364,7 +342,7 @@ const sortPatients = (patients) => {
       return aDistance - bDistance;
     }
 
-    // PRIORITY 11: Final tiebreaker - alphabetically by name
+    // PRIORITY 8: Final tiebreaker - alphabetically by name
     return (a.full_name || '').localeCompare(b.full_name || '');
   });
 };
