@@ -637,14 +637,23 @@ function Dashboard() {
           
           pendingMapRepositionRef.current = false;
           
-          setIsMapViewLocked(true);
+          // CRITICAL: Don't change lock state if already locked on phase 2
+          // This preserves the persistent lock behavior of phase 2
+          if (!(mapViewPhase === 2 && isMapViewLocked)) {
+            setIsMapViewLocked(true);
+          }
+          
           setMapViewTrigger(prev => prev + 1);
           
           // Set appropriate lock behavior based on phase
           if (mapViewPhase === 2) {
-            // Phase 2: Persistent lock
+            // Phase 2: Persistent lock - clear any existing timers
+            if (mapLockTimeoutRef.current) {
+              clearTimeout(mapLockTimeoutRef.current);
+            }
             mapLockExpiresAtRef.current = null;
             mapLockTimeoutRef.current = null;
+            console.log(`🔒 [Markers Ready] Phase 2 - Maintaining persistent lock`);
           } else {
             // Phase 1 and 3: 3-second auto-unlock timer
             const lockDuration = 3000;
@@ -669,7 +678,7 @@ function Dashboard() {
     });
     
     return () => cancelAnimationFrame(frameId);
-  }, [deliveriesWithStopOrder, isDataLoaded, mapViewPhase]);
+  }, [deliveriesWithStopOrder, isDataLoaded, mapViewPhase, isMapViewLocked]);
 
   const handleMapInteraction = useCallback(() => {
     console.log('🗺️ [Map Interaction] Called');
