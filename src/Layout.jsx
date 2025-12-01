@@ -1230,17 +1230,17 @@ export default function Layout({ children, currentPageName }) {
       }
 
       const allAppUsers = await getData('AppUser', null, null, forceRefresh);
-      // Get AppUsers from all nearby cities (75km radius) - ALL USERS
+      // Get AppUsers from all relevant cities - ALL USERS
       const cityAppUsers = allAppUsers.filter(au => au && relevantCityIds.includes(au.city_id));
-      console.log(`✅ [Layout] Loaded ${cityAppUsers.length} AppUsers for nearby cities (75km radius)`);
+      console.log(`✅ [Layout] Loaded ${cityAppUsers.length} AppUsers for ${relevantCityIds.length} cities (from ${allAppUsers.length} total)`);
 
 
       const allStores = await getData('Store', null, null, forceRefresh);
-      // Get stores from all nearby cities (75km radius) - ALL USERS
+      // Get stores from all relevant cities - ALL USERS
       const cityStores = allStores.filter(store => store && relevantCityIds.includes(store.city_id));
       cityStores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
       const cityStoreIds = cityStores.map(store => store && store.id).filter(Boolean);
-      console.log(`✅ [Layout] Loaded ${cityStores.length} Stores for nearby cities (75km radius)`);
+      console.log(`✅ [Layout] Loaded ${cityStores.length} Stores for ${relevantCityIds.length} cities (from ${allStores.length} total)`);
 
 
       // 75KM RADIUS: All users load data from nearby cities - UI filtering happens in components
