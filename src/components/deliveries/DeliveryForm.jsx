@@ -1449,33 +1449,42 @@ export default function DeliveryForm({
         console.log('[AddToRoute] ✅ Existing TR#s corrected');
       }
 
-      // Second, update pending deliveries that had status changes
+      // Second, update pending deliveries that had status changes (from "pending" to "in_transit")
       if (updatedDeliveries.length > 0) {
         console.log(`[AddToRoute] 📝 Updating ${updatedDeliveries.length} pending deliveries with status changes...`);
         for (const updated of updatedDeliveries) {
+          console.log(`[AddToRoute] 🔄 Updating delivery ${updated.id}: ${updated.patient_name}`);
+          console.log(`   - Old status: pending → New status: ${updated.status}`);
+          console.log(`   - Tracking Number: ${updated.tracking_number}`);
+          
           await base44.entities.Delivery.update(updated.id, {
             status: updated.status,
-            delivery_notes: updated.delivery_notes,
-            prescription_number: updated.prescription_number,
-            cod_total_amount_required: updated.cod_total_amount_required,
-            delivery_instructions: updated.delivery_instructions,
-            time_window_start: updated.time_window_start,
-            time_window_end: updated.time_window_end
+            delivery_notes: updated.delivery_notes || '',
+            prescription_number: updated.prescription_number || '',
+            cod_total_amount_required: updated.cod_total_amount_required || 0,
+            delivery_instructions: updated.delivery_instructions || '',
+            time_window_start: updated.time_window_start || '',
+            time_window_end: updated.time_window_end || '',
+            tracking_number: updated.tracking_number || '99'
           });
           console.log(`[AddToRoute] ✅ Updated pending delivery: ${updated.patient_name} → status: ${updated.status}`);
         }
-        console.log('[AddToRoute] ✅ Pending deliveries updated');
+        console.log('[AddToRoute] ✅ All pending deliveries updated');
       }
 
-      // Then save new deliveries
+      // Then save new deliveries OR trigger data refresh
       if (newDeliveries.length > 0) {
         console.log('[AddToRoute] 📤 Calling Dashboard save handler with batch data...');
         await onSave({ _isBatchSave: true, _stagedDeliveries: deliveriesWithTRs });
         console.log('[AddToRoute] ✅ Batch save completed successfully');
-      } else {
-        // CRITICAL: If only updating existing deliveries, still need to trigger refresh
-        console.log('[AddToRoute] 🔄 No new deliveries, but triggering refresh for updates...');
-        await onSave({ _isBatchSave: true, _stagedDeliveries: [] });
+      }
+      
+      // CRITICAL: Always trigger data refresh to show updated status changes
+      if (updatedDeliveries.length > 0 && newDeliveries.length === 0) {
+        console.log('[AddToRoute] 🔄 Triggering data refresh for status updates...');
+        // Use invalidate and manual close instead of calling onSave with empty array
+        const { invalidate } = await import('../utils/dataManager');
+        invalidate('Delivery');
       }
       
       setStagedDeliveries([]);
