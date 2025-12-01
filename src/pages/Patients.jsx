@@ -1674,54 +1674,21 @@ export default function Patients() {
 
                   {/* Row 2: All filters */}
                   <div className="flex gap-2 flex-wrap">
-                    {/* Store Filter - Hide if dispatcher with only one store */}
-                    {!(userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && currentUser.store_ids?.length === 1) &&
-                <div className="space-y-1 flex-1">
-                        <span className="text-xs font-medium text-slate-700">Store</span>
-                        <Select
-                    value={storeFilter}
-                    onValueChange={(value) => {
-                      console.log(`[Patients] Store filter changed to: ${value}`);
-                      setStoreFilter(value);
-                      const urlParams = new URLSearchParams(location.search);
-                      urlParams.set('store', value);
-                      navigate(`${location.pathname}?${urlParams.toString()}`, { replace: true });
-                    }}>
-                          <SelectTrigger className="w-full bg-white border-black h-9">
-                            <SelectValue placeholder="Store..." />
-                          </SelectTrigger>
-                          <SelectContent className="max-h-[300px] overflow-y-auto">
-                            <SelectItem value="all">
-                              {selectedCityId === "all" ? "All Patients" : `All in ${cities.find((c) => c.id === selectedCityId)?.name || "city"}`}
-                            </SelectItem>
-                            {stores.
-                      filter((store) => {
-                        // Admins see ALL stores
-                        if (userHasRole(currentUser, 'admin')) return true;
-                        // Filter by city for non-admins
-                        if (selectedCityId !== "all" && store.city_id !== selectedCityId) return false;
-                        // Filter by dispatcher's assigned stores
-                        if (userHasRole(currentUser, 'dispatcher')) {
-                          return currentUser.store_ids?.includes(store.id);
-                        }
-                        return true;
-                      }).
-                      map((store) =>
-                      <SelectItem key={store.id} value={store.id}>
-                                  {store.name}
-                                </SelectItem>
-                      )}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                }
-
-                    {/* City Filter */}
+                    {/* City Filter - MOVED FIRST */}
                     <div className="space-y-1 flex-1">
                       <span className="text-xs font-medium text-slate-700">City</span>
                       <Select
                     value={selectedCityId}
-                    onValueChange={setSelectedCityId}
+                    onValueChange={(cityId) => {
+                      setSelectedCityId(cityId);
+                      // Reset store filter to 'all' when city changes
+                      if (storeFilter !== 'all') {
+                        setStoreFilter('all');
+                        const urlParams = new URLSearchParams(location.search);
+                        urlParams.delete('store');
+                        navigate(`${location.pathname}?${urlParams.toString()}`, { replace: true });
+                      }
+                    }}
                     disabled={!userHasRole(currentUser, 'admin') && currentUser.city_id}>
                         <SelectTrigger className="w-full bg-white border-black h-9">
                           <SelectValue placeholder="City..." />
@@ -1744,6 +1711,57 @@ export default function Patients() {
                         </SelectContent>
                       </Select>
                     </div>
+
+                    {/* Store Filter - Hide if dispatcher with only one store */}
+                    {!(userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && currentUser.store_ids?.length === 1) &&
+                <div className="space-y-1 flex-1">
+                        <span className="text-xs font-medium text-slate-700">Store</span>
+                        <Select
+                    value={storeFilter}
+                    onValueChange={(value) => {
+                      console.log(`[Patients] Store filter changed to: ${value}`);
+                      setStoreFilter(value);
+                      
+                      // Auto-select corresponding city when store is selected
+                      if (value !== 'all') {
+                        const selectedStore = stores.find(s => s.id === value);
+                        if (selectedStore?.city_id && selectedStore.city_id !== selectedCityId) {
+                          setSelectedCityId(selectedStore.city_id);
+                        }
+                      }
+                      
+                      const urlParams = new URLSearchParams(location.search);
+                      urlParams.set('store', value);
+                      navigate(`${location.pathname}?${urlParams.toString()}`, { replace: true });
+                    }}>
+                          <SelectTrigger className="w-full bg-white border-black h-9">
+                            <SelectValue placeholder="Store..." />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-[300px] overflow-y-auto">
+                            <SelectItem value="all">
+                              {selectedCityId === "all" ? "All Patients" : `All in ${cities.find((c) => c.id === selectedCityId)?.name || "city"}`}
+                            </SelectItem>
+                            {stores.
+                      filter((store) => {
+                        // Admins see ALL stores when city is "all"
+                        if (userHasRole(currentUser, 'admin') && selectedCityId === "all") return true;
+                        // Filter by selected city
+                        if (selectedCityId !== "all" && store.city_id !== selectedCityId) return false;
+                        // Filter by dispatcher's assigned stores
+                        if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
+                          return currentUser.store_ids?.includes(store.id);
+                        }
+                        return true;
+                      }).
+                      map((store) =>
+                      <SelectItem key={store.id} value={store.id}>
+                                  {store.name}
+                                </SelectItem>
+                      )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                }
 
                     {/* Status Filter */}
                     <div className="space-y-1 flex-1">
@@ -1784,54 +1802,21 @@ export default function Patients() {
 
                   {/* Dropdowns */}
                   <div className="flex gap-3">
-                    {/* Store Filter - Hide if dispatcher with only one store */}
-                    {!(userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && currentUser.store_ids?.length === 1) &&
-                <div className="space-y-1 w-40 flex-shrink-0">
-                        <span className="text-sm font-medium text-slate-700">Store</span>
-                        <Select
-                    value={storeFilter}
-                    onValueChange={(value) => {
-                      console.log(`[Patients] Store filter changed to: ${value}`);
-                      setStoreFilter(value);
-                      const urlParams = new URLSearchParams(location.search);
-                      urlParams.set('store', value);
-                      navigate(`${location.pathname}?${urlParams.toString()}`, { replace: true });
-                    }}>
-                          <SelectTrigger className="w-full bg-white border-black">
-                            <SelectValue placeholder="Filter by store..." />
-                          </SelectTrigger>
-                          <SelectContent className="max-h-[300px] overflow-y-auto">
-                            <SelectItem value="all">
-                              {selectedCityId === "all" ? "All Patients" : `All in ${cities.find((c) => c.id === selectedCityId)?.name || "selected city"}`}
-                            </SelectItem>
-                            {stores.
-                      filter((store) => {
-                        // Admins see ALL stores
-                        if (userHasRole(currentUser, 'admin')) return true;
-                        // Filter by city for non-admins
-                        if (selectedCityId !== "all" && store.city_id !== selectedCityId) return false;
-                        // Filter by dispatcher's assigned stores
-                        if (userHasRole(currentUser, 'dispatcher')) {
-                          return currentUser.store_ids?.includes(store.id);
-                        }
-                        return true;
-                      }).
-                      map((store) =>
-                      <SelectItem key={store.id} value={store.id}>
-                                  {store.name}
-                                </SelectItem>
-                      )}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                }
-
-                    {/* City Filter */}
+                    {/* City Filter - MOVED FIRST */}
                     <div className="space-y-1 w-40 flex-shrink-0">
                       <span className="text-sm font-medium text-slate-700">City</span>
                       <Select
                     value={selectedCityId}
-                    onValueChange={setSelectedCityId}
+                    onValueChange={(cityId) => {
+                      setSelectedCityId(cityId);
+                      // Reset store filter to 'all' when city changes
+                      if (storeFilter !== 'all') {
+                        setStoreFilter('all');
+                        const urlParams = new URLSearchParams(location.search);
+                        urlParams.delete('store');
+                        navigate(`${location.pathname}?${urlParams.toString()}`, { replace: true });
+                      }
+                    }}
                     disabled={!userHasRole(currentUser, 'admin') && currentUser.city_id}>
                         <SelectTrigger className="w-full bg-white border-black">
                           <SelectValue placeholder="Filter by city..." />
@@ -1854,6 +1839,57 @@ export default function Patients() {
                         </SelectContent>
                       </Select>
                     </div>
+
+                    {/* Store Filter - Hide if dispatcher with only one store */}
+                    {!(userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && currentUser.store_ids?.length === 1) &&
+                <div className="space-y-1 w-40 flex-shrink-0">
+                        <span className="text-sm font-medium text-slate-700">Store</span>
+                        <Select
+                    value={storeFilter}
+                    onValueChange={(value) => {
+                      console.log(`[Patients] Store filter changed to: ${value}`);
+                      setStoreFilter(value);
+                      
+                      // Auto-select corresponding city when store is selected
+                      if (value !== 'all') {
+                        const selectedStore = stores.find(s => s.id === value);
+                        if (selectedStore?.city_id && selectedStore.city_id !== selectedCityId) {
+                          setSelectedCityId(selectedStore.city_id);
+                        }
+                      }
+                      
+                      const urlParams = new URLSearchParams(location.search);
+                      urlParams.set('store', value);
+                      navigate(`${location.pathname}?${urlParams.toString()}`, { replace: true });
+                    }}>
+                          <SelectTrigger className="w-full bg-white border-black">
+                            <SelectValue placeholder="Filter by store..." />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-[300px] overflow-y-auto">
+                            <SelectItem value="all">
+                              {selectedCityId === "all" ? "All Patients" : `All in ${cities.find((c) => c.id === selectedCityId)?.name || "selected city"}`}
+                            </SelectItem>
+                            {stores.
+                      filter((store) => {
+                        // Admins see ALL stores when city is "all"
+                        if (userHasRole(currentUser, 'admin') && selectedCityId === "all") return true;
+                        // Filter by selected city
+                        if (selectedCityId !== "all" && store.city_id !== selectedCityId) return false;
+                        // Filter by dispatcher's assigned stores
+                        if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
+                          return currentUser.store_ids?.includes(store.id);
+                        }
+                        return true;
+                      }).
+                      map((store) =>
+                      <SelectItem key={store.id} value={store.id}>
+                                  {store.name}
+                                </SelectItem>
+                      )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                }
 
                     {/* Status Filter */}
                     <div className="space-y-1 w-40 flex-shrink-0">
