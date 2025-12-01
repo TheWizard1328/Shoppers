@@ -1178,7 +1178,9 @@ export default function RouteImport({
 
 
     try {
-      const selectedUser = allUsers.find((u) => u.id === selectedDriverId);
+      // CRITICAL: Use allDriverUsers (fetched from ALL cities) to find the selected driver
+      const usersToSearch = allDriverUsers.length > 0 ? allDriverUsers : (allUsers || []);
+      const selectedUser = usersToSearch.find((u) => u.id === selectedDriverId);
       if (!selectedUser) throw new Error('Selected driver not found');
 
       console.log(`[RouteImport] Fetching fresh store data from ALL cities...`);
