@@ -2899,7 +2899,7 @@ export default function DeliveryForm({
                 </div>
 
                 {/* Staged Panel - STATIC */}
-                {!delivery && !isMobile &&
+                {!delivery && !useMobileLayout &&
                 <div className="w-[21rem] flex-shrink-0 bg-slate-50 p-3 rounded-lg border-2 border-slate-400 flex flex-col h-full">
                     <Label className="text-sm font-semibold mb-2">Staged: (S: {stagedDeliveries.length} P: {projectedDeliveries.length})</Label>
                     <div className="space-y-1 flex-1 overflow-y-auto min-h-0">
