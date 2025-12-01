@@ -1,3 +1,4 @@
+
 // Dashboard.js - Delivery Management Dashboard
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -1681,7 +1682,7 @@ function Dashboard() {
         console.log('🗺️ [Smart Refresh] Phase 2 + LOCKED - re-centering map on driver + next stop');
         
         // Mark that we're doing a programmatic map move (debounces interaction handler)
-        lastProgrammaticMapMoveRef.current = Date.now();
+        lastProgrammaticMapMoveRef.current = Date.2024;
         
         const bounds = [
           [driverLocation.latitude, driverLocation.longitude],
@@ -1756,58 +1757,61 @@ function Dashboard() {
         .filter(d => d && !finishedStatuses.includes(d.status))
         .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
       
-      if (incompleteDeliveries.length > 0) {
-        const nextDelivery = incompleteDeliveries[0];
-        console.log(`✅ [Auto-Center] Auto-centering on: ${nextDelivery.patient_name || 'Pickup'} (stop_order: ${nextDelivery.stop_order})`);
-        console.log(`📍 [Auto-Center] Will center but NOT select card`);
-        
-        // CHANGED: Do NOT set selectedCardId - only scroll to center
-        // setSelectedCardId(nextDelivery.id); // REMOVED
-        
-        // Scroll card into view after a longer delay to ensure cards are rendered
-        setTimeout(() => {
-          const cardElement = document.getElementById(`stop-card-${nextDelivery.id}`);
-          if (cardElement) {
-            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-            console.log(`📍 [Auto-Center] Scrolled to next card (NOT selected): ${nextDelivery.id}`);
-          } else {
-            console.warn(`⚠️ [Auto-Center] Card element not found: stop-card-${nextDelivery.id}`);
-          }
-        }, 300);
-        
-        // Center map on this delivery using fitBounds for bottom padding
-        if (nextDelivery.patient_id) {
-          const patient = patients.find((p) => p && p.id === nextDelivery.patient_id);
-          if (patient?.latitude && patient?.longitude) {
-            setShouldFitBounds({ 
-              bounds: [[patient.latitude, patient.longitude]], 
-              options: { 
-                paddingTopLeft: [50, 50],
-                paddingBottomRight: [50, StopCardsHeight],
-                maxZoom: 15 
-              } 
-            });
-            setMapCenter(null);
-            setMapZoom(null);
-          }
-        } else if (nextDelivery.store_id) {
-          const store = stores.find((s) => s && s.id === nextDelivery.store_id);
-          if (store?.latitude && store?.longitude) {
-            setShouldFitBounds({ 
-              bounds: [[store.latitude, store.longitude]], 
-              options: { 
-                paddingTopLeft: [50, 50],
-                paddingBottomRight: [50, StopCardsHeight],
-                maxZoom: 15 
-              } 
-            });
-            setMapCenter(null);
-            setMapZoom(null);
-          }
-        }
-        
-        hasAutoSelectedRef.current = true;
+      if (incompleteDeliveries.length === 0) {
+        console.log('⏭️ [Auto-Center] No incomplete deliveries');
+        return;
       }
+      
+      const nextDelivery = incompleteDeliveries[0];
+      console.log(`✅ [Auto-Center] Auto-centering on: ${nextDelivery.patient_name || 'Pickup'} (stop_order: ${nextDelivery.stop_order})`);
+      console.log(`📍 [Auto-Center] Will center but NOT select card`);
+      
+      // CHANGED: Do NOT set selectedCardId - only scroll to center
+      // setSelectedCardId(nextDelivery.id); // REMOVED
+      
+      // Scroll card into view after a longer delay to ensure cards are rendered
+      setTimeout(() => {
+        const cardElement = document.getElementById(`stop-card-${nextDelivery.id}`);
+        if (cardElement) {
+          cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+          console.log(`📍 [Auto-Center] Scrolled to next card (NOT selected): ${nextDelivery.id}`);
+        } else {
+          console.warn(`⚠️ [Auto-Center] Card element not found: stop-card-${nextDelivery.id}`);
+        }
+      }, 300);
+      
+      // Center map on this delivery using fitBounds for bottom padding
+      if (nextDelivery.patient_id) {
+        const patient = patients.find((p) => p && p.id === nextDelivery.patient_id);
+        if (patient?.latitude && patient?.longitude) {
+          setShouldFitBounds({ 
+            bounds: [[patient.latitude, patient.longitude]], 
+            options: { 
+              paddingTopLeft: [50, 50],
+              paddingBottomRight: [50, StopCardsHeight],
+              maxZoom: 15 
+            } 
+          });
+          setMapCenter(null);
+          setMapZoom(null);
+        }
+      } else if (nextDelivery.store_id) {
+        const store = stores.find((s) => s && s.id === nextDelivery.store_id);
+        if (store?.latitude && store?.longitude) {
+          setShouldFitBounds({ 
+            bounds: [[store.latitude, store.longitude]], 
+            options: { 
+              paddingTopLeft: [50, 50],
+              paddingBottomRight: [50, StopCardsHeight],
+              maxZoom: 15 
+            } 
+          });
+          setMapCenter(null);
+          setMapZoom(null);
+        }
+      }
+      
+      hasAutoSelectedRef.current = true;
     }
   }, [isDataLoaded, deliveriesWithStopOrder, isLoadingUser, patients, stores, initialMapViewApplied, StopCardsHeight]);
 
@@ -4949,11 +4953,11 @@ function Dashboard() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 w-8 p-0 flex-shrink-0"
                 onClick={(e) => {
                   e.stopPropagation();
                   setIsExpanded(!isExpanded);
-                }}>
+                }}
+                className="h-8 w-8 p-0 flex-shrink-0">
                 {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </Button>
             </div>
