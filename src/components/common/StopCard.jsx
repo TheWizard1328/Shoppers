@@ -1272,7 +1272,7 @@ export default function StopCard({
                               dispatcher: currentUser,
                               driver: assignedDriver,
                               store,
-                              deliveries: sortedPendingWithoutTR,
+                              deliveries: sortedPending,
                               patients
                             });
                           }
