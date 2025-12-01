@@ -11,7 +11,7 @@ import React from 'react';
 export default function MapCrosshair({ stopCardsHeight = 0 }) {
   // Calculate vertical offset: when cards are visible, shift up by half the cards height + 10px
   // This centers the crosshair in the VISIBLE map area (above stop cards)
-  const verticalOffset = stopCardsHeight > 0 ? (stopCardsHeight / 2) + 10 : 0;
+  const verticalOffset = stopCardsHeight > 0 ? (stopCardsHeight) + 10 : 0;
 
   return (
     <div 
@@ -20,7 +20,7 @@ export default function MapCrosshair({ stopCardsHeight = 0 }) {
         display: 'flex', 
         alignItems: 'center', 
         justifyContent: 'center',
-        paddingBottom: stopCardsHeight > 0 ? `${verticalOffset * 2}px` : 0
+        paddingBottom: stopCardsHeight > 0 ? `${verticalOffset}px` : 0
       }}
     >
       {/* Crosshair container */}
