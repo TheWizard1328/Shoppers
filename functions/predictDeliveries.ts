@@ -257,6 +257,7 @@ Deno.serve(async (req) => {
       if (!shouldInclude) {
         const patientDeliveries = historicalDeliveries.filter(d => d && d.patient_id === patient.id);
 
+        // RULE 2.1: Require at least 2 historical deliveries
         if (patientDeliveries.length >= 2) {
           // Sort by date
           patientDeliveries.sort((a, b) => a.delivery_date.localeCompare(b.delivery_date));
@@ -273,13 +274,64 @@ Deno.serve(async (req) => {
           // Calculate average interval
           const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
 
+          // RULE 2.2: Only include if pattern matches a known recurring type
+          // Daily: 1 day, Weekly: 7 days, Bi-Weekly: 14 days, Weekly x4: ~2 days, Monthly: ~30 days, Bi-Monthly: ~60 days
+          let matchedPattern = null;
+          let patternTolerance = 3; // default tolerance in days
+          
+          if (avgInterval <= 1.5) {
+            matchedPattern = 'Daily';
+            patternTolerance = 1;
+          } else if (avgInterval >= 1.5 && avgInterval <= 3) {
+            matchedPattern = 'Weekly x4';
+            patternTolerance = 1;
+          } else if (avgInterval >= 5 && avgInterval <= 9) {
+            matchedPattern = 'Weekly';
+            patternTolerance = 2;
+          } else if (avgInterval >= 12 && avgInterval <= 18) {
+            matchedPattern = 'Bi-Weekly';
+            patternTolerance = 3;
+          } else if (avgInterval >= 25 && avgInterval <= 35) {
+            matchedPattern = 'Monthly';
+            patternTolerance = 5;
+          } else if (avgInterval >= 55 && avgInterval <= 70) {
+            matchedPattern = 'Bi-Monthly';
+            patternTolerance = 7;
+          }
+
+          // Skip if pattern doesn't match any known recurring type
+          if (!matchedPattern) {
+            continue;
+          }
+
           // Calculate days since last delivery
           const lastDeliveryDate = new Date(patientDeliveries[patientDeliveries.length - 1].delivery_date);
           const daysSinceLastDelivery = Math.round((targetDate - lastDeliveryDate) / (1000 * 60 * 60 * 24));
 
-          // Check if pattern matches
-          const tolerance = 3; // days
-          if (Math.abs(daysSinceLastDelivery - avgInterval) <= tolerance) {
+          // RULE 2.3: Check for missed consecutive deliveries (more than 3 cycles missed)
+          let expectedInterval = avgInterval;
+          if (matchedPattern === 'Daily') expectedInterval = 1;
+          else if (matchedPattern === 'Weekly x4') expectedInterval = 2;
+          else if (matchedPattern === 'Weekly') expectedInterval = 7;
+          else if (matchedPattern === 'Bi-Weekly') expectedInterval = 14;
+          else if (matchedPattern === 'Monthly') expectedInterval = 30;
+          else if (matchedPattern === 'Bi-Monthly') expectedInterval = 60;
+
+          // Calculate how many cycles have been missed
+          const missedCycles = Math.floor(daysSinceLastDelivery / expectedInterval) - 1;
+          
+          // Skip if more than 3 consecutive deliveries missed
+          if (missedCycles > 3) {
+            continue;
+          }
+
+          // Check if pattern matches for the target date
+          // daysSinceLastDelivery should be close to expectedInterval (or a multiple of it within 1 cycle)
+          const cyclesSinceLastDelivery = daysSinceLastDelivery / expectedInterval;
+          const nearestCycle = Math.round(cyclesSinceLastDelivery);
+          const daysFromExpected = Math.abs(daysSinceLastDelivery - (nearestCycle * expectedInterval));
+          
+          if (daysFromExpected <= patternTolerance && nearestCycle >= 1) {
             shouldInclude = true;
             
             // Confidence based on consistency of intervals
@@ -287,7 +339,7 @@ Deno.serve(async (req) => {
             const stdDev = Math.sqrt(variance);
             confidence = Math.max(0.5, Math.min(0.85, 1 - (stdDev / avgInterval)));
             
-            reason = `Historical pattern: ~${Math.round(avgInterval)} day intervals (${patientDeliveries.length} deliveries)`;
+            reason = `${matchedPattern} pattern (~${Math.round(avgInterval)} days, ${patientDeliveries.length} deliveries)`;
           }
         }
       }
