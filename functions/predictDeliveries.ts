@@ -159,6 +159,45 @@ Deno.serve(async (req) => {
 
       // RULE 1: Check explicit recurring patterns
       if (patient.recurring) {
+        // FILTER RULE 3 for explicit patterns: Check if patient has missed more than 3 consecutive deliveries
+        let missedConsecutive = 0;
+        let expectedInterval = 0;
+        let toleranceDays = 0;
+        
+        if (patient.recurring_daily) {
+          expectedInterval = 1;
+          toleranceDays = 1;
+        } else if (patient.recurring_weekly_x4) {
+          expectedInterval = 2;
+          toleranceDays = 3;
+        } else if (patient.recurring_biweekly) {
+          expectedInterval = 14;
+          toleranceDays = 3;
+        } else if (patient.recurring_monthly) {
+          expectedInterval = 30;
+          toleranceDays = 5;
+        } else if (patient.recurring_bimonthly) {
+          expectedInterval = 60;
+          toleranceDays = 7;
+        } else if (patient.recurring_weekly_mon || patient.recurring_weekly_tue || patient.recurring_weekly_wed || 
+                   patient.recurring_weekly_thu || patient.recurring_weekly_fri || patient.recurring_weekly_sat || 
+                   patient.recurring_weekly_sun) {
+          expectedInterval = 7;
+          toleranceDays = 2;
+        }
+        
+        // Calculate missed consecutive deliveries for explicit patterns
+        if (expectedInterval > 0 && patient.last_delivery_date) {
+          const lastDeliveryDate = new Date(patient.last_delivery_date);
+          const daysSinceLastDelivery = Math.round((targetDate - lastDeliveryDate) / (1000 * 60 * 60 * 24));
+          missedConsecutive = Math.floor((daysSinceLastDelivery - toleranceDays) / expectedInterval);
+        }
+        
+        // Skip if missed more than 3 consecutive deliveries
+        if (missedConsecutive > 3) {
+          continue;
+        }
+        
         if (patient.recurring_daily) {
           shouldInclude = true;
           confidence = 0.95;
