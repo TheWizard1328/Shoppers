@@ -1367,6 +1367,30 @@ export default function StopCard({
 
                                 // Update this single delivery to in_transit (don't touch isNextDelivery)
                                 await onStatusUpdate(projectedDelivery.id, 'in_transit', { tracking_number: newTR }, true);
+
+                                // Send notification message
+                                const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher');
+                                if (isDriverAction) {
+                                  // Driver accepted one - notify dispatchers
+                                  await notifyDriverAcceptedOne({
+                                    driver: currentUser,
+                                    patientName: projectedDelivery.patient_name,
+                                    store,
+                                    appUsers
+                                  });
+                                } else {
+                                  // Dispatcher/Admin assigned one - notify driver
+                                  const assignedDriver = drivers.find(d => d?.id === delivery.driver_id);
+                                  if (assignedDriver) {
+                                    await notifyDispatcherAssignedAll({
+                                      dispatcher: currentUser,
+                                      driver: assignedDriver,
+                                      store,
+                                      deliveries: [projectedDelivery],
+                                      patients
+                                    });
+                                  }
+                                }
                               }}>
 
                                           <Plus className="w-3 h-3" />
