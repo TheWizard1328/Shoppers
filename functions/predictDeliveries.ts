@@ -58,35 +58,55 @@ Deno.serve(async (req) => {
 
     // Fetch historical deliveries for the past 180 days (for pattern detection)
     // CRITICAL: Filter by store_ids to reduce dataset size and prevent count-only responses
-    let historicalDeliveries;
+    let historicalDeliveries = [];
     try {
-      const historicalFilter = {
-        delivery_date: { $gte: date180DaysAgoStr, $lte: delivery_date }
-      };
-
-      // Add store_ids filter if provided to limit dataset size
+      // If many stores, fetch historical data per-store to avoid hitting limits
       if (store_ids && store_ids.length > 0) {
-        historicalFilter.store_id = { $in: store_ids };
-      }
-
-      console.log('[predictDeliveries] Historical filter:', JSON.stringify(historicalFilter));
-
-      let rawHistorical = await base44.asServiceRole.entities.Delivery.filter(historicalFilter);
-      console.log('[predictDeliveries] Historical deliveries raw type:', typeof rawHistorical);
-      
-      // CRITICAL: Handle case where API returns string (JSON) instead of parsed array
-      if (typeof rawHistorical === 'string') {
-        try {
-          rawHistorical = JSON.parse(rawHistorical);
-          console.log('[predictDeliveries] Parsed historical deliveries from string');
-        } catch (parseErr) {
-          console.error('[predictDeliveries] Failed to parse historical deliveries string:', parseErr);
-          rawHistorical = [];
+        console.log('[predictDeliveries] Fetching historical deliveries for', store_ids.length, 'stores');
+        
+        // Fetch in parallel for all stores
+        const storePromises = store_ids.map(async (storeId) => {
+          const storeFilter = {
+            delivery_date: { $gte: date180DaysAgoStr, $lte: delivery_date },
+            store_id: storeId
+          };
+          
+          let rawStoreHistorical = await base44.asServiceRole.entities.Delivery.filter(storeFilter);
+          
+          // Handle string response
+          if (typeof rawStoreHistorical === 'string') {
+            try {
+              rawStoreHistorical = JSON.parse(rawStoreHistorical);
+            } catch (parseErr) {
+              rawStoreHistorical = [];
+            }
+          }
+          
+          return Array.isArray(rawStoreHistorical) ? rawStoreHistorical : [];
+        });
+        
+        const storeResults = await Promise.all(storePromises);
+        historicalDeliveries = storeResults.flat();
+        console.log('[predictDeliveries] Total historical deliveries from all stores:', historicalDeliveries.length);
+      } else {
+        // No store filter - fetch all (rare case)
+        const historicalFilter = {
+          delivery_date: { $gte: date180DaysAgoStr, $lte: delivery_date }
+        };
+        
+        let rawHistorical = await base44.asServiceRole.entities.Delivery.filter(historicalFilter);
+        
+        if (typeof rawHistorical === 'string') {
+          try {
+            rawHistorical = JSON.parse(rawHistorical);
+          } catch (parseErr) {
+            rawHistorical = [];
+          }
         }
+        
+        historicalDeliveries = Array.isArray(rawHistorical) ? rawHistorical : [];
+        console.log('[predictDeliveries] Historical deliveries (no store filter):', historicalDeliveries.length);
       }
-      
-      historicalDeliveries = Array.isArray(rawHistorical) ? rawHistorical : [];
-      console.log('[predictDeliveries] Historical deliveries:', historicalDeliveries.length)
     } catch (histError) {
       console.error('[predictDeliveries] Error fetching historical deliveries:', histError);
       return Response.json({ error: 'Failed to fetch historical deliveries', details: histError.message }, { status: 500 });
