@@ -398,15 +398,19 @@ export default function StopCard({
 
   const _isProjectedData = useMemo(() => delivery?.isProjected || false, [delivery?.isProjected]);
 
+  // Check if current user is the assigned driver for this delivery
+  const isAssignedDriver = useMemo(() => {
+    if (!currentUser || !delivery) return false;
+    return delivery.driver_id === currentUser.id;
+  }, [currentUser, delivery]);
+
   const nextAvailableStatuses = useMemo(() => {
     if (!onStatusUpdate || !currentUser) return [];
 
-    // Dispatchers should NOT have access to status changes via dropdown
-    const isDispatcherOnly = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'driver');
-    if (isDispatcherOnly) return [];
-
-    const canChangeStatus = userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver');
-    if (!canChangeStatus) return [];
+    // Only the assigned driver can change status (not dispatchers, not other drivers)
+    // Admins can still change status
+    const isAdmin = userHasRole(currentUser, 'admin');
+    if (!isAdmin && !isAssignedDriver) return [];
 
     // No status changes for completed/cancelled/returned
     if (['completed', 'cancelled', 'returned'].includes(delivery.status)) {
@@ -422,7 +426,7 @@ export default function StopCard({
       statuses = ['pending', 'Ready For Pickup', 'in_transit', 'completed', 'failed'];
     }
     return statuses.filter((s) => s !== delivery.status);
-  }, [delivery?.status, onStatusUpdate, currentUser, isPickup]);
+  }, [delivery?.status, onStatusUpdate, currentUser, isPickup, isAssignedDriver]);
 
   // CRITICAL: Hide status dropdown when entire route is completed
   const showStatusDropdown = useMemo(() => {
