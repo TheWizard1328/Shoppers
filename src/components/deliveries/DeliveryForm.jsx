@@ -1171,11 +1171,15 @@ export default function DeliveryForm({
       ...formData,
       cod_total_amount_required: codAmount,
       _tempId: editingStagedId,
+      id: staged.id, // CRITICAL: Preserve id for pending deliveries
       patient_name: formData.patient_name || patient?.full_name || 'N/A (Pickup)',
       store_name: store.name,
       store_abbreviation: store.abbreviation,
       distanceFromStore: distanceFromStore,
       delivery_address: patient?.address || store.address,
+      // Preserve calculated values from original staged
+      puid: formData.puid || staged.puid,
+      ampm_deliveries: formData.ampm_deliveries || staged.ampm_deliveries,
       // Ensure special flags are preserved
       first_delivery: formData.first_delivery || false,
       oversized: formData.oversized || false,
