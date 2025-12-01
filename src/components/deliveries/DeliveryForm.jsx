@@ -613,18 +613,22 @@ export default function DeliveryForm({
         });
 
         if (response.data && response.data.predictions) {
+          console.log('[DeliveryForm] Received predictions from API:', response.data.predictions.length);
+          
           const stagedPatientIds = new Set(stagedDeliveries.map((d) => d.patient_id));
 
           const filteredPredictions = response.data.predictions.filter(
             (pred) => {
               // Filter out staged only
               if (stagedPatientIds.has(pred.patient_id)) {
+                console.log('[DeliveryForm] Filtered out (staged):', pred.patient_name);
                 return false;
               }
 
               // Safety check: ensure patient is not inactive
               const patient = patients?.find((p) => p && p.id === pred.patient_id);
               if (patient && patient.status === 'inactive') {
+                console.log('[DeliveryForm] Filtered out (inactive):', pred.patient_name);
                 return false;
               }
 
@@ -636,6 +640,7 @@ export default function DeliveryForm({
 
                 // Daily: exclude if last delivery was more than 3 days ago
                 if (patient.recurring_daily && daysSinceLastDelivery > 3) {
+                  console.log('[DeliveryForm] Filtered out (daily stale):', pred.patient_name, daysSinceLastDelivery, 'days');
                   return false;
                 }
 
@@ -644,21 +649,25 @@ export default function DeliveryForm({
                 patient.recurring_weekly_wed || patient.recurring_weekly_thu ||
                 patient.recurring_weekly_fri || patient.recurring_weekly_sat ||
                 patient.recurring_weekly_sun) && daysSinceLastDelivery > 14) {
+                  console.log('[DeliveryForm] Filtered out (weekly stale):', pred.patient_name, daysSinceLastDelivery, 'days');
                   return false;
                 }
 
                 // Bi-Weekly: exclude if last delivery was more than 4 weeks (28 days) ago
                 if (patient.recurring_biweekly && daysSinceLastDelivery > 28) {
+                  console.log('[DeliveryForm] Filtered out (bi-weekly stale):', pred.patient_name, daysSinceLastDelivery, 'days');
                   return false;
                 }
 
                 // Weekly x4 & Monthly: exclude if last delivery was more than 60 days ago
                 if ((patient.recurring_weekly_x4 || patient.recurring_monthly) && daysSinceLastDelivery > 60) {
+                  console.log('[DeliveryForm] Filtered out (monthly stale):', pred.patient_name, daysSinceLastDelivery, 'days');
                   return false;
                 }
 
                 // Bi-Monthly: exclude if last delivery was more than 120 days ago
                 if (patient.recurring_bimonthly && daysSinceLastDelivery > 120) {
+                  console.log('[DeliveryForm] Filtered out (bi-monthly stale):', pred.patient_name, daysSinceLastDelivery, 'days');
                   return false;
                 }
               }
@@ -667,6 +676,7 @@ export default function DeliveryForm({
             }
           );
 
+          console.log('[DeliveryForm] Filtered predictions:', filteredPredictions.length, 'of', response.data.predictions.length);
           setProjectedDeliveries(filteredPredictions);
         }
       } catch (error) {
