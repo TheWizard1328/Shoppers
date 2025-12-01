@@ -983,7 +983,7 @@ export default function Patients() {
     let availablePatients = allPatients || [];
 
     // SIMPLIFIED: Dispatcher filtering by store_id only
-    if (currentUser && userHasRole(currentUser, 'dispatcher')) {
+    if (currentUser && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
       const dispatcherStoreIds = currentUser.store_ids || [];
       if (dispatcherStoreIds.length > 0) {
         availablePatients = availablePatients.filter((p) => {
@@ -994,7 +994,7 @@ export default function Patients() {
         availablePatients = [];
       }
     }
-    // Admins and drivers see all patients (drivers need visibility for projections/context)
+    // Admins see ALL patients regardless of city filter
 
     // Apply search filter
     if (searchTerm.trim()) {
@@ -1012,11 +1012,8 @@ export default function Patients() {
       });
     }
 
-    // Apply city filter
-    // NOTE: With 75km radius feature, Layout already filters stores/patients by nearby cities
-    // The city dropdown here is for UI organization, not strict filtering
-    // Admins can see "all" cities which includes everything Layout loaded (all nearby cities)
-    if (selectedCityId !== "all") {
+    // Apply city filter - SKIP for admins (they see all)
+    if (!userHasRole(currentUser, 'admin') && selectedCityId !== "all") {
       const storesInSelectedCity = new Set(stores.filter((s) => s.city_id === selectedCityId).map((s) => s.id));
       availablePatients = availablePatients.filter((p) => p && storesInSelectedCity.has(p.store_id));
     }
