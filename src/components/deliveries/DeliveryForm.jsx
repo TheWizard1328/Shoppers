@@ -2435,8 +2435,8 @@ export default function DeliveryForm({
               }
 
               {/* Scrollable container for Sections 4 & 5 on desktop */}
-              <div className={`flex gap-3 max-w-full ${delivery || isMobile ? 'overflow-y-auto flex-1' : 'flex-1 min-h-0 overflow-hidden'}`}>
-                <div className={`flex flex-col gap-3 ${delivery || isMobile ? 'flex-1' : 'flex-[13] overflow-y-auto'} ${isFormDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
+              <div className={`flex gap-3 max-w-full ${delivery || useMobileLayout ? 'overflow-y-auto flex-1' : 'flex-1 min-h-0 overflow-hidden'}`}>
+                <div className={`flex flex-col gap-3 ${delivery || useMobileLayout ? 'flex-1' : 'flex-[13] overflow-y-auto'} ${isFormDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
                   
                   {/* Section 1: Notes */}
                   <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
