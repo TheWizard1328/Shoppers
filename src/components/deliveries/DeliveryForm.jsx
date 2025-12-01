@@ -2117,7 +2117,7 @@ export default function DeliveryForm({
           <CardContent className="p-4 flex-1 relative overflow-hidden">
             <div className="space-y-3 h-full flex flex-col">
               {/* Section 1: Patient Search - STATIC */}
-              <div className={`flex gap-3 ${isMobile ? 'flex-wrap' : ''} ${!delivery && !isMobile ? 'flex-shrink-0' : ''}`}>
+              <div className={`flex gap-3 ${useMobileLayout ? 'flex-wrap' : ''} ${!delivery && !useMobileLayout ? 'flex-shrink-0' : ''}`}>
                 {!delivery && !isPickupMode &&
                 <div className={`${isMobile ? 'w-full' : 'flex-[2]'} space-y-1 relative bg-slate-50 p-3 rounded-lg border border-slate-200`}>
                     <div className="flex items-center justify-between mb-1">
