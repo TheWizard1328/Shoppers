@@ -1217,9 +1217,9 @@ export default function Layout({ children, currentPageName }) {
       let relevantCityIds = [selectedCityId];
       if (isAdmin) {
         // Admins get ALL cities - no radius restriction
-        relevantCityIds = cities.map(c => c.id);
+        relevantCityIds = cities.filter(c => c && c.id).map(c => c.id);
         console.log(`🌐 [Layout] ADMIN: Loading data from ALL ${relevantCityIds.length} cities`);
-        console.log(`   Cities: ${cities.map(c => c.name).join(', ')}`);
+        console.log(`   Cities: ${cities.filter(c => c).map(c => c.name).join(', ')}`);
       } else if (selectedCity) {
         const nearbyCities = getCitiesWithinRadius(selectedCity, cities, 75);
         relevantCityIds = nearbyCities.map(c => c.id);
