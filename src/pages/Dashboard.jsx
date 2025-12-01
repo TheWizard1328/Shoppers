@@ -1966,14 +1966,12 @@ function Dashboard() {
       setSelectedCardId(delivery.id);
       setHighlightedCardId(delivery.id);
 
-      // CRITICAL: Clear timers and unlock FAB immediately
+      // CRITICAL: Clear timers and unlock FAB
       if (mapLockTimeoutRef.current) {
         clearTimeout(mapLockTimeoutRef.current);
         mapLockTimeoutRef.current = null;
       }
       mapLockExpiresAtRef.current = null;
-      
-      console.log('🔓 [Card Click] Unlocking FAB - user selected a card');
       setIsMapViewLocked(false);
 
       if (delivery.patient_id) {
