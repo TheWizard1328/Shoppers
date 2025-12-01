@@ -196,10 +196,13 @@ export default function RouteImport({
   }, [allStores, stores]);
 
   const findDispatcherByStore = useCallback((store) => {
-    if (!store || !allUsers) return null;
+    if (!store) return null;
+    
+    // Use allDriverUsers (all cities) or fallback to allUsers prop
+    const usersToSearch = allDriverUsers.length > 0 ? allDriverUsers : (allUsers || []);
 
     if (store.dispatcher_id) {
-      const dispatcher = allUsers.find((u) => u.id === store.dispatcher_id);
+      const dispatcher = usersToSearch.find((u) => u.id === store.dispatcher_id);
       if (dispatcher) {
         console.log(`[RouteImport] Found dispatcher via ID for store ${store.name}:`, dispatcher.user_name || dispatcher.full_name);
         return dispatcher;
@@ -211,7 +214,7 @@ export default function RouteImport({
     if (store.dispatcher_name) {
       console.warn(`[RouteImport] Falling back to name-based dispatcher lookup for store ${store.name}`);
       const dispatcherNameLower = store.dispatcher_name.toLowerCase().trim();
-      const dispatcher = allUsers.find((u) => {
+      const dispatcher = usersToSearch.find((u) => {
         const userName = (u.user_name || u.full_name || '').toLowerCase().trim();
         return u.app_roles?.includes('dispatcher') && userName === dispatcherNameLower;
       });
@@ -226,7 +229,7 @@ export default function RouteImport({
 
     console.warn(`[RouteImport] No dispatcher found for store ${store.name} after trying both ID and name.`);
     return null;
-  }, [allUsers]);
+  }, [allDriverUsers, allUsers]);
 
   const matchDeliveryToExisting = useCallback((importedDelivery, existingDeliveries, patientsData) => {
     if (!importedDelivery || !existingDeliveries || !Array.isArray(existingDeliveries) || !patientsData || !Array.isArray(patientsData)) {
@@ -1056,16 +1059,55 @@ export default function RouteImport({
     };
   }, [stores, allUsers, findStoreByAbbreviation, findDispatcherByStore, setProgressPercent, setProgressMessage, matchDeliveryToExisting, detectChanges, currentUser, userHasRole]);
 
+  const [allDriverUsers, setAllDriverUsers] = useState([]);
+  
+  // Load ALL drivers from ALL cities on mount
+  React.useEffect(() => {
+    const loadAllDrivers = async () => {
+      try {
+        console.log('[RouteImport] Fetching ALL users from ALL cities...');
+        const allAppUsers = await base44.entities.AppUser.list();
+        const allAuthUsers = await base44.entities.User.list();
+        
+        // Merge AppUsers with Auth Users
+        const mergedUsers = allAuthUsers.map((authUser) => {
+          const appUser = allAppUsers.find((au) => au.user_id === authUser.id);
+          if (appUser) {
+            return {
+              ...authUser,
+              ...appUser,
+              id: authUser.id,
+              user_name: appUser.user_name || authUser.full_name,
+              app_roles: appUser.app_roles || []
+            };
+          }
+          return authUser;
+        });
+        
+        setAllDriverUsers(mergedUsers);
+        console.log(`[RouteImport] Loaded ${mergedUsers.length} users from ALL cities`);
+      } catch (error) {
+        console.error('[RouteImport] Error loading all drivers:', error);
+        // Fallback to prop allUsers
+        setAllDriverUsers(allUsers || []);
+      }
+    };
+    
+    loadAllDrivers();
+  }, []);
+
   const availableDrivers = useMemo(() => {
-    if (!allUsers || !Array.isArray(allUsers) || allUsers.length === 0) {
+    const usersToUse = allDriverUsers.length > 0 ? allDriverUsers : (allUsers || []);
+    
+    if (!Array.isArray(usersToUse) || usersToUse.length === 0) {
       console.warn('[RouteImport] No users available for driver selection');
       return [];
     }
 
-    const drivers = getAllDriverUsers(allUsers, false);
+    const drivers = getAllDriverUsers(usersToUse, false);
     console.log('[RouteImport] Available drivers:', drivers.length, drivers.map((d) => d.user_name || d.full_name));
     return sortUsers(drivers);
-  }, [allUsers]);
+  }, [allDriverUsers, allUsers]);
 
   const allPreviewDeliveries = useMemo(() => {
     const created = previewData.deliveriesToCreate.map((d) => ({ ...d, action: 'create' }));
@@ -1132,8 +1174,7 @@ export default function RouteImport({
 
       console.log(`[RouteImport] Fetching fresh store data from ALL cities...`);
       setProgressMessage('Fetching store data from all cities...');
-      // CRITICAL: Fetch ALL stores without any city filter - this ensures we can match
-      // store abbreviations regardless of which city the user is currently viewing
+      // CRITICAL: Fetch ALL stores without any city filter
       const freshStoresAll = await base44.entities.Store.list('-created_date');
       setAllStores(freshStoresAll || []);
       console.log(`[RouteImport] Fresh store data loaded: ${freshStoresAll?.length || 0} stores from ALL cities`);
@@ -1141,11 +1182,12 @@ export default function RouteImport({
         console.log(`[RouteImport] Store abbreviations available:`, freshStoresAll.map(s => `${s.abbreviation || 'N/A'} (${s.name})`).slice(0, 30));
       }
 
-      console.log(`[RouteImport] Fetching fresh patient data...`);
-      setProgressMessage('Fetching fresh patient data...');
-      const freshPatients = await getData('Patient', '-created_date');
+      console.log(`[RouteImport] Fetching fresh patient data from ALL stores/cities...`);
+      setProgressMessage('Fetching patient data from all stores...');
+      // CRITICAL: Fetch ALL patients without any filter - ensures we can match any patient
+      const freshPatients = await base44.entities.Patient.list('-created_date');
       setPatients(freshPatients);
-      console.log(`[RouteImport] Fresh patient data loaded: ${freshPatients?.length || 0} patients`);
+      console.log(`[RouteImport] Fresh patient data loaded: ${freshPatients?.length || 0} patients from ALL stores`);
 
       if (!freshPatients || freshPatients.length === 0) {
         alert('No patient data available.');
@@ -1276,9 +1318,10 @@ export default function RouteImport({
         window.__routeImportStartCallback();
       }
       
-      setProgressMessage('Fetching latest patient and store data...');
-      const freshPatients = await getData('Patient', '-created_date');
-      const freshStores = await getData('Store', '-created_date');
+      setProgressMessage('Fetching latest patient and store data from ALL cities...');
+      // CRITICAL: Fetch ALL patients and stores without filters
+      const freshPatients = await base44.entities.Patient.list('-created_date');
+      const freshStores = await base44.entities.Store.list('-created_date');
 
       const deliveriesToCreateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'create');
       const deliveriesToUpdateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'update');
