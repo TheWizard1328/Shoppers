@@ -234,7 +234,7 @@ function Dashboard() {
   const stopCardsContainerRef = useRef(null);
 
   const STOP_CARDS_BASE_HEIGHT = 145; // Fixed non-expanded height for map padding
-  const StopCardsHeight = STOP_CARDS_BASE_HEIGHT + 400;
+  const StopCardsHeight = STOP_CARDS_BASE_HEIGHT + 50;
 
   const mapLockTimeoutRef = useRef(null);
   const mapLockExpiresAtRef = useRef(null); // Timestamp when lock should expire
@@ -1327,7 +1327,7 @@ function Dashboard() {
               bounds, 
               options: { 
                 paddingTopLeft: [50, 100],
-                paddingBottomRight: [50, STOP_CARDS_BASE_HEIGHT + 50],
+                paddingBottomRight: [50, StopCardsHeight],
                 maxZoom: 12,
                 animate: false
               } 
@@ -1341,12 +1341,12 @@ function Dashboard() {
           console.log('🗺️ [FAB Click] Phase 1 - Drivers but no stops, centering on drivers + city center');
           allCoordinates.push([currentCity.latitude, currentCity.longitude]);
           console.log('  [FAB Click] Total coordinates:', allCoordinates.length);
-          console.log('  [FAB Click] Bottom padding:', STOP_CARDS_BASE_HEIGHT + 50);
+          console.log('  [FAB Click] Bottom padding:', StopCardsHeight);
           setShouldFitBounds({ 
             bounds: allCoordinates, 
             options: { 
               paddingTopLeft: [50, 100],
-              paddingBottomRight: [50, STOP_CARDS_BASE_HEIGHT + 50],
+              paddingBottomRight: [50, StopCardsHeight],
               maxZoom: 14 
             } 
           });
@@ -1356,7 +1356,7 @@ function Dashboard() {
         // CASE 3: Normal case with stop markers
         else if (allCoordinates.length > 0) {
           console.log('🗺️ [FAB Click] Phase 1 - Fitting bounds to', allCoordinates.length, 'coordinates');
-          console.log('  [FAB Click] Bottom padding:', STOP_CARDS_BASE_HEIGHT + 50);
+          console.log('  [FAB Click] Bottom padding:', StopCardsHeight);
           
           // Calculate span to determine appropriate maxZoom
           // Prevent over-zooming when stops are close together
@@ -1396,7 +1396,7 @@ function Dashboard() {
             bounds: allCoordinates, 
             options: { 
               paddingTopLeft: [50, 100],
-              paddingBottomRight: [50, STOP_CARDS_BASE_HEIGHT + 50],
+              paddingBottomRight: [50, StopCardsHeight],
               maxZoom: phase1MaxZoom
             } 
           });
@@ -1434,13 +1434,13 @@ function Dashboard() {
           // Calculate visual center offset: add extra padding to shift view UP to account for stop cards
           // This way the actual driver+stop midpoint is centered in the VISIBLE map area (above stop cards)
           // Increased multiplier from 1.0 to 1.5 for more aggressive upward shift
-          const visualCenterOffset = Math.round(STOP_CARDS_BASE_HEIGHT * 1.5);
-          const bottomPadding = STOP_CARDS_BASE_HEIGHT + 120 + visualCenterOffset;
+          const visualCenterOffset = Math.round(StopCardsHeight);
+          const bottomPadding = StopCardsHeight + visualCenterOffset;
 
           console.log('🗺️ [FAB Click] Phase 2 - Fitting bounds to driver + next stop');
           console.log('  [FAB Click] Driver:', [driverLocation.latitude, driverLocation.longitude]);
           console.log('  [FAB Click] Next Stop:', [nextStopCoordinates.lat, nextStopCoordinates.lon]);
-          console.log('  [FAB Click] Stop cards height:', STOP_CARDS_BASE_HEIGHT);
+          console.log('  [FAB Click] Stop cards height:', StopCardsHeight);
           console.log('  [FAB Click] Visual center offset:', visualCenterOffset);
           console.log('  [FAB Click] Bottom padding:', bottomPadding);
           setShouldFitBounds({ 
@@ -1526,7 +1526,7 @@ function Dashboard() {
     
     // CRITICAL: Skip if user settings were loaded and applied phase 2 (settings take priority)
     // For phase 2 loaded from settings, we need to trigger map view, SELECT next stop marker (not just highlight), and auto-scroll to next card
-    if (userSettingsLoaded && mapViewPhase === 2 && !initialMapViewApplied && isDataLoaded && deliveriesWithStopOrder.length > 0 && isDriver && driverLocation && STOP_CARDS_BASE_HEIGHT > 0) {
+    if (userSettingsLoaded && mapViewPhase === 2 && !initialMapViewApplied && isDataLoaded && deliveriesWithStopOrder.length > 0 && isDriver && driverLocation && StopCardsHeight > 0) {
       console.log(`🗺️ [Initial Load] Phase 2 from settings - triggering map view and selecting next stop`);
       
       // Find the next delivery to select its marker
@@ -1575,7 +1575,7 @@ function Dashboard() {
     // CRITICAL: Apply initial map view when data is ready
     if (!initialMapViewApplied && isDataLoaded && deliveriesWithStopOrder.length > 0 && isDriver && driverLocation) {
       console.log('🗺️ [Initial Load] Applying Phase 1 (Show All Stops)');
-      console.log(`📏 [Initial Load] Stop cards height: ${STOP_CARDS_BASE_HEIGHT}px`);
+      console.log(`📏 [Initial Load] Stop cards height: ${StopCardsHeight}px`);
       
       // Clear any existing timeout
       if (mapLockTimeoutRef.current) {
@@ -1606,7 +1606,7 @@ function Dashboard() {
         }
       }, lockDuration);
     }
-  }, [initialMapViewApplied, isDataLoaded, deliveriesWithStopOrder.length, isDriver, driverLocation, userSettingsLoaded, mapViewPhase, STOP_CARDS_BASE_HEIGHT]);
+  }, [initialMapViewApplied, isDataLoaded, deliveriesWithStopOrder.length, isDriver, driverLocation, userSettingsLoaded, mapViewPhase, StopCardsHeight]);
 
   // CRITICAL: Dedicated effect to scroll to next delivery card on initial load
   // This runs AFTER cards are rendered and handles ALL phases
@@ -1703,8 +1703,8 @@ function Dashboard() {
         }
         
         // Same increased padding as FAB click for phase 2 continuous updates
-        const visualCenterOffset = Math.round(STOP_CARDS_BASE_HEIGHT * 1.5);
-        const bottomPadding = STOP_CARDS_BASE_HEIGHT + 120 + visualCenterOffset;
+        const visualCenterOffset = Math.round(StopCardsHeight);
+        const bottomPadding = StopCardsHeight + visualCenterOffset;
         
         setShouldFitBounds({ 
           bounds, 
@@ -1951,8 +1951,8 @@ function Dashboard() {
           ];
           
           // Use increased padding for card clicks too
-          const visualCenterOffset = Math.round(STOP_CARDS_BASE_HEIGHT * 1.5);
-          const bottomPadding = STOP_CARDS_BASE_HEIGHT + 120 + visualCenterOffset;
+          const visualCenterOffset = Math.round(StopCardsHeight);
+          const bottomPadding = StopCardsHeight + visualCenterOffset;
           
           setShouldFitBounds({ 
             bounds, 
@@ -1966,8 +1966,8 @@ function Dashboard() {
           setMapZoom(null);
           setIsMapViewLocked(true);
         } else if (patient?.latitude && patient?.longitude) {
-          const visualCenterOffset = Math.round(STOP_CARDS_BASE_HEIGHT * 1.5);
-          const bottomPadding = STOP_CARDS_BASE_HEIGHT + 120 + visualCenterOffset;
+          const visualCenterOffset = Math.round(StopCardsHeight);
+          const bottomPadding = StopCardsHeight + visualCenterOffset;
           
           setShouldFitBounds({ 
             bounds: [[patient.latitude, patient.longitude]], 
@@ -1984,8 +1984,8 @@ function Dashboard() {
       } else if (delivery.store_id) {
         const store = stores.find((s) => s.id === delivery.store_id);
         if (store?.latitude && store?.longitude) {
-          const visualCenterOffset = Math.round(STOP_CARDS_BASE_HEIGHT * 1.5);
-          const bottomPadding = STOP_CARDS_BASE_HEIGHT + 120 + visualCenterOffset;
+          const visualCenterOffset = Math.round(StopCardsHeight);
+          const bottomPadding = StopCardsHeight + visualCenterOffset;
           
           setShouldFitBounds({ 
             bounds: [[store.latitude, store.longitude]], 
@@ -5126,7 +5126,7 @@ function Dashboard() {
             onMapInteraction={handleMapInteraction}
             onDoubleTap={handleMapViewCycle}
             retractClustersRef={retractClustersRef}
-            STOP_CARDS_BASE_HEIGHT={STOP_CARDS_BASE_HEIGHT}
+            STOP_CARDS_BASE_HEIGHT={StopCardsHeight}
             areStopCardsVisible={deliveriesWithStopOrder.length > 0}
             highlightedDeliveryId={highlightedCardId} />
 
