@@ -1581,8 +1581,8 @@ export default function StopCard({
                       setIsStarting(true);
                       try {
                         await ensureDriverOnline();
-                        await onStartDelivery(delivery.id);
-                        // Send notification to dispatchers
+                        
+                        // Send notification to dispatchers BEFORE updating the delivery
                         if (userHasRole(currentUser, 'driver')) {
                           await notifyDriverStarted({
                             driver: currentUser,
@@ -1592,6 +1592,8 @@ export default function StopCard({
                             appUsers
                           });
                         }
+                        
+                        await onStartDelivery(delivery.id);
                       } finally {
                         setIsStarting(false);
                       }
