@@ -1450,6 +1450,16 @@ export default function StopCard({
                         try {
                           await ensureDriverOnline();
                           await onStatusUpdate(delivery.id, isPickup ? 'en_route' : 'in_transit');
+                          // Send notification to dispatchers
+                          if (userHasRole(currentUser, 'driver')) {
+                            await notifyDriverRetry({
+                              driver: currentUser,
+                              patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
+                              delivery,
+                              store,
+                              appUsers
+                            });
+                          }
                         } finally {
                           setIsRetrying(false);
                         }
