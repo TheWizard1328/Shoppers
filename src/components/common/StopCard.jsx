@@ -1231,6 +1231,29 @@ export default function StopCard({
                         }
 
                         console.log('✅ [Accept Button] All pending deliveries accepted');
+
+                        // Send notification message
+                        const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher');
+                        if (isDriverAction) {
+                          // Driver accepted all - notify dispatchers
+                          await notifyDriverAcceptedAll({
+                            driver: currentUser,
+                            store,
+                            appUsers
+                          });
+                        } else {
+                          // Dispatcher/Admin assigned all - notify driver
+                          const assignedDriver = drivers.find(d => d?.id === delivery.driver_id);
+                          if (assignedDriver) {
+                            await notifyDispatcherAssignedAll({
+                              dispatcher: currentUser,
+                              driver: assignedDriver,
+                              store,
+                              deliveries: sortedPendingWithoutTR,
+                              patients
+                            });
+                          }
+                        }
                       }}>
 
                           {acceptButtonText}
