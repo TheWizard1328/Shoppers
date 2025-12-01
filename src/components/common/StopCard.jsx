@@ -1501,8 +1501,8 @@ export default function StopCard({
                         e.stopPropagation();
                         setIsCompleting(true);
                         // NOTE: We intentionally do NOT reset isCompleting to false here.
-                        // The button will remain in loading state until the card is unmounted
-                        // (after the delivery status changes and the card is hidden/replaced).
+                        // The button will remain in loading state until the parent refreshes
+                        // the delivery data and this card is either hidden or updated.
                         try {
                           // Auto-toggle driver online if offline
                           await ensureDriverOnline();
@@ -1560,10 +1560,11 @@ export default function StopCard({
                           }
                         } catch (error) {
                           // Only reset on error so user can retry
-                          console.error('Complete button error:', error);
+                          console.error('Complete delivery error:', error);
                           setIsCompleting(false);
                         }
-                        // Success case: leave isCompleting=true until card unmounts
+                        // SUCCESS: Keep isCompleting=true - button stays in loading state
+                        // until parent re-renders with updated delivery status
                       }}
                       size="sm"
                       disabled={isCompleting}
