@@ -2357,7 +2357,7 @@ export default function DeliveryForm({
                 }
 
                 {/* Section 2: Delivery Date - STATIC */}
-                <div className={`${isMobile ? 'w-[calc(50%-0.375rem)]' : 'flex-1'} space-y-1 bg-slate-50 p-3 rounded-lg border border-slate-200`}>
+                <div className={`${useMobileLayout ? 'w-[calc(50%-0.375rem)]' : 'flex-1'} space-y-1 bg-slate-50 p-3 rounded-lg border border-slate-200`}>
                   <Label className="text-sm font-semibold">Delivery Date *</Label>
                   <Input
                     type="date"
