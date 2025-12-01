@@ -2369,7 +2369,7 @@ export default function DeliveryForm({
                 </div>
 
                 {/* Section 3: Driver Selection - STATIC */}
-                <div className={`${isMobile ? 'w-[calc(50%-0.375rem)]' : 'flex-1'} space-y-1 bg-slate-50 p-3 rounded-lg border border-slate-200`}>
+                <div className={`${useMobileLayout ? 'w-[calc(50%-0.375rem)]' : 'flex-1'} space-y-1 bg-slate-50 p-3 rounded-lg border border-slate-200`}>
                   <Label className="text-sm font-semibold">Driver *</Label>
                   <Select
                     value={formData.driver_id || ''}
