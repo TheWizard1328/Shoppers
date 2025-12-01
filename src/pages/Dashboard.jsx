@@ -1705,6 +1705,7 @@ function Dashboard() {
         
         // Mark that we're doing a programmatic map move (debounces interaction handler for 500ms)
         lastProgrammaticMapMoveRef.current = Date.now();
+        window._lastProgrammaticMapMove = Date.now();
         
         const bounds = [
           [driverLocation.latitude, driverLocation.longitude],
