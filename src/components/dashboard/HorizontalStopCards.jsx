@@ -289,7 +289,8 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
               selectedDate={selectedDate}
               drivers={drivers}
               stores={stores}
-              onDriverStatusChange={onDriverStatusChange} />
+              onDriverStatusChange={onDriverStatusChange}
+              appUsers={appUsers} />
 
           </div>);
 
