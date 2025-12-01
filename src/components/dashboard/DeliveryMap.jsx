@@ -1517,18 +1517,25 @@ export default function DeliveryMap({
         if (routeHasActuallyStarted && firstStopCoordinates && route.driver) {
           let startPoint = null;
 
-          // Priority 1: Use driver's current location from AppUser if available and recent
-          if (route.driver.current_latitude && route.driver.current_longitude && route.driver.location_updated_at) {
+          // CRITICAL: Priority 1 - Use currentDriverLocation if this is the current user (live GPS on mobile)
+          if (currentUser && route.driver.id === currentUser.id && currentDriverLocation?.latitude && currentDriverLocation?.longitude) {
+            startPoint = [currentDriverLocation.latitude, currentDriverLocation.longitude];
+            console.log(`  📍 Origin from currentDriverLocation (live GPS)`);
+          }
+          // Priority 2: Use driver's stored GPS location from AppUser if available and recent
+          else if (route.driver.current_latitude && route.driver.current_longitude && route.driver.location_updated_at) {
             const locationAge = Date.now() - new Date(route.driver.location_updated_at).getTime();
             const fiveMinutesInMs = 5 * 60 * 1000;
 
             if (locationAge < fiveMinutesInMs) {
               startPoint = [route.driver.current_latitude, route.driver.current_longitude];
-              console.log(`  📍 Origin from driver's current location (${Math.round(locationAge / 1000)}s old)`);
+              console.log(`  📍 Origin from driver's stored GPS location (${Math.round(locationAge / 1000)}s old)`);
+            } else {
+              console.log(`  ⚠️ Driver's stored GPS too old (${Math.round(locationAge / 1000)}s), using last completed`);
             }
           }
 
-          // Priority 2: Use last completed stop location
+          // Priority 3: Use last completed stop location (fallback only if no GPS)
           if (!startPoint && hasCompletedStops) {
             const completedStopsForDriver = [...route.stops, ...driverPickups]
               .filter((s) => s && finishedStatuses.includes(s.status) && s.actual_delivery_time)
@@ -1537,14 +1544,14 @@ export default function DeliveryMap({
             if (completedStopsForDriver.length > 0) {
               const lastCompleted = completedStopsForDriver[0];
               startPoint = [lastCompleted.latitude, lastCompleted.longitude];
-              console.log(`  📍 Origin from last completed stop`);
+              console.log(`  📍 Origin from last completed stop (fallback - no GPS)`);
             }
           }
 
           // Draw bright red solid line from origin to first incomplete stop
           if (startPoint) {
             startToFirstStopCoordinates = [startPoint, firstStopCoordinates];
-            console.log(`  ✅ Will draw BRIGHT RED origin line from start to first incomplete stop`);
+            console.log(`  ✅ Will draw BLUE DASHED origin line from start to first incomplete stop`);
           }
         } else if (!isRouteStarted && firstStopCoordinates && route.driver) {
           // Route hasn't started - use home or current location
