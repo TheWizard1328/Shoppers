@@ -1500,9 +1500,6 @@ export default function StopCard({
                       onClick={async (e) => {
                         e.stopPropagation();
                         setIsCompleting(true);
-                        // NOTE: We intentionally do NOT reset isCompleting to false here.
-                        // The button will remain in loading state until the parent refreshes
-                        // the delivery data and this card is either hidden or updated.
                         try {
                           // Auto-toggle driver online if offline
                           await ensureDriverOnline();
@@ -1548,23 +1545,22 @@ export default function StopCard({
                             await onStatusUpdate(delivery.id, 'completed');
                           }
 
-                          // Send notification to dispatchers
+                          // Send notification to dispatchers (don't await - fire and forget)
                           if (userHasRole(currentUser, 'driver')) {
-                            await notifyDriverCompleted({
+                            notifyDriverCompleted({
                               driver: currentUser,
                               patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
                               delivery,
                               store,
                               appUsers
-                            });
+                            }).catch(err => console.warn('Notification failed:', err));
                           }
+                          // NOTE: Don't reset isCompleting here - the card will be replaced/hidden
+                          // when parent refreshes. This keeps the spinner visible during transition.
                         } catch (error) {
-                          // Only reset on error so user can retry
                           console.error('Complete delivery error:', error);
                           setIsCompleting(false);
                         }
-                        // SUCCESS: Keep isCompleting=true - button stays in loading state
-                        // until parent re-renders with updated delivery status
                       }}
                       size="sm"
                       disabled={isCompleting}
