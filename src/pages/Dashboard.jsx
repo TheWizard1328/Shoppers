@@ -1926,19 +1926,15 @@ function Dashboard() {
     // Minimize any expanded stop card when tapping on a map marker
     setSelectedCardId(null);
     
-    // CRITICAL: Unlock FAB when user clicks a map marker
-    if (isMapViewLocked) {
-      console.log('🔓 [Marker Click] Unlocking FAB - user clicked map marker');
-      
-      // Clear any existing timers
-      if (mapLockTimeoutRef.current) {
-        clearTimeout(mapLockTimeoutRef.current);
-        mapLockTimeoutRef.current = null;
-      }
-      mapLockExpiresAtRef.current = null;
-      
-      setIsMapViewLocked(false);
+    // CRITICAL: Clear timers and unlock FAB immediately
+    if (mapLockTimeoutRef.current) {
+      clearTimeout(mapLockTimeoutRef.current);
+      mapLockTimeoutRef.current = null;
     }
+    mapLockExpiresAtRef.current = null;
+    
+    console.log('🔓 [Marker Click] Unlocking FAB - user clicked map marker');
+    setIsMapViewLocked(false);
     
     const cardElement = document.getElementById(`stop-card-${delivery.id}`);
     if (cardElement) {
