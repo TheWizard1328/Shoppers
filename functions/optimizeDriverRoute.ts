@@ -854,20 +854,31 @@ Deno.serve(async (req) => {
         let destLat = null;
         let destLon = null;
         
-        // Priority 1: Use current location if provided
+        // CRITICAL: Always prioritize current location if available (real-time driver GPS)
+        // Priority 1: Use provided current location (driver's live GPS)
         if (currentLocation?.lat && currentLocation?.lon) {
           originLat = currentLocation.lat;
           originLon = currentLocation.lon;
-          console.log('   📍 Using provided current location as origin');
+          console.log('   📍 Using provided current location as origin (LIVE GPS)');
         }
-        // Priority 2: Use driver's GPS location
+        // Priority 2: Use driver's stored GPS location from AppUser
         else if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
-          originLat = driverAppUser.current_latitude;
-          originLon = driverAppUser.current_longitude;
-          console.log('   📍 Using driver GPS location as origin');
+          const locationAge = driverAppUser.location_updated_at 
+            ? Date.now() - new Date(driverAppUser.location_updated_at).getTime()
+            : Infinity;
+          
+          // Use if less than 5 minutes old, otherwise fall through to last completed
+          if (locationAge < 5 * 60 * 1000) {
+            originLat = driverAppUser.current_latitude;
+            originLon = driverAppUser.current_longitude;
+            console.log(`   📍 Using driver GPS location as origin (${Math.round(locationAge / 1000)}s old)`);
+          } else {
+            console.log(`   ⚠️ Driver GPS location too old (${Math.round(locationAge / 1000)}s), falling back to last completed`);
+          }
         }
-        // Priority 3: Use last completed stop
-        else if (completedDeliveries.length > 0) {
+        
+        // Priority 3: Use last completed stop ONLY if no current location available
+        if (!originLat && completedDeliveries.length > 0) {
           const sortedCompleted = [...completedDeliveries].sort((a, b) => 
             new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time)
           );
@@ -878,22 +889,22 @@ Deno.serve(async (req) => {
             if (patient?.latitude && patient?.longitude) {
               originLat = patient.latitude;
               originLon = patient.longitude;
-              console.log('   📍 Using last completed stop as origin');
+              console.log('   📍 Using last completed stop as origin (fallback - no GPS)');
             }
           } else {
             const store = stores.find(s => s?.id === lastCompleted.store_id);
             if (store?.latitude && store?.longitude) {
               originLat = store.latitude;
               originLon = store.longitude;
-              console.log('   📍 Using last completed pickup as origin');
+              console.log('   📍 Using last completed pickup as origin (fallback - no GPS)');
             }
           }
         }
         // Priority 4: Use driver's home location
-        else if (driverHome) {
+        else if (!originLat && driverHome) {
           originLat = driverHome.lat;
           originLon = driverHome.lon;
-          console.log('   📍 Using driver home as origin');
+          console.log('   📍 Using driver home as origin (fallback - no GPS or completed stops)');
         }
         
         // Get destination (next delivery)
