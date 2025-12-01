@@ -1179,24 +1179,21 @@ export default function DeliveryMap({
           return null;
         }
         
-        // Show green for on_duty, orange for on_break (on non-mobile devices only)
-        if (!isMobile) {
-          const dotColor = location.driver_status === 'on_duty' ? '#10B981' : '#F97316';
-          console.log(`  ✅ Current user location (${location.driver_status}): ${dotColor} dot on desktop`);
-          
-          return {
-            ...location,
-            driver,
-            driverColor: dotColor,
-            driverName: driver.user_name || driver.full_name || 'You',
-            driverInitial: (driver.user_name || driver.full_name || 'Y').charAt(0).toUpperCase(),
-            isSelf: true,
-            driver_status: location.driver_status
-          };
-        } else {
-          console.log('  ⏭️ Skipping current user location: mobile uses blue dot');
-          return null;
-        }
+        // CRITICAL: Show green/orange dot on BOTH mobile AND desktop for current user
+        // Desktop: shows green/orange dot
+        // Mobile: blue dot is shown separately via currentDriverMarker, this is for other devices
+        const dotColor = location.driver_status === 'on_duty' ? '#10B981' : '#F97316';
+        console.log(`  ✅ Current user location (${location.driver_status}): ${dotColor} dot (always shown)`);
+        
+        return {
+          ...location,
+          driver,
+          driverColor: dotColor,
+          driverName: driver.user_name || driver.full_name || 'You',
+          driverInitial: (driver.user_name || driver.full_name || 'Y').charAt(0).toUpperCase(),
+          isSelf: true,
+          driver_status: location.driver_status
+        };
       }
 
       // RULE 2: Other drivers - require location_tracking_enabled=true (sharing ON)
