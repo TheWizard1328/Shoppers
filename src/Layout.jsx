@@ -1308,23 +1308,16 @@ export default function Layout({ children, currentPageName }) {
       const mergedUsers = Array.from(mergedUsersMap.values()).filter(Boolean);
       console.log(`✅ [Layout] Merged ${mergedUsers.length} users`);
 
-      // Get drivers from all relevant cities - ALL USERS
-      let activeDrivers;
-      if (relevantCityIds.length > 0) {
-        // Get all drivers from relevant cities (all cities for admin, 75km for others)
-        activeDrivers = mergedUsers.filter(user => {
-          if (!user || !user.app_roles || !Array.isArray(user.app_roles)) return false;
-          if (!user.app_roles.includes('driver') && !user.app_roles.includes('admin')) return false;
-          if (!user.user_name) return false;
-          if (user.status !== 'active') return false;
-          return relevantCityIds.includes(user.city_id);
-        });
-        activeDrivers = sortUsers(activeDrivers);
-        console.log(`✅ [Layout] Populated ${activeDrivers.length} active drivers from ${relevantCityIds.length} cities`);
-      } else {
-        activeDrivers = getActiveDriversForCity(mergedUsers, selectedCityId);
-        console.log(`✅ [Layout] Populated ${activeDrivers.length} active drivers for selected city: ${selectedCityId}`);
-      }
+      // Get ALL active drivers - no geographic filtering
+      let activeDrivers = mergedUsers.filter(user => {
+        if (!user || !user.app_roles || !Array.isArray(user.app_roles)) return false;
+        if (!user.app_roles.includes('driver') && !user.app_roles.includes('admin')) return false;
+        if (!user.user_name) return false;
+        if (user.status !== 'active') return false;
+        return true;
+      });
+      activeDrivers = sortUsers(activeDrivers);
+      console.log(`✅ [Layout] Populated ${activeDrivers.length} active drivers`);
 
 
       console.log('💾 [Layout] Updating Layout state with Stage 1 data...');
