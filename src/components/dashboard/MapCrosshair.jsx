@@ -9,9 +9,9 @@ import React from 'react';
  * This is a pure overlay - not part of the map, so it doesn't move when panning.
  */
 export default function MapCrosshair({ stopCardsHeight = 0 }) {
-  // Calculate vertical offset: when cards are visible, shift up by half the cards height
-  // This centers the crosshair in the VISIBLE map area (above stop cards)
-  const verticalOffset = stopCardsHeight > 0 ? (stopCardsHeight / 2) : 0;
+  // When stop cards are visible, shift the crosshair UP by half the cards height
+  // so it appears centered in the visible map area (above the cards)
+  const verticalShift = stopCardsHeight > 0 ? Math.round(stopCardsHeight / 2) : 0;
 
   return (
     <div 
@@ -19,12 +19,16 @@ export default function MapCrosshair({ stopCardsHeight = 0 }) {
       style={{ 
         display: 'flex', 
         alignItems: 'center', 
-        justifyContent: 'center',
-        paddingBottom: stopCardsHeight > 0 ? `${verticalOffset}px` : 0
+        justifyContent: 'center'
       }}
     >
-      {/* Crosshair container */}
-      <div className="relative w-6 h-6">
+      {/* Crosshair container - shifted UP when stop cards visible */}
+      <div 
+        className="relative w-6 h-6"
+        style={{
+          transform: verticalShift > 0 ? `translateY(-${verticalShift}px)` : 'none'
+        }}
+      >
         {/* Horizontal line */}
         <div 
           className="absolute top-1/2 left-0 right-0 h-[2px] bg-slate-800/60 -translate-y-1/2"
