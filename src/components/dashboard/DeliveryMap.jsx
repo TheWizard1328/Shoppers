@@ -1716,8 +1716,17 @@ export default function DeliveryMap({
   // NEW: Double-tap detection for FAB activation
   function MapController() {
     const lastTapRef = useRef(0);
+    const isUserInteractionRef = useRef(false);
     
     const mapInstance = useMapEvents({
+      zoomstart: () => {
+        // Mark as user interaction when zoom starts
+        isUserInteractionRef.current = true;
+      },
+      movestart: () => {
+        // Mark as user interaction when pan starts
+        isUserInteractionRef.current = true;
+      },
       zoomend: () => {
         const rawZoom = mapInstance.getZoom();
         const roundedZoom = Math.round(rawZoom * 10) / 10; // Round to 1 decimal place
@@ -1737,16 +1746,16 @@ export default function DeliveryMap({
         const bounds = mapInstance.getBounds();
         setVisibleBounds(bounds);
         
-        // Notify parent that user zoomed the map
-        if (onMapInteraction) {
+        // CRITICAL: Only notify parent if this was a user interaction
+        if (isUserInteractionRef.current && onMapInteraction) {
+          console.log('🗺️ [Map] User zoom detected - calling onMapInteraction');
           onMapInteraction();
         }
+        
+        // Reset the flag
+        isUserInteractionRef.current = false;
       },
       moveend: () => {
-        // Notify parent that user panned the map
-        if (onMapInteraction) {
-          onMapInteraction();
-        }
         // Update map center for crosshair - use actual center without adjustments
         const center = mapInstance.getCenter();
         setMapCenter([center.lat, center.lng]);
@@ -1754,6 +1763,15 @@ export default function DeliveryMap({
         // Update visible bounds for debug box
         const bounds = mapInstance.getBounds();
         setVisibleBounds(bounds);
+        
+        // CRITICAL: Only notify parent if this was a user interaction
+        if (isUserInteractionRef.current && onMapInteraction) {
+          console.log('🗺️ [Map] User pan detected - calling onMapInteraction');
+          onMapInteraction();
+        }
+        
+        // Reset the flag
+        isUserInteractionRef.current = false;
       },
       click: () => {
         // Retract clusters on map click
