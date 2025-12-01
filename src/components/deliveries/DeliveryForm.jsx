@@ -1686,8 +1686,10 @@ export default function DeliveryForm({
   }, []);
 
   useEffect(() => {
+    console.log('📝 [DeliveryForm] Setting isFormOverlayOpen = true');
     setIsFormOverlayOpen(true);
     return () => {
+      console.log('📝 [DeliveryForm] Cleanup - setting isFormOverlayOpen = false');
       setIsFormOverlayOpen(false);
     };
   }, [setIsFormOverlayOpen]);
