@@ -5124,6 +5124,7 @@ function Dashboard() {
             googleApiKey={googleApiKey}
             onDriverRoutesCalculated={setDriverRoutes}
             onMapInteraction={handleMapInteraction}
+            onDoubleTap={handleMapViewCycle}
             retractClustersRef={retractClustersRef}
             STOP_CARDS_BASE_HEIGHT={STOP_CARDS_BASE_HEIGHT}
             areStopCardsVisible={deliveriesWithStopOrder.length > 0}
