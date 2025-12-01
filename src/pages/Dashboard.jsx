@@ -1521,14 +1521,14 @@ function Dashboard() {
     }
     
     // CRITICAL: Skip if user settings were loaded and applied phase 2 (settings take priority)
-    // For phase 2 loaded from settings, we need to trigger map view, SELECT next stop marker (not just highlight), and auto-scroll to next card
+    // For phase 2 loaded from settings, we need to trigger map view and SCROLL to next card (but NOT select it)
     if (userSettingsLoaded && mapViewPhase === 2 && !initialMapViewApplied && isDataLoaded && deliveriesWithStopOrder.length > 0 && isDriver && driverLocation && StopCardsHeight > 0) {
-      console.log(`🗺️ [Initial Load] Phase 2 from settings - triggering map view and selecting next stop`);
+      console.log(`🗺️ [Initial Load] Phase 2 from settings - triggering map view and scrolling to next stop`);
       
       // Phase 2: Lock STAYS locked (persistent)
       setIsMapViewLocked(true);
       
-      // Find the next delivery to select its marker
+      // Find the next delivery to scroll to (but NOT select)
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
       const incompleteDeliveries = deliveriesWithStopOrder
         .filter(d => d && !finishedStatuses.includes(d.status))
@@ -1538,27 +1538,21 @@ function Dashboard() {
       setMapViewTrigger(prev => prev + 1);
       setInitialMapViewApplied(true);
       
-      // THEN select card and scroll after a delay to ensure DOM is ready
+      // THEN scroll to card (but do NOT select it - no setSelectedCardId)
       if (incompleteDeliveries.length > 0) {
         const nextDelivery = incompleteDeliveries[0];
-        console.log(`📍 [Initial Load Phase 2] Will select next stop: ${nextDelivery.patient_name || 'Pickup'}`);
+        console.log(`📍 [Initial Load Phase 2] Will scroll to (NOT select): ${nextDelivery.patient_name || 'Pickup'}`);
         
-        // Delay setting selectedCardId to ensure HorizontalStopCards is rendered
+        // Delay scroll to ensure HorizontalStopCards is rendered
         setTimeout(() => {
-          setSelectedCardId(nextDelivery.id);
-          console.log(`📍 [Initial Load Phase 2] Set selectedCardId: ${nextDelivery.id}`);
-          
-          // Additional backup scroll
-          setTimeout(() => {
-            const cardElement = document.getElementById(`stop-card-${nextDelivery.id}`);
-            if (cardElement) {
-              cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-              console.log(`📍 [Initial Load Phase 2] Scrolled to card: ${nextDelivery.id}`);
-            } else {
-              console.warn(`⚠️ [Initial Load Phase 2] Card not found: stop-card-${nextDelivery.id}`);
-            }
-          }, 300);
-        }, 100);
+          const cardElement = document.getElementById(`stop-card-${nextDelivery.id}`);
+          if (cardElement) {
+            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            console.log(`📍 [Initial Load Phase 2] Scrolled to card (NOT selected): ${nextDelivery.id}`);
+          } else {
+            console.warn(`⚠️ [Initial Load Phase 2] Card not found: stop-card-${nextDelivery.id}`);
+          }
+        }, 300);
       }
       
       return;
@@ -1566,13 +1560,20 @@ function Dashboard() {
     
     // CRITICAL: Handle phase 1 or 3 from settings - apply 3-second timer
     if (userSettingsLoaded && !initialMapViewApplied && isDataLoaded && deliveriesWithStopOrder.length > 0 && (mapViewPhase === 1 || mapViewPhase === 3)) {
+      // For phase 3, require driver location
+      if (mapViewPhase === 3 && (!isDriver || !driverLocation)) {
+        console.log(`⏭️ [Initial Load] Phase 3 requires driver location, skipping`);
+        return;
+      }
+      
       console.log(`🗺️ [Initial Load] Phase ${mapViewPhase} from settings - applying with 3s timer`);
       
-      // Clear any existing timeout
+      // Clear any existing timeout FIRST
       if (mapLockTimeoutRef.current) {
         clearTimeout(mapLockTimeoutRef.current);
         mapLockTimeoutRef.current = null;
       }
+      mapLockExpiresAtRef.current = null;
       
       setIsMapViewLocked(true);
       setMapViewTrigger(prev => prev + 1);
@@ -1582,9 +1583,10 @@ function Dashboard() {
       const lockDuration = 3000;
       const expiresAt = Date.now() + lockDuration;
       mapLockExpiresAtRef.current = expiresAt;
-      console.log(`⏰ [Initial Load] Starting ${lockDuration}ms timer for Phase ${mapViewPhase}`);
+      console.log(`⏰ [Initial Load] Starting ${lockDuration}ms timer for Phase ${mapViewPhase}, expiresAt: ${expiresAt}`);
       
       mapLockTimeoutRef.current = window.setTimeout(() => {
+        console.log(`⏰ [Initial Load Timer] Fired! Checking expiry: current=${mapLockExpiresAtRef.current}, expected=${expiresAt}`);
         if (mapLockExpiresAtRef.current === expiresAt) {
           console.log(`⚫ [Initial Load] Phase ${mapViewPhase} auto-unlocking after ${lockDuration}ms`);
           setIsMapViewLocked(false);
