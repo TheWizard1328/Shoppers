@@ -1220,12 +1220,12 @@ export default function StopCard({
                       className="h-6 px-2 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
                       onClick={async (e) => {
                         e.stopPropagation();
-                        console.log('🟢 [Accept Button] Clicked!');
+                        console.log('🟢 [Assign All Button] Clicked!');
                         console.log('  onStatusUpdate exists:', !!onStatusUpdate);
                         console.log('  pendingPickups count:', pendingPickups?.length || 0);
 
                         if (!onStatusUpdate) {
-                          console.error('❌ [Accept Button] No onStatusUpdate handler!');
+                          console.error('❌ [Assign All Button] No onStatusUpdate handler!');
                           return;
                         }
 
@@ -1234,36 +1234,26 @@ export default function StopCard({
                         const baseTR = isNaN(pickupTR) ? 0 : pickupTR;
                         console.log('  Pickup TR#:', delivery.tracking_number, '→ baseTR:', baseTR);
 
-                        // Filter to only pending deliveries that don't already have a valid TR# assigned
-                        const pendingWithoutTR = pendingPickups.filter((p) => {
-                          const tr = parseInt(p.tracking_number, 10);
-                          return isNaN(tr) || tr === 99 || tr === 0 || !p.tracking_number;
-                        });
-                        console.log('  Pending without TR#:', pendingWithoutTR.length);
+                        // Filter to ALL pending deliveries (including those with TR# already assigned)
+                        const allPendingDeliveries = pendingPickups.filter((p) => p.status === 'pending');
+                        console.log('  All pending deliveries:', allPendingDeliveries.length);
 
-                        // Get the highest TR# already assigned to this pickup's deliveries
-                        const existingTRs = pendingPickups.
-                        map((p) => parseInt(p.tracking_number, 10)).
-                        filter((tr) => !isNaN(tr) && tr !== 99 && tr !== 0 && tr > baseTR);
-                        const highestExistingTR = existingTRs.length > 0 ? Math.max(...existingTRs) : baseTR;
-                        console.log('  Highest existing TR#:', highestExistingTR);
-
-                        // Sort pending without TR by patient name for consistent TR# assignment
-                        const sortedPendingWithoutTR = [...pendingWithoutTR].sort((a, b) =>
-                        (a.patient_name || '').localeCompare(b.patient_name || '')
+                        // Sort by patient name for consistent processing
+                        const sortedPending = [...allPendingDeliveries].sort((a, b) =>
+                          (a.patient_name || '').localeCompare(b.patient_name || '')
                         );
 
-                        // Assign sequential TR#s starting after the highest existing TR#
-                        for (let i = 0; i < sortedPendingWithoutTR.length; i++) {
-                          const pendingDelivery = sortedPendingWithoutTR[i];
-                          const newTR = String(highestExistingTR + i + 1);
-                          console.log(`  Accepting: ${pendingDelivery.patient_name} → TR#${newTR}`);
+                        // Update ALL pending deliveries to 'in_transit' status
+                        for (let i = 0; i < sortedPending.length; i++) {
+                          const pendingDelivery = sortedPending[i];
+                          const existingTR = pendingDelivery.tracking_number || '99';
+                          console.log(`  Accepting: ${pendingDelivery.patient_name} (TR#${existingTR}) → status: in_transit`);
 
-                          // Update with new tracking number AND status (skip auto-center), do NOT touch isNextDelivery
-                          await onStatusUpdate(pendingDelivery.id, 'in_transit', { tracking_number: newTR }, true);
+                          // Update status to in_transit (keep existing TR#), skip auto-center
+                          await onStatusUpdate(pendingDelivery.id, 'in_transit', {}, true);
                         }
 
-                        console.log('✅ [Accept Button] All pending deliveries accepted');
+                        console.log('✅ [Assign All Button] All pending deliveries accepted');
 
                         // Send notification message
                         const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher');
