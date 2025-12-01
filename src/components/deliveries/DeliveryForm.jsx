@@ -2119,7 +2119,7 @@ export default function DeliveryForm({
               {/* Section 1: Patient Search - STATIC */}
               <div className={`flex gap-3 ${useMobileLayout ? 'flex-wrap' : ''} ${!delivery && !useMobileLayout ? 'flex-shrink-0' : ''}`}>
                 {!delivery && !isPickupMode &&
-                <div className={`${isMobile ? 'w-full' : 'flex-[2]'} space-y-1 relative bg-slate-50 p-3 rounded-lg border border-slate-200`}>
+                <div className={`${useMobileLayout ? 'w-full' : 'flex-[2]'} space-y-1 relative bg-slate-50 p-3 rounded-lg border border-slate-200`}>
                     <div className="flex items-center justify-between mb-1">
                       <Label className="text-sm font-semibold">Patient Search</Label>
                       {selectedPatient &&
