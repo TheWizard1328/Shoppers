@@ -398,12 +398,19 @@ export default function StopCard({
 
   const _isProjectedData = useMemo(() => delivery?.isProjected || false, [delivery?.isProjected]);
 
+  // Check if current user is the assigned driver for this delivery OR is app owner
+  const isAssignedDriverOrAppOwner = useMemo(() => {
+    if (!currentUser || !delivery) return false;
+    if (isAppOwner(currentUser)) return true;
+    if (!userHasRole(currentUser, 'driver')) return false;
+    return delivery.driver_id === currentUser.id;
+  }, [currentUser, delivery]);
+
   const nextAvailableStatuses = useMemo(() => {
     if (!onStatusUpdate || !currentUser) return [];
 
-    // Dispatchers should NOT have access to status changes via dropdown
-    const isDispatcherOnly = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'driver');
-    if (isDispatcherOnly) return [];
+    // Only assigned driver or app owner can change status
+    if (!isAssignedDriverOrAppOwner) return [];
 
     const canChangeStatus = userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver');
     if (!canChangeStatus) return [];
