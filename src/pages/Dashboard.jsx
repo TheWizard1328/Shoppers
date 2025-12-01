@@ -621,6 +621,8 @@ function Dashboard() {
   }, [selectedDriverId, selectedDate]);
   
   // Effect to reposition map AFTER deliveries have been rendered (markers exist)
+  // CRITICAL: This only runs when driver/date changes (pendingMapRepositionRef is set)
+  // It should NOT interfere with FAB click timers
   useEffect(() => {
     // Only run if we have a pending reposition and data is loaded
     if (!pendingMapRepositionRef.current || !isDataLoaded) {
@@ -637,48 +639,15 @@ function Dashboard() {
           
           pendingMapRepositionRef.current = false;
           
-          // CRITICAL: Don't change lock state if already locked on phase 2
-          // This preserves the persistent lock behavior of phase 2
-          if (!(mapViewPhase === 2 && isMapViewLocked)) {
-            setIsMapViewLocked(true);
-          }
-          
+          // Just trigger the map view, don't set up timers here
+          // The timer logic is handled by handleMapViewCycle
           setMapViewTrigger(prev => prev + 1);
-          
-          // Set appropriate lock behavior based on phase
-          if (mapViewPhase === 2) {
-            // Phase 2: Persistent lock - clear any existing timers
-            if (mapLockTimeoutRef.current) {
-              clearTimeout(mapLockTimeoutRef.current);
-            }
-            mapLockExpiresAtRef.current = null;
-            mapLockTimeoutRef.current = null;
-            console.log(`🔒 [Markers Ready] Phase 2 - Maintaining persistent lock`);
-          } else {
-            // Phase 1 and 3: 3-second auto-unlock timer
-            const lockDuration = 3000;
-            const expiresAt = Date.now() + lockDuration;
-            mapLockExpiresAtRef.current = expiresAt;
-            
-            if (mapLockTimeoutRef.current) {
-              clearTimeout(mapLockTimeoutRef.current);
-            }
-            
-            mapLockTimeoutRef.current = window.setTimeout(() => {
-              if (mapLockExpiresAtRef.current === expiresAt) {
-                console.log(`⚫ [Markers Ready] Phase ${mapViewPhase} auto-unlocking`);
-                setIsMapViewLocked(false);
-                mapLockExpiresAtRef.current = null;
-                mapLockTimeoutRef.current = null;
-              }
-            }, lockDuration);
-          }
         }
       }, 500); // 500ms delay after RAF to ensure markers and tiles are rendered
     });
     
     return () => cancelAnimationFrame(frameId);
-  }, [deliveriesWithStopOrder, isDataLoaded, mapViewPhase, isMapViewLocked]);
+  }, [deliveriesWithStopOrder, isDataLoaded, mapViewPhase]);
 
   const handleMapInteraction = useCallback(() => {
     console.log('🗺️ [Map Interaction] Called');
