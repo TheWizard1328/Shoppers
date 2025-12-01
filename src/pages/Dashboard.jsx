@@ -1131,10 +1131,11 @@ function Dashboard() {
       return;
     }
     
-    // Mark that this positioning is from a FAB interaction
+    // Mark that this positioning is from a FAB interaction (prevents unlock on programmatic map moves)
     mapPositioningTriggerRef.current = 'fab';
+    lastProgrammaticMapMoveRef.current = Date.now();
 
-    console.log(`🗺️ [FAB Click] Applying Phase ${mapViewPhase}...`);
+    console.log(`🗺️ [Map Position] Applying Phase ${mapViewPhase}...`);
     
     // NOTE: Timer is now started in handleMapViewCycle, not here
     // This useEffect only handles map repositioning
