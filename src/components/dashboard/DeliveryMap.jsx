@@ -635,6 +635,7 @@ export default function DeliveryMap({
   areCardsVisible = false,
   onLegendInteraction = () => {},
   onMapInteraction = () => {}, // NEW: Callback for any map interaction (zoom, pan, cluster click)
+  onDoubleTap = () => {}, // NEW: Callback for double-tap on map
   retractClustersRef, // NEW: Ref to allow parent to retract clusters
   stopCardsHeight = 0, // NEW: Height of the horizontal stop cards for fitBounds padding
   currentToNextPolyline = null, // NEW: Google Maps polyline from current position to next stop
