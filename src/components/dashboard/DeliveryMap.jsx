@@ -2086,6 +2086,53 @@ export default function DeliveryMap({
 
         })}
 
+        {/* NEW: Pulsing halo circles for selected stop and its store */}
+        {pulsingMarkerId && (() => {
+          const delivery = deliveryMarkers.find(d => d.id === pulsingMarkerId);
+          const pickup = pickupMarkers.find(p => p.id === pulsingMarkerId);
+          const marker = delivery || pickup;
+          
+          if (!marker) return null;
+          
+          const store = safeStores.find(s => s && s.id === marker.store_id);
+          const isPickupMarker = !!pickup;
+          
+          return (
+            <>
+              {/* Pulsing halo around selected stop */}
+              <Circle
+                key={`pulse-stop-${pulsingMarkerId}`}
+                center={[marker.latitude, marker.longitude]}
+                radius={150}
+                pathOptions={{
+                  color: '#3B82F6',
+                  fillColor: '#3B82F6',
+                  fillOpacity: 0.3,
+                  weight: 3,
+                  opacity: 0.8,
+                  className: 'pulsing-halo'
+                }}
+              />
+              {/* Pulsing halo around store (if not a pickup - pickup IS the store) */}
+              {!isPickupMarker && store?.latitude && store?.longitude && (
+                <Circle
+                  key={`pulse-store-${store.id}`}
+                  center={[store.latitude, store.longitude]}
+                  radius={200}
+                  pathOptions={{
+                    color: getStoreColor(store),
+                    fillColor: getStoreColor(store),
+                    fillOpacity: 0.25,
+                    weight: 3,
+                    opacity: 0.7,
+                    className: 'pulsing-halo'
+                  }}
+                />
+              )}
+            </>
+          );
+        })()}
+
         {/* NEW: Fanning radius lines (thick, solid, grey) - UNIFIED for all markers */}
         {fannedLocationKey && (() => {
           const pickupsAtLocation = groupedPickupMarkers.get(fannedLocationKey) || [];
