@@ -1001,7 +1001,6 @@ export default function Patients() {
         availablePatients = [];
       }
     }
-    // Admins see ALL patients regardless of city filter
 
     // Apply search filter
     if (searchTerm.trim()) {
@@ -1019,8 +1018,8 @@ export default function Patients() {
       });
     }
 
-    // Apply city filter - SKIP for admins (they see all)
-    if (!userHasRole(currentUser, 'admin') && selectedCityId !== "all") {
+    // Apply city filter - applies to ALL users (admins included)
+    if (selectedCityId !== "all") {
       const storesInSelectedCity = new Set(stores.filter((s) => s.city_id === selectedCityId).map((s) => s.id));
       availablePatients = availablePatients.filter((p) => p && storesInSelectedCity.has(p.store_id));
     }
