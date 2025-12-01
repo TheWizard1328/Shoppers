@@ -1575,6 +1575,11 @@ export default function DeliveryForm({
       delivery.status !== formData.status;
 
       await onSave(dataToSave);
+      
+      // CRITICAL: Always invalidate delivery cache after update to force refresh
+      const { invalidate } = await import('../utils/dataManager');
+      invalidate('Delivery');
+      invalidate('Patient');
 
       // If status changed to completion, recalculate stop orders for remaining deliveries
       if (statusChangedToCompletion && delivery.driver_id && delivery.delivery_date) {
