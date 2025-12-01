@@ -1719,27 +1719,37 @@ export default function DeliveryMap({
     
     const mapInstance = useMapEvents({
       zoomstart: () => {
-        // Only unlock if NOT triggered by programmatic map movement (within 800ms)
+        // Only unlock if NOT triggered by programmatic map movement (within 300ms)
+        // After initial programmatic move, clear the flag so subsequent user interactions work
         const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
-        if (timeSinceProgrammatic > 800) {
+        if (timeSinceProgrammatic > 300) {
           console.log('🗺️ [Map] User zoom detected - calling onMapInteraction');
           if (onMapInteraction) {
             onMapInteraction();
           }
         } else {
-          console.log('🗺️ [Map] Ignoring programmatic zoom (within 800ms window)');
+          console.log('🗺️ [Map] Ignoring programmatic zoom (within 300ms window)');
+          // Clear the flag after first programmatic event so user can interact
+          setTimeout(() => {
+            window._lastProgrammaticMapMove = 0;
+          }, 350);
         }
       },
       movestart: () => {
-        // Only unlock if NOT triggered by programmatic map movement (within 800ms)
+        // Only unlock if NOT triggered by programmatic map movement (within 300ms)
+        // After initial programmatic move, clear the flag so subsequent user interactions work
         const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
-        if (timeSinceProgrammatic > 800) {
+        if (timeSinceProgrammatic > 300) {
           console.log('🗺️ [Map] User pan detected - calling onMapInteraction');
           if (onMapInteraction) {
             onMapInteraction();
           }
         } else {
-          console.log('🗺️ [Map] Ignoring programmatic pan (within 800ms window)');
+          console.log('🗺️ [Map] Ignoring programmatic pan (within 300ms window)');
+          // Clear the flag after first programmatic event so user can interact
+          setTimeout(() => {
+            window._lastProgrammaticMapMove = 0;
+          }, 350);
         }
       },
       zoomend: () => {
