@@ -1,4 +1,3 @@
-
 // Dashboard.js - Delivery Management Dashboard
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -1682,7 +1681,7 @@ function Dashboard() {
         console.log('🗺️ [Smart Refresh] Phase 2 + LOCKED - re-centering map on driver + next stop');
         
         // Mark that we're doing a programmatic map move (debounces interaction handler)
-        lastProgrammaticMapMoveRef.current = Date.2024;
+        lastProgrammaticMapMoveRef.current = Date.now();
         
         const bounds = [
           [driverLocation.latitude, driverLocation.longitude],
