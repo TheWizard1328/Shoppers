@@ -1165,25 +1165,37 @@ export default function DeliveryForm({
       distanceFromStore = calculateDistance(store.latitude, store.longitude, patient.latitude, patient.longitude);
     }
 
-    setStagedDeliveries((prev) => prev.map((staged) =>
-    staged._tempId === editingStagedId ?
-    {
-      ...formData,
-      cod_total_amount_required: codAmount,
-      _tempId: editingStagedId,
-      patient_name: formData.patient_name || patient?.full_name || 'N/A (Pickup)',
-      store_name: store.name,
-      store_abbreviation: store.abbreviation,
-      distanceFromStore: distanceFromStore,
-      delivery_address: patient?.address || store.address,
-      // Ensure special flags are preserved
-      first_delivery: formData.first_delivery || false,
-      oversized: formData.oversized || false,
-      fridge_item: formData.fridge_item || false,
-      signature_needed: formData.signature_needed || false
-    } :
-    staged
-    ));
+    setStagedDeliveries((prev) => prev.map((staged) => {
+      if (staged._tempId !== editingStagedId) return staged;
+      
+      // CRITICAL: Preserve the original 'id' field if it exists (pending delivery)
+      // This ensures pending deliveries don't get re-saved as new when clicking Done
+      const updatedStaged = {
+        ...formData,
+        cod_total_amount_required: codAmount,
+        _tempId: editingStagedId,
+        id: staged.id, // PRESERVE ORIGINAL ID
+        patient_name: formData.patient_name || patient?.full_name || 'N/A (Pickup)',
+        store_name: store.name,
+        store_abbreviation: store.abbreviation,
+        distanceFromStore: distanceFromStore,
+        delivery_address: patient?.address || store.address,
+        // Ensure special flags are preserved
+        first_delivery: formData.first_delivery || false,
+        oversized: formData.oversized || false,
+        fridge_item: formData.fridge_item || false,
+        signature_needed: formData.signature_needed || false
+      };
+      
+      console.log('📝 [DeliveryForm] Updated staged delivery:', {
+        _tempId: updatedStaged._tempId,
+        id: updatedStaged.id,
+        patient_name: updatedStaged.patient_name,
+        status: updatedStaged.status
+      });
+      
+      return updatedStaged;
+    }));
 
     setError(null);
     setEditingStagedId(null);
@@ -1215,6 +1227,7 @@ export default function DeliveryForm({
       id: s.id,
       _tempId: s._tempId,
       patient_name: s.patient_name,
+      status: s.status,
       hasId: !!s.id
     })));
 
@@ -1224,17 +1237,23 @@ export default function DeliveryForm({
       return;
     }
 
-    // Filter out deliveries that already exist (have an id) - only save NEW staged stops
+    // CRITICAL: Split into NEW deliveries (no id) and UPDATED deliveries (have id, status changed from pending)
     const newDeliveries = stagedDeliveries.filter((staged) => !staged.id);
+    const updatedDeliveries = stagedDeliveries.filter((staged) => staged.id && staged.status !== 'pending');
 
-    console.log('[AddToRoute] 🔍 Total staged:', stagedDeliveries.length, '| New:', newDeliveries.length, '| Already pending:', stagedDeliveries.length - newDeliveries.length);
+    console.log('[AddToRoute] 🔍 Total staged:', stagedDeliveries.length, '| New:', newDeliveries.length, '| Updated:', updatedDeliveries.length, '| Unchanged pending:', stagedDeliveries.length - newDeliveries.length - updatedDeliveries.length);
     console.log('[AddToRoute] 🔍 New deliveries to save:', newDeliveries.map((s) => ({
       _tempId: s._tempId,
       patient_name: s.patient_name
     })));
+    console.log('[AddToRoute] 🔍 Updated deliveries to save:', updatedDeliveries.map((s) => ({
+      id: s.id,
+      patient_name: s.patient_name,
+      status: s.status
+    })));
 
-    if (newDeliveries.length === 0) {
-      console.log('[AddToRoute] ℹ️ No new deliveries to save (all are already pending)');
+    if (newDeliveries.length === 0 && updatedDeliveries.length === 0) {
+      console.log('[AddToRoute] ℹ️ No new or updated deliveries to save');
       console.log('[AddToRoute] 🚪 Calling onCancel to close form...');
       hasLoadedPending.current = false; // Reset flag to allow reload next time
       onCancel();
@@ -1430,10 +1449,31 @@ export default function DeliveryForm({
         console.log('[AddToRoute] ✅ Existing TR#s corrected');
       }
 
+      // Second, update pending deliveries that had status changes
+      if (updatedDeliveries.length > 0) {
+        console.log(`[AddToRoute] 📝 Updating ${updatedDeliveries.length} pending deliveries with status changes...`);
+        for (const updated of updatedDeliveries) {
+          await base44.entities.Delivery.update(updated.id, {
+            status: updated.status,
+            delivery_notes: updated.delivery_notes,
+            prescription_number: updated.prescription_number,
+            cod_total_amount_required: updated.cod_total_amount_required,
+            delivery_instructions: updated.delivery_instructions,
+            time_window_start: updated.time_window_start,
+            time_window_end: updated.time_window_end
+          });
+          console.log(`[AddToRoute] ✅ Updated pending delivery: ${updated.patient_name} → status: ${updated.status}`);
+        }
+        console.log('[AddToRoute] ✅ Pending deliveries updated');
+      }
+
       // Then save new deliveries
-      console.log('[AddToRoute] 📤 Calling Dashboard save handler with batch data...');
-      await onSave({ _isBatchSave: true, _stagedDeliveries: deliveriesWithTRs });
-      console.log('[AddToRoute] ✅ Batch save completed successfully');
+      if (newDeliveries.length > 0) {
+        console.log('[AddToRoute] 📤 Calling Dashboard save handler with batch data...');
+        await onSave({ _isBatchSave: true, _stagedDeliveries: deliveriesWithTRs });
+        console.log('[AddToRoute] ✅ Batch save completed successfully');
+      }
+      
       setStagedDeliveries([]);
       setProjectedDeliveries([]);
       onCancel(); // Always close after successful batch save
