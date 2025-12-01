@@ -1219,57 +1219,22 @@ export default function Layout({ children, currentPageName }) {
         console.log(`✅ [Layout] Fetched ${workingCities.length} cities`);
       }
 
-      // 75KM RADIUS FEATURE: Load data from nearby cities (within 75km) for ALL users
-      // CRITICAL FIX: For admins, load ALL cities regardless of radius to ensure full data access
       const isAdmin = userHasRole(currentUser, 'admin');
-      const selectedCity = workingCities.find(c => c && c.id === selectedCityId);
 
-      let relevantCityIds = [selectedCityId];
-      if (isAdmin) {
-        // Admins get ALL cities - no radius restriction
-        relevantCityIds = workingCities.filter(c => c && c.id).map(c => c.id);
-        console.log(`🌐 [Layout] ADMIN: Loading data from ALL ${relevantCityIds.length} cities`);
-        console.log(`   Cities: ${workingCities.filter(c => c).map(c => c.name).join(', ')}`);
-      } else if (selectedCity) {
-        const nearbyCities = getCitiesWithinRadius(selectedCity, workingCities, 75);
-        relevantCityIds = nearbyCities.map(c => c.id);
-        console.log(`🌐 [Layout] Loading data from ${relevantCityIds.length} cities within 75km (includes ${selectedCity.name})`);
-        console.log(`   Cities: ${nearbyCities.map(c => c.name).join(', ')}`);
-      } else {
-        console.log(`🌐 [Layout] No selected city - loading from current city only`);
-      }
-
+      // Load ALL data - no geographic filtering
       const allAppUsers = await getData('AppUser', null, null, forceRefresh);
-      // Get AppUsers from all relevant cities - ALL USERS
-      const cityAppUsers = allAppUsers.filter(au => au && relevantCityIds.includes(au.city_id));
-      console.log(`✅ [Layout] Loaded ${cityAppUsers.length} AppUsers for ${relevantCityIds.length} cities (from ${allAppUsers.length} total)`);
-
+      console.log(`✅ [Layout] Loaded ${allAppUsers.length} AppUsers`);
 
       const allStores = await getData('Store', null, null, forceRefresh);
-      // Get stores from all relevant cities - ALL USERS
-      const cityStores = allStores.filter(store => store && relevantCityIds.includes(store.city_id));
-      cityStores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
-      const cityStoreIds = cityStores.map(store => store && store.id).filter(Boolean);
-      console.log(`✅ [Layout] Loaded ${cityStores.length} Stores for ${relevantCityIds.length} cities (from ${allStores.length} total)`);
+      allStores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+      const allStoreIds = allStores.map(store => store && store.id).filter(Boolean);
+      console.log(`✅ [Layout] Loaded ${allStores.length} Stores`);
 
-
-      // 75KM RADIUS: All users load data from nearby cities - UI filtering happens in components
+      // No filtering - load all patients and deliveries
       let patientFilter = {};
       let deliveryFilter = {};
 
-      if (cityStoreIds.length > 0) {
-        patientFilter.store_id = { $in: cityStoreIds };
-        deliveryFilter.store_id = { $in: cityStoreIds };
-      } else {
-        patientFilter.id = { $in: [] };
-        deliveryFilter.id = { $in: [] };
-      }
-
-      // 75KM RADIUS: Always load all deliveries from all stores in nearby cities
-      // Individual driver filter is applied in Dashboard's filteredDeliveries
-      // This ensures map and UI show all data within 75km radius
-
-      console.log('📦 [Layout] Delivery filter:', JSON.stringify(deliveryFilter));
+      console.log('📦 [Layout] Loading all data (no geographic filtering)');
 
       const patientsData = await getData('Patient', null, patientFilter);
       console.log(`✅ [Layout] Loaded ${patientsData.length} Patients (no date filter - all patients for city)`);
