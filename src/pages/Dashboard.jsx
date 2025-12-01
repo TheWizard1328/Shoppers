@@ -1121,6 +1121,7 @@ function Dashboard() {
     // Mark that this positioning is from a FAB interaction (prevents unlock on programmatic map moves)
     mapPositioningTriggerRef.current = 'fab';
     lastProgrammaticMapMoveRef.current = Date.now();
+    window._lastProgrammaticMapMove = Date.now();
 
     console.log(`🗺️ [Map Position] Applying Phase ${mapViewPhase}...`);
     
