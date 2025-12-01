@@ -1511,6 +1511,17 @@ export default function StopCard({
                             // For a regular delivery, just mark it as completed
                             await onStatusUpdate(delivery.id, 'completed');
                           }
+
+                          // Send notification to dispatchers
+                          if (userHasRole(currentUser, 'driver')) {
+                            await notifyDriverCompleted({
+                              driver: currentUser,
+                              patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
+                              delivery,
+                              store,
+                              appUsers
+                            });
+                          }
                         } finally {
                           setIsCompleting(false);
                         }
