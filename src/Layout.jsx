@@ -73,7 +73,7 @@ import { ResizableDivider } from './components/ui/resizable-divider';
       import { globalFilters } from './components/utils/globalFilters';
       import CitySelectionPopup from './components/cities/CitySelectionPopup';
       import { getActiveDriversForCity, getAvailableDrivers } from './components/utils/driverSelectors';
-import { getCitiesWithinRadius } from './components/utils/geo';
+// Removed: getCitiesWithinRadius - no longer using geographic filtering
       import { getUserAgentInfo } from './components/utils/deviceUtils';
       import PatientImport from './components/patients/PatientImport';
       import RouteImport from './components/deliveries/RouteImport';
