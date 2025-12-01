@@ -246,9 +246,19 @@ export default function RouteImport({
     const importedTrackingNumber = (importedDelivery.tracking_number || '').trim();
     const importedAMPM = importedDelivery.ampm_deliveries;
 
+    // CRITICAL: Match by driver_id (not driver_name) to ensure we find deliveries
+    // regardless of which city they were created in
+    const importedDriverId = importedDelivery.driver_id;
+    
     const sameDateDeliveries = existingDeliveries.filter((d) => {
       if (d.delivery_date !== importedDeliveryDate) return false;
 
+      // Match by driver_id for accuracy across cities
+      if (importedDriverId && d.driver_id) {
+        return d.driver_id === importedDriverId;
+      }
+      
+      // Fallback to driver_name matching if no driver_id
       const existingDriverName = (d.driver_name || '').trim().toLowerCase();
       const driverMatch = !existingDriverName || existingDriverName === importedDriverName;
 
