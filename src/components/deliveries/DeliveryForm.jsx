@@ -185,8 +185,34 @@ export default function DeliveryForm({
   const [showStagedPanel, setShowStagedPanel] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState({ show: false, staged: null });
   const { deviceType } = getUserAgentInfo();
-  const isMobile = deviceType === 'Mobile';
+  const isMobileDevice = deviceType === 'Mobile';
   const hasLoadedPending = useRef(false);
+  
+  // Responsive layout state
+  const [screenWidth, setScreenWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
+  const [screenHeight, setScreenHeight] = useState(typeof window !== 'undefined' ? window.innerHeight : 768);
+  const formRef = useRef(null);
+  
+  // Desktop form width threshold (max-w-4xl = 896px + padding)
+  const DESKTOP_FORM_WIDTH = 920;
+  
+  // Rule 1: Use mobile layout if isMobile device OR screen width < desktop form width
+  const useMobileLayout = isMobileDevice || screenWidth < DESKTOP_FORM_WIDTH;
+  
+  // Rule 2: Use fullscreen if mobile layout AND form would be taller than screen
+  // For mobile layout, we assume form needs ~700px minimum height
+  const useFullscreen = useMobileLayout && (isMobileDevice || screenHeight < 700);
+  
+  // Track screen dimensions
+  useEffect(() => {
+    const handleResize = () => {
+      setScreenWidth(window.innerWidth);
+      setScreenHeight(window.innerHeight);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Update all staged deliveries when date or driver changes
   useEffect(() => {
