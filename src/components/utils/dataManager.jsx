@@ -245,7 +245,7 @@ export const getDeliveriesForDateRange = async (startDate, endDate, filters = {}
 
 /**
  * Three-stage delivery loading for optimized initial load times
- * Stage 1: Last 30 days (returned immediately)
+ * Stage 1: Last 30 days + next 7 days (returned immediately)
  * Stage 2: Rest of current year (background, calls onStage2Complete)
  * Stage 3: Past years (background, calls onStage3Complete)
  * 
@@ -254,20 +254,23 @@ export const getDeliveriesForDateRange = async (startDate, endDate, filters = {}
  * @param {function} onStage3Complete - Callback with Stage 3 deliveries
  * @param {number} yearsBack - How many past years to load (default: 2)
  * @param {boolean} forceRefresh - Force bypass cache
- * @returns {Promise<Array>} - Stage 1 deliveries (last 30 days)
+ * @returns {Promise<Array>} - Stage 1 deliveries (last 30 days + next 7 days)
  */
 export const loadDeliveriesThreeStage = async (filters = {}, onStage2Complete = null, onStage3Complete = null, yearsBack = 2, forceRefresh = false) => {
   const today = new Date();
   const currentYear = today.getFullYear();
   
-  // Stage 1: Last 30 days (priority - return immediately)
-  console.log(`🚀 [dataManager] === STAGE 1: Loading last 30 days ===`);
+  // Stage 1: Last 30 days + next 7 days (priority - return immediately)
+  console.log(`🚀 [dataManager] === STAGE 1: Loading last 30 days + next 7 days ===`);
   const thirtyDaysAgo = subDays(today, 30);
+  const sevenDaysFromNow = new Date(today);
+  sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+  
   const stage1Start = format(thirtyDaysAgo, 'yyyy-MM-dd');
-  const stage1End = format(today, 'yyyy-MM-dd');
+  const stage1End = format(sevenDaysFromNow, 'yyyy-MM-dd');
   
   const stage1Deliveries = await getDeliveriesForDateRange(stage1Start, stage1End, filters, forceRefresh);
-  console.log(`✅ [dataManager] Stage 1 complete: ${stage1Deliveries.length} deliveries loaded`);
+  console.log(`✅ [dataManager] Stage 1 complete: ${stage1Deliveries.length} deliveries loaded (${stage1Start} to ${stage1End})`);
   
   // Stage 2: Remainder of current year (background)
   const loadStage2And3 = async () => {
