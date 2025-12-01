@@ -1203,10 +1203,12 @@ export default function RouteImport({
         })));
       }
 
-      console.log('[RouteImport] Fetching fresh delivery data for duplicate detection...');
-      setProgressMessage('Fetching fresh delivery data for duplicate detection...');
-      const freshDeliveries = await base44.entities.Delivery.list('-created_date');
-      console.log(`[RouteImport] Loaded ${freshDeliveries.length} existing deliveries for comparison`);
+      console.log('[RouteImport] Fetching fresh delivery data from ALL cities for duplicate detection...');
+      setProgressMessage('Fetching delivery data from all cities for duplicate detection...');
+      // CRITICAL: Fetch ALL deliveries without any filter to ensure we can match deliveries
+      // from any city/store - the list() method may have a limit, so we need to fetch more
+      const freshDeliveries = await base44.entities.Delivery.filter({}, '-created_date', 10000);
+      console.log(`[RouteImport] Loaded ${freshDeliveries.length} existing deliveries from ALL cities for comparison`);
 
       if (freshDeliveries.length > 0) {
         console.log('[RouteImport] Sample of existing deliveries:');
