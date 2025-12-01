@@ -4456,38 +4456,8 @@ function Dashboard() {
       await refreshData();
       
       if (!skipAutoCenter) {
-        // CRITICAL: After completing a delivery, scroll to the NEXT delivery in line
-        setTimeout(() => {
-          // Fetch fresh delivery data after refresh
-          const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-          
-          // Find the next incomplete delivery (first one in stop_order that's not finished)
-          // We need to re-query the DOM since data has refreshed
-          const allCards = document.querySelectorAll('[id^="stop-card-"]');
-          let nextCardToScroll = null;
-          
-          // Find all incomplete stop cards and get the first one
-          for (const card of allCards) {
-            const cardId = card.id.replace('stop-card-', '');
-            // Check if this card's delivery is incomplete by looking at data attributes or state
-            // Since we just refreshed, we need to find the next card in visual order
-            const isFirstIncomplete = card.querySelector('[data-status]')?.dataset.status;
-            if (!finishedStatuses.includes(isFirstIncomplete)) {
-              nextCardToScroll = card;
-              break;
-            }
-          }
-          
-          // Fallback: scroll to the card that was just completed (if next not found)
-          if (!nextCardToScroll) {
-            nextCardToScroll = document.getElementById(`stop-card-${deliveryId}`);
-          }
-          
-          if (nextCardToScroll) {
-            nextCardToScroll.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-            console.log(`📍 [Status Update] Scrolled to next card`);
-          }
-        }, 500); // Increased delay to ensure refresh completes
+        // CRITICAL: Use scrollToNextCardAfter mechanism instead of manual DOM query
+        setScrollToNextCardAfter(deliveryId);
         hasAutoSelectedRef.current = false;
       }
       
