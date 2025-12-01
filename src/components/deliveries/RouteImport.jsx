@@ -180,6 +180,7 @@ export default function RouteImport({
   }, []);
 
   const [allStores, setAllStores] = useState([]);
+  const [allDriverUsers, setAllDriverUsers] = useState([]);
 
   const findStoreByAbbreviation = useCallback((abbr) => {
     if (!abbr) return null;
@@ -1059,8 +1060,6 @@ export default function RouteImport({
     };
   }, [stores, allUsers, findStoreByAbbreviation, findDispatcherByStore, setProgressPercent, setProgressMessage, matchDeliveryToExisting, detectChanges, currentUser, userHasRole]);
 
-  const [allDriverUsers, setAllDriverUsers] = useState([]);
-  
   // Load ALL drivers from ALL cities on mount
   React.useEffect(() => {
     const loadAllDrivers = async () => {
@@ -1094,7 +1093,7 @@ export default function RouteImport({
     };
     
     loadAllDrivers();
-  }, []);
+  }, [allUsers]);
 
   const availableDrivers = useMemo(() => {
     const usersToUse = allDriverUsers.length > 0 ? allDriverUsers : (allUsers || []);
