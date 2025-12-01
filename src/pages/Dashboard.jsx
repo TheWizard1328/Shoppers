@@ -4402,11 +4402,21 @@ function Dashboard() {
       await refreshData();
       
       if (!skipAutoCenter) {
-        setScrollToNextCardAfter(deliveryId);
-        hasAutoSelectedRef.current = false; // Reset to allow auto-selection after status update
+        // Scroll to the CURRENT delivery that was just updated (not the next one)
+        setTimeout(() => {
+          const cardElement = document.getElementById(`stop-card-${deliveryId}`);
+          if (cardElement) {
+            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+          }
+        }, 300);
+        hasAutoSelectedRef.current = false;
       }
       
-      // Note: Don't re-trigger map view after status update - let user control via FAB
+      // CRITICAL: Re-trigger map view for Phase 2 after status change
+      if (mapViewPhase === 2 && isMapViewLocked) {
+        console.log('🗺️ [Status Update] Phase 2 active - re-centering map');
+        setMapViewTrigger(prev => prev + 1);
+      }
     } catch (error) {
       console.error('');
       console.error('❌❌❌ ERROR ❌❌❌');
