@@ -2074,9 +2074,9 @@ export default function DeliveryForm({
 
 
   return (
-    <div className={`fixed inset-0 z-[10010] overflow-hidden ${isMobile ? 'bg-white' : 'bg-black/60 flex items-center justify-center p-4'}`}>
-      <motion.div initial={{ opacity: 0, scale: isMobile ? 1 : 0.95 }} animate={{ opacity: 1, y: 0 }} className={`w-full ${isMobile ? 'h-full' : !delivery ? 'max-w-4xl max-h-[90vh]' : 'max-w-lg max-h-[90vh]'} flex`}>
-        <Card className={`border-0 text-card-foreground bg-white flex flex-col w-full ${isMobile ? 'h-full' : 'rounded-xl border border-slate-200 shadow-xl'}`}>
+    <div className={`fixed inset-0 z-[10010] overflow-hidden ${useFullscreen ? 'bg-white' : 'bg-black/60 flex items-center justify-center p-4'}`}>
+      <motion.div ref={formRef} initial={{ opacity: 0, scale: useFullscreen ? 1 : 0.95 }} animate={{ opacity: 1, y: 0 }} className={`w-full ${useFullscreen ? 'h-full' : !delivery ? 'max-w-4xl max-h-[90vh]' : 'max-w-lg max-h-[90vh]'} flex`}>
+        <Card className={`border-0 text-card-foreground bg-white flex flex-col w-full ${useFullscreen ? 'h-full' : 'rounded-xl border border-slate-200 shadow-xl'}`}>
           <CardHeader className="border-b border-slate-200 p-4 flex-shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
