@@ -653,7 +653,6 @@ function Dashboard() {
     console.log('  - Current lock state:', isMapViewLocked);
     console.log('  - Current phase:', mapViewPhase);
     console.log('  - Last programmatic move:', lastProgrammaticMapMoveRef.current);
-    console.log('  - mapLockExpiresAtRef:', mapLockExpiresAtRef.current);
     
     // CRITICAL: Ignore interactions that happen within 1000ms of a programmatic map move
     // This prevents the FAB from unlocking when we programmatically reposition the map
@@ -663,6 +662,8 @@ function Dashboard() {
       return;
     }
     
+    console.log('✅ [Map Interaction] User interacted with map - unlocking FAB');
+    
     // Always clear lock when user interacts with map
     if (mapLockTimeoutRef.current) {
       clearTimeout(mapLockTimeoutRef.current);
@@ -670,7 +671,6 @@ function Dashboard() {
     }
     mapLockExpiresAtRef.current = null;
     
-    console.log('✅ [Map Interaction] User interacted - unlocking map (FAB turns gray)');
     setIsMapViewLocked(false);
   }, [isMapViewLocked, mapViewPhase]);
 
