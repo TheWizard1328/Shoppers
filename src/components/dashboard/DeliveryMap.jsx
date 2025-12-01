@@ -2638,6 +2638,19 @@ export default function DeliveryMap({
         .route-popup .leaflet-popup-tip {
           box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         }
+        @keyframes pulsingHalo {
+          0%, 100% { 
+            transform: scale(1); 
+            opacity: 0.8;
+          }
+          50% { 
+            transform: scale(1.5); 
+            opacity: 0.3;
+          }
+        }
+        .pulsing-halo {
+          animation: pulsingHalo 1.5s ease-in-out infinite;
+        }
       `}</style>
     </div>
   );
