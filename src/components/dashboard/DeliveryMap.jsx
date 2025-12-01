@@ -642,11 +642,9 @@ export default function DeliveryMap({
   isStatsCardExpanded = false, // NEW: Whether stats card is expanded
   statsCardRect = null, // NEW: Stats card bounding rect for legend positioning
   highlightedDeliveryId = null, // NEW: ID of delivery to highlight (from card hover/selection)
-  highlightedStoreId = null, // NEW: ID of store to highlight with pulsing halo when card is selected
   STOP_CARDS_BASE_HEIGHT = 145, // NEW: Base height for stop cards
   areStopCardsVisible = false, // NEW: Whether stop cards are visible
-  onDriverRoutesCalculated = () => {}, // NEW: Callback to pass driver routes to parent
-  onCenterOnSelectedStop = null // NEW: Callback to request map centering on selected stop
+  onDriverRoutesCalculated = () => {} // NEW: Callback to pass driver routes to parent
 }) {
   const mapRef = useRef(null);
   const [map, setMap] = useState(null);
@@ -682,10 +680,6 @@ export default function DeliveryMap({
 
   // NEW: State for map center coordinates (for app owner crosshair)
   const [mapCenter, setMapCenter] = useState(center);
-  
-  // NEW: State for pulsing halo on selected markers
-  const [pulsingMarkerId, setPulsingMarkerId] = useState(null);
-  const [pulsingStoreId, setPulsingStoreId] = useState(null);
   
   // NEW: State for visible bounds debug box
   const [visibleBounds, setVisibleBounds] = useState(null);
@@ -1624,58 +1618,6 @@ export default function DeliveryMap({
     }
   }, [driverRoutes, onDriverRoutesCalculated]);
 
-  // NEW: Center map on selected stop and store when highlightedDeliveryId changes
-  useEffect(() => {
-    if (!highlightedDeliveryId || !map) return;
-    
-    // Find the delivery/pickup that's highlighted
-    const highlightedDelivery = deliveryMarkers.find(d => d.id === highlightedDeliveryId);
-    const highlightedPickup = pickupMarkers.find(p => p.id === highlightedDeliveryId);
-    const highlightedMarker = highlightedDelivery || highlightedPickup;
-    
-    if (!highlightedMarker) return;
-    
-    // Get store coordinates for this delivery
-    const store = safeStores.find(s => s && s.id === highlightedMarker.store_id);
-    
-    // Set pulsing markers
-    setPulsingMarkerId(highlightedDeliveryId);
-    setPulsingStoreId(store?.id || null);
-    
-    // Calculate bounds to include both the stop and the store
-    const boundsPoints = [[highlightedMarker.latitude, highlightedMarker.longitude]];
-    
-    if (store?.latitude && store?.longitude && !highlightedPickup) {
-      // Only add store to bounds if this isn't a pickup (pickup IS the store)
-      boundsPoints.push([store.latitude, store.longitude]);
-    }
-    
-    // If we have multiple points, fit bounds
-    if (boundsPoints.length > 1) {
-      const bounds = L.latLngBounds(boundsPoints);
-      map.fitBounds(bounds, {
-        padding: [80, 80],
-        maxZoom: 15,
-        animate: true,
-        duration: 0.5
-      });
-    } else {
-      // Single point - just center on it
-      map.setView(boundsPoints[0], Math.max(map.getZoom(), 14), {
-        animate: true,
-        duration: 0.5
-      });
-    }
-    
-    // Clear pulsing after 5 seconds
-    const timeout = setTimeout(() => {
-      setPulsingMarkerId(null);
-      setPulsingStoreId(null);
-    }, 5000);
-    
-    return () => clearTimeout(timeout);
-  }, [highlightedDeliveryId, map, deliveryMarkers, pickupMarkers, safeStores]);
-
   // NEW: Calculate legend position centered below stats card (AFTER driverRoutes is defined)
   useEffect(() => {
     if (!statsCardRect) {
@@ -2085,53 +2027,6 @@ export default function DeliveryMap({
             })()];
 
         })}
-
-        {/* NEW: Pulsing halo circles for selected stop and its store */}
-        {pulsingMarkerId && (() => {
-          const delivery = deliveryMarkers.find(d => d.id === pulsingMarkerId);
-          const pickup = pickupMarkers.find(p => p.id === pulsingMarkerId);
-          const marker = delivery || pickup;
-          
-          if (!marker) return null;
-          
-          const store = safeStores.find(s => s && s.id === marker.store_id);
-          const isPickupMarker = !!pickup;
-          
-          return (
-            <>
-              {/* Pulsing halo around selected stop */}
-              <Circle
-                key={`pulse-stop-${pulsingMarkerId}`}
-                center={[marker.latitude, marker.longitude]}
-                radius={150}
-                pathOptions={{
-                  color: '#3B82F6',
-                  fillColor: '#3B82F6',
-                  fillOpacity: 0.3,
-                  weight: 3,
-                  opacity: 0.8,
-                  className: 'pulsing-halo'
-                }}
-              />
-              {/* Pulsing halo around store (if not a pickup - pickup IS the store) */}
-              {!isPickupMarker && store?.latitude && store?.longitude && (
-                <Circle
-                  key={`pulse-store-${store.id}`}
-                  center={[store.latitude, store.longitude]}
-                  radius={200}
-                  pathOptions={{
-                    color: getStoreColor(store),
-                    fillColor: getStoreColor(store),
-                    fillOpacity: 0.25,
-                    weight: 3,
-                    opacity: 0.7,
-                    className: 'pulsing-halo'
-                  }}
-                />
-              )}
-            </>
-          );
-        })()}
 
         {/* NEW: Fanning radius lines (thick, solid, grey) - UNIFIED for all markers */}
         {fannedLocationKey && (() => {
@@ -2684,19 +2579,6 @@ export default function DeliveryMap({
         }
         .route-popup .leaflet-popup-tip {
           box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-        }
-        @keyframes pulsingHalo {
-          0%, 100% { 
-            transform: scale(1); 
-            opacity: 0.8;
-          }
-          50% { 
-            transform: scale(1.5); 
-            opacity: 0.3;
-          }
-        }
-        .pulsing-halo {
-          animation: pulsingHalo 1.5s ease-in-out infinite;
         }
       `}</style>
     </div>
