@@ -1972,20 +1972,15 @@ function Dashboard() {
       setSelectedCardId(delivery.id);
       setHighlightedCardId(delivery.id);
 
-      // CRITICAL: Unlock FAB when user selects a card (all phases)
-      // This allows user interaction to break out of automatic map positioning
-      if (isMapViewLocked) {
-        console.log('🔓 [Card Click] Unlocking FAB - user selected a card');
-        
-        // Clear any existing timers
-        if (mapLockTimeoutRef.current) {
-          clearTimeout(mapLockTimeoutRef.current);
-          mapLockTimeoutRef.current = null;
-        }
-        mapLockExpiresAtRef.current = null;
-        
-        setIsMapViewLocked(false);
+      // CRITICAL: Clear timers and unlock FAB immediately
+      if (mapLockTimeoutRef.current) {
+        clearTimeout(mapLockTimeoutRef.current);
+        mapLockTimeoutRef.current = null;
       }
+      mapLockExpiresAtRef.current = null;
+      
+      console.log('🔓 [Card Click] Unlocking FAB - user selected a card');
+      setIsMapViewLocked(false);
 
       if (delivery.patient_id) {
         const patient = patients.find((p) => p.id === delivery.patient_id);
