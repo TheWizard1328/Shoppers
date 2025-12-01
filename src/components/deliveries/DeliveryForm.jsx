@@ -1220,6 +1220,7 @@ export default function DeliveryForm({
 
     if (stagedDeliveries.length === 0) {
       console.warn('[AddToRoute] ⚠️ No staged deliveries to save');
+      hasLoadedPending.current = false; // Reset flag when closing without saves
       return;
     }
 
@@ -1235,6 +1236,7 @@ export default function DeliveryForm({
     if (newDeliveries.length === 0) {
       console.log('[AddToRoute] ℹ️ No new deliveries to save (all are already pending)');
       console.log('[AddToRoute] 🚪 Calling onCancel to close form...');
+      hasLoadedPending.current = false; // Reset flag to allow reload next time
       onCancel();
       console.log('[AddToRoute] ✅ onCancel called');
       return;
@@ -1607,9 +1609,15 @@ export default function DeliveryForm({
       if (confirmed) {
         setStagedDeliveries([]);
         setProjectedDeliveries([]);
+        hasLoadedPending.current = false; // Reset flag to allow reload
         onCancel();
       }
     } else {
+      // CRITICAL: Reset the auto-load flag when canceling without changes
+      // This allows the form to re-load pending deliveries next time
+      if (!delivery) {
+        hasLoadedPending.current = false;
+      }
       onCancel();
     }
   }, [stagedDeliveries, onCancel, delivery]);
