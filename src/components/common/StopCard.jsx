@@ -1308,7 +1308,8 @@ export default function StopCard({
                                   <span className="text-xs font-semibold text-slate-600">
                                     TR#{projectedDelivery.tracking_number || '??'}
                                   </span>
-                                        {/* Individual accept button */}
+                                        {/* Individual accept button - only for assigned driver, dispatcher, or admin */}
+                                        {canAccessAcceptButtons && (
                                         <Button
                               size="sm"
                               variant="ghost"
@@ -1336,6 +1337,7 @@ export default function StopCard({
 
                                           <Plus className="w-3 h-3" />
                                         </Button>
+                                        )}
                                 </div>
                               </div>);
                     })}
