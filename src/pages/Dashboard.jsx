@@ -996,8 +996,6 @@ function Dashboard() {
     console.log('🎯 [FAB Click] handleMapViewCycle called');
     console.log('  [FAB Click] Current phase:', mapViewPhase);
     console.log('  [FAB Click] Is locked:', isMapViewLocked);
-    console.log('  [FAB Click] Is dispatcher:', isDispatcher);
-    console.log('  [FAB Click] Is driver:', isDriver);
     
     // CRITICAL: Allow dispatchers and admins to use FAB
     if (!isDriver && !isDispatcher && !isAdmin) {
@@ -1005,40 +1003,52 @@ function Dashboard() {
       return;
     }
 
-    // CRITICAL: Clear any existing timeout FIRST (before any logic)
+    let newMapViewPhase;
+    let shouldStartTimer = false;
+    
+    // CRITICAL: If FAB is unlocked (gray), clicking RE-LOCKS the current phase (don't advance)
+    if (!isMapViewLocked) {
+      newMapViewPhase = mapViewPhase;
+      console.log(`🔄 [FAB Click] Unlocked FAB clicked - RE-LOCKING current phase: ${newMapViewPhase}`);
+      
+      // Re-locking should start the timer for phase 1 and 3
+      shouldStartTimer = (newMapViewPhase === 1 || newMapViewPhase === 3);
+    } else {
+      // FAB is locked - advance to next phase
+      const nextPhase = (mapViewPhase % 3) + 1;
+      
+      // Non-drivers (dispatchers/admins) always stay on Phase 1
+      if (!isDriver) {
+        newMapViewPhase = 1;
+        console.log('📋 [FAB Click] Non-driver - staying on Phase 1');
+      } else {
+        newMapViewPhase = nextPhase;
+        
+        // Skip phase 2 if no next stop coordinates
+        if (newMapViewPhase === 2 && !nextStopCoordinates) {
+          newMapViewPhase = 3;
+        }
+        // Skip phase 3 if not on mobile
+        if (newMapViewPhase === 3 && !isMobile) {
+          newMapViewPhase = 1;
+        }
+        // If we ended up on phase 2 but still no next stop, go to 1
+        if (newMapViewPhase === 2 && !nextStopCoordinates) {
+          newMapViewPhase = 1;
+        }
+      }
+      
+      console.log(`➡️ [FAB Click] Locked FAB clicked - CYCLING: ${mapViewPhase} → ${newMapViewPhase}`);
+      shouldStartTimer = (newMapViewPhase === 1 || newMapViewPhase === 3);
+    }
+
+    // CRITICAL: Clear any existing timeout BEFORE setting new lock state
     if (mapLockTimeoutRef.current) {
       console.log('🧹 [FAB Click] Clearing existing timeout');
       clearTimeout(mapLockTimeoutRef.current);
       mapLockTimeoutRef.current = null;
     }
     mapLockExpiresAtRef.current = null;
-
-    // CRITICAL: ALWAYS advance to next phase on FAB click (no re-lock behavior)
-    const nextPhase = (mapViewPhase % 3) + 1;
-    let newMapViewPhase;
-    
-    // Non-drivers (dispatchers/admins) always stay on Phase 1
-    if (!isDriver) {
-      newMapViewPhase = 1;
-      console.log('📋 [FAB Click] Non-driver - staying on Phase 1');
-    } else {
-      newMapViewPhase = nextPhase;
-      
-      // Skip phase 2 if no next stop coordinates
-      if (newMapViewPhase === 2 && !nextStopCoordinates) {
-        newMapViewPhase = 3;
-      }
-      // Skip phase 3 if not on mobile
-      if (newMapViewPhase === 3 && !isMobile) {
-        newMapViewPhase = 1;
-      }
-      // If we ended up on phase 2 but still no next stop, go to 1
-      if (newMapViewPhase === 2 && !nextStopCoordinates) {
-        newMapViewPhase = 1;
-      }
-    }
-    
-    console.log(`➡️ [FAB Click] CYCLING: ${mapViewPhase} → ${newMapViewPhase}`);
 
     // Set lock to TRUE and trigger map repositioning
     console.log(`🟢 [FAB Click] Setting isMapViewLocked = true, phase = ${newMapViewPhase}`);
@@ -1055,7 +1065,8 @@ function Dashboard() {
     // Handle timer based on phase
     if (newMapViewPhase === 2) {
       console.log(`🔒 [FAB Click] Phase 2 - Persistent lock (no timer)`);
-    } else {
+      // Phase 2 stays locked - no timer
+    } else if (shouldStartTimer) {
       // Phase 1 or 3: Set up 3-second auto-unlock timer
       const lockDuration = 3000;
       const expiresAt = Date.now() + lockDuration;
