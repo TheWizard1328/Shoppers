@@ -1624,6 +1624,58 @@ export default function DeliveryMap({
     }
   }, [driverRoutes, onDriverRoutesCalculated]);
 
+  // NEW: Center map on selected stop and store when highlightedDeliveryId changes
+  useEffect(() => {
+    if (!highlightedDeliveryId || !map) return;
+    
+    // Find the delivery/pickup that's highlighted
+    const highlightedDelivery = deliveryMarkers.find(d => d.id === highlightedDeliveryId);
+    const highlightedPickup = pickupMarkers.find(p => p.id === highlightedDeliveryId);
+    const highlightedMarker = highlightedDelivery || highlightedPickup;
+    
+    if (!highlightedMarker) return;
+    
+    // Get store coordinates for this delivery
+    const store = safeStores.find(s => s && s.id === highlightedMarker.store_id);
+    
+    // Set pulsing markers
+    setPulsingMarkerId(highlightedDeliveryId);
+    setPulsingStoreId(store?.id || null);
+    
+    // Calculate bounds to include both the stop and the store
+    const boundsPoints = [[highlightedMarker.latitude, highlightedMarker.longitude]];
+    
+    if (store?.latitude && store?.longitude && !highlightedPickup) {
+      // Only add store to bounds if this isn't a pickup (pickup IS the store)
+      boundsPoints.push([store.latitude, store.longitude]);
+    }
+    
+    // If we have multiple points, fit bounds
+    if (boundsPoints.length > 1) {
+      const bounds = L.latLngBounds(boundsPoints);
+      map.fitBounds(bounds, {
+        padding: [80, 80],
+        maxZoom: 15,
+        animate: true,
+        duration: 0.5
+      });
+    } else {
+      // Single point - just center on it
+      map.setView(boundsPoints[0], Math.max(map.getZoom(), 14), {
+        animate: true,
+        duration: 0.5
+      });
+    }
+    
+    // Clear pulsing after 5 seconds
+    const timeout = setTimeout(() => {
+      setPulsingMarkerId(null);
+      setPulsingStoreId(null);
+    }, 5000);
+    
+    return () => clearTimeout(timeout);
+  }, [highlightedDeliveryId, map, deliveryMarkers, pickupMarkers, safeStores]);
+
   // NEW: Calculate legend position centered below stats card (AFTER driverRoutes is defined)
   useEffect(() => {
     if (!statsCardRect) {
