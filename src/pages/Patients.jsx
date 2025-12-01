@@ -1824,11 +1824,19 @@ export default function Patients() {
                     value={selectedCityId}
                     onValueChange={(cityId) => {
                       setSelectedCityId(cityId);
-                      // Reset store filter to 'all' when city changes
-                      if (storeFilter !== 'all') {
+                      
+                      // When "All Cities" is selected, also select "All Stores"
+                      if (cityId === 'all') {
                         setStoreFilter('all');
                         const urlParams = new URLSearchParams(location.search);
-                        urlParams.delete('store');
+                        urlParams.set('store', 'all');
+                        navigate(`${location.pathname}?${urlParams.toString()}`, { replace: true });
+                      }
+                      // For specific city, reset store to 'all' to stay on Patient Database
+                      else if (storeFilter !== 'all') {
+                        setStoreFilter('all');
+                        const urlParams = new URLSearchParams(location.search);
+                        urlParams.set('store', 'all');
                         navigate(`${location.pathname}?${urlParams.toString()}`, { replace: true });
                       }
                     }}
