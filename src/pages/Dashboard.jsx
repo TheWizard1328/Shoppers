@@ -1017,14 +1017,6 @@ function Dashboard() {
       return;
     }
 
-    // Clear any existing timeout first
-    if (mapLockTimeoutRef.current) {
-      console.log('🧹 [FAB Click] Clearing existing timeout');
-      clearTimeout(mapLockTimeoutRef.current);
-      mapLockTimeoutRef.current = null;
-    }
-    mapLockExpiresAtRef.current = null;
-
     let newMapViewPhase;
     
     // CRITICAL: If FAB is unlocked (gray), clicking RE-LOCKS the current phase (don't advance)
@@ -1057,6 +1049,14 @@ function Dashboard() {
       console.log(`➡️ [FAB Click] Phase: ${mapViewPhase} → ${newMapViewPhase}`);
     }
 
+    // CRITICAL: Clear any existing timeout BEFORE setting new one
+    if (mapLockTimeoutRef.current) {
+      console.log('🧹 [FAB Click] Clearing existing timeout');
+      clearTimeout(mapLockTimeoutRef.current);
+      mapLockTimeoutRef.current = null;
+    }
+    mapLockExpiresAtRef.current = null;
+
     // Set lock to TRUE and trigger map repositioning
     console.log(`🟢 [FAB Click] Setting isMapViewLocked = true, phase = ${newMapViewPhase}`);
     setIsMapViewLocked(true);
@@ -1072,11 +1072,6 @@ function Dashboard() {
     // Phase 2: Persistent lock (NO timer)
     // Phase 1 and 3: 3-second auto-unlock timer
     if (newMapViewPhase === 2) {
-      mapLockExpiresAtRef.current = null;
-      if (mapLockTimeoutRef.current) {
-        clearTimeout(mapLockTimeoutRef.current);
-        mapLockTimeoutRef.current = null;
-      }
       console.log(`🔒 [FAB Click] Phase 2 - Persistent lock (no timer)`);
     } else {
       // Phase 1 or 3: Set up 3-second auto-unlock timer
@@ -1084,10 +1079,11 @@ function Dashboard() {
       const expiresAt = Date.now() + lockDuration;
       mapLockExpiresAtRef.current = expiresAt;
       
-      console.log(`⏰ [FAB Click] Phase ${newMapViewPhase} - Starting ${lockDuration}ms unlock timer`);
+      console.log(`⏰ [FAB Click] Phase ${newMapViewPhase} - Starting ${lockDuration}ms unlock timer, expiresAt: ${expiresAt}`);
       
       mapLockTimeoutRef.current = window.setTimeout(() => {
-        console.log(`⏰ [FAB Timer] Timer fired for phase ${newMapViewPhase}, checking expiry...`);
+        console.log(`⏰ [FAB Timer] Timer fired! Checking expiry...`);
+        console.log(`  Expected: ${expiresAt}, Actual: ${mapLockExpiresAtRef.current}`);
         if (mapLockExpiresAtRef.current === expiresAt) {
           console.log(`⚫ [FAB Timer] Phase ${newMapViewPhase} - auto-unlocking (FAB turns gray)`);
           setIsMapViewLocked(false);
