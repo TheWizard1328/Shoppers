@@ -246,6 +246,9 @@ function Dashboard() {
   const [dailyPolylineCount, setDailyPolylineCount] = useState(null);
   const [highlightedCardId, setHighlightedCardId] = useState(null);
   
+  // Track previous map state for restoring when card is collapsed
+  const [previousMapState, setPreviousMapState] = useState(null);
+  
   // Track if we've done initial driver selection (prevent re-running on data changes)
   const hasSetInitialDriverDashboard = useRef(false);
 
@@ -1901,9 +1904,25 @@ function Dashboard() {
     }
 
     if (selectedCardId === delivery.id) {
+      // Card is being collapsed - restore previous map state if we have it
+      console.log('📍 [Card Collapse] Restoring previous map state');
+      if (previousMapState) {
+        setShouldFitBounds(previousMapState);
+        setPreviousMapState(null);
+      }
       setSelectedCardId(null);
+      setHighlightedCardId(null);
     } else {
+      // Card is being expanded - save current map state first
+      console.log('📍 [Card Expand] Saving current map state and centering on delivery');
+      
+      // Save current shouldFitBounds state (if any) to restore later
+      if (shouldFitBounds) {
+        setPreviousMapState(shouldFitBounds);
+      }
+      
       setSelectedCardId(delivery.id);
+      setHighlightedCardId(delivery.id);
 
       // CRITICAL: If FAB is locked on phase 2, unlock it when user selects a card
       // This allows user interaction to break out of continuous driver tracking
@@ -5098,7 +5117,8 @@ function Dashboard() {
             onMapInteraction={handleMapInteraction}
             retractClustersRef={retractClustersRef}
             STOP_CARDS_BASE_HEIGHT={STOP_CARDS_BASE_HEIGHT}
-            areStopCardsVisible={deliveriesWithStopOrder.length > 0} />
+            areStopCardsVisible={deliveriesWithStopOrder.length > 0}
+            highlightedDeliveryId={highlightedCardId} />
 
         </div>
 

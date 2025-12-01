@@ -2106,11 +2106,12 @@ export default function DeliveryMap({
           </Marker>
         }
 
-        {/* Store Pickup Markers - NOW WITH FANNING */}
+        {/* Store Pickup Markers - NOW WITH FANNING AND HIGHLIGHT HALOS */}
         {pickupMarkers.map((pickup, index) => {
           const locationKey = `${pickup.latitude.toFixed(6)},${pickup.longitude.toFixed(6)}`;
           const isClustered = pickup.duplicateCount > 1;
           const isFanned = fannedLocationKey === locationKey;
+          const isHighlighted = highlightedDeliveryId === pickup.id;
           
           // Calculate position based on fanning state
           let markerPosition = [pickup.latitude, pickup.longitude];
@@ -2171,6 +2172,21 @@ export default function DeliveryMap({
                 fillOpacity: 0.05,
                 weight: 2,
                 opacity: 0.2
+              }} />,
+            
+            // Pulsating halo for highlighted pickup markers
+            isHighlighted && !isFanned &&
+            <Circle
+              key={`pickup-halo-${pickup.id}`}
+              center={[pickup.latitude, pickup.longitude]}
+              radius={150}
+              pathOptions={{
+                color: pickup.pinColor,
+                fillColor: pickup.pinColor,
+                fillOpacity: 0,
+                weight: 3,
+                opacity: 0.8,
+                className: 'pulsating-halo'
               }} />,
 
             <Marker
@@ -2233,11 +2249,12 @@ export default function DeliveryMap({
           ];
         })}
 
-        {/* Patient Delivery Markers - NOW WITH FANNING */}
+        {/* Patient Delivery Markers - NOW WITH FANNING AND HIGHLIGHT HALOS */}
         {deliveryMarkers.map((delivery, index) => {
           const locationKey = `${delivery.latitude.toFixed(6)},${delivery.longitude.toFixed(6)}`;
           const isClustered = delivery.duplicateCount > 1;
           const isFanned = fannedLocationKey === locationKey;
+          const isHighlighted = highlightedDeliveryId === delivery.id;
           
           // Calculate position based on fanning state
           let markerPosition = [delivery.latitude, delivery.longitude];
@@ -2292,6 +2309,21 @@ export default function DeliveryMap({
           }
           
           return [
+            // Pulsating halo for highlighted delivery markers
+            isHighlighted && !isFanned &&
+            <Circle
+              key={`delivery-halo-${delivery.id}`}
+              center={[delivery.latitude, delivery.longitude]}
+              radius={150}
+              pathOptions={{
+                color: delivery.pinColor,
+                fillColor: delivery.pinColor,
+                fillOpacity: 0,
+                weight: 3,
+                opacity: 0.8,
+                className: 'pulsating-halo'
+              }} />,
+            
             <Marker
               key={`delivery-${delivery.id}`}
               position={markerPosition}
@@ -2305,7 +2337,7 @@ export default function DeliveryMap({
                 currentZoom,
                 isMobile,
                 delivery.isNextInLine,
-                highlightedDeliveryId === delivery.id
+                isHighlighted
               )}
               zIndexOffset={dynamicZIndex}
               draggable={!delivery.useSimpleCircle}
@@ -2579,6 +2611,21 @@ export default function DeliveryMap({
         }
         .route-popup .leaflet-popup-tip {
           box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        
+        @keyframes pulseHalo {
+          0%, 100% {
+            stroke-width: 3;
+            opacity: 0.8;
+          }
+          50% {
+            stroke-width: 5;
+            opacity: 0.5;
+          }
+        }
+        
+        .pulsating-halo {
+          animation: pulseHalo 1.5s ease-in-out infinite;
         }
       `}</style>
     </div>
