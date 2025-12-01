@@ -591,6 +591,18 @@ export default function StopCard({
         returnPatient: returnPatient,
         store: store
       });
+      
+      // Send notification to dispatchers
+      if (userHasRole(currentUser, 'driver')) {
+        await notifyDriverReturn({
+          driver: currentUser,
+          patientName: patient?.full_name,
+          delivery,
+          store,
+          appUsers
+        });
+      }
+      
       setShowReturnConfirm(false);
       setReturnPatient(null);
     } catch (error) {
