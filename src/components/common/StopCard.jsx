@@ -1331,11 +1331,11 @@ export default function StopCard({
             }
           </AnimatePresence>
 
-          {/* FOOTER SECTION - Hidden for stripped deliveries and for dispatchers when completed */}
-          {!isStrippedDelivery && !(userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && FINISHED_STATUSES.includes(delivery.status)) && <div className="space-y-3 mt-2">
+          {/* FOOTER SECTION - Only visible to assigned driver or app owner */}
+          {!isStrippedDelivery && isAssignedDriverOrAppOwner && <div className="space-y-3 mt-2">
             <div className="border-t border-slate-200">
               <div className="mx-auto mt-2 flex justify-between items-center">
-                {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver') || canEdit) &&
+                {(isAssignedDriverOrAppOwner || canEdit) &&
                 <>
                       {/* Return button for failed deliveries - creates new return delivery */}
                       {delivery.status === 'failed' && !isPickup &&
