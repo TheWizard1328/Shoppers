@@ -195,7 +195,8 @@ export function buildDistanceBadge(patient, store) {
   return ` [📍 ${distance.toFixed(1)} km]`;
 }
 
-// ============ MESSAGE BUILDERS ============
+// ============ NOTIFICATION FUNCTIONS ============
+// These use the centralized rules from notificationRules.js
 
 /**
  * 1. Driver accepts all pending deliveries
@@ -205,17 +206,21 @@ export async function notifyDriverAcceptedAll({
   store,
   appUsers
 }) {
+  if (!shouldNotify(NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ALL, 'inApp') && 
+      !shouldNotify(NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ALL, 'whatsApp')) return;
+
   const dispatchers = getDispatchersForStore(store?.id, appUsers);
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
-  const content = `${driverName} has accepted all pending deliveries.`;
+  const messageData = { driverName };
 
   for (const dispatcher of dispatchers) {
-    await sendDeliveryMessage({
+    await sendNotification({
+      event: NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ALL,
+      messageData,
       senderId: driver?.id,
       senderName: driverName,
       receiverId: dispatcher.user_id,
-      receiverName: dispatcher.user_name,
-      content
+      receiverName: dispatcher.user_name
     });
   }
 }
@@ -229,17 +234,21 @@ export async function notifyDriverAcceptedOne({
   store,
   appUsers
 }) {
+  if (!shouldNotify(NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ONE, 'inApp') && 
+      !shouldNotify(NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ONE, 'whatsApp')) return;
+
   const dispatchers = getDispatchersForStore(store?.id, appUsers);
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
-  const content = `${driverName} has accepted delivery for ${patientName || 'Unknown Patient'}.`;
+  const messageData = { driverName, patientName };
 
   for (const dispatcher of dispatchers) {
-    await sendDeliveryMessage({
+    await sendNotification({
+      event: NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ONE,
+      messageData,
       senderId: driver?.id,
       senderName: driverName,
       receiverId: dispatcher.user_id,
-      receiverName: dispatcher.user_name,
-      content
+      receiverName: dispatcher.user_name
     });
   }
 }
@@ -254,6 +263,9 @@ export async function notifyDispatcherAssignedAll({
   deliveries,
   patients
 }) {
+  if (!shouldNotify(NOTIFICATION_EVENTS.DISPATCHER_ASSIGNED_ALL, 'inApp') && 
+      !shouldNotify(NOTIFICATION_EVENTS.DISPATCHER_ASSIGNED_ALL, 'whatsApp')) return;
+
   const dispatcherName = dispatcher?.user_name || dispatcher?.full_name || 'Dispatcher';
   const storeName = store?.name || 'Store';
   
@@ -266,14 +278,15 @@ export async function notifyDispatcherAssignedAll({
     deliveryList += `\n• ${patientName}${badges}${distance}`;
   }
 
-  const content = `${storeName} has assigned you the following deliveries:${deliveryList}`;
+  const messageData = { storeName, deliveryList };
 
-  await sendDeliveryMessage({
+  await sendNotification({
+    event: NOTIFICATION_EVENTS.DISPATCHER_ASSIGNED_ALL,
+    messageData,
     senderId: dispatcher?.id,
     senderName: dispatcherName,
     receiverId: driver?.id || driver?.user_id,
-    receiverName: driver?.user_name || driver?.full_name,
-    content
+    receiverName: driver?.user_name || driver?.full_name
   });
 }
 
@@ -287,18 +300,22 @@ export async function notifyDriverStarted({
   store,
   appUsers
 }) {
+  if (!shouldNotify(NOTIFICATION_EVENTS.DRIVER_STARTED, 'inApp') && 
+      !shouldNotify(NOTIFICATION_EVENTS.DRIVER_STARTED, 'whatsApp')) return;
+
   const dispatchers = getDispatchersForStore(store?.id, appUsers);
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
   const eta = buildETAString(delivery);
-  const content = `${driverName} has moved ${patientName || 'Unknown Patient'} to next delivery.${eta}`;
+  const messageData = { driverName, patientName, eta };
 
   for (const dispatcher of dispatchers) {
-    await sendDeliveryMessage({
+    await sendNotification({
+      event: NOTIFICATION_EVENTS.DRIVER_STARTED,
+      messageData,
       senderId: driver?.id,
       senderName: driverName,
       receiverId: dispatcher.user_id,
-      receiverName: dispatcher.user_name,
-      content
+      receiverName: dispatcher.user_name
     });
   }
 }
@@ -313,18 +330,22 @@ export async function notifyDriverCompleted({
   store,
   appUsers
 }) {
+  if (!shouldNotify(NOTIFICATION_EVENTS.DRIVER_COMPLETED, 'inApp') && 
+      !shouldNotify(NOTIFICATION_EVENTS.DRIVER_COMPLETED, 'whatsApp')) return;
+
   const dispatchers = getDispatchersForStore(store?.id, appUsers);
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
   const eta = buildETAString(delivery);
-  const content = `${driverName} has completed delivery for ${patientName || 'Unknown Patient'}.${eta}`;
+  const messageData = { driverName, patientName, eta };
 
   for (const dispatcher of dispatchers) {
-    await sendDeliveryMessage({
+    await sendNotification({
+      event: NOTIFICATION_EVENTS.DRIVER_COMPLETED,
+      messageData,
       senderId: driver?.id,
       senderName: driverName,
       receiverId: dispatcher.user_id,
-      receiverName: dispatcher.user_name,
-      content
+      receiverName: dispatcher.user_name
     });
   }
 }
@@ -339,18 +360,22 @@ export async function notifyDriverFailed({
   store,
   appUsers
 }) {
+  if (!shouldNotify(NOTIFICATION_EVENTS.DRIVER_FAILED, 'inApp') && 
+      !shouldNotify(NOTIFICATION_EVENTS.DRIVER_FAILED, 'whatsApp')) return;
+
   const dispatchers = getDispatchersForStore(store?.id, appUsers);
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
   const eta = buildETAString(delivery);
-  const content = `${driverName} failed to complete delivery for ${patientName || 'Unknown Patient'}.${eta}`;
+  const messageData = { driverName, patientName, eta };
 
   for (const dispatcher of dispatchers) {
-    await sendDeliveryMessage({
+    await sendNotification({
+      event: NOTIFICATION_EVENTS.DRIVER_FAILED,
+      messageData,
       senderId: driver?.id,
       senderName: driverName,
       receiverId: dispatcher.user_id,
-      receiverName: dispatcher.user_name,
-      content
+      receiverName: dispatcher.user_name
     });
   }
 }
@@ -365,18 +390,22 @@ export async function notifyDriverRetry({
   store,
   appUsers
 }) {
+  if (!shouldNotify(NOTIFICATION_EVENTS.DRIVER_RETRY, 'inApp') && 
+      !shouldNotify(NOTIFICATION_EVENTS.DRIVER_RETRY, 'whatsApp')) return;
+
   const dispatchers = getDispatchersForStore(store?.id, appUsers);
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
   const eta = buildETAString(delivery);
-  const content = `${driverName} is now retrying delivery for ${patientName || 'Unknown Patient'}.${eta}`;
+  const messageData = { driverName, patientName, eta };
 
   for (const dispatcher of dispatchers) {
-    await sendDeliveryMessage({
+    await sendNotification({
+      event: NOTIFICATION_EVENTS.DRIVER_RETRY,
+      messageData,
       senderId: driver?.id,
       senderName: driverName,
       receiverId: dispatcher.user_id,
-      receiverName: dispatcher.user_name,
-      content
+      receiverName: dispatcher.user_name
     });
   }
 }
@@ -391,18 +420,22 @@ export async function notifyDriverReturn({
   store,
   appUsers
 }) {
+  if (!shouldNotify(NOTIFICATION_EVENTS.DRIVER_RETURN, 'inApp') && 
+      !shouldNotify(NOTIFICATION_EVENTS.DRIVER_RETURN, 'whatsApp')) return;
+
   const dispatchers = getDispatchersForStore(store?.id, appUsers);
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
   const eta = buildETAString(delivery);
-  const content = `${driverName} is En Route to return delivery for ${patientName || 'Unknown Patient'}.${eta}`;
+  const messageData = { driverName, patientName, eta };
 
   for (const dispatcher of dispatchers) {
-    await sendDeliveryMessage({
+    await sendNotification({
+      event: NOTIFICATION_EVENTS.DRIVER_RETURN,
+      messageData,
       senderId: driver?.id,
       senderName: driverName,
       receiverId: dispatcher.user_id,
-      receiverName: dispatcher.user_name,
-      content
+      receiverName: dispatcher.user_name
     });
   }
 }
