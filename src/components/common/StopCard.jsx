@@ -18,7 +18,7 @@ import { Phone, MapPin, Edit, Trash2, StickyNote, RotateCcw, MoreVertical, User,
 import { getStoreColor, hexToRgba, getContrastColor } from "../utils/colorGenerator";
 import { format, isBefore, startOfDay, addDays } from "date-fns";
 import { getDriverDisplayName } from '../utils/driverUtils';
-import { userHasRole, shouldShowStoreBadges } from '../utils/userRoles';
+import { userHasRole, shouldShowStoreBadges, isAppOwner } from '../utils/userRoles';
 import { formatPhoneNumber } from '../utils/phoneFormatter';
 import { formatAddressWithUnit, cleanBuzzerFromAddress } from '../utils/addressCleaner';
 import { base44 } from "@/api/base44Client";
