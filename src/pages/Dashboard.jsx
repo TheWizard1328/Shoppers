@@ -1048,29 +1048,37 @@ function Dashboard() {
     }
     mapLockExpiresAtRef.current = null;
 
-    // SIMPLIFIED: Always advance to next phase on click
-    let newMapViewPhase = (mapViewPhase % 3) + 1;
+    let newMapViewPhase;
     
-    // Non-drivers (dispatchers/admins) always stay on Phase 1
-    if (!isDriver) {
-      newMapViewPhase = 1;
-      console.log('📋 [FAB Click] Non-driver - staying on Phase 1');
+    // CRITICAL: If FAB is unlocked (gray), clicking RE-LOCKS the current phase (don't advance)
+    if (!isMapViewLocked) {
+      newMapViewPhase = mapViewPhase;
+      console.log(`🔄 [FAB Click] Re-locking current phase: ${newMapViewPhase}`);
     } else {
-      // Skip phase 2 if no next stop coordinates
-      if (newMapViewPhase === 2 && !nextStopCoordinates) {
-        newMapViewPhase = 3;
-      }
-      // Skip phase 3 if not on mobile
-      if (newMapViewPhase === 3 && !isMobile) {
+      // FAB is locked - advance to next phase
+      newMapViewPhase = (mapViewPhase % 3) + 1;
+      
+      // Non-drivers (dispatchers/admins) always stay on Phase 1
+      if (!isDriver) {
         newMapViewPhase = 1;
+        console.log('📋 [FAB Click] Non-driver - staying on Phase 1');
+      } else {
+        // Skip phase 2 if no next stop coordinates
+        if (newMapViewPhase === 2 && !nextStopCoordinates) {
+          newMapViewPhase = 3;
+        }
+        // Skip phase 3 if not on mobile
+        if (newMapViewPhase === 3 && !isMobile) {
+          newMapViewPhase = 1;
+        }
+        // If we skipped to 3 but no next stop, go to 1
+        if (newMapViewPhase === 2 && !nextStopCoordinates) {
+          newMapViewPhase = 1;
+        }
       }
-      // If we skipped to 3 but no next stop, go to 1
-      if (newMapViewPhase === 2 && !nextStopCoordinates) {
-        newMapViewPhase = 1;
-      }
+      
+      console.log(`➡️ [FAB Click] Phase: ${mapViewPhase} → ${newMapViewPhase}`);
     }
-    
-    console.log(`➡️ [FAB Click] Phase: ${mapViewPhase} → ${newMapViewPhase}`);
 
     // Set lock to TRUE and trigger map repositioning
     console.log(`🟢 [FAB Click] Setting isMapViewLocked = true`);
