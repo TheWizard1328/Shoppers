@@ -267,6 +267,15 @@ function Dashboard() {
         const settings = await loadUserSettings(currentUser.id);
         console.log('📋 [Dashboard] Loaded user settings:', settings);
         
+        // Apply saved date selection FIRST (before FAB phase)
+        if (settings.selected_date) {
+          const savedDate = new Date(settings.selected_date + 'T00:00:00');
+          console.log(`📅 [Dashboard] Restoring date from settings: ${settings.selected_date}`);
+          setSelectedDate(savedDate);
+          globalFilters.setSelectedDate(savedDate);
+          setCalendarMonth(savedDate);
+        }
+        
         // Apply FAB map cycle phase
         if (settings.fab_map_cycle_phase) {
           console.log(`🗺️ [Dashboard] Restoring FAB phase from settings: ${settings.fab_map_cycle_phase}`);
