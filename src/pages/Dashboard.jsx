@@ -5126,7 +5126,7 @@ function Dashboard() {
             onMapInteraction={handleMapInteraction}
             onDoubleTap={handleMapViewCycle}
             retractClustersRef={retractClustersRef}
-            STOP_CARDS_BASE_HEIGHT={StopCardsHeight}
+            stopCardsHeight={deliveriesWithStopOrder.length > 0 ? STOP_CARDS_BASE_HEIGHT : 0}
             areStopCardsVisible={deliveriesWithStopOrder.length > 0}
             highlightedDeliveryId={highlightedCardId} />
 
