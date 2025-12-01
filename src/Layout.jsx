@@ -1209,19 +1209,29 @@ export default function Layout({ children, currentPageName }) {
 
       console.log(`📅 [Layout] Starting three-stage delivery loading...`);
 
+      // CRITICAL: Fetch fresh cities if the local state is empty (can happen on first load)
+      let workingCities = cities;
+      if (!workingCities || workingCities.length === 0) {
+        console.log('⚠️ [Layout] Cities array is empty, fetching fresh cities...');
+        workingCities = await City.list();
+        workingCities.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+        setCities(workingCities);
+        console.log(`✅ [Layout] Fetched ${workingCities.length} cities`);
+      }
+
       // 75KM RADIUS FEATURE: Load data from nearby cities (within 75km) for ALL users
       // CRITICAL FIX: For admins, load ALL cities regardless of radius to ensure full data access
       const isAdmin = userHasRole(currentUser, 'admin');
-      const selectedCity = cities.find(c => c && c.id === selectedCityId);
+      const selectedCity = workingCities.find(c => c && c.id === selectedCityId);
 
       let relevantCityIds = [selectedCityId];
       if (isAdmin) {
         // Admins get ALL cities - no radius restriction
-        relevantCityIds = cities.filter(c => c && c.id).map(c => c.id);
+        relevantCityIds = workingCities.filter(c => c && c.id).map(c => c.id);
         console.log(`🌐 [Layout] ADMIN: Loading data from ALL ${relevantCityIds.length} cities`);
-        console.log(`   Cities: ${cities.filter(c => c).map(c => c.name).join(', ')}`);
+        console.log(`   Cities: ${workingCities.filter(c => c).map(c => c.name).join(', ')}`);
       } else if (selectedCity) {
-        const nearbyCities = getCitiesWithinRadius(selectedCity, cities, 75);
+        const nearbyCities = getCitiesWithinRadius(selectedCity, workingCities, 75);
         relevantCityIds = nearbyCities.map(c => c.id);
         console.log(`🌐 [Layout] Loading data from ${relevantCityIds.length} cities within 75km (includes ${selectedCity.name})`);
         console.log(`   Cities: ${nearbyCities.map(c => c.name).join(', ')}`);
