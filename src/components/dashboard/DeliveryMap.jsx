@@ -433,8 +433,16 @@ const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, nu
   });
 };
 
-const createDriverIcon = (color = '#ef4444', initial = '') => {
+const createDriverIcon = (driverStatus = 'on_duty', initial = '') => {
   const size = 30; // Increased size slightly to accommodate initial
+  
+  // Green for on_duty, Orange for on_break, Grey for off_duty
+  const statusColors = {
+    'on_duty': '#10B981', // Green
+    'on_break': '#F97316', // Orange
+    'off_duty': '#6B7280' // Grey
+  };
+  const color = statusColors[driverStatus] || statusColors['on_duty'];
   
   return L.divIcon({
     html: `
