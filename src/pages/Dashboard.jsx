@@ -663,23 +663,13 @@ function Dashboard() {
       return;
     }
     
-    // CRITICAL: For Phase 1 and 3, don't unlock during the 3-second timer window
-    // Only unlock if the timer has already expired
-    if (mapLockExpiresAtRef.current && Date.now() < mapLockExpiresAtRef.current) {
-      console.log('⏭️ [Map Interaction] Ignoring - still within FAB timer window (phase 1 or 3)');
-      console.log(`  Timer expires in: ${mapLockExpiresAtRef.current - Date.now()}ms`);
-      return;
-    }
-    
-    // Always clear lock when user interacts with map (after timer window)
+    // Always clear lock when user interacts with map
     if (mapLockTimeoutRef.current) {
       clearTimeout(mapLockTimeoutRef.current);
       mapLockTimeoutRef.current = null;
     }
     mapLockExpiresAtRef.current = null;
     
-    // CRITICAL: For phase 2, unlock when user pans/zooms (break out of continuous tracking)
-    // For phase 1 and 3, unlock ONLY if timer has expired (already checked above)
     console.log('✅ [Map Interaction] User interacted - unlocking map (FAB turns gray)');
     setIsMapViewLocked(false);
   }, [isMapViewLocked, mapViewPhase]);
