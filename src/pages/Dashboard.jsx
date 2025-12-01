@@ -1382,6 +1382,7 @@ function Dashboard() {
         console.log('📍 [FAB Click] Phase 2: Center on Driver & Next Stop (persistent lock - continuous update)');
         // Mark that we're doing a programmatic map move (debounces interaction handler)
         lastProgrammaticMapMoveRef.current = Date.now();
+        window._lastProgrammaticMapMove = Date.now();
         
         if (nextStopCoordinates) {
           const bounds = [
