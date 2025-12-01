@@ -63,6 +63,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { getEffectiveUser, clearUserCache } from "./components/utils/auth";
+import { base44 } from '@/api/base44Client';
 import { motion, AnimatePresence } from "framer-motion";
 import { userHasRole, getPrimaryRole, formatRoles, isAppOwner, canAccessImports } from './components/utils/userRoles';
 import { getDriverDisplayName } from './components/utils/driverUtils';
