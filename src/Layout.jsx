@@ -42,7 +42,8 @@ import {
   Wrench,
   UserCog,
   Stethoscope,
-  MoreVertical
+  MoreVertical,
+  MessageCircle
 } from "lucide-react";
 import {
   Popover,
@@ -79,6 +80,7 @@ import { ResizableDivider } from './components/ui/resizable-divider';
       import RouteImport from './components/deliveries/RouteImport';
       import DriverStatusToggle from './components/layout/DriverStatusToggle';
       import { loadUserSettings, saveSetting, clearSettingsCache } from './components/utils/userSettingsManager';
+      import MessagingPanel from './components/messaging/MessagingPanel';
 
 const createMergedUser = (authUser, appUser) => {
   // CRITICAL: Allow creating users from AppUser data alone (for non-admin users who can't fetch User.list())
@@ -405,8 +407,9 @@ export default function Layout({ children, currentPageName }) {
   const onSmartRefreshCompleteRef = useRef(null);
 
   const [sidebarWidth, setSidebarWidth] = useState(240); // Will be loaded from user settings
-  const [themePreference, setThemePreference] = useState('auto');
-  const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
+      const [themePreference, setThemePreference] = useState('auto');
+      const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
+      const [showMessaging, setShowMessaging] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -2025,8 +2028,16 @@ export default function Layout({ children, currentPageName }) {
                       />
                     )}
 
-      {showDeliveryImport && (
-                                <RouteImport
+      {showMessaging && (
+                    <MessagingPanel
+                      currentUser={currentUser}
+                      users={users}
+                      onClose={() => setShowMessaging(false)}
+                    />
+                  )}
+
+                  {showDeliveryImport && (
+                                            <RouteImport
                                   onCancel={() => {
                                     setShowDeliveryImport(false);
                                     setIsFormOverlayOpen(false);
@@ -2348,7 +2359,13 @@ export default function Layout({ children, currentPageName }) {
                             </div>
                           }
                         </div>
-                        <Bell className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                        <button 
+                              onClick={() => setShowMessaging(true)}
+                              className="p-1 hover:bg-slate-100 rounded-lg transition-colors"
+                              title="Messages"
+                            >
+                              <MessageCircle className="w-4 h-4 text-slate-500 hover:text-slate-700" />
+                            </button>
                       </div>
 
                       {impersonatingUser &&
