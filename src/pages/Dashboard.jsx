@@ -234,7 +234,7 @@ function Dashboard() {
   const stopCardsContainerRef = useRef(null);
 
   const STOP_CARDS_BASE_HEIGHT = 145; // Fixed non-expanded height for map padding
-  const StopCardsHeight = STOP_CARDS_BASE_HEIGHT + 150;
+  const StopCardsHeight = STOP_CARDS_BASE_HEIGHT + 200;
 
   const mapLockTimeoutRef = useRef(null);
   const mapLockExpiresAtRef = useRef(null); // Timestamp when lock should expire
