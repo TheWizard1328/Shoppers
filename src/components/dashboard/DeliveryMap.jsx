@@ -1719,17 +1719,23 @@ export default function DeliveryMap({
     
     const mapInstance = useMapEvents({
       zoomstart: () => {
-        // CRITICAL: Immediately notify parent when user starts zooming
-        console.log('🗺️ [Map] User zoom START detected - calling onMapInteraction');
-        if (onMapInteraction) {
-          onMapInteraction();
+        // Only unlock if NOT triggered by programmatic map movement
+        const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
+        if (timeSinceProgrammatic > 200) {
+          console.log('🗺️ [Map] User zoom START detected - calling onMapInteraction');
+          if (onMapInteraction) {
+            onMapInteraction();
+          }
         }
       },
       movestart: () => {
-        // CRITICAL: Immediately notify parent when user starts panning
-        console.log('🗺️ [Map] User pan START detected - calling onMapInteraction');
-        if (onMapInteraction) {
-          onMapInteraction();
+        // Only unlock if NOT triggered by programmatic map movement
+        const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
+        if (timeSinceProgrammatic > 200) {
+          console.log('🗺️ [Map] User pan START detected - calling onMapInteraction');
+          if (onMapInteraction) {
+            onMapInteraction();
+          }
         }
       },
       zoomend: () => {
