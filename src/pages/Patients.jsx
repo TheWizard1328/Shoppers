@@ -731,12 +731,19 @@ export default function Patients() {
 
   const getStoreOverview = useCallback((cityIdOverride = null) => {
     const currentCityFilter = cityIdOverride !== null ? cityIdOverride : selectedCityId;
-    let cityStores = stores.filter((store) =>
-    currentCityFilter === "all" || store.city_id === currentCityFilter
-    );
+    
+    // CRITICAL: Admins see ALL stores regardless of city filter
+    let cityStores;
+    if (currentUser && userHasRole(currentUser, 'admin')) {
+      cityStores = [...stores]; // All stores for admins
+    } else {
+      cityStores = stores.filter((store) =>
+        currentCityFilter === "all" || store.city_id === currentCityFilter
+      );
+    }
 
-    // CRITICAL FIX: Filter stores by dispatcher's assigned stores
-    if (currentUser && userHasRole(currentUser, 'dispatcher')) {
+    // Filter stores by dispatcher's assigned stores (non-admins only)
+    if (currentUser && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
       const dispatcherStoreIds = currentUser.store_ids || [];
       cityStores = cityStores.filter((store) => dispatcherStoreIds.includes(store.id));
     }
