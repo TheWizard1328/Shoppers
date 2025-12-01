@@ -9,9 +9,9 @@ import React from 'react';
  * This is a pure overlay - not part of the map, so it doesn't move when panning.
  */
 export default function MapCrosshair({ stopCardsHeight = 0 }) {
-  // Calculate vertical offset: when cards are visible, shift up by half the cards height + 10px
+  // Calculate vertical offset: when cards are visible, shift up by half the cards height
   // This centers the crosshair in the VISIBLE map area (above stop cards)
-  const verticalOffset = stopCardsHeight > 0 ? (stopCardsHeight) + 10 : 0;
+  const verticalOffset = stopCardsHeight > 0 ? (stopCardsHeight / 2) : 0;
 
   return (
     <div 
