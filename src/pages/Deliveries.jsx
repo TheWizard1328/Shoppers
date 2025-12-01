@@ -1116,17 +1116,18 @@ export default function DeliveriesPage() {
 
     // Only auto-select if we have dates in the list
     if (dateListWithStats.length > 0) {
-      const topDate = dateListWithStats[0].date;
-      const topDateObj = new Date(topDate.replace(/-/g, '/'));
-      topDateObj.setHours(0, 0, 0, 0);
-
       const currentSelectedDateString = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null;
 
-      // If current selected date is not in the list, or is different from the top date, select the top date
+      // CRITICAL: Only auto-select if current date is NOT in the list
+      // Don't force selection to top date if user manually selected a different date
       const isCurrentDateInList = dateListWithStats.some((d) => d.date === currentSelectedDateString);
 
-      if (!isCurrentDateInList || currentSelectedDateString !== topDate) {
-        console.log(`📅 [Deliveries] Month/Year changed, auto-selecting topmost date: ${topDate}`);
+      if (!isCurrentDateInList) {
+        const topDate = dateListWithStats[0].date;
+        const topDateObj = new Date(topDate.replace(/-/g, '/'));
+        topDateObj.setHours(0, 0, 0, 0);
+        
+        console.log(`📅 [Deliveries] Current date not in list, auto-selecting topmost date: ${topDate}`);
         setSelectedDate(topDateObj);
         updateUrl({ date: topDate });
       }
