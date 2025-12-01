@@ -4704,7 +4704,11 @@ function Dashboard() {
       console.log('✅ [START DELIVERY] Complete!');
       console.log('═══════════════════════════════════');
       
-      // Note: Don't re-trigger map view after start delivery - let user control via FAB
+      // CRITICAL: Re-trigger map view for Phase 2 after start
+      if (mapViewPhase === 2 && isMapViewLocked) {
+        console.log('🗺️ [Start Delivery] Phase 2 active - re-centering map');
+        setMapViewTrigger(prev => prev + 1);
+      }
       
     } catch (error) {
       console.error('❌ [START DELIVERY] Error:', error);
