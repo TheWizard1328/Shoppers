@@ -199,8 +199,8 @@ export default function DeliveryForm({
   // Rule 1: Use mobile layout if screen width < desktop form width (regardless of device type)
   const useMobileLayout = screenWidth < DESKTOP_FORM_WIDTH;
   
-  // Rule 2: Use fullscreen if mobile layout AND (on mobile device OR screen height is short)
-  const useFullscreen = useMobileLayout && (isMobileDevice || screenHeight < 700);
+  // Rule 2: Use fullscreen ONLY if mobile layout AND on mobile device (never fullscreen on desktop)
+  const useFullscreen = useMobileLayout && isMobileDevice;
   
   // Track screen dimensions
   useEffect(() => {
