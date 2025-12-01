@@ -1427,7 +1427,7 @@ function Dashboard() {
             options: { 
               paddingTopLeft: [50, 50],
               paddingBottomRight: [50, bottomPadding],
-              maxZoom: 16 
+              maxZoom: 17 
             } 
           });
           setMapCenter(null);
