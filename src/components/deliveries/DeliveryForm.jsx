@@ -1761,7 +1761,7 @@ export default function DeliveryForm({
     });
   }, []);
 
-  // Auto-load pending deliveries on form mount
+  // Auto-load pending deliveries on form mount - ONLY ONCE
   useEffect(() => {
     // Skip if editing existing delivery
     if (delivery) {
@@ -1776,10 +1776,10 @@ export default function DeliveryForm({
     }
 
     // Wait for all required data (driver_id NOT required)
-    if (!allDeliveries || !formData.delivery_date || !currentUser || !patients || !stores) {
+    if (!allDeliveries || !suggestedDate || !currentUser || !patients || !stores) {
       console.log('⏸️ [DeliveryForm] Waiting for data...', {
         hasDeliveries: !!allDeliveries,
-        hasDate: !!formData.delivery_date,
+        hasDate: !!suggestedDate,
         hasUser: !!currentUser,
         hasPatients: !!patients,
         hasStores: !!stores
@@ -1788,7 +1788,7 @@ export default function DeliveryForm({
     }
 
     console.log('🔄 [DeliveryForm] Auto-loading pending deliveries based on role...');
-    console.log('  - Date:', formData.delivery_date);
+    console.log('  - Date:', suggestedDate);
     console.log('  - Total deliveries:', allDeliveries.length);
     console.log('  - Current user:', currentUser.user_name || currentUser.full_name);
     console.log('  - Current user roles:', currentUser.app_roles);
@@ -1798,7 +1798,7 @@ export default function DeliveryForm({
     let pendingDeliveries = allDeliveries.filter((d) =>
     d &&
     d.status === 'pending' &&
-    d.delivery_date === formData.delivery_date &&
+    d.delivery_date === suggestedDate &&
     d.patient_id // Only patient deliveries, not pickups
     );
 
@@ -1899,7 +1899,7 @@ export default function DeliveryForm({
       hasLoadedPending.current = true;
       console.log(`✅ [DeliveryForm] Auto-loaded ${newStagedItems.length} pending deliveries to staged list`);
     }, 100);
-  }, [delivery, allDeliveries, currentUser, patients, stores, formData.delivery_date]);
+  }, [delivery, allDeliveries, currentUser, patients, stores, suggestedDate]);
 
   useEffect(() => {
     // Auto-update PUID when store changes for an existing delivery
