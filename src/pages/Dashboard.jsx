@@ -1492,7 +1492,7 @@ function Dashboard() {
 
   // Apply initial map view on first load - SKIP if settings already handled it
   useEffect(() => {
-    // CRITICAL: If no deliveries, ensure FAB is unlocked and set to phase 1, NO LOCK
+    // CRITICAL: If no deliveries, ensure FAB is set to phase 1 with temporary lock
     // BUT don't re-center map - let the FAB phase 1 logic handle centering on closest city
     if (isDataLoaded && deliveriesWithStopOrder.length === 0) {
       // Skip if already applied to prevent duplicate centering
@@ -1501,17 +1501,30 @@ function Dashboard() {
         return;
       }
       
-      console.log('🗺️ [Initial Load] No deliveries - setting FAB to phase 1 and unlocked');
+      console.log('🗺️ [Initial Load] No deliveries - setting FAB to phase 1 with 3s lock');
       setMapViewPhase(1);
-      setIsMapViewLocked(false);
+      setIsMapViewLocked(true);
       setInitialMapViewApplied(true);
       
-      // CRITICAL: Clear any lock timers/expiry when no deliveries
+      // CRITICAL: Clear any existing lock timers
       if (mapLockTimeoutRef.current) {
         clearTimeout(mapLockTimeoutRef.current);
         mapLockTimeoutRef.current = null;
       }
-      mapLockExpiresAtRef.current = null;
+      
+      // Phase 1: 3-second auto-unlock timer
+      const lockDuration = 3000;
+      const expiresAt = Date.now() + lockDuration;
+      mapLockExpiresAtRef.current = expiresAt;
+      
+      mapLockTimeoutRef.current = window.setTimeout(() => {
+        if (mapLockExpiresAtRef.current === expiresAt) {
+          console.log(`⚫ [Initial Load] Phase 1 auto-unlocking after ${lockDuration}ms`);
+          setIsMapViewLocked(false);
+          mapLockExpiresAtRef.current = null;
+          mapLockTimeoutRef.current = null;
+        }
+      }, lockDuration);
       
       // CRITICAL: Trigger FAB phase 1 logic which will center on CLOSEST city
       // Don't manually set mapCenter here - let the mapViewPhase useEffect handle it
