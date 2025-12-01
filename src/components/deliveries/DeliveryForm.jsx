@@ -569,10 +569,25 @@ export default function DeliveryForm({
       try {
         let storeIdsToPredict = [];
 
-        if (userHasRole(currentUser, 'admin')) {
-          storeIdsToPredict = stores.map((s) => s.id);
-        } else if (userHasRole(currentUser, 'dispatcher')) {
+        // CRITICAL FIX: For admins viewing a single store (via dispatcher filter), 
+        // only predict for that store, not ALL stores
+        // Check if admin has a selected store context (e.g., viewing Kingsway specifically)
+        const isAdmin = userHasRole(currentUser, 'admin');
+        const isDispatcher = userHasRole(currentUser, 'dispatcher');
+        
+        if (isDispatcher && !isAdmin) {
+          // Pure dispatcher: use their assigned stores
           storeIdsToPredict = currentUser.store_ids || [];
+        } else if (isAdmin) {
+          // Admin: If they also have dispatcher store_ids set, use those for focused predictions
+          // Otherwise fall back to all stores (but this is rare - admins usually filter by store)
+          if (currentUser.store_ids && currentUser.store_ids.length > 0) {
+            storeIdsToPredict = currentUser.store_ids;
+            console.log('[DeliveryForm] Admin with store filter, using stores:', storeIdsToPredict);
+          } else {
+            storeIdsToPredict = stores.map((s) => s.id);
+            console.log('[DeliveryForm] Admin without store filter, using all stores:', storeIdsToPredict.length);
+          }
         } else if (userHasRole(currentUser, 'driver')) {
           const driverStores = stores.filter((store) => {
             const dateObj = new Date(formData.delivery_date + 'T00:00:00');
@@ -587,7 +602,7 @@ export default function DeliveryForm({
           storeIdsToPredict = driverStores.map((s) => s.id);
         }
 
-        if (storeIdsToPredict.length === 0 && !userHasRole(currentUser, 'admin')) {
+        if (storeIdsToPredict.length === 0 && !isAdmin) {
           setIsLoadingPredictions(false);
           return;
         }
