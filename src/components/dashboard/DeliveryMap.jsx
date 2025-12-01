@@ -683,6 +683,10 @@ export default function DeliveryMap({
   // NEW: State for map center coordinates (for app owner crosshair)
   const [mapCenter, setMapCenter] = useState(center);
   
+  // NEW: State for pulsing halo on selected markers
+  const [pulsingMarkerId, setPulsingMarkerId] = useState(null);
+  const [pulsingStoreId, setPulsingStoreId] = useState(null);
+  
   // NEW: State for visible bounds debug box
   const [visibleBounds, setVisibleBounds] = useState(null);
   
