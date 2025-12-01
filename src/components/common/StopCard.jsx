@@ -1552,7 +1552,10 @@ export default function StopCard({
                               {isCompleted && onRestart && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd') && !isRouteCompleted &&
                         <>
                                   <DropdownMenuSeparator className="bg-slate-200" />
-                                  <DropdownMenuItem onClick={(e) => {e.stopPropagation();onRestart(delivery.id);}}>
+                                  <DropdownMenuItem onClick={async (e) => {
+                                    e.stopPropagation();
+                                    onRestart(delivery.id);
+                                  }}>
                                     <RotateCcw className="w-4 h-4 mr-2" />
                                     Restart Delivery
                                   </DropdownMenuItem>
