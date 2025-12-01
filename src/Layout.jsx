@@ -1210,11 +1210,17 @@ export default function Layout({ children, currentPageName }) {
       console.log(`📅 [Layout] Starting three-stage delivery loading...`);
 
       // 75KM RADIUS FEATURE: Load data from nearby cities (within 75km) for ALL users
+      // CRITICAL FIX: For admins, load ALL cities regardless of radius to ensure full data access
       const isAdmin = userHasRole(currentUser, 'admin');
       const selectedCity = cities.find(c => c && c.id === selectedCityId);
 
       let relevantCityIds = [selectedCityId];
-      if (selectedCity) {
+      if (isAdmin) {
+        // Admins get ALL cities - no radius restriction
+        relevantCityIds = cities.map(c => c.id);
+        console.log(`🌐 [Layout] ADMIN: Loading data from ALL ${relevantCityIds.length} cities`);
+        console.log(`   Cities: ${cities.map(c => c.name).join(', ')}`);
+      } else if (selectedCity) {
         const nearbyCities = getCitiesWithinRadius(selectedCity, cities, 75);
         relevantCityIds = nearbyCities.map(c => c.id);
         console.log(`🌐 [Layout] Loading data from ${relevantCityIds.length} cities within 75km (includes ${selectedCity.name})`);
