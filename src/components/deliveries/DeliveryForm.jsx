@@ -196,8 +196,8 @@ export default function DeliveryForm({
   // Desktop form width threshold (max-w-4xl = 896px + padding)
   const DESKTOP_FORM_WIDTH = 920;
   
-  // Rule 1: Use mobile layout if isMobile device OR screen width < desktop form width
-  const useMobileLayout = isMobileDevice || screenWidth < DESKTOP_FORM_WIDTH;
+  // Rule 1: Use mobile layout if on mobile device AND screen width < desktop form width
+  const useMobileLayout = isMobileDevice && screenWidth < DESKTOP_FORM_WIDTH;
   
   // Rule 2: Use fullscreen if mobile layout AND form would be taller than screen
   // For mobile layout, we assume form needs ~700px minimum height
