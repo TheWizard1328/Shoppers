@@ -678,7 +678,8 @@ function Dashboard() {
     }
     mapLockExpiresAtRef.current = null;
     
-    // Always unlock when user pans or zooms - this makes FAB turn gray
+    // CRITICAL: For phase 2, unlock when user pans/zooms (break out of continuous tracking)
+    // For phase 1 and 3, unlock ONLY if timer has expired (already checked above)
     console.log('✅ [Map Interaction] User interacted - unlocking map (FAB turns gray)');
     setIsMapViewLocked(false);
   }, [isMapViewLocked, mapViewPhase]);
