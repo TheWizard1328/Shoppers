@@ -365,10 +365,11 @@ export default function DeliveryForm({
 
     let relevantStores = stores;
 
-    if (isPickupMode) {
-      if (userHasRole(currentUser, 'admin')) {
-        relevantStores = stores;
-      } else if (userHasRole(currentUser, 'dispatcher')) {
+    // Admins always see ALL stores
+    if (userHasRole(currentUser, 'admin')) {
+      relevantStores = stores;
+    } else if (isPickupMode) {
+      if (userHasRole(currentUser, 'dispatcher')) {
         const dispatcherStoreIds = currentUser.store_ids || [];
         relevantStores = stores.filter((s) => s && dispatcherStoreIds.includes(s.id));
       }
