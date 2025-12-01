@@ -1472,6 +1472,10 @@ export default function DeliveryForm({
         console.log('[AddToRoute] 📤 Calling Dashboard save handler with batch data...');
         await onSave({ _isBatchSave: true, _stagedDeliveries: deliveriesWithTRs });
         console.log('[AddToRoute] ✅ Batch save completed successfully');
+      } else {
+        // CRITICAL: If only updating existing deliveries, still need to trigger refresh
+        console.log('[AddToRoute] 🔄 No new deliveries, but triggering refresh for updates...');
+        await onSave({ _isBatchSave: true, _stagedDeliveries: [] });
       }
       
       setStagedDeliveries([]);
