@@ -254,6 +254,9 @@ function Dashboard() {
   
   // Track if we've done initial driver selection (prevent re-running on data changes)
   const hasSetInitialDriverDashboard = useRef(false);
+  
+  // Track phase before break for restoration
+  const phaseBeforeBreakRef = useRef(null);
 
   // CRITICAL: Calculate isDriver early (before useEffect that needs it)
   const isMobile = useMemo(() => isMobileDevice(), []);
