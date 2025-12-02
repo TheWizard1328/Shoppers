@@ -4729,7 +4729,7 @@ function Dashboard() {
   };
 
   const handleStartDelivery = async (deliveryId) => {
-    console.log('🚀 [START] Button clicked - reordering stops only');
+    console.log('🚀 [START] Button clicked - calling backend optimizer');
     
     setIsEntityUpdating(true); // Pause smart refresh during reorder
     
@@ -4744,48 +4744,29 @@ function Dashboard() {
 
       console.log(`📦 Starting: ${deliveryFromUI.patient_name || 'Pickup'} (#${deliveryFromUI.stop_order})`);
 
-      // Fetch fresh data
-      const allDriverDeliveries = await base44.entities.Delivery.filter({
-        delivery_date: deliveryDate,
-        driver_id: driverId
-      });
-
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-      const completedStops = allDriverDeliveries.filter((d) => d && finishedStatuses.includes(d.status));
-      const incompleteStops = allDriverDeliveries.filter((d) => d && !finishedStatuses.includes(d.status));
-      
-      const nextDelivery = incompleteStops.find((d) => d && d.isNextDelivery);
-      const nextStopOrder = nextDelivery?.stop_order || (completedStops.length + 1);
-
-      // Reset all isNextDelivery flags
-      for (const delivery of allDriverDeliveries) {
-        if (delivery) {
-          await base44.entities.Delivery.update(delivery.id, { isNextDelivery: false });
-        }
-      }
-      
-      // Shift intermediate stops forward
-      for (const delivery of incompleteStops) {
-        if (!delivery || delivery.id === deliveryId) continue;
-        const currentOrder = delivery.stop_order || 0;
-        if (currentOrder >= nextStopOrder && currentOrder < deliveryFromUI.stop_order) {
-          await base44.entities.Delivery.update(delivery.id, {
-            stop_order: currentOrder + 1
-          });
-        }
-      }
-
-      // Move started delivery to next position
+      // CRITICAL: Update status FIRST
       await base44.entities.Delivery.update(deliveryId, {
-        status: newStatus,
-        stop_order: nextStopOrder,
-        isNextDelivery: true
+        status: newStatus
       });
+      console.log(`✅ [START] Status updated to ${newStatus}`);
 
-      console.log(`✅ [START] Moved to #${nextStopOrder} - optimizer will update ETAs in background`);
-
-      // DON'T refresh - let background optimizer handle it to prevent data wipe
-      console.log('✅ [START] Stop orders updated - UI will update via smart refresh');
+      // CRITICAL: Call backend optimizer immediately (not delayed)
+      // This ensures isNextDelivery gets set before smart refresh picks up changes
+      console.log('🔄 [START] Calling backend optimizer to set isNextDelivery...');
+      await optimizeDriverRoute({
+        driverId: driverId,
+        deliveryDate: deliveryDate,
+        currentLocation: driverLocation ? {
+          lat: driverLocation.latitude,
+          lon: driverLocation.longitude
+        } : null,
+        startedDeliveryId: deliveryId,
+        clientCurrentTime: format(new Date(), 'HH:mm'),
+        generatePolyline: true
+      });
+      
+      console.log('✅ [START] Backend optimizer complete - isNextDelivery flag set');
+      fetchPolylineCount();
 
       // Scroll to card
       setSelectedCardId(null);
@@ -4800,27 +4781,6 @@ function Dashboard() {
       if (mapViewPhase === 2 && isMapViewLocked) {
         setMapViewTrigger((prev) => prev + 1);
       }
-
-      // Background optimization (non-blocking) - wait 3 seconds after start
-      setTimeout(() => {
-        console.log('🔄 [START] Starting background optimization (3s delay)...');
-        optimizeDriverRoute({
-          driverId: driverId,
-          deliveryDate: deliveryDate,
-          currentLocation: driverLocation ? {
-            lat: driverLocation.latitude,
-            lon: driverLocation.longitude
-          } : null,
-          startedDeliveryId: deliveryId,
-          clientCurrentTime: format(new Date(), 'HH:mm'),
-          generatePolyline: true
-        }).then(() => {
-          console.log('✅ [START] Background optimization complete - smart refresh will pick up changes');
-          fetchPolylineCount();
-        }).catch((error) => {
-          console.warn('⚠️ [START] Background optimization failed:', error.message);
-        });
-      }, 3000);
 
     } catch (error) {
       console.error('❌ [START] Failed:', error.message);
