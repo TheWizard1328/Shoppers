@@ -32,8 +32,8 @@ import {
   notifyDriverCompleted,
   notifyDriverFailed,
   notifyDriverRetry,
-  notifyDriverReturn } from
-"../utils/deliveryMessaging";
+  notifyDriverReturn
+} from "../utils/deliveryMessaging";
 import { triggerRouteOptimization } from "../utils/realTimeRouteOptimizer";
 import { toast } from "sonner";
 
@@ -135,19 +135,19 @@ export default function StopCard({
   // CRITICAL: Must be defined BEFORE isExpanded which depends on it
   const isStrippedDelivery = useMemo(() => {
     if (delivery?._isStripped === true) return true;
-
+    
     // Check if current user is a dispatcher (but not admin)
     if (!currentUser) return false;
     const isDispatcher = userHasRole(currentUser, 'dispatcher');
     const isAdmin = userHasRole(currentUser, 'admin');
-
+    
     // Admins see everything, drivers see their own deliveries (handled elsewhere)
     if (isAdmin || !isDispatcher) return false;
-
+    
     // For dispatchers, check if this delivery's store is in their assigned stores
     const dispatcherStoreIds = currentUser.store_ids || [];
     if (dispatcherStoreIds.length === 0) return false;
-
+    
     // If the delivery's store is not in dispatcher's stores, strip it
     return delivery?.store_id && !dispatcherStoreIds.includes(delivery.store_id);
   }, [delivery?._isStripped, delivery?.store_id, currentUser]);
@@ -595,7 +595,7 @@ export default function StopCard({
         returnPatient: returnPatient,
         store: store
       });
-
+      
       // Send notification to dispatchers
       if (userHasRole(currentUser, 'driver')) {
         await notifyDriverReturn({
@@ -606,7 +606,7 @@ export default function StopCard({
           appUsers
         });
       }
-
+      
       setShowReturnConfirm(false);
       setReturnPatient(null);
     } catch (error) {
@@ -757,7 +757,7 @@ export default function StopCard({
                         const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
                         const skipAutoCenter = !finishedStatuses.includes(status);
                         await onStatusUpdate(delivery.id, status, {}, skipAutoCenter);
-
+                        
                         // Send notification for failed status
                         if (status === 'failed' && userHasRole(currentUser, 'driver')) {
                           await notifyDriverFailed({
@@ -822,6 +822,7 @@ export default function StopCard({
                 <>
                     {/* Main address without unit/buzzer */}
                     <div className="flex items-start gap-2 text-sm text-slate-700">
+                      <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
                       <span className="text-lg font-medium truncate">
                         {isPickup ? store?.address || '' : patient?.address || ''}
                       </span>
@@ -829,7 +830,7 @@ export default function StopCard({
                     
                     {/* Unit/Buzzer + Phone on second row */}
                     {!isStrippedDelivery && !shouldRedact &&
-                  <div className="flex items-center gap-2 text-xs text-slate-600">
+                  <div className="flex items-center gap-2 text-xs text-slate-600 pl-6">
                         {/* Unit and Buzzer info */}
                         {(() => {
                       const unitNum = !isPickup ? delivery?.unit_number || patient?.unit_number : null;
@@ -841,7 +842,7 @@ export default function StopCard({
 
                       return (
                         <>
-                              {unitNum && <span className="text-sm font-medium">#{unitNum}</span>}
+                              {unitNum && <span className="font-medium">#{unitNum}</span>}
                               {buzzerNum && <span className="font-medium">Buzz {buzzerNum}</span>}
                             </>);
 
@@ -849,7 +850,7 @@ export default function StopCard({
                         
                         {/* Phone number */}
                         {finalDisplayPhone &&
-                    <span className="text-sm font-medium">Ph: {formatPhoneNumber(finalDisplayPhone)}</span>
+                    <span className="font-medium">Ph: {formatPhoneNumber(finalDisplayPhone)}</span>
                     }
                       </div>
                   }
@@ -860,7 +861,7 @@ export default function StopCard({
               </div>
               
               {/* Navigation and Phone buttons - right justified - Only for assigned driver or app owner */}
-              {isAssignedDriverOrAppOwner &&
+              {isAssignedDriverOrAppOwner && (
               <div className="py-1 flex items-center gap-2 flex-shrink-0">
                 {finalDisplayAddress &&
                 <a
@@ -875,23 +876,23 @@ export default function StopCard({
                   })()}
                   target="_blank"
                   rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()} className="flex items-center justify-center w-11 h-11 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 transition-colors">
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex items-center justify-center w-9 h-9 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 transition-colors">
 
-
-
-                </a>
+                    <Navigation className="w-4 h-4" />
+                  </a>
                 }
                 {finalDisplayPhone &&
                 <a
                   href={`tel:${finalDisplayPhone.replace(/\D/g, '')}`}
-                  onClick={(e) => e.stopPropagation()} className="flex items-center justify-center w-11 h-11 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-600 transition-colors">
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex items-center justify-center w-9 h-9 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-600 transition-colors">
 
-
-
-                </a>
+                    <Phone className="w-4 h-4" />
+                  </a>
                 }
               </div>
-              }
+              )}
             </div>
           </div>}
 
@@ -1223,8 +1224,8 @@ export default function StopCard({
                           <Package className="w-3.5 h-3.5" />
                           Pending Pickup List ({pendingPickups.length})
                         </h4>
-                        {canAccessAcceptButtons &&
-                    <Button
+                        {canAccessAcceptButtons && (
+                        <Button
                       size="sm"
                       variant="default"
                       className="h-6 px-2 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -1250,7 +1251,7 @@ export default function StopCard({
 
                         // Sort by patient name for consistent processing
                         const sortedPending = [...allPendingDeliveries].sort((a, b) =>
-                        (a.patient_name || '').localeCompare(b.patient_name || '')
+                          (a.patient_name || '').localeCompare(b.patient_name || '')
                         );
 
                         // Update ALL pending deliveries to 'in_transit' status
@@ -1276,7 +1277,7 @@ export default function StopCard({
                           });
                         } else {
                           // Dispatcher/Admin assigned all - notify driver
-                          const assignedDriver = drivers.find((d) => d?.id === delivery.driver_id);
+                          const assignedDriver = drivers.find(d => d?.id === delivery.driver_id);
                           if (assignedDriver) {
                             await notifyDispatcherAssignedAll({
                               dispatcher: currentUser,
@@ -1291,7 +1292,7 @@ export default function StopCard({
 
                           {acceptButtonText}
                         </Button>
-                    }
+                        )}
                       </div>
                       <div
                     className="space-y-1.5 max-h-64 overflow-y-auto custom-scrollbar"
@@ -1376,8 +1377,8 @@ export default function StopCard({
                                     TR#{projectedDelivery.tracking_number || '??'}
                                   </span>
                                         {/* Individual accept button - only for assigned driver, dispatcher, or admin */}
-                                        {canAccessAcceptButtons &&
-                            <Button
+                                        {canAccessAcceptButtons && (
+                                        <Button
                               size="sm"
                               variant="ghost"
                               className="h-5 w-5 p-0 ml-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-700"
@@ -1413,7 +1414,7 @@ export default function StopCard({
                                   });
                                 } else {
                                   // Dispatcher/Admin assigned one - notify driver
-                                  const assignedDriver = drivers.find((d) => d?.id === delivery.driver_id);
+                                  const assignedDriver = drivers.find(d => d?.id === delivery.driver_id);
                                   if (assignedDriver) {
                                     await notifyDispatcherAssignedAll({
                                       dispatcher: currentUser,
@@ -1428,7 +1429,7 @@ export default function StopCard({
 
                                           <Plus className="w-3 h-3" />
                                         </Button>
-                            }
+                                        )}
                                 </div>
                               </div>);
                     })}
@@ -1566,9 +1567,9 @@ export default function StopCard({
                               delivery,
                               store,
                               appUsers
-                            }).catch((err) => console.warn('Notification failed:', err));
+                            }).catch(err => console.warn('Notification failed:', err));
                           }
-
+                          
                           // Trigger AI route re-optimization after completing a delivery
                           const today = format(new Date(), 'yyyy-MM-dd');
                           triggerRouteOptimization({
@@ -1583,8 +1584,8 @@ export default function StopCard({
                                 });
                               }
                             }
-                          }).catch((err) => console.warn('Route optimization failed:', err));
-
+                          }).catch(err => console.warn('Route optimization failed:', err));
+                          
                           // NOTE: Don't reset isCompleting here - the card will be replaced/hidden
                           // when parent refreshes. This keeps the spinner visible during transition.
                         } catch (error) {
@@ -1606,7 +1607,7 @@ export default function StopCard({
                       setIsEntityUpdating(true); // Pause smart refresh
                       try {
                         await ensureDriverOnline();
-
+                        
                         // Send notification to dispatchers BEFORE updating the delivery
                         if (userHasRole(currentUser, 'driver')) {
                           await notifyDriverStarted({
@@ -1617,7 +1618,7 @@ export default function StopCard({
                             appUsers
                           });
                         }
-
+                        
                         await onStartDelivery(delivery.id);
                       } finally {
                         setIsStarting(false);
@@ -1654,9 +1655,9 @@ export default function StopCard({
                         <>
                                   <DropdownMenuSeparator className="bg-slate-200" />
                                   <DropdownMenuItem onClick={async (e) => {
-                            e.stopPropagation();
-                            onRestart(delivery.id);
-                          }}>
+                                    e.stopPropagation();
+                                    onRestart(delivery.id);
+                                  }}>
                                     <RotateCcw className="w-4 h-4 mr-2" />
                                     Restart Delivery
                                   </DropdownMenuItem>
