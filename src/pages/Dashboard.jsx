@@ -1013,6 +1013,26 @@ function Dashboard() {
       
       // Re-locking should start the timer for phase 1 and 3
       shouldStartTimer = (newMapViewPhase === 1 || newMapViewPhase === 3);
+      
+      // CRITICAL: When re-activating Phase 2, scroll to next delivery card
+      if (newMapViewPhase === 2) {
+        console.log('📍 [FAB Re-lock] Phase 2 - scrolling to next delivery');
+        setTimeout(() => {
+          const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+          const incompleteDeliveries = deliveriesWithStopOrder
+            .filter(d => d && !finishedStatuses.includes(d.status))
+            .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+          
+          if (incompleteDeliveries.length > 0) {
+            const nextCard = incompleteDeliveries[0];
+            console.log(`📍 [FAB Re-lock] Scrolling to next delivery: ${nextCard.patient_name || 'Pickup'}`);
+            const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
+            if (cardElement) {
+              cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
+          }
+        }, 300);
+      }
     } else {
       // FAB is locked - advance to next phase
       const nextPhase = (mapViewPhase % 3) + 1;
@@ -1087,7 +1107,7 @@ function Dashboard() {
         }
       }, lockDuration);
     }
-  }, [mapViewPhase, isMapViewLocked, isDriver, nextStopCoordinates, isDispatcher, isAdmin, isMobile, currentUser]);
+  }, [mapViewPhase, isMapViewLocked, isDriver, nextStopCoordinates, isDispatcher, isAdmin, isMobile, currentUser, deliveriesWithStopOrder]);
 
   // Track if the current map positioning was triggered by FAB (not by data refresh)
   const mapPositioningTriggerRef = useRef(null);
