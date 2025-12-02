@@ -137,7 +137,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange }) {
         locationTracker.setDriverStatus(newStatus);
         console.log('🛑 Location tracking stopped (off duty/on break)');
         
-        // If going on break, clear isNextDelivery for all stops
+        // If going on break, clear isNextDelivery for all incomplete stops
         if (newStatus === 'on_break') {
           try {
             const todayDeliveries = await base44.entities.Delivery.filter({
@@ -145,17 +145,17 @@ export default function DriverStatusToggle({ currentUser, onStatusChange }) {
               delivery_date: today
             });
             
-            const nextDeliveries = todayDeliveries.filter(d => d.isNextDelivery === true);
+            const incompleteDeliveries = todayDeliveries.filter(d => !finishedStatuses.includes(d.status));
             
-            for (const delivery of nextDeliveries) {
+            for (const delivery of incompleteDeliveries) {
               await base44.entities.Delivery.update(delivery.id, { isNextDelivery: false });
             }
             
-            if (nextDeliveries.length > 0) {
-              console.log(`✅ Cleared isNextDelivery for ${nextDeliveries.length} stops (on break)`);
+            if (incompleteDeliveries.length > 0) {
+              console.log(`✅ Reset isNextDelivery for ${incompleteDeliveries.length} incomplete stops (on break)`);
             }
           } catch (error) {
-            console.error('Failed to clear isNextDelivery:', error);
+            console.error('Failed to reset isNextDelivery:', error);
           }
         }
       } else {
