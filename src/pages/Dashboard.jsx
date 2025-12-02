@@ -45,6 +45,7 @@ import { optimizeDriverRoute } from "@/functions/optimizeDriverRoute";
 import { loadUserSettings, saveSetting, getSetting } from "@/components/utils/userSettingsManager";
 import { fabControlEvents } from "@/components/utils/fabControlEvents";
 import RouteNotification from "@/components/dashboard/RouteNotification";
+import ProactiveAlertSystem from "@/components/dashboard/ProactiveAlertSystem";
 
 // FIXED: StatBadge - always render with consistent hook structure
 const StatBadge = ({ icon: Icon, value, color, label, tooltip }) => {
