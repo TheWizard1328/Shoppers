@@ -48,9 +48,17 @@ export default function DriverStatusToggle({ currentUser, onStatusChange }) {
   }, [currentUser?.id]);
 
   // Sync status from currentUser prop and poll AppUser directly for real-time updates
+  // CRITICAL: Skip polling when isUpdating to prevent bouncing during status changes
   useEffect(() => {
+    // Don't poll during updates - this was causing the bounce issue
+    if (isUpdating) {
+      console.log('⏸️ [DriverStatusToggle] Skipping sync - update in progress');
+      return;
+    }
+    
     const syncStatus = async () => {
-      if (!currentUser?.id) return;
+      // Double-check isUpdating hasn't changed
+      if (isUpdating || !currentUser?.id) return;
       
       try {
         // Fetch fresh AppUser data directly
@@ -74,7 +82,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange }) {
     const interval = setInterval(syncStatus, 3000); // Poll every 3 seconds
     
     return () => clearInterval(interval);
-  }, [currentUser?.id, status]);
+  }, [currentUser?.id, status, isUpdating]);
 
   const handleStatusChange = useCallback(async (newStatus) => {
     if (isUpdating || newStatus === status || !appUserId) return;
