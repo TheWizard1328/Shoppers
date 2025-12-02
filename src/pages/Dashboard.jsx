@@ -856,6 +856,7 @@ function Dashboard() {
     const fetchPolyline = async () => {
       // Only fetch if we're viewing a driver's route
       if (!isDriver || !currentUser || !nextStop || !nextStopCoordinates) {
+        console.log('⏭️ [Polyline Display] Skipping - missing driver/user/nextStop');
         setCurrentToNextPolyline(null);
         return;
       }
@@ -864,6 +865,7 @@ function Dashboard() {
       const todayStr = format(new Date(), 'yyyy-MM-dd');
       const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
       if (todayStr !== selectedDateStr) {
+        console.log('⏭️ [Polyline Display] Skipping - not viewing today');
         setCurrentToNextPolyline(null);
         return;
       }
@@ -875,6 +877,7 @@ function Dashboard() {
       );
 
       if (!hasStarted) {
+        console.log('⏭️ [Polyline Display] Skipping - route not started yet');
         setCurrentToNextPolyline(null);
         return;
       }
@@ -882,7 +885,7 @@ function Dashboard() {
       try {
         const deliveryDate = format(selectedDate, 'yyyy-MM-dd');
         
-        console.log('🗺️ [Dashboard] Fetching stored polyline coordinates for display');
+        console.log('🗺️ [Polyline Display] Fetching stored polyline coordinates...');
         const coordinates = await getStoredRouteCoordinates(
           currentUser.id,
           deliveryDate,
@@ -890,19 +893,23 @@ function Dashboard() {
         );
 
         if (coordinates && coordinates.length > 0) {
-          console.log('✅ [Dashboard] Polyline loaded for display:', coordinates.length, 'points');
+          console.log('✅ [Polyline Display] Polyline loaded:', coordinates.length, 'points');
           setCurrentToNextPolyline(coordinates);
         } else {
-          console.log('📍 [Dashboard] No polyline available yet');
+          console.log('📍 [Polyline Display] No polyline in database (not yet generated)');
           setCurrentToNextPolyline(null);
         }
       } catch (error) {
-        console.error('❌ [Dashboard] Error fetching polyline:', error);
+        console.error('❌ [Polyline Display] Error fetching polyline:', error);
         setCurrentToNextPolyline(null);
       }
     };
 
     fetchPolyline();
+    
+    // Poll every 10 seconds to check for updated polylines
+    const interval = setInterval(fetchPolyline, 10000);
+    return () => clearInterval(interval);
   }, [currentUser, isDriver, nextStop, nextStopCoordinates, selectedDate, filteredDeliveries]);
 
   useEffect(() => {
