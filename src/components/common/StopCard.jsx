@@ -126,6 +126,7 @@ export default function StopCard({
   const [isRetrying, setIsRetrying] = useState(false);
   const [isPreparingReturn, setIsPreparingReturn] = useState(false);
   const codAmountInputRefs = useRef([]);
+  const { setIsEntityUpdating } = useAppData();
 
   // Detect if this is a stripped delivery (from other store)
   // For dispatchers: strip deliveries that aren't from their assigned stores
