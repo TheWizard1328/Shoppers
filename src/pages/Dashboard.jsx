@@ -46,6 +46,7 @@ import { loadUserSettings, saveSetting, getSetting } from "@/components/utils/us
 import { fabControlEvents } from "@/components/utils/fabControlEvents";
 import RouteNotification from "@/components/dashboard/RouteNotification";
 import ProactiveAlertSystem from "@/components/dashboard/ProactiveAlertSystem";
+import SmartRefreshIndicator from "@/components/layout/SmartRefreshIndicator";
 
 // FIXED: StatBadge - always render with consistent hook structure
 const StatBadge = ({ icon: Icon, value, color, label, tooltip }) => {
