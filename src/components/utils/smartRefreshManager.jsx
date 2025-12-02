@@ -171,37 +171,60 @@ class SmartRefreshManager {
           }
       
       const updatedDeliveries = await base44.entities.Delivery.filter(dateFilter);
-      
+      console.log(`🔄 [Smart Refresh] Fetched ${updatedDeliveries?.length || 0} deliveries from DB`);
+
       // If incremental and no updates, skip processing (most common case)
       if (lastTimestamp) {
           if (!updatedDeliveries || updatedDeliveries.length === 0) {
-              return null; // No changes - this is the expected path most of the time
+              console.log('🔄 [Smart Refresh] ✅ No changes detected (incremental check)');
+              console.log('🔄 [Smart Refresh] ━━━ Refresh Complete: No Updates ━━━');
+              return null;
           }
-          console.log(`📦 [SmartRefresh] ${updatedDeliveries.length} deliveries for ${dateStr} updated since last check`);
+          console.log(`🔄 [Smart Refresh] 📦 ${updatedDeliveries.length} deliveries updated since last check`);
       } else {
           // Only log full fetch if it actually happens (initial load)
           if (!updatedDeliveries || updatedDeliveries.length === 0) {
+              console.log('🔄 [Smart Refresh] ✅ No deliveries found (initial check)');
+              console.log('🔄 [Smart Refresh] ━━━ Refresh Complete: No Data ━━━');
               return null;
           }
-          console.log(`📦 [SmartRefresh] Initial fetch: ${updatedDeliveries.length} deliveries for ${dateStr}`);
+          console.log(`🔄 [Smart Refresh] 📦 Initial fetch: ${updatedDeliveries.length} deliveries`);
       }
-      
+
       // Diff and merge
+      console.log('🔄 [Smart Refresh] 🔍 Computing diff...');
       const diff = diffEntityArrays(currentDateDeliveries, updatedDeliveries);
-      
+
       // If no real changes, skip state update
       if (diff.toUpdate.length === 0 && diff.toAdd.length === 0 && diff.toRemove.length === 0) {
+          console.log('🔄 [Smart Refresh] ✅ No changes after diff (data identical)');
+          console.log('🔄 [Smart Refresh] ━━━ Refresh Complete: No Changes ━━━');
           return null;
       }
-      
-      // Only log if there are actual changes
-      logDiffStats(`Delivery (${dateStr})`, diff);
-      
+
+      // Log changes
+      console.log(`🔄 [Smart Refresh] 📊 Changes detected:`);
+      console.log(`┃   • Added: ${diff.toAdd.length}`);
+      console.log(`┃   • Updated: ${diff.toUpdate.length}`);
+      console.log(`┃   • Removed: ${diff.toRemove.length}`);
+
+      // Log updated deliveries details
+      if (diff.toUpdate.length > 0) {
+          console.log('┃   🔄 Updated deliveries:');
+          diff.toUpdate.forEach(d => {
+              console.log(`┃      - ${d.patient_name || 'Pickup'} (Stop #${d.stop_order}, isNext: ${d.isNextDelivery})`);
+          });
+      }
+
       // CRITICAL: Merge only selected date changes, preserve ALL other dates exactly as-is
+      console.log('🔄 [Smart Refresh] 🔀 Merging changes...');
       const mergedDateDeliveries = mergeEntityChanges(currentDateDeliveries, diff);
       const otherDateDeliveries = currentDeliveries.filter(d => d && d.delivery_date !== dateStr);
       const finalDeliveries = [...otherDateDeliveries, ...mergedDateDeliveries];
-      
+
+      console.log(`🔄 [Smart Refresh] ✅ Merged: ${mergedDateDeliveries.length} for ${dateStr} + ${otherDateDeliveries.length} other dates`);
+      console.log('🔄 [Smart Refresh] ━━━ Refresh Complete: Changes Applied ━━━');
+
       return {
         hasChanges: true,
         deliveries: finalDeliveries
