@@ -313,37 +313,45 @@ class SmartRefreshManager {
 
   /**
    * Smart refresh for patients (moderate frequency)
-   * Only fetches recently updated patients
+   * OPTIMIZED: Only fetches patients updated since last check - no full reloads
+   * Patient data rarely changes during active delivery operations
    */
   async refreshPatients(currentPatients, filters) {
     try {
+      // CRITICAL: Always require a timestamp to avoid full reloads
+      // Patient data is loaded during initial load - only fetch incremental updates
       const lastTimestamp = getLatestUpdateTimestamp(currentPatients);
       
-      let queryFilter = { ...filters };
-      
-      if (lastTimestamp) {
-        // Only fetch patients updated in the last 24 hours
-        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-        if (lastTimestamp > oneDayAgo) {
-          queryFilter.updated_date = {
-            $gte: lastTimestamp.toISOString()
-          };
-        }
+      if (!lastTimestamp) {
+        // No existing patients means initial load hasn't completed - skip refresh
+        console.log('⏭️ [SmartRefresh] Skipping patient refresh - no existing data (wait for initial load)');
+        return null;
       }
+      
+      // Only fetch patients updated since last check (incremental only)
+      const queryFilter = {
+        ...filters,
+        updated_date: {
+          $gte: lastTimestamp.toISOString()
+        }
+      };
       
       const updatedPatients = await base44.entities.Patient.filter(queryFilter);
       
       if (!updatedPatients || updatedPatients.length === 0) {
-        return null;
+        return null; // No changes - most common case
       }
       
+      // Only log and process if there are actual updates
+      console.log(`📋 [SmartRefresh] ${updatedPatients.length} patients updated since last check`);
+      
       const diff = diffEntityArrays(currentPatients, updatedPatients);
-      logDiffStats('Patient', diff);
       
       if (diff.toUpdate.length === 0 && diff.toAdd.length === 0) {
         return null;
       }
       
+      logDiffStats('Patient', diff);
       const mergedPatients = mergeEntityChanges(currentPatients, diff);
       
       return {
@@ -352,7 +360,6 @@ class SmartRefreshManager {
       };
       
     } catch (error) {
-      // Gracefully handle WebSocket and network errors
       if (error.message?.includes('WebSocket') || error.message?.includes('closed')) {
         console.warn('⚠️ [SmartRefresh] WebSocket connection issue, skipping patient refresh');
         return null;
