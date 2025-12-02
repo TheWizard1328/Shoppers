@@ -6,6 +6,8 @@ import { optimizeDriverRoute } from "@/functions/optimizeDriverRoute";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useAppData } from "../utils/AppDataContext";
+import { fabControlEvents } from "../utils/fabControlEvents";
+import { loadUserSettings, getSetting } from "../utils/userSettingsManager";
 
 /**
  * 3-way driver status toggle for mobile header
