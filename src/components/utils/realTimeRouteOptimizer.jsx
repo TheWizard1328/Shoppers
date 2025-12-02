@@ -9,6 +9,7 @@
 
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
+import { isMobileDevice } from './deviceUtils';
 
 // Debounce optimization calls to prevent rapid-fire triggers
 let optimizationTimeout = null;
@@ -17,6 +18,9 @@ const OPTIMIZATION_COOLDOWN = 5000; // 5 seconds between optimizations
 
 /**
  * Trigger AI-powered route optimization
+ * CRITICAL: Only runs on mobile devices OR when forceFromDesktop=true (admin action)
+ * This prevents multiple devices from constantly re-optimizing the same route
+ * 
  * @param {Object} params
  * @param {string} params.driverId - Driver's user ID
  * @param {string} params.deliveryDate - Date in yyyy-MM-dd format
@@ -25,6 +29,7 @@ const OPTIMIZATION_COOLDOWN = 5000; // 5 seconds between optimizations
  * @param {string} params.completedDeliveryId - ID of completed delivery (if applicable)
  * @param {Function} params.onSuccess - Callback with optimization result
  * @param {Function} params.onNotification - Callback to show notification
+ * @param {boolean} params.forceFromDesktop - Allow optimization from desktop (admin override)
  */
 export const triggerRouteOptimization = async ({
   driverId,
@@ -33,8 +38,17 @@ export const triggerRouteOptimization = async ({
   trigger = 'manual',
   completedDeliveryId = null,
   onSuccess = null,
-  onNotification = null
+  onNotification = null,
+  forceFromDesktop = false
 }) => {
+  // CRITICAL: Only allow optimization from mobile devices unless explicitly forced
+  // This prevents desktop viewers from triggering optimizations that affect the driver's route
+  if (!isMobileDevice() && !forceFromDesktop) {
+    console.log('🚫 [RouteOptimizer] Skipping - only mobile devices can trigger route optimization');
+    console.log('   (Desktop users can view routes but not auto-optimize them)');
+    return null;
+  }
+  
   // Check cooldown
   const now = Date.now();
   if (now - lastOptimizationTime < OPTIMIZATION_COOLDOWN) {
@@ -47,7 +61,7 @@ export const triggerRouteOptimization = async ({
     clearTimeout(optimizationTimeout);
   }
   
-  console.log(`🚀 [RouteOptimizer] Triggering optimization (${trigger})`);
+  console.log(`🚀 [RouteOptimizer] Triggering optimization (${trigger}) from ${isMobileDevice() ? 'MOBILE' : 'DESKTOP (forced)'}`);
   
   try {
     lastOptimizationTime = now;
