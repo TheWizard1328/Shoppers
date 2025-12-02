@@ -878,11 +878,10 @@ Deno.serve(async (req) => {
     // =============================================
     // STEP 8: Generate blue dotted polyline
     // =============================================
-    // RULE 1: Polyline shows from most recent completed/failed/canceled stop 
-    //         to the driver's next stop to complete
+    // RULE: Polyline shows from last completed stop (or driver current location) → next stop
     console.log('');
     console.log('🏗️ STEP 8: Generating blue dotted polyline');
-    console.log('   RULE: From last completed/failed/canceled stop → next stop');
+    console.log('   RULE: From last completed stop OR current location → next stop');
     
     try {
       let originLat = null;
@@ -890,7 +889,7 @@ Deno.serve(async (req) => {
       let destLat = null;
       let destLon = null;
       
-      // ORIGIN: Most recent completed/failed/canceled stop
+      // ORIGIN: Most recent completed/failed/canceled stop OR driver's current location
       if (completedDeliveries.length > 0) {
         const sortedCompleted = [...completedDeliveries].sort((a, b) => 
           new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time)
@@ -912,8 +911,18 @@ Deno.serve(async (req) => {
             console.log(`   📍 Origin: Last completed pickup (${store.name})`);
           }
         }
+      } else if (currentLocation?.lat && currentLocation?.lon) {
+        // No completed stops yet - use driver's current location
+        originLat = currentLocation.lat;
+        originLon = currentLocation.lon;
+        console.log(`   📍 Origin: Driver current location (no completed stops yet)`);
+      } else if (driverHome?.lat && driverHome?.lon) {
+        // Fallback to driver home
+        originLat = driverHome.lat;
+        originLon = driverHome.lon;
+        console.log(`   📍 Origin: Driver home location (fallback)`);
       } else {
-        console.log('   ⚠️ No completed/failed/canceled stops yet - no polyline to show');
+        console.log('   ⚠️ No origin location available - cannot generate polyline');
       }
       
       // DESTINATION: Next stop to complete
