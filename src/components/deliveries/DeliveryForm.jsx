@@ -1709,19 +1709,14 @@ export default function DeliveryForm({
     const handleEscapeKey = (event) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        if (delivery) {
-          handleCancelClick();
-        } else if (cancelButtonState === 'clear') {
-          handleClearForm();
-        } else {
-          handleCancelClick();
-        }
+        // Always trigger cancel on Escape (closes form or clears based on state)
+        handleCancelClick();
       }
     };
 
     document.addEventListener('keydown', handleEscapeKey);
     return () => document.removeEventListener('keydown', handleEscapeKey);
-  }, [delivery, cancelButtonState, handleCancelClick, handleClearForm]);
+  }, [handleCancelClick]);
 
   useEffect(() => {
     if (!delivery) {
