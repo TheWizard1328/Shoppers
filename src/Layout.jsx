@@ -1238,7 +1238,6 @@ export default function Layout({ children, currentPageName }) {
       let authUsersData = [];
       if (userHasRole(currentUser, 'admin')) {
         // Step 6: Users (admin only - for merging with AppUsers)
-        await new Promise(resolve => setTimeout(resolve, 300));
         authUsersData = await getData('User', null, null, forceRefresh);
         console.log(`✅ [Layout] Loaded ${authUsersData.length} platform Users (admin access)`);
       } else {
