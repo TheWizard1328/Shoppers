@@ -19,6 +19,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
   const [status, setStatus] = useState(currentUser?.driver_status || 'off_duty');
   const [isUpdating, setIsUpdating] = useState(false);
   const [appUserId, setAppUserId] = useState(null);
+  const [savedPhaseBeforeBreak, setSavedPhaseBeforeBreak] = useState(null);
   const appDataContext = useAppData();
   const setIsEntityUpdating = appDataContext?.setIsEntityUpdating || (() => {});
 
