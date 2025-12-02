@@ -1055,7 +1055,14 @@ export default function StopCard({
                 <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-md px-2 py-1">
                       <span className="text-xs font-semibold text-amber-800">COD Required: ${codTotalRequired.toFixed(2)}</span>
                       {userHasRole(currentUser, 'driver') &&
-                  <Button size="sm" variant="ghost" className="h-6 text-xs text-amber-700 hover:text-amber-900" onClick={(e) => {e.stopPropagation();setShowCODCollection(!showCODCollection);}}>
+                  <Button size="sm" variant="ghost" className="h-6 text-xs text-amber-700 hover:text-amber-900" onClick={(e) => {
+                    e.stopPropagation();
+                    setShowCODCollection(!showCODCollection);
+                    // Auto-add payment when opening COD collection
+                    if (!showCODCollection && codPayments.length === 0) {
+                      handleAddCODPayment();
+                    }
+                  }}>
                           {codPayments.length > 0 ? 'Edit' : 'Collect'}
                         </Button>
                   }
