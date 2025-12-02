@@ -245,82 +245,137 @@ export const getDeliveriesForDateRange = async (startDate, endDate, filters = {}
 
 /**
  * Three-stage delivery loading for optimized initial load times
- * Stage 1: Last 30 days + next 7 days (returned immediately)
- * Stage 2: Rest of current year (background, calls onStage2Complete)
- * Stage 3: Past years (background, calls onStage3Complete)
+ * Stage 1: Today + next 7 days (returned immediately after today loads)
+ * Stage 2: Last 30 days, 1 week at a time (background, calls onStage2Complete after each week)
+ * Stage 3: Remaining past data, 1 week at a time with 1s pause (background, calls onStage3Complete after each week)
  * 
  * @param {object} filters - Filters to apply (store_id, driver_id, etc.)
- * @param {function} onStage2Complete - Callback with Stage 2 deliveries
- * @param {function} onStage3Complete - Callback with Stage 3 deliveries
+ * @param {function} onStage2Complete - Callback with Stage 2 deliveries (called after each week)
+ * @param {function} onStage3Complete - Callback with Stage 3 deliveries (called after each week)
  * @param {number} yearsBack - How many past years to load (default: 2)
  * @param {boolean} forceRefresh - Force bypass cache
- * @returns {Promise<Array>} - Stage 1 deliveries (last 30 days + next 7 days)
+ * @returns {Promise<Array>} - Stage 1 deliveries (today + next 7 days)
  */
 export const loadDeliveriesThreeStage = async (filters = {}, onStage2Complete = null, onStage3Complete = null, yearsBack = 2, forceRefresh = false) => {
   const today = new Date();
   const currentYear = today.getFullYear();
+  const todayStr = format(today, 'yyyy-MM-dd');
   
-  // Stage 1: Last 30 days + next 7 days (priority - return immediately)
-  console.log(`🚀 [dataManager] === STAGE 1: Loading last 30 days + next 7 days ===`);
-  const thirtyDaysAgo = subDays(today, 30);
-  const sevenDaysFromNow = new Date(today);
-  sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+  // Stage 1: Today + next 7 days (priority - return immediately)
+  console.log(`🚀 [dataManager] === STAGE 1: Loading today + next 7 days ===`);
   
-  const stage1Start = format(thirtyDaysAgo, 'yyyy-MM-dd');
-  const stage1End = format(sevenDaysFromNow, 'yyyy-MM-dd');
+  // Load today first
+  const todayDeliveries = await getDeliveriesForDateRange(todayStr, todayStr, filters, forceRefresh);
+  console.log(`✅ [dataManager] Stage 1a: Today loaded (${todayDeliveries.length} deliveries)`);
   
-  const stage1Deliveries = await getDeliveriesForDateRange(stage1Start, stage1End, filters, forceRefresh);
-  console.log(`✅ [dataManager] Stage 1 complete: ${stage1Deliveries.length} deliveries loaded (${stage1Start} to ${stage1End})`);
+  // Then load next 7 days one by one
+  const stage1Deliveries = [...todayDeliveries];
+  for (let i = 1; i <= 7; i++) {
+    const futureDate = new Date(today);
+    futureDate.setDate(futureDate.getDate() + i);
+    const futureDateStr = format(futureDate, 'yyyy-MM-dd');
+    
+    try {
+      const dayDeliveries = await getDeliveriesForDateRange(futureDateStr, futureDateStr, filters, forceRefresh);
+      stage1Deliveries.push(...dayDeliveries);
+      console.log(`✅ [dataManager] Stage 1: Day +${i} loaded (${dayDeliveries.length} deliveries)`);
+    } catch (error) {
+      console.warn(`⚠️ [dataManager] Stage 1: Failed to load day +${i}:`, error.message);
+    }
+  }
   
-  // Stage 2: Remainder of current year (background)
+  console.log(`✅ [dataManager] Stage 1 complete: ${stage1Deliveries.length} total deliveries`);
+  
+  // Stage 2 & 3: Background loading
   const loadStage2And3 = async () => {
     try {
-      // Stage 2: Rest of current year (from Jan 1 to 31 days ago)
-      console.log(`🔄 [dataManager] === STAGE 2: Loading rest of ${currentYear} ===`);
-      const yearStart = `${currentYear}-01-01`;
-      const stage2End = format(subDays(thirtyDaysAgo, 1), 'yyyy-MM-dd');
+      // Stage 2: Last 30 days, 1 week at a time
+      console.log(`🔄 [dataManager] === STAGE 2: Loading last 30 days (1 week at a time) ===`);
       
-      // Only load if there's a valid range (i.e., we're past January)
-      let stage2Deliveries = [];
-      if (yearStart <= stage2End) {
-        stage2Deliveries = await getDeliveriesForDateRange(yearStart, stage2End, filters, forceRefresh);
-        console.log(`✅ [dataManager] Stage 2 complete: ${stage2Deliveries.length} deliveries loaded`);
+      for (let weekNum = 0; weekNum < 4; weekNum++) {
+        const weekEndOffset = (weekNum * 7) + 1; // 1, 8, 15, 22
+        const weekStartOffset = weekEndOffset + 6; // 7, 14, 21, 28
         
-        if (onStage2Complete && stage2Deliveries.length > 0) {
-          onStage2Complete(stage2Deliveries);
-        }
-      } else {
-        console.log(`ℹ️ [dataManager] Stage 2 skipped: no data before last 30 days in current year`);
-      }
-      
-      // Small delay before Stage 3
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Stage 3: Past years
-      console.log(`🔄 [dataManager] === STAGE 3: Loading past ${yearsBack} years ===`);
-      const allPastYearDeliveries = [];
-      
-      for (let i = 1; i <= yearsBack; i++) {
-        const year = currentYear - i;
-        const yearStartDate = `${year}-01-01`;
-        const yearEndDate = `${year}-12-31`;
+        // Don't go beyond 30 days
+        const actualStartOffset = Math.min(weekStartOffset, 30);
+        
+        const weekEnd = subDays(today, weekEndOffset);
+        const weekStart = subDays(today, actualStartOffset);
+        
+        const weekStartStr = format(weekStart, 'yyyy-MM-dd');
+        const weekEndStr = format(weekEnd, 'yyyy-MM-dd');
+        
+        if (weekStartStr > weekEndStr) continue; // Skip invalid ranges
         
         try {
-          const yearDeliveries = await getDeliveriesForDateRange(yearStartDate, yearEndDate, filters, false);
-          console.log(`✅ [dataManager] Stage 3: Loaded ${yearDeliveries.length} deliveries for ${year}`);
-          allPastYearDeliveries.push(...yearDeliveries);
+          const weekDeliveries = await getDeliveriesForDateRange(weekStartStr, weekEndStr, filters, forceRefresh);
+          console.log(`✅ [dataManager] Stage 2: Week ${weekNum + 1} loaded (${weekStartStr} to ${weekEndStr}): ${weekDeliveries.length} deliveries`);
           
-          // Small delay between years
-          if (i < yearsBack) {
-            await new Promise(resolve => setTimeout(resolve, 500));
+          if (onStage2Complete && weekDeliveries.length > 0) {
+            onStage2Complete(weekDeliveries);
           }
         } catch (error) {
-          console.error(`❌ [dataManager] Stage 3: Failed to load year ${year}:`, error);
+          console.warn(`⚠️ [dataManager] Stage 2: Week ${weekNum + 1} failed:`, error.message);
         }
       }
       
-      if (onStage3Complete && allPastYearDeliveries.length > 0) {
-        onStage3Complete(allPastYearDeliveries);
+      console.log(`✅ [dataManager] Stage 2 complete`);
+      
+      // Stage 3: Remaining historical data (31+ days ago to yearsBack)
+      console.log(`🔄 [dataManager] === STAGE 3: Loading historical data (1 week at a time with 1s pause) ===`);
+      
+      // Calculate start date (yearsBack years ago, Jan 1)
+      const historyStartYear = currentYear - yearsBack;
+      const historyStart = new Date(historyStartYear, 0, 1);
+      
+      // End at 31 days ago (where Stage 2 stopped)
+      const historyEnd = subDays(today, 31);
+      
+      if (historyStart <= historyEnd) {
+        // Load week by week from most recent to oldest
+        let currentWeekEnd = new Date(historyEnd);
+        let weekCount = 0;
+        
+        while (currentWeekEnd >= historyStart) {
+          const currentWeekStart = new Date(currentWeekEnd);
+          currentWeekStart.setDate(currentWeekStart.getDate() - 6);
+          
+          // Don't go before historyStart
+          if (currentWeekStart < historyStart) {
+            currentWeekStart.setTime(historyStart.getTime());
+          }
+          
+          const weekStartStr = format(currentWeekStart, 'yyyy-MM-dd');
+          const weekEndStr = format(currentWeekEnd, 'yyyy-MM-dd');
+          
+          try {
+            // 1 second pause between weeks to avoid rate limiting
+            if (weekCount > 0) {
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+            
+            const weekDeliveries = await getDeliveriesForDateRange(weekStartStr, weekEndStr, filters, false);
+            weekCount++;
+            
+            if (weekDeliveries.length > 0) {
+              console.log(`✅ [dataManager] Stage 3: Week ${weekCount} loaded (${weekStartStr} to ${weekEndStr}): ${weekDeliveries.length} deliveries`);
+              
+              if (onStage3Complete) {
+                onStage3Complete(weekDeliveries);
+              }
+            }
+          } catch (error) {
+            console.warn(`⚠️ [dataManager] Stage 3: Week ${weekCount + 1} failed:`, error.message);
+          }
+          
+          // Move to previous week
+          currentWeekEnd = new Date(currentWeekStart);
+          currentWeekEnd.setDate(currentWeekEnd.getDate() - 1);
+        }
+        
+        console.log(`✅ [dataManager] Stage 3 complete: ${weekCount} weeks processed`);
+      } else {
+        console.log(`ℹ️ [dataManager] Stage 3 skipped: no historical data before 31 days ago`);
       }
       
       console.log(`✅ [dataManager] === ALL STAGES COMPLETE ===`);
