@@ -191,10 +191,15 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
         try {
           console.log('🟢 Starting location tracking (on duty)...');
           
-          // Notify parent to reactivate FAB phase
-          if (onBreakEnd) {
-            console.log('🗺️ [DriverStatusToggle] Notifying parent: driver back on duty');
-            onBreakEnd();
+          // Restore previous FAB phase if coming back from break
+          if (savedPhaseBeforeBreak) {
+            console.log(`🔄 [DriverStatusToggle] Restoring FAB phase after break: ${savedPhaseBeforeBreak}`);
+            fabControlEvents.notifyBreakEnd(savedPhaseBeforeBreak);
+            setSavedPhaseBeforeBreak(null);
+          } else {
+            // Just went on duty (not from break) - use default phase 1
+            console.log('🗺️ [DriverStatusToggle] New on duty session - defaulting to phase 1');
+            fabControlEvents.notifyBreakEnd(1);
           }
           
           locationTracker.setDriverStatus(newStatus);
