@@ -528,8 +528,20 @@ export const getStoredRouteCoordinates = async (driverId, deliveryDate, routeTyp
 
     console.log('✅ [RoutePolyline] Decoded', coordinates.length, 'coordinate points');
 
+    // Cache the result
+    polylineQueryCache.set(cacheKey, {
+      timestamp: now,
+      data: coordinates
+    });
+
     return coordinates;
   } catch (error) {
+    // Handle rate limit errors gracefully
+    if (error.response?.status === 429 || error.message?.includes('429')) {
+      console.warn('⚠️ [RoutePolyline] Rate limit hit - using cached data');
+      const cached = polylineQueryCache.get(cacheKey);
+      return cached?.data || null;
+    }
     console.error('❌ [RoutePolyline] Error getting stored route coordinates:', error);
     return null;
   }
