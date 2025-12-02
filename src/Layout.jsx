@@ -1169,7 +1169,7 @@ export default function Layout({ children, currentPageName }) {
       const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
       const selectedYear = selectedDate.getFullYear();
 
-      console.log(`📅 [Layout] Starting three-stage delivery loading...`);
+      console.log(`📅 [Layout] Starting sequential data loading with rate limit protection...`);
 
       // CRITICAL: Fetch fresh cities if the local state is empty (can happen on first load)
       let workingCities = cities;
@@ -1183,10 +1183,14 @@ export default function Layout({ children, currentPageName }) {
 
       const isAdmin = userHasRole(currentUser, 'admin');
 
-      // Load ALL data - no geographic filtering
+      // RATE LIMIT PROTECTION: Load data sequentially with small delays
+      // Step 1: AppUsers
+      await new Promise(resolve => setTimeout(resolve, 100));
       const allAppUsers = await getData('AppUser', null, null, forceRefresh);
       console.log(`✅ [Layout] Loaded ${allAppUsers.length} AppUsers`);
 
+      // Step 2: Stores
+      await new Promise(resolve => setTimeout(resolve, 200));
       const allStores = await getData('Store', null, null, forceRefresh);
       allStores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
       const allStoreIds = allStores.map(store => store && store.id).filter(Boolean);
@@ -1198,10 +1202,12 @@ export default function Layout({ children, currentPageName }) {
 
       console.log('📦 [Layout] Loading all data (no geographic filtering)');
 
+      // Step 3: Patients
+      await new Promise(resolve => setTimeout(resolve, 200));
       const patientsData = await getData('Patient', null, patientFilter);
       console.log(`✅ [Layout] Loaded ${patientsData.length} Patients (no date filter - all patients for city)`);
 
-      // Three-stage delivery loading for faster initial load
+      // Step 4: Three-stage delivery loading for faster initial load
       // Stage 1: Last 30 days (returned immediately)
       // Stage 2 & 3: Rest of year + past years (background, merged into state)
       const stage1Deliveries = await loadDeliveriesThreeStage(
