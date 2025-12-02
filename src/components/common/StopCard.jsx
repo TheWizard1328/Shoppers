@@ -23,6 +23,7 @@ import { formatPhoneNumber } from '../utils/phoneFormatter';
 import { formatAddressWithUnit, cleanBuzzerFromAddress } from '../utils/addressCleaner';
 import { base44 } from "@/api/base44Client";
 import { locationTracker } from "../utils/locationTracker";
+import { useAppData } from "../utils/AppDataContext";
 import {
   notifyDriverAcceptedAll,
   notifyDriverAcceptedOne,
