@@ -17,6 +17,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange }) {
   const [status, setStatus] = useState(currentUser?.driver_status || 'off_duty');
   const [isUpdating, setIsUpdating] = useState(false);
   const [appUserId, setAppUserId] = useState(null);
+  const { setIsEntityUpdating } = useAppData();
 
   // Find AppUser ID and initialize locationTracker's status on mount
   useEffect(() => {
