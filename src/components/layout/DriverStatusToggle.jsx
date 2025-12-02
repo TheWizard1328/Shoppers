@@ -159,7 +159,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange }) {
           }
         }
       } else {
-        // Going on duty - start location tracking
+        // Going on duty - start location tracking and set next delivery
         try {
           console.log('🟢 Starting location tracking (on duty)...');
           
@@ -171,7 +171,23 @@ export default function DriverStatusToggle({ currentUser, onStatusChange }) {
           });
           console.log('✅ Location tracking started');
           
-          // Re-run backend optimizer to update ETAs, set next delivery, and generate polyline
+          // Set next stop in line when going on duty
+          const todayDeliveries = await base44.entities.Delivery.filter({
+            driver_id: currentUser?.id,
+            delivery_date: today
+          });
+          
+          const incompleteDeliveries = todayDeliveries
+            .filter(d => !finishedStatuses.includes(d.status))
+            .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+          
+          if (incompleteDeliveries.length > 0) {
+            const nextStop = incompleteDeliveries[0];
+            await base44.entities.Delivery.update(nextStop.id, { isNextDelivery: true });
+            console.log(`✅ Set isNextDelivery=true for next stop: ${nextStop.patient_name || 'Pickup'}`);
+          }
+          
+          // Re-run backend optimizer to update ETAs and generate polyline
           console.log('🔄 Re-running route optimizer after going on duty...');
           const now = new Date();
           const clientCurrentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
