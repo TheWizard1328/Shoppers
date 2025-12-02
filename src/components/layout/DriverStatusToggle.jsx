@@ -183,6 +183,12 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
         try {
           console.log('🟢 Starting location tracking (on duty)...');
           
+          // Notify parent to reactivate FAB phase
+          if (onBreakEnd) {
+            console.log('🗺️ [DriverStatusToggle] Notifying parent: driver back on duty');
+            onBreakEnd();
+          }
+          
           locationTracker.setDriverStatus(newStatus);
           
           await locationTracker.startTracking({
