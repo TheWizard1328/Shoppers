@@ -758,10 +758,10 @@ export default function DeliveryMap({
         ['in_transit', ...finishedStatuses].includes(d.status)
       );
 
-      // For pre-route polylines, only show if route hasn't started
-      // For active routes, we use currentToNextPolyline instead
+      // CRITICAL: For routes that have started, ALWAYS clear the pre-route polyline
+      // We only show currentToNextPolyline (blue dotted line) for active routes
       if (hasStarted) {
-        console.log('⏭️ [DeliveryMap] Route already started, not displaying pre-route polyline');
+        console.log('⏭️ [DeliveryMap] Route already started - clearing pre-route polyline (only blue dotted currentToNextPolyline should show)');
         setGoogleRouteCoordinates(null);
         return;
       }
