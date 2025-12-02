@@ -949,13 +949,17 @@ function Dashboard() {
     // Only fetch if we're viewing a driver's route and have a next stop
     if (!currentUser || !nextStop || !nextStopCoordinates) {
       console.log('⏭️ [Polyline Display] Skipping - missing user or nextStop');
-      setCurrentToNextPolyline(null);
       return;
     }
 
-    // Fetch polyline for ANY date with an active route (removed today-only restriction)
+    // Only fetch on today's date
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
     const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-    console.log('🗺️ [Polyline Display] Fetching polyline for date:', selectedDateStr);
+    if (todayStr !== selectedDateStr) {
+      console.log('⏭️ [Polyline Display] Skipping - not viewing today');
+      setCurrentToNextPolyline(null);
+      return;
+    }
 
     // Determine which driver's polyline to fetch
     // If viewing "all drivers", use the first driver's route, otherwise use selected driver

@@ -876,12 +876,14 @@ Deno.serve(async (req) => {
     console.log(`✅ Database updated: ${updates.length} deliveries saved`);
     
     // =============================================
-    // STEP 8: Generate blue dotted polyline
+    // STEP 8: Generate blue dotted polyline (only if requested)
     // =============================================
-    // RULE: Polyline shows from last completed stop (or driver current location) → next stop
     console.log('');
-    console.log('🏗️ STEP 8: Generating blue dotted polyline');
-    console.log('   RULE: From last completed stop OR current location → next stop');
+    console.log('🏗️ STEP 8: Polyline generation');
+    console.log(`   Generate polyline flag: ${generatePolyline}`);
+    
+    if (generatePolyline) {
+      console.log('   RULE: From last completed stop OR current location → next stop');
     
     try {
       let originLat = null;
@@ -1002,6 +1004,9 @@ Deno.serve(async (req) => {
       }
     } catch (polylineError) {
       console.warn('   ⚠️ Could not generate polyline:', polylineError.message);
+    }
+    } else {
+      console.log('   ⏭️ Polyline generation skipped (generatePolyline=false)');
     }
     
     console.log('');
