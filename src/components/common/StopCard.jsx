@@ -861,7 +861,7 @@ export default function StopCard({
               
               {/* Navigation and Phone buttons - right justified - Only for assigned driver or app owner */}
               {isAssignedDriverOrAppOwner &&
-              <div className="py-1 flex items-center gap-2 flex-shrink-0">
+              <div className="mt-1 py-1 flex items-center gap-2 flex-shrink-0">
                 {finalDisplayPhone &&
                 <a
                   href={`tel:${finalDisplayPhone.replace(/\D/g, '')}`}
