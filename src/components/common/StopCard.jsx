@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
@@ -1625,13 +1626,18 @@ export default function StopCard({
                             </Button>)
                     }
                         
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" size="icon" className={`h-8 w-8 border border-slate-300 hover:bg-slate-100 ${delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'returned' ? 'rounded-l-none' : 'rounded-md'}`}>
+                        <DropdownMenu modal={false}>
+                          <DropdownMenuTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className={`h-8 w-8 border border-slate-300 hover:bg-slate-100 relative z-[100] ${delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'returned' ? 'rounded-l-none' : 'rounded-md'}`}
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               <MoreVertical className="w-4 h-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="z-[99999]" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenuContent align="end" className="z-[99999]" sideOffset={5} onClick={(e) => e.stopPropagation()}>
                               {onEditDelivery && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                         <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEditDelivery(delivery);}}>
                                   <Edit className="w-4 h-4 mr-2" />
