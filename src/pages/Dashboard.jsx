@@ -851,37 +851,32 @@ function Dashboard() {
     driverLocationPoller.processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate);
   }, [isDataLoaded, currentUser, deliveries, drivers, stores, users, selectedDate]);
 
+  // Track the next stop ID to detect when it changes (stop completed/failed/cancelled)
+  const nextStopIdRef = useRef(nextStop?.id);
+  
   // Fetch and display current-to-next polyline for display
   useEffect(() => {
+    // Only fetch if we're viewing a driver's route
+    if (!isDriver || !currentUser || !nextStop || !nextStopCoordinates) {
+      return; // Don't clear polyline - just don't fetch
+    }
+
+    // Only fetch on today's date
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+    if (todayStr !== selectedDateStr) {
+      setCurrentToNextPolyline(null);
+      return;
+    }
+
+    // Check if next stop changed (meaning a stop was completed/failed/cancelled)
+    const nextStopChanged = nextStopIdRef.current !== nextStop?.id;
+    if (nextStopChanged) {
+      console.log('🔄 [Polyline Display] Next stop changed, will fetch new polyline');
+      nextStopIdRef.current = nextStop?.id;
+    }
+
     const fetchPolyline = async () => {
-      // Only fetch if we're viewing a driver's route
-      if (!isDriver || !currentUser || !nextStop || !nextStopCoordinates) {
-        console.log('⏭️ [Polyline Display] Skipping - missing driver/user/nextStop');
-        setCurrentToNextPolyline(null);
-        return;
-      }
-
-      // Only fetch on today's date
-      const todayStr = format(new Date(), 'yyyy-MM-dd');
-      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-      if (todayStr !== selectedDateStr) {
-        console.log('⏭️ [Polyline Display] Skipping - not viewing today');
-        setCurrentToNextPolyline(null);
-        return;
-      }
-
-      // Only show if route has started
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-      const hasStarted = filteredDeliveries.some((d) => 
-        d && (d.status === 'in_transit' || finishedStatuses.includes(d.status))
-      );
-
-      if (!hasStarted) {
-        console.log('⏭️ [Polyline Display] Skipping - route not started yet');
-        setCurrentToNextPolyline(null);
-        return;
-      }
-
       try {
         const deliveryDate = format(selectedDate, 'yyyy-MM-dd');
         
@@ -889,28 +884,26 @@ function Dashboard() {
         const coordinates = await getStoredRouteCoordinates(
           currentUser.id,
           deliveryDate,
-          'to_next_stop' // This is ignored now - we fetch by driver_id + date
+          'to_next_stop'
         );
 
         if (coordinates && coordinates.length > 0) {
           console.log('✅ [Polyline Display] Polyline loaded:', coordinates.length, 'points');
           setCurrentToNextPolyline(coordinates);
         } else {
-          console.log('📍 [Polyline Display] No polyline in database (not yet generated)');
-          setCurrentToNextPolyline(null);
+          console.log('📍 [Polyline Display] No polyline in database yet');
+          // Don't clear existing polyline if we just don't have one yet
         }
       } catch (error) {
         console.error('❌ [Polyline Display] Error fetching polyline:', error);
-        setCurrentToNextPolyline(null);
+        // Don't clear on error - keep showing existing polyline
       }
     };
 
+    // Fetch immediately on mount or when next stop changes
     fetchPolyline();
     
-    // Poll every 10 seconds to check for updated polylines
-    const interval = setInterval(fetchPolyline, 10000);
-    return () => clearInterval(interval);
-  }, [currentUser, isDriver, nextStop, nextStopCoordinates, selectedDate, filteredDeliveries]);
+  }, [currentUser?.id, isDriver, nextStop?.id, nextStopCoordinates?.lat, nextStopCoordinates?.lon, selectedDate]);
 
   useEffect(() => {
     if (!currentUser || !userHasRole(currentUser, 'driver') || showAIAssistant || !isAIEnabled) {
