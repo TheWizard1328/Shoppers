@@ -694,6 +694,64 @@ function Dashboard() {
     return unsubscribe;
   }, []);
 
+  // Listen for driver status break/resume events from DriverStatusToggle
+  useEffect(() => {
+    const unsubscribe = fabControlEvents.subscribe((event) => {
+      if (event.type === 'BREAK_START') {
+        console.log('🗺️ [Dashboard] Driver going on break - unlocking FAB and zooming to phase 1');
+        
+        // Save current phase for later restoration
+        phaseBeforeBreakRef.current = event.previousPhase;
+        
+        // Clear any timers
+        if (mapLockTimeoutRef.current) {
+          clearTimeout(mapLockTimeoutRef.current);
+          mapLockTimeoutRef.current = null;
+        }
+        mapLockExpiresAtRef.current = null;
+        
+        // Unlock FAB and set to phase 1
+        setIsMapViewLocked(false);
+        setMapViewPhase(1);
+        setMapViewTrigger(prev => prev + 1); // Trigger zoom out to all markers
+        
+        console.log(`💾 [Dashboard] Saved phase ${event.previousPhase} for restoration after break`);
+      } else if (event.type === 'BREAK_END') {
+        console.log('🗺️ [Dashboard] Driver back on duty - restoring FAB phase:', event.phaseToRestore);
+        
+        // Restore the saved phase
+        const phaseToRestore = event.phaseToRestore || 1;
+        setMapViewPhase(phaseToRestore);
+        
+        // Lock the FAB and trigger map view
+        setIsMapViewLocked(true);
+        setMapViewTrigger(prev => prev + 1);
+        
+        // Set up appropriate timer based on restored phase
+        if (phaseToRestore === 1 || phaseToRestore === 3) {
+          const lockDuration = 3000;
+          const expiresAt = Date.now() + lockDuration;
+          mapLockExpiresAtRef.current = expiresAt;
+          
+          mapLockTimeoutRef.current = window.setTimeout(() => {
+            if (mapLockExpiresAtRef.current === expiresAt) {
+              console.log(`⚫ [Break End] Phase ${phaseToRestore} auto-unlocking after ${lockDuration}ms`);
+              setIsMapViewLocked(false);
+              mapLockExpiresAtRef.current = null;
+              mapLockTimeoutRef.current = null;
+            }
+          }, lockDuration);
+        }
+        // Phase 2 stays locked permanently
+        
+        console.log(`✅ [Dashboard] Restored FAB to phase ${phaseToRestore}`);
+        phaseBeforeBreakRef.current = null;
+      }
+    });
+    
+    return unsubscribe;
+  }, []);
+
   useEffect(() => {
     return () => {
       if (fadeTimeoutRef.current) {
