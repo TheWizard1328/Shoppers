@@ -35,7 +35,7 @@ import AIAssistantFAB from "@/components/dashboard/AIAssistantFAB";
 import MapViewCycleFAB from "@/components/dashboard/MapViewCycleFAB";
 import AIRouteOptimizer from "@/components/dashboard/AIRouteOptimizer";
 import AIRoutePlanner from "@/components/dashboard/AIRoutePlanner";
-import { getOrGenerateRoutePolyline } from "@/components/utils/routePolylineManager";
+import { getOrGenerateRoutePolyline, getStoredRouteCoordinates } from "@/components/utils/routePolylineManager";
 import { Input } from "@/components/ui/input";
 import { driverLocationPoller } from "@/components/utils/driverLocationPoller";
 import { getAvailableDrivers } from "@/components/utils/driverSelectors";
