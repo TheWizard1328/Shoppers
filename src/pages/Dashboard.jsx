@@ -251,6 +251,7 @@ function Dashboard() {
   const [dailyPolylineCount, setDailyPolylineCount] = useState(null);
   const [highlightedCardId, setHighlightedCardId] = useState(null);
   const [currentToNextPolyline, setCurrentToNextPolyline] = useState(null);
+  const [hasRateLimitError, setHasRateLimitError] = useState(false);
 
   // Track previous map state for restoring when card is collapsed
   const [previousMapState, setPreviousMapState] = useState(null);
@@ -1899,7 +1900,24 @@ function Dashboard() {
 
   const hasScrolledToNextCardRef = useRef(false);
 
-
+  // Set up rate limit error handler
+  useEffect(() => {
+    window._setRateLimitError = (hasError) => {
+      setHasRateLimitError(hasError);
+      if (hasError) {
+        console.log('🔴 [Dashboard] Rate limit error detected - plus button will turn red');
+        // Auto-clear after 10 seconds
+        setTimeout(() => {
+          setHasRateLimitError(false);
+          console.log('🟢 [Dashboard] Rate limit error cleared - plus button back to green');
+        }, 10000);
+      }
+    };
+    
+    return () => {
+      delete window._setRateLimitError;
+    };
+  }, []);
 
   useEffect(() => {
     // CRITICAL: Skip auto-center if initial FAB phase has been applied
@@ -5002,8 +5020,9 @@ function Dashboard() {
                     setShowDeliveryForm(true);
                   }}
                   size="sm"
-                  className="bg-emerald-500 hover:bg-emerald-600 h-8 w-8 p-0"
-                  disabled={isDateFinished}>
+                  className={`h-8 w-8 p-0 transition-colors ${hasRateLimitError ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
+                  disabled={isDateFinished}
+                  title={hasRateLimitError ? 'Rate limit detected - please wait' : 'Add delivery'}>
                 <Plus className="w-4 h-4" />
               </Button>
             </div>

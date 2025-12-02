@@ -727,13 +727,26 @@ export default function Layout({ children, currentPageName }) {
       return;
     }
 
+    // Set up rate limit callback
+    smartRefreshManager.setRateLimitCallback((hasError) => {
+      // This will be handled by Dashboard component
+      if (window._setRateLimitError) {
+        window._setRateLimitError(hasError);
+      }
+    });
+
     // Add delay to ensure all connections are established
     const startupTimer = setTimeout(() => {
-      console.log('🚀 [Layout] Starting unified real-time refresh (5s tick, staggered intervals per entity)');
+      console.log('🚀 [Layout] Starting unified real-time refresh (20s tick, staggered intervals per entity)');
 
     // Unified refresh function - runs every 5s, each entity checks its own interval
     const performUnifiedRefresh = async () => {
       try {
+        console.log('');
+        console.log('═══════════════════════════════════════════════════');
+        console.log('🔄 [UNIFIED REFRESH] Starting refresh cycle');
+        console.log('═══════════════════════════════════════════════════');
+
         const selectedDateStr = globalFilters.getSelectedDate();
         const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
 
@@ -772,38 +785,70 @@ export default function Layout({ children, currentPageName }) {
           filters.deliveryFilter.driver_id = selectedDriverId;
         }
 
+        console.log(`📊 Current State: ${deliveries.length} deliveries, ${appUsers.length} appUsers, ${patients.length} patients, ${stores.length} stores`);
+        console.log(`🎯 Entity Update Flag: ${isEntityUpdating ? 'PAUSED' : 'ACTIVE'}`);
+
         // CRITICAL: Skip all refreshes if entity update in progress
         if (isEntityUpdating) {
-          console.log('🔄 [Layout] ⏸️ Smart refresh SKIPPED - entity update in progress');
+          console.log('⏸️ [Layout] Smart refresh SKIPPED - entity update in progress');
+          console.log('═══════════════════════════════════════════════════');
           return;
         }
 
-        // FAST: Driver locations (5s) - highest priority for real-time map
+        // FAST: Driver locations (20s) - highest priority for real-time map
+        console.log('');
+        console.log('📍 [1/3] Driver Locations Refresh...');
         const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers);
         if (locationUpdates?.hasChanges) {
+          console.log('   ✅ Updating appUsers state with new locations');
           setAppUsers(locationUpdates.appUsers);
+        } else {
+          console.log('   ⏭️ No location changes');
         }
 
-        // FAST: Active delivery statuses (5s) - for real-time map markers
+        // FAST: Active delivery statuses (30s) - for real-time map markers
+        console.log('');
+        console.log('📦 [2/3] Active Delivery Statuses Refresh...');
         const activeDeliveryUpdates = await smartRefreshManager.refreshActiveDeliveryStatuses(deliveries, selectedDate);
         if (activeDeliveryUpdates?.hasChanges) {
+          console.log('   ✅ Updating deliveries state with active status changes');
           setDeliveries(activeDeliveryUpdates.deliveries);
+        } else {
+          console.log('   ⏭️ No active delivery changes');
         }
 
         // STAGGERED: Full entity refresh - each entity checks its own interval
-        // CRITICAL: Pass isEntityUpdating to prevent refresh during Start button operations
+        console.log('');
+        console.log('🔄 [3/3] Full Entity Refresh (staggered intervals)...');
         const updates = await smartRefreshManager.performSmartRefresh(currentData, filters, isEntityUpdating);
         if (updates) {
+          console.log('   ✅ Applying updates to state:', Object.keys(updates).join(', '));
           updateAppDataState(updates);
+        } else {
+          console.log('   ⏭️ No entity updates needed');
         }
 
         // Notify map of any updates
         const hasAnyUpdates = locationUpdates?.hasChanges || activeDeliveryUpdates?.hasChanges || updates;
-        if (hasAnyUpdates && onSmartRefreshCompleteRef.current) {
-          onSmartRefreshCompleteRef.current();
+        if (hasAnyUpdates) {
+          console.log('');
+          console.log('🔔 Notifying map of updates');
+          if (onSmartRefreshCompleteRef.current) {
+            onSmartRefreshCompleteRef.current();
+          }
         }
+
+        console.log('');
+        console.log('✅ [UNIFIED REFRESH] Cycle complete');
+        console.log('═══════════════════════════════════════════════════');
       } catch (error) {
-        console.warn('⚠️ [Layout] Refresh error:', error.message);
+        if (error.response?.status === 429 || error.message?.includes('429')) {
+          console.error('🚨 [Layout] RATE LIMIT ERROR:', error.message);
+          smartRefreshManager.notifyRateLimit(true);
+        } else {
+          console.warn('⚠️ [Layout] Refresh error:', error.message);
+        }
+        console.log('═══════════════════════════════════════════════════');
       }
     };
 

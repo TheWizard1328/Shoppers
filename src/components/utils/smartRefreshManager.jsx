@@ -38,6 +38,19 @@ class SmartRefreshManager {
     // Rate limit protection - INCREASED to prevent 429 errors
     this.lastApiCallTime = 0;
     this.minTimeBetweenCalls = 2000; // 2 seconds minimum between any API call
+    
+    // Rate limit error callback
+    this.rateLimitCallback = null;
+  }
+  
+  setRateLimitCallback(callback) {
+    this.rateLimitCallback = callback;
+  }
+  
+  notifyRateLimit(hasError) {
+    if (this.rateLimitCallback) {
+      this.rateLimitCallback(hasError);
+    }
   }
   
   /**
@@ -145,21 +158,26 @@ class SmartRefreshManager {
       }
 
       try {
-          console.log('🔄 [Smart Refresh] ━━━ Delivery Refresh Started ━━━');
+          console.log('');
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          console.log('🔄 [DELIVERY REFRESH] DETAILED EXECUTION LOG');
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
           const dateStr = format(selectedDate, 'yyyy-MM-dd');
-          console.log(`🔄 [Smart Refresh] Date: ${dateStr}`);
+          console.log(`📅 Target Date: ${dateStr}`);
 
           // CRITICAL: Only work with selected date deliveries - leave all other dates untouched
           const currentDateDeliveries = currentDeliveries.filter(d => d && d.delivery_date === dateStr);
-          console.log(`🔄 [Smart Refresh] Current deliveries in memory: ${currentDateDeliveries.length}`);
+          console.log(`📊 Current State: ${currentDateDeliveries.length} deliveries in memory for ${dateStr}`);
+          console.log(`📊 Total Deliveries: ${currentDeliveries.length} (all dates)`);
 
           // Get the latest update timestamp from selected date's deliveries
           const lastTimestamp = getLatestUpdateTimestamp(currentDateDeliveries);
-          console.log(`🔄 [Smart Refresh] Last update timestamp: ${lastTimestamp?.toISOString() || 'none'}`);
+          console.log(`🕐 Last Update Timestamp: ${lastTimestamp?.toISOString() || 'NONE (initial load)'}`);
 
           // ALWAYS use incremental fetch - never do full reload
           if (!lastTimestamp && currentDateDeliveries.length > 0) {
-              // Have deliveries but no timestamp - skip refresh, data is already loaded
+              console.log('⏭️ SKIP: Have data but no timestamp - already loaded');
+              console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
               return null;
           }
 
@@ -174,63 +192,112 @@ class SmartRefreshManager {
               dateFilter.updated_date = {
                   $gte: lastTimestamp.toISOString()
               };
+              console.log(`🔍 Query Mode: INCREMENTAL (only records updated after ${lastTimestamp.toISOString()})`);
+          } else {
+              console.log(`🔍 Query Mode: FULL FETCH (initial load for ${dateStr})`);
           }
+          
+          console.log(`📡 API CALL: base44.entities.Delivery.filter(${JSON.stringify(dateFilter)})`);
       
       const updatedDeliveries = await base44.entities.Delivery.filter(dateFilter);
-      console.log(`🔄 [Smart Refresh] Fetched ${updatedDeliveries?.length || 0} deliveries from DB`);
+      console.log(`✅ API Response: ${updatedDeliveries?.length || 0} records returned`);
 
       // If incremental and no updates, skip processing (most common case)
       if (lastTimestamp) {
           if (!updatedDeliveries || updatedDeliveries.length === 0) {
-              console.log('🔄 [Smart Refresh] ✅ No changes detected (incremental check)');
-              console.log('🔄 [Smart Refresh] ━━━ Refresh Complete: No Updates ━━━');
+              console.log('✅ Result: NO CHANGES (incremental check found 0 updated records)');
+              console.log('🎯 Action: SKIP - keeping existing data unchanged');
+              console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+              this.notifyRateLimit(false);
               return null;
           }
-          console.log(`🔄 [Smart Refresh] 📦 ${updatedDeliveries.length} deliveries updated since last check`);
+          console.log(`✅ Result: ${updatedDeliveries.length} records updated since last check`);
       } else {
           // Only log full fetch if it actually happens (initial load)
           if (!updatedDeliveries || updatedDeliveries.length === 0) {
-              console.log('🔄 [Smart Refresh] ✅ No deliveries found (initial check)');
-              console.log('🔄 [Smart Refresh] ━━━ Refresh Complete: No Data ━━━');
+              console.log('✅ Result: NO DATA (initial fetch found 0 records)');
+              console.log('🎯 Action: SKIP - no deliveries for this date');
+              console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+              this.notifyRateLimit(false);
               return null;
           }
-          console.log(`🔄 [Smart Refresh] 📦 Initial fetch: ${updatedDeliveries.length} deliveries`);
+          console.log(`✅ Result: ${updatedDeliveries.length} records (initial load)`);
       }
 
       // Diff and merge
-      console.log('🔄 [Smart Refresh] 🔍 Computing diff...');
+      console.log('');
+      console.log('🔍 DIFF COMPUTATION:');
       const diff = diffEntityArrays(currentDateDeliveries, updatedDeliveries);
+      console.log(`   Old Data: ${currentDateDeliveries.length} deliveries`);
+      console.log(`   New Data: ${updatedDeliveries.length} deliveries`);
+      console.log(`   To Add: ${diff.toAdd.length}`);
+      console.log(`   To Update: ${diff.toUpdate.length}`);
+      console.log(`   To Remove: ${diff.toRemove.length}`);
 
       // If no real changes, skip state update
       if (diff.toUpdate.length === 0 && diff.toAdd.length === 0 && diff.toRemove.length === 0) {
-          console.log('🔄 [Smart Refresh] ✅ No changes after diff (data identical)');
-          console.log('🔄 [Smart Refresh] ━━━ Refresh Complete: No Changes ━━━');
+          console.log('✅ Result: NO CHANGES (data identical after diff)');
+          console.log('🎯 Action: SKIP - keeping existing data unchanged');
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          this.notifyRateLimit(false);
           return null;
       }
 
-      // Log changes
-      console.log(`🔄 [Smart Refresh] 📊 Changes detected:`);
-      console.log(`┃   • Added: ${diff.toAdd.length}`);
-      console.log(`┃   • Updated: ${diff.toUpdate.length}`);
-      console.log(`┃   • Removed: ${diff.toRemove.length}`);
-
-      // Log updated deliveries details
+      // Log changes in detail
       if (diff.toUpdate.length > 0) {
-          console.log('┃   🔄 Updated deliveries:');
+          console.log('');
+          console.log('📝 UPDATES DETECTED:');
           diff.toUpdate.forEach(d => {
-              console.log(`┃      - ${d.patient_name || 'Pickup'} (Stop #${d.stop_order}, isNext: ${d.isNextDelivery})`);
+              const old = currentDateDeliveries.find(cd => cd.id === d.id);
+              console.log(`   • ${d.patient_name || 'Pickup'}:`);
+              if (old?.stop_order !== d.stop_order) {
+                  console.log(`      - stop_order: ${old?.stop_order} → ${d.stop_order}`);
+              }
+              if (old?.status !== d.status) {
+                  console.log(`      - status: ${old?.status} → ${d.status}`);
+              }
+              if (old?.delivery_time_eta !== d.delivery_time_eta) {
+                  console.log(`      - ETA: ${old?.delivery_time_eta} → ${d.delivery_time_eta}`);
+              }
+              if (old?.isNextDelivery !== d.isNextDelivery) {
+                  console.log(`      - isNext: ${old?.isNextDelivery} → ${d.isNextDelivery}`);
+              }
+          });
+      }
+      
+      if (diff.toAdd.length > 0) {
+          console.log('');
+          console.log('➕ ADDITIONS:');
+          diff.toAdd.forEach(d => {
+              console.log(`   • ${d.patient_name || 'Pickup'} (Stop #${d.stop_order})`);
+          });
+      }
+      
+      if (diff.toRemove.length > 0) {
+          console.log('');
+          console.log('➖ REMOVALS:');
+          diff.toRemove.forEach(id => {
+              const removed = currentDateDeliveries.find(d => d.id === id);
+              console.log(`   • ${removed?.patient_name || 'Unknown'} (ID: ${id})`);
           });
       }
 
       // CRITICAL: Merge only selected date changes, preserve ALL other dates exactly as-is
-      console.log('🔄 [Smart Refresh] 🔀 Merging changes...');
+      console.log('');
+      console.log('🔀 MERGE OPERATION:');
       const mergedDateDeliveries = mergeEntityChanges(currentDateDeliveries, diff);
       const otherDateDeliveries = currentDeliveries.filter(d => d && d.delivery_date !== dateStr);
       const finalDeliveries = [...otherDateDeliveries, ...mergedDateDeliveries];
 
-      console.log(`🔄 [Smart Refresh] ✅ Merged: ${mergedDateDeliveries.length} for ${dateStr} + ${otherDateDeliveries.length} other dates`);
-      console.log('🔄 [Smart Refresh] ━━━ Refresh Complete: Changes Applied ━━━');
+      console.log(`   Input: ${currentDateDeliveries.length} current + diff (${diff.toAdd.length} add, ${diff.toUpdate.length} update, ${diff.toRemove.length} remove)`);
+      console.log(`   Output: ${mergedDateDeliveries.length} merged for ${dateStr}`);
+      console.log(`   Preserved: ${otherDateDeliveries.length} deliveries from other dates`);
+      console.log(`   Final Total: ${finalDeliveries.length} deliveries (all dates)`);
+      console.log('');
+      console.log('🎯 Action: APPLY CHANGES - updating state');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
+      this.notifyRateLimit(false);
       return {
         hasChanges: true,
         deliveries: finalDeliveries
@@ -239,9 +306,22 @@ class SmartRefreshManager {
     } catch (error) {
       if (error.message?.includes('WebSocket') || error.message?.includes('closed')) {
         console.warn('⚠️ [SmartRefresh] WebSocket connection issue, skipping delivery refresh');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        this.notifyRateLimit(false);
         return null;
       }
+      
+      // Rate limit detection
+      if (error.response?.status === 429 || error.message?.includes('429') || error.message?.includes('rate limit')) {
+        console.error('🚨 [RATE LIMIT] 429 Error detected!');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        this.notifyRateLimit(true);
+        return null;
+      }
+      
       console.error('❌ [SmartRefresh] Error refreshing current day deliveries:', error);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      this.notifyRateLimit(false);
       return null;
     }
   }
