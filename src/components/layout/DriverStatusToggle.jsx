@@ -156,13 +156,18 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
         locationTracker.setDriverStatus(newStatus);
         console.log('🛑 Location tracking stopped (off duty/on break)');
         
-        // If going on break, clear isNextDelivery and notify parent to unlock FAB
+        // If going on break, save current FAB phase and notify Dashboard
         if (newStatus === 'on_break') {
-          if (onBreakStart) {
-            console.log('🗺️ [DriverStatusToggle] Notifying parent: driver going on break');
-            onBreakStart();
-          }
           try {
+            // Load user settings to get current FAB phase
+            const settings = await loadUserSettings(currentUser.id);
+            const currentPhase = settings?.fab_map_cycle_phase || 1;
+            setSavedPhaseBeforeBreak(currentPhase);
+            console.log(`💾 [DriverStatusToggle] Saved FAB phase before break: ${currentPhase}`);
+            
+            // Notify Dashboard to unlock FAB and zoom to phase 1
+            fabControlEvents.notifyBreakStart(currentPhase);
+            
             const todayDeliveries = await base44.entities.Delivery.filter({
               driver_id: currentUser?.id,
               delivery_date: today
@@ -178,7 +183,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
               console.log(`✅ Reset isNextDelivery for ${incompleteDeliveries.length} incomplete stops (on break)`);
             }
           } catch (error) {
-            console.error('Failed to reset isNextDelivery:', error);
+            console.error('Failed to reset isNextDelivery or save phase:', error);
           }
         }
       } else {
