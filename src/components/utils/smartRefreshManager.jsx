@@ -603,11 +603,12 @@ class SmartRefreshManager {
         }
       }
       
-      // Refresh patients (moderate priority)
-      if (currentData.patients && filters.patientFilter) {
+      // Refresh patients (LOW priority - only incremental updates)
+      // Patient data rarely changes during delivery operations
+      if (currentData.patients && currentData.patients.length > 0) {
         const patientUpdate = await this.refreshPatients(
           currentData.patients,
-          filters.patientFilter
+          filters.patientFilter || {}
         );
         
         if (patientUpdate?.hasChanges) {
@@ -615,33 +616,13 @@ class SmartRefreshManager {
         }
       }
       
-      // Refresh stores (low priority)
-      if (currentData.stores) {
-        const storeUpdate = await this.refreshStores(currentData.stores);
-        
-        if (storeUpdate?.hasChanges) {
-          updates.stores = storeUpdate.stores;
-        }
-      }
+      // SKIP store refresh during smart refresh - stores almost never change
+      // Stores are loaded on initial load and only need refresh on page reload
+      // if (currentData.stores) { ... }
       
-      // Refresh users (low priority) - AppUser only for non-admins
-      if (currentData.appUsers) {
-        const userUpdate = await this.refreshUsers(
-          currentData.users || [],
-          currentData.appUsers
-        );
-        
-        if (userUpdate?.hasChanges) {
-          if (userUpdate.users) {
-            updates.users = userUpdate.users;
-          }
-          updates.appUsers = userUpdate.appUsers;
-          // Invalidate auth cache so getEffectiveUser() fetches fresh data
-          console.log('🔄 [SmartRefresh] AppUser changes detected - invalidating user cache');
-          invalidate('User');
-          invalidate('AppUser');
-        }
-      }
+      // SKIP full user refresh during smart refresh - handled by refreshAppUsers already
+      // Only refresh users on significant AppUser changes detected above
+      // if (currentData.appUsers) { ... }
       
       const hasAnyUpdates = Object.keys(updates).length > 0;
 
