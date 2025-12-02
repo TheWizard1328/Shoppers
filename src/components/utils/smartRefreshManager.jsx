@@ -478,6 +478,73 @@ class SmartRefreshManager {
   }
 
   /**
+   * Fast delivery status refresh - polls for status changes on active deliveries
+   * Called more frequently for real-time map updates
+   */
+  async refreshActiveDeliveryStatuses(currentDeliveries, selectedDate) {
+    try {
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      
+      // Only fetch today's active deliveries (in_transit, en_route)
+      const activeFilter = {
+        delivery_date: dateStr,
+        status: { $in: ['in_transit', 'en_route', 'Ready For Pickup'] }
+      };
+      
+      const activeDeliveries = await base44.entities.Delivery.filter(activeFilter);
+      
+      if (!activeDeliveries || activeDeliveries.length === 0) {
+        return null;
+      }
+      
+      // Check for status/ETA changes
+      let hasChanges = false;
+      const updatedDeliveries = currentDeliveries.map(d => {
+        if (!d || d.delivery_date !== dateStr) return d;
+        
+        const activeVersion = activeDeliveries.find(ad => ad.id === d.id);
+        if (activeVersion) {
+          // Check if anything changed
+          if (d.status !== activeVersion.status ||
+              d.delivery_time_eta !== activeVersion.delivery_time_eta ||
+              d.isNextDelivery !== activeVersion.isNextDelivery ||
+              d.stop_order !== activeVersion.stop_order) {
+            hasChanges = true;
+            return activeVersion;
+          }
+        }
+        return d;
+      });
+      
+      // Also add any new active deliveries not in current state
+      activeDeliveries.forEach(ad => {
+        if (!updatedDeliveries.find(d => d?.id === ad.id)) {
+          hasChanges = true;
+          updatedDeliveries.push(ad);
+        }
+      });
+      
+      if (!hasChanges) {
+        return null;
+      }
+      
+      console.log(`📦 [SmartRefresh] Active delivery statuses updated (${activeDeliveries.length} active)`);
+      
+      return {
+        hasChanges: true,
+        deliveries: updatedDeliveries
+      };
+      
+    } catch (error) {
+      if (error.message?.includes('WebSocket') || error.message?.includes('closed')) {
+        return null;
+      }
+      console.error('❌ [SmartRefresh] Error refreshing active delivery statuses:', error);
+      return null;
+    }
+  }
+
+  /**
    * Full smart refresh - checks all entities and only updates what's changed
    * NOW WITH THROTTLING to prevent rate limits
    */
