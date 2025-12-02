@@ -230,13 +230,18 @@ const optimizeStoreRoute = (stops, startLocation, startTime, driverHome, patient
         const windowEnd = timeToMinutes(stop.time_window_end || stopTW);
         
         if (isPickup) {
-          // RULE 5: Pickup TWs are estimates - light preference, not strict
+          // CRITICAL: Pickup time windows represent when items are READY
+          // We CANNOT arrive before the window start - items won't be ready
+          // Heavily penalize trying to arrive early
           if (arrivalTime >= windowStart && arrivalTime <= windowEnd) {
-            score += 50; // Bonus for being in window
+            score += 100; // Bonus for being in window
           } else if (arrivalTime < windowStart) {
-            score += 30; // Early is acceptable
+            // PENALIZE early arrival - can't pick up items that aren't ready
+            const minutesEarly = windowStart - arrivalTime;
+            score -= 200 - (minutesEarly * 5); // Heavy penalty for early
+            console.log(`    ⚠️ Pickup ${stop.stop_id} would arrive ${minutesEarly} min early - penalizing`);
           } else {
-            score += 10; // Late pickup is lowest priority but still OK
+            score += 50; // Late pickup is OK (items are ready)
           }
         } else {
           // Patient deliveries: Strong time window preference
