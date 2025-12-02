@@ -643,8 +643,17 @@ class SmartRefreshManager {
   /**
    * Full smart refresh - checks all entities based on their individual intervals
    * Uses staggered refresh to prevent rate limits while keeping data fresh
+   * @param {Object} currentData - Current state data
+   * @param {Object} filters - Query filters
+   * @param {boolean} isEntityUpdating - If true, skip refresh (entity update in progress)
    */
-  async performSmartRefresh(currentData, filters) {
+  async performSmartRefresh(currentData, filters, isEntityUpdating = false) {
+    // CRITICAL: Skip if entity update in progress (e.g., Start button clicked)
+    if (isEntityUpdating) {
+      console.log('🔄 [Smart Refresh] ⏸️ PAUSED - Entity update in progress');
+      return null;
+    }
+    
     if (this.isRefreshing) {
       return null;
     }
