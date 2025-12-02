@@ -4477,49 +4477,56 @@ function Dashboard() {
       }
 
       // CRITICAL: Recalculate ETAs for remaining stops when ANY delivery is finished
+      // BUT ONLY from mobile devices - prevent desktop views from triggering optimizer
       const finishedStatusesTrigger = ['completed', 'failed', 'cancelled', 'returned'];
       if (finishedStatusesTrigger.includes(newStatus) && driverId) {
         console.log('');
-        console.log('🏗️ STEP 2: Calling backend route optimizer for ETA recalculation + next stop selection');
+        console.log('🏗️ STEP 2: Route optimizer logic (mobile-only)');
 
-        // Use backend function for route optimization (faster, server-side)
-        // The optimizer will automatically determine and set the next best stop based on distance/time
-        try {
-          const optimizationResult = await optimizeDriverRoute({
-            driverId: driverId,
-            deliveryDate: deliveryDate,
-            currentLocation: driverLocation ? {
-              lat: driverLocation.latitude,
-              lon: driverLocation.longitude
-            } : null,
-            completedDeliveryId: deliveryId,
-            clientCurrentTime: format(new Date(), 'HH:mm'), // Send device's current time
-            generatePolyline: true, // Generate polyline on complete
-            selectNextStop: true // NEW: Tell optimizer to select next best stop
-          });
+        // CRITICAL: Only run optimizer from mobile devices
+        if (isMobileDevice()) {
+          console.log('📱 Mobile device detected - calling backend route optimizer');
+          
+          try {
+            const optimizationResult = await optimizeDriverRoute({
+              driverId: driverId,
+              deliveryDate: deliveryDate,
+              currentLocation: driverLocation ? {
+                lat: driverLocation.latitude,
+                lon: driverLocation.longitude
+              } : null,
+              completedDeliveryId: deliveryId,
+              clientCurrentTime: format(new Date(), 'HH:mm'),
+              generatePolyline: true,
+              selectNextStop: true
+            });
 
-          console.log('✅ Backend optimization result:', optimizationResult.data);
+            console.log('✅ Backend optimization result:', optimizationResult.data);
+            fetchPolylineCount();
 
-          // Refresh polyline count after backend optimization
-          fetchPolylineCount();
+            if (optimizationResult.data?.routeComplete) {
+              console.log('✅ Route complete - no more stops');
+              invalidate('Delivery');
+              await refreshData();
 
-          if (optimizationResult.data?.routeComplete) {
-            console.log('✅ Route complete - no more stops');
-            invalidate('Delivery');
-            await refreshData();
+              // Show route summary modal only for completed status
+              if (newStatus === 'completed' && !hasShownSummaryRef.current) {
+                setShowRouteSummary(true);
+                hasShownSummaryRef.current = true;
+              }
 
-            // Show route summary modal only for completed status
-            if (newStatus === 'completed' && !hasShownSummaryRef.current) {
-              setShowRouteSummary(true);
-              hasShownSummaryRef.current = true;
+              return;
             }
-
-            return;
+          } catch (backendError) {
+            console.warn('⚠️ Backend optimization failed:', backendError.message);
           }
-        } catch (backendError) {
-          console.warn('⚠️ Backend optimization failed, falling back to frontend:', backendError.message);
+        } else {
+          console.log('⏭️ Desktop device - skipping backend optimizer (mobile-only feature)');
+        }
+        
+        // Desktop fallback or backend failure - just refresh data without optimization
+        {
 
-          // Fallback to frontend optimization if backend fails
           const freshDeliveries = await base44.entities.Delivery.filter({
             delivery_date: deliveryDate,
             driver_id: driverId
@@ -4532,86 +4539,29 @@ function Dashboard() {
           if (incompleteDeliveries.length === 0) {
             invalidate('Delivery');
             await refreshData();
-            if (!hasShownSummaryRef.current) {
+            if (newStatus === 'completed' && !hasShownSummaryRef.current) {
               setShowRouteSummary(true);
               hasShownSummaryRef.current = true;
             }
             return;
           }
 
-          // Simple ETA recalculation for fallback
+          // Simple reordering for desktop - no ETA recalculation
+          // Desktop view - just reorder without ETA calculation
           const sortedCompleted = [...completedDeliveries].sort((a, b) =>
-          new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time)
+            new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time)
           );
-
-          let startLocation = null;
-          if (sortedCompleted.length > 0) {
-            const lastCompleted = sortedCompleted[sortedCompleted.length - 1];
-            if (lastCompleted.patient_id) {
-              const patient = patients.find((p) => p.id === lastCompleted.patient_id);
-              if (patient?.latitude && patient?.longitude) {
-                startLocation = { lat: patient.latitude, lon: patient.longitude };
-              }
-            } else if (lastCompleted.store_id) {
-              const store = stores.find((s) => s.id === lastCompleted.store_id);
-              if (store?.latitude && store?.longitude) {
-                startLocation = { lat: store.latitude, lon: store.longitude };
-              }
-            }
-          }
-
-          // Recalculate ETAs
-          const enrichedIncomplete = incompleteDeliveries.map((delivery) => {
-            if (!delivery) return null;
-            const enriched = { ...delivery };
-            if (delivery.patient_id) {
-              const patient = patients.find((p) => p && p.id === delivery.patient_id);
-              if (patient?.latitude && patient?.longitude) {
-                enriched.latitude = patient.latitude;
-                enriched.longitude = patient.longitude;
-              }
-            } else {
-              const store = stores.find((s) => s && s.id === delivery.store_id);
-              if (store?.latitude && store?.longitude) {
-                enriched.latitude = store.latitude;
-                enriched.longitude = store.longitude;
-              }
-            }
-            return enriched;
-          }).filter((d) => d && d.latitude && d.longitude);
-
-          enrichedIncomplete.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-
-          if (startLocation) {
-            let currentLat = startLocation.lat;
-            let currentLon = startLocation.lon;
-            let currentTimeMinutes = new Date().getHours() * 60 + new Date().getMinutes();
-
-            for (const stop of enrichedIncomplete) {
-              const distance = calculateDistance(currentLat, currentLon, stop.latitude, stop.longitude);
-              const travelTime = Math.ceil(distance * 2);
-              const stopTime = stop.extra_time || 5;
-
-              currentTimeMinutes += travelTime + stopTime;
-              const etaHours = Math.floor(currentTimeMinutes / 60) % 24;
-              const etaMins = currentTimeMinutes % 60;
-              stop.delivery_time_eta = `${String(etaHours).padStart(2, '0')}:${String(etaMins).padStart(2, '0')}`;
-
-              currentLat = stop.latitude;
-              currentLon = stop.longitude;
-            }
-          }
-
-          const finalSortedRoute = [...sortedCompleted, ...enrichedIncomplete];
+          
+          incompleteDeliveries.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+          
+          const finalSortedRoute = [...sortedCompleted, ...incompleteDeliveries];
           for (let i = 0; i < finalSortedRoute.length; i++) {
             const stop = finalSortedRoute[i];
             if (!stop) continue;
-            const updatePayload = { stop_order: i + 1 };
-            if (!finishedStatuses.includes(stop.status)) {
-              updatePayload.delivery_time_eta = stop.delivery_time_eta || stop.delivery_time_start;
-            }
-            await base44.entities.Delivery.update(stop.id, updatePayload);
+            await base44.entities.Delivery.update(stop.id, { stop_order: i + 1 });
           }
+          
+          console.log('✅ Desktop fallback: Reordered stops without ETA calculation');
         }
 
         console.log('');
@@ -4768,20 +4718,24 @@ function Dashboard() {
       });
       console.log(`✅ [START] Status updated to ${newStatus}`);
 
-      // CRITICAL: Call backend optimizer immediately (not delayed)
-      // This ensures isNextDelivery gets set before smart refresh picks up changes
-      console.log('🔄 [START] Calling backend optimizer to set isNextDelivery...');
-      await optimizeDriverRoute({
-        driverId: driverId,
-        deliveryDate: deliveryDate,
-        currentLocation: driverLocation ? {
-          lat: driverLocation.latitude,
-          lon: driverLocation.longitude
-        } : null,
-        startedDeliveryId: deliveryId,
-        clientCurrentTime: format(new Date(), 'HH:mm'),
-        generatePolyline: true
-      });
+      // CRITICAL: Only call optimizer from mobile devices
+      // Desktop/dispatcher views should not trigger route optimization
+      if (isMobileDevice()) {
+        console.log('🔄 [START] Calling backend optimizer from mobile device...');
+        await optimizeDriverRoute({
+          driverId: driverId,
+          deliveryDate: deliveryDate,
+          currentLocation: driverLocation ? {
+            lat: driverLocation.latitude,
+            lon: driverLocation.longitude
+          } : null,
+          startedDeliveryId: deliveryId,
+          clientCurrentTime: format(new Date(), 'HH:mm'),
+          generatePolyline: true
+        });
+      } else {
+        console.log('⏭️ [START] Skipping optimizer - desktop device (mobile-only feature)');
+      }
       
       console.log('✅ [START] Backend optimizer complete - isNextDelivery flag set');
       fetchPolylineCount();
