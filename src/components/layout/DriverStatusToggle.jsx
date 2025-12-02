@@ -221,8 +221,9 @@ export default function DriverStatusToggle({ currentUser, onStatusChange }) {
       toast.error('Failed to update status. Please try again.');
     } finally {
       setIsUpdating(false);
+      setIsEntityUpdating(false); // Resume smart refresh
     }
-  }, [status, isUpdating, appUserId, currentUser, onStatusChange]);
+  }, [status, isUpdating, appUserId, currentUser, onStatusChange, setIsEntityUpdating]);
 
   const statusConfig = {
     off_duty: {
