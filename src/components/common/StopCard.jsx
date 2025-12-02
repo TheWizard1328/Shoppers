@@ -639,10 +639,10 @@ export default function StopCard({
         <CardContent className="mt-1 mb-1 px-3 py-1 flex flex-col">
           {/* HEADER SECTION - Always Visible */}
           <div className="flex items-start gap-2">
-            <div className="flex flex-col gap-2.5 items-start items-center">
+            <div className="flex flex-col py-1.5 gap-1.5  items-center">
               <Badge
-                variant="secondary"
-                className={`font-bold text-xs px-2 py-0.5 text-white w-[40px] justify-center ${delivery.ampm_deliveries === 'AM' ? 'rounded-full' : 'rounded-xs'}`}
+                variant="secondary" className="inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary hover:bg-secondary/80 font-bold text-xs px-2 py-1.5 text-white w-[40px] justify-center rounded-full"
+
                 style={{
                   backgroundColor: storeColor || '#10B981',
                   color: 'white'
@@ -732,7 +732,7 @@ export default function StopCard({
               </div>
             </div>
 
-            <div className="flex flex-col gap-2.5 items-end items-center">
+            <div className="flex flex-col py-1.5 gap-1.5 items-center">
               <div className="flex items-center gap-1">
                 {showStatusDropdown ?
                 <DropdownMenu>
