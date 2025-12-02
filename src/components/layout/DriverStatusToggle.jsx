@@ -84,6 +84,9 @@ export default function DriverStatusToggle({ currentUser, onStatusChange }) {
     return () => clearInterval(interval);
   }, [currentUser?.id, status, isUpdating]);
 
+  // Track pending status to prevent race conditions
+  const [pendingStatus, setPendingStatus] = useState(null);
+  
   const handleStatusChange = useCallback(async (newStatus) => {
     if (isUpdating || newStatus === status || !appUserId) return;
     
@@ -110,6 +113,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange }) {
     }
     
     setIsUpdating(true);
+    setPendingStatus(newStatus); // Track pending status
     setIsEntityUpdating(true); // Pause smart refresh
     const previousStatus = status;
     
