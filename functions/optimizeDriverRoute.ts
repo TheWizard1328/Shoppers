@@ -854,30 +854,50 @@ Deno.serve(async (req) => {
         let destLat = null;
         let destLon = null;
         
+        // Get driver's current GPS location (if available)
+        let driverCurrentLat = null;
+        let driverCurrentLon = null;
+        
+        if (currentLocation?.latitude && currentLocation?.longitude) {
+          driverCurrentLat = currentLocation.latitude;
+          driverCurrentLon = currentLocation.longitude;
+          console.log(`   📍 Driver current GPS: [${driverCurrentLat.toFixed(6)}, ${driverCurrentLon.toFixed(6)}]`);
+        } else if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
+          const locationAge = driverAppUser.location_updated_at 
+            ? Date.now() - new Date(driverAppUser.location_updated_at).getTime()
+            : Infinity;
+          
+          if (locationAge < 5 * 60 * 1000) { // Less than 5 minutes old
+            driverCurrentLat = driverAppUser.current_latitude;
+            driverCurrentLon = driverAppUser.current_longitude;
+            console.log(`   📍 Driver GPS from AppUser (${Math.round(locationAge / 1000)}s old): [${driverCurrentLat.toFixed(6)}, ${driverCurrentLon.toFixed(6)}]`);
+          }
+        }
+        
         // =============================================
-        // POLYLINE ORIGIN LOGIC (with 500m threshold):
-        // 1. If no stops started → use driver's home location
-        // 2. If stops started → use last completed stop location
-        // 3. If driver's current GPS is >500m from the determined origin → use current GPS
+        // NEW LOGIC: Determine "default origin" based on route state
+        // 1. If no stops started → use home location
+        // 2. If stops started → use last completed stop
+        // 3. If driver is >500m from default origin → use current GPS
         // =============================================
         
         const DISTANCE_THRESHOLD_KM = 0.5; // 500 meters
         
-        // Determine the "logical origin" based on route progress
-        let logicalOriginLat = null;
-        let logicalOriginLon = null;
-        let logicalOriginSource = null;
+        let defaultOriginLat = null;
+        let defaultOriginLon = null;
+        let defaultOriginSource = null;
         
         // Check if any stops have been started (in_transit or completed)
-        const startedStatuses = ['in_transit', 'en_route', 'completed', 'failed', 'cancelled', 'returned'];
-        const hasStartedStops = deliveries.some(d => d && startedStatuses.includes(d.status));
+        const hasStartedStops = deliveries.some(d => 
+          d && (d.status === 'in_transit' || finishedStatuses.includes(d.status))
+        );
         
         if (!hasStartedStops) {
           // No stops started → use driver's home location
           if (driverHome) {
-            logicalOriginLat = driverHome.lat;
-            logicalOriginLon = driverHome.lon;
-            logicalOriginSource = 'home (no stops started)';
+            defaultOriginLat = driverHome.lat;
+            defaultOriginLon = driverHome.lon;
+            defaultOriginSource = 'home (no stops started)';
           }
         } else {
           // Stops have been started → use last completed stop
@@ -890,90 +910,67 @@ Deno.serve(async (req) => {
             if (lastCompleted.patient_id) {
               const patient = patients.find(p => p?.id === lastCompleted.patient_id);
               if (patient?.latitude && patient?.longitude) {
-                logicalOriginLat = patient.latitude;
-                logicalOriginLon = patient.longitude;
-                logicalOriginSource = 'last completed stop';
+                defaultOriginLat = patient.latitude;
+                defaultOriginLon = patient.longitude;
+                defaultOriginSource = 'last completed stop';
               }
             } else {
               const store = stores.find(s => s?.id === lastCompleted.store_id);
               if (store?.latitude && store?.longitude) {
-                logicalOriginLat = store.latitude;
-                logicalOriginLon = store.longitude;
-                logicalOriginSource = 'last completed pickup';
+                defaultOriginLat = store.latitude;
+                defaultOriginLon = store.longitude;
+                defaultOriginSource = 'last completed pickup';
               }
             }
-          }
-          
-          // Fallback to home if no completed stops found
-          if (!logicalOriginLat && driverHome) {
-            logicalOriginLat = driverHome.lat;
-            logicalOriginLon = driverHome.lon;
-            logicalOriginSource = 'home (fallback - no completed stops)';
-          }
-        }
-        
-        console.log(`   📍 Logical origin: ${logicalOriginSource || 'not determined'}`);
-        if (logicalOriginLat && logicalOriginLon) {
-          console.log(`      Coordinates: [${logicalOriginLat.toFixed(6)}, ${logicalOriginLon.toFixed(6)}]`);
-        }
-        
-        // Get driver's current GPS location
-        let currentGpsLat = null;
-        let currentGpsLon = null;
-        
-        // Priority 1: Use provided current location (from pull-to-refresh)
-        if (currentLocation?.latitude && currentLocation?.longitude) {
-          currentGpsLat = currentLocation.latitude;
-          currentGpsLon = currentLocation.longitude;
-          console.log(`   📡 Current GPS (provided): [${currentGpsLat.toFixed(6)}, ${currentGpsLon.toFixed(6)}]`);
-        }
-        // Priority 2: Use driver's stored GPS location from AppUser
-        else if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
-          const locationAge = driverAppUser.location_updated_at 
-            ? Date.now() - new Date(driverAppUser.location_updated_at).getTime()
-            : Infinity;
-          
-          if (locationAge < 10 * 60 * 1000) { // Less than 10 minutes old
-            currentGpsLat = driverAppUser.current_latitude;
-            currentGpsLon = driverAppUser.current_longitude;
-            console.log(`   📡 Current GPS (stored, ${Math.round(locationAge / 1000)}s old): [${currentGpsLat.toFixed(6)}, ${currentGpsLon.toFixed(6)}]`);
           } else {
-            console.log(`   ⚠️ Stored GPS location too old (${Math.round(locationAge / 1000)}s)`);
+            // Stops started but none completed yet → use home as fallback
+            if (driverHome) {
+              defaultOriginLat = driverHome.lat;
+              defaultOriginLon = driverHome.lon;
+              defaultOriginSource = 'home (stops started but none completed)';
+            }
           }
         }
         
-        // Apply 500m threshold logic
-        if (logicalOriginLat && logicalOriginLon && currentGpsLat && currentGpsLon) {
-          const distanceFromLogicalOrigin = calculateDistance(
-            logicalOriginLat,
-            logicalOriginLon,
-            currentGpsLat,
-            currentGpsLon
+        console.log(`   🏠 Default origin: ${defaultOriginSource || 'not available'}`);
+        if (defaultOriginLat && defaultOriginLon) {
+          console.log(`      Coordinates: [${defaultOriginLat.toFixed(6)}, ${defaultOriginLon.toFixed(6)}]`);
+        }
+        
+        // Now apply the 500m threshold logic
+        if (driverCurrentLat && driverCurrentLon && defaultOriginLat && defaultOriginLon) {
+          const distanceFromDefault = calculateDistance(
+            defaultOriginLat,
+            defaultOriginLon,
+            driverCurrentLat,
+            driverCurrentLon
           );
           
-          console.log(`   📏 Distance from logical origin: ${(distanceFromLogicalOrigin * 1000).toFixed(0)}m`);
+          console.log(`   📏 Distance from default origin: ${(distanceFromDefault * 1000).toFixed(0)}m`);
           
-          if (distanceFromLogicalOrigin > DISTANCE_THRESHOLD_KM) {
-            // Driver is >500m from logical origin → use current GPS
-            originLat = currentGpsLat;
-            originLon = currentGpsLon;
-            console.log(`   ✅ Using CURRENT GPS as origin (>${DISTANCE_THRESHOLD_KM * 1000}m from ${logicalOriginSource})`);
+          if (distanceFromDefault > DISTANCE_THRESHOLD_KM) {
+            // Driver is >500m from default origin → use current GPS
+            originLat = driverCurrentLat;
+            originLon = driverCurrentLon;
+            console.log(`   ✅ Using driver GPS as origin (>${DISTANCE_THRESHOLD_KM * 1000}m from default)`);
           } else {
-            // Driver is within 500m of logical origin → use logical origin
-            originLat = logicalOriginLat;
-            originLon = logicalOriginLon;
-            console.log(`   ✅ Using LOGICAL ORIGIN (${logicalOriginSource}) - driver within ${DISTANCE_THRESHOLD_KM * 1000}m`);
+            // Driver is within 500m of default origin → use default origin
+            originLat = defaultOriginLat;
+            originLon = defaultOriginLon;
+            console.log(`   ✅ Using default origin (driver within ${DISTANCE_THRESHOLD_KM * 1000}m)`);
           }
-        } else if (currentGpsLat && currentGpsLon) {
-          // No logical origin, but have GPS → use GPS
-          originLat = currentGpsLat;
-          originLon = currentGpsLon;
-          console.log('   ✅ Using CURRENT GPS as origin (no logical origin available)');
-        } else if (logicalOriginLat && logicalOriginLon) {
-          // No GPS, but have logical origin → use logical origin
-          originLat = logicalOriginLat;
-          originLon = logicalOriginLon;
-          console.log(`   ✅ Using LOGICAL ORIGIN (${logicalOriginSource}) - no GPS available`);
+        } else if (driverCurrentLat && driverCurrentLon) {
+          // No default origin available, use current GPS
+          originLat = driverCurrentLat;
+          originLon = driverCurrentLon;
+          console.log('   ✅ Using driver GPS as origin (no default origin available)');
+        } else if (defaultOriginLat && defaultOriginLon) {
+          // No current GPS available, use default origin
+          originLat = defaultOriginLat;
+          originLon = defaultOriginLon;
+          console.log('   ✅ Using default origin (no GPS available)');
+        } else {
+          console.warn('   ⚠️ No origin available - cannot generate polyline');
         }
         
         // Get destination (next delivery)
