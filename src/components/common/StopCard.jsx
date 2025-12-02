@@ -1479,6 +1479,7 @@ export default function StopCard({
                       onClick={async (e) => {
                         e.stopPropagation();
                         setIsRetrying(true);
+                        setIsEntityUpdating(true); // Pause smart refresh
                         try {
                           await ensureDriverOnline();
                           await onStatusUpdate(delivery.id, isPickup ? 'en_route' : 'in_transit');
@@ -1494,6 +1495,7 @@ export default function StopCard({
                           }
                         } finally {
                           setIsRetrying(false);
+                          setIsEntityUpdating(false); // Resume smart refresh
                         }
                       }}
                       size="sm"
