@@ -336,14 +336,8 @@ const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, nu
     baseSize *= 1.25;
   }
   
-  // Enlarge if highlighted (from card hover/selection)
-  let size = isActive ? baseSize * 1.15 : baseSize;
-  if (isHighlighted) {
-    size = baseSize * 1.35; // 35% larger when highlighted
-  }
-  
-  // REMOVED: Don't enlarge markers when highlighted
-  let size = isActive ? baseSize * 1.15 : baseSize;
+  // Keep size consistent - no enlargement on highlight
+  const size = isActive ? baseSize * 1.15 : baseSize;
   
   const finishedStatuses = ['completed', 'delivered', 'failed', 'cancelled', 'returned'];
   const numberColor = isNextInLine ? '#FFFFFF' : (finishedStatuses.includes(status) ? 'black' : getContrastColor(statusColor));
