@@ -695,7 +695,7 @@ export default function StopCard({
             </div>
 
             <div className="flex-1 min-w-0">
-              <h3 className="text-slate-900 pt-1 text-lg font-semibold text-center truncate">
+              <h3 className="text-slate-900 pt-0 text-lg font-semibold text-center truncate">
                 {finalDisplayName}
               </h3>
               <div className="flex flex-col items-center">
@@ -737,9 +737,9 @@ export default function StopCard({
                 {showStatusDropdown ?
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <button
-                      className={`font-medium inline-flex items-center gap-1 rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-xs font-bold px-2 py-0.5 cursor-pointer hover:opacity-80 ${statusConfig[delivery.status]?.color || 'bg-slate-100 text-slate-800'}`}
-                      onClick={(e) => e.stopPropagation()}>
+                      <button className="font-medium inline-flex items-center gap-1 rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-xs font-bold px-2 py-0.65 cursor-pointer hover:opacity-80 bg-cyan-100 text-cyan-800"
+
+                    onClick={(e) => e.stopPropagation()}>
 
                         {statusConfig[delivery.status]?.label || delivery.status}
                         <MoreVertical className="w-3 h-3" />
