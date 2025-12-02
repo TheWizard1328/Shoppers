@@ -231,11 +231,8 @@ const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, numbe
     baseSize *= 1.25;
   }
   
-  // Enlarge if highlighted (from card hover/selection)
+  // REMOVED: Don't enlarge markers when highlighted
   let size = isActive ? baseSize * 1.15 : baseSize;
-  if (isHighlighted) {
-    size = baseSize * 1.35; // 35% larger when highlighted
-  }
   
   const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
   const numberColor = finishedStatuses.includes(status) ? 'black' : getContrastColor(storeColor);
@@ -346,6 +343,9 @@ const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, nu
   if (isHighlighted) {
     size = baseSize * 1.35; // 35% larger when highlighted
   }
+  
+  // REMOVED: Don't enlarge markers when highlighted
+  let size = isActive ? baseSize * 1.15 : baseSize;
   
   const finishedStatuses = ['completed', 'delivered', 'failed', 'cancelled', 'returned'];
   const numberColor = isNextInLine ? '#FFFFFF' : (finishedStatuses.includes(status) ? 'black' : getContrastColor(statusColor));
@@ -2215,18 +2215,18 @@ export default function DeliveryMap({
                 opacity: 0.2
               }} />,
             
-            // Pulsating halo for highlighted pickup markers
+            // Tiny pulsating halo for highlighted pickup markers
             isHighlighted && !isFanned &&
             <Circle
               key={`pickup-halo-${pickup.id}`}
               center={[pickup.latitude, pickup.longitude]}
-              radius={150}
+              radius={40}
               pathOptions={{
                 color: pickup.pinColor,
-                fillColor: pickup.pinColor,
+                fillColor: 'transparent',
                 fillOpacity: 0,
-                weight: 3,
-                opacity: 0.8,
+                weight: 2,
+                opacity: 0.9,
                 className: 'pulsating-halo'
               }} />,
 
@@ -2350,20 +2350,41 @@ export default function DeliveryMap({
           }
           
           return [
-            // Pulsating halo for highlighted delivery markers
+            // Tiny pulsating halo for highlighted delivery markers
             isHighlighted && !isFanned &&
             <Circle
               key={`delivery-halo-${delivery.id}`}
               center={[delivery.latitude, delivery.longitude]}
-              radius={150}
+              radius={40}
               pathOptions={{
                 color: delivery.pinColor,
-                fillColor: delivery.pinColor,
+                fillColor: 'transparent',
                 fillOpacity: 0,
-                weight: 3,
-                opacity: 0.8,
+                weight: 2,
+                opacity: 0.9,
                 className: 'pulsating-halo'
               }} />,
+            
+            // Tiny pulsating halo for highlighted delivery's store marker
+            isHighlighted && !isFanned && delivery.store_id && (() => {
+              const deliveryStore = stores.find(s => s?.id === delivery.store_id);
+              if (!deliveryStore?.latitude || !deliveryStore?.longitude) return null;
+              return (
+                <Circle
+                  key={`delivery-store-halo-${delivery.id}`}
+                  center={[deliveryStore.latitude, deliveryStore.longitude]}
+                  radius={40}
+                  pathOptions={{
+                    color: delivery.pinColor,
+                    fillColor: 'transparent',
+                    fillOpacity: 0,
+                    weight: 2,
+                    opacity: 0.9,
+                    className: 'pulsating-halo'
+                  }}
+                />
+              );
+            })(),
             
             <Marker
               key={`delivery-${delivery.id}`}
@@ -2656,17 +2677,17 @@ export default function DeliveryMap({
         
         @keyframes pulseHalo {
           0%, 100% {
-            stroke-width: 3;
-            opacity: 0.8;
+            stroke-width: 2;
+            opacity: 0.9;
           }
           50% {
-            stroke-width: 5;
-            opacity: 0.5;
+            stroke-width: 3.5;
+            opacity: 0.4;
           }
         }
         
         .pulsating-halo {
-          animation: pulseHalo 1.5s ease-in-out infinite;
+          animation: pulseHalo 1.2s ease-in-out infinite;
         }
       `}</style>
     </div>
