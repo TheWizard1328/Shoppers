@@ -906,8 +906,38 @@ function Dashboard() {
           console.log('✅ [Polyline Display] Polyline loaded:', coordinates.length, 'points');
           setCurrentToNextPolyline(coordinates);
         } else {
-          console.log('📍 [Polyline Display] No polyline in database yet');
-          // Don't clear existing polyline if we just don't have one yet
+          console.log('📍 [Polyline Display] No polyline in database - generating via backend...');
+          
+          // CRITICAL: Generate polyline on fresh load if none exists
+          try {
+            await optimizeDriverRoute({
+              driverId: driverIdToFetch,
+              deliveryDate: deliveryDate,
+              currentLocation: driverLocation ? {
+                lat: driverLocation.latitude,
+                lon: driverLocation.longitude
+              } : null,
+              clientCurrentTime: format(new Date(), 'HH:mm'),
+              generatePolyline: true
+            });
+            
+            console.log('✅ [Polyline Display] Backend optimizer called to generate polyline');
+            
+            // Fetch again after generation
+            setTimeout(async () => {
+              const newCoords = await getStoredRouteCoordinates(
+                driverIdToFetch,
+                deliveryDate,
+                'to_next_stop'
+              );
+              if (newCoords && newCoords.length > 0) {
+                console.log('✅ [Polyline Display] New polyline fetched after generation:', newCoords.length, 'points');
+                setCurrentToNextPolyline(newCoords);
+              }
+            }, 1000);
+          } catch (genError) {
+            console.error('❌ [Polyline Display] Error generating polyline:', genError);
+          }
         }
       } catch (error) {
         console.error('❌ [Polyline Display] Error fetching polyline:', error);
@@ -922,7 +952,7 @@ function Dashboard() {
     const interval = setInterval(fetchPolyline, 15000);
     return () => clearInterval(interval);
     
-  }, [currentUser?.id, selectedDriverId, nextStop?.id, nextStopCoordinates?.lat, nextStopCoordinates?.lon, selectedDate]);
+  }, [currentUser?.id, selectedDriverId, nextStop?.id, nextStopCoordinates?.lat, nextStopCoordinates?.lon, selectedDate, driverLocation]);
 
   useEffect(() => {
     if (!currentUser || !userHasRole(currentUser, 'driver') || showAIAssistant || !isAIEnabled) {
