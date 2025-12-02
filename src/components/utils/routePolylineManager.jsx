@@ -456,6 +456,10 @@ export const decodePolyline = (encoded) => {
   return poly;
 };
 
+// In-memory cache for polyline queries to prevent rate limits
+const polylineQueryCache = new Map();
+const POLYLINE_CACHE_DURATION = 5000; // 5 seconds
+
 /**
  * Fetches and decodes a stored polyline for display
  * This should be called from any device to display the route
@@ -467,6 +471,15 @@ export const decodePolyline = (encoded) => {
  */
 export const getStoredRouteCoordinates = async (driverId, deliveryDate, routeType) => {
   try {
+    const cacheKey = `${driverId}_${deliveryDate}_${routeType}`;
+    const now = Date.now();
+    
+    // Check cache first
+    const cached = polylineQueryCache.get(cacheKey);
+    if (cached && (now - cached.timestamp) < POLYLINE_CACHE_DURATION) {
+      return cached.data;
+    }
+
     console.log('📍 [RoutePolyline] Fetching stored route coordinates:', {
       driverId,
       deliveryDate,
