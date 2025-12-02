@@ -117,9 +117,14 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       }
     }
     
+    console.log('⏸️ [DRIVER STATUS] Pausing smart refresh...');
     setIsUpdating(true);
-    setPendingStatus(newStatus); // Track pending status
-    setIsEntityUpdating(true); // Pause smart refresh
+    setPendingStatus(newStatus);
+    setIsEntityUpdating(true);
+    
+    await new Promise(resolve => setTimeout(resolve, 100));
+    console.log('✅ [DRIVER STATUS] Smart refresh paused');
+    
     const previousStatus = status;
     
     try {
@@ -282,11 +287,14 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       setStatus(previousStatus);
       toast.error('Failed to update status. Please try again.');
     } finally {
+      console.log('▶️ [DRIVER STATUS] Resuming smart refresh');
+      
       // CRITICAL: Add delay before clearing isUpdating to prevent sync from overwriting
       setTimeout(() => {
         setIsUpdating(false);
         setPendingStatus(null);
-        setIsEntityUpdating(false); // Resume smart refresh
+        setIsEntityUpdating(false);
+        console.log('✅ [DRIVER STATUS] Driver status change cycle complete');
       }, 500);
     }
   }, [status, isUpdating, appUserId, currentUser, onStatusChange, setIsEntityUpdating]);
