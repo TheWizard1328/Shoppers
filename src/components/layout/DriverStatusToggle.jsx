@@ -102,6 +102,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange }) {
     }
     
     setIsUpdating(true);
+    setIsEntityUpdating(true); // Pause smart refresh
     const previousStatus = status;
     
     try {
