@@ -15,14 +15,14 @@ class SmartRefreshManager {
     this.minRefreshInterval = 14900; // ~15 seconds minimum between full refreshes
     this.lastFullRefreshTime = 0; // Track full refresh separately
     
-    // Real-time refresh intervals (milliseconds)
+    // Real-time refresh intervals (milliseconds) - INCREASED to prevent rate limits
     this.intervals = {
-      driverLocation: 5000,      // 5s - driver GPS locations (highest priority)
-      activeDeliveries: 5000,    // 5s - active delivery statuses for map
-      todayDeliveries: 10000,    // 10s - today's delivery changes
-      appUsers: 10000,           // 10s - driver status, assignments
-      patients: 30000,           // 30s - patient data rarely changes
-      stores: 60000              // 60s - store data almost never changes
+      driverLocation: 10000,     // 10s - driver GPS locations
+      activeDeliveries: 15000,   // 15s - active delivery statuses for map
+      todayDeliveries: 30000,    // 30s - today's delivery changes
+      appUsers: 30000,           // 30s - driver status, assignments
+      patients: 120000,          // 2min - patient data rarely changes
+      stores: 300000             // 5min - store data almost never changes
     };
     
     // Track last refresh time for each entity type
@@ -34,6 +34,22 @@ class SmartRefreshManager {
       patients: 0,
       stores: 0
     };
+    
+    // Rate limit protection
+    this.lastApiCallTime = 0;
+    this.minTimeBetweenCalls = 1000; // 1 second minimum between any API call
+  }
+  
+  /**
+   * Wait for rate limit cooldown if needed
+   */
+  async waitForRateLimit() {
+    const now = Date.now();
+    const timeSinceLastCall = now - this.lastApiCallTime;
+    if (timeSinceLastCall < this.minTimeBetweenCalls) {
+      await new Promise(resolve => setTimeout(resolve, this.minTimeBetweenCalls - timeSinceLastCall));
+    }
+    this.lastApiCallTime = Date.now();
   }
   
   /**
