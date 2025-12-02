@@ -2147,20 +2147,25 @@ export default function DeliveryForm({
       const storeA = stores?.find((s) => s && s.id === a.store_id);
       const storeB = stores?.find((s) => s && s.id === b.store_id);
 
-      // Second: Sort by store
+      // Second: Sort by store sort_order
       const sortOrderA = storeA?.sort_order ?? Infinity;
       const sortOrderB = storeB?.sort_order ?? Infinity;
       if (sortOrderA !== sortOrderB) {
         return sortOrderA - sortOrderB;
       }
 
-      // Third: Sort by distance from store
-      if (a.distanceFromStore !== null && b.distanceFromStore !== null) {
-        return a.distanceFromStore - b.distanceFromStore;
-      } else if (a.distanceFromStore !== null) {
-        return -1;
-      } else if (b.distanceFromStore !== null) {
-        return 1;
+      // Third: Sort by AM/PM (AM before PM)
+      const ampmA = a.ampm_deliveries || 'ZZ'; // Default to end if no AMPM
+      const ampmB = b.ampm_deliveries || 'ZZ';
+      if (ampmA !== ampmB) {
+        return ampmA.localeCompare(ampmB); // 'AM' < 'PM' alphabetically
+      }
+
+      // Fourth: Sort by distance from store (closest first)
+      const distA = a.distanceFromStore ?? Infinity;
+      const distB = b.distanceFromStore ?? Infinity;
+      if (distA !== distB) {
+        return distA - distB;
       }
 
       return 0;
