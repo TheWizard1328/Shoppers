@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
@@ -1615,7 +1614,14 @@ export default function StopCard({
                           });
                         }
 
+                        // CRITICAL: Call onStartDelivery and WAIT for it to complete
+                        // This ensures the backend optimizer runs and updates all ETAs
                         await onStartDelivery(delivery.id);
+                        
+                        console.log('✅ [Start Button] onStartDelivery completed successfully');
+                      } catch (error) {
+                        console.error('❌ [Start Button] Error:', error);
+                        alert('Failed to start delivery. Please try again.');
                       } finally {
                         setIsStarting(false);
                         setIsEntityUpdating(false); // Resume smart refresh
