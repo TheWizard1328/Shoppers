@@ -146,7 +146,121 @@ class SmartRefreshManager {
   }
 
   /**
-   * Smart refresh for SELECTED DATE deliveries only (high frequency)
+   * Smart refresh for TODAY + NEXT 7 DAYS deliveries only
+   * OPTIMIZED: Never touches past deliveries - they don't change
+   * Uses incremental updates based on updated_date timestamp
+   */
+  async refreshRelevantDeliveries(currentDeliveries, selectedDate, filters) {
+    try {
+      console.log('');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('🔄 [DELIVERY REFRESH] TODAY + 7 DAYS ONLY');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
+      const today = new Date();
+      const todayStr = format(today, 'yyyy-MM-dd');
+      const futureDate = new Date(today);
+      futureDate.setDate(futureDate.getDate() + 7);
+      const futureDateStr = format(futureDate, 'yyyy-MM-dd');
+      
+      console.log(`📅 Refresh Range: ${todayStr} to ${futureDateStr} (today + 7 days)`);
+      
+      // Filter current deliveries to only those in our refresh window
+      const relevantCurrentDeliveries = currentDeliveries.filter(d => 
+        d && d.delivery_date && d.delivery_date >= todayStr && d.delivery_date <= futureDateStr
+      );
+      const pastDeliveries = currentDeliveries.filter(d => 
+        d && d.delivery_date && d.delivery_date < todayStr
+      );
+      
+      console.log(`📊 Current State: ${relevantCurrentDeliveries.length} in refresh window, ${pastDeliveries.length} past (untouched)`);
+      
+      // Get latest timestamp from relevant deliveries only
+      const lastTimestamp = getLatestUpdateTimestamp(relevantCurrentDeliveries);
+      console.log(`🕐 Last Update: ${lastTimestamp?.toISOString() || 'NONE'}`);
+      
+      // Build filter for today + next 7 days only
+      const dateFilter = {
+        ...filters,
+        delivery_date: {
+          $gte: todayStr,
+          $lte: futureDateStr
+        }
+      };
+      
+      // If we have existing data, only fetch records updated since last check
+      if (lastTimestamp && relevantCurrentDeliveries.length > 0) {
+        dateFilter.updated_date = {
+          $gte: lastTimestamp.toISOString()
+        };
+        console.log(`🔍 Mode: INCREMENTAL (updates since ${lastTimestamp.toISOString()})`);
+      } else {
+        console.log(`🔍 Mode: FULL (initial load for date range)`);
+      }
+      
+      await this.waitForRateLimit();
+      console.log(`📡 API: Delivery.filter for ${todayStr} to ${futureDateStr}`);
+      
+      const updatedDeliveries = await base44.entities.Delivery.filter(dateFilter);
+      console.log(`✅ Response: ${updatedDeliveries?.length || 0} records`);
+      
+      if (!updatedDeliveries || updatedDeliveries.length === 0) {
+        if (lastTimestamp) {
+          console.log('✅ No changes in date range');
+        } else {
+          console.log('✅ No deliveries in date range');
+        }
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        this.notifyRateLimit(false);
+        return null;
+      }
+      
+      // Diff against relevant deliveries only
+      const diff = diffEntityArrays(relevantCurrentDeliveries, updatedDeliveries);
+      console.log(`🔍 Diff: +${diff.toAdd.length} add, ~${diff.toUpdate.length} update, -${diff.toRemove.length} remove`);
+      
+      if (diff.toUpdate.length === 0 && diff.toAdd.length === 0 && diff.toRemove.length === 0) {
+        console.log('✅ No changes after diff');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        this.notifyRateLimit(false);
+        return null;
+      }
+      
+      // Merge only relevant date changes, preserve ALL past dates exactly as-is
+      const mergedRelevantDeliveries = mergeEntityChanges(relevantCurrentDeliveries, diff);
+      const finalDeliveries = [...pastDeliveries, ...mergedRelevantDeliveries];
+      
+      console.log(`🔀 Merged: ${mergedRelevantDeliveries.length} relevant + ${pastDeliveries.length} past = ${finalDeliveries.length} total`);
+      console.log('🎯 Action: APPLY CHANGES');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
+      this.notifyRateLimit(false);
+      return {
+        hasChanges: true,
+        deliveries: finalDeliveries
+      };
+      
+    } catch (error) {
+      if (error.message?.includes('WebSocket') || error.message?.includes('closed')) {
+        console.warn('⚠️ WebSocket issue, skipping');
+        this.notifyRateLimit(false);
+        return null;
+      }
+      
+      if (error.response?.status === 429 || error.message?.includes('429')) {
+        console.error('🚨 RATE LIMIT ERROR');
+        this.notifyRateLimit(true);
+        return null;
+      }
+      
+      console.error('❌ Error:', error.message);
+      this.notifyRateLimit(false);
+      return null;
+    }
+  }
+
+  /**
+   * Smart refresh for SELECTED DATE deliveries only (legacy - used for specific date views)
    * OPTIMIZED: Only refreshes the selected date's deliveries - never touches historical data
    * Uses incremental updates based on updated_date timestamp
    */
@@ -723,6 +837,7 @@ class SmartRefreshManager {
   /**
    * Full smart refresh - checks all entities based on their individual intervals
    * Uses staggered refresh to prevent rate limits while keeping data fresh
+   * OPTIMIZED: Only refreshes today + next 7 days of deliveries - past deliveries are static
    * @param {Object} currentData - Current state data
    * @param {Object} filters - Query filters
    * @param {boolean} isEntityUpdating - If true, skip refresh (entity update in progress)
@@ -742,14 +857,12 @@ class SmartRefreshManager {
     const updates = {};
     
     try {
-      // HIGH PRIORITY: Today's deliveries (10s interval)
+      // HIGH PRIORITY: Today + next 7 days deliveries only (past deliveries don't change)
       if (currentData.deliveries && filters.selectedDate && this.shouldRefresh('todayDeliveries')) {
-        const deliveryUpdate = await this.refreshCurrentDayDeliveries(
+        const deliveryUpdate = await this.refreshRelevantDeliveries(
           currentData.deliveries,
           filters.selectedDate,
-          filters.deliveryFilter,
-          filters.stores || [],
-          filters.drivers || []
+          filters.deliveryFilter
         );
         
         if (deliveryUpdate?.hasChanges) {
@@ -758,7 +871,7 @@ class SmartRefreshManager {
         this.markRefreshed('todayDeliveries');
       }
       
-      // HIGH PRIORITY: AppUsers - driver status, assignments (10s interval)
+      // HIGH PRIORITY: AppUsers - driver status, assignments (60s interval)
       if (currentData.appUsers && this.shouldRefresh('appUsers')) {
         const appUserUpdate = await this.refreshAppUsers(currentData.appUsers);
         
@@ -768,7 +881,7 @@ class SmartRefreshManager {
         this.markRefreshed('appUsers');
       }
       
-      // LOW PRIORITY: Patients (30s interval)
+      // LOW PRIORITY: Patients (5min interval) - rarely change during operations
       if (currentData.patients && currentData.patients.length > 0 && this.shouldRefresh('patients')) {
         const patientUpdate = await this.refreshPatients(
           currentData.patients,
@@ -781,7 +894,7 @@ class SmartRefreshManager {
         this.markRefreshed('patients');
       }
       
-      // VERY LOW PRIORITY: Stores (60s interval)
+      // VERY LOW PRIORITY: Stores (10min interval) - almost never change
       if (currentData.stores && currentData.stores.length > 0 && this.shouldRefresh('stores')) {
         const storeUpdate = await this.refreshStores(currentData.stores);
         
