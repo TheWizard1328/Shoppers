@@ -192,7 +192,7 @@ export function buildDistanceBadge(patient, store) {
     patient.latitude, patient.longitude
   );
   if (distance === null) return '';
-  return ` [📍 ${distance.toFixed(1)} km]`;
+  return ` [${distance.toFixed(1)} km]`;
 }
 
 // ============ NOTIFICATION FUNCTIONS ============
