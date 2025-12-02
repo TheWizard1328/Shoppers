@@ -1937,8 +1937,9 @@ export default function DeliveryMap({
 
         <MapController />
 
-        {/* NEW: Draw Google Directions route polyline (if available) - CURRENT DATE ONLY */}
-        {isViewingCurrentDate && googleRouteCoordinates && googleRouteCoordinates.length > 1 &&
+        {/* NEW: Draw Google Directions route polyline (if available) - CURRENT DATE ONLY, ONLY if route NOT started */}
+        {/* CRITICAL: This is the PRE-ROUTE polyline (before any stops started). Once route starts, we use currentToNextPolyline instead */}
+        {isViewingCurrentDate && googleRouteCoordinates && googleRouteCoordinates.length > 1 && !currentToNextPolyline &&
           <Polyline
             positions={googleRouteCoordinates}
             pathOptions={{
