@@ -12,10 +12,45 @@ class SmartRefreshManager {
     this.refreshCallbacks = new Set();
     this.refreshQueue = [];
     this.lastRefreshTime = 0;
-    this.minRefreshInterval = 14900; // ~15 seconds minimum between refreshes (with buffer for timing variations)
+    this.minRefreshInterval = 14900; // ~15 seconds minimum between full refreshes
     this.lastFullRefreshTime = 0; // Track full refresh separately
-    this.lastDriverLocationRefresh = 0; // Track driver location refresh separately
-    this.driverLocationRefreshInterval = 5000; // 5 seconds for driver locations (more real-time)
+    
+    // Real-time refresh intervals (milliseconds)
+    this.intervals = {
+      driverLocation: 5000,      // 5s - driver GPS locations (highest priority)
+      activeDeliveries: 5000,    // 5s - active delivery statuses for map
+      todayDeliveries: 10000,    // 10s - today's delivery changes
+      appUsers: 10000,           // 10s - driver status, assignments
+      patients: 30000,           // 30s - patient data rarely changes
+      stores: 60000              // 60s - store data almost never changes
+    };
+    
+    // Track last refresh time for each entity type
+    this.lastRefreshTimes = {
+      driverLocation: 0,
+      activeDeliveries: 0,
+      todayDeliveries: 0,
+      appUsers: 0,
+      patients: 0,
+      stores: 0
+    };
+  }
+  
+  /**
+   * Check if enough time has passed for a specific refresh type
+   */
+  shouldRefresh(type) {
+    const now = Date.now();
+    const lastRefresh = this.lastRefreshTimes[type] || 0;
+    const interval = this.intervals[type] || 15000;
+    return (now - lastRefresh) >= interval;
+  }
+  
+  /**
+   * Mark a refresh type as completed
+   */
+  markRefreshed(type) {
+    this.lastRefreshTimes[type] = Date.now();
   }
 
   /**
