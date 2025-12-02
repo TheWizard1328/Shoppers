@@ -840,7 +840,7 @@ export default function Layout({ children, currentPageName }) {
         driverLocationIntervalRef.current = null;
       }
     };
-    }, [initialGlobalFiltersSet, currentUser, isFormOverlayOpen, dataLoaded, updateAppDataState, appUsers]);
+    }, [initialGlobalFiltersSet, currentUser, isFormOverlayOpen, dataLoaded, updateAppDataState, appUsers, deliveries]);
 
     // Wake Lock API and visibility change handler
     useEffect(() => {
