@@ -5535,6 +5535,21 @@ function Dashboard() {
         }}
       />
 
+      {/* Proactive Alert System - monitors route for potential issues */}
+      {isDriver && isAIEnabled && (
+        <ProactiveAlertSystem
+          currentUser={currentUser}
+          deliveries={filteredDeliveries}
+          patients={patients}
+          stores={stores}
+          driverLocation={driverLocation}
+          isEnabled={isAIEnabled}
+          onAlert={(alerts) => {
+            console.log('🚨 [Dashboard] Received proactive alerts:', alerts.length);
+          }}
+        />
+      )}
+
       <AnimatePresence>
         {showAIRoutePlanner &&
           <AIRoutePlanner
