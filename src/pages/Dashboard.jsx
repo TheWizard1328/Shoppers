@@ -5516,6 +5516,24 @@ function Dashboard() {
         }
       </AnimatePresence>
 
+      <RouteNotification
+        notification={routeNotification}
+        onDismiss={() => setRouteNotification(null)}
+        onNavigate={() => {
+          // Navigate to next stop when notification is clicked
+          const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+          const nextIncomplete = deliveriesWithStopOrder.find(d => 
+            d && d.isNextDelivery && !finishedStatuses.includes(d.status)
+          );
+          if (nextIncomplete) {
+            const cardElement = document.getElementById(`stop-card-${nextIncomplete.id}`);
+            if (cardElement) {
+              cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
+          }
+        }}
+      />
+
       <AnimatePresence>
         {showAIRoutePlanner &&
           <AIRoutePlanner
