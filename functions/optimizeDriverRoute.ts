@@ -854,12 +854,78 @@ Deno.serve(async (req) => {
         let destLat = null;
         let destLon = null;
         
-        // CRITICAL: Always prioritize current location if available (real-time driver GPS)
-        // Priority 1: Use provided current location (driver's live GPS)
-        if (currentLocation?.lat && currentLocation?.lon) {
-          originLat = currentLocation.lat;
-          originLon = currentLocation.lon;
-          console.log('   📍 Using provided current location as origin (LIVE GPS)');
+        // =============================================
+        // POLYLINE ORIGIN LOGIC (with 500m threshold):
+        // 1. If no stops started → use driver's home location
+        // 2. If stops started → use last completed stop location
+        // 3. If driver's current GPS is >500m from the determined origin → use current GPS
+        // =============================================
+        
+        const DISTANCE_THRESHOLD_KM = 0.5; // 500 meters
+        
+        // Determine the "logical origin" based on route progress
+        let logicalOriginLat = null;
+        let logicalOriginLon = null;
+        let logicalOriginSource = null;
+        
+        // Check if any stops have been started (in_transit or completed)
+        const startedStatuses = ['in_transit', 'en_route', 'completed', 'failed', 'cancelled', 'returned'];
+        const hasStartedStops = deliveries.some(d => d && startedStatuses.includes(d.status));
+        
+        if (!hasStartedStops) {
+          // No stops started → use driver's home location
+          if (driverHome) {
+            logicalOriginLat = driverHome.lat;
+            logicalOriginLon = driverHome.lon;
+            logicalOriginSource = 'home (no stops started)';
+          }
+        } else {
+          // Stops have been started → use last completed stop
+          if (completedDeliveries.length > 0) {
+            const sortedCompleted = [...completedDeliveries].sort((a, b) => 
+              new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time)
+            );
+            const lastCompleted = sortedCompleted[0];
+            
+            if (lastCompleted.patient_id) {
+              const patient = patients.find(p => p?.id === lastCompleted.patient_id);
+              if (patient?.latitude && patient?.longitude) {
+                logicalOriginLat = patient.latitude;
+                logicalOriginLon = patient.longitude;
+                logicalOriginSource = 'last completed stop';
+              }
+            } else {
+              const store = stores.find(s => s?.id === lastCompleted.store_id);
+              if (store?.latitude && store?.longitude) {
+                logicalOriginLat = store.latitude;
+                logicalOriginLon = store.longitude;
+                logicalOriginSource = 'last completed pickup';
+              }
+            }
+          }
+          
+          // Fallback to home if no completed stops found
+          if (!logicalOriginLat && driverHome) {
+            logicalOriginLat = driverHome.lat;
+            logicalOriginLon = driverHome.lon;
+            logicalOriginSource = 'home (fallback - no completed stops)';
+          }
+        }
+        
+        console.log(`   📍 Logical origin: ${logicalOriginSource || 'not determined'}`);
+        if (logicalOriginLat && logicalOriginLon) {
+          console.log(`      Coordinates: [${logicalOriginLat.toFixed(6)}, ${logicalOriginLon.toFixed(6)}]`);
+        }
+        
+        // Get driver's current GPS location
+        let currentGpsLat = null;
+        let currentGpsLon = null;
+        
+        // Priority 1: Use provided current location (from pull-to-refresh)
+        if (currentLocation?.latitude && currentLocation?.longitude) {
+          currentGpsLat = currentLocation.latitude;
+          currentGpsLon = currentLocation.longitude;
+          console.log(`   📡 Current GPS (provided): [${currentGpsLat.toFixed(6)}, ${currentGpsLon.toFixed(6)}]`);
         }
         // Priority 2: Use driver's stored GPS location from AppUser
         else if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
@@ -867,44 +933,47 @@ Deno.serve(async (req) => {
             ? Date.now() - new Date(driverAppUser.location_updated_at).getTime()
             : Infinity;
           
-          // Use if less than 5 minutes old, otherwise fall through to last completed
-          if (locationAge < 5 * 60 * 1000) {
-            originLat = driverAppUser.current_latitude;
-            originLon = driverAppUser.current_longitude;
-            console.log(`   📍 Using driver GPS location as origin (${Math.round(locationAge / 1000)}s old)`);
+          if (locationAge < 10 * 60 * 1000) { // Less than 10 minutes old
+            currentGpsLat = driverAppUser.current_latitude;
+            currentGpsLon = driverAppUser.current_longitude;
+            console.log(`   📡 Current GPS (stored, ${Math.round(locationAge / 1000)}s old): [${currentGpsLat.toFixed(6)}, ${currentGpsLon.toFixed(6)}]`);
           } else {
-            console.log(`   ⚠️ Driver GPS location too old (${Math.round(locationAge / 1000)}s), falling back to last completed`);
+            console.log(`   ⚠️ Stored GPS location too old (${Math.round(locationAge / 1000)}s)`);
           }
         }
         
-        // Priority 3: Use last completed stop ONLY if no current location available
-        if (!originLat && completedDeliveries.length > 0) {
-          const sortedCompleted = [...completedDeliveries].sort((a, b) => 
-            new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time)
+        // Apply 500m threshold logic
+        if (logicalOriginLat && logicalOriginLon && currentGpsLat && currentGpsLon) {
+          const distanceFromLogicalOrigin = calculateDistance(
+            logicalOriginLat,
+            logicalOriginLon,
+            currentGpsLat,
+            currentGpsLon
           );
-          const lastCompleted = sortedCompleted[0];
           
-          if (lastCompleted.patient_id) {
-            const patient = patients.find(p => p?.id === lastCompleted.patient_id);
-            if (patient?.latitude && patient?.longitude) {
-              originLat = patient.latitude;
-              originLon = patient.longitude;
-              console.log('   📍 Using last completed stop as origin (fallback - no GPS)');
-            }
+          console.log(`   📏 Distance from logical origin: ${(distanceFromLogicalOrigin * 1000).toFixed(0)}m`);
+          
+          if (distanceFromLogicalOrigin > DISTANCE_THRESHOLD_KM) {
+            // Driver is >500m from logical origin → use current GPS
+            originLat = currentGpsLat;
+            originLon = currentGpsLon;
+            console.log(`   ✅ Using CURRENT GPS as origin (>${DISTANCE_THRESHOLD_KM * 1000}m from ${logicalOriginSource})`);
           } else {
-            const store = stores.find(s => s?.id === lastCompleted.store_id);
-            if (store?.latitude && store?.longitude) {
-              originLat = store.latitude;
-              originLon = store.longitude;
-              console.log('   📍 Using last completed pickup as origin (fallback - no GPS)');
-            }
+            // Driver is within 500m of logical origin → use logical origin
+            originLat = logicalOriginLat;
+            originLon = logicalOriginLon;
+            console.log(`   ✅ Using LOGICAL ORIGIN (${logicalOriginSource}) - driver within ${DISTANCE_THRESHOLD_KM * 1000}m`);
           }
-        }
-        // Priority 4: Use driver's home location
-        else if (!originLat && driverHome) {
-          originLat = driverHome.lat;
-          originLon = driverHome.lon;
-          console.log('   📍 Using driver home as origin (fallback - no GPS or completed stops)');
+        } else if (currentGpsLat && currentGpsLon) {
+          // No logical origin, but have GPS → use GPS
+          originLat = currentGpsLat;
+          originLon = currentGpsLon;
+          console.log('   ✅ Using CURRENT GPS as origin (no logical origin available)');
+        } else if (logicalOriginLat && logicalOriginLon) {
+          // No GPS, but have logical origin → use logical origin
+          originLat = logicalOriginLat;
+          originLon = logicalOriginLon;
+          console.log(`   ✅ Using LOGICAL ORIGIN (${logicalOriginSource}) - no GPS available`);
         }
         
         // Get destination (next delivery)
