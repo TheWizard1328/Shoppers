@@ -816,6 +816,9 @@ Deno.serve(async (req) => {
     // Combine completed + optimized incomplete
     const finalRoute = [...sortedCompleted, ...optimizedRoute];
     
+    console.log('📋 Final route to save to DB:');
+    console.log(`   Total stops: ${finalRoute.length} (${sortedCompleted.length} completed + ${optimizedRoute.length} incomplete)`);
+    
     const updates = [];
     
     for (let i = 0; i < finalRoute.length; i++) {
@@ -837,6 +840,11 @@ Deno.serve(async (req) => {
         updatePayload.delivery_time_eta = stop.estimated_arrival || stop.delivery_time_start;
       }
       
+      console.log(`   💾 Saving #${newStopOrder}: ${stop.patient_name || stores.find(s => s?.id === stop.store_id)?.name + ' Pickup' || 'Unknown'}`);
+      console.log(`      • stop_order: ${newStopOrder}`);
+      console.log(`      • isNextDelivery: ${isNextStop}`);
+      console.log(`      • ETA: ${updatePayload.delivery_time_eta || 'N/A'}`);
+      
       await base44.asServiceRole.entities.Delivery.update(stop.id, updatePayload);
       
       updates.push({
@@ -850,8 +858,10 @@ Deno.serve(async (req) => {
         ? patients.find(p => p?.id === stop.patient_id)?.full_name
         : stores.find(s => s?.id === stop.store_id)?.name + ' Pickup';
       
-      console.log(`   #${newStopOrder}: ${stopName} (isNextDelivery: ${isNextStop})${isNextStop ? ' ← NEXT' : ''}`);
+      console.log(`   ✅ Saved #${newStopOrder}: ${stopName}${isNextStop ? ' ← NEXT DELIVERY' : ''}`);
     }
+    
+    console.log(`✅ Database updated: ${updates.length} deliveries saved`);
     
     // =============================================
     // STEP 8: Generate blue dotted polyline
