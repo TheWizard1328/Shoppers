@@ -840,152 +840,61 @@ Deno.serve(async (req) => {
     }
     
     // =============================================
-    // STEP 8: Generate or update polyline (ALWAYS on fresh load, not just mobile)
+    // STEP 8: Generate blue dotted polyline
     // =============================================
-    // CRITICAL: Generate polyline on initial load so it displays immediately
-    // This ensures the blue dotted line shows on first page load
+    // RULE 1: Polyline shows from most recent completed/failed/canceled stop 
+    //         to the driver's next stop to complete
     console.log('');
-    console.log('🏗️ STEP 8: Generating/updating route polyline (for fresh load display)');
+    console.log('🏗️ STEP 8: Generating blue dotted polyline');
+    console.log('   RULE: From last completed/failed/canceled stop → next stop');
     
     try {
-      // Determine origin and destination for polyline
       let originLat = null;
       let originLon = null;
       let destLat = null;
       let destLon = null;
       
-      // =============================================
-      // LOGIC: Determine "default origin" based on route state
-      // 1. If no stops started → use home location
-      // 2. If stops started → use last completed stop
-      // 3. If driver GPS available and >500m from default → use current GPS
-      // =============================================
-      
-      const DISTANCE_THRESHOLD_KM = 0.5; // 500 meters
-      
-      let defaultOriginLat = null;
-      let defaultOriginLon = null;
-      let defaultOriginSource = null;
-      
-      // Check if any stops have been started (in_transit or completed)
-      const hasStartedStops = deliveries.some(d => 
-        d && (d.status === 'in_transit' || finishedStatuses.includes(d.status))
-      );
-      
-      if (!hasStartedStops) {
-        // No stops started → use driver's home location
-        if (driverHome) {
-          defaultOriginLat = driverHome.lat;
-          defaultOriginLon = driverHome.lon;
-          defaultOriginSource = 'home (no stops started)';
-        }
-      } else {
-        // Stops have been started → use last completed stop
-        if (completedDeliveries.length > 0) {
-          const sortedCompleted = [...completedDeliveries].sort((a, b) => 
-            new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time)
-          );
-          const lastCompleted = sortedCompleted[0];
-          
-          if (lastCompleted.patient_id) {
-            const patient = patients.find(p => p?.id === lastCompleted.patient_id);
-            if (patient?.latitude && patient?.longitude) {
-              defaultOriginLat = patient.latitude;
-              defaultOriginLon = patient.longitude;
-              defaultOriginSource = 'last completed stop';
-            }
-          } else {
-            const store = stores.find(s => s?.id === lastCompleted.store_id);
-            if (store?.latitude && store?.longitude) {
-              defaultOriginLat = store.latitude;
-              defaultOriginLon = store.longitude;
-              defaultOriginSource = 'last completed pickup';
-            }
-          }
-        } else {
-          // Stops started but none completed yet → use home as fallback
-          if (driverHome) {
-            defaultOriginLat = driverHome.lat;
-            defaultOriginLon = driverHome.lon;
-            defaultOriginSource = 'home (stops started but none completed)';
-          }
-        }
-      }
-      
-      console.log(`   🏠 Default origin: ${defaultOriginSource || 'not available'}`);
-      if (defaultOriginLat && defaultOriginLon) {
-        console.log(`      Coordinates: [${defaultOriginLat.toFixed(6)}, ${defaultOriginLon.toFixed(6)}]`);
-      }
-      
-      // Get driver's current GPS location (if available)
-      let driverCurrentLat = null;
-      let driverCurrentLon = null;
-      
-      if (currentLocation?.latitude && currentLocation?.longitude) {
-        driverCurrentLat = currentLocation.latitude;
-        driverCurrentLon = currentLocation.longitude;
-        console.log(`   📍 Driver current GPS: [${driverCurrentLat.toFixed(6)}, ${driverCurrentLon.toFixed(6)}]`);
-      } else if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
-        const locationAge = driverAppUser.location_updated_at 
-          ? Date.now() - new Date(driverAppUser.location_updated_at).getTime()
-          : Infinity;
-        
-        if (locationAge < 5 * 60 * 1000) { // Less than 5 minutes old
-          driverCurrentLat = driverAppUser.current_latitude;
-          driverCurrentLon = driverAppUser.current_longitude;
-          console.log(`   📍 Driver GPS from AppUser (${Math.round(locationAge / 1000)}s old): [${driverCurrentLat.toFixed(6)}, ${driverCurrentLon.toFixed(6)}]`);
-        }
-      }
-      
-      // Apply the 500m threshold logic
-      if (driverCurrentLat && driverCurrentLon && defaultOriginLat && defaultOriginLon) {
-        const distanceFromDefault = calculateDistance(
-          defaultOriginLat,
-          defaultOriginLon,
-          driverCurrentLat,
-          driverCurrentLon
+      // ORIGIN: Most recent completed/failed/canceled stop
+      if (completedDeliveries.length > 0) {
+        const sortedCompleted = [...completedDeliveries].sort((a, b) => 
+          new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time)
         );
+        const lastCompleted = sortedCompleted[0];
         
-        console.log(`   📏 Distance from default origin: ${(distanceFromDefault * 1000).toFixed(0)}m`);
-        
-        if (distanceFromDefault > DISTANCE_THRESHOLD_KM) {
-          // Driver is >500m from default origin → use current GPS
-          originLat = driverCurrentLat;
-          originLon = driverCurrentLon;
-          console.log(`   ✅ Using driver GPS as origin (>${DISTANCE_THRESHOLD_KM * 1000}m from default)`);
+        if (lastCompleted.patient_id) {
+          const patient = patients.find(p => p?.id === lastCompleted.patient_id);
+          if (patient?.latitude && patient?.longitude) {
+            originLat = patient.latitude;
+            originLon = patient.longitude;
+            console.log(`   📍 Origin: Last completed stop (${patient.full_name})`);
+          }
         } else {
-          // Driver is within 500m of default origin → use default origin
-          originLat = defaultOriginLat;
-          originLon = defaultOriginLon;
-          console.log(`   ✅ Using default origin (driver within ${DISTANCE_THRESHOLD_KM * 1000}m)`);
+          const store = stores.find(s => s?.id === lastCompleted.store_id);
+          if (store?.latitude && store?.longitude) {
+            originLat = store.latitude;
+            originLon = store.longitude;
+            console.log(`   📍 Origin: Last completed pickup (${store.name})`);
+          }
         }
-      } else if (driverCurrentLat && driverCurrentLon) {
-        // No default origin available, use current GPS
-        originLat = driverCurrentLat;
-        originLon = driverCurrentLon;
-        console.log('   ✅ Using driver GPS as origin (no default origin available)');
-      } else if (defaultOriginLat && defaultOriginLon) {
-        // No current GPS available, use default origin
-        originLat = defaultOriginLat;
-        originLon = defaultOriginLon;
-        console.log('   ✅ Using default origin (no GPS available)');
       } else {
-        console.warn('   ⚠️ No origin available - cannot generate polyline');
+        console.log('   ⚠️ No completed/failed/canceled stops yet - no polyline to show');
       }
       
-      // Get destination (next delivery)
+      // DESTINATION: Next stop to complete
       if (nextDeliveryId) {
         const nextDelivery = finalRoute.find(d => d && d.id === nextDeliveryId);
         if (nextDelivery && nextDelivery.latitude && nextDelivery.longitude) {
           destLat = nextDelivery.latitude;
           destLon = nextDelivery.longitude;
-          console.log('   🎯 Next delivery coordinates set');
+          const destName = nextDelivery.patient_id 
+            ? patients.find(p => p?.id === nextDelivery.patient_id)?.full_name || 'Patient'
+            : stores.find(s => s?.id === nextDelivery.store_id)?.name || 'Store';
+          console.log(`   🎯 Destination: Next stop (${destName})`);
         }
       }
       
-      // Only proceed if we have both origin and destination
+      // Only generate polyline if we have both origin and destination
       if (originLat && originLon && destLat && destLon) {
-        // Call Google Directions API to get actual driving route
         console.log('   🌐 Calling Google Directions API...');
         
         let encodedPolyline = null;
@@ -1004,7 +913,7 @@ Deno.serve(async (req) => {
             encodedPolyline = directionsResponse.encoded_polyline;
             distanceKm = directionsResponse.distance_km;
             durationSeconds = directionsResponse.duration_seconds;
-            console.log(`   ✅ Got polyline from Google (${distanceKm?.toFixed(2)} km, ${Math.round((durationSeconds || 0) / 60)} min)`);
+            console.log(`   ✅ Got polyline (${distanceKm?.toFixed(2)} km, ${Math.round((durationSeconds || 0) / 60)} min)`);
           } else {
             console.warn('   ⚠️ Google Directions returned no polyline');
           }
@@ -1012,6 +921,7 @@ Deno.serve(async (req) => {
           console.warn('   ⚠️ Google Directions API error:', directionsError.message);
         }
         
+        // Save polyline to database
         const existingPolylines = await base44.asServiceRole.entities.DriverRoutePolyline.filter({
           driver_id: driverId,
           delivery_date: deliveryDate
@@ -1028,34 +938,25 @@ Deno.serve(async (req) => {
           last_generated_at: new Date().toISOString()
         };
         
-        console.log('   📊 Polyline data:', {
-          origin: `[${originLat.toFixed(6)}, ${originLon.toFixed(6)}]`,
-          dest: `[${destLat.toFixed(6)}, ${destLon.toFixed(6)}]`,
-          hasEncodedPolyline: !!encodedPolyline
-        });
-        
         if (existingPolylines && existingPolylines.length > 0) {
-          // Update existing record (don't create duplicates)
           await base44.asServiceRole.entities.DriverRoutePolyline.update(
             existingPolylines[0].id,
             polylineData
           );
-          console.log('   ✅ Updated existing polyline record');
+          console.log('   ✅ Updated polyline record');
         } else {
-          // Create new record with driver_id and delivery_date
           await base44.asServiceRole.entities.DriverRoutePolyline.create({
             driver_id: driverId,
             delivery_date: deliveryDate,
             ...polylineData
           });
-          console.log('   ✅ Created new polyline record');
+          console.log('   ✅ Created polyline record');
         }
       } else {
-        console.warn('   ⚠️ Missing origin or destination coordinates - skipping polyline');
+        console.log('   ⏭️ No polyline generated (need both origin and destination)');
       }
     } catch (polylineError) {
       console.warn('   ⚠️ Could not generate polyline:', polylineError.message);
-      // Don't fail the whole optimization if polyline generation fails
     }
     
     console.log('');
