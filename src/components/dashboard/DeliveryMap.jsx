@@ -1952,15 +1952,15 @@ export default function DeliveryMap({
 
         }
 
-        {/* NEW: Current-to-Next-Stop Google Polyline - SOLID BLUE - HIGHEST Z-INDEX - CURRENT DATE ONLY */}
+        {/* NEW: Current-to-Next-Stop Google Polyline - BLUE DASHED - HIGHEST Z-INDEX - CURRENT DATE ONLY */}
         {isViewingCurrentDate && currentToNextPolyline && currentToNextPolyline.length > 1 &&
           <Polyline
             positions={currentToNextPolyline.map(coord => [coord.lat, coord.lng])}
             pathOptions={{
-              color: '#3B82F6', // Solid blue
+              color: '#3B82F6', // Blue
               weight: 5,
               opacity: 1,
-              dashArray: '', // Solid line
+              dashArray: '10, 5', // Dashed line
               lineJoin: 'round',
               lineCap: 'round'
             }}
