@@ -636,7 +636,7 @@ export default function StopCard({
             onClick && onClick(delivery);
           }
         }}>
-        <CardContent className="mt-1 mb-1 px-3 flex flex-col">
+        <CardContent className="mt-1 mb-1 px-3 py-1 flex flex-col">
           {/* HEADER SECTION - Always Visible */}
           <div className="flex items-start gap-2">
             <div className="flex flex-col gap-2.5 items-start items-center">
@@ -797,7 +797,7 @@ export default function StopCard({
 
               {delivery.tracking_number && store?.abbreviation &&
               <Badge
-                variant="secondary" className="inline-flex items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 font-mono text-xs font-bold px-2 py-1.5"
+                variant="secondary" className="inline-flex items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 font-mono text-xs font-bold px-2 py-0.5"
                 style={{ backgroundColor: `${storeColor}20`, color: storeColor }}>
                   {(() => {
                   const storeAbbr = store.abbreviation.slice(0, 2).toUpperCase();
