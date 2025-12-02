@@ -636,7 +636,7 @@ export default function StopCard({
             onClick && onClick(delivery);
           }
         }}>
-        <CardContent className="mt-1 mb-1 px-3 py-1 flex flex-col">
+        <CardContent className="mt-1 mb-1 px-3 py-0 flex flex-col">
           {/* HEADER SECTION - Always Visible */}
           <div className="flex items-start gap-2">
             <div className="flex flex-col py-1.5 gap-1.5  items-center">
