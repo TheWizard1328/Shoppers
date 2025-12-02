@@ -1688,14 +1688,22 @@ export default function DeliveryForm({
       if (event.target === patientSearchInputRef.current) return;
 
       event.preventDefault();
-      if (buttonState === 'done') handleBatchSave();else
-      if (buttonState === 'updateStaged' && isFormValid) handleUpdateStaged();else
-      if (buttonState === 'add' && isFormValid) handleAddToStaging();
+      
+      // If editing an existing delivery, trigger submit (Update Delivery button)
+      if (delivery && isFormValid && !isSaving) {
+        handleSubmit(event);
+        return;
+      }
+      
+      // New delivery flow
+      if (buttonState === 'done') handleBatchSave();
+      else if (buttonState === 'updateStaged' && isFormValid) handleUpdateStaged();
+      else if (buttonState === 'add' && isFormValid) handleAddToStaging();
     };
 
     document.addEventListener('keydown', handleEnterKey);
     return () => document.removeEventListener('keydown', handleEnterKey);
-  }, [buttonState, isFormValid, handleAddToStaging, handleUpdateStaged, handleBatchSave]);
+  }, [buttonState, isFormValid, handleAddToStaging, handleUpdateStaged, handleBatchSave, delivery, isSaving, handleSubmit]);
 
   useEffect(() => {
     const handleEscapeKey = (event) => {
