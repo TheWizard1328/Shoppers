@@ -539,6 +539,13 @@ class SmartRefreshManager {
    */
   async refreshActiveDeliveryStatuses(currentDeliveries, selectedDate) {
     try {
+      if (!this.shouldRefresh('activeDeliveries')) {
+        return null;
+      }
+      
+      this.markRefreshed('activeDeliveries');
+      await this.waitForRateLimit();
+      
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
       
       // Only fetch today's active deliveries (in_transit, en_route)
