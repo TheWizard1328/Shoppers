@@ -1,3 +1,4 @@
+
 // Dashboard.js - Delivery Management Dashboard
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -4702,8 +4703,9 @@ function Dashboard() {
     console.log('✅ [START] Smart refresh paused, proceeding with start delivery');
     
     try {
-      const deliveryFromUI = deliveriesWithStopOrder.find((d) => d && d.id === deliveryId);
-      if (!deliveryFromUI) throw new Error('Delivery not found');
+      // CRITICAL: Refetch delivery from DB to ensure we have latest data
+      const deliveryFromUI = await base44.entities.Delivery.get(deliveryId);
+      if (!deliveryFromUI) throw new Error('Delivery not found in DB after refetch');
 
       const driverId = deliveryFromUI.driver_id;
       const deliveryDate = deliveryFromUI.delivery_date;
@@ -4718,34 +4720,31 @@ function Dashboard() {
       });
       console.log(`✅ [START] Status updated to ${newStatus}`);
 
-      // CRITICAL: Only call optimizer from mobile devices
-      // Desktop/dispatcher views should not trigger route optimization
-      if (isMobileDevice()) {
-        console.log('🔄 [START] Calling backend optimizer from mobile device...');
-        try {
-          const optimizationResult = await optimizeDriverRoute({
-            driverId: driverId,
-            deliveryDate: deliveryDate,
-            currentLocation: driverLocation ? {
-              lat: driverLocation.latitude,
-              lon: driverLocation.longitude
-            } : null,
-            startedDeliveryId: deliveryId,
-            clientCurrentTime: format(new Date(), 'HH:mm'),
-            generatePolyline: true
-          });
-          
-          console.log('✅ [START] Backend optimizer complete:', optimizationResult.data);
-          fetchPolylineCount();
-        } catch (optimizerError) {
-          console.error('❌ [START] Backend optimizer failed:', optimizerError);
-          // Don't throw - status update already succeeded
-        }
-      } else {
-        console.log('⏭️ [START] Skipping optimizer - desktop device (mobile-only feature)');
+      // CRITICAL: Always call backend optimizer when starting a delivery
+      // The backend handles route reordering and isNextDelivery flag
+      console.log('🔄 [START] Calling backend optimizer to update route and set isNextDelivery...');
+      try {
+        const optimizationResult = await optimizeDriverRoute({
+          driverId: driverId,
+          deliveryDate: deliveryDate,
+          currentLocation: driverLocation ? {
+            lat: driverLocation.latitude,
+            lon: driverLocation.longitude
+          } : null,
+          startedDeliveryId: deliveryId,
+          clientCurrentTime: format(new Date(), 'HH:mm'),
+          generatePolyline: true,
+          forceReoptimization: true // Force optimization to run
+        });
+        
+        console.log('✅ [START] Backend optimizer complete:', optimizationResult.data);
+        fetchPolylineCount();
+      } catch (optimizerError) {
+        console.error('❌ [START] Backend optimizer failed:', optimizerError);
+        // Don't throw - status update already succeeded, we'll refresh anyway
       }
 
-      // Refresh data to show updated status
+      // Refresh data to show updated status and route
       invalidate('Delivery');
       await refreshData();
 
