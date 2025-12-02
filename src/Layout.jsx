@@ -82,6 +82,7 @@ import { ResizableDivider } from './components/ui/resizable-divider';
       import DriverStatusToggle from './components/layout/DriverStatusToggle';
       import { loadUserSettings, saveSetting, clearSettingsCache } from './components/utils/userSettingsManager';
       import MessagingPanel from './components/messaging/MessagingPanel';
+      import SmartRefreshIndicator from './components/layout/SmartRefreshIndicator';
 
 const createMergedUser = (authUser, appUser) => {
   // CRITICAL: Allow creating users from AppUser data alone (for non-admin users who can't fetch User.list())
@@ -2106,6 +2107,7 @@ export default function Layout({ children, currentPageName }) {
               setOnSmartRefreshComplete: (callback) => { onSmartRefreshCompleteRef.current = callback; }
             }}>
             <div className="app-container">
+              <SmartRefreshIndicator />
               {isMobile && sidebarOpen &&
                 <div
                   className="sidebar-overlay"
