@@ -2044,19 +2044,21 @@ export default function Layout({ children, currentPageName }) {
       ) : (
         <UserProvider initialUser={currentUser}>
           <AppDataProvider value={{
-            deliveries: deliveries || [],
-            patients: patients || [],
-            stores: stores || [],
-            drivers: drivers || [],
-            users: users || [],
-            appUsers: appUsers || [],
-            cities: cities || [],
-            isDataLoaded: dataLoaded,
-            refreshData: triggerFullDataLoad,
-            isFormOverlayOpen: isFormOverlayOpen,
-            setIsFormOverlayOpen: setIsFormOverlayOpen,
-            setOnSmartRefreshComplete: (callback) => { onSmartRefreshCompleteRef.current = callback; }
-          }}>
+              deliveries: deliveries || [],
+              patients: patients || [],
+              stores: stores || [],
+              drivers: drivers || [],
+              users: users || [],
+              appUsers: appUsers || [],
+              cities: cities || [],
+              isDataLoaded: dataLoaded,
+              refreshData: triggerFullDataLoad,
+              isFormOverlayOpen: isFormOverlayOpen,
+              setIsFormOverlayOpen: setIsFormOverlayOpen,
+              isEntityUpdating: isEntityUpdating,
+              setIsEntityUpdating: setIsEntityUpdating,
+              setOnSmartRefreshComplete: (callback) => { onSmartRefreshCompleteRef.current = callback; }
+            }}>
             <div className="app-container">
               {isMobile && sidebarOpen &&
                 <div
