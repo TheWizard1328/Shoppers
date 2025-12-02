@@ -122,47 +122,40 @@ const calculateCentroid = (locations) => {
 const optimizeStoreRoute = (stops, startLocation, startTime, driverHome, patients) => {
   if (!stops || stops.length === 0) return [];
   
-  console.log(`  🔧 Optimizing route for ${stops.length} stops`);
+  console.log(`  🔧 Optimizing ${stops.length} stops with NEW RULES`);
   console.log(`  ⏰ Start time: ${startTime !== null ? minutesToTime(startTime) : 'default 10:00'}`);
   
   const optimized = [];
   const remaining = [...stops];
   
-  // Track which stores have had their pickups completed
-  const completedPickups = new Set();
+  // Track which pickup stop_ids have been completed (marks pickup as done)
+  const completedPickupStopIds = new Set();
   
   let currentLocation = startLocation || { lat: 0, lon: 0 };
   let currentTime = startTime !== null ? startTime : 600; // Default 10:00
   
   // =============================================
-  // CRITICAL: Prioritize in_transit deliveries FIRST
-  // These are already started - must complete before anything else
+  // PHASE 1: Process in_transit deliveries FIRST
+  // These are already started - complete before optimization
   // =============================================
   const inTransitDeliveries = remaining.filter(s => s && s.status === 'in_transit' && s.patient_id);
   
   if (inTransitDeliveries.length > 0) {
-    console.log(`  🚀 Processing ${inTransitDeliveries.length} in_transit deliveries FIRST`);
+    console.log(`  🚀 PHASE 1: Processing ${inTransitDeliveries.length} in_transit deliveries FIRST`);
     
     for (const delivery of inTransitDeliveries) {
       const idx = remaining.findIndex(s => s && s.id === delivery.id);
-      if (idx !== -1) {
-        remaining.splice(idx, 1);
-      }
+      if (idx !== -1) remaining.splice(idx, 1);
       
-      const distance = calculateDistance(
-        currentLocation.lat, currentLocation.lon,
-        delivery.latitude, delivery.longitude
-      );
+      const distance = calculateDistance(currentLocation.lat, currentLocation.lon, delivery.latitude, delivery.longitude);
       const travelTime = estimateTravelTime(distance, minutesToTime(currentTime));
       currentTime += travelTime;
       
       delivery.delivery_time_eta = minutesToTime(currentTime);
       delivery.estimated_arrival = minutesToTime(currentTime);
       
-      const stopDuration = delivery.extra_time || 5;
-      currentTime += stopDuration;
+      currentTime += (delivery.extra_time || 5);
       currentLocation = { lat: delivery.latitude, lon: delivery.longitude };
-      
       optimized.push(delivery);
       
       const patientName = patients?.find(p => p?.id === delivery.patient_id)?.full_name || 'Unknown';
@@ -171,67 +164,121 @@ const optimizeStoreRoute = (stops, startLocation, startTime, driverHome, patient
   }
   
   // =============================================
-  // TIME WINDOW BASED ORDERING
-  // Group stops by their time windows and process in order
+  // PHASE 2: OPTIMIZED INTERLEAVING ALGORITHM
+  // Rules:
+  // 1. Pickups before their deliveries (unless delivery TW forces earlier)
+  // 2. Interstore deliveries ignore Rule 1
+  // 3. Maximize deliveries between pickups (don't force Store B pickup before Store A deliveries)
+  // 4. Shortest route while respecting time windows
+  // 5. Pickup TWs are estimates - used for ordering stores, not strict constraints
   // =============================================
-  console.log(`  📋 Ordering ${remaining.length} remaining stops by TIME WINDOW`);
+  console.log(`  🎯 PHASE 2: Optimizing ${remaining.length} remaining stops with smart interleaving`);
   
-  // Sort remaining stops STRICTLY by time window start
-  remaining.sort((a, b) => {
-    const aTime = timeToMinutes(a.delivery_time_start || a.time_window_start || '23:59');
-    const bTime = timeToMinutes(b.delivery_time_start || b.time_window_start || '23:59');
-    return aTime - bTime;
-  });
-  
-  // Log sorted order
-  remaining.forEach((stop, i) => {
-    const isPickup = !stop.patient_id;
-    const tw = stop.delivery_time_start || stop.time_window_start || 'No TW';
-    const name = isPickup ? 'Pickup' : (patients?.find(p => p?.id === stop.patient_id)?.full_name || 'Unknown');
-    console.log(`    ${i + 1}. ${isPickup ? '🏪' : '📦'} ${name} - TW: ${tw}`);
-  });
-  
-  // Process stops in time window order
   while (remaining.length > 0) {
-    let selectedIndex = -1;
+    let bestIndex = -1;
+    let bestScore = -Infinity;
     
-    // Find the next stop we CAN do (respecting pickup-before-delivery constraint)
     for (let i = 0; i < remaining.length; i++) {
       const stop = remaining[i];
-      if (!stop || !stop.latitude || !stop.longitude) continue;
+      if (!stop?.latitude || !stop?.longitude) continue;
       
-      // Check pickup-before-delivery constraint
-      if (stop.patient_id && stop.puid) {
-        const patientName = patients?.find(p => p?.id === stop.patient_id)?.full_name || '';
-        const deliveryNotes = stop.delivery_notes || '';
-        const isInterStore = deliveryNotes.toLowerCase().includes('interstore') || 
-                            patientName.toLowerCase().includes('interstore');
+      const isPickup = !stop.patient_id;
+      const patientName = patients?.find(p => p?.id === stop.patient_id)?.full_name || '';
+      const deliveryNotes = stop.delivery_notes || '';
+      const isInterStore = deliveryNotes.toLowerCase().includes('interstore') || 
+                          patientName.toLowerCase().includes('interstore');
+      
+      // RULE 1 & 3: Check pickup-before-delivery constraint (with smart interleaving)
+      if (!isPickup && !isInterStore && stop.puid) {
+        // Only enforce pickup-before-delivery if pickup is from the SAME store group
+        const pickupInRemaining = remaining.find(s => s && !s.patient_id && s.stop_id === stop.puid);
         
-        if (!isInterStore && !completedPickups.has(stop.puid)) {
-          // Check if pickup still exists in remaining
-          const pickupExists = remaining.some(s => s && !s.patient_id && s.stop_id === stop.puid);
-          if (pickupExists) {
-            continue; // Skip - pickup must be done first
+        if (pickupInRemaining && !completedPickupStopIds.has(stop.puid)) {
+          // Check if this delivery's time window FORCES it before the pickup
+          const deliveryTW = timeToMinutes(stop.time_window_start || stop.delivery_time_start || '23:59');
+          const pickupTW = timeToMinutes(pickupInRemaining.delivery_time_start || pickupInRemaining.time_window_start || '00:00');
+          
+          if (deliveryTW < pickupTW) {
+            console.log(`    ⚠️ ${patientName} TW (${minutesToTime(deliveryTW)}) before pickup TW (${minutesToTime(pickupTW)}) - allowing delivery first`);
+          } else {
+            // Normal case - skip delivery, pickup must be done first
+            continue;
           }
         }
       }
       
-      selectedIndex = i;
-      break;
+      // Calculate distance to this stop
+      const distanceToStop = calculateDistance(
+        currentLocation.lat, currentLocation.lon,
+        stop.latitude, stop.longitude
+      );
+      
+      const travelTime = estimateTravelTime(distanceToStop, minutesToTime(currentTime));
+      const arrivalTime = currentTime + travelTime;
+      
+      // SCORING SYSTEM
+      let score = 0;
+      
+      // RULE 4 & 5: Distance score (shortest route)
+      const distanceScore = Math.max(0, 200 - distanceToStop * 20); // Higher score for closer stops
+      score += distanceScore;
+      
+      // Time window compliance score
+      const stopTW = stop.time_window_start || stop.delivery_time_start;
+      if (stopTW) {
+        const windowStart = timeToMinutes(stopTW);
+        const windowEnd = timeToMinutes(stop.time_window_end || stopTW);
+        
+        if (isPickup) {
+          // RULE 5: Pickup TWs are estimates - light preference, not strict
+          if (arrivalTime >= windowStart && arrivalTime <= windowEnd) {
+            score += 50; // Bonus for being in window
+          } else if (arrivalTime < windowStart) {
+            score += 30; // Early is acceptable
+          } else {
+            score += 10; // Late pickup is lowest priority but still OK
+          }
+        } else {
+          // Patient deliveries: Strong time window preference
+          if (arrivalTime >= windowStart && arrivalTime <= windowEnd) {
+            score += 300; // High priority for in-window delivery
+            const minutesUntilEnd = windowEnd - arrivalTime;
+            if (minutesUntilEnd < 60) score += 200; // Urgent - closing soon
+            if (minutesUntilEnd < 30) score += 300; // Very urgent
+          } else if (arrivalTime < windowStart) {
+            score += 100; // Early is OK
+          } else {
+            // Late delivery - heavily penalize
+            const minutesLate = arrivalTime - windowEnd;
+            score -= 500 + (minutesLate * 10);
+          }
+        }
+      }
+      
+      // RULE 2: Interstore deliveries get bonus (can be done anytime)
+      if (!isPickup && isInterStore) {
+        score += 150; // Bonus for flexibility
+      }
+      
+      if (score > bestScore) {
+        bestScore = score;
+        bestIndex = i;
+      }
     }
     
-    if (selectedIndex === -1) {
-      // No valid stop found - take first available
-      selectedIndex = remaining.findIndex(s => s && s.latitude && s.longitude);
-      if (selectedIndex === -1) break;
+    if (bestIndex === -1) {
+      // Fallback - take first valid stop
+      bestIndex = remaining.findIndex(s => s?.latitude && s?.longitude);
+      if (bestIndex === -1) break;
     }
     
-    const selectedStop = remaining.splice(selectedIndex, 1)[0];
+    const selectedStop = remaining.splice(bestIndex, 1)[0];
     if (!selectedStop) continue;
     
-    // Mark pickup as completed
+    // Mark pickup as completed (by stop_id)
     if (!selectedStop.patient_id && selectedStop.stop_id) {
-      completedPickups.add(selectedStop.stop_id);
+      completedPickupStopIds.add(selectedStop.stop_id);
+      console.log(`    🏪 Completed pickup: ${selectedStop.stop_id}`);
     }
     
     // Calculate ETA
@@ -245,15 +292,17 @@ const optimizeStoreRoute = (stops, startLocation, startTime, driverHome, patient
     selectedStop.delivery_time_eta = minutesToTime(currentTime);
     selectedStop.estimated_arrival = minutesToTime(currentTime);
     
-    const stopDuration = selectedStop.extra_time || 5;
-    currentTime += stopDuration;
+    currentTime += (selectedStop.extra_time || 5);
     currentLocation = { lat: selectedStop.latitude, lon: selectedStop.longitude };
-    
     optimized.push(selectedStop);
+    
+    const name = selectedStop.patient_id 
+      ? patients?.find(p => p?.id === selectedStop.patient_id)?.full_name || 'Unknown'
+      : 'Pickup';
+    console.log(`    ✅ #${optimized.length}: ${name} - ETA: ${selectedStop.estimated_arrival}`);
   }
   
-  console.log(`  ✅ Optimized ${optimized.length} stops by time window order`);
-  
+  console.log(`  ✅ Optimized ${optimized.length} stops with smart interleaving`);
   return optimized;
 };
 
