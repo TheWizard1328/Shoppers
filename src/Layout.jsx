@@ -378,6 +378,7 @@ export default function Layout({ children, currentPageName }) {
 
   const [isFormOverlayOpen, setIsFormOverlayOpen] = useState(false);
   const [isEntityUpdating, setIsEntityUpdating] = useState(false);
+  const [smartRefreshActivity, setSmartRefreshActivity] = useState({ active: false, updatedEntities: [] });
   const [showPatientImport, setShowPatientImport] = useState(false);
   const [showDeliveryImport, setShowDeliveryImport] = useState(false);
 
@@ -741,7 +742,9 @@ export default function Layout({ children, currentPageName }) {
 
     // Unified refresh function - runs every 5s, each entity checks its own interval
     const performUnifiedRefresh = async () => {
+      const updatedEntities = [];
       try {
+        setSmartRefreshActivity(prev => ({ ...prev, active: true }));
         console.log('');
         console.log('═══════════════════════════════════════════════════');
         console.log('🔄 [UNIFIED REFRESH] Starting refresh cycle');
@@ -802,6 +805,7 @@ export default function Layout({ children, currentPageName }) {
         if (locationUpdates?.hasChanges) {
           console.log('   ✅ Updating appUsers state with new locations');
           setAppUsers(locationUpdates.appUsers);
+          updatedEntities.push('locations');
         } else {
           console.log('   ⏭️ No location changes');
         }
@@ -813,6 +817,7 @@ export default function Layout({ children, currentPageName }) {
         if (activeDeliveryUpdates?.hasChanges) {
           console.log('   ✅ Updating deliveries state with active status changes');
           setDeliveries(activeDeliveryUpdates.deliveries);
+          if (!updatedEntities.includes('deliveries')) updatedEntities.push('deliveries');
         } else {
           console.log('   ⏭️ No active delivery changes');
         }
@@ -824,6 +829,11 @@ export default function Layout({ children, currentPageName }) {
         if (updates) {
           console.log('   ✅ Applying updates to state:', Object.keys(updates).join(', '));
           updateAppDataState(updates);
+          // Track which entities were updated
+          if (updates.deliveries) updatedEntities.push('deliveries');
+          if (updates.patients) updatedEntities.push('patients');
+          if (updates.appUsers) updatedEntities.push('appUsers');
+          if (updates.stores) updatedEntities.push('stores');
         } else {
           console.log('   ⏭️ No entity updates needed');
         }
@@ -841,6 +851,10 @@ export default function Layout({ children, currentPageName }) {
         console.log('');
         console.log('✅ [UNIFIED REFRESH] Cycle complete');
         console.log('═══════════════════════════════════════════════════');
+        
+        // Update activity state with which entities changed
+        const uniqueUpdates = [...new Set(updatedEntities)];
+        setSmartRefreshActivity({ active: false, updatedEntities: uniqueUpdates });
       } catch (error) {
         if (error.response?.status === 429 || error.message?.includes('429')) {
           console.error('🚨 [Layout] RATE LIMIT ERROR:', error.message);
@@ -849,6 +863,7 @@ export default function Layout({ children, currentPageName }) {
           console.warn('⚠️ [Layout] Refresh error:', error.message);
         }
         console.log('═══════════════════════════════════════════════════');
+        setSmartRefreshActivity({ active: false, updatedEntities: [] });
       }
     };
 
@@ -2086,6 +2101,8 @@ export default function Layout({ children, currentPageName }) {
               setIsFormOverlayOpen: setIsFormOverlayOpen,
               isEntityUpdating: isEntityUpdating,
               setIsEntityUpdating: setIsEntityUpdating,
+              smartRefreshActivity: smartRefreshActivity,
+              setSmartRefreshActivity: setSmartRefreshActivity,
               setOnSmartRefreshComplete: (callback) => { onSmartRefreshCompleteRef.current = callback; }
             }}>
             <div className="app-container">
