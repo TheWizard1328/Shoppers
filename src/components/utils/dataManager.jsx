@@ -268,9 +268,12 @@ export const loadDeliveriesThreeStage = async (filters = {}, onStage2Complete = 
   const todayDeliveries = await getDeliveriesForDateRange(todayStr, todayStr, filters, forceRefresh);
   console.log(`✅ [dataManager] Stage 1a: Today loaded (${todayDeliveries.length} deliveries)`);
   
-  // Then load next 7 days one by one
+  // Then load next 7 days one by one with small delays
   const stage1Deliveries = [...todayDeliveries];
   for (let i = 1; i <= 7; i++) {
+    // Small delay between requests to avoid rate limiting
+    await new Promise(resolve => setTimeout(resolve, 150));
+    
     const futureDate = new Date(today);
     futureDate.setDate(futureDate.getDate() + i);
     const futureDateStr = format(futureDate, 'yyyy-MM-dd');
