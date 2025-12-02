@@ -2107,7 +2107,6 @@ export default function Layout({ children, currentPageName }) {
               setOnSmartRefreshComplete: (callback) => { onSmartRefreshCompleteRef.current = callback; }
             }}>
             <div className="app-container">
-              <SmartRefreshIndicator />
               {isMobile && sidebarOpen &&
                 <div
                   className="sidebar-overlay"
