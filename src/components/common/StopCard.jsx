@@ -737,7 +737,7 @@ export default function StopCard({
                 {showStatusDropdown ?
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <button className="font-medium inline-flex items-center gap-1 rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-xs font-bold px-2 py-0.65 cursor-pointer hover:opacity-80 bg-cyan-100 text-cyan-800"
+                      <button className="font-medium inline-flex items-center gap-1 rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-xs font-bold px-2 py-0.5 cursor-pointer hover:opacity-80 bg-cyan-100 text-cyan-800"
 
                     onClick={(e) => e.stopPropagation()}>
 
