@@ -817,7 +817,7 @@ export default function StopCard({
 
           {!isStrippedDelivery && <div className="flex flex-col">
             <div className="flex items-start justify-between">
-              <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+              <div className="mt-1 flex flex-col gap-0.5 flex-1 min-w-0">
                 {finalDisplayAddress ?
                 <>
                     {/* Main address without unit/buzzer */}
