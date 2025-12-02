@@ -137,7 +137,13 @@ class SmartRefreshManager {
    * OPTIMIZED: Only refreshes the selected date's deliveries - never touches historical data
    * Uses incremental updates based on updated_date timestamp
    */
-  async refreshCurrentDayDeliveries(currentDeliveries, selectedDate, filters, stores = [], drivers = []) {
+  async refreshCurrentDayDeliveries(currentDeliveries, selectedDate, filters, stores = [], drivers = [], skipRefresh = false) {
+      // CRITICAL: Skip if entity updating is in progress (e.g., Start button clicked)
+      if (skipRefresh) {
+          console.log('🔄 [Smart Refresh] ⏸️ SKIPPED - Entity update in progress');
+          return null;
+      }
+
       try {
           console.log('🔄 [Smart Refresh] ━━━ Delivery Refresh Started ━━━');
           const dateStr = format(selectedDate, 'yyyy-MM-dd');
