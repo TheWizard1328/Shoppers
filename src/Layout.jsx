@@ -1184,12 +1184,21 @@ export default function Layout({ children, currentPageName }) {
       const isAdmin = userHasRole(currentUser, 'admin');
 
       // RATE LIMIT PROTECTION: Load data sequentially with small delays
-      // Step 1: AppUsers
+      // Step 1: AppUsers (needed for driver/dispatcher info)
       await new Promise(resolve => setTimeout(resolve, 100));
       const allAppUsers = await getData('AppUser', null, null, forceRefresh);
       console.log(`✅ [Layout] Loaded ${allAppUsers.length} AppUsers`);
 
-      // Step 2: Stores
+      // Step 2: Cities (if not already loaded)
+      if (!workingCities || workingCities.length === 0) {
+        await new Promise(resolve => setTimeout(resolve, 150));
+        workingCities = await City.list();
+        workingCities.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+        setCities(workingCities);
+        console.log(`✅ [Layout] Loaded ${workingCities.length} Cities`);
+      }
+
+      // Step 3: Stores
       await new Promise(resolve => setTimeout(resolve, 200));
       const allStores = await getData('Store', null, null, forceRefresh);
       allStores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
