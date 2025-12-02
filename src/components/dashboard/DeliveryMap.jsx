@@ -1758,11 +1758,21 @@ export default function DeliveryMap({
         if (roundedZoom !== currentZoom) {
           setCurrentZoom(roundedZoom);
           
-          // Show zoom overlay for 3 seconds
-          setShowZoomOverlay(true);
-          setTimeout(() => {
-            setShowZoomOverlay(false);
-          }, 3000);
+          // CRITICAL: Only show zoom overlay on MANUAL zooms (not programmatic FAB zooms)
+          // Check if this was a programmatic zoom (within 500ms of last programmatic move)
+          const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
+          const isManualZoom = timeSinceProgrammatic > 500;
+          
+          if (isManualZoom) {
+            // Show zoom overlay for 3 seconds on manual zoom only
+            if (zoomOverlayTimeoutRef.current) {
+              clearTimeout(zoomOverlayTimeoutRef.current);
+            }
+            setShowZoomOverlay(true);
+            zoomOverlayTimeoutRef.current = setTimeout(() => {
+              setShowZoomOverlay(false);
+            }, 3000);
+          }
         }
         
         // Update visible bounds for debug box
