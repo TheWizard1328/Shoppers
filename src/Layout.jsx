@@ -803,8 +803,8 @@ export default function Layout({ children, currentPageName }) {
       // Initial refresh after short delay
       setTimeout(performUnifiedRefresh, 100);
 
-      // Single unified interval - 5 seconds
-      refreshIntervalRef.current = setInterval(performUnifiedRefresh, 5000);
+      // Single unified interval - 10 seconds to prevent rate limits
+      refreshIntervalRef.current = setInterval(performUnifiedRefresh, 10000);
     }, 500);
 
     return () => {
