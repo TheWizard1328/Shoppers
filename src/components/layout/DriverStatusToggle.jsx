@@ -232,8 +232,12 @@ export default function DriverStatusToggle({ currentUser, onStatusChange }) {
       setStatus(previousStatus);
       toast.error('Failed to update status. Please try again.');
     } finally {
-      setIsUpdating(false);
-      setIsEntityUpdating(false); // Resume smart refresh
+      // CRITICAL: Add delay before clearing isUpdating to prevent sync from overwriting
+      setTimeout(() => {
+        setIsUpdating(false);
+        setPendingStatus(null);
+        setIsEntityUpdating(false); // Resume smart refresh
+      }, 500);
     }
   }, [status, isUpdating, appUserId, currentUser, onStatusChange, setIsEntityUpdating]);
 
