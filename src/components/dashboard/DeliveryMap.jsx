@@ -1975,23 +1975,8 @@ export default function DeliveryMap({
 
           return [
             // Origin to first stop line - HIDDEN if currentToNextPolyline exists or route is completed
-            route.startToFirstStopCoordinates && route.isOriginLine && !googleRouteCoordinates && !currentToNextPolyline && !route.isCompleted &&
-            <Polyline
-              key={`origin-line-${route.driverId}`}
-              positions={route.startToFirstStopCoordinates}
-              pathOptions={{
-                color: '#3B82F6', // Blue
-                weight: 4,
-                opacity: 1,
-                dashArray: '10, 5', // Dashed line
-                lineJoin: 'round',
-                lineCap: 'round'
-              }}
-              eventHandlers={{
-                click: () => setHighlightedRouteId(isHighlighted ? null : route.driverId),
-                mouseover: () => setHighlightedRouteId(route.driverId),
-                mouseout: () => setHighlightedRouteId(null)
-              }} />,
+            // CRITICAL: This internal origin line is now DEPRECATED - we use currentToNextPolyline from backend instead
+            null,
 
             // Pre-route line - DASHED for unstarted routes
             route.startToFirstStopCoordinates && !route.isOriginLine && !googleRouteCoordinates &&
