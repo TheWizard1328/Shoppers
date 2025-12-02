@@ -851,76 +851,59 @@ function Dashboard() {
     driverLocationPoller.processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate);
   }, [isDataLoaded, currentUser, deliveries, drivers, stores, users, selectedDate]);
 
+  // Fetch and display current-to-next polyline for display
   useEffect(() => {
-    // CRITICAL: Only generate polylines on MOBILE devices
-    if (!isMobile) {
-      console.log('⏸️ [Dashboard] Skipping polyline generation: not a mobile device');
-      return;
-    }
-    
-    // CRITICAL: Only generate polylines when driver is on_duty
-    if (!currentUser || !userHasRole(currentUser, 'driver')) {
-      return;
-    }
-    
-    // Must be on_duty to generate polylines (this is the Google API cost-incurring operation)
-    if (currentUser.driver_status !== 'on_duty') {
-      console.log('⏸️ [Dashboard] Skipping polyline generation: driver_status is', currentUser.driver_status);
-      return;
-    }
-    
-    if (!driverLocation || !nextStop) {
-      return;
-    }
+    const fetchPolyline = async () => {
+      // Only fetch if we're viewing a driver's route
+      if (!isDriver || !currentUser || !nextStop || !nextStopCoordinates) {
+        setCurrentToNextPolyline(null);
+        return;
+      }
 
-    if (!googleApiKey) {
-      return;
-    }
+      // Only fetch on today's date
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+      if (todayStr !== selectedDateStr) {
+        setCurrentToNextPolyline(null);
+        return;
+      }
 
-    const hasStarted = filteredDeliveries.some((d) => {
-      if (!d) return false; // Defensive check
-      return ['in_transit', 'completed', 'cancelled', 'returned'].includes(d.status);
-    });
+      // Only show if route has started
+      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+      const hasStarted = filteredDeliveries.some((d) => 
+        d && (d.status === 'in_transit' || finishedStatuses.includes(d.status))
+      );
 
-    if (hasStarted) {
-      return;
-    }
+      if (!hasStarted) {
+        setCurrentToNextPolyline(null);
+        return;
+      }
 
-    const generateRoutePolylineForMap = async () => {
       try {
-        if (!nextStopCoordinates) {
-          return;
-        }
-
         const deliveryDate = format(selectedDate, 'yyyy-MM-dd');
-
-        await getOrGenerateRoutePolyline({
-          driverId: currentUser.id,
-          deliveryDate: deliveryDate,
-          startPoint: {
-            lat: driverLocation.latitude,
-            lon: driverLocation.longitude
-          },
-          endPoint: {
-            lat: nextStopCoordinates.lat,
-            lon: nextStopCoordinates.lon
-          },
-          routeType: 'to_first_stop',
-          googleApiKey: googleApiKey,
-          forceRefresh: false
-        });
         
-        // Refresh polyline count after generating
-        fetchPolylineCount();
+        console.log('🗺️ [Dashboard] Fetching stored polyline coordinates for display');
+        const coordinates = await getStoredRouteCoordinates(
+          currentUser.id,
+          deliveryDate,
+          'to_next_stop' // This is ignored now - we fetch by driver_id + date
+        );
+
+        if (coordinates && coordinates.length > 0) {
+          console.log('✅ [Dashboard] Polyline loaded for display:', coordinates.length, 'points');
+          setCurrentToNextPolyline(coordinates);
+        } else {
+          console.log('📍 [Dashboard] No polyline available yet');
+          setCurrentToNextPolyline(null);
+        }
       } catch (error) {
-        console.error('Error generating route polyline:', error);
+        console.error('❌ [Dashboard] Error fetching polyline:', error);
+        setCurrentToNextPolyline(null);
       }
     };
 
-    const timer = setTimeout(generateRoutePolylineForMap, 2000);
-
-    return () => clearTimeout(timer);
-  }, [currentUser, driverLocation, nextStop, nextStopCoordinates, selectedDate, googleApiKey, filteredDeliveries, isMobile, fetchPolylineCount]);
+    fetchPolyline();
+  }, [currentUser, isDriver, nextStop, nextStopCoordinates, selectedDate, filteredDeliveries]);
 
   useEffect(() => {
     if (!currentUser || !userHasRole(currentUser, 'driver') || showAIAssistant || !isAIEnabled) {
