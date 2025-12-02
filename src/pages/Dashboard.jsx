@@ -4711,35 +4711,22 @@ function Dashboard() {
   };
 
   const handleStartDelivery = async (deliveryId) => {
-    console.log('');
-    console.log('┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓');
-    console.log('┃ 🚀 START DELIVERY BUTTON CLICKED                           ┃');
-    console.log('┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛');
-
-    setIsEntityUpdating(true); // Pause smart refresh
-    console.log('⏸️ Smart refresh PAUSED');
+    console.log('🚀 [START] Button clicked - reordering stops only');
+    
+    setIsEntityUpdating(true); // Pause smart refresh during reorder
     
     try {
-      // Get delivery from UI state
       const deliveryFromUI = deliveriesWithStopOrder.find((d) => d && d.id === deliveryId);
       if (!deliveryFromUI) throw new Error('Delivery not found');
 
       const driverId = deliveryFromUI.driver_id;
       const deliveryDate = deliveryFromUI.delivery_date;
-      if (!driverId || !deliveryDate) throw new Error('Missing driver or date on delivery');
-
       const isPickup = !deliveryFromUI.patient_id;
       const newStatus = isPickup ? 'en_route' : 'in_transit';
 
-      console.log(`📦 Delivery: ${deliveryFromUI.patient_name || 'Store Pickup'}`);
-      console.log(`🚗 Driver: ${deliveryFromUI.driver_name}`);
-      console.log(`📍 Current stop order: #${deliveryFromUI.stop_order}`);
+      console.log(`📦 Starting: ${deliveryFromUI.patient_name || 'Pickup'} (#${deliveryFromUI.stop_order})`);
 
-      // ═══════════════════════════════════
-      // STEP 1: Fetch fresh deliveries from DB
-      // ═══════════════════════════════════
-      console.log('');
-      console.log('┣━━ STEP 1: FETCH FRESH DATA FROM DB');
+      // Fetch fresh data
       const allDriverDeliveries = await base44.entities.Delivery.filter({
         delivery_date: deliveryDate,
         driver_id: driverId
@@ -4749,141 +4736,79 @@ function Dashboard() {
       const completedStops = allDriverDeliveries.filter((d) => d && finishedStatuses.includes(d.status));
       const incompleteStops = allDriverDeliveries.filter((d) => d && !finishedStatuses.includes(d.status));
       
-      console.log(`┃   ✅ Fetched ${allDriverDeliveries.length} total deliveries`);
-      console.log(`┃   📊 Completed: ${completedStops.length}, Incomplete: ${incompleteStops.length}`);
-
-      // Find next delivery stop order
       const nextDelivery = incompleteStops.find((d) => d && d.isNextDelivery);
       const nextStopOrder = nextDelivery?.stop_order || (completedStops.length + 1);
-      
-      console.log(`┃   🎯 Target position for started delivery: #${nextStopOrder}`);
 
-      // ═══════════════════════════════════
-      // STEP 2: Update stop orders (move started to front)
-      // ═══════════════════════════════════
-      console.log('');
-      console.log('┣━━ STEP 2: REORDER ALL STOPS');
-      
-      // CRITICAL: First, reset ALL isNextDelivery flags
-      console.log('┃   🔄 Resetting isNextDelivery flags...');
+      // Reset all isNextDelivery flags
       for (const delivery of allDriverDeliveries) {
-        if (!delivery) continue;
-        await base44.entities.Delivery.update(delivery.id, {
-          isNextDelivery: false
-        });
-      }
-      console.log(`┃   ✅ Reset ${allDriverDeliveries.length} deliveries`);
-      
-      // Shift deliveries between next and started positions
-      console.log('┃   🔄 Shifting intermediate stops forward...');
-      let shiftedCount = 0;
-      for (const delivery of incompleteStops) {
-        if (!delivery || delivery.id === deliveryId) continue;
-        
-        const currentOrder = delivery.stop_order || 0;
-        
-        if (currentOrder >= nextStopOrder && currentOrder < deliveryFromUI.stop_order) {
-          const newOrder = currentOrder + 1;
-          console.log(`┃      #${currentOrder} → #${newOrder}: ${delivery.patient_name || 'Pickup'}`);
-          await base44.entities.Delivery.update(delivery.id, {
-            stop_order: newOrder
-          });
-          shiftedCount++;
+        if (delivery) {
+          await base44.entities.Delivery.update(delivery.id, { isNextDelivery: false });
         }
       }
-      console.log(`┃   ✅ Shifted ${shiftedCount} stops forward`);
+      
+      // Shift intermediate stops forward
+      for (const delivery of incompleteStops) {
+        if (!delivery || delivery.id === deliveryId) continue;
+        const currentOrder = delivery.stop_order || 0;
+        if (currentOrder >= nextStopOrder && currentOrder < deliveryFromUI.stop_order) {
+          await base44.entities.Delivery.update(delivery.id, {
+            stop_order: currentOrder + 1
+          });
+        }
+      }
 
       // Move started delivery to next position
-      console.log(`┃   🎯 Moving started delivery to #${nextStopOrder}`);
       await base44.entities.Delivery.update(deliveryId, {
         status: newStatus,
         stop_order: nextStopOrder,
         isNextDelivery: true
       });
-      console.log('┃   ✅ Started delivery moved and marked as next');
 
-      // ═══════════════════════════════════
-      // STEP 3: First UI refresh (show new order)
-      // ═══════════════════════════════════
-      console.log('');
-      console.log('┣━━ STEP 3: REFRESH UI WITH NEW ORDER');
+      console.log(`✅ [START] Moved to #${nextStopOrder} - optimizer will update ETAs in background`);
+
+      // Immediate UI refresh
       invalidateDeliveriesForDate(deliveryDate);
       await refreshData();
-      console.log('┃   ✅ UI refreshed - new order visible');
 
-      // ═══════════════════════════════════
-      // STEP 4: Call backend optimizer for ETAs
-      // ═══════════════════════════════════
-      console.log('');
-      console.log('┣━━ STEP 4: BACKEND OPTIMIZATION (ETAs + POLYLINE)');
-      
-      try {
-        const optimizationResult = await optimizeDriverRoute({
-          driverId: driverId,
-          deliveryDate: deliveryDate,
-          currentLocation: driverLocation ? {
-            lat: driverLocation.latitude,
-            lon: driverLocation.longitude
-          } : null,
-          startedDeliveryId: deliveryId,
-          clientCurrentTime: format(new Date(), 'HH:mm'),
-          generatePolyline: true
-        });
-
-        console.log('┃   ✅ Backend optimizer complete');
-        console.log('┃   📊 Result:', optimizationResult.data);
-        fetchPolylineCount();
-      } catch (backendError) {
-        console.error('┃   ❌ Backend optimization failed:', backendError.message);
-      }
-
-      // ═══════════════════════════════════
-      // STEP 5: Second UI refresh (updated ETAs)
-      // ═══════════════════════════════════
-      console.log('');
-      console.log('┣━━ STEP 5: REFRESH UI WITH UPDATED ETAs');
-      invalidateDeliveriesForDate(deliveryDate);
-      await refreshData();
-      console.log('┃   ✅ UI refreshed - ETAs updated');
-
-      // ═══════════════════════════════════
-      // STEP 6: Auto-scroll to started card
-      // ═══════════════════════════════════
-      console.log('');
-      console.log('┣━━ STEP 6: AUTO-SCROLL TO STARTED CARD');
+      // Scroll to card
       setSelectedCardId(null);
-      
       setTimeout(() => {
         const cardElement = document.getElementById(`stop-card-${deliveryId}`);
         if (cardElement) {
           cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-          console.log('┃   ✅ Scrolled to started delivery card');
-        } else {
-          console.log('┃   ⚠️ Card element not found');
         }
       }, 300);
 
       // Re-trigger map view for Phase 2
       if (mapViewPhase === 2 && isMapViewLocked) {
-        console.log('┃   🗺️ Re-centering map (Phase 2 active)');
         setMapViewTrigger((prev) => prev + 1);
       }
 
-      console.log('');
-      console.log('┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛');
-      console.log('✅ START DELIVERY COMPLETE');
-      console.log('');
+      // Background optimization (non-blocking)
+      optimizeDriverRoute({
+        driverId: driverId,
+        deliveryDate: deliveryDate,
+        currentLocation: driverLocation ? {
+          lat: driverLocation.latitude,
+          lon: driverLocation.longitude
+        } : null,
+        startedDeliveryId: deliveryId,
+        clientCurrentTime: format(new Date(), 'HH:mm'),
+        generatePolyline: true
+      }).then(() => {
+        console.log('✅ [START] Background optimization complete');
+        fetchPolylineCount();
+        invalidateDeliveriesForDate(deliveryDate);
+        refreshData();
+      }).catch((error) => {
+        console.warn('⚠️ [START] Background optimization failed:', error.message);
+      });
 
     } catch (error) {
-      console.log('');
-      console.log('┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛');
-      console.error('❌ START DELIVERY FAILED:', error.message);
-      console.error('Stack:', error.stack);
-      console.log('');
+      console.error('❌ [START] Failed:', error.message);
       alert('Failed to start delivery. Please try again.');
     } finally {
-      console.log('▶️ Smart refresh RESUMED');
-      setIsEntityUpdating(false);
+      setIsEntityUpdating(false); // Resume smart refresh
     }
   };
 
