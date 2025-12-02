@@ -1569,6 +1569,23 @@ export default function StopCard({
                               appUsers
                             }).catch(err => console.warn('Notification failed:', err));
                           }
+                          
+                          // Trigger AI route re-optimization after completing a delivery
+                          const today = format(new Date(), 'yyyy-MM-dd');
+                          triggerRouteOptimization({
+                            driverId: currentUser.id,
+                            deliveryDate: today,
+                            trigger: 'delivery_complete',
+                            completedDeliveryId: delivery.id,
+                            onNotification: (notification) => {
+                              if (notification.type === 'next_stop') {
+                                toast.success(notification.message, {
+                                  description: notification.aiSuggestion
+                                });
+                              }
+                            }
+                          }).catch(err => console.warn('Route optimization failed:', err));
+                          
                           // NOTE: Don't reset isCompleting here - the card will be replaced/hidden
                           // when parent refreshes. This keeps the spinner visible during transition.
                         } catch (error) {
