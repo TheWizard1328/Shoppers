@@ -862,6 +862,13 @@ export default function StopCard({
               {/* Navigation and Phone buttons - right justified - Only for assigned driver or app owner */}
               {isAssignedDriverOrAppOwner &&
               <div className="py-1 flex items-center gap-2 flex-shrink-0">
+                {finalDisplayPhone &&
+                <a
+                  href={`tel:${finalDisplayPhone.replace(/\D/g, '')}`}
+                  onClick={(e) => e.stopPropagation()} className="flex items-center justify-center w-11 h-11 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-600 transition-colors">
+                    <Phone className="w-5 h-5" />
+                </a>
+                }
                 {finalDisplayAddress &&
                 <a
                   href={(() => {
@@ -877,13 +884,6 @@ export default function StopCard({
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()} className="flex items-center justify-center w-11 h-11 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 transition-colors">
                     <Navigation className="w-5 h-5" />
-                </a>
-                }
-                {finalDisplayPhone &&
-                <a
-                  href={`tel:${finalDisplayPhone.replace(/\D/g, '')}`}
-                  onClick={(e) => e.stopPropagation()} className="flex items-center justify-center w-11 h-11 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-600 transition-colors">
-                    <Phone className="w-5 h-5" />
                 </a>
                 }
               </div>
