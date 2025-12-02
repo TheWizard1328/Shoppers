@@ -1297,7 +1297,7 @@ export default function Layout({ children, currentPageName }) {
       setAppUsers(allAppUsers);
 
       setDataLoaded(true);
-      console.log("✅ [Layout] === PHASE 3: INITIAL DATA LOAD COMPLETE (Stage 2 & 3 loading in background) ===")
+      console.log("✅ [Layout] === PHASE 3: INITIAL DATA LOAD COMPLETE (historical data loading in background) ===")
 
       } catch (error) {
       console.error("❌ [Layout] Error during full data load:", error);
