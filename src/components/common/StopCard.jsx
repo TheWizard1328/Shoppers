@@ -636,10 +636,10 @@ export default function StopCard({
             onClick && onClick(delivery);
           }
         }}>
-        <CardContent className="mx-1 px-3 py-2 flex flex-col">
+        <CardContent className="px-3 py-1 flex flex-col">
           {/* HEADER SECTION - Always Visible */}
           <div className="flex items-start gap-2">
-            <div className="flex flex-col gap-2 items-start items-center">
+            <div className="flex flex-col gap-2.5 items-start items-center">
               <Badge
                 variant="secondary"
                 className={`font-bold text-xs px-2 py-0.5 text-white w-[40px] justify-center ${delivery.ampm_deliveries === 'AM' ? 'rounded-full' : 'rounded-xs'}`}
@@ -732,7 +732,7 @@ export default function StopCard({
               </div>
             </div>
 
-            <div className="flex flex-col gap-2 items-end items-center">
+            <div className="flex flex-col gap-2.5 items-end items-center">
               <div className="flex items-center gap-1">
                 {showStatusDropdown ?
                 <DropdownMenu>
@@ -797,7 +797,7 @@ export default function StopCard({
 
               {delivery.tracking_number && store?.abbreviation &&
               <Badge
-                variant="secondary" className="inline-flex items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 font-mono text-xs font-bold px-2 py-0.5"
+                variant="secondary" className="inline-flex items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 font-mono text-xs font-bold px-2 py-1.5"
                 style={{ backgroundColor: `${storeColor}20`, color: storeColor }}>
                   {(() => {
                   const storeAbbr = store.abbreviation.slice(0, 2).toUpperCase();
@@ -816,7 +816,7 @@ export default function StopCard({
           {!isStrippedDelivery && <div className="border-t border-slate-200"></div>}
 
           {!isStrippedDelivery && <div className="flex flex-col">
-            <div className="mt-2 flex items-start justify-between">
+            <div className="flex items-start justify-between">
               <div className="flex flex-col gap-0.5 flex-1 min-w-0">
                 {finalDisplayAddress ?
                 <>
