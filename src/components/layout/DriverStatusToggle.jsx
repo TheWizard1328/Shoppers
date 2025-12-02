@@ -227,20 +227,45 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
             console.log(`✅ Set isNextDelivery=true for next stop: ${nextStop.patient_name || 'Pickup'}`);
           }
           
-          // Re-run backend optimizer to update ETAs and generate polyline
-          console.log('🔄 Re-running route optimizer after going on duty...');
-          const now = new Date();
-          const clientCurrentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+          // Trigger AI-powered route optimization when going on duty
+          console.log('🤖 Triggering AI route optimization after going on duty...');
           
-          await optimizeDriverRoute({
+          // Get current GPS location if available
+          let currentGPS = null;
+          if (navigator.geolocation) {
+            try {
+              const pos = await new Promise((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                  enableHighAccuracy: true,
+                  timeout: 5000,
+                  maximumAge: 0
+                });
+              });
+              currentGPS = {
+                latitude: pos.coords.latitude,
+                longitude: pos.coords.longitude
+              };
+              console.log('📍 Got current GPS:', currentGPS);
+            } catch (gpsError) {
+              console.warn('📍 Could not get GPS:', gpsError.message);
+            }
+          }
+          
+          await triggerRouteOptimization({
             driverId: currentUser.id,
             deliveryDate: today,
-            forceReoptimization: true,
-            clientCurrentTime: clientCurrentTime,
-            currentLocation: null,
-            generatePolyline: true
+            currentLocation: currentGPS,
+            trigger: 'on_duty',
+            onNotification: (notification) => {
+              // Show toast notification
+              if (notification.type === 'route_optimized') {
+                toast.success(notification.message, {
+                  description: notification.aiSuggestion
+                });
+              }
+            }
           });
-          console.log('✅ Route optimizer completed');
+          console.log('✅ AI route optimization completed');
           
         } catch (trackingError) {
           console.warn('⚠️ Could not start location tracking or optimize:', trackingError.message);
