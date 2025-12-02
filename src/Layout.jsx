@@ -785,7 +785,8 @@ export default function Layout({ children, currentPageName }) {
         }
 
         // STAGGERED: Full entity refresh - each entity checks its own interval
-        const updates = await smartRefreshManager.performSmartRefresh(currentData, filters);
+        // CRITICAL: Pass isEntityUpdating to prevent refresh during Start button operations
+        const updates = await smartRefreshManager.performSmartRefresh(currentData, filters, isEntityUpdating);
         if (updates) {
           updateAppDataState(updates);
         }
