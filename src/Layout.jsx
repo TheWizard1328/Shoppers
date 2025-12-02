@@ -1205,12 +1205,12 @@ export default function Layout({ children, currentPageName }) {
 
       console.log('📦 [Layout] Loading all data (no geographic filtering)');
 
-      // Step 3: Patients
+      // Step 4: Patients
       await new Promise(resolve => setTimeout(resolve, 200));
       const patientsData = await getData('Patient', null, patientFilter);
       console.log(`✅ [Layout] Loaded ${patientsData.length} Patients (no date filter - all patients for city)`);
 
-      // Step 4: Three-stage delivery loading for faster initial load
+      // Step 5: Three-stage delivery loading for faster initial load
       // Stage 1: Last 30 days (returned immediately)
       // Stage 2 & 3: Rest of year + past years (background, merged into state)
       const stage1Deliveries = await loadDeliveriesThreeStage(
