@@ -408,6 +408,8 @@ export default function Layout({ children, currentPageName }) {
   const wakeLockRef = useRef(null);
   const onSmartRefreshCompleteRef = useRef(null);
 
+  // Remove unused driverLocationIntervalRef - now handled by unified refresh
+
   const [sidebarWidth, setSidebarWidth] = useState(240); // Will be loaded from user settings
       const [themePreference, setThemePreference] = useState('auto');
       const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
