@@ -109,12 +109,13 @@ export default function StopCard({
   onCODUpdate,
   stores = [],
   onCreateReturn,
-  isNextDelivery = false,
   onStartDelivery,
   allStopsPending = false,
   onDriverStatusChange,
   appUsers = []
 }) {
+  // CRITICAL: Use delivery.isNextDelivery from the entity, not the prop
+  const isNextDelivery = delivery?.isNextDelivery || false;
   // CRITICAL FIX: ALL HOOKS MUST BE CALLED UNCONDITIONALLY AT THE TOP
   // Initialize with delivery prop values to maintain consistency
   const [notesInput, setNotesInput] = useState(delivery?.delivery_notes || "");
