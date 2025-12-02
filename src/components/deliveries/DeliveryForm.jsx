@@ -1512,6 +1512,14 @@ export default function DeliveryForm({
     } else if (e.key === 'Enter') {
       e.preventDefault();
 
+      // If search field is empty, trigger Done button if available
+      if (!patientSearch.trim()) {
+        if (buttonState === 'done') {
+          handleBatchSave();
+          return;
+        }
+      }
+
       if (highlightedPatientIndex >= 0 && filteredPatients.length > 0) {
         const selectedPat = filteredPatients[highlightedPatientIndex];
         if (selectedPat) {
