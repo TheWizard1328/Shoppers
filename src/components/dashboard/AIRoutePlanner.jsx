@@ -201,7 +201,11 @@ ${JSON.stringify(routeData, null, 2)}
 
 OPTIMIZATION RULES (IN PRIORITY ORDER):
 1. START FROM DRIVER'S CURRENT LOCATION: ${driverInfo?.current_location ? 'The driver is currently at the location shown above. Begin route optimization from this point.' : 'No current location available - optimize from the first stop.'}
-2. PICKUP TIME WINDOWS ARE FIXED: Pickups have scheduled time windows that MUST be respected. Do NOT move pickups to accommodate delivery ordering - instead, move deliveries around pickups.
+2. PICKUP ORDER IS FIXED AND MUST NOT CHANGE: 
+   - Pickups have scheduled time windows that dictate their sequence in the route
+   - The ORDER of pickups relative to each other MUST be preserved exactly as given (based on their time windows)
+   - Example: If Pickup A has time window 09:00-10:00 and Pickup B has 11:00-12:00, Pickup A MUST come before Pickup B
+   - NEVER reorder pickups - only reorder DELIVERIES around the fixed pickup sequence
 3. CRITICAL: Each store's pickup MUST come before THAT STORE'S deliveries (not all pickups before all deliveries)
    - Store A pickup → Store A deliveries → Store B pickup → Store B deliveries (interleaved is OK)
    - NOT: Store A pickup → Store B pickup → Store A deliveries → Store B deliveries (grouped is WRONG)
