@@ -13,7 +13,7 @@ import { useAppData } from "../utils/AppDataContext";
  * Center: On Duty (Green) - Enables location sharing
  * Right: On Break (Blue) - Disables location sharing
  */
-export default function DriverStatusToggle({ currentUser, onStatusChange }) {
+export default function DriverStatusToggle({ currentUser, onStatusChange, onBreakStart, onBreakEnd }) {
   const [status, setStatus] = useState(currentUser?.driver_status || 'off_duty');
   const [isUpdating, setIsUpdating] = useState(false);
   const [appUserId, setAppUserId] = useState(null);
