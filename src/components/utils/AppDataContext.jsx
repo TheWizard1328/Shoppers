@@ -25,6 +25,8 @@ export const useAppData = () => {
       refreshData: () => {},
       isFormOverlayOpen: false,
       setIsFormOverlayOpen: () => {},
+      isEntityUpdating: false,
+      setIsEntityUpdating: () => {},
       onSmartRefreshComplete: null,
       setOnSmartRefreshComplete: () => {}
     };
