@@ -1232,7 +1232,7 @@ export default function Layout({ children, currentPageName }) {
         2, // yearsBack
         forceRefresh
       );
-      console.log(`✅ [Layout] Stage 1 loaded: ${stage1Deliveries.length} deliveries (last 30 days)`);
+      console.log(`✅ [Layout] Stage 1 loaded: ${stage1Deliveries.length} deliveries (today)`);
 
       // CRITICAL: Only admins can list all Users (others get 403)
       let authUsersData = [];
