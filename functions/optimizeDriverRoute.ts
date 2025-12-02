@@ -727,10 +727,12 @@ Deno.serve(async (req) => {
     console.log(`✅ Enriched ${enrichedIncomplete.length} deliveries with coordinates`);
     
     // =============================================
-    // STEP 5: Optimize the route
+    // STEP 5: Optimize the route with current location and time
     // =============================================
     console.log('');
     console.log('🏗️ STEP 5: Running optimization algorithm');
+    console.log(`   📍 Start location: ${startLocation ? `[${startLocation.lat.toFixed(6)}, ${startLocation.lon.toFixed(6)}]` : 'None'}`);
+    console.log(`   ⏰ Start time: ${startTime !== null ? minutesToTime(startTime) : 'None'}`);
     
     const optimizedRoute = optimizeStoreRoute(
       enrichedIncomplete,
@@ -741,6 +743,13 @@ Deno.serve(async (req) => {
     );
     
     console.log(`✅ Optimized route: ${optimizedRoute.length} stops`);
+    console.log('📋 Route order after optimization:');
+    optimizedRoute.forEach((stop, idx) => {
+      const name = stop.patient_id 
+        ? patients.find(p => p?.id === stop.patient_id)?.full_name || 'Unknown'
+        : stores.find(s => s?.id === stop.store_id)?.name + ' Pickup' || 'Pickup';
+      console.log(`   ${idx + 1}. ${name} - ETA: ${stop.estimated_arrival || 'calculating...'}`);
+    });
     
     // If we had a started delivery, prepend it to the optimized route
     if (startedDelivery) {
