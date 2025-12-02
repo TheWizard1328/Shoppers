@@ -713,9 +713,8 @@ export default function Layout({ children, currentPageName }) {
     }
   }, [currentUser, isFormOverlayOpen]);
 
-  // Smart refresh polling - full refresh every 15 seconds, driver locations every 5 seconds
-  const driverLocationIntervalRef = useRef(null);
-
+  // Unified real-time refresh system - single 5s interval handles all entity types
+  // Each entity has its own refresh interval managed by smartRefreshManager
   useEffect(() => {
     if (!initialGlobalFiltersSet || !currentUser || isFormOverlayOpen || isEntityUpdating || !dataLoaded) {
       if (refreshIntervalRef.current) {
@@ -723,124 +722,98 @@ export default function Layout({ children, currentPageName }) {
         clearInterval(refreshIntervalRef.current);
         refreshIntervalRef.current = null;
       }
-      if (driverLocationIntervalRef.current) {
-        clearInterval(driverLocationIntervalRef.current);
-        driverLocationIntervalRef.current = null;
-      }
       return;
     }
 
     // Add delay to ensure all connections are established
     const startupTimer = setTimeout(() => {
-      console.log('🚀 [Layout] Starting smart refresh polling (15s full, 5s locations)');
+      console.log('🚀 [Layout] Starting unified real-time refresh (5s tick, staggered intervals per entity)');
 
-    const performRefresh = async () => {
+    // Unified refresh function - runs every 5s, each entity checks its own interval
+    const performUnifiedRefresh = async () => {
       try {
         const selectedDateStr = globalFilters.getSelectedDate();
         const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
 
+        // Build current data and filters
         const currentData = {
           deliveries,
           patients,
-          appUsers
+          appUsers,
+          stores
         };
 
-      const filters = {
-        selectedDate,
-        deliveryFilter: {},
-        patientFilter: {},
-        activeDriverIds: drivers.map(d => d?.id).filter(Boolean)
-      };
+        const filters = {
+          selectedDate,
+          deliveryFilter: {},
+          patientFilter: {},
+          activeDriverIds: drivers.map(d => d?.id).filter(Boolean)
+        };
 
-      // Reconstruct filters based on current state
-      const selectedCityId = globalFilters.getSelectedCityId();
-      const selectedDriverId = globalFilters.getSelectedDriverId();
-      const cityStoreIds = stores.map(s => s?.id).filter(Boolean);
+        const selectedDriverId = globalFilters.getSelectedDriverId();
+        const cityStoreIds = stores.map(s => s?.id).filter(Boolean);
 
-      if (cityStoreIds.length > 0) {
-        filters.deliveryFilter.store_id = { $in: cityStoreIds };
-        filters.patientFilter.store_id = { $in: cityStoreIds };
-      }
-
-      const isAdmin = userHasRole(currentUser, 'admin');
-      const isDriver = userHasRole(currentUser, 'driver');
-      const isDispatcher = userHasRole(currentUser, 'dispatcher');
-
-      // 75KM RADIUS: Pure drivers (not dispatcher/admin) only see their own deliveries
-      if (isDriver && !isDispatcher && !isAdmin) {
-        filters.deliveryFilter.driver_id = currentUser.id;
-      }
-
-      // Single driver filter (when not in "All Drivers" mode)
-      if (selectedDriverId && selectedDriverId !== 'all') {
-        filters.deliveryFilter.driver_id = selectedDriverId;
-      }
-
-        const updates = await smartRefreshManager.performSmartRefresh(currentData, filters);
-        if (updates) {
-          updateAppDataState(updates);
-
-          // Call smart refresh complete callback if registered (for map view phase 2)
-          if (onSmartRefreshCompleteRef.current) {
-            console.log('🗺️ [Layout] Calling onSmartRefreshComplete callback');
-            onSmartRefreshCompleteRef.current();
-          }
+        if (cityStoreIds.length > 0) {
+          filters.deliveryFilter.store_id = { $in: cityStoreIds };
+          filters.patientFilter.store_id = { $in: cityStoreIds };
         }
-      } catch (error) {
-        console.error('🛑 [Layout] Smart refresh error:', error);
-        // Don't throw - just log and continue
-      }
-    };
 
-    // Fast driver location + active delivery status refresh (5 seconds) for real-time map updates
-    const performLocationRefresh = async () => {
-      try {
-        const selectedDateStr = globalFilters.getSelectedDate();
-        const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
+        const isAdmin = userHasRole(currentUser, 'admin');
+        const isDriver = userHasRole(currentUser, 'driver');
+        const isDispatcher = userHasRole(currentUser, 'dispatcher');
 
-        // Refresh driver locations
+        if (isDriver && !isDispatcher && !isAdmin) {
+          filters.deliveryFilter.driver_id = currentUser.id;
+        }
+
+        if (selectedDriverId && selectedDriverId !== 'all') {
+          filters.deliveryFilter.driver_id = selectedDriverId;
+        }
+
+        // FAST: Driver locations (5s) - highest priority for real-time map
         const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers);
         if (locationUpdates?.hasChanges) {
           setAppUsers(locationUpdates.appUsers);
         }
 
-        // Also refresh active delivery statuses for real-time map updates
-        const deliveryUpdates = await smartRefreshManager.refreshActiveDeliveryStatuses(deliveries, selectedDate);
-        if (deliveryUpdates?.hasChanges) {
-          setDeliveries(deliveryUpdates.deliveries);
+        // FAST: Active delivery statuses (5s) - for real-time map markers
+        const activeDeliveryUpdates = await smartRefreshManager.refreshActiveDeliveryStatuses(deliveries, selectedDate);
+        if (activeDeliveryUpdates?.hasChanges) {
+          setDeliveries(activeDeliveryUpdates.deliveries);
+        }
+
+        // STAGGERED: Full entity refresh - each entity checks its own interval
+        const updates = await smartRefreshManager.performSmartRefresh(currentData, filters);
+        if (updates) {
+          updateAppDataState(updates);
         }
 
         // Notify map of any updates
-        if ((locationUpdates?.hasChanges || deliveryUpdates?.hasChanges) && onSmartRefreshCompleteRef.current) {
+        const hasAnyUpdates = locationUpdates?.hasChanges || activeDeliveryUpdates?.hasChanges || updates;
+        if (hasAnyUpdates && onSmartRefreshCompleteRef.current) {
           onSmartRefreshCompleteRef.current();
         }
       } catch (error) {
-        // Silently handle location refresh errors
-        console.warn('⚠️ [Layout] Fast refresh error:', error.message);
+        console.warn('⚠️ [Layout] Refresh error:', error.message);
       }
     };
 
-      // Initial refresh
-      performRefresh();
+      // Initial refresh after short delay
+      setTimeout(performUnifiedRefresh, 100);
 
-      // Set up intervals - full refresh every 15s, locations every 5s
-      refreshIntervalRef.current = setInterval(performRefresh, 15000);
-      driverLocationIntervalRef.current = setInterval(performLocationRefresh, 5000);
-    }, 500); // 500ms delay to let WebSocket connections establish
+      // Single unified interval - 5 seconds
+      refreshIntervalRef.current = setInterval(performUnifiedRefresh, 5000);
+    }, 500);
 
     return () => {
       clearTimeout(startupTimer);
-      console.log('🛑 [Layout] Stopping smart refresh polling');
+      console.log('🛑 [Layout] Stopping real-time refresh');
       if (refreshIntervalRef.current) {
         clearInterval(refreshIntervalRef.current);
         refreshIntervalRef.current = null;
       }
-      if (driverLocationIntervalRef.current) {
-        clearInterval(driverLocationIntervalRef.current);
-        driverLocationIntervalRef.current = null;
-      }
     };
-    }, [initialGlobalFiltersSet, currentUser, isFormOverlayOpen, dataLoaded, updateAppDataState, appUsers, deliveries]);
+    }, [initialGlobalFiltersSet, currentUser, isFormOverlayOpen, dataLoaded, updateAppDataState, appUsers, deliveries, stores, drivers]);
 
     // Wake Lock API and visibility change handler
     useEffect(() => {
