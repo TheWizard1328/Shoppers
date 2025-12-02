@@ -1170,16 +1170,10 @@ export default function Layout({ children, currentPageName }) {
       const selectedYear = selectedDate.getFullYear();
 
       console.log(`📅 [Layout] Starting sequential data loading with rate limit protection...`);
+      console.log(`📋 [Layout] Load order: AppUsers → Cities → Stores → Patients → Deliveries`);
 
-      // CRITICAL: Fetch fresh cities if the local state is empty (can happen on first load)
+      // Cities are checked in Step 2 of the loading sequence
       let workingCities = cities;
-      if (!workingCities || workingCities.length === 0) {
-        console.log('⚠️ [Layout] Cities array is empty, fetching fresh cities...');
-        workingCities = await City.list();
-        workingCities.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
-        setCities(workingCities);
-        console.log(`✅ [Layout] Fetched ${workingCities.length} cities`);
-      }
 
       const isAdmin = userHasRole(currentUser, 'admin');
 
