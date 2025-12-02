@@ -2630,13 +2630,9 @@ export default function DeliveriesPage() {
     let cityFilteredDrivers = driversWithRoles; // Start with drivers that have relevant roles
 
     if (userHasRole(currentUser, 'admin')) {
-      // Admins can filter by selected city from dropdown
-      if (selectedCityId && selectedCityId !== 'all') {
-        cityFilteredDrivers = driversWithRoles.filter((d) => d.city_id === selectedCityId);
-        console.log(`👑 Admin - filtered to city ${selectedCityId}: ${cityFilteredDrivers.length} drivers`);
-      } else {
-        console.log('👑 Admin - showing all cities');
-      }
+      // Admins see ALL drivers regardless of city filter
+      console.log('👑 Admin - showing all drivers from all cities');
+      // No city filtering for admins - they see everything
     } else if (userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) {
       // Dispatchers and drivers only see drivers from their own city
       if (currentUser.city_id) {
