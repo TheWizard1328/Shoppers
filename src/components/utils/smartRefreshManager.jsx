@@ -162,9 +162,14 @@ class SmartRefreshManager {
 
   /**
    * Smart refresh for AppUsers (includes driver_status, location, etc.)
+   * Now with faster driver location polling (5s) vs full data (15s)
    */
-  async refreshAppUsers(currentAppUsers) {
+  async refreshAppUsers(currentAppUsers, forceLocationRefresh = false) {
       try {
+          const now = Date.now();
+          const timeSinceLastLocationRefresh = now - this.lastDriverLocationRefresh;
+          const shouldRefreshLocations = forceLocationRefresh || timeSinceLastLocationRefresh >= this.driverLocationRefreshInterval;
+          
           const lastTimestamp = getLatestUpdateTimestamp(currentAppUsers);
           
           let queryFilter = {};
@@ -173,15 +178,17 @@ class SmartRefreshManager {
               queryFilter.updated_date = {
                   $gte: lastTimestamp.toISOString()
               };
-              console.log(`🔍 [SmartRefresh] Fetching AppUsers updated since ${lastTimestamp.toISOString()}`);
-          } else {
-              console.log(`🔍 [SmartRefresh] Fetching all AppUsers (no timestamp)`);
           }
 
           const updatedAppUsers = await base44.entities.AppUser.filter(queryFilter);
 
           if (!updatedAppUsers || updatedAppUsers.length === 0) {
               return null;
+          }
+          
+          // Track location refresh time
+          if (shouldRefreshLocations) {
+              this.lastDriverLocationRefresh = now;
           }
 
           const diff = diffEntityArrays(currentAppUsers, updatedAppUsers);
@@ -190,30 +197,41 @@ class SmartRefreshManager {
               return null;
           }
           
-          logDiffStats('AppUser', diff);
-
-          // Log specific changes
-          diff.toUpdate.forEach(update => {
+          // Only log if significant changes (not just location updates during frequent polling)
+          const hasSignificantChanges = diff.toUpdate.some(update => {
               const current = currentAppUsers.find(u => u.user_id === update.user_id);
-              const changedFields = [];
-              
-              if (current) {
-                  if (current.driver_status !== update.driver_status) {
-                      changedFields.push(`driver_status: ${current.driver_status} → ${update.driver_status}`);
-                  }
-                  if (current.current_latitude !== update.current_latitude || 
-                      current.current_longitude !== update.current_longitude) {
-                      changedFields.push(`location updated`);
-                  }
-                  if (current.location_tracking_enabled !== update.location_tracking_enabled) {
-                      changedFields.push(`tracking: ${current.location_tracking_enabled} → ${update.location_tracking_enabled}`);
-                  }
-              }
-              
-              if (changedFields.length > 0) {
-                  console.log(`   • ${update.user_name || update.user_id}: ${changedFields.join(', ')}`);
-              }
+              if (!current) return true;
+              return current.driver_status !== update.driver_status ||
+                     current.location_tracking_enabled !== update.location_tracking_enabled ||
+                     JSON.stringify(current.store_ids) !== JSON.stringify(update.store_ids);
           });
+          
+          if (hasSignificantChanges) {
+              logDiffStats('AppUser', diff);
+
+              // Log specific changes
+              diff.toUpdate.forEach(update => {
+                  const current = currentAppUsers.find(u => u.user_id === update.user_id);
+                  const changedFields = [];
+                  
+                  if (current) {
+                      if (current.driver_status !== update.driver_status) {
+                          changedFields.push(`driver_status: ${current.driver_status} → ${update.driver_status}`);
+                      }
+                      if (current.current_latitude !== update.current_latitude || 
+                          current.current_longitude !== update.current_longitude) {
+                          changedFields.push(`location updated`);
+                      }
+                      if (current.location_tracking_enabled !== update.location_tracking_enabled) {
+                          changedFields.push(`tracking: ${current.location_tracking_enabled} → ${update.location_tracking_enabled}`);
+                      }
+                  }
+                  
+                  if (changedFields.length > 0) {
+                      console.log(`   • ${update.user_name || update.user_id}: ${changedFields.join(', ')}`);
+                  }
+              });
+          }
       
       const mergedAppUsers = mergeEntityChanges(currentAppUsers, diff);
       
@@ -224,6 +242,71 @@ class SmartRefreshManager {
       
     } catch (error) {
       console.error('❌ [SmartRefresh] Error refreshing AppUsers:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Fast driver location refresh - polls AppUsers for location changes only
+   * Called more frequently (5s) than full smart refresh (15s)
+   */
+  async refreshDriverLocations(currentAppUsers) {
+    try {
+      const now = Date.now();
+      const timeSinceLastRefresh = now - this.lastDriverLocationRefresh;
+      
+      // Only refresh if 5 seconds have passed
+      if (timeSinceLastRefresh < this.driverLocationRefreshInterval) {
+        return null;
+      }
+      
+      this.lastDriverLocationRefresh = now;
+      
+      // Only fetch AppUsers with location tracking enabled and on_duty status
+      const locationFilter = {
+        location_tracking_enabled: true,
+        driver_status: 'on_duty'
+      };
+      
+      const activeDrivers = await base44.entities.AppUser.filter(locationFilter);
+      
+      if (!activeDrivers || activeDrivers.length === 0) {
+        return null;
+      }
+      
+      // Check for location changes
+      let hasLocationChanges = false;
+      const updatedAppUsers = currentAppUsers.map(au => {
+        const activeDriver = activeDrivers.find(ad => ad.user_id === au.user_id);
+        if (activeDriver) {
+          // Check if location actually changed
+          if (au.current_latitude !== activeDriver.current_latitude ||
+              au.current_longitude !== activeDriver.current_longitude ||
+              au.driver_status !== activeDriver.driver_status) {
+            hasLocationChanges = true;
+            return { ...au, ...activeDriver };
+          }
+        }
+        return au;
+      });
+      
+      if (!hasLocationChanges) {
+        return null;
+      }
+      
+      console.log(`📍 [SmartRefresh] Driver locations updated (${activeDrivers.length} active drivers)`);
+      
+      return {
+        hasChanges: true,
+        appUsers: updatedAppUsers
+      };
+      
+    } catch (error) {
+      if (error.message?.includes('WebSocket') || error.message?.includes('closed')) {
+        console.warn('⚠️ [SmartRefresh] WebSocket issue during location refresh');
+        return null;
+      }
+      console.error('❌ [SmartRefresh] Error refreshing driver locations:', error);
       return null;
     }
   }
