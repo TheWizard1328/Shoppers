@@ -754,10 +754,18 @@ export default function StopCard({
                       key={status}
                       onClick={async (e) => {
                         e.stopPropagation();
-                        // Pass skipAutoCenter=false for finished statuses so ETAs get recalculated
-                        const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-                        const skipAutoCenter = !finishedStatuses.includes(status);
-                        await onStatusUpdate(delivery.id, status, {}, skipAutoCenter);
+                        
+                        console.log('⏸️ [STATUS MENU] Pausing smart refresh...');
+                        setIsEntityUpdating(true);
+                        
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        console.log('✅ [STATUS MENU] Smart refresh paused');
+                        
+                        try {
+                          // Pass skipAutoCenter=false for finished statuses so ETAs get recalculated
+                          const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+                          const skipAutoCenter = !finishedStatuses.includes(status);
+                          await onStatusUpdate(delivery.id, status, {}, skipAutoCenter);
 
                         // Send notification for failed status
                         if (status === 'failed' && userHasRole(currentUser, 'driver')) {
@@ -778,6 +786,12 @@ export default function StopCard({
                             store,
                             appUsers
                           });
+                        }
+                        } finally {
+                          console.log('▶️ [STATUS MENU] Resuming smart refresh');
+                          setIsEntityUpdating(false);
+                          await new Promise(resolve => setTimeout(resolve, 100));
+                          console.log('✅ [STATUS MENU] Status change cycle complete');
                         }
                       }}
                       className="capitalize">
@@ -1477,7 +1491,12 @@ export default function StopCard({
                       onClick={async (e) => {
                         e.stopPropagation();
                         setIsRetrying(true);
-                        setIsEntityUpdating(true); // Pause smart refresh
+                        console.log('⏸️ [RETRY] Pausing smart refresh...');
+                        setIsEntityUpdating(true);
+                        
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        console.log('✅ [RETRY] Smart refresh paused');
+                        
                         try {
                           await ensureDriverOnline();
                           await onStatusUpdate(delivery.id, isPickup ? 'en_route' : 'in_transit');
@@ -1493,7 +1512,10 @@ export default function StopCard({
                           }
                         } finally {
                           setIsRetrying(false);
-                          setIsEntityUpdating(false); // Resume smart refresh
+                          console.log('▶️ [RETRY] Resuming smart refresh');
+                          setIsEntityUpdating(false);
+                          await new Promise(resolve => setTimeout(resolve, 100));
+                          console.log('✅ [RETRY] Retry cycle complete');
                         }
                       }}
                       size="sm"
@@ -1509,7 +1531,12 @@ export default function StopCard({
                       onClick={async (e) => {
                         e.stopPropagation();
                         setIsCompleting(true);
-                        setIsEntityUpdating(true); // Pause smart refresh
+                        console.log('⏸️ [COMPLETE] Pausing smart refresh...');
+                        setIsEntityUpdating(true);
+                        
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        console.log('✅ [COMPLETE] Smart refresh paused');
+                        
                         try {
                           // Auto-toggle driver online if offline
                           await ensureDriverOnline();
@@ -1587,7 +1614,13 @@ export default function StopCard({
                         } catch (error) {
                           console.error('Complete delivery error:', error);
                           setIsCompleting(false);
-                          setIsEntityUpdating(false); // Resume smart refresh on error
+                          console.log('▶️ [COMPLETE] Resuming smart refresh (error)');
+                          setIsEntityUpdating(false);
+                        } finally {
+                          console.log('▶️ [COMPLETE] Resuming smart refresh');
+                          setIsEntityUpdating(false);
+                          await new Promise(resolve => setTimeout(resolve, 100));
+                          console.log('✅ [COMPLETE] Complete cycle finished');
                         }
                       }}
                       size="sm"
@@ -1600,7 +1633,12 @@ export default function StopCard({
                     <Button onClick={async (e) => {
                       e.stopPropagation();
                       setIsStarting(true);
-                      setIsEntityUpdating(true); // Pause smart refresh
+                      console.log('⏸️ [START] Pausing smart refresh...');
+                      setIsEntityUpdating(true);
+                      
+                      await new Promise(resolve => setTimeout(resolve, 100));
+                      console.log('✅ [START] Smart refresh paused');
+                      
                       try {
                         await ensureDriverOnline();
 
@@ -1625,7 +1663,10 @@ export default function StopCard({
                         alert('Failed to start delivery. Please try again.');
                       } finally {
                         setIsStarting(false);
-                        setIsEntityUpdating(false); // Resume smart refresh
+                        console.log('▶️ [START] Resuming smart refresh');
+                        setIsEntityUpdating(false);
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        console.log('✅ [START] Start cycle complete');
                       }
                     }} size="sm" disabled={isStarting} className="bg-blue-600 px-3 text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-8 border-r border-blue-500 !text-white">
                               {isStarting ? <Loader2 className="w-3 h-3 mr-1 !text-white animate-spin" /> : <Clock className="w-3 h-3 mr-1 !text-white" />}

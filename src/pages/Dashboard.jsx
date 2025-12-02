@@ -4345,7 +4345,13 @@ function Dashboard() {
   };
 
   const handleStatusUpdate = async (deliveryId, newStatus, extraData = {}, skipAutoCenter = false) => {
-    setIsEntityUpdating(true); // Pause smart refresh
+    console.log('⏸️ [STATUS UPDATE] Pausing smart refresh...');
+    setIsEntityUpdating(true);
+    
+    // Wait 100ms to ensure smart refresh has paused before proceeding
+    await new Promise(resolve => setTimeout(resolve, 100));
+    console.log('✅ [STATUS UPDATE] Smart refresh paused, proceeding with update');
+    
     try {
       console.log('');
       console.log('═══════════════════════════════════');
@@ -4443,8 +4449,10 @@ function Dashboard() {
 
       const updateData = { status: newStatus, ...extraData };
 
-      if (['completed', 'failed', 'delivered'].includes(newStatus)) {
+      // CRITICAL: Cancelled pickups are treated as completed (with timestamp)
+      if (['completed', 'failed', 'delivered'].includes(newStatus) || (newStatus === 'cancelled' && isPickup)) {
         updateData.actual_delivery_time = currentTimeISO;
+        console.log(`⏰ Setting actual_delivery_time: ${currentTimeISO} (status: ${newStatus}${isPickup && newStatus === 'cancelled' ? ', pickup cancelled = completed' : ''})`);
       } else {
         updateData.actual_delivery_time = null;
       }
@@ -4633,7 +4641,12 @@ function Dashboard() {
       console.error('');
       alert('Failed to update delivery status. Please try again.');
     } finally {
-      setIsEntityUpdating(false); // Resume smart refresh
+      console.log('▶️ [STATUS UPDATE] Resuming smart refresh');
+      setIsEntityUpdating(false);
+      
+      // Wait 100ms before allowing new updates to prevent race conditions
+      await new Promise(resolve => setTimeout(resolve, 100));
+      console.log('✅ [STATUS UPDATE] Update cycle complete');
     }
   };
 
@@ -4729,9 +4742,13 @@ function Dashboard() {
   };
 
   const handleStartDelivery = async (deliveryId) => {
-    console.log('🚀 [START] Button clicked - calling backend optimizer');
+    console.log('🚀 [START] Button clicked - pausing smart refresh...');
     
-    setIsEntityUpdating(true); // Pause smart refresh during reorder
+    setIsEntityUpdating(true);
+    
+    // Wait 100ms to ensure smart refresh has paused
+    await new Promise(resolve => setTimeout(resolve, 100));
+    console.log('✅ [START] Smart refresh paused, proceeding with start delivery');
     
     try {
       const deliveryFromUI = deliveriesWithStopOrder.find((d) => d && d.id === deliveryId);
@@ -4786,7 +4803,11 @@ function Dashboard() {
       console.error('❌ [START] Failed:', error.message);
       alert('Failed to start delivery. Please try again.');
     } finally {
-      setIsEntityUpdating(false); // Resume smart refresh
+      console.log('▶️ [START] Resuming smart refresh');
+      setIsEntityUpdating(false);
+      
+      await new Promise(resolve => setTimeout(resolve, 100));
+      console.log('✅ [START] Start delivery cycle complete');
     }
   };
 
