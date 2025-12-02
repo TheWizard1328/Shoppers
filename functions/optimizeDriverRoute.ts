@@ -581,27 +581,32 @@ Deno.serve(async (req) => {
       }
     }
     
-    // Sort remaining incomplete deliveries by time window
+    // Sort remaining incomplete deliveries by pickup time windows FIRST, then regular deliveries
     incompleteDeliveries.sort((a, b) => {
-      // Pickups should come before their associated deliveries
       const aIsPickup = !a.patient_id;
       const bIsPickup = !b.patient_id;
       
-      // Get time window start (fallback to delivery_time_start)
+      // CRITICAL: Pickups ALWAYS come before deliveries to respect store time windows
+      if (aIsPickup && !bIsPickup) return -1;
+      if (!aIsPickup && bIsPickup) return 1;
+      
+      // For pickups: Sort strictly by their time windows (store pickup times)
+      if (aIsPickup && bIsPickup) {
+        const aTimeStart = a.delivery_time_start || a.time_window_start || '23:59';
+        const bTimeStart = b.delivery_time_start || b.time_window_start || '23:59';
+        return timeToMinutes(aTimeStart) - timeToMinutes(bTimeStart);
+      }
+      
+      // For deliveries: Sort by time window
       const aTimeStart = a.time_window_start || a.delivery_time_start || '23:59';
       const bTimeStart = b.time_window_start || b.delivery_time_start || '23:59';
       
       const aMinutes = timeToMinutes(aTimeStart);
       const bMinutes = timeToMinutes(bTimeStart);
       
-      // Sort primarily by time window
       if (aMinutes !== bMinutes) {
         return aMinutes - bMinutes;
       }
-      
-      // If same time, pickups come first
-      if (aIsPickup && !bIsPickup) return -1;
-      if (!aIsPickup && bIsPickup) return 1;
       
       // Finally, by existing stop_order
       return (a.stop_order || 0) - (b.stop_order || 0);
