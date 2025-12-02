@@ -671,8 +671,9 @@ export default function DeliveryMap({
     }
   }, [retractClustersRef]);
 
-  // NEW: State for zoom level overlay
+  // NEW: State for zoom level overlay - only shows on manual zoom, not FAB programmatic zoom
   const [showZoomOverlay, setShowZoomOverlay] = useState(false);
+  const zoomOverlayTimeoutRef = useRef(null);
 
   // NEW: State for delayed popups
   const popupTimeoutRef = useRef(null);
