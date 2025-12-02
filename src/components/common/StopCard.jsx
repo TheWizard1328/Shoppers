@@ -467,14 +467,14 @@ export default function StopCard({
 
     let statuses = [];
     if (isPickup) {
-      // Pickup statuses: Pending, Ready For Pickup, En Route
-      statuses = ['pending', 'Ready For Pickup', 'en_route', 'completed', 'failed'];
+      // Pickup statuses: Pending, Ready For Pickup, En Route, Completed, Cancelled
+      statuses = ['pending', 'Ready For Pickup', 'en_route', 'completed', 'cancelled'];
     } else {
-      // Delivery statuses: Pending, Ready For Pickup, In Transit
+      // Delivery statuses: Pending, Ready For Pickup, In Transit, Completed, Failed
       statuses = ['pending', 'Ready For Pickup', 'in_transit', 'completed', 'failed'];
     }
     return statuses.filter((s) => s !== delivery.status);
-  }, [delivery?.status, onStatusUpdate, currentUser, isPickup]);
+  }, [delivery?.status, onStatusUpdate, currentUser, isPickup, isAssignedDriverOrAppOwner]);
 
   // CRITICAL: Hide status dropdown when entire route is completed
   const showStatusDropdown = useMemo(() => {
