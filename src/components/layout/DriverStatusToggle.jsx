@@ -3,6 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { locationTracker } from "../utils/locationTracker";
 import { cn } from "@/lib/utils";
 import { optimizeDriverRoute } from "@/functions/optimizeDriverRoute";
+import { triggerRouteOptimization } from "../utils/realTimeRouteOptimizer";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useAppData } from "../utils/AppDataContext";
