@@ -1057,77 +1057,24 @@ export default function Layout({ children, currentPageName }) {
         return;
       }
 
-      // Get driver's deliveries to find next stop
-      const driverDeliveries = await base44.entities.Delivery.filter({
-        driver_id: driverId,
-        delivery_date: deliveryDate
+      console.log('📍 [Pull-to-Refresh] Invoking optimizeDriverRoute with current location:', {
+        lat: driverAppUser.current_latitude,
+        lon: driverAppUser.current_longitude
       });
 
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-      const incompleteDeliveries = driverDeliveries
-        .filter(d => d && !finishedStatuses.includes(d.status))
-        .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-
-      if (incompleteDeliveries.length === 0) {
-        console.log('⚠️ [Pull-to-Refresh] No incomplete deliveries');
-        return;
-      }
-
-      const nextStop = incompleteDeliveries[0];
-
-      // Get next stop location
-      let nextStopLat = null;
-      let nextStopLon = null;
-
-      if (nextStop.patient_id) {
-        const patient = await base44.entities.Patient.filter({ id: nextStop.patient_id });
-        if (patient?.[0]?.latitude && patient?.[0]?.longitude) {
-          nextStopLat = patient[0].latitude;
-          nextStopLon = patient[0].longitude;
+      // Invoke backend optimizer with driver's current GPS location
+      // The backend will use the 500m threshold logic to determine the polyline origin
+      await base44.functions.invoke('optimizeDriverRoute', {
+        driverId: driverId,
+        deliveryDate: deliveryDate,
+        generatePolyline: true,
+        currentLocation: {
+          latitude: driverAppUser.current_latitude,
+          longitude: driverAppUser.current_longitude
         }
-      } else {
-        const store = await base44.entities.Store.filter({ id: nextStop.store_id });
-        if (store?.[0]?.latitude && store?.[0]?.longitude) {
-          nextStopLat = store[0].latitude;
-          nextStopLon = store[0].longitude;
-        }
-      }
-
-      if (!nextStopLat || !nextStopLon) {
-        console.log('⚠️ [Pull-to-Refresh] No next stop coordinates');
-        return;
-      }
-
-      // Update polyline entity directly with new coordinates
-      console.log('📍 [Pull-to-Refresh] Updating polyline coordinates');
-      const existingPolylines = await base44.entities.DriverRoutePolyline.filter({
-        driver_id: driverId,
-        delivery_date: deliveryDate
       });
 
-      const now = new Date();
-      const polylineData = {
-        segment_origin_lat: driverAppUser.current_latitude,
-        segment_origin_lon: driverAppUser.current_longitude,
-        segment_dest_lat: nextStopLat,
-        segment_dest_lon: nextStopLon,
-        last_generated_at: now.toISOString()
-      };
-
-      if (existingPolylines && existingPolylines.length > 0) {
-        await base44.entities.DriverRoutePolyline.update(
-          existingPolylines[0].id,
-          polylineData
-        );
-        console.log('✅ [Pull-to-Refresh] Polyline updated');
-      } else {
-        await base44.entities.DriverRoutePolyline.create({
-          driver_id: driverId,
-          delivery_date: deliveryDate,
-          ...polylineData
-        });
-        console.log('✅ [Pull-to-Refresh] Polyline created');
-      }
+      console.log('✅ [Pull-to-Refresh] Polyline updated via optimizeDriverRoute');
     } catch (error) {
       console.error('❌ [Pull-to-Refresh] Polyline update error:', error);
     }
