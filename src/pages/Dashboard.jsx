@@ -179,6 +179,7 @@ function Dashboard() {
     isDataLoaded,
     refreshData,
     setIsFormOverlayOpen,
+    setIsEntityUpdating,
     setOnSmartRefreshComplete
   } = useAppData();
 
@@ -4240,6 +4241,7 @@ function Dashboard() {
   };
 
   const handleStatusUpdate = async (deliveryId, newStatus, extraData = {}, skipAutoCenter = false) => {
+    setIsEntityUpdating(true); // Pause smart refresh
     try {
       console.log('');
       console.log('═══════════════════════════════════');
@@ -4526,6 +4528,8 @@ function Dashboard() {
       console.error('Stack trace:', error.stack);
       console.error('');
       alert('Failed to update delivery status. Please try again.');
+    } finally {
+      setIsEntityUpdating(false); // Resume smart refresh
     }
   };
 
@@ -4626,6 +4630,7 @@ function Dashboard() {
     console.log('🚀 [START DELIVERY] Beginning 6-step process');
     console.log('═══════════════════════════════════');
     
+    setIsEntityUpdating(true); // Pause smart refresh
     try {
       // Get delivery from UI state
       const deliveryFromUI = deliveriesWithStopOrder.find((d) => d && d.id === deliveryId);
@@ -4815,6 +4820,8 @@ function Dashboard() {
     } catch (error) {
       console.error('❌ [START DELIVERY] Error:', error);
       alert('Failed to start delivery. Please try again.');
+    } finally {
+      setIsEntityUpdating(false); // Resume smart refresh
     }
   };
 
