@@ -289,15 +289,11 @@ class SmartRefreshManager {
    */
   async refreshDriverLocations(currentAppUsers) {
     try {
-      const now = Date.now();
-      const timeSinceLastRefresh = now - this.lastDriverLocationRefresh;
-      
-      // Only refresh if 5 seconds have passed
-      if (timeSinceLastRefresh < this.driverLocationRefreshInterval) {
+      if (!this.shouldRefresh('driverLocation')) {
         return null;
       }
       
-      this.lastDriverLocationRefresh = now;
+      this.markRefreshed('driverLocation');
       
       // Only fetch AppUsers with location tracking enabled and on_duty status
       const locationFilter = {
