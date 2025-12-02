@@ -245,6 +245,7 @@ function Dashboard() {
   const [scrollToNextCardAfter, setScrollToNextCardAfter] = useState(null);
   const [dailyPolylineCount, setDailyPolylineCount] = useState(null);
   const [highlightedCardId, setHighlightedCardId] = useState(null);
+  const [currentToNextPolyline, setCurrentToNextPolyline] = useState(null);
   
   // Track previous map state for restoring when card is collapsed
   const [previousMapState, setPreviousMapState] = useState(null);
