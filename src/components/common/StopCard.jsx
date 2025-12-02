@@ -652,8 +652,8 @@ export default function StopCard({
 
               {isPickup && pendingPickups && pendingPickups.length > 0 &&
               <Badge
-                variant="secondary"
-                className="font-bold text-xs px-2 py-0.5 bg-purple-500 text-white justify-center rounded-lg">
+                variant="secondary" className="inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 font-bold text-xs px-2 py-0.5 bg-purple-500 !text-white justify-center rounded-lg">
+                
                   P: {pendingPickups.length}
                 </Badge>
               }
