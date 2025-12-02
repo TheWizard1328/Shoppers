@@ -4757,7 +4757,17 @@ function Dashboard() {
       // ═══════════════════════════════════
       // STEP 2: Update stop orders FIRST (move started to front)
       // ═══════════════════════════════════
-      console.log('🏗️ STEP 2: Updating stop orders');
+      console.log('🏗️ STEP 2: Updating stop orders for all incomplete deliveries');
+      
+      // CRITICAL: First, reset ALL isNextDelivery flags
+      console.log('   Resetting isNextDelivery for all deliveries...');
+      for (const delivery of allDriverDeliveries) {
+        if (!delivery) continue;
+        await base44.entities.Delivery.update(delivery.id, {
+          isNextDelivery: false
+        });
+      }
+      console.log('   ✅ Reset all isNextDelivery flags');
       
       // Update deliveries from next stop to started stop (shift them down)
       for (const delivery of incompleteStops) {
@@ -4770,8 +4780,7 @@ function Dashboard() {
           const newOrder = currentOrder + 1;
           console.log(`   Moving ${delivery.patient_name || 'Pickup'}: #${currentOrder} → #${newOrder}`);
           await base44.entities.Delivery.update(delivery.id, {
-            stop_order: newOrder,
-            isNextDelivery: false
+            stop_order: newOrder
           });
         }
       }
