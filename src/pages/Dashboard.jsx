@@ -308,22 +308,26 @@ function Dashboard() {
         hasSetInitialDriverDashboard.current = true;
 
         // Now apply saved driver selection (after marking as loaded)
-        // Priority: 1) Saved driver from settings, 2) Current driver if they have active route, 3) 'all'
-        let driverToSelect = settings.selected_driver_id || null;
+        // Priority for mobile drivers: ALWAYS select self if they have an active route (ignore saved settings)
+        // Priority for others: 1) Saved driver from settings, 2) 'all'
+        let driverToSelect = null;
         
-        // If no saved driver, check if current user is a driver with an active route today
-        if (!driverToSelect && currentUser && userHasRole(currentUser, 'driver')) {
+        // Mobile drivers with active route should ALWAYS see their own route first
+        if (isMobile && currentUser && userHasRole(currentUser, 'driver')) {
           const todayStr = format(new Date(), 'yyyy-MM-dd');
           const hasActiveRoute = deliveries?.some(d => 
             d && d.driver_id === currentUser.id && d.delivery_date === todayStr
           );
           if (hasActiveRoute) {
             driverToSelect = currentUser.id;
-            console.log(`👤 [Dashboard] No saved driver - current driver has active route, selecting self`);
+            console.log(`👤 [Dashboard] Mobile driver with active route - prioritizing self selection`);
           }
         }
         
-        driverToSelect = driverToSelect || 'all';
+        // Fall back to saved setting or 'all' if not a mobile driver with active route
+        if (!driverToSelect) {
+          driverToSelect = settings.selected_driver_id || 'all';
+        }
         console.log(`👤 [Dashboard] PHASE 1 Complete: Setting driver to: ${driverToSelect}`);
         setSelectedDriverId(driverToSelect);
         globalFilters.setSelectedDriverId(driverToSelect);
