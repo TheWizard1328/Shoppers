@@ -581,36 +581,98 @@ Deno.serve(async (req) => {
       }
     }
     
-    // Sort remaining incomplete deliveries by pickup time windows FIRST, then regular deliveries
-    incompleteDeliveries.sort((a, b) => {
-      const aIsPickup = !a.patient_id;
-      const bIsPickup = !b.patient_id;
-      
-      // CRITICAL: Pickups ALWAYS come before deliveries to respect store time windows
-      if (aIsPickup && !bIsPickup) return -1;
-      if (!aIsPickup && bIsPickup) return 1;
-      
-      // For pickups: Sort strictly by their time windows (store pickup times)
-      if (aIsPickup && bIsPickup) {
-        const aTimeStart = a.delivery_time_start || a.time_window_start || '23:59';
-        const bTimeStart = b.delivery_time_start || b.time_window_start || '23:59';
-        return timeToMinutes(aTimeStart) - timeToMinutes(bTimeStart);
-      }
-      
-      // For deliveries: Sort by time window
+    // =============================================
+    // PICKUP TIME WINDOW LOGIC:
+    // Pickups have time windows that indicate WHEN the items will be ready.
+    // We MUST respect these windows by ordering pickups chronologically.
+    // The ONLY exception is when a started delivery out-of-time-order is detected.
+    // =============================================
+    
+    // Separate pickups and deliveries for proper ordering
+    const pickups = incompleteDeliveries.filter(d => !d.patient_id);
+    const deliveriesOnly = incompleteDeliveries.filter(d => d.patient_id);
+    
+    console.log(`   📦 Organizing: ${pickups.length} pickups, ${deliveriesOnly.length} deliveries`);
+    
+    // Sort pickups STRICTLY by their time windows (these represent when items are READY)
+    pickups.sort((a, b) => {
+      const aTimeStart = a.delivery_time_start || a.time_window_start || '23:59';
+      const bTimeStart = b.delivery_time_start || b.time_window_start || '23:59';
+      return timeToMinutes(aTimeStart) - timeToMinutes(bTimeStart);
+    });
+    
+    console.log('   📋 Pickups sorted by time window:');
+    pickups.forEach((p, i) => {
+      const store = stores.find(s => s?.id === p.store_id);
+      const tw = p.delivery_time_start || p.time_window_start || 'No TW';
+      console.log(`      ${i + 1}. ${store?.name || 'Unknown'} - Ready at: ${tw}`);
+    });
+    
+    // Sort deliveries by their time windows
+    deliveriesOnly.sort((a, b) => {
       const aTimeStart = a.time_window_start || a.delivery_time_start || '23:59';
       const bTimeStart = b.time_window_start || b.delivery_time_start || '23:59';
-      
       const aMinutes = timeToMinutes(aTimeStart);
       const bMinutes = timeToMinutes(bTimeStart);
       
       if (aMinutes !== bMinutes) {
         return aMinutes - bMinutes;
       }
-      
-      // Finally, by existing stop_order
       return (a.stop_order || 0) - (b.stop_order || 0);
     });
+    
+    // INTERLEAVE pickups and deliveries based on time windows
+    // Goal: Do pickups BEFORE their items are needed for deliveries
+    const currentTimeStr = getCurrentTime(clientCurrentTime);
+    const currentMinutes = timeToMinutes(currentTimeStr);
+    
+    // Clear incompleteDeliveries and rebuild with proper ordering
+    incompleteDeliveries.length = 0;
+    
+    // Track which pickups have been added
+    const addedPickups = new Set();
+    const addedDeliveries = new Set();
+    
+    // Build the route by interleaving
+    // First: Add any pickups that are already past their time (should be done ASAP)
+    for (const pickup of pickups) {
+      const pickupTime = timeToMinutes(pickup.delivery_time_start || pickup.time_window_start || '00:00');
+      if (pickupTime <= currentMinutes && !addedPickups.has(pickup.id)) {
+        incompleteDeliveries.push(pickup);
+        addedPickups.add(pickup.id);
+      }
+    }
+    
+    // Then: Add remaining pickups and deliveries in time order
+    // Merge pickups and deliveries into a single time-ordered list
+    const allStops = [...pickups.filter(p => !addedPickups.has(p.id)), ...deliveriesOnly];
+    allStops.sort((a, b) => {
+      const aIsPickup = !a.patient_id;
+      const bIsPickup = !b.patient_id;
+      const aTime = timeToMinutes(a.delivery_time_start || a.time_window_start || '23:59');
+      const bTime = timeToMinutes(b.delivery_time_start || b.time_window_start || '23:59');
+      
+      // If times are equal, pickups come first
+      if (aTime === bTime) {
+        if (aIsPickup && !bIsPickup) return -1;
+        if (!aIsPickup && bIsPickup) return 1;
+      }
+      
+      return aTime - bTime;
+    });
+    
+    for (const stop of allStops) {
+      const isPickup = !stop.patient_id;
+      if (isPickup && addedPickups.has(stop.id)) continue;
+      if (!isPickup && addedDeliveries.has(stop.id)) continue;
+      
+      incompleteDeliveries.push(stop);
+      if (isPickup) {
+        addedPickups.add(stop.id);
+      } else {
+        addedDeliveries.add(stop.id);
+      }
+    }
     
     console.log('✅ Pre-sorted remaining incomplete deliveries:');
     incompleteDeliveries.forEach((d, i) => {
