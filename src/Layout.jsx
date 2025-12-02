@@ -772,6 +772,12 @@ export default function Layout({ children, currentPageName }) {
           filters.deliveryFilter.driver_id = selectedDriverId;
         }
 
+        // CRITICAL: Skip all refreshes if entity update in progress
+        if (isEntityUpdating) {
+          console.log('🔄 [Layout] ⏸️ Smart refresh SKIPPED - entity update in progress');
+          return;
+        }
+
         // FAST: Driver locations (5s) - highest priority for real-time map
         const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers);
         if (locationUpdates?.hasChanges) {
