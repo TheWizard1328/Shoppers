@@ -985,6 +985,33 @@ Deno.serve(async (req) => {
         
         // Only proceed if we have both origin and destination
         if (originLat && originLon && destLat && destLon) {
+          // Call Google Directions API to get actual driving route
+          console.log('   🌐 Calling Google Directions API...');
+          
+          let encodedPolyline = null;
+          let distanceKm = null;
+          let durationSeconds = null;
+          
+          try {
+            const directionsResponse = await base44.asServiceRole.functions.invoke('getGoogleDirections', {
+              origin_lat: originLat,
+              origin_lon: originLon,
+              dest_lat: destLat,
+              dest_lon: destLon
+            });
+            
+            if (directionsResponse?.encoded_polyline) {
+              encodedPolyline = directionsResponse.encoded_polyline;
+              distanceKm = directionsResponse.distance_km;
+              durationSeconds = directionsResponse.duration_seconds;
+              console.log(`   ✅ Got polyline from Google (${distanceKm?.toFixed(2)} km, ${Math.round((durationSeconds || 0) / 60)} min)`);
+            } else {
+              console.warn('   ⚠️ Google Directions returned no polyline');
+            }
+          } catch (directionsError) {
+            console.warn('   ⚠️ Google Directions API error:', directionsError.message);
+          }
+          
           const existingPolylines = await base44.asServiceRole.entities.DriverRoutePolyline.filter({
             driver_id: driverId,
             delivery_date: deliveryDate
@@ -995,10 +1022,17 @@ Deno.serve(async (req) => {
             segment_origin_lon: originLon,
             segment_dest_lat: destLat,
             segment_dest_lon: destLon,
+            encoded_polyline: encodedPolyline,
+            estimated_distance_km: distanceKm,
+            estimated_duration_seconds: durationSeconds,
             last_generated_at: new Date().toISOString()
           };
           
-          console.log('   📊 Polyline data:', polylineData);
+          console.log('   📊 Polyline data:', {
+            origin: `[${originLat.toFixed(6)}, ${originLon.toFixed(6)}]`,
+            dest: `[${destLat.toFixed(6)}, ${destLon.toFixed(6)}]`,
+            hasEncodedPolyline: !!encodedPolyline
+          });
           
           if (existingPolylines && existingPolylines.length > 0) {
             // Update existing record (don't create duplicates)
