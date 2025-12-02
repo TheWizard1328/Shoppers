@@ -1509,6 +1509,7 @@ export default function StopCard({
                       onClick={async (e) => {
                         e.stopPropagation();
                         setIsCompleting(true);
+                        setIsEntityUpdating(true); // Pause smart refresh
                         try {
                           // Auto-toggle driver online if offline
                           await ensureDriverOnline();
