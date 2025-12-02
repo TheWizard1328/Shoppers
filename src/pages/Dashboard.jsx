@@ -43,6 +43,7 @@ import RouteSummaryModal from "@/components/dashboard/RouteSummaryModal";
 import { isMobileDevice } from "@/components/utils/deviceUtils";
 import { optimizeDriverRoute } from "@/functions/optimizeDriverRoute";
 import { loadUserSettings, saveSetting, getSetting } from "@/components/utils/userSettingsManager";
+import { fabControlEvents } from "@/components/utils/fabControlEvents";
 
 // FIXED: StatBadge - always render with consistent hook structure
 const StatBadge = ({ icon: Icon, value, color, label, tooltip }) => {
