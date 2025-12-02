@@ -2614,14 +2614,17 @@ export default function DeliveriesPage() {
     console.log(`📊 Unique driver IDs in deliveries:`, driverIdsInDeliveries);
 
     // Get all drivers (active AND inactive) who have roles
-    // The previous implementation used `activeDriversWithRoles` which included dispatchers here.
-    // The new outline filters for 'driver' or 'admin' app_roles explicitly.
+    // Include drivers, admins, AND dispatchers for the overview
     const driversWithRoles = allUsers.filter((u) => {
       if (!u) return false;
       const roles = Array.isArray(u.app_roles) ? u.app_roles : [];
-      return roles.includes('driver') || roles.includes('admin');
+      const hasRelevantRole = roles.includes('driver') || roles.includes('admin') || roles.includes('dispatcher');
+      if (hasRelevantRole) {
+        console.log(`✅ Including user ${u.user_name || u.full_name} with roles: ${roles.join(', ')}`);
+      }
+      return hasRelevantRole;
     });
-    console.log(`👥 Total drivers with driver/admin roles: ${driversWithRoles.length}`);
+    console.log(`👥 Total drivers/admins/dispatchers with roles: ${driversWithRoles.length}`);
 
     // Filter by city based on user role and selected city
     let cityFilteredDrivers = driversWithRoles; // Start with drivers that have relevant roles
