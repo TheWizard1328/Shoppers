@@ -841,7 +841,7 @@ export default function StopCard({
 
                       return (
                         <>
-                              {unitNum && <span className="font-medium">#{unitNum}</span>}
+                              {unitNum && <span className="text-sm font-medium">#{unitNum}</span>}
                               {buzzerNum && <span className="font-medium">Buzz {buzzerNum}</span>}
                             </>);
 
@@ -849,7 +849,7 @@ export default function StopCard({
                         
                         {/* Phone number */}
                         {finalDisplayPhone &&
-                    <span className="font-medium">Ph: {formatPhoneNumber(finalDisplayPhone)}</span>
+                    <span className="text-sm font-medium">Ph: {formatPhoneNumber(finalDisplayPhone)}</span>
                     }
                       </div>
                   }
