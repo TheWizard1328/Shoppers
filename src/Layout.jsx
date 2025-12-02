@@ -1238,6 +1238,8 @@ export default function Layout({ children, currentPageName }) {
       // CRITICAL: Only admins can list all Users (others get 403)
       let authUsersData = [];
       if (userHasRole(currentUser, 'admin')) {
+        // Step 5: Users (admin only)
+        await new Promise(resolve => setTimeout(resolve, 300));
         authUsersData = await getData('User', null, null, forceRefresh);
         console.log(`✅ [Layout] Loaded ${authUsersData.length} platform Users (admin access)`);
       } else {
