@@ -5158,6 +5158,7 @@ function Dashboard() {
             currentUser={currentUser}
             driverLocations={isAllDriversMode ? allDriverLocations : []}
             currentDriverLocation={driverLocation}
+            currentToNextPolyline={currentToNextPolyline}
             center={mapCenter}
             zoom={mapZoom}
             shouldFitBounds={shouldFitBounds}
