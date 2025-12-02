@@ -713,7 +713,9 @@ export default function Layout({ children, currentPageName }) {
     }
   }, [currentUser, isFormOverlayOpen]);
 
-  // Smart refresh polling - runs every 15 seconds
+  // Smart refresh polling - full refresh every 15 seconds, driver locations every 5 seconds
+  const driverLocationIntervalRef = useRef(null);
+
   useEffect(() => {
     if (!initialGlobalFiltersSet || !currentUser || isFormOverlayOpen || isEntityUpdating || !dataLoaded) {
       if (refreshIntervalRef.current) {
@@ -721,18 +723,22 @@ export default function Layout({ children, currentPageName }) {
         clearInterval(refreshIntervalRef.current);
         refreshIntervalRef.current = null;
       }
+      if (driverLocationIntervalRef.current) {
+        clearInterval(driverLocationIntervalRef.current);
+        driverLocationIntervalRef.current = null;
+      }
       return;
     }
 
     // Add delay to ensure all connections are established
     const startupTimer = setTimeout(() => {
-      console.log('🚀 [Layout] Starting smart refresh polling (15 second interval)');
+      console.log('🚀 [Layout] Starting smart refresh polling (15s full, 5s locations)');
 
     const performRefresh = async () => {
       try {
         const selectedDateStr = globalFilters.getSelectedDate();
         const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
-        
+
         const currentData = {
           deliveries,
           patients,
@@ -764,7 +770,7 @@ export default function Layout({ children, currentPageName }) {
       if (isDriver && !isDispatcher && !isAdmin) {
         filters.deliveryFilter.driver_id = currentUser.id;
       }
-      
+
       // Single driver filter (when not in "All Drivers" mode)
       if (selectedDriverId && selectedDriverId !== 'all') {
         filters.deliveryFilter.driver_id = selectedDriverId;
@@ -773,7 +779,7 @@ export default function Layout({ children, currentPageName }) {
         const updates = await smartRefreshManager.performSmartRefresh(currentData, filters);
         if (updates) {
           updateAppDataState(updates);
-          
+
           // Call smart refresh complete callback if registered (for map view phase 2)
           if (onSmartRefreshCompleteRef.current) {
             console.log('🗺️ [Layout] Calling onSmartRefreshComplete callback');
@@ -786,11 +792,30 @@ export default function Layout({ children, currentPageName }) {
       }
     };
 
+    // Fast driver location refresh (5 seconds) for real-time map updates
+    const performLocationRefresh = async () => {
+      try {
+        const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers);
+        if (locationUpdates?.hasChanges) {
+          setAppUsers(locationUpdates.appUsers);
+
+          // Notify map of location updates
+          if (onSmartRefreshCompleteRef.current) {
+            onSmartRefreshCompleteRef.current();
+          }
+        }
+      } catch (error) {
+        // Silently handle location refresh errors
+        console.warn('⚠️ [Layout] Location refresh error:', error.message);
+      }
+    };
+
       // Initial refresh
       performRefresh();
 
-      // Set up interval
+      // Set up intervals - full refresh every 15s, locations every 5s
       refreshIntervalRef.current = setInterval(performRefresh, 15000);
+      driverLocationIntervalRef.current = setInterval(performLocationRefresh, 5000);
     }, 500); // 500ms delay to let WebSocket connections establish
 
     return () => {
@@ -800,8 +825,12 @@ export default function Layout({ children, currentPageName }) {
         clearInterval(refreshIntervalRef.current);
         refreshIntervalRef.current = null;
       }
+      if (driverLocationIntervalRef.current) {
+        clearInterval(driverLocationIntervalRef.current);
+        driverLocationIntervalRef.current = null;
+      }
     };
-    }, [initialGlobalFiltersSet, currentUser, isFormOverlayOpen, dataLoaded, updateAppDataState]);
+    }, [initialGlobalFiltersSet, currentUser, isFormOverlayOpen, dataLoaded, updateAppDataState, appUsers]);
 
     // Wake Lock API and visibility change handler
     useEffect(() => {
