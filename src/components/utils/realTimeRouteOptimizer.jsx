@@ -106,8 +106,15 @@ export const triggerRouteOptimization = async ({
 /**
  * Debounced optimization - waits for activity to settle before optimizing
  * Good for batch updates (e.g., multiple status changes)
+ * CRITICAL: Also respects mobile-only restriction
  */
 export const debouncedOptimization = (params, delay = 1000) => {
+  // Check mobile restriction early to avoid scheduling unnecessary timeouts
+  if (!isMobileDevice() && !params.forceFromDesktop) {
+    console.log('🚫 [RouteOptimizer] Debounced optimization skipped - desktop device');
+    return;
+  }
+  
   if (optimizationTimeout) {
     clearTimeout(optimizationTimeout);
   }
