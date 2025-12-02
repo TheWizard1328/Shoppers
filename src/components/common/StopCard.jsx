@@ -1570,6 +1570,7 @@ export default function StopCard({
                         } catch (error) {
                           console.error('Complete delivery error:', error);
                           setIsCompleting(false);
+                          setIsEntityUpdating(false); // Resume smart refresh on error
                         }
                       }}
                       size="sm"
