@@ -82,67 +82,70 @@ class SmartRefreshManager {
   }
 
   /**
-   * Smart refresh for current day deliveries (high frequency)
+   * Smart refresh for SELECTED DATE deliveries only (high frequency)
+   * OPTIMIZED: Only refreshes the selected date's deliveries - never touches historical data
    * Uses incremental updates based on updated_date timestamp
    */
   async refreshCurrentDayDeliveries(currentDeliveries, selectedDate, filters, stores = [], drivers = []) {
       try {
           const dateStr = format(selectedDate, 'yyyy-MM-dd');
           
-          // Get current day deliveries from state
-          const currentTodayDeliveries = currentDeliveries.filter(d => d && d.delivery_date === dateStr);
-          const otherDayDeliveries = currentDeliveries.filter(d => d && d.delivery_date !== dateStr);
+          // CRITICAL: Only work with selected date deliveries - leave all other dates untouched
+          const currentDateDeliveries = currentDeliveries.filter(d => d && d.delivery_date === dateStr);
           
-          // Get the latest update timestamp from current day's deliveries
-          const lastTimestamp = getLatestUpdateTimestamp(currentTodayDeliveries);
+          // Get the latest update timestamp from selected date's deliveries
+          const lastTimestamp = getLatestUpdateTimestamp(currentDateDeliveries);
+
+          // ALWAYS use incremental fetch - never do full reload
+          if (!lastTimestamp && currentDateDeliveries.length > 0) {
+              // Have deliveries but no timestamp - skip refresh, data is already loaded
+              return null;
+          }
 
           // Build filter for incremental fetch
-          const todayFilter = {
+          const dateFilter = {
               ...filters,
               delivery_date: dateStr
           };
           
           // If we have existing data, only fetch records updated since last check
-          if (lastTimestamp && currentTodayDeliveries.length > 0) {
-              todayFilter.updated_date = {
+          if (lastTimestamp) {
+              dateFilter.updated_date = {
                   $gte: lastTimestamp.toISOString()
               };
-              console.log(`🔍 [SmartRefresh] Incremental fetch for ${dateStr} (since ${lastTimestamp.toISOString()})`);
-          } else {
-              console.log(`🔍 [SmartRefresh] Full fetch for ${dateStr} (no existing data)`);
           }
       
-      const updatedDeliveries = await base44.entities.Delivery.filter(todayFilter);
+      const updatedDeliveries = await base44.entities.Delivery.filter(dateFilter);
       
-      // If incremental and no updates, skip processing
-      if (lastTimestamp && currentTodayDeliveries.length > 0) {
+      // If incremental and no updates, skip processing (most common case)
+      if (lastTimestamp) {
           if (!updatedDeliveries || updatedDeliveries.length === 0) {
-              return null; // No changes
+              return null; // No changes - this is the expected path most of the time
           }
-          console.log(`📦 [SmartRefresh] ${updatedDeliveries.length} deliveries updated since last check`);
+          console.log(`📦 [SmartRefresh] ${updatedDeliveries.length} deliveries for ${dateStr} updated since last check`);
       } else {
-          console.log(`📦 [SmartRefresh] Fetched ${updatedDeliveries?.length || 0} deliveries for ${dateStr}`);
+          // Only log full fetch if it actually happens (initial load)
           if (!updatedDeliveries || updatedDeliveries.length === 0) {
               return null;
           }
+          console.log(`📦 [SmartRefresh] Initial fetch: ${updatedDeliveries.length} deliveries for ${dateStr}`);
       }
       
       // Diff and merge
-      const diff = diffEntityArrays(currentTodayDeliveries, updatedDeliveries);
-      
-      // Only log if there are actual changes
-      if (diff.toUpdate.length > 0 || diff.toAdd.length > 0 || diff.toRemove.length > 0) {
-          logDiffStats('Delivery (Today)', diff);
-      }
+      const diff = diffEntityArrays(currentDateDeliveries, updatedDeliveries);
       
       // If no real changes, skip state update
       if (diff.toUpdate.length === 0 && diff.toAdd.length === 0 && diff.toRemove.length === 0) {
           return null;
       }
       
-      // Merge today's changes with other days
-      const mergedTodayDeliveries = mergeEntityChanges(currentTodayDeliveries, diff);
-      const finalDeliveries = [...otherDayDeliveries, ...mergedTodayDeliveries];
+      // Only log if there are actual changes
+      logDiffStats(`Delivery (${dateStr})`, diff);
+      
+      // CRITICAL: Merge only selected date changes, preserve ALL other dates exactly as-is
+      const mergedDateDeliveries = mergeEntityChanges(currentDateDeliveries, diff);
+      const otherDateDeliveries = currentDeliveries.filter(d => d && d.delivery_date !== dateStr);
+      const finalDeliveries = [...otherDateDeliveries, ...mergedDateDeliveries];
       
       return {
         hasChanges: true,
@@ -150,7 +153,6 @@ class SmartRefreshManager {
       };
       
     } catch (error) {
-      // Gracefully handle WebSocket and network errors
       if (error.message?.includes('WebSocket') || error.message?.includes('closed')) {
         console.warn('⚠️ [SmartRefresh] WebSocket connection issue, skipping delivery refresh');
         return null;
