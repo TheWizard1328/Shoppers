@@ -4766,9 +4766,8 @@ function Dashboard() {
 
       console.log(`✅ [START] Moved to #${nextStopOrder} - optimizer will update ETAs in background`);
 
-      // Immediate UI refresh
-      invalidateDeliveriesForDate(deliveryDate);
-      await refreshData();
+      // DON'T refresh - let background optimizer handle it to prevent data wipe
+      console.log('✅ [START] Stop orders updated - UI will update via smart refresh');
 
       // Scroll to card
       setSelectedCardId(null);
@@ -4784,25 +4783,26 @@ function Dashboard() {
         setMapViewTrigger((prev) => prev + 1);
       }
 
-      // Background optimization (non-blocking)
-      optimizeDriverRoute({
-        driverId: driverId,
-        deliveryDate: deliveryDate,
-        currentLocation: driverLocation ? {
-          lat: driverLocation.latitude,
-          lon: driverLocation.longitude
-        } : null,
-        startedDeliveryId: deliveryId,
-        clientCurrentTime: format(new Date(), 'HH:mm'),
-        generatePolyline: true
-      }).then(() => {
-        console.log('✅ [START] Background optimization complete');
-        fetchPolylineCount();
-        invalidateDeliveriesForDate(deliveryDate);
-        refreshData();
-      }).catch((error) => {
-        console.warn('⚠️ [START] Background optimization failed:', error.message);
-      });
+      // Background optimization (non-blocking) - wait 3 seconds after start
+      setTimeout(() => {
+        console.log('🔄 [START] Starting background optimization (3s delay)...');
+        optimizeDriverRoute({
+          driverId: driverId,
+          deliveryDate: deliveryDate,
+          currentLocation: driverLocation ? {
+            lat: driverLocation.latitude,
+            lon: driverLocation.longitude
+          } : null,
+          startedDeliveryId: deliveryId,
+          clientCurrentTime: format(new Date(), 'HH:mm'),
+          generatePolyline: true
+        }).then(() => {
+          console.log('✅ [START] Background optimization complete - smart refresh will pick up changes');
+          fetchPolylineCount();
+        }).catch((error) => {
+          console.warn('⚠️ [START] Background optimization failed:', error.message);
+        });
+      }, 3000);
 
     } catch (error) {
       console.error('❌ [START] Failed:', error.message);
