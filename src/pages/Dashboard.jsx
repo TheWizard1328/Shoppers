@@ -308,8 +308,22 @@ function Dashboard() {
         hasSetInitialDriverDashboard.current = true;
 
         // Now apply saved driver selection (after marking as loaded)
-        // Use 'all' as default if no saved selection
-        const driverToSelect = settings.selected_driver_id || 'all';
+        // Priority: 1) Saved driver from settings, 2) Current driver if they have active route, 3) 'all'
+        let driverToSelect = settings.selected_driver_id || null;
+        
+        // If no saved driver, check if current user is a driver with an active route today
+        if (!driverToSelect && currentUser && userHasRole(currentUser, 'driver')) {
+          const todayStr = format(new Date(), 'yyyy-MM-dd');
+          const hasActiveRoute = deliveries?.some(d => 
+            d && d.driver_id === currentUser.id && d.delivery_date === todayStr
+          );
+          if (hasActiveRoute) {
+            driverToSelect = currentUser.id;
+            console.log(`👤 [Dashboard] No saved driver - current driver has active route, selecting self`);
+          }
+        }
+        
+        driverToSelect = driverToSelect || 'all';
         console.log(`👤 [Dashboard] PHASE 1 Complete: Setting driver to: ${driverToSelect}`);
         setSelectedDriverId(driverToSelect);
         globalFilters.setSelectedDriverId(driverToSelect);
