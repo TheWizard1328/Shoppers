@@ -1177,15 +1177,13 @@ export default function Layout({ children, currentPageName }) {
 
       const isAdmin = userHasRole(currentUser, 'admin');
 
-      // RATE LIMIT PROTECTION: Load data sequentially with small delays
+      // Load data sequentially: AppUsers → Cities → Stores → Patients → Deliveries
       // Step 1: AppUsers (needed for driver/dispatcher info)
-      await new Promise(resolve => setTimeout(resolve, 100));
       const allAppUsers = await getData('AppUser', null, null, forceRefresh);
       console.log(`✅ [Layout] Loaded ${allAppUsers.length} AppUsers`);
 
       // Step 2: Cities (if not already loaded)
       if (!workingCities || workingCities.length === 0) {
-        await new Promise(resolve => setTimeout(resolve, 150));
         workingCities = await City.list();
         workingCities.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
         setCities(workingCities);
@@ -1193,7 +1191,6 @@ export default function Layout({ children, currentPageName }) {
       }
 
       // Step 3: Stores
-      await new Promise(resolve => setTimeout(resolve, 200));
       const allStores = await getData('Store', null, null, forceRefresh);
       allStores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
       const allStoreIds = allStores.map(store => store && store.id).filter(Boolean);
@@ -1206,7 +1203,6 @@ export default function Layout({ children, currentPageName }) {
       console.log('📦 [Layout] Loading all data (no geographic filtering)');
 
       // Step 4: Patients
-      await new Promise(resolve => setTimeout(resolve, 200));
       const patientsData = await getData('Patient', null, patientFilter);
       console.log(`✅ [Layout] Loaded ${patientsData.length} Patients (no date filter - all patients for city)`);
 
