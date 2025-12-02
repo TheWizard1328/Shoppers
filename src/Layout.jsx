@@ -377,6 +377,7 @@ export default function Layout({ children, currentPageName }) {
   const hasSetInitialDriver = useRef(false);
 
   const [isFormOverlayOpen, setIsFormOverlayOpen] = useState(false);
+  const [isEntityUpdating, setIsEntityUpdating] = useState(false);
   const [showPatientImport, setShowPatientImport] = useState(false);
   const [showDeliveryImport, setShowDeliveryImport] = useState(false);
 
