@@ -822,7 +822,6 @@ export default function StopCard({
                 <>
                     {/* Main address without unit/buzzer */}
                     <div className="flex items-start gap-2 text-sm text-slate-700">
-                      <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
                       <span className="text-lg font-medium truncate">
                         {isPickup ? store?.address || '' : patient?.address || ''}
                       </span>
