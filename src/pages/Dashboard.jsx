@@ -238,6 +238,7 @@ function Dashboard() {
   const stopCardsContainerRef = useRef(null);
 
   const STOP_CARDS_BASE_HEIGHT = 145; // Fixed non-expanded height for map padding
+  const STOP_CARDS_EXPANDED_HEIGHT = 450; // Expanded card height for map padding
   const StopCardsHeight = STOP_CARDS_BASE_HEIGHT + 100;
 
   const mapLockTimeoutRef = useRef(null);
@@ -2107,9 +2108,9 @@ function Dashboard() {
             [store.latitude, store.longitude]
           ];
           
-          // Use increased padding for card clicks too
-          const visualCenterOffset = Math.round(StopCardsHeight);
-          const bottomPadding = StopCardsHeight + visualCenterOffset;
+          // CRITICAL: Use expanded height for padding calculation
+          const visualCenterOffset = Math.round(STOP_CARDS_EXPANDED_HEIGHT);
+          const bottomPadding = STOP_CARDS_EXPANDED_HEIGHT + visualCenterOffset;
           
           setShouldFitBounds({ 
             bounds, 
@@ -2123,8 +2124,8 @@ function Dashboard() {
           setMapZoom(null);
           setIsMapViewLocked(true);
         } else if (patient?.latitude && patient?.longitude) {
-          const visualCenterOffset = Math.round(StopCardsHeight);
-          const bottomPadding = StopCardsHeight + visualCenterOffset;
+          const visualCenterOffset = Math.round(STOP_CARDS_EXPANDED_HEIGHT);
+          const bottomPadding = STOP_CARDS_EXPANDED_HEIGHT + visualCenterOffset;
           
           setShouldFitBounds({ 
             bounds: [[patient.latitude, patient.longitude]], 
@@ -2141,8 +2142,8 @@ function Dashboard() {
       } else if (delivery.store_id) {
         const store = stores.find((s) => s.id === delivery.store_id);
         if (store?.latitude && store?.longitude) {
-          const visualCenterOffset = Math.round(StopCardsHeight);
-          const bottomPadding = StopCardsHeight + visualCenterOffset;
+          const visualCenterOffset = Math.round(STOP_CARDS_EXPANDED_HEIGHT);
+          const bottomPadding = STOP_CARDS_EXPANDED_HEIGHT + visualCenterOffset;
           
           setShouldFitBounds({ 
             bounds: [[store.latitude, store.longitude]], 
