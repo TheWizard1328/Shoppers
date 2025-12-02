@@ -295,14 +295,12 @@ const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, numbe
         ` : ''}
       </div>
       <style>
-        .store-marker:hover,
-        .store-marker.highlighted {
+        .store-marker:hover {
           z-index: 9999 !important;
           transform: scale(1.25);
           transition: transform 0.2s ease;
         }
-        .leaflet-marker-icon:has(.store-marker:hover),
-        .leaflet-marker-icon:has(.store-marker.highlighted) {
+        .leaflet-marker-icon:has(.store-marker:hover) {
           z-index: 9999 !important;
         }
       </style>
@@ -415,14 +413,12 @@ const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, nu
         ` : ''}
       </div>
       <style>
-        .delivery-marker:hover,
-        .delivery-marker.highlighted {
+        .delivery-marker:hover {
           z-index: 9999 !important;
           transform: scale(1.25);
           transition: transform 0.2s ease;
         }
-        .leaflet-marker-icon:has(.delivery-marker:hover),
-        .leaflet-marker-icon:has(.delivery-marker.highlighted) {
+        .leaflet-marker-icon:has(.delivery-marker:hover) {
           z-index: 9999 !important;
         }
       </style>
@@ -2678,16 +2674,16 @@ export default function DeliveryMap({
         @keyframes pulseHalo {
           0%, 100% {
             stroke-width: 2;
-            opacity: 0.9;
+            opacity: 0.85;
           }
           50% {
-            stroke-width: 3.5;
-            opacity: 0.4;
+            stroke-width: 4;
+            opacity: 0.3;
           }
         }
         
         .pulsating-halo {
-          animation: pulseHalo 1.2s ease-in-out infinite;
+          animation: pulseHalo 1s ease-in-out infinite;
         }
       `}</style>
     </div>
