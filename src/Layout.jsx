@@ -715,9 +715,9 @@ export default function Layout({ children, currentPageName }) {
 
   // Smart refresh polling - runs every 15 seconds
   useEffect(() => {
-    if (!initialGlobalFiltersSet || !currentUser || isFormOverlayOpen || !dataLoaded) {
+    if (!initialGlobalFiltersSet || !currentUser || isFormOverlayOpen || isEntityUpdating || !dataLoaded) {
       if (refreshIntervalRef.current) {
-        console.log('🛑 [Layout] Stopping smart refresh (conditions not met)');
+        console.log('🛑 [Layout] Stopping smart refresh (conditions not met)', { isFormOverlayOpen, isEntityUpdating });
         clearInterval(refreshIntervalRef.current);
         refreshIntervalRef.current = null;
       }
