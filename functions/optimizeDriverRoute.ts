@@ -123,6 +123,7 @@ const optimizeStoreRoute = (stops, startLocation, startTime, driverHome, patient
   if (!stops || stops.length === 0) return [];
   
   console.log(`  🔧 Optimizing route for ${stops.length} stops`);
+  console.log(`  ⏰ Start time: ${startTime !== null ? minutesToTime(startTime) : 'default 10:00'}`);
   
   const optimized = [];
   const remaining = [...stops];
@@ -133,44 +134,24 @@ const optimizeStoreRoute = (stops, startLocation, startTime, driverHome, patient
   let currentLocation = startLocation || { lat: 0, lon: 0 };
   let currentTime = startTime !== null ? startTime : 600; // Default 10:00
   
-  // Get current time for ignoring past time windows
-  const now = new Date();
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
-  
   // =============================================
   // CRITICAL: Prioritize in_transit deliveries FIRST
-  // Complete as many active deliveries as possible before pickups
+  // These are already started - must complete before anything else
   // =============================================
   const inTransitDeliveries = remaining.filter(s => s && s.status === 'in_transit' && s.patient_id);
-  const pickups = remaining.filter(s => s && !s.patient_id);
-  const otherDeliveries = remaining.filter(s => s && s.patient_id && s.status !== 'in_transit');
   
-  console.log(`  📊 Stop breakdown: ${inTransitDeliveries.length} in_transit, ${pickups.length} pickups, ${otherDeliveries.length} other deliveries`);
-  
-  // First: Complete all in_transit deliveries (sorted by distance from current location)
   if (inTransitDeliveries.length > 0) {
-    console.log(`  🚀 Processing ${inTransitDeliveries.length} in_transit deliveries FIRST (priority over pickups)`);
-    
-    // Sort in_transit by distance from current location
-    inTransitDeliveries.sort((a, b) => {
-      const distA = calculateDistance(currentLocation.lat, currentLocation.lon, a.latitude, a.longitude);
-      const distB = calculateDistance(currentLocation.lat, currentLocation.lon, b.latitude, b.longitude);
-      return distA - distB;
-    });
+    console.log(`  🚀 Processing ${inTransitDeliveries.length} in_transit deliveries FIRST`);
     
     for (const delivery of inTransitDeliveries) {
-      // Remove from remaining
       const idx = remaining.findIndex(s => s && s.id === delivery.id);
       if (idx !== -1) {
         remaining.splice(idx, 1);
       }
       
-      // Calculate ETA
       const distance = calculateDistance(
-        currentLocation.lat,
-        currentLocation.lon,
-        delivery.latitude,
-        delivery.longitude
+        currentLocation.lat, currentLocation.lon,
+        delivery.latitude, delivery.longitude
       );
       const travelTime = estimateTravelTime(distance, minutesToTime(currentTime));
       currentTime += travelTime;
@@ -180,7 +161,6 @@ const optimizeStoreRoute = (stops, startLocation, startTime, driverHome, patient
       
       const stopDuration = delivery.extra_time || 5;
       currentTime += stopDuration;
-      
       currentLocation = { lat: delivery.latitude, lon: delivery.longitude };
       
       optimized.push(delivery);
@@ -190,151 +170,63 @@ const optimizeStoreRoute = (stops, startLocation, startTime, driverHome, patient
     }
   }
   
-  // Now process remaining stops (pickups and pending deliveries) with normal algorithm
+  // =============================================
+  // TIME WINDOW BASED ORDERING
+  // Group stops by their time windows and process in order
+  // =============================================
+  console.log(`  📋 Ordering ${remaining.length} remaining stops by TIME WINDOW`);
+  
+  // Sort remaining stops STRICTLY by time window start
+  remaining.sort((a, b) => {
+    const aTime = timeToMinutes(a.delivery_time_start || a.time_window_start || '23:59');
+    const bTime = timeToMinutes(b.delivery_time_start || b.time_window_start || '23:59');
+    return aTime - bTime;
+  });
+  
+  // Log sorted order
+  remaining.forEach((stop, i) => {
+    const isPickup = !stop.patient_id;
+    const tw = stop.delivery_time_start || stop.time_window_start || 'No TW';
+    const name = isPickup ? 'Pickup' : (patients?.find(p => p?.id === stop.patient_id)?.full_name || 'Unknown');
+    console.log(`    ${i + 1}. ${isPickup ? '🏪' : '📦'} ${name} - TW: ${tw}`);
+  });
+  
+  // Process stops in time window order
   while (remaining.length > 0) {
-    let bestIndex = -1;
-    let bestScore = -Infinity;
+    let selectedIndex = -1;
     
-    // Calculate centroid of remaining stops for lookahead scoring
-    const remainingCentroid = calculateCentroid(
-      remaining.filter(stopItem => stopItem && stopItem.latitude && stopItem.longitude)
-    );
-    
+    // Find the next stop we CAN do (respecting pickup-before-delivery constraint)
     for (let i = 0; i < remaining.length; i++) {
       const stop = remaining[i];
+      if (!stop || !stop.latitude || !stop.longitude) continue;
       
-      if (!stop) continue;
-      
-      // Skip if no location
-      if (!stop.latitude || !stop.longitude) {
-        continue;
-      }
-      
-      // CRITICAL: Check pickup-before-delivery constraint using PUID
-      if (stop.patient_id) { // This is a delivery
+      // Check pickup-before-delivery constraint
+      if (stop.patient_id && stop.puid) {
         const patientName = patients?.find(p => p?.id === stop.patient_id)?.full_name || '';
         const deliveryNotes = stop.delivery_notes || '';
+        const isInterStore = deliveryNotes.toLowerCase().includes('interstore') || 
+                            patientName.toLowerCase().includes('interstore');
         
-        const isInterStoreDelivery = 
-          deliveryNotes.toLowerCase().includes('interstore') ||
-          patientName.toLowerCase().includes('interstore');
-        
-        if (!isInterStoreDelivery && stop.puid) {
-          if (!completedPickups.has(stop.puid)) {
-            const pickupIndex = remaining.findIndex(stopItem => 
-              stopItem && !stopItem.patient_id && stopItem.stop_id === stop.puid
-            );
-            
-            if (pickupIndex !== -1) {
-              continue; // Pickup exists but hasn't been done - SKIP
-            }
+        if (!isInterStore && !completedPickups.has(stop.puid)) {
+          // Check if pickup still exists in remaining
+          const pickupExists = remaining.some(s => s && !s.patient_id && s.stop_id === stop.puid);
+          if (pickupExists) {
+            continue; // Skip - pickup must be done first
           }
         }
       }
       
-      // Calculate distance from current location to this stop
-      const distanceToStop = calculateDistance(
-        currentLocation.lat,
-        currentLocation.lon,
-        stop.latitude,
-        stop.longitude
-      );
-      
-      // Calculate time factors
-      const travelTime = estimateTravelTime(distanceToStop, minutesToTime(currentTime));
-      const arrivalTime = currentTime + travelTime;
-      
-      // PRIMARY SCORE: Time Window Urgency (most important)
-      let timeWindowScore = 0;
-      const isPickup = !stop.patient_id;
-      
-      if (stop.time_window_start && stop.time_window_end) {
-        const windowStart = timeToMinutes(stop.time_window_start);
-        const windowEnd = timeToMinutes(stop.time_window_end);
-        
-        const minutesUntilWindowEnd = windowEnd - arrivalTime;
-        const minutesUntilWindowStart = windowStart - arrivalTime;
-        
-        if (isPickup) {
-          // Pickups: Lower priority, but still prefer doing them on time
-          if (arrivalTime >= windowStart && arrivalTime <= windowEnd) {
-            timeWindowScore = 150; // Good to do pickup in window
-          } else if (arrivalTime > windowEnd) {
-            timeWindowScore = 50; // Late pickup - acceptable since deliveries take priority
-          } else {
-            timeWindowScore = 100; // Early pickup
-          }
-        } else {
-          // Patient deliveries: Heavily prioritize time window compliance
-          if (arrivalTime >= windowStart && arrivalTime <= windowEnd) {
-            // Perfect - within window, heavily favor stops with tighter windows
-            timeWindowScore = 500;
-            if (minutesUntilWindowEnd < 60) {
-              timeWindowScore += 200; // Urgent - less than 1 hour until window closes
-            }
-            if (minutesUntilWindowEnd < 30) {
-              timeWindowScore += 300; // Very urgent - less than 30 min
-            }
-          } else if (arrivalTime < windowStart) {
-            // Too early - prefer later
-            timeWindowScore = 100 - Math.abs(minutesUntilWindowStart);
-          } else {
-            // Late - heavily penalize
-            const minutesLate = arrivalTime - windowEnd;
-            timeWindowScore = -500 - (minutesLate * 10);
-          }
-        }
-      } else {
-        // No time window - neutral score
-        timeWindowScore = 50;
-      }
-      
-      // SECONDARY SCORE: Distance
-      const distanceScore = Math.max(0, 100 - distanceToStop * 10);
-      
-      // LOOKAHEAD SCORE (reduced weight)
-      let lookaheadScore = 0;
-      if (remainingCentroid && remaining.length > 1) {
-        const distanceToCentroid = calculateDistance(
-          stop.latitude,
-          stop.longitude,
-          remainingCentroid.lat,
-          remainingCentroid.lon
-        );
-        lookaheadScore = Math.max(0, 50 - distanceToCentroid * 5);
-      }
-      
-      // HOME DESTINATION SCORE (reduced weight)
-      let homeScore = 0;
-      if (driverHome && remaining.length <= 3) {
-        const distanceToHomeFromStop = calculateDistance(
-          stop.latitude,
-          stop.longitude,
-          driverHome.lat,
-          driverHome.lon
-        );
-        homeScore = Math.max(0, 50 - distanceToHomeFromStop * 5);
-      }
-      
-      // COMBINED SCORE (time window is now dominant factor)
-      const score = timeWindowScore + distanceScore + lookaheadScore + homeScore;
-      
-      if (score > bestScore) {
-        bestScore = score;
-        bestIndex = i;
-      }
+      selectedIndex = i;
+      break;
     }
     
-    if (bestIndex === -1) {
-      bestIndex = remaining.findIndex(stopItem => stopItem && stopItem.latitude && stopItem.longitude);
-      if (bestIndex === -1) {
-        break;
-      }
+    if (selectedIndex === -1) {
+      // No valid stop found - take first available
+      selectedIndex = remaining.findIndex(s => s && s.latitude && s.longitude);
+      if (selectedIndex === -1) break;
     }
     
-    // Add the best stop to optimized route
-    const selectedStop = remaining.splice(bestIndex, 1)[0];
-    
+    const selectedStop = remaining.splice(selectedIndex, 1)[0];
     if (!selectedStop) continue;
     
     // Mark pickup as completed
@@ -342,34 +234,25 @@ const optimizeStoreRoute = (stops, startLocation, startTime, driverHome, patient
       completedPickups.add(selectedStop.stop_id);
     }
     
-    // Calculate arrival time and update for next iteration
-    if (selectedStop.latitude && selectedStop.longitude) {
-      const distance = calculateDistance(
-        currentLocation.lat,
-        currentLocation.lon,
-        selectedStop.latitude,
-        selectedStop.longitude
-      );
-      
-      const travelTime = estimateTravelTime(distance, minutesToTime(currentTime));
-      currentTime += travelTime;
-      
-      selectedStop.delivery_time_eta = minutesToTime(currentTime);
-      selectedStop.estimated_arrival = minutesToTime(currentTime);
-      
-      // Add stop time and update currentTime
-      const stopDuration = selectedStop.extra_time || 5;
-      currentTime += stopDuration;
-      
-      // Update current location
-      currentLocation = {
-        lat: selectedStop.latitude,
-        lon: selectedStop.longitude
-      };
-    }
+    // Calculate ETA
+    const distance = calculateDistance(
+      currentLocation.lat, currentLocation.lon,
+      selectedStop.latitude, selectedStop.longitude
+    );
+    const travelTime = estimateTravelTime(distance, minutesToTime(currentTime));
+    currentTime += travelTime;
+    
+    selectedStop.delivery_time_eta = minutesToTime(currentTime);
+    selectedStop.estimated_arrival = minutesToTime(currentTime);
+    
+    const stopDuration = selectedStop.extra_time || 5;
+    currentTime += stopDuration;
+    currentLocation = { lat: selectedStop.latitude, lon: selectedStop.longitude };
     
     optimized.push(selectedStop);
   }
+  
+  console.log(`  ✅ Optimized ${optimized.length} stops by time window order`);
   
   return optimized;
 };
