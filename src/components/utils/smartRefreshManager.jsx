@@ -629,7 +629,7 @@ class SmartRefreshManager {
       if (hasAnyUpdates) {
           console.log('✅ [SmartRefresh] Updates found:', Object.keys(updates).join(', '));
 
-          // Detailed change summary
+          // Concise change summary - only log actual changes, not totals
           Object.keys(updates).forEach(key => {
               const oldData = currentData[key] || [];
               const newData = updates[key] || [];
@@ -640,49 +640,28 @@ class SmartRefreshManager {
                       return !oldItem || JSON.stringify(oldItem) !== JSON.stringify(newItem);
                   });
                   if (changes.length > 0) {
-                      console.log(`   📦 Deliveries: ${changes.length} changed/new`);
-                      changes.slice(0, 3).forEach(d => {
-                          console.log(`      - ${d.delivery_id || d.id}: ${d.status}`);
-                      });
+                      console.log(`   📦 ${changes.length} delivery changes`);
                   }
               } else if (key === 'patients') {
-                  console.log(`   👤 Patients: ${newData.length} total`);
+                  const changes = newData.filter(newItem => {
+                      const oldItem = oldData.find(o => o?.id === newItem?.id);
+                      return !oldItem || JSON.stringify(oldItem) !== JSON.stringify(newItem);
+                  });
+                  if (changes.length > 0) {
+                      console.log(`   👤 ${changes.length} patient changes`);
+                  }
               } else if (key === 'appUsers') {
                   const changes = newData.filter(newItem => {
                       const oldItem = oldData.find(o => o?.user_id === newItem?.user_id);
                       return !oldItem || JSON.stringify(oldItem) !== JSON.stringify(newItem);
                   });
                   if (changes.length > 0) {
-                      console.log(`   👥 AppUsers: ${changes.length} changed`);
-                      changes.forEach(au => {
-                          const old = oldData.find(o => o?.user_id === au?.user_id);
-                          const changedFields = [];
-                          if (old) {
-                              if (JSON.stringify(old.store_ids) !== JSON.stringify(au.store_ids)) {
-                                  changedFields.push(`store_ids: ${JSON.stringify(old.store_ids)} → ${JSON.stringify(au.store_ids)}`);
-                              }
-                              if (old.city_id !== au.city_id) changedFields.push(`city_id`);
-                              if (JSON.stringify(old.app_roles) !== JSON.stringify(au.app_roles)) {
-                                  changedFields.push(`app_roles`);
-                              }
-                              if (old.driver_status !== au.driver_status) {
-                                  changedFields.push(`driver_status: ${old.driver_status} → ${au.driver_status}`);
-                              }
-                          }
-                          if (changedFields.length > 0) {
-                              console.log(`      - ${au.user_name || au.user_id}: ${changedFields.join(', ')}`);
-                          }
-                      });
+                      console.log(`   👥 ${changes.length} appUser changes`);
                   }
-              } else if (key === 'stores') {
-                  console.log(`   🏪 Stores: ${newData.length} total`);
-              } else if (key === 'users') {
-                  console.log(`   👤 Users: ${newData.length} total`);
               }
           });
-      } else {
-          console.log('✅ [SmartRefresh] No updates needed');
       }
+      // Skip logging "no updates needed" - too noisy
       
       return hasAnyUpdates ? updates : null;
       
