@@ -153,8 +153,12 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
         locationTracker.setDriverStatus(newStatus);
         console.log('🛑 Location tracking stopped (off duty/on break)');
         
-        // If going on break, clear isNextDelivery for all incomplete stops
+        // If going on break, clear isNextDelivery and notify parent to unlock FAB
         if (newStatus === 'on_break') {
+          if (onBreakStart) {
+            console.log('🗺️ [DriverStatusToggle] Notifying parent: driver going on break');
+            onBreakStart();
+          }
           try {
             const todayDeliveries = await base44.entities.Delivery.filter({
               driver_id: currentUser?.id,
