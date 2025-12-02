@@ -246,8 +246,6 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
         });
 
         const cardSelectedDeliveries = selectedDeliveryIds[card.id] || [];
-        // CRITICAL: Use isNextDelivery directly from the entity instead of calculating it
-        const isNextForDriver = card.isNextDelivery === true;
 
         return (
           <div key={card.id} id={`stop-card-${card.id}`} className="flex-shrink-0">
@@ -284,7 +282,6 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
               onCODUpdate={onCODUpdate}
               onCreateReturn={onCreateReturn}
               onStartDelivery={onStartDelivery}
-              isNextDelivery={isNextForDriver}
               allDeliveries={allDeliveries}
               selectedDate={selectedDate}
               drivers={drivers}
