@@ -258,6 +258,9 @@ function Dashboard() {
   
   // Track phase before break for restoration
   const phaseBeforeBreakRef = useRef(null);
+  
+  // Route optimization notification
+  const [routeNotification, setRouteNotification] = useState(null);
 
   // CRITICAL: Calculate isDriver early (before useEffect that needs it)
   const isMobile = useMemo(() => isMobileDevice(), []);
