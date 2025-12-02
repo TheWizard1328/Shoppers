@@ -46,6 +46,26 @@ Deno.serve(async (req) => {
     console.log(`✅ [setDriverStatus] Status set to: ${newStatus}`);
     console.log(`📍 [setDriverStatus] Location tracking enabled: ${newStatus === 'on_duty'}`);
 
+    // When going off_duty, clear isNextDelivery flag on all incomplete deliveries for this driver
+    if (newStatus === 'off_duty') {
+      console.log(`🔄 [setDriverStatus] Clearing isNextDelivery flags for driver ${user.id}`);
+      
+      const today = new Date().toISOString().split('T')[0];
+      const incompleteDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+        driver_id: user.id,
+        delivery_date: today,
+        isNextDelivery: true
+      });
+      
+      console.log(`📦 [setDriverStatus] Found ${incompleteDeliveries.length} deliveries with isNextDelivery=true`);
+      
+      for (const delivery of incompleteDeliveries) {
+        await base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: false });
+      }
+      
+      console.log(`✅ [setDriverStatus] Cleared isNextDelivery on ${incompleteDeliveries.length} deliveries`);
+    }
+
     return Response.json({
       success: true,
       newStatus,
