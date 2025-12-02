@@ -585,58 +585,46 @@ class SmartRefreshManager {
   }
 
   /**
-   * Full smart refresh - checks all entities and only updates what's changed
-   * NOW WITH THROTTLING to prevent rate limits
+   * Full smart refresh - checks all entities based on their individual intervals
+   * Uses staggered refresh to prevent rate limits while keeping data fresh
    */
   async performSmartRefresh(currentData, filters) {
-    const now = Date.now();
-    const timeSinceLastRefresh = now - this.lastFullRefreshTime;
-
-    // Throttle: if last refresh was less than minRefreshInterval ago, skip
-    if (timeSinceLastRefresh < this.minRefreshInterval && this.lastFullRefreshTime > 0) {
-      console.log(`⏭️ [SmartRefresh] Throttled - last refresh was ${Math.round(timeSinceLastRefresh / 1000)}s ago (min: ${Math.round(this.minRefreshInterval / 1000)}s)`);
-      return null;
-    }
-    
     if (this.isRefreshing) {
-      console.log('⏭️ [SmartRefresh] Already refreshing, skipping...');
       return null;
     }
     
     this.isRefreshing = true;
-    this.lastFullRefreshTime = now;
     const updates = {};
     
     try {
-      console.log('🔄 [SmartRefresh] Starting refresh cycle...');
-      
-      // Refresh current day deliveries (high priority)
-      if (currentData.deliveries && filters.selectedDate) {
-          const deliveryUpdate = await this.refreshCurrentDayDeliveries(
-              currentData.deliveries,
-              filters.selectedDate,
-              filters.deliveryFilter,
-              filters.stores || [],
-              filters.drivers || []
-          );
+      // HIGH PRIORITY: Today's deliveries (10s interval)
+      if (currentData.deliveries && filters.selectedDate && this.shouldRefresh('todayDeliveries')) {
+        const deliveryUpdate = await this.refreshCurrentDayDeliveries(
+          currentData.deliveries,
+          filters.selectedDate,
+          filters.deliveryFilter,
+          filters.stores || [],
+          filters.drivers || []
+        );
         
         if (deliveryUpdate?.hasChanges) {
           updates.deliveries = deliveryUpdate.deliveries;
         }
+        this.markRefreshed('todayDeliveries');
       }
       
-      // Refresh AppUsers (includes driver_status, location, etc.)
-      if (currentData.appUsers) {
+      // HIGH PRIORITY: AppUsers - driver status, assignments (10s interval)
+      if (currentData.appUsers && this.shouldRefresh('appUsers')) {
         const appUserUpdate = await this.refreshAppUsers(currentData.appUsers);
         
         if (appUserUpdate?.hasChanges) {
           updates.appUsers = appUserUpdate.appUsers;
         }
+        this.markRefreshed('appUsers');
       }
       
-      // Refresh patients (LOW priority - only incremental updates)
-      // Patient data rarely changes during delivery operations
-      if (currentData.patients && currentData.patients.length > 0) {
+      // LOW PRIORITY: Patients (30s interval)
+      if (currentData.patients && currentData.patients.length > 0 && this.shouldRefresh('patients')) {
         const patientUpdate = await this.refreshPatients(
           currentData.patients,
           filters.patientFilter || {}
@@ -645,15 +633,18 @@ class SmartRefreshManager {
         if (patientUpdate?.hasChanges) {
           updates.patients = patientUpdate.patients;
         }
+        this.markRefreshed('patients');
       }
       
-      // SKIP store refresh during smart refresh - stores almost never change
-      // Stores are loaded on initial load and only need refresh on page reload
-      // if (currentData.stores) { ... }
-      
-      // SKIP full user refresh during smart refresh - handled by refreshAppUsers already
-      // Only refresh users on significant AppUser changes detected above
-      // if (currentData.appUsers) { ... }
+      // VERY LOW PRIORITY: Stores (60s interval)
+      if (currentData.stores && currentData.stores.length > 0 && this.shouldRefresh('stores')) {
+        const storeUpdate = await this.refreshStores(currentData.stores);
+        
+        if (storeUpdate?.hasChanges) {
+          updates.stores = storeUpdate.stores;
+        }
+        this.markRefreshed('stores');
+      }
       
       const hasAnyUpdates = Object.keys(updates).length > 0;
 
