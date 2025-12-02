@@ -4722,23 +4722,32 @@ function Dashboard() {
       // Desktop/dispatcher views should not trigger route optimization
       if (isMobileDevice()) {
         console.log('🔄 [START] Calling backend optimizer from mobile device...');
-        await optimizeDriverRoute({
-          driverId: driverId,
-          deliveryDate: deliveryDate,
-          currentLocation: driverLocation ? {
-            lat: driverLocation.latitude,
-            lon: driverLocation.longitude
-          } : null,
-          startedDeliveryId: deliveryId,
-          clientCurrentTime: format(new Date(), 'HH:mm'),
-          generatePolyline: true
-        });
+        try {
+          const optimizationResult = await optimizeDriverRoute({
+            driverId: driverId,
+            deliveryDate: deliveryDate,
+            currentLocation: driverLocation ? {
+              lat: driverLocation.latitude,
+              lon: driverLocation.longitude
+            } : null,
+            startedDeliveryId: deliveryId,
+            clientCurrentTime: format(new Date(), 'HH:mm'),
+            generatePolyline: true
+          });
+          
+          console.log('✅ [START] Backend optimizer complete:', optimizationResult.data);
+          fetchPolylineCount();
+        } catch (optimizerError) {
+          console.error('❌ [START] Backend optimizer failed:', optimizerError);
+          // Don't throw - status update already succeeded
+        }
       } else {
         console.log('⏭️ [START] Skipping optimizer - desktop device (mobile-only feature)');
       }
-      
-      console.log('✅ [START] Backend optimizer complete - isNextDelivery flag set');
-      fetchPolylineCount();
+
+      // Refresh data to show updated status
+      invalidate('Delivery');
+      await refreshData();
 
       // Scroll to card
       setSelectedCardId(null);
@@ -4756,7 +4765,8 @@ function Dashboard() {
 
     } catch (error) {
       console.error('❌ [START] Failed:', error.message);
-      alert('Failed to start delivery. Please try again.');
+      console.error('❌ [START] Error stack:', error.stack);
+      alert(`Failed to start delivery: ${error.message}`);
     } finally {
       console.log('▶️ [START] Resuming smart refresh');
       setIsEntityUpdating(false);
