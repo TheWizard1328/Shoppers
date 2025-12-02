@@ -18,7 +18,7 @@ class SmartRefreshManager {
     // Real-time refresh intervals (milliseconds) - AGGRESSIVELY INCREASED to prevent rate limits
     this.intervals = {
       driverLocation: 20000,     // 20s - driver GPS locations
-      activeDeliveries: 30000,   // 30s - active delivery statuses for map
+      activeDeliveries: 10000,   // 10s - active delivery statuses for map
       todayDeliveries: 60000,    // 60s - today's delivery changes
       appUsers: 60000,           // 60s - driver status, assignments
       patients: 300000,          // 5min - patient data rarely changes
