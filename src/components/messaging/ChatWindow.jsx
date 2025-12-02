@@ -5,12 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Send, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
 
-export default function ChatWindow({ 
-  currentUser, 
-  conversationId, 
-  otherUserId, 
+export default function ChatWindow({
+  currentUser,
+  conversationId,
+  otherUserId,
   otherUserName,
-  onBack 
+  onBack
 }) {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
@@ -35,7 +35,7 @@ export default function ChatWindow({
 
         // Mark unread messages as read
         const unreadMessages = allMessages.filter(
-          m => !m.read && m.receiver_id === currentUser?.id
+          (m) => !m.read && m.receiver_id === currentUser?.id
         );
         for (const msg of unreadMessages) {
           await base44.entities.Message.update(msg.id, { read: true });
@@ -72,7 +72,7 @@ export default function ChatWindow({
         read: false
       });
       setNewMessage('');
-      
+
       // Immediately fetch to show the new message
       const updatedMessages = await base44.entities.Message.filter(
         { conversation_id: conversationId },
@@ -97,19 +97,19 @@ export default function ChatWindow({
     return (
       <div className="flex items-center justify-center h-full">
         <div className="animate-spin w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full" />
-      </div>
-    );
+      </div>);
+
   }
 
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="p-3 border-b bg-white flex items-center gap-3">
-        {onBack && (
-          <Button variant="ghost" size="icon" onClick={onBack} className="lg:hidden">
+        {onBack &&
+        <Button variant="ghost" size="icon" onClick={onBack} className="lg:hidden">
             <ArrowLeft className="w-5 h-5" />
           </Button>
-        )}
+        }
         <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white font-semibold">
           {(otherUserName || '?')[0].toUpperCase()}
         </div>
@@ -118,34 +118,34 @@ export default function ChatWindow({
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50">
-        {messages.length === 0 && (
-          <div className="text-center text-slate-500 py-8">
+        {messages.length === 0 &&
+        <div className="text-center text-slate-500 py-8">
             <p>No messages yet. Start the conversation!</p>
           </div>
-        )}
+        }
         
         {messages.map((msg) => {
           const isOwnMessage = msg.sender_id === currentUser?.id;
           return (
             <div
               key={msg.id}
-              className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-[75%] rounded-2xl px-4 py-2 ${
-                  isOwnMessage
-                    ? 'bg-emerald-500 text-white rounded-br-sm'
-                    : 'bg-white text-slate-900 rounded-bl-sm shadow-sm'
-                }`}
-              >
+              className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
+
+              <div className="rounded-2xl bg-white text-slate-900 px-4 py-2 rounded-bl-sm max-w-[100%] shadow-sm">
+
+
+
+
+
+
                 <p className="whitespace-pre-wrap break-words">{msg.content}</p>
                 <p className={`text-xs mt-1 ${isOwnMessage ? 'text-emerald-100' : 'text-slate-400'}`}>
                   {msg.created_date && format(new Date(msg.created_date), 'h:mm a')}
                   {isOwnMessage && msg.read && ' • Read'}
                 </p>
               </div>
-            </div>
-          );
+            </div>);
+
         })}
         <div ref={messagesEndRef} />
       </div>
@@ -159,17 +159,17 @@ export default function ChatWindow({
             onChange={(e) => setNewMessage(e.target.value)}
             onKeyPress={handleKeyPress}
             className="flex-1"
-            disabled={isSending}
-          />
-          <Button 
-            onClick={handleSend} 
+            disabled={isSending} />
+
+          <Button
+            onClick={handleSend}
             disabled={!newMessage.trim() || isSending}
-            className="bg-emerald-500 hover:bg-emerald-600"
-          >
+            className="bg-emerald-500 hover:bg-emerald-600">
+
             <Send className="w-4 h-4" />
           </Button>
         </div>
       </div>
-    </div>
-  );
+    </div>);
+
 }
