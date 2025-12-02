@@ -819,105 +819,62 @@ export default function Layout({ children, currentPageName }) {
 
     // Wake Lock API and visibility change handler
     useEffect(() => {
-    // Wake Lock API - keep screen on when app is focused
-    const requestWakeLock = async () => {
-    if ('wakeLock' in navigator && document.visibilityState === 'visible') {
-    try {
-      wakeLockRef.current = await navigator.wakeLock.request('screen');
-      console.log('🔆 [Layout] Wake Lock acquired - screen will stay on');
-
-      wakeLockRef.current.addEventListener('release', () => {
-        console.log('🔅 [Layout] Wake Lock released');
-      });
-    } catch (err) {
-      console.warn('⚠️ [Layout] Wake Lock request failed:', err.message);
-    }
-    }
-    };
-
-    const releaseWakeLock = () => {
-    if (wakeLockRef.current) {
-    wakeLockRef.current.release();
-    wakeLockRef.current = null;
-    }
-    };
-
-    // Handle visibility change - refresh data and manage wake lock
-    const handleVisibilityChange = async () => {
-    if (document.visibilityState === 'visible') {
-    console.log('👁️ [Layout] App regained focus - triggering smart refresh');
-
-    // Re-acquire wake lock
-    await requestWakeLock();
-
-    // Trigger smart refresh if ready
-    if (initialGlobalFiltersSet && currentUser && dataLoaded && !isFormOverlayOpen) {
-      try {
-        const selectedDateStr = globalFilters.getSelectedDate();
-        const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
-
-        const currentData = {
-          deliveries,
-          patients,
-          appUsers
-        };
-
-        const filters = {
-          selectedDate,
-          deliveryFilter: {},
-          patientFilter: {},
-          activeDriverIds: drivers.map(d => d?.id).filter(Boolean)
-        };
-
-        const selectedDriverId = globalFilters.getSelectedDriverId();
-        const cityStoreIds = stores.map(s => s?.id).filter(Boolean);
-
-        if (cityStoreIds.length > 0) {
-          filters.deliveryFilter.store_id = { $in: cityStoreIds };
-          filters.patientFilter.store_id = { $in: cityStoreIds };
-        }
-
-        const isAdmin = userHasRole(currentUser, 'admin');
-        const isDriver = userHasRole(currentUser, 'driver');
-        const isDispatcher = userHasRole(currentUser, 'dispatcher');
-
-        if (!isAdmin) {
-          if (isDriver && !isDispatcher) {
-            filters.deliveryFilter.driver_id = currentUser.id;
+      // Wake Lock API - keep screen on when app is focused
+      const requestWakeLock = async () => {
+        if ('wakeLock' in navigator && document.visibilityState === 'visible') {
+          try {
+            wakeLockRef.current = await navigator.wakeLock.request('screen');
+            console.log('🔆 [Layout] Wake Lock acquired');
+            wakeLockRef.current.addEventListener('release', () => {
+              console.log('🔅 [Layout] Wake Lock released');
+            });
+          } catch (err) {
+            // Silently fail - wake lock not critical
           }
         }
+      };
 
-        if (selectedDriverId && selectedDriverId !== 'all') {
-          filters.deliveryFilter.driver_id = selectedDriverId;
+      const releaseWakeLock = () => {
+        if (wakeLockRef.current) {
+          wakeLockRef.current.release();
+          wakeLockRef.current = null;
         }
+      };
 
-        const updates = await smartRefreshManager.performSmartRefresh(currentData, filters);
-        if (updates) {
-          console.log('✅ [Layout] Focus refresh complete - updated data');
-          updateAppDataState(updates);
+      // Handle visibility change - force immediate refresh on focus
+      const handleVisibilityChange = async () => {
+        if (document.visibilityState === 'visible') {
+          console.log('👁️ [Layout] App regained focus - forcing immediate refresh');
+          await requestWakeLock();
+
+          // Force immediate refresh by resetting all interval timers
+          if (initialGlobalFiltersSet && currentUser && dataLoaded && !isFormOverlayOpen) {
+            // Reset smartRefreshManager timers to force immediate refresh
+            smartRefreshManager.lastRefreshTimes = {
+              driverLocation: 0,
+              activeDeliveries: 0,
+              todayDeliveries: 0,
+              appUsers: 0,
+              patients: 0,
+              stores: 0
+            };
+          }
+        } else {
+          releaseWakeLock();
         }
-      } catch (error) {
-        console.error('🛑 [Layout] Focus refresh error:', error);
+      };
+
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      if (document.visibilityState === 'visible') {
+        requestWakeLock();
       }
-    }
-    } else {
-    // Release wake lock when app loses focus
-    releaseWakeLock();
-    }
-    };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    // Request wake lock on initial load if visible
-    if (document.visibilityState === 'visible') {
-    requestWakeLock();
-    }
-
-    return () => {
-    document.removeEventListener('visibilitychange', handleVisibilityChange);
-    releaseWakeLock();
-    };
-    }, [initialGlobalFiltersSet, currentUser, dataLoaded, isFormOverlayOpen, deliveries, patients, appUsers, drivers, stores, updateAppDataState]);
+      return () => {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        releaseWakeLock();
+      };
+    }, [initialGlobalFiltersSet, currentUser, dataLoaded, isFormOverlayOpen]);
 
     // Trigger smart refresh when navigating between pages
     useEffect(() => {
