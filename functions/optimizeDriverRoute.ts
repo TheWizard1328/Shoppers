@@ -287,7 +287,20 @@ const optimizeStoreRoute = (stops, startLocation, startTime, driverHome, patient
       selectedStop.latitude, selectedStop.longitude
     );
     const travelTime = estimateTravelTime(distance, minutesToTime(currentTime));
-    currentTime += travelTime;
+    let arrivalTime = currentTime + travelTime;
+    
+    // CRITICAL: For pickups, ETA cannot be earlier than the pickup's time window start
+    // The time window represents when items will be READY for pickup
+    const isPickup = !selectedStop.patient_id;
+    if (isPickup) {
+      const pickupWindowStart = timeToMinutes(selectedStop.delivery_time_start || selectedStop.time_window_start || '00:00');
+      if (arrivalTime < pickupWindowStart) {
+        console.log(`    ⏰ Pickup ETA ${minutesToTime(arrivalTime)} is before window start ${minutesToTime(pickupWindowStart)} - adjusting to window start`);
+        arrivalTime = pickupWindowStart;
+      }
+    }
+    
+    currentTime = arrivalTime;
     
     selectedStop.delivery_time_eta = minutesToTime(currentTime);
     selectedStop.estimated_arrival = minutesToTime(currentTime);
