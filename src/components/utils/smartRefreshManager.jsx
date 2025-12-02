@@ -14,6 +14,8 @@ class SmartRefreshManager {
     this.lastRefreshTime = 0;
     this.minRefreshInterval = 14900; // ~15 seconds minimum between refreshes (with buffer for timing variations)
     this.lastFullRefreshTime = 0; // Track full refresh separately
+    this.lastDriverLocationRefresh = 0; // Track driver location refresh separately
+    this.driverLocationRefreshInterval = 5000; // 5 seconds for driver locations (more real-time)
   }
 
   /**
