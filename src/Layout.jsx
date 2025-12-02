@@ -792,21 +792,31 @@ export default function Layout({ children, currentPageName }) {
       }
     };
 
-    // Fast driver location refresh (5 seconds) for real-time map updates
+    // Fast driver location + active delivery status refresh (5 seconds) for real-time map updates
     const performLocationRefresh = async () => {
       try {
+        const selectedDateStr = globalFilters.getSelectedDate();
+        const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
+
+        // Refresh driver locations
         const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers);
         if (locationUpdates?.hasChanges) {
           setAppUsers(locationUpdates.appUsers);
+        }
 
-          // Notify map of location updates
-          if (onSmartRefreshCompleteRef.current) {
-            onSmartRefreshCompleteRef.current();
-          }
+        // Also refresh active delivery statuses for real-time map updates
+        const deliveryUpdates = await smartRefreshManager.refreshActiveDeliveryStatuses(deliveries, selectedDate);
+        if (deliveryUpdates?.hasChanges) {
+          setDeliveries(deliveryUpdates.deliveries);
+        }
+
+        // Notify map of any updates
+        if ((locationUpdates?.hasChanges || deliveryUpdates?.hasChanges) && onSmartRefreshCompleteRef.current) {
+          onSmartRefreshCompleteRef.current();
         }
       } catch (error) {
         // Silently handle location refresh errors
-        console.warn('⚠️ [Layout] Location refresh error:', error.message);
+        console.warn('⚠️ [Layout] Fast refresh error:', error.message);
       }
     };
 
