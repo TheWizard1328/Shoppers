@@ -139,13 +139,17 @@ class SmartRefreshManager {
    */
   async refreshCurrentDayDeliveries(currentDeliveries, selectedDate, filters, stores = [], drivers = []) {
       try {
+          console.log('🔄 [Smart Refresh] ━━━ Delivery Refresh Started ━━━');
           const dateStr = format(selectedDate, 'yyyy-MM-dd');
-          
+          console.log(`🔄 [Smart Refresh] Date: ${dateStr}`);
+
           // CRITICAL: Only work with selected date deliveries - leave all other dates untouched
           const currentDateDeliveries = currentDeliveries.filter(d => d && d.delivery_date === dateStr);
-          
+          console.log(`🔄 [Smart Refresh] Current deliveries in memory: ${currentDateDeliveries.length}`);
+
           // Get the latest update timestamp from selected date's deliveries
           const lastTimestamp = getLatestUpdateTimestamp(currentDateDeliveries);
+          console.log(`🔄 [Smart Refresh] Last update timestamp: ${lastTimestamp?.toISOString() || 'none'}`);
 
           // ALWAYS use incremental fetch - never do full reload
           if (!lastTimestamp && currentDateDeliveries.length > 0) {
