@@ -301,7 +301,6 @@ class SmartRefreshManager {
   
   /**
    * Fast driver location refresh - polls AppUsers for location changes only
-   * Called more frequently (5s) than full smart refresh (15s)
    */
   async refreshDriverLocations(currentAppUsers) {
     try {
@@ -310,6 +309,7 @@ class SmartRefreshManager {
       }
       
       this.markRefreshed('driverLocation');
+      await this.waitForRateLimit();
       
       // Only fetch AppUsers with location tracking enabled and on_duty status
       const locationFilter = {
