@@ -296,6 +296,11 @@ export const loadDeliveriesThreeStage = async (filters = {}, onStage2Complete = 
       console.log(`🔄 [dataManager] === STAGE 2: Loading last 30 days (1 week at a time) ===`);
       
       for (let weekNum = 0; weekNum < 4; weekNum++) {
+        // 500ms delay between weeks in Stage 2
+        if (weekNum > 0) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        
         const weekEndOffset = (weekNum * 7) + 1; // 1, 8, 15, 22
         const weekStartOffset = weekEndOffset + 6; // 7, 14, 21, 28
         
