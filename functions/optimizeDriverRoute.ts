@@ -119,11 +119,12 @@ const calculateCentroid = (locations) => {
 // ROUTE OPTIMIZATION LOGIC
 // =============================================
 
-const optimizeStoreRoute = (stops, startLocation, startTime, driverHome, patients) => {
+const optimizeStoreRoute = (stops, startLocation, startTime, driverHome, patients, hasCompletedStops) => {
   if (!stops || stops.length === 0) return [];
   
   console.log(`  🔧 Optimizing ${stops.length} stops with NEW RULES`);
   console.log(`  ⏰ Start time: ${startTime !== null ? minutesToTime(startTime) : 'default 10:00'}`);
+  console.log(`  ✅ Has completed stops: ${hasCompletedStops}`);
   
   const optimized = [];
   const remaining = [...stops];
@@ -164,15 +165,60 @@ const optimizeStoreRoute = (stops, startLocation, startTime, driverHome, patient
   }
   
   // =============================================
-  // PHASE 2: OPTIMIZED INTERLEAVING ALGORITHM
-  // Rules:
-  // 1. Pickups before their deliveries (unless delivery TW forces earlier)
-  // 2. Interstore deliveries ignore Rule 1
-  // 3. Maximize deliveries between pickups (don't force Store B pickup before Store A deliveries)
-  // 4. Shortest route while respecting time windows
-  // 5. Pickup TWs are estimates - used for ordering stores, not strict constraints
+  // PHASE 2: OPTIMIZATION ALGORITHM
+  // NEW RULE: If no completed stops, optimize STRICTLY by time windows (ignore distance)
+  // Otherwise: Use smart interleaving algorithm
   // =============================================
-  console.log(`  🎯 PHASE 2: Optimizing ${remaining.length} remaining stops with smart interleaving`);
+  console.log(`  🎯 PHASE 2: Optimizing ${remaining.length} remaining stops`);
+  
+  if (!hasCompletedStops) {
+    console.log('  📅 NO COMPLETED STOPS - Using strict time window ordering');
+    
+    // Sort all remaining stops by time window ONLY
+    remaining.sort((a, b) => {
+      const aTime = timeToMinutes(a.time_window_start || a.delivery_time_start || '23:59');
+      const bTime = timeToMinutes(b.time_window_start || b.delivery_time_start || '23:59');
+      return aTime - bTime;
+    });
+    
+    // Calculate ETAs in sequence
+    for (const stop of remaining) {
+      const distance = calculateDistance(
+        currentLocation.lat, currentLocation.lon,
+        stop.latitude, stop.longitude
+      );
+      const travelTime = estimateTravelTime(distance, minutesToTime(currentTime));
+      let arrivalTime = currentTime + travelTime;
+      
+      // For pickups, ETA cannot be earlier than window start
+      const isPickup = !stop.patient_id;
+      if (isPickup) {
+        const pickupWindowStart = timeToMinutes(stop.delivery_time_start || stop.time_window_start || '00:00');
+        if (arrivalTime < pickupWindowStart) {
+          arrivalTime = pickupWindowStart;
+        }
+      }
+      
+      currentTime = arrivalTime;
+      stop.delivery_time_eta = minutesToTime(currentTime);
+      stop.estimated_arrival = minutesToTime(currentTime);
+      
+      currentTime += (stop.extra_time || 5);
+      currentLocation = { lat: stop.latitude, lon: stop.longitude };
+      optimized.push(stop);
+      
+      const name = stop.patient_id 
+        ? patients?.find(p => p?.id === stop.patient_id)?.full_name || 'Unknown'
+        : 'Pickup';
+      console.log(`    ✅ #${optimized.length}: ${name} - TW: ${stop.time_window_start || stop.delivery_time_start} - ETA: ${stop.estimated_arrival}`);
+    }
+    
+    console.log(`  ✅ Optimized ${optimized.length} stops by time windows only`);
+    return optimized;
+  }
+  
+  // Has completed stops - use distance-based optimization with time window constraints
+  console.log(`  🎯 HAS COMPLETED STOPS - Using smart interleaving with distance optimization`);
   
   while (remaining.length > 0) {
     let bestIndex = -1;
@@ -746,12 +792,15 @@ Deno.serve(async (req) => {
     console.log(`   📍 Start location: ${startLocation ? `[${startLocation.lat.toFixed(6)}, ${startLocation.lon.toFixed(6)}]` : 'None'}`);
     console.log(`   ⏰ Start time: ${startTime !== null ? minutesToTime(startTime) : 'None'}`);
     
+    const hasCompletedStops = completedDeliveries.length > 0;
+    
     const optimizedRoute = optimizeStoreRoute(
       enrichedIncomplete,
       startLocation,
       startTime,
       driverHome,
-      patients
+      patients,
+      hasCompletedStops
     );
     
     console.log(`✅ Optimized route: ${optimizedRoute.length} stops`);
