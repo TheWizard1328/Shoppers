@@ -2879,6 +2879,21 @@ function Dashboard() {
         console.log('[AddToRoute] ═══════════════════════════════════');
 
         invalidate('Delivery');
+
+        // CRITICAL: Fetch fresh deliveries immediately after batch creation
+        const freshDeliveries = await base44.entities.Delivery.filter({
+          delivery_date: deliveryDate
+        });
+
+        console.log('[AddToRoute] ✅ Fetched fresh deliveries:', freshDeliveries.length);
+        console.log('[AddToRoute] 📊 Pending deliveries:', freshDeliveries.filter(d => d.status === 'pending').length);
+
+        // Update context immediately with fresh data
+        if (updateDeliveriesLocally) {
+          updateDeliveriesLocally(freshDeliveries);
+          console.log('[AddToRoute] ✅ Updated context with fresh deliveries');
+        }
+
         await refreshData();
 
         console.log('[AddToRoute] ✅ Data refreshed - new deliveries visible');
