@@ -267,11 +267,61 @@ Provide:
     let currentMinutes = timeToMinutes(currentTimeStr);
     let currentLoc = startLocation || { latitude: enrichedDeliveries[0].latitude, longitude: enrichedDeliveries[0].longitude };
     
-    // Sort by priority: in_transit first, then by time window urgency
+    // =============================================
+    // PICKUP-CENTRIC OPTIMIZATION STRATEGY
+    // 1. Order pickups by their time windows (e.g., Kingsway, Bonnie Doon AM, Scona, Meadows, Bonnie Doon PM)
+    // 2. Between each pickup, maximize deliveries that can be done en-route to reduce backtracking
+    // 3. Flexible deliveries (no time window or 4+ hour window) can go anywhere based on distance
+    // =============================================
+    
     const optimizedRoute = [];
     const remaining = [...enrichedDeliveries];
     
-    // First: Add any in_transit deliveries
+    // Separate pickups and deliveries
+    const pickups = remaining.filter(d => !d.patient_id);
+    const deliveriesOnly = remaining.filter(d => d.patient_id);
+    
+    console.log(`   📦 Organizing: ${pickups.length} pickups, ${deliveriesOnly.length} deliveries`);
+    
+    // Sort pickups STRICTLY by time window (this sets the pickup order: Kingsway → BD AM → Scona → Meadows → BD PM)
+    pickups.sort((a, b) => {
+      const aTime = timeToMinutes(a.delivery_time_start || a.time_window_start || '23:59');
+      const bTime = timeToMinutes(b.delivery_time_start || b.time_window_start || '23:59');
+      return aTime - bTime;
+    });
+    
+    console.log('   📋 Pickup order (by time window):');
+    pickups.forEach((p, i) => {
+      const store = stores.find(s => s?.id === p.store_id);
+      const tw = p.delivery_time_start || p.time_window_start || 'No TW';
+      const ampm = p.ampm_deliveries || '';
+      console.log(`      ${i + 1}. ${store?.name || 'Unknown'}${ampm ? ` [${ampm}]` : ''} - Ready at: ${tw}`);
+    });
+    
+    // Group deliveries by their linked pickup (via PUID)
+    const deliveriesByPickup = new Map();
+    const unlinkedDeliveries = [];
+    
+    for (const delivery of deliveriesOnly) {
+      if (delivery.puid) {
+        // Find which pickup this delivery belongs to
+        const linkedPickup = pickups.find(p => p.stop_id === delivery.puid);
+        if (linkedPickup) {
+          if (!deliveriesByPickup.has(linkedPickup.id)) {
+            deliveriesByPickup.set(linkedPickup.id, []);
+          }
+          deliveriesByPickup.get(linkedPickup.id).push(delivery);
+        } else {
+          unlinkedDeliveries.push(delivery);
+        }
+      } else {
+        unlinkedDeliveries.push(delivery);
+      }
+    }
+    
+    console.log(`   🔗 Linked deliveries: ${deliveriesOnly.length - unlinkedDeliveries.length}, Unlinked: ${unlinkedDeliveries.length}`);
+    
+    // First: Add any in_transit deliveries (they must be completed first)
     const inTransit = remaining.filter(d => d.status === 'in_transit');
     for (const delivery of inTransit) {
       const idx = remaining.findIndex(d => d.id === delivery.id);
@@ -291,71 +341,220 @@ Provide:
       currentLoc = { latitude: delivery.latitude, longitude: delivery.longitude };
       
       optimizedRoute.push(delivery);
+      
+      // Remove from pickups/deliveries lists if present
+      const pickupIdx = pickups.findIndex(p => p.id === delivery.id);
+      if (pickupIdx !== -1) pickups.splice(pickupIdx, 1);
+      const deliveryIdx = unlinkedDeliveries.findIndex(d => d.id === delivery.id);
+      if (deliveryIdx !== -1) unlinkedDeliveries.splice(deliveryIdx, 1);
     }
     
-    // Then: Optimize remaining by time window and distance
-    while (remaining.length > 0) {
-      let bestIdx = 0;
-      let bestScore = -Infinity;
+    // Track completed pickup stop_ids
+    const completedPickupStopIds = new Set();
+    
+    // Process pickups in time-window order
+    // Between each pickup, do deliveries that are:
+    // 1. Already picked up (their pickup's stop_id is in completedPickupStopIds)
+    // 2. Flexible/unlinked and on the way to minimize backtracking
+    
+    for (let pickupIdx = 0; pickupIdx < pickups.length; pickupIdx++) {
+      const currentPickup = pickups[pickupIdx];
+      const nextPickup = pickups[pickupIdx + 1];
       
-      for (let i = 0; i < remaining.length; i++) {
-        const stop = remaining[i];
-        
-        // Check PUID constraint for deliveries
-        if (stop.patient_id && stop.puid) {
-          const pickupNeeded = remaining.some(d => !d.patient_id && d.stop_id === stop.puid);
-          if (pickupNeeded) continue;
-        }
-        
-        const distance = calculateDistance(
-          currentLoc.latitude, currentLoc.longitude,
-          stop.latitude, stop.longitude
-        );
-        const travelTime = estimateTravelTimeWithTraffic(distance, currentTimeStr, trafficConditions);
-        const arrivalTime = currentMinutes + travelTime;
-        
-        // Score based on time window urgency and distance
-        let score = 100 - distance * 5;
-        
-        if (stop.time_window_start && stop.time_window_end) {
-          const windowStart = timeToMinutes(stop.time_window_start);
-          const windowEnd = timeToMinutes(stop.time_window_end);
-          
-          if (arrivalTime >= windowStart && arrivalTime <= windowEnd) {
-            score += 200;
-            if (windowEnd - arrivalTime < 60) score += 100; // Urgent
-          } else if (arrivalTime > windowEnd) {
-            score -= 300; // Late penalty
-          }
-        }
-        
-        // Pickups get lower priority (unless they block deliveries)
-        if (!stop.patient_id) {
-          score -= 50;
-        }
-        
-        if (score > bestScore) {
-          bestScore = score;
-          bestIdx = i;
+      // Determine if we should do deliveries BEFORE this pickup
+      // (Only if we have deliveries from PREVIOUS pickups that are on the way)
+      
+      // Get deliveries that are already picked up (from previous pickups)
+      const availableDeliveries = [];
+      
+      // Add deliveries from completed pickups
+      for (const [pickupId, linkedDeliveries] of deliveriesByPickup.entries()) {
+        const pickup = pickups.find(p => p.id === pickupId);
+        if (pickup && completedPickupStopIds.has(pickup.stop_id)) {
+          availableDeliveries.push(...linkedDeliveries.filter(d => 
+            !optimizedRoute.some(o => o.id === d.id)
+          ));
         }
       }
       
-      const selected = remaining.splice(bestIdx, 1)[0];
+      // Add unlinked/flexible deliveries
+      const flexibleDeliveries = unlinkedDeliveries.filter(d => {
+        if (optimizedRoute.some(o => o.id === d.id)) return false;
+        
+        // Check if delivery has a flexible window (no window or 4+ hours)
+        const twStart = d.time_window_start || d.delivery_time_start;
+        const twEnd = d.time_window_end || d.delivery_time_end;
+        if (!twStart) return true; // No time window = flexible
+        
+        const windowDuration = timeToMinutes(twEnd || '23:59') - timeToMinutes(twStart || '00:00');
+        return windowDuration >= 240; // 4+ hours = flexible
+      });
+      availableDeliveries.push(...flexibleDeliveries);
       
+      // Do deliveries that are ON THE WAY to the next pickup (minimize backtracking)
+      // Score deliveries by: how much they reduce distance to next destination
+      if (availableDeliveries.length > 0) {
+        const nextDestination = currentPickup; // We're heading to this pickup
+        
+        // Sort available deliveries by efficiency (how much they're "on the way")
+        const scoredDeliveries = availableDeliveries.map(delivery => {
+          const directDistance = calculateDistance(
+            currentLoc.latitude, currentLoc.longitude,
+            nextDestination.latitude, nextDestination.longitude
+          );
+          const viaDeliveryDistance = calculateDistance(
+            currentLoc.latitude, currentLoc.longitude,
+            delivery.latitude, delivery.longitude
+          ) + calculateDistance(
+            delivery.latitude, delivery.longitude,
+            nextDestination.latitude, nextDestination.longitude
+          );
+          
+          // Detour = extra distance to do this delivery
+          const detour = viaDeliveryDistance - directDistance;
+          
+          // Also consider time window urgency
+          let urgencyBonus = 0;
+          if (delivery.time_window_start && delivery.time_window_end) {
+            const windowEnd = timeToMinutes(delivery.time_window_end);
+            if (currentMinutes > windowEnd - 60) urgencyBonus = 50; // Urgent
+            if (currentMinutes > windowEnd - 30) urgencyBonus = 100; // Very urgent
+          }
+          
+          return { delivery, detour, urgencyBonus, score: urgencyBonus - detour };
+        });
+        
+        // Only do deliveries with reasonable detour (< 5km extra) or urgent ones
+        const worthwhileDeliveries = scoredDeliveries
+          .filter(s => s.detour < 5 || s.urgencyBonus > 0)
+          .sort((a, b) => b.score - a.score);
+        
+        for (const { delivery } of worthwhileDeliveries) {
+          const distance = calculateDistance(
+            currentLoc.latitude, currentLoc.longitude,
+            delivery.latitude, delivery.longitude
+          );
+          const travelTime = estimateTravelTimeWithTraffic(distance, minutesToTime(currentMinutes), trafficConditions);
+          currentMinutes += travelTime;
+          
+          delivery.calculatedETA = minutesToTime(currentMinutes);
+          delivery.estimatedTravelTime = travelTime;
+          
+          currentMinutes += (delivery.extra_time || 5);
+          currentLoc = { latitude: delivery.latitude, longitude: delivery.longitude };
+          
+          optimizedRoute.push(delivery);
+          
+          // Remove from unlinked list
+          const unlinkedIdx = unlinkedDeliveries.findIndex(d => d.id === delivery.id);
+          if (unlinkedIdx !== -1) unlinkedDeliveries.splice(unlinkedIdx, 1);
+          
+          console.log(`      📍 En-route delivery: ${delivery.patientName} (ETA: ${delivery.calculatedETA})`);
+        }
+      }
+      
+      // Now do the pickup
+      // But first, ensure we don't arrive before the pickup time window
+      const pickupWindowStart = timeToMinutes(currentPickup.delivery_time_start || currentPickup.time_window_start || '00:00');
+      
+      const distanceToPickup = calculateDistance(
+        currentLoc.latitude, currentLoc.longitude,
+        currentPickup.latitude, currentPickup.longitude
+      );
+      const travelTimeToPickup = estimateTravelTimeWithTraffic(distanceToPickup, minutesToTime(currentMinutes), trafficConditions);
+      let arrivalAtPickup = currentMinutes + travelTimeToPickup;
+      
+      // If we'd arrive early, adjust ETA to window start
+      if (arrivalAtPickup < pickupWindowStart) {
+        console.log(`      ⏰ Would arrive at pickup ${arrivalAtPickup} < ${pickupWindowStart}, waiting until items ready`);
+        arrivalAtPickup = pickupWindowStart;
+      }
+      
+      currentMinutes = arrivalAtPickup;
+      currentPickup.calculatedETA = minutesToTime(currentMinutes);
+      currentPickup.estimatedTravelTime = travelTimeToPickup;
+      
+      currentMinutes += (currentPickup.extra_time || 5);
+      currentLoc = { latitude: currentPickup.latitude, longitude: currentPickup.longitude };
+      
+      optimizedRoute.push(currentPickup);
+      completedPickupStopIds.add(currentPickup.stop_id);
+      
+      const pickupStore = stores.find(s => s?.id === currentPickup.store_id);
+      console.log(`      🏪 Pickup: ${pickupStore?.name || 'Unknown'} (ETA: ${currentPickup.calculatedETA})`);
+      
+      // After this pickup, do its linked deliveries (optimized by distance)
+      const linkedDeliveries = deliveriesByPickup.get(currentPickup.id) || [];
+      const remainingLinked = linkedDeliveries.filter(d => !optimizedRoute.some(o => o.id === d.id));
+      
+      // Sort linked deliveries by distance from current location
+      remainingLinked.sort((a, b) => {
+        const distA = calculateDistance(currentLoc.latitude, currentLoc.longitude, a.latitude, a.longitude);
+        const distB = calculateDistance(currentLoc.latitude, currentLoc.longitude, b.latitude, b.longitude);
+        return distA - distB;
+      });
+      
+      // If there's a next pickup, also consider doing deliveries that are "on the way"
+      if (nextPickup) {
+        // Score by: distance efficiency to next pickup
+        remainingLinked.sort((a, b) => {
+          const directToNext = calculateDistance(currentLoc.latitude, currentLoc.longitude, nextPickup.latitude, nextPickup.longitude);
+          
+          const viaA = calculateDistance(currentLoc.latitude, currentLoc.longitude, a.latitude, a.longitude) +
+                       calculateDistance(a.latitude, a.longitude, nextPickup.latitude, nextPickup.longitude);
+          const viaB = calculateDistance(currentLoc.latitude, currentLoc.longitude, b.latitude, b.longitude) +
+                       calculateDistance(b.latitude, b.longitude, nextPickup.latitude, nextPickup.longitude);
+          
+          const detourA = viaA - directToNext;
+          const detourB = viaB - directToNext;
+          
+          return detourA - detourB; // Less detour = better
+        });
+      }
+      
+      for (const delivery of remainingLinked) {
+        const distance = calculateDistance(
+          currentLoc.latitude, currentLoc.longitude,
+          delivery.latitude, delivery.longitude
+        );
+        const travelTime = estimateTravelTimeWithTraffic(distance, minutesToTime(currentMinutes), trafficConditions);
+        currentMinutes += travelTime;
+        
+        delivery.calculatedETA = minutesToTime(currentMinutes);
+        delivery.estimatedTravelTime = travelTime;
+        
+        currentMinutes += (delivery.extra_time || 5);
+        currentLoc = { latitude: delivery.latitude, longitude: delivery.longitude };
+        
+        optimizedRoute.push(delivery);
+        console.log(`      📍 Delivery: ${delivery.patientName} (ETA: ${delivery.calculatedETA})`);
+      }
+    }
+    
+    // Finally, add any remaining unlinked deliveries (sorted by distance)
+    const remainingDeliveries = unlinkedDeliveries.filter(d => !optimizedRoute.some(o => o.id === d.id));
+    remainingDeliveries.sort((a, b) => {
+      const distA = calculateDistance(currentLoc.latitude, currentLoc.longitude, a.latitude, a.longitude);
+      const distB = calculateDistance(currentLoc.latitude, currentLoc.longitude, b.latitude, b.longitude);
+      return distA - distB;
+    });
+    
+    for (const delivery of remainingDeliveries) {
       const distance = calculateDistance(
         currentLoc.latitude, currentLoc.longitude,
-        selected.latitude, selected.longitude
+        delivery.latitude, delivery.longitude
       );
-      const travelTime = estimateTravelTimeWithTraffic(distance, currentTimeStr, trafficConditions);
+      const travelTime = estimateTravelTimeWithTraffic(distance, minutesToTime(currentMinutes), trafficConditions);
       currentMinutes += travelTime;
       
-      selected.calculatedETA = minutesToTime(currentMinutes);
-      selected.estimatedTravelTime = travelTime;
+      delivery.calculatedETA = minutesToTime(currentMinutes);
+      delivery.estimatedTravelTime = travelTime;
       
-      currentMinutes += (selected.extra_time || 5);
-      currentLoc = { latitude: selected.latitude, longitude: selected.longitude };
+      currentMinutes += (delivery.extra_time || 5);
+      currentLoc = { latitude: delivery.latitude, longitude: delivery.longitude };
       
-      optimizedRoute.push(selected);
+      optimizedRoute.push(delivery);
+      console.log(`      📍 Remaining delivery: ${delivery.patientName} (ETA: ${delivery.calculatedETA})`);
     }
     
     // Update database with optimized route
