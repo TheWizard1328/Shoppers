@@ -6,8 +6,6 @@ import { base44 } from '@/api/base44Client';
 export default function MessageNotificationBalloon({ currentUser, onOpenConversation, onDismiss }) {
   const [notification, setNotification] = useState(null);
   const [lastSeenMessageId, setLastSeenMessageId] = useState(null);
-  const eventSourceRef = useRef(null);
-  const reconnectTimeoutRef = useRef(null);
   const autoDismissTimeoutRef = useRef(null);
 
   useEffect(() => {
