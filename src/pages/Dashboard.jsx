@@ -236,6 +236,7 @@ function Dashboard() {
   const [areCardsVisible, setAreCardsVisible] = useState(false);
   const fadeTimeoutRef = useRef(null);
   const statsCardRef = useRef(null);
+  const [statsCardOpacity, setStatsCardOpacity] = useState(1);
   const [isMapViewLocked, setIsMapViewLocked] = useState(false);
   const retractClustersRef = useRef(null);
   const [showRouteSummary, setShowRouteSummary] = useState(false);
@@ -631,10 +632,16 @@ function Dashboard() {
     }
 
     setAreCardsVisible(show);
+    
+    // Handle stats card opacity
+    if (show) {
+      setStatsCardOpacity(1);
+    }
 
     if (show && !isExpanded) {
       fadeTimeoutRef.current = setTimeout(() => {
         setAreCardsVisible(false);
+        setStatsCardOpacity(0.5);
       }, 3000);
     }
   }, [isExpanded]);
@@ -4787,7 +4794,16 @@ function Dashboard() {
       }
       fadeTimeoutRef.current = setTimeout(() => {
         setAreCardsVisible(false);
+        setStatsCardOpacity(0.5);
       }, 3000);
+    }
+    // When expanded, always show full opacity
+    if (isExpanded) {
+      setStatsCardOpacity(1);
+      if (fadeTimeoutRef.current) {
+        clearTimeout(fadeTimeoutRef.current);
+        fadeTimeoutRef.current = null;
+      }
     }
   }, [isExpanded, areCardsVisible]);
 
