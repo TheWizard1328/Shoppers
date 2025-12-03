@@ -35,13 +35,13 @@ export default function AIRoutePlanner({
       setHasSignificantIssues(false);
 
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      const driverFilter = selectedDriverId !== 'all' ? 
-        deliveries.filter(d => d && d.driver_id === selectedDriverId) : 
-        deliveries;
+      const driverFilter = selectedDriverId !== 'all' ?
+      deliveries.filter((d) => d && d.driver_id === selectedDriverId) :
+      deliveries;
 
-      const activeDeliveries = driverFilter.filter(d => 
-        d && d.delivery_date === dateStr && 
-        !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status)
+      const activeDeliveries = driverFilter.filter((d) =>
+      d && d.delivery_date === dateStr &&
+      !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status)
       );
 
       if (activeDeliveries.length === 0) {
@@ -49,37 +49,37 @@ export default function AIRoutePlanner({
         setHasSignificantIssues(true);
         return;
       }
-      
-      const pickupCounts = activeDeliveries
-        .filter(d => d && !d.patient_id)
-        .reduce((acc, pickup) => {
-          if (pickup.store_id) {
-            acc[pickup.store_id] = (acc[pickup.store_id] || 0) + 1;
-          }
-          return acc;
-        }, {});
+
+      const pickupCounts = activeDeliveries.
+      filter((d) => d && !d.patient_id).
+      reduce((acc, pickup) => {
+        if (pickup.store_id) {
+          acc[pickup.store_id] = (acc[pickup.store_id] || 0) + 1;
+        }
+        return acc;
+      }, {});
 
       const multiPickupStores = new Set(
-        Object.keys(pickupCounts).filter(storeId => pickupCounts[storeId] > 1)
+        Object.keys(pickupCounts).filter((storeId) => pickupCounts[storeId] > 1)
       );
       setStoresWithMultiplePickups(multiPickupStores);
 
       // Build route data for AI analysis
       const routeData = activeDeliveries.map((delivery, idx) => {
-        const deliveryPatient = patients.find(p => p && p.id === delivery.patient_id);
-        const deliveryStore = stores.find(s => s && s.id === delivery.store_id);
+        const deliveryPatient = patients.find((p) => p && p.id === delivery.patient_id);
+        const deliveryStore = stores.find((s) => s && s.id === delivery.store_id);
         const isPickup = !delivery.patient_id;
-        
+
         let name;
         if (isPickup) {
-            const storeName = deliveryStore?.name || 'Unknown Store';
-            if (multiPickupStores.has(delivery.store_id)) {
-                name = `${storeName} [${delivery.ampm_deliveries || 'N/A'}] Pickup`;
-            } else {
-                name = `${storeName} Pickup`;
-            }
+          const storeName = deliveryStore?.name || 'Unknown Store';
+          if (multiPickupStores.has(delivery.store_id)) {
+            name = `${storeName} [${delivery.ampm_deliveries || 'N/A'}] Pickup`;
+          } else {
+            name = `${storeName} Pickup`;
+          }
         } else {
-            name = deliveryPatient?.full_name || 'Unknown';
+          name = deliveryPatient?.full_name || 'Unknown';
         }
 
         return {
@@ -110,8 +110,8 @@ export default function AIRoutePlanner({
       });
 
       // Get driver info
-      const driver = drivers.find(d => d && d.id === selectedDriverId) || 
-                    (selectedDriverId === 'all' ? null : drivers[0]);
+      const driver = drivers.find((d) => d && d.id === selectedDriverId) || (
+      selectedDriverId === 'all' ? null : drivers[0]);
 
       let currentLocation = null;
       let startLocationSource = null;
@@ -126,19 +126,19 @@ export default function AIRoutePlanner({
           startLocationSource = 'GPS';
         } else {
           // Fall back to last completed delivery
-          const completedDeliveries = deliveries
-            .filter(d => d && d.driver_id === driver.id && d.delivery_date === dateStr && 
-                         ['completed', 'failed', 'cancelled', 'returned'].includes(d.status))
-            .sort((a, b) => {
-              const timeA = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : 0;
-              const timeB = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : 0;
-              return timeB - timeA; // Most recent first
-            });
+          const completedDeliveries = deliveries.
+          filter((d) => d && d.driver_id === driver.id && d.delivery_date === dateStr &&
+          ['completed', 'failed', 'cancelled', 'returned'].includes(d.status)).
+          sort((a, b) => {
+            const timeA = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : 0;
+            const timeB = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : 0;
+            return timeB - timeA; // Most recent first
+          });
 
           if (completedDeliveries.length > 0) {
             const lastCompleted = completedDeliveries[0];
-            const patient = patients.find(p => p && p.id === lastCompleted.patient_id);
-            const store = stores.find(s => s && s.id === lastCompleted.store_id);
+            const patient = patients.find((p) => p && p.id === lastCompleted.patient_id);
+            const store = stores.find((s) => s && s.id === lastCompleted.store_id);
 
             if (patient?.latitude && patient?.longitude) {
               currentLocation = {
@@ -295,37 +295,37 @@ Be specific and actionable. Focus on practical improvements.`;
       });
 
       setAnalysis(response);
-      
+
       // Convert AI suggestions to update format with correct stop numbering
       if (response.optimized_route && Array.isArray(response.optimized_route)) {
         // Find the highest stop_order among completed deliveries for this driver
         const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-        const completedDeliveries = driverFilter.filter(d => 
-          d && d.delivery_date === dateStr && finishedStatuses.includes(d.status)
+        const completedDeliveries = driverFilter.filter((d) =>
+        d && d.delivery_date === dateStr && finishedStatuses.includes(d.status)
         );
-        
-        const lastCompletedStopOrder = completedDeliveries.length > 0 
-          ? Math.max(...completedDeliveries.map(d => d.stop_order || 0))
-          : 0;
-        
+
+        const lastCompletedStopOrder = completedDeliveries.length > 0 ?
+        Math.max(...completedDeliveries.map((d) => d.stop_order || 0)) :
+        0;
+
         console.log(`AI Route Planner: Last completed stop order = ${lastCompletedStopOrder}, starting new sequence at ${lastCompletedStopOrder + 1}`);
-        
+
         const updates = response.optimized_route.map((item, idx) => ({
           id: item.delivery_id,
           stop_order: lastCompletedStopOrder + idx + 1, // Continue from last completed
           reasoning: item.reasoning
         }));
         setSuggestions(updates);
-        
+
         // Check if there are significant issues
         const hasErrors = response.error;
         const hasIssues = response.issues && response.issues.length > 0;
         const hasWarnings = response.warnings && response.warnings.length > 0;
         const lowEfficiency = response.efficiency_score < 7;
-        
+
         const significant = hasErrors || hasIssues || hasWarnings || lowEfficiency;
         setHasSignificantIssues(significant);
-        
+
         // Auto-apply if only ETA updates (no significant issues)
         if (!significant && updates.length > 0) {
           console.log('✅ [AI Route Planner] No significant issues - auto-applying optimization');
@@ -344,9 +344,9 @@ Be specific and actionable. Focus on practical improvements.`;
 
     } catch (error) {
       console.error('AI Route Analysis Error:', error);
-      setAnalysis({ 
-        error: true, 
-        message: error.message || 'Failed to analyze route. Please try again.' 
+      setAnalysis({
+        error: true,
+        message: error.message || 'Failed to analyze route. Please try again.'
       });
       setHasSignificantIssues(true);
     } finally {
@@ -376,10 +376,10 @@ Be specific and actionable. Focus on practical improvements.`;
 
     try {
       setIsApplying(true);
-      
+
       // Pass suggestions with flag to recalculate ETAs, update stop orders, then center
       await onApplyOptimization(suggestions, { recalculateETAs: true, autoCenterNext: true });
-      
+
       setAnalysis(null);
       setSuggestions([]);
       setHasSignificantIssues(false);
@@ -405,7 +405,7 @@ Be specific and actionable. Focus on practical improvements.`;
       className="fixed inset-4 z-[10000] flex items-center justify-center p-4 bg-black/50">
       
       <Card className="w-full max-w-3xl max-h-[85vh] overflow-hidden bg-white">
-        <div className="sticky top-0 bg-gradient-to-r from-purple-600 to-blue-600 text-white p-6 z-10">
+        <div className="sticky top-0 bg-gradient-to-r from-purple-600 to-blue-600 text-white p-3 z-10">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-white/20 rounded-lg">
@@ -427,37 +427,37 @@ Be specific and actionable. Focus on practical improvements.`;
         </div>
 
         <div className="p-6 overflow-y-auto max-h-[calc(85vh-120px)]">
-          {isAnalyzing && (
-            <div className="text-center py-12">
+          {isAnalyzing &&
+          <div className="text-center py-12">
               <div className="animate-spin w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full mx-auto mb-4"></div>
               <p className="text-slate-600 font-medium">AI is analyzing your route...</p>
               <p className="text-sm text-slate-500 mt-2">Considering locations, time windows, and constraints</p>
             </div>
-          )}
+          }
 
           <AnimatePresence>
-            {analysis && !isAnalyzing && hasSignificantIssues && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="space-y-6">
+            {analysis && !isAnalyzing && hasSignificantIssues &&
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-6">
                 
-                {analysis.error ? (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                {analysis.error ?
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                     <div className="flex items-center gap-2 text-red-800 font-semibold mb-2">
                       <AlertTriangle className="w-5 h-5" />
                       Analysis Error
                     </div>
                     <p className="text-red-700 text-sm">{analysis.message}</p>
-                  </div>
-                ) : analysis.message ? (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  </div> :
+              analysis.message ?
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <p className="text-blue-800">{analysis.message}</p>
-                  </div>
-                ) : (
-                  <>
+                  </div> :
+
+              <>
                     {/* Efficiency Score */}
-                    <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl p-6 border border-purple-200">
+                    <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl p-3 border border-purple-200">
                       <div className="flex items-center justify-between">
                         <div>
                           <h3 className="text-lg font-semibold text-slate-900 mb-1">Route Efficiency</h3>
@@ -472,71 +472,71 @@ Be specific and actionable. Focus on practical improvements.`;
                     </div>
 
                     {/* Summary */}
-                    {analysis.summary && (
-                      <div className="bg-white border border-slate-200 rounded-lg p-4">
+                    {analysis.summary &&
+                <div className="bg-white border border-slate-200 rounded-lg p-4">
                         <h4 className="font-semibold text-slate-900 mb-2 flex items-center gap-2">
                           <TrendingUp className="w-4 h-4 text-blue-600" />
                           Optimization Strategy
                         </h4>
                         <p className="text-slate-700 text-sm leading-relaxed">{analysis.summary}</p>
                       </div>
-                    )}
+                }
 
                     {/* Issues Identified */}
-                    {analysis.issues && analysis.issues.length > 0 && (
-                      <div>
+                    {analysis.issues && analysis.issues.length > 0 &&
+                <div>
                         <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
                           <AlertTriangle className="w-4 h-4 text-amber-600" />
                           Issues Identified
                         </h4>
-                        <div className="space-y-2">
-                          {analysis.issues.map((issue, idx) => (
-                            <div key={idx} className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                        <div className="space-y-1">
+                          {analysis.issues.map((issue, idx) =>
+                    <div key={idx} className="bg-amber-50 border border-amber-200 rounded-lg p-3">
                               <p className="text-sm text-amber-900">{issue}</p>
                             </div>
-                          ))}
+                    )}
                         </div>
                       </div>
-                    )}
+                }
 
                     {/* Optimized Route */}
-                    {suggestions.length > 0 && (
-                      <div>
+                    {suggestions.length > 0 &&
+                <div>
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="font-semibold text-slate-900 flex items-center gap-2">
                             <MapPin className="w-4 h-4 text-emerald-600" />
                             Suggested Route Order
                           </h4>
-                          {analysis.estimated_time_savings_minutes > 0 && (
-                            <Badge className="bg-emerald-100 text-emerald-800 gap-1">
+                          {analysis.estimated_time_savings_minutes > 0 &&
+                    <Badge className="bg-emerald-100 text-emerald-800 gap-1">
                               <Clock className="w-3 h-3" />
                               Save ~{analysis.estimated_time_savings_minutes} min
                             </Badge>
-                          )}
+                    }
                         </div>
                         
-                        <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                        <div className="space-y-1 max-h-[300px] overflow-y-auto">
                           {suggestions.map((suggestion, idx) => {
-                            const delivery = deliveries.find(d => d && d.id === suggestion.id);
-                            if (!delivery) return null;
+                      const delivery = deliveries.find((d) => d && d.id === suggestion.id);
+                      if (!delivery) return null;
 
-                            const patient = patients.find(p => p && p.id === delivery.patient_id);
-                            const store = stores.find(s => s && s.id === delivery.store_id);
-                            const isPickup = !delivery.patient_id;
-                            
-                            let name;
-                            if (isPickup) {
-                              const storeName = store?.name || 'Unknown Store';
-                              const hasMultiplePickups = storesWithMultiplePickups.has(delivery.store_id);
-                              name = hasMultiplePickups 
-                                ? `${storeName} [${delivery.ampm_deliveries || 'N/A'}] Pickup` 
-                                : `${storeName} Pickup`;
-                            } else {
-                              name = patient?.full_name;
-                            }
+                      const patient = patients.find((p) => p && p.id === delivery.patient_id);
+                      const store = stores.find((s) => s && s.id === delivery.store_id);
+                      const isPickup = !delivery.patient_id;
 
-                            return (
-                              <div key={suggestion.id} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                      let name;
+                      if (isPickup) {
+                        const storeName = store?.name || 'Unknown Store';
+                        const hasMultiplePickups = storesWithMultiplePickups.has(delivery.store_id);
+                        name = hasMultiplePickups ?
+                        `${storeName} [${delivery.ampm_deliveries || 'N/A'}] Pickup` :
+                        `${storeName} Pickup`;
+                      } else {
+                        name = patient?.full_name;
+                      }
+
+                      return (
+                        <div key={suggestion.id} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
                                 <div className="flex items-start gap-3">
                                   <Badge variant="secondary" className="bg-purple-100 text-purple-700 font-bold min-w-[32px] justify-center">
                                     #{suggestion.stop_order}
@@ -544,78 +544,78 @@ Be specific and actionable. Focus on practical improvements.`;
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 mb-1">
                                       <p className="font-semibold text-slate-900 truncate">{name}</p>
-                                      {delivery.current_stop_order !== suggestion.stop_order && (
-                                        <Badge variant="outline" className="text-xs">
+                                      {delivery.current_stop_order !== suggestion.stop_order &&
+                                <Badge variant="outline" className="text-xs">
                                           was #{delivery.stop_order || idx + 1}
                                         </Badge>
-                                      )}
+                                }
                                     </div>
-                                    {suggestion.reasoning && (
-                                      <p className="text-xs text-slate-600 leading-relaxed">{suggestion.reasoning}</p>
-                                    )}
+                                    {suggestion.reasoning &&
+                              <p className="text-xs text-slate-600 leading-relaxed">{suggestion.reasoning}</p>
+                              }
                                   </div>
                                 </div>
-                              </div>
-                            );
-                          })}
+                              </div>);
+
+                    })}
                         </div>
                       </div>
-                    )}
+                }
 
                     {/* Warnings */}
-                    {analysis.warnings && analysis.warnings.length > 0 && (
-                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    {analysis.warnings && analysis.warnings.length > 0 &&
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                         <h4 className="font-semibold text-yellow-900 mb-2 flex items-center gap-2">
                           <AlertTriangle className="w-4 h-4" />
                           Considerations
                         </h4>
                         <ul className="space-y-1">
-                          {analysis.warnings.map((warning, idx) => (
-                            <li key={idx} className="text-sm text-yellow-800 flex items-start gap-2">
+                          {analysis.warnings.map((warning, idx) =>
+                    <li key={idx} className="text-sm text-yellow-800 flex items-start gap-2">
                               <span className="text-yellow-600 mt-0.5">•</span>
                               <span>{warning}</span>
                             </li>
-                          ))}
+                    )}
                         </ul>
                       </div>
-                    )}
+                }
 
                     {/* Action Buttons */}
-                    {suggestions.length > 0 && (
-                      <div className="flex gap-3 pt-4 border-t border-slate-200">
+                    {suggestions.length > 0 &&
+                <div className="flex gap-3 pt-4 border-t border-slate-200">
                         <Button
-                          variant="outline"
-                          className="flex-1"
-                          onClick={analyzeRoute}
-                          disabled={isApplying}>
+                    variant="outline"
+                    className="flex-1"
+                    onClick={analyzeRoute}
+                    disabled={isApplying}>
                           <RefreshCw className="w-4 h-4 mr-2" />
                           Re-analyze
                         </Button>
                         <Button
-                          className="flex-1 bg-emerald-600 hover:bg-emerald-700"
-                          onClick={handleApplyOptimization}
-                          disabled={isApplying}>
-                          {isApplying ? (
-                            <>
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                    onClick={handleApplyOptimization}
+                    disabled={isApplying}>
+                          {isApplying ?
+                    <>
                               <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2"></div>
                               Applying...
-                            </>
-                          ) : (
-                            <>
+                            </> :
+
+                    <>
                               <CheckCircle className="w-4 h-4 mr-2" />
                               Apply Optimization
                             </>
-                          )}
+                    }
                         </Button>
                       </div>
-                    )}
+                }
                   </>
-                )}
+              }
               </motion.div>
-            )}
+            }
           </AnimatePresence>
         </div>
       </Card>
-    </motion.div>
-  );
+    </motion.div>);
+
 }
