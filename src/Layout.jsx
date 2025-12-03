@@ -1255,16 +1255,20 @@ export default function Layout({ children, currentPageName }) {
 
       console.log(`📅 [Layout] Starting sequential data loading with rate limit protection...`);
       console.log(`📋 [Layout] Load order: AppUsers → Cities → Stores → Patients → Deliveries`);
+      console.log(`⏱️ [Layout] Adding 200ms delays between entity loads to prevent rate limits`);
 
       // Cities are checked in Step 2 of the loading sequence
       let workingCities = cities;
 
       const isAdmin = userHasRole(currentUser, 'admin');
 
-      // Load data sequentially: AppUsers → Cities → Stores → Patients → Deliveries
+      // Load data sequentially with delays: AppUsers → Cities → Stores → Patients → Deliveries
       // Step 1: AppUsers (needed for driver/dispatcher info)
       const allAppUsers = await getData('AppUser', null, null, forceRefresh);
       console.log(`✅ [Layout] Loaded ${allAppUsers.length} AppUsers`);
+
+      // CRITICAL: Add delay between entity loads to prevent rate limits
+      await new Promise(resolve => setTimeout(resolve, 200));
 
       // Step 2: Cities (if not already loaded)
       if (!workingCities || workingCities.length === 0) {
@@ -1272,6 +1276,7 @@ export default function Layout({ children, currentPageName }) {
         workingCities.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
         setCities(workingCities);
         console.log(`✅ [Layout] Loaded ${workingCities.length} Cities`);
+        await new Promise(resolve => setTimeout(resolve, 200));
       }
 
       // Step 3: Stores
@@ -1279,6 +1284,8 @@ export default function Layout({ children, currentPageName }) {
       allStores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
       const allStoreIds = allStores.map(store => store && store.id).filter(Boolean);
       console.log(`✅ [Layout] Loaded ${allStores.length} Stores`);
+
+      await new Promise(resolve => setTimeout(resolve, 200));
 
       // No filtering - load all patients and deliveries
       let patientFilter = {};
