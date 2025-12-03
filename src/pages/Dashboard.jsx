@@ -5260,7 +5260,8 @@ function Dashboard() {
 
                 // For pickups with status 'en_route', attach pending deliveries
                 if (!delivery.patient_id && delivery.status === 'en_route' && delivery.puid) {
-                  const pendingDeliveriesForPickup = (deliveries || []).filter((d) =>
+                  // CRITICAL: Use deliveriesWithStopOrder (filtered by date) instead of raw deliveries array
+                  const pendingDeliveriesForPickup = deliveriesWithStopOrder.filter((d) =>
                   d &&
                   d.puid === delivery.puid &&
                   d.status === 'pending' &&
