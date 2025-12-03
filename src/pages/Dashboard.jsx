@@ -4574,7 +4574,20 @@ function Dashboard() {
         // CRITICAL: Apply ALL deliveries from backend immediately to UI
         if (optimizationResult.data?.allDeliveries && Array.isArray(optimizationResult.data.allDeliveries)) {
           console.log('🔄 [STATUS UPDATE] Syncing', optimizationResult.data.allDeliveries.length, 'deliveries from backend');
-          updateDeliveriesLocally(optimizationResult.data.allDeliveries);
+
+          // CRITICAL: Clear pending updates protection before applying backend data
+          optimizationResult.data.allDeliveries.forEach(d => {
+            if (d?.id) {
+              smartRefreshManager.pendingLocalUpdates.delete(d.id);
+            }
+          });
+
+          // Merge with other drivers' deliveries
+          const otherDriverDeliveries = (deliveries || []).filter(d =>
+            d && (d.driver_id !== targetDelivery.driver_id || d.delivery_date !== deliveryDate)
+          );
+          const mergedDeliveries = [...otherDriverDeliveries, ...optimizationResult.data.allDeliveries];
+          updateDeliveriesLocally(mergedDeliveries);
         }
 
         if (optimizationResult.data?.routeComplete && newStatus === 'completed') {
@@ -4788,13 +4801,11 @@ function Dashboard() {
         );
         const mergedDeliveries = [...otherDriverDeliveries, ...optimizationResult.data.allDeliveries];
         updateDeliveriesLocally(mergedDeliveries);
-        console.log(`✅ [START] UI updated with ${optimizationResult.data.allDeliveries.length} deliveries`);
       }
 
-      // CRITICAL: Force final data refresh to ensure UI is 100% synced
-      console.log('🔄 [START] Final data refresh for complete sync...');
+      // CRITICAL: Force data refresh to ensure UI is in sync
       invalidateDeliveriesForDate(deliveryDate);
-      await forceRefreshDriverDeliveries(driverId, deliveryDate);
+      await refreshData();
 
       // Scroll to next card after refresh
       setTimeout(() => {
