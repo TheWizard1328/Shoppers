@@ -4498,7 +4498,6 @@ function Dashboard() {
       }
 
       const driverId = targetDelivery.driver_id;
-      const deliveryDate = targetDelivery.delivery_date;
       const currentTime = new Date();
       const currentTimeISO = currentTime.toISOString();
       const currentTimeHHMM = format(currentTime, 'HH:mm');
