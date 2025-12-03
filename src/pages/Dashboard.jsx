@@ -234,6 +234,8 @@ function Dashboard() {
   const [screenWidth, setScreenWidth] = useState(window.innerWidth);
   const [cardWidth, setCardWidth] = useState(340);
   const [areCardsVisible, setAreCardsVisible] = useState(false);
+  const [statsPanelOpacity, setStatsPanelOpacity] = useState(1);
+  const statsPanelFadeTimeoutRef = useRef(null);
   const fadeTimeoutRef = useRef(null);
   const statsCardRef = useRef(null);
   const [isMapViewLocked, setIsMapViewLocked] = useState(false);
