@@ -42,6 +42,7 @@ import { getAvailableDrivers } from "@/components/utils/driverSelectors";
 import RouteSummaryModal from "@/components/dashboard/RouteSummaryModal";
 import { isMobileDevice } from "@/components/utils/deviceUtils";
 import { optimizeDriverRoute } from "@/functions/optimizeDriverRoute";
+import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
 import { loadUserSettings, saveSetting, getSetting } from "@/components/utils/userSettingsManager";
 import { fabControlEvents } from "@/components/utils/fabControlEvents";
 import RouteNotification from "@/components/dashboard/RouteNotification";
