@@ -92,10 +92,20 @@ export const getEffectiveUser = async () => {
               role: authUser.role
             });
 
-            // FIXED: Fetch ALL AppUser records (not filtered by current user) for impersonation to work
-            console.log(`🔄 [auth.js] Fetching FRESH AppUser list (ALL users for impersonation)...`);
-            const appUserList = await withTimeout(AppUser.list(), 8000);
-            console.log(`✅ [auth.js] Got ${appUserList.length} AppUser records`);
+            // Use cached AppUser list if available to prevent rate limits
+            let appUserList;
+            const appUserCacheAge = now - appUserListCache.timestamp;
+            
+            if (appUserListCache.data && appUserCacheAge < appUserListCache.ttl) {
+              console.log(`✅ [auth.js] Using CACHED AppUser list (${appUserListCache.data.length} records, age: ${Math.round(appUserCacheAge / 1000)}s)`);
+              appUserList = appUserListCache.data;
+            } else {
+              console.log(`🔄 [auth.js] Fetching FRESH AppUser list (cache expired or not present)...`);
+              appUserList = await withTimeout(AppUser.list(), 8000);
+              appUserListCache.data = appUserList;
+              appUserListCache.timestamp = now;
+              console.log(`✅ [auth.js] Got ${appUserList.length} AppUser records (cached for ${appUserListCache.ttl / 1000}s)`);
+            }
             
             const appUser = appUserList.find(au => au && au.user_id === authUser.id);
             
