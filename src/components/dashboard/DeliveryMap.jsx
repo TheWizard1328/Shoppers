@@ -2472,49 +2472,7 @@ export default function DeliveryMap({
           );
         })}
 
-        {/* NEW: App Owner Center Crosshair - Red + at map center - ONLY on user interaction */}
-        {currentUser && isAppOwner(currentUser) && mapCenter && showZoomOverlay && (
-          <Marker
-            key="center-crosshair"
-            position={mapCenter}
-            icon={L.divIcon({
-              html: `
-                <div style="
-                  width: 12px;
-                  height: 12px;
-                  position: relative;
-                  pointer-events: none;
-                ">
-                  <div style="
-                    position: absolute;
-                    top: 50%;
-                    left: 50%;
-                    transform: translate(-50%, -50%);
-                    width: 10px;
-                    height: 2px;
-                    background: #EF4444;
-                    border-radius: 1px;
-                  "></div>
-                  <div style="
-                    position: absolute;
-                    top: 50%;
-                    left: 50%;
-                    transform: translate(-50%, -50%);
-                    width: 2px;
-                    height: 10px;
-                    background: #EF4444;
-                    border-radius: 1px;
-                  "></div>
-                </div>
-              `,
-              className: 'center-crosshair-icon',
-              iconSize: [12, 12],
-              iconAnchor: [6, 6]
-            })}
-            zIndexOffset={5000}
-            interactive={false}
-          />
-        )}
+
 
         {/* NEW: Driver Home Location Markers - Only for active routes */}
         {driverHomeMarkers.map((home) =>
