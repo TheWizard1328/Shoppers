@@ -1050,30 +1050,29 @@ export default function DeliveryMap({
       
       console.log('📐 Bounds calculated:', bounds.toBBoxString());
       
-      // Zoom and center on cluster location (if map is available)
+      // Zoom and center on the ORIGINAL cluster location (not fanned positions)
       if (map) {
-        // First zoom to 14, then use fitBounds with proper padding for stop cards
-        map.setView([marker.latitude, marker.longitude], 14, { 
-          animate: true, 
-          duration: 0.6 
-        });
+        console.log('🗺️ Centering map on original cluster location:', [marker.latitude, marker.longitude]);
         
-        // Then fit bounds to show all fanned markers with bottom padding for stop cards
+        // Center on original cluster location with padding for stop cards
+        const fitOptions = { 
+          paddingTopLeft: [80, 80],
+          paddingBottomRight: [80, stopCardsHeight > 0 ? stopCardsHeight : 80],
+          maxZoom: 14,
+          animate: true,
+          duration: 0.6
+        };
+        
+        // Create bounds around just the original cluster point
+        const clusterBounds = L.latLngBounds([
+          [marker.latitude, marker.longitude],
+          [marker.latitude, marker.longitude]
+        ]);
+        
+        map.fitBounds(clusterBounds, fitOptions);
+        
+        // Fan out the markers after centering
         setTimeout(() => {
-          console.log('🗺️ Fitting bounds after zoom with stop cards padding:', stopCardsHeight);
-          
-          // Apply bottom padding to account for stop cards
-          const fitOptions = { 
-            paddingTopLeft: [80, 80],
-            paddingBottomRight: [80, stopCardsHeight > 0 ? stopCardsHeight : 80],
-            maxZoom: 14,
-            animate: true,
-            duration: 0.3
-          };
-          
-          map.fitBounds(bounds, fitOptions);
-          
-          // Fan out the markers
           setFannedLocationKey(locationKey);
           console.log('✅ Fanned location key set:', locationKey);
         }, 650);
