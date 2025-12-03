@@ -184,7 +184,7 @@ export default function RouteImport({
 
   // Use a ref to store fresh stores data that won't cause stale closure issues
   const freshStoresRef = React.useRef([]);
-  
+
   const findStoreByAbbreviation = useCallback((abbr, storesOverride = null) => {
     if (!abbr) return null;
     // CRITICAL: Use storesOverride if provided (from handlePreview), else use ref, else fallback
@@ -195,17 +195,17 @@ export default function RouteImport({
     }
     const found = storesToSearch.find((s) => s.abbreviation?.toLowerCase() === abbr.toLowerCase());
     if (!found) {
-      console.warn(`[RouteImport] Store abbreviation "${abbr}" not found in ${storesToSearch.length} stores. Available abbreviations:`, 
-        storesToSearch.map(s => s.abbreviation).filter(Boolean).slice(0, 20));
+      console.warn(`[RouteImport] Store abbreviation "${abbr}" not found in ${storesToSearch.length} stores. Available abbreviations:`,
+      storesToSearch.map((s) => s.abbreviation).filter(Boolean).slice(0, 20));
     }
     return found;
   }, [allStores, stores]);
 
   const findDispatcherByStore = useCallback((store) => {
     if (!store) return null;
-    
+
     // Use allDriverUsers (all cities) or fallback to allUsers prop
-    const usersToSearch = allDriverUsers.length > 0 ? allDriverUsers : (allUsers || []);
+    const usersToSearch = allDriverUsers.length > 0 ? allDriverUsers : allUsers || [];
 
     if (store.dispatcher_id) {
       const dispatcher = usersToSearch.find((u) => u.id === store.dispatcher_id);
@@ -254,7 +254,7 @@ export default function RouteImport({
     // CRITICAL: Match by driver_id (not driver_name) to ensure we find deliveries
     // regardless of which city they were created in
     const importedDriverId = importedDelivery.driver_id;
-    
+
     // CRITICAL: Filter existing deliveries by date AND driver_id (not city-dependent)
     // This ensures we find matches regardless of which city the delivery was created in
     const sameDateDeliveries = existingDeliveries.filter((d) => {
@@ -264,7 +264,7 @@ export default function RouteImport({
       if (importedDriverId && d.driver_id) {
         return d.driver_id === importedDriverId;
       }
-      
+
       // Fallback to driver_name matching if no driver_id
       const existingDriverName = (d.driver_name || '').trim().toLowerCase();
       const driverMatch = !existingDriverName || existingDriverName === importedDriverName;
@@ -275,7 +275,7 @@ export default function RouteImport({
     console.log(`🔍 [RouteImport] Checking for match - Date: ${importedDeliveryDate}, DriverID: "${importedDriverId}", DriverName: "${importedDriverName}", AM/PM: ${importedAMPM || 'N/A'}`);
     console.log(`🔍 [RouteImport] Found ${sameDateDeliveries.length} existing deliveries on same date for same driver`);
     if (sameDateDeliveries.length > 0) {
-      console.log(`🔍 [RouteImport] Sample existing SIDs: ${sameDateDeliveries.slice(0, 5).map(d => d.stop_id || 'none').join(', ')}`);
+      console.log(`🔍 [RouteImport] Sample existing SIDs: ${sameDateDeliveries.slice(0, 5).map((d) => d.stop_id || 'none').join(', ')}`);
     }
     console.log(`🔍 [RouteImport] Import details - SID: "${importedDeliveryStopId}", PID: "${importedDeliveryPatientId}", TR: "${importedTrackingNumber}"`);
 
@@ -1026,11 +1026,11 @@ export default function RouteImport({
     // For pickups: PUID = own stop_id
     // For patient deliveries: Find pickup with matching Date + Driver + Store + AM/PM
     console.log(`📌 [RouteImport] Starting PUID assignment pass for ${deliveriesToCreate.length + deliveriesToUpdate.length} deliveries...`);
-    
+
     // Build a map of pickups by date + driver_id + store_id + ampm_deliveries for quick lookup
     const allParsedDeliveries = [...deliveriesToCreate, ...deliveriesToUpdate];
     const pickupMap = new Map();
-    
+
     allParsedDeliveries.forEach((d) => {
       if (!d.patient_id && d.store_id && d.stop_id) {
         // This is a pickup - index by date + driver + store + ampm
@@ -1041,9 +1041,9 @@ export default function RouteImport({
         }
       }
     });
-    
+
     console.log(`📌 [RouteImport] Pickup map has ${pickupMap.size} entries`);
-    
+
     // Now assign PUIDs
     allParsedDeliveries.forEach((d) => {
       if (!d.patient_id && d.stop_id) {
@@ -1089,7 +1089,7 @@ export default function RouteImport({
         console.log('[RouteImport] Fetching ALL users from ALL cities...');
         const allAppUsers = await base44.entities.AppUser.list();
         const allAuthUsers = await base44.entities.User.list();
-        
+
         // Merge AppUsers with Auth Users
         const mergedUsers = allAuthUsers.map((authUser) => {
           const appUser = allAppUsers.find((au) => au.user_id === authUser.id);
@@ -1104,7 +1104,7 @@ export default function RouteImport({
           }
           return authUser;
         });
-        
+
         setAllDriverUsers(mergedUsers);
         console.log(`[RouteImport] Loaded ${mergedUsers.length} users from ALL cities`);
       } catch (error) {
@@ -1113,13 +1113,13 @@ export default function RouteImport({
         setAllDriverUsers(allUsers || []);
       }
     };
-    
+
     loadAllDrivers();
   }, [allUsers]);
 
   const availableDrivers = useMemo(() => {
-    const usersToUse = allDriverUsers.length > 0 ? allDriverUsers : (allUsers || []);
-    
+    const usersToUse = allDriverUsers.length > 0 ? allDriverUsers : allUsers || [];
+
     if (!Array.isArray(usersToUse) || usersToUse.length === 0) {
       console.warn('[RouteImport] No users available for driver selection');
       return [];
@@ -1191,7 +1191,7 @@ export default function RouteImport({
 
     try {
       // CRITICAL: Use allDriverUsers (fetched from ALL cities) to find the selected driver
-      const usersToSearch = allDriverUsers.length > 0 ? allDriverUsers : (allUsers || []);
+      const usersToSearch = allDriverUsers.length > 0 ? allDriverUsers : allUsers || [];
       const selectedUser = usersToSearch.find((u) => u.id === selectedDriverId);
       if (!selectedUser) throw new Error('Selected driver not found');
 
@@ -1203,7 +1203,7 @@ export default function RouteImport({
       setAllStores(freshStoresAll || []);
       console.log(`[RouteImport] Fresh store data loaded: ${freshStoresAll?.length || 0} stores from ALL cities`);
       if (freshStoresAll && freshStoresAll.length > 0) {
-        console.log(`[RouteImport] Store abbreviations available:`, freshStoresAll.map(s => `${s.abbreviation || 'N/A'} (${s.name})`).slice(0, 30));
+        console.log(`[RouteImport] Store abbreviations available:`, freshStoresAll.map((s) => `${s.abbreviation || 'N/A'} (${s.name})`).slice(0, 30));
       }
 
       console.log(`[RouteImport] Fetching fresh patient data from ALL stores/cities...`);
@@ -1230,21 +1230,21 @@ export default function RouteImport({
 
       console.log('[RouteImport] Fetching fresh delivery data from ALL cities for duplicate detection...');
       setProgressMessage('Fetching delivery data for selected driver...');
-      
+
       // CRITICAL FIX: Instead of fetching ALL deliveries (which may hit API limits),
       // fetch deliveries specifically for the selected driver using driver_id filter
       // This ensures we always get the driver's deliveries regardless of city
       console.log(`[RouteImport] Fetching deliveries for driver_id: ${selectedUser.id}`);
       const driverDeliveries = await base44.entities.Delivery.filter(
-        { driver_id: selectedUser.id }, 
-        '-delivery_date', 
+        { driver_id: selectedUser.id },
+        '-delivery_date',
         10000
       );
       console.log(`[RouteImport] Loaded ${driverDeliveries.length} existing deliveries for driver "${selectedUser.user_name || selectedUser.full_name}"`);
-      
+
       // Use driver's deliveries as the comparison set
       const freshDeliveries = driverDeliveries;
-      
+
       if (freshDeliveries.length > 0) {
         console.log('[RouteImport] Sample of driver\'s deliveries:');
         freshDeliveries.slice(0, 5).forEach((d) => {
@@ -1315,8 +1315,8 @@ export default function RouteImport({
       setImportError({
         message: error.message,
         record: {
-          driver: availableDrivers.find(d => d.id === selectedDriverId)?.user_name || 'Unknown',
-          files: files.map(f => f.name).join(', ')
+          driver: availableDrivers.find((d) => d.id === selectedDriverId)?.user_name || 'Unknown',
+          files: files.map((f) => f.name).join(', ')
         },
         lineNumber: null,
         phase: 'preview'
@@ -1363,7 +1363,7 @@ export default function RouteImport({
       if (typeof window !== 'undefined' && window.__routeImportStartCallback) {
         window.__routeImportStartCallback();
       }
-      
+
       setProgressMessage('Fetching latest patient and store data from ALL cities...');
       // CRITICAL: Fetch ALL patients and stores without filters
       const freshPatients = await base44.entities.Patient.list('-created_date');
@@ -1404,7 +1404,7 @@ export default function RouteImport({
           const batch = batches[batchIndex];
           try {
             console.log(`📤 [RouteImport] Batch ${batchIndex + 1}/${batches.length}: Creating ${batch.length} deliveries...`);
-            
+
             await retryWithBackoff(async () => {
               await base44.entities.Delivery.bulkCreate(batch);
             }, 3, 1000, 2);
@@ -1426,14 +1426,14 @@ export default function RouteImport({
             }));
 
             console.log(`✅ [RouteImport] Batch ${batchIndex + 1} complete: ${batch.length} deliveries created`);
-            
+
             // Small delay between batches
             if (batchIndex < batches.length - 1) {
               await delay(500);
             }
           } catch (error) {
             console.warn(`⚠️ Batch ${batchIndex + 1} failed, falling back to individual creates:`, error.message);
-            
+
             // Fallback: try individual creates for this batch
             for (const cleanData of batch) {
               try {
@@ -1453,7 +1453,7 @@ export default function RouteImport({
               } catch (individualError) {
                 console.warn(`⚠️ Individual create failed for ${cleanData.delivery_id || 'unknown'}:`, individualError.message);
                 failedCreations.push({ data: cleanData, error: individualError.message });
-                
+
                 // Check for Invalid time value error and show detailed popup
                 if (individualError.message && individualError.message.includes('Invalid time value')) {
                   setImportError({
@@ -1461,7 +1461,7 @@ export default function RouteImport({
                     record: {
                       driver: cleanData.driver_name || 'Unknown',
                       date: cleanData.delivery_date || 'Unknown',
-                      store: freshStores.find(s => s.id === cleanData.store_id)?.name || cleanData.store_id || 'Unknown',
+                      store: freshStores.find((s) => s.id === cleanData.store_id)?.name || cleanData.store_id || 'Unknown',
                       patient: cleanData.patient_name || 'Store Pickup',
                       stopId: cleanData.stop_id || 'N/A',
                       trackingNumber: cleanData.tracking_number || 'N/A',
@@ -1518,7 +1518,7 @@ export default function RouteImport({
             console.warn(`⚠️ Update failed for delivery ID ${deliveryData.id}, will retry later:`, error.message);
             failedUpdates.push({ data: deliveryData, error: error.message });
             setImportProgress((prev) => ({ ...prev, current: i + 1 }));
-            
+
             // Check for Invalid time value error and show detailed popup
             if (error.message && error.message.includes('Invalid time value')) {
               setImportError({
@@ -1526,7 +1526,7 @@ export default function RouteImport({
                 record: {
                   driver: deliveryData.driver_name || 'Unknown',
                   date: deliveryData.delivery_date || 'Unknown',
-                  store: freshStores.find(s => s.id === deliveryData.store_id)?.name || deliveryData.store_id || 'Unknown',
+                  store: freshStores.find((s) => s.id === deliveryData.store_id)?.name || deliveryData.store_id || 'Unknown',
                   patient: deliveryData.patient_name || 'Store Pickup',
                   stopId: deliveryData.stop_id || 'N/A',
                   trackingNumber: deliveryData.tracking_number || 'N/A',
@@ -1647,8 +1647,8 @@ export default function RouteImport({
       setImportError({
         message: error.message,
         record: {
-          driver: availableDrivers.find(d => d.id === selectedDriverId)?.user_name || 'Unknown',
-          files: files.map(f => f.name).join(', '),
+          driver: availableDrivers.find((d) => d.id === selectedDriverId)?.user_name || 'Unknown',
+          files: files.map((f) => f.name).join(', '),
           created: overallResults.created,
           updated: overallResults.updated
         },
@@ -1712,8 +1712,8 @@ export default function RouteImport({
   return (
     <>
       {/* Error Popup Dialog */}
-      {importError && (
-        <Dialog open={true} onOpenChange={() => setImportError(null)}>
+      {importError &&
+      <Dialog open={true} onOpenChange={() => setImportError(null)}>
           <DialogContent className="fixed left-[50%] top-[50%] z-[70000] translate-x-[-50%] translate-y-[-50%] gap-4 border bg-white shadow-lg duration-200 sm:rounded-lg w-full max-w-lg p-0">
             <DialogHeader className="px-6 py-4 border-b border-red-200 bg-red-50">
               <DialogTitle className="text-xl flex items-center gap-2 text-red-800">
@@ -1731,105 +1731,105 @@ export default function RouteImport({
                 <p className="text-red-700 text-sm font-mono">{importError.message}</p>
               </div>
               
-              {importError.record && (
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+              {importError.record &&
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
                   <p className="font-semibold text-slate-800 mb-3">Record Details:</p>
                   <div className="grid grid-cols-2 gap-2 text-sm">
-                    {importError.record.driver && (
-                      <>
+                    {importError.record.driver &&
+                <>
                         <span className="text-slate-600">Driver:</span>
                         <span className="font-medium">{importError.record.driver}</span>
                       </>
-                    )}
-                    {importError.record.date && (
-                      <>
+                }
+                    {importError.record.date &&
+                <>
                         <span className="text-slate-600">Date:</span>
                         <span className="font-medium">{importError.record.date}</span>
                       </>
-                    )}
-                    {importError.record.store && (
-                      <>
+                }
+                    {importError.record.store &&
+                <>
                         <span className="text-slate-600">Store:</span>
                         <span className="font-medium">{importError.record.store}</span>
                       </>
-                    )}
-                    {importError.record.patient && (
-                      <>
+                }
+                    {importError.record.patient &&
+                <>
                         <span className="text-slate-600">Patient:</span>
                         <span className="font-medium">{importError.record.patient}</span>
                       </>
-                    )}
-                    {importError.record.stopId && importError.record.stopId !== 'N/A' && (
-                      <>
+                }
+                    {importError.record.stopId && importError.record.stopId !== 'N/A' &&
+                <>
                         <span className="text-slate-600">Stop ID:</span>
                         <span className="font-medium font-mono">{importError.record.stopId}</span>
                       </>
-                    )}
-                    {importError.record.trackingNumber && importError.record.trackingNumber !== 'N/A' && (
-                      <>
+                }
+                    {importError.record.trackingNumber && importError.record.trackingNumber !== 'N/A' &&
+                <>
                         <span className="text-slate-600">TR#:</span>
                         <span className="font-medium font-mono">{importError.record.trackingNumber}</span>
                       </>
-                    )}
-                    {importError.record.time && importError.record.time !== 'N/A' && (
-                      <>
+                }
+                    {importError.record.time && importError.record.time !== 'N/A' &&
+                <>
                         <span className="text-slate-600">Time Value:</span>
                         <span className="font-medium font-mono text-red-600">{importError.record.time}</span>
                       </>
-                    )}
-                    {importError.record.deliveryId && importError.record.deliveryId !== 'N/A' && (
-                      <>
+                }
+                    {importError.record.deliveryId && importError.record.deliveryId !== 'N/A' &&
+                <>
                         <span className="text-slate-600">Delivery ID:</span>
                         <span className="font-medium font-mono text-xs">{importError.record.deliveryId}</span>
                       </>
-                    )}
-                    {importError.record.files && (
-                      <>
+                }
+                    {importError.record.files &&
+                <>
                         <span className="text-slate-600">Files:</span>
                         <span className="font-medium text-xs">{importError.record.files}</span>
                       </>
-                    )}
-                    {importError.record.created !== undefined && (
-                      <>
+                }
+                    {importError.record.created !== undefined &&
+                <>
                         <span className="text-slate-600">Created before error:</span>
                         <span className="font-medium">{importError.record.created}</span>
                       </>
-                    )}
-                    {importError.record.updated !== undefined && (
-                      <>
+                }
+                    {importError.record.updated !== undefined &&
+                <>
                         <span className="text-slate-600">Updated before error:</span>
                         <span className="font-medium">{importError.record.updated}</span>
                       </>
-                    )}
+                }
                   </div>
                 </div>
-              )}
+            }
               
-              {importError.lineNumber && (
-                <div className="text-sm text-slate-600">
+              {importError.lineNumber &&
+            <div className="text-sm text-slate-600">
                   <span className="font-medium">Line Number:</span> {importError.lineNumber}
                 </div>
-              )}
+            }
             </div>
             
             <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex gap-3">
-              <Button 
-                onClick={handleErrorStartOver} 
-                className="flex-1 bg-blue-600 hover:bg-blue-700"
-              >
+              <Button
+              onClick={handleErrorStartOver}
+              className="flex-1 bg-blue-600 hover:bg-blue-700">
+
                 Start Over
               </Button>
-              <Button 
-                onClick={handleErrorCancel} 
-                variant="outline"
-                className="flex-1"
-              >
+              <Button
+              onClick={handleErrorCancel}
+              variant="outline"
+              className="flex-1">
+
                 Cancel Import
               </Button>
             </div>
           </DialogContent>
         </Dialog>
-      )}
+      }
 
       <style>{`
         [data-radix-dialog-overlay] {
@@ -1845,7 +1845,7 @@ export default function RouteImport({
         }
       `}</style>
       <Dialog open={true} onOpenChange={(open) => !open && onCancel()}>
-        <DialogContent className="fixed left-[50%] top-[50%] z-[10001] translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background shadow-lg duration-200 sm:rounded-lg w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden p-0">
+        <DialogContent className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] fixed left-[50%] top-[50%] z-[10001] translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background shadow-lg duration-200 sm:rounded-lg w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden p-0">
         <DialogHeader className="px-6 py-2 text-center flex flex-col space-y-1.5 sm:text-left border-b border-slate-200 flex-shrink-0">
           <DialogTitle className="text-2xl flex items-center gap-2">
             <Upload className="w-6 h-6" />
@@ -2004,7 +2004,7 @@ export default function RouteImport({
             <div className="flex-shrink-0 p-6 pb-4">
               <div className="flex items-center justify-between gap-4 mb-4">
                 <div className="flex flex-col">
-                  <span className="text-sm text-slate-500">Importing for: <span className="font-semibold text-slate-700">{availableDrivers.find(d => d.id === selectedDriverId)?.user_name || availableDrivers.find(d => d.id === selectedDriverId)?.full_name || 'Unknown Driver'}</span></span>
+                  <span className="text-sm text-slate-500">Importing for: <span className="font-semibold text-slate-700">{availableDrivers.find((d) => d.id === selectedDriverId)?.user_name || availableDrivers.find((d) => d.id === selectedDriverId)?.full_name || 'Unknown Driver'}</span></span>
                   <h3 className="text-lg font-semibold text-slate-800">Preview: {filteredPreviewDeliveries.length} Total Deliveries ({previewData.skippedItems.length} Skipped)</h3>
                 </div>
                 <div className="flex items-center gap-3">
@@ -2061,12 +2061,12 @@ export default function RouteImport({
                 </div>
             </div>
 
-            {previewData.skippedItems.length > 0 && (
+            {previewData.skippedItems.length > 0 &&
                 <div className="flex flex-col items-center bg-orange-50 border border-orange-200 rounded-lg p-3">
                 <div className="text-xs text-orange-700 mb-1">Skipped Items</div>
                 <div className="text-2xl font-bold text-orange-800">{previewStats.skipped}</div>
                 </div>
-            )}
+                }
             </div>  
           </div>
 
@@ -2153,12 +2153,12 @@ export default function RouteImport({
                             </td>
                             <td className="p-1 w-24">{getStatusBadge(delivery.status)}</td>
                             <td className="p-1 font-mono text-xs w-20">
-                              {delivery.cod_total_amount_required > 0 ? (
-                                <div className="flex flex-col">
+                              {delivery.cod_total_amount_required > 0 ?
+                            <div className="flex flex-col">
                                   <span className="text-slate-500 text-[10px]">{delivery.cod_payments?.[0]?.type || delivery.cod_payment_type || 'Cash'}</span>
                                   <span className="font-semibold">${delivery.cod_total_amount_required.toFixed(2)}</span>
-                                </div>
-                              ) : '-'}
+                                </div> :
+                            '-'}
                             </td>
                             <td className="p-1 text-xs w-42">
                               <span className="text-slate-600">{delivery.delivery_notes || '-'}</span>
