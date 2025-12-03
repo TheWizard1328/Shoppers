@@ -2883,8 +2883,10 @@ function Dashboard() {
         invalidate('Delivery');
 
         // CRITICAL: Fetch fresh deliveries immediately after batch creation
+        // Use the delivery date from the first staged delivery
+        const batchDeliveryDate = stagedDeliveries[0]?.delivery_date || format(selectedDate, 'yyyy-MM-dd');
         const freshDeliveries = await base44.entities.Delivery.filter({
-          delivery_date: deliveryDate
+          delivery_date: batchDeliveryDate
         });
 
         console.log('[AddToRoute] ✅ Fetched fresh deliveries:', freshDeliveries.length);
