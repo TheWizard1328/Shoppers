@@ -15,12 +15,12 @@ class SmartRefreshManager {
     this.minRefreshInterval = 14900; // ~15 seconds minimum between full refreshes
     this.lastFullRefreshTime = 0; // Track full refresh separately
     
-    // Real-time refresh intervals (milliseconds) - AGGRESSIVELY INCREASED to prevent rate limits
+    // Real-time refresh intervals (milliseconds) - INCREASED to prevent rate limits
     this.intervals = {
-      driverLocation: 20000,     // 20s - driver GPS locations
-      activeDeliveries: 10000,   // 10s - active delivery statuses for map
-      todayDeliveries: 60000,    // 60s - today's delivery changes
-      appUsers: 60000,           // 60s - driver status, assignments
+      driverLocation: 45000,     // 45s - driver GPS locations (increased from 20s)
+      activeDeliveries: 60000,   // 60s - active delivery statuses for map (increased from 10s)
+      todayDeliveries: 90000,    // 90s - today's delivery changes (increased from 60s)
+      appUsers: 90000,           // 90s - driver status, assignments (increased from 60s)
       patients: 300000,          // 5min - patient data rarely changes
       stores: 600000             // 10min - store data almost never changes
     };
@@ -37,7 +37,7 @@ class SmartRefreshManager {
     
     // Rate limit protection - INCREASED to prevent 429 errors
     this.lastApiCallTime = 0;
-    this.minTimeBetweenCalls = 2000; // 2 seconds minimum between any API call
+    this.minTimeBetweenCalls = 3000; // 3 seconds minimum between any API call (increased from 2s)
     
     // Rate limit error callback
     this.rateLimitCallback = null;
