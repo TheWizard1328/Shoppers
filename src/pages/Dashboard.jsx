@@ -732,9 +732,9 @@ function Dashboard() {
 
 
 
+
         // This subscription handles changes from other components
-      }});
-    return unsubscribe;
+      }});return unsubscribe;
   }, []);
 
   // Listen for driver status break/resume events from DriverStatusToggle
@@ -938,11 +938,11 @@ function Dashboard() {
 
 
 
+
+
       // Callback provided for future use, but not actively calling refreshData
       // to prevent triggering auto-selection every 15 seconds
-    });const unsubscribe = driverLocationPoller.subscribe((locations) => {if (!locations || !Array.isArray(locations)) return;setAllDriverLocations(locations);
-      });
-
+    });const unsubscribe = driverLocationPoller.subscribe((locations) => {if (!locations || !Array.isArray(locations)) return;setAllDriverLocations(locations);});
     return () => {
       unsubscribe();
       driverLocationPoller.stop();
@@ -4969,7 +4969,7 @@ function Dashboard() {
 
             <TooltipProvider>
               <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap">
                   <StatBadge
                     icon={Package}
                     value={stats.total}
