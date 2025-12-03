@@ -609,8 +609,8 @@ export default function Layout({ children, currentPageName }) {
     };
 
     fetchUnreadCount();
-    // Poll every 60 seconds when panel is closed (SSE/notification balloon handles real-time)
-    const interval = setInterval(fetchUnreadCount, 60000);
+    // Poll every 5 minutes when panel is closed (reduced from 60s to avoid rate limits)
+    const interval = setInterval(fetchUnreadCount, 300000);
     return () => clearInterval(interval);
   }, [currentUser?.id, showMessaging]);
 
@@ -786,7 +786,7 @@ export default function Layout({ children, currentPageName }) {
     const startupTimer = setTimeout(() => {
       console.log('🚀 [Layout] Starting unified real-time refresh (20s tick, staggered intervals per entity)');
 
-    // Unified refresh function - runs every 5s, each entity checks its own interval
+    // Unified refresh function - runs every 30s, each entity checks its own interval
     const performUnifiedRefresh = async () => {
       const updatedEntities = [];
       try {
@@ -914,10 +914,10 @@ export default function Layout({ children, currentPageName }) {
     };
 
       // Initial refresh after short delay
-      setTimeout(performUnifiedRefresh, 100);
+      setTimeout(performUnifiedRefresh, 500);
 
-      // Single unified interval - 20 seconds to prevent rate limits
-      refreshIntervalRef.current = setInterval(performUnifiedRefresh, 20000);
+      // Single unified interval - 30 seconds to prevent rate limits (increased from 20s)
+      refreshIntervalRef.current = setInterval(performUnifiedRefresh, 30000);
     }, 500);
 
     return () => {
