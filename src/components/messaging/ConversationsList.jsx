@@ -16,20 +16,19 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
     const fetchMessages = async () => {
       try {
         // OPTIMIZED: Only fetch messages for current user (not all messages)
-        // This reduces API load by filtering server-side
+        // This reduces API load significantly
         const [sentMessages, receivedMessages] = await Promise.all([
           base44.entities.Message.filter({ sender_id: currentUser.id }, '-created_date', 100),
           base44.entities.Message.filter({ receiver_id: currentUser.id }, '-created_date', 100)
         ]);
         
-        // Merge and deduplicate
-        const messageMap = new Map();
-        [...sentMessages, ...receivedMessages].forEach(m => {
-          if (m && m.id) messageMap.set(m.id, m);
-        });
+        // Merge and dedupe messages
+        const allUserMessages = [...sentMessages, ...receivedMessages];
+        const uniqueMessages = allUserMessages.filter((msg, index, self) => 
+          index === self.findIndex(m => m.id === msg.id)
+        );
         
-        const userMessages = Array.from(messageMap.values());
-        setMessages(userMessages);
+        setMessages(uniqueMessages);
       } catch (error) {
         console.error('Error fetching messages:', error);
       } finally {
@@ -38,7 +37,7 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
     };
 
     fetchMessages();
-    // Poll for new messages every 60 seconds (increased from 20s to reduce rate limits)
+    // Poll every 60 seconds (reduced from 20s to prevent rate limiting)
     const interval = setInterval(fetchMessages, 60000);
     return () => clearInterval(interval);
   }, [currentUser?.id]);
