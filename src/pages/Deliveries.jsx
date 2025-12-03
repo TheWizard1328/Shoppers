@@ -3092,7 +3092,27 @@ export default function DeliveriesPage() {
               onMonthChange={handleMonthChange}
               selectedYear={selectedYear}
               onYearChange={handleYearChange}
-              patients={effectivePatients} />
+              patients={effectivePatients}
+              selectedDriverId={driverFilter}
+              onDeleteRoute={async (dateStr, driverId) => {
+                try {
+                  const deliveriesToDelete = driverFilteredDeliveries.filter(
+                    (d) => d.delivery_date === dateStr && d.driver_id === driverId
+                  );
+                  console.log(`🗑️ Deleting ${deliveriesToDelete.length} deliveries for ${dateStr}, driver ${driverId}`);
+                  
+                  for (const delivery of deliveriesToDelete) {
+                    await base44.entities.Delivery.delete(delivery.id);
+                  }
+                  
+                  invalidate('Delivery');
+                  await loadData(true);
+                  console.log(`✅ Route deleted successfully`);
+                } catch (error) {
+                  console.error('Error deleting route:', error);
+                  alert('Failed to delete route. Please try again.');
+                }
+              }} />
             </div>
           </div>
         }
@@ -3147,7 +3167,28 @@ export default function DeliveriesPage() {
                 onMonthChange={handleMonthChange}
                 selectedYear={selectedYear}
                 onYearChange={handleYearChange}
-                patients={effectivePatients} />
+                patients={effectivePatients}
+                selectedDriverId={driverFilter}
+                onDeleteRoute={async (dateStr, driverId) => {
+                  try {
+                    const deliveriesToDelete = driverFilteredDeliveries.filter(
+                      (d) => d.delivery_date === dateStr && d.driver_id === driverId
+                    );
+                    console.log(`🗑️ Deleting ${deliveriesToDelete.length} deliveries for ${dateStr}, driver ${driverId}`);
+                    
+                    for (const delivery of deliveriesToDelete) {
+                      await base44.entities.Delivery.delete(delivery.id);
+                    }
+                    
+                    invalidate('Delivery');
+                    await loadData(true);
+                    setIsMobileMenuOpen(false);
+                    console.log(`✅ Route deleted successfully`);
+                  } catch (error) {
+                    console.error('Error deleting route:', error);
+                    alert('Failed to delete route. Please try again.');
+                  }
+                }} />
               </div>
             </motion.div>
           }
