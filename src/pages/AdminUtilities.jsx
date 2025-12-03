@@ -3564,6 +3564,10 @@ export default function AdminUtilities() {
               mergedUsers={mergedUsers}
             />
           </TabsContent>
+
+          <TabsContent value="app-settings">
+            <AppSettingsPanel />
+          </TabsContent>
         </Tabs>
       </div>
 
