@@ -4,6 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { diffEntityArrays, mergeEntityChanges, getLatestUpdateTimestamp, mergeDriverLocations, logDiffStats } from "./dataDiffer";
 import { format } from "date-fns";
 import { invalidate } from "./dataManager";
+import { touchUserCache } from "./auth";
 
 class SmartRefreshManager {
   constructor() {
@@ -656,18 +657,16 @@ class SmartRefreshManager {
   }
 
   /**
-   * Smart refresh for patients ON TODAY'S ROUTES ONLY
-   * Only refreshes patients who have deliveries scheduled for today
+   * Smart refresh for TODAY'S route patients only (HIGH PRIORITY)
+   * Only refreshes patients that are part of today's deliveries
    */
   async refreshTodayPatients(currentPatients, todayDeliveries) {
     try {
-      if (!this.shouldRefresh('todayPatients')) {
+      if (!todayDeliveries || todayDeliveries.length === 0) {
         return null;
       }
       
-      this.markRefreshed('todayPatients');
-      
-      // Get patient IDs from today's deliveries only
+      // Get patient IDs from today's deliveries
       const todayPatientIds = [...new Set(
         todayDeliveries
           .filter(d => d && d.patient_id)
@@ -678,38 +677,44 @@ class SmartRefreshManager {
         return null;
       }
       
-      console.log(`👤 [SmartRefresh] Checking ${todayPatientIds.length} patients on today's routes`);
+      // Filter current patients to only those on today's routes
+      const todayCurrentPatients = currentPatients.filter(p => 
+        p && todayPatientIds.includes(p.id)
+      );
+      
+      const lastTimestamp = getLatestUpdateTimestamp(todayCurrentPatients);
+      
+      if (!lastTimestamp) {
+        return null;
+      }
+      
+      // Only fetch patients that are on today's routes AND updated recently
+      const queryFilter = {
+        id: { $in: todayPatientIds },
+        updated_date: { $gte: lastTimestamp.toISOString() }
+      };
       
       await this.waitForRateLimit();
-      
-      // Only fetch patients that are on today's routes
-      const updatedPatients = await base44.entities.Patient.filter({
-        id: { $in: todayPatientIds }
-      });
+      const updatedPatients = await base44.entities.Patient.filter(queryFilter);
       
       if (!updatedPatients || updatedPatients.length === 0) {
         return null;
       }
       
-      // Check for actual changes
-      let hasChanges = false;
+      console.log(`📋 [SmartRefresh] ${updatedPatients.length} today's patients updated`);
+      
+      // Merge updates into full patient list
       const mergedPatients = currentPatients.map(p => {
-        const updated = updatedPatients.find(up => up.id === p.id);
-        if (updated) {
-          // Check if anything actually changed
-          if (JSON.stringify(p) !== JSON.stringify(updated)) {
-            hasChanges = true;
-            return updated;
-          }
-        }
-        return p;
+        const updated = updatedPatients.find(u => u.id === p.id);
+        return updated || p;
       });
       
-      if (!hasChanges) {
-        return null;
-      }
-      
-      console.log(`👤 [SmartRefresh] Today's patients updated`);
+      // Add any new patients
+      updatedPatients.forEach(up => {
+        if (!mergedPatients.find(p => p.id === up.id)) {
+          mergedPatients.push(up);
+        }
+      });
       
       return {
         hasChanges: true,
@@ -726,24 +731,17 @@ class SmartRefreshManager {
   }
 
   /**
-   * Smart refresh for ALL patients (background, low priority)
+   * Smart refresh for ALL patients (LOW PRIORITY - background)
+   * Runs at longer intervals for patients not on today's routes
    */
   async refreshPatients(currentPatients, filters) {
     try {
-      if (!this.shouldRefresh('patients')) {
-        return null;
-      }
-      
-      this.markRefreshed('patients');
-      
       const lastTimestamp = getLatestUpdateTimestamp(currentPatients);
       
       if (!lastTimestamp) {
         console.log('⏭️ [SmartRefresh] Skipping patient refresh - no existing data (wait for initial load)');
         return null;
       }
-      
-      await this.waitForRateLimit();
       
       const queryFilter = {
         ...filters,
@@ -752,6 +750,7 @@ class SmartRefreshManager {
         }
       };
       
+      await this.waitForRateLimit();
       const updatedPatients = await base44.entities.Patient.filter(queryFilter);
       
       if (!updatedPatients || updatedPatients.length === 0) {
@@ -1017,25 +1016,28 @@ class SmartRefreshManager {
       return null;
     }
     
+    // CRITICAL: Touch user cache on every refresh cycle to prevent session timeout
+    // This extends the auth cache TTL while the app is actively being used
+    try {
+      touchUserCache();
+    } catch (e) {
+      // Ignore errors from touchUserCache
+    }
+    
     this.isRefreshing = true;
     const updates = {};
     
     try {
-      // Get today's date for filtering
-      const today = new Date();
-      const todayStr = format(today, 'yyyy-MM-dd');
-      const todayDeliveries = (currentData.deliveries || []).filter(d => d && d.delivery_date === todayStr);
-      
-      // HIGH PRIORITY: Today's deliveries ONLY (not future/past)
-      if (currentData.deliveries && this.shouldRefresh('todayDeliveries')) {
-        // Only refresh today's date, ignore future/past
+      // HIGH PRIORITY: Today's deliveries ONLY (not future dates)
+      if (currentData.deliveries && filters.selectedDate && this.shouldRefresh('todayDeliveries')) {
+        // Only refresh today's date, not the full range
+        const today = new Date();
+        const todayStr = format(today, 'yyyy-MM-dd');
+        
         const deliveryUpdate = await this.refreshCurrentDayDeliveries(
           currentData.deliveries,
-          today, // Always use today, not selectedDate
-          filters.deliveryFilter,
-          currentData.stores || [],
-          filters.activeDriverIds || [],
-          false
+          today, // Always refresh TODAY, not selectedDate
+          filters.deliveryFilter
         );
         
         if (deliveryUpdate?.hasChanges) {
@@ -1044,7 +1046,7 @@ class SmartRefreshManager {
         this.markRefreshed('todayDeliveries');
       }
       
-      // HIGH PRIORITY: AppUsers (driver locations, status)
+      // HIGH PRIORITY: AppUsers (driver locations and status)
       if (currentData.appUsers && this.shouldRefresh('appUsers')) {
         const appUserUpdate = await this.refreshAppUsers(currentData.appUsers);
         
@@ -1054,37 +1056,48 @@ class SmartRefreshManager {
         this.markRefreshed('appUsers');
       }
       
-      // MEDIUM PRIORITY: Patients on TODAY'S routes only
-      if (currentData.patients && currentData.patients.length > 0 && todayDeliveries.length > 0) {
-        const todayPatientUpdate = await this.refreshTodayPatients(
+      // MEDIUM PRIORITY: Today's route patients only
+      if (currentData.patients && currentData.patients.length > 0 && 
+          currentData.deliveries && this.shouldRefresh('todayPatients')) {
+        
+        const today = new Date();
+        const todayStr = format(today, 'yyyy-MM-dd');
+        const todayDeliveries = currentData.deliveries.filter(d => 
+          d && d.delivery_date === todayStr
+        );
+        
+        const patientUpdate = await this.refreshTodayPatients(
           currentData.patients,
           todayDeliveries
         );
         
-        if (todayPatientUpdate?.hasChanges) {
-          updates.patients = todayPatientUpdate.patients;
+        if (patientUpdate?.hasChanges) {
+          updates.patients = patientUpdate.patients;
         }
+        this.markRefreshed('todayPatients');
       }
       
-      // LOW PRIORITY: All other patients (background refresh)
+      // LOW PRIORITY: All other patients (background - 15 min interval)
       if (currentData.patients && currentData.patients.length > 0 && this.shouldRefresh('patients')) {
         const patientUpdate = await this.refreshPatients(
           currentData.patients,
           filters.patientFilter || {}
         );
         
-        if (patientUpdate?.hasChanges && !updates.patients) {
+        if (patientUpdate?.hasChanges) {
           updates.patients = patientUpdate.patients;
         }
+        this.markRefreshed('patients');
       }
       
-      // VERY LOW PRIORITY: Stores (background)
+      // VERY LOW PRIORITY: Stores (30 min interval)
       if (currentData.stores && currentData.stores.length > 0 && this.shouldRefresh('stores')) {
         const storeUpdate = await this.refreshStores(currentData.stores);
         
         if (storeUpdate?.hasChanges) {
           updates.stores = storeUpdate.stores;
         }
+        this.markRefreshed('stores');
       }
       
       const hasAnyUpdates = Object.keys(updates).length > 0;
@@ -1127,6 +1140,12 @@ class SmartRefreshManager {
       return hasAnyUpdates ? updates : null;
       
     } catch (error) {
+      // CRITICAL: Handle auth errors gracefully - don't crash the app
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        console.warn('🔐 [SmartRefresh] Auth error during refresh - session may have expired');
+        // Don't throw - let the app continue and handle auth at the next user action
+        return null;
+      }
       console.error('❌ [SmartRefresh] Error during smart refresh:', error);
       return null;
     } finally {
