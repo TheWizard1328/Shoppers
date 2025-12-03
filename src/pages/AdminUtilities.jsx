@@ -3444,9 +3444,10 @@ export default function AdminUtilities() {
         </div>
 
         <Tabs value={activeUtilityTab} onValueChange={setActiveUtilityTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="data">Data Management</TabsTrigger>
             <TabsTrigger value="user-settings">User Settings</TabsTrigger>
+            <TabsTrigger value="app-settings">App Settings</TabsTrigger>
           </TabsList>
 
           <TabsContent value="data">
