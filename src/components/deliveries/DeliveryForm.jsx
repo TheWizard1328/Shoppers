@@ -184,6 +184,7 @@ export default function DeliveryForm({
   });
   const [showStagedPanel, setShowStagedPanel] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState({ show: false, staged: null });
+  const [isDeletingPending, setIsDeletingPending] = useState(false);
   const { deviceType } = getUserAgentInfo();
   const isMobileDevice = deviceType === 'Mobile';
   const hasLoadedPending = useRef(false);
@@ -3449,6 +3450,66 @@ export default function DeliveryForm({
           </CardFooter>
         </Card>
       </motion.div>
+      {/* Delete Pending Confirmation Dialog */}
+      {deleteConfirmation.show && deleteConfirmation.staged && (
+        <div className="fixed inset-0 z-[10020] bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-4">
+            <h3 className="text-lg font-semibold mb-2">Delete Pending Delivery?</h3>
+            <p className="text-sm text-slate-600 mb-4">
+              Are you sure you want to delete the pending delivery for <strong>{deleteConfirmation.staged.patient_name}</strong>? This action cannot be undone.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDeleteConfirmation({ show: false, staged: null })}
+                disabled={isDeletingPending}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={isDeletingPending}
+                onClick={async () => {
+                  const staged = deleteConfirmation.staged;
+                  if (!staged || !staged.id) return;
+                  
+                  setIsDeletingPending(true);
+                  try {
+                    console.log('🗑️ [DeliveryForm] Deleting pending delivery:', staged.id, staged.patient_name);
+                    await base44.entities.Delivery.delete(staged.id);
+                    console.log('✅ [DeliveryForm] Pending delivery deleted successfully');
+                    
+                    // Remove from staged list
+                    setStagedDeliveries((prev) => prev.filter((item) => item._tempId !== staged._tempId));
+                    
+                    // Clear editing state if this was the one being edited
+                    if (editingStagedId === staged._tempId) {
+                      setEditingStagedId(null);
+                      handleClearForm();
+                    }
+                    
+                    // Trigger projections refresh
+                    setPredictionTrigger((prev) => prev + 1);
+                    
+                    // Invalidate cache
+                    const { invalidate } = await import('../utils/dataManager');
+                    invalidate('Delivery');
+                    
+                    setDeleteConfirmation({ show: false, staged: null });
+                  } catch (error) {
+                    console.error('❌ [DeliveryForm] Failed to delete pending delivery:', error);
+                    setError(`Failed to delete: ${error.message}`);
+                  } finally {
+                    setIsDeletingPending(false);
+                  }
+                }}>
+                {isDeletingPending ? 'Deleting...' : 'Delete'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>);
 
 }
