@@ -15,12 +15,12 @@ class SmartRefreshManager {
     this.minRefreshInterval = 14900; // ~15 seconds minimum between full refreshes
     this.lastFullRefreshTime = 0; // Track full refresh separately
     
-    // Real-time refresh intervals (milliseconds) - INCREASED to prevent rate limits
+    // Real-time refresh intervals (milliseconds) - BALANCED for responsiveness vs rate limits
     this.intervals = {
-      driverLocation: 45000,     // 45s - driver GPS locations (increased from 20s)
-      activeDeliveries: 60000,   // 60s - active delivery statuses for map (increased from 10s)
-      todayDeliveries: 90000,    // 90s - today's delivery changes (increased from 60s)
-      appUsers: 90000,           // 90s - driver status, assignments (increased from 60s)
+      driverLocation: 30000,     // 30s - driver GPS locations
+      activeDeliveries: 15000,   // 15s - active delivery statuses for map (CRITICAL for real-time)
+      todayDeliveries: 30000,    // 30s - today's delivery changes (CRITICAL for cross-device sync)
+      appUsers: 60000,           // 60s - driver status, assignments
       patients: 300000,          // 5min - patient data rarely changes
       stores: 600000             // 10min - store data almost never changes
     };
