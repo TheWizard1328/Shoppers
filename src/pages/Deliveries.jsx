@@ -1207,35 +1207,29 @@ export default function DeliveriesPage() {
 
   );
 
-  // Sort deliveries by time for display - incomplete by ETA, completed by actual time
+  // Sort deliveries by time for display - MATCHES DASHBOARD SORTING LOGIC
   const sortDeliveriesByTime = useCallback((deliveries) => {
     if (!Array.isArray(deliveries)) return [];
 
-    const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned', 'picked_up'];
+    console.log(`🔢 [sortDeliveriesByTime] Sorting ${deliveries.length} deliveries (Dashboard-style)`);
 
-    // Separate into incomplete and finished
-    const incomplete = deliveries.filter((d) => !finishedStatuses.includes(d.status));
-    const finished = deliveries.filter((d) => finishedStatuses.includes(d.status));
+    // Use the same sorting logic as Dashboard (lines 411-422)
+    return [...deliveries].sort((a, b) => {
+      if (!a || !b) return 0;
+      
+      // Sort by stop_order first (primary sort)
+      const stopOrderA = a.stop_order ?? Infinity;
+      const stopOrderB = b.stop_order ?? Infinity;
 
-    console.log(`🔢 [sortDeliveriesByTime] Sorting ${incomplete.length} incomplete and ${finished.length} finished deliveries`);
+      if (stopOrderA !== stopOrderB) {
+        return stopOrderA - stopOrderB;
+      }
 
-    // Sort incomplete by ETA (delivery_time_start) ONLY - no secondary sort
-    incomplete.sort((a, b) => {
-      const timeA = a.delivery_time_start || '99:99';
-      const timeB = b.delivery_time_start || '99:99';
-
+      // Then by delivery_time_start (secondary sort)
+      const timeA = a.delivery_time_start || '';
+      const timeB = b.delivery_time_start || '';
       return timeA.localeCompare(timeB);
     });
-
-    // Sort finished by actual completion time
-    finished.sort((a, b) => {
-      const timeA = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : 0;
-      const timeB = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : 0;
-      return timeA - timeB;
-    });
-
-    // Return incomplete first, then finished
-    return [...incomplete, ...finished];
   }, []);
 
   const filteredAndSortedDeliveries = useMemo(() => {
