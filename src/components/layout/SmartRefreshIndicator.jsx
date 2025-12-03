@@ -62,7 +62,7 @@ export default function SmartRefreshIndicator() {
       {/* Spinning icon when active, paused indicator, or static when idle */}
       <div 
         className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
-          isPaused ? 'bg-yellow-100' : isActive ? 'bg-blue-100' : 'bg-slate-100'
+          isPaused ? 'bg-yellow-100' : isActive ? 'bg-emerald-500' : 'bg-slate-100'
         }`}
         title={isPaused ? 'Smart refresh paused' : isActive ? 'Smart refresh active' : 'Smart refresh idle'}
       >
@@ -71,7 +71,7 @@ export default function SmartRefreshIndicator() {
             animate={{ rotate: 360 }}
             transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
           >
-            <RefreshCw className="w-3.5 h-3.5 text-blue-500" />
+            <RefreshCw className="w-3.5 h-3.5 text-white" />
           </motion.div>
         ) : isPaused ? (
           <div className="w-2 h-2 rounded-full bg-yellow-500" />
