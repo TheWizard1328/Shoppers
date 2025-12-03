@@ -3505,7 +3505,7 @@ export default function DeliveriesPage() {
 
               <AnimatePresence mode="wait">
                 {/* Actual deliveries list */}
-                <div className="grid gap-4 overflow-y-auto pb-4" style={{ gridTemplateColumns: 'repeat(auto-fill, 256px)', justifyContent: 'start', maxHeight: 'calc(100vh - 280px)' }}>
+                <div className="flex flex-wrap gap-4 overflow-y-auto pb-4 items-start content-start" style={{ maxHeight: 'calc(100vh - 280px)' }}>
                   {renderDeliveries(filteredAndSortedDeliveries)}
                 </div>
               </AnimatePresence>
