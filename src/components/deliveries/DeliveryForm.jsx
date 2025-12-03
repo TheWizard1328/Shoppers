@@ -2213,11 +2213,22 @@ export default function DeliveryForm({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Package className="w-5 h-5 text-emerald-600" />
-                <CardTitle className="text-xl font-bold flex items-center gap-2">
-                  {delivery ? isPickupMode ? 'Edit Pickup' : 'Edit Delivery' : 'Add To Route'}
-                  {selectedPatient?.last_delivery_date && (() => {
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-xl font-bold">
+                    {delivery ? isPickupMode ? 'Edit Pickup' : 'Edit Delivery' : 'Add To Route'}
+                  </CardTitle>
+                  {(() => {
+                    // Show last delivery date for selected patient OR for patient in editing mode
+                    let patientToCheck = selectedPatient;
+                    
+                    if (!patientToCheck && editingStagedId && formData.patient_id) {
+                      patientToCheck = patients?.find(p => p && p.id === formData.patient_id);
+                    }
+                    
+                    if (!patientToCheck?.last_delivery_date) return null;
+                    
                     try {
-                      const date = new Date(selectedPatient.last_delivery_date + 'T00:00:00');
+                      const date = new Date(patientToCheck.last_delivery_date + 'T00:00:00');
                       if (isNaN(date.getTime())) return null;
                       return (
                         <Badge variant="outline" className="text-xs font-normal">
@@ -2228,7 +2239,7 @@ export default function DeliveryForm({
                       return null;
                     }
                   })()}
-                </CardTitle>
+                </div>
 
                 {!delivery &&
                 <div className="flex gap-2 ml-4">
