@@ -24,6 +24,7 @@ import { formatAddressWithUnit, cleanBuzzerFromAddress } from '../utils/addressC
 import { base44 } from "@/api/base44Client";
 import { locationTracker } from "../utils/locationTracker";
 import { useAppData } from "../utils/AppDataContext";
+import { format as formatDateFns } from "date-fns";
 import {
   notifyDriverAcceptedAll,
   notifyDriverAcceptedOne,
@@ -129,7 +130,7 @@ export default function StopCard({
   const [isRetrying, setIsRetrying] = useState(false);
   const [isPreparingReturn, setIsPreparingReturn] = useState(false);
   const codAmountInputRefs = useRef([]);
-  const { setIsEntityUpdating } = useAppData();
+  const { setIsEntityUpdating, forceRefreshDriverDeliveries } = useAppData();
 
   // Detect if this is a stripped delivery (from other store)
   // For dispatchers: strip deliveries that aren't from their assigned stores
@@ -752,6 +753,11 @@ export default function StopCard({
                         console.log('✅ [STATUS MENU] Smart refresh paused');
 
                         try {
+                          // CRITICAL: Force refresh driver deliveries before status update
+                          console.log('🔄 [STATUS MENU] Force refreshing driver deliveries...');
+                          await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                          console.log('✅ [STATUS MENU] Fresh data loaded');
+
                           // Pass skipAutoCenter=false for finished statuses so ETAs get recalculated
                           const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
                           const skipAutoCenter = !finishedStatuses.includes(status);
@@ -1488,6 +1494,11 @@ export default function StopCard({
                         console.log('✅ [RETRY] Smart refresh paused');
 
                         try {
+                          // CRITICAL: Force refresh driver deliveries before retrying
+                          console.log('🔄 [RETRY] Force refreshing driver deliveries...');
+                          await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                          console.log('✅ [RETRY] Fresh data loaded');
+
                           await ensureDriverOnline();
                           await onStatusUpdate(delivery.id, isPickup ? 'en_route' : 'in_transit');
                           // Send notification to dispatchers
@@ -1528,6 +1539,11 @@ export default function StopCard({
                         console.log('✅ [COMPLETE] Smart refresh paused');
 
                         try {
+                          // CRITICAL: Force refresh driver deliveries before completing
+                          console.log('🔄 [COMPLETE] Force refreshing driver deliveries...');
+                          await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                          console.log('✅ [COMPLETE] Fresh data loaded');
+
                           // Auto-toggle driver online if offline
                           await ensureDriverOnline();
 
@@ -1627,6 +1643,11 @@ export default function StopCard({
                       console.log('✅ [START] Smart refresh paused');
 
                       try {
+                        // CRITICAL: Force refresh driver deliveries before starting
+                        console.log('🔄 [START] Force refreshing driver deliveries...');
+                        await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                        console.log('✅ [START] Fresh data loaded');
+
                         await ensureDriverOnline();
 
                         // Send notification to dispatchers BEFORE updating the delivery
