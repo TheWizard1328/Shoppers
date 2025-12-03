@@ -1059,20 +1059,20 @@ export default function PatientImport({ onImportComplete, onImportStart, current
   if (showPreview) {
     return (
       <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[9999] overflow-hidden">
-                <Card className="w-full max-w-6xl h-[85vh] flex flex-col">
-                    <CardHeader className="border-b flex-shrink-0">
+                <Card className="rounded-xl border bg-card text-card-foreground shadow w-full max-w-4xl h-[85vh] flex flex-col">
+                    <CardHeader className="flex flex-col space-y-1.5 p-3 border-b flex-shrink-0">
                         <div className="flex items-center justify-between">
                             <CardTitle>Import Preview</CardTitle>
-                            <Button variant="ghost" size="icon" onClick={() => setShowPreview(false)}>
+                            <Button variant="ghost" size="icon" onClick={() => setShowPreview(false)} className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:bg-accent hover:text-accent-foreground h-9 w-8">
                                 <X className="w-4 h-4" />
                             </Button>
                         </div>
                     </CardHeader>
-                    <CardContent className="flex-1 overflow-y-auto p-6 space-y-6">
+                    <CardContent className="flex-1 overflow-y-auto p-4 space-y-2">
                         {/* Summary */}
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-3 gap-3">
                             <Card>
-                                <CardContent className="p-4 text-center">
+                                <CardContent className="p-4 px-4 py-4 text-center">
                                     <div className="text-3xl font-bold text-green-600">{previewChanges.toCreate.length}</div>
                                     <div className="text-sm text-slate-600">New Patients</div>
                                 </CardContent>
@@ -1095,9 +1095,9 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                         {previewChanges.toCreate.length > 0 &&
             <div>
                                 <h3 className="text-lg font-semibold text-green-600 mb-3">New Patients ({previewChanges.toCreate.length})</h3>
-                                <div className="space-y-1 max-h-[200px] overflow-y-auto border rounded p-3">
+                                <div className="space-y-1 max-h-[205px] overflow-y-auto border rounded p-2">
                                     {previewChanges.toCreate.map((item, idx) =>
-                <div key={idx} className="bg-green-50 border border-green-200 rounded px-3 py-1.5 text-sm flex items-center gap-3 flex-wrap">
+                <div key={idx} className="bg-green-50 border border-green-200 rounded px-2 py-0.5 text-sm flex items-center gap-2 flex-wrap">
                                             <span className="font-mono text-xs bg-green-100 px-2 py-0.5 rounded border border-green-300">
                                                 {item.data.patient_id || 'NO PID'}
                                             </span>
@@ -1114,10 +1114,10 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                         {/* Updates */}
                         {previewChanges.toUpdate.length > 0 &&
             <div>
-                                <h3 className="text-lg font-semibold text-blue-600 mb-3">Updates ({previewChanges.toUpdate.length})</h3>
-                                <div className="space-y-2 max-h-[300px] overflow-y-auto border rounded p-3">
+                                <h3 className="text-lg font-semibold text-blue-600 mb-2">Updates ({previewChanges.toUpdate.length})</h3>
+                                <div className="space-y-1 max-h-[325px] overflow-y-auto border rounded p-2">
                                     {previewChanges.toUpdate.map((item, idx) =>
-                <div key={idx} className="bg-blue-50 border border-blue-200 rounded p-3">
+                <div key={idx} className="bg-blue-50 border border-blue-200 rounded p-1">
                                             <div className="flex items-center gap-2 flex-wrap text-sm">
                                                 <span className="font-mono text-xs bg-blue-100 px-2 py-0.5 rounded border border-blue-300">
                                                     {item.data.patient_id || item.existing.patient_id || 'NO PID'}
@@ -1166,7 +1166,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                             </div>
             }
                     </CardContent>
-                    <div className="border-t p-4 flex justify-end gap-3 flex-shrink-0">
+                    <div className="border-t p-2 flex justify-end gap-3 flex-shrink-0">
                         <Button variant="outline" onClick={() => setShowPreview(false)} disabled={isProcessing}>
                             Cancel
                         </Button>
