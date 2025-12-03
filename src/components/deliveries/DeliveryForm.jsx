@@ -1245,7 +1245,7 @@ export default function DeliveryForm({
     const newDeliveries = validStagedDeliveries.filter((staged) => !staged.id);
     const updatedDeliveries = validStagedDeliveries.filter((staged) => staged.id && staged.status !== 'pending');
 
-    console.log('[AddToRoute] 🔍 Total staged:', stagedDeliveries.length, '| New:', newDeliveries.length, '| Updated:', updatedDeliveries.length, '| Unchanged pending:', stagedDeliveries.length - newDeliveries.length - updatedDeliveries.length);
+    console.log('[AddToRoute] 🔍 Total staged:', validStagedDeliveries.length, '| New:', newDeliveries.length, '| Updated:', updatedDeliveries.length, '| Unchanged pending:', validStagedDeliveries.length - newDeliveries.length - updatedDeliveries.length);
     console.log('[AddToRoute] 🔍 New deliveries to save:', newDeliveries.map((s) => ({
       _tempId: s._tempId,
       patient_name: s.patient_name
@@ -1264,6 +1264,9 @@ export default function DeliveryForm({
       console.log('[AddToRoute] ✅ onCancel called');
       return;
     }
+
+    // Get delivery date from form data for use in TR# calculation
+    const deliveryDate = formData.delivery_date;
 
     // Calculate sequential TR#s based on pickup TR# for each store/driver/AMPM group
     const calculateSequentialTRs = (deliveries) => {
@@ -1516,7 +1519,7 @@ export default function DeliveryForm({
     } finally {
       setIsSaving(false);
     }
-  }, [stagedDeliveries, onSave, onCancel, allDeliveries, formData.delivery_date]);
+  }, [stagedDeliveries, onSave, onCancel, allDeliveries, formData.delivery_date, formData.driver_id, handleClearForm, editingStagedId]);
 
   const handleSearchKeyDown = useCallback((e) => {
     if (!patientSearch) return;
