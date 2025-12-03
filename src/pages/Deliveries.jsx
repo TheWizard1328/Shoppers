@@ -2863,9 +2863,35 @@ export default function DeliveriesPage() {
                   selectedDate={selectedDate}
                   onEditPatient={handleEditPatient}
                   onCODUpdate={handleCODUpdate}
+                  onStartDelivery={handleStatusUpdate}
+                  onCreateReturn={async ({ originalDelivery, returnPatient, store }) => {
+                    try {
+                      const currentDate = format(new Date(), 'yyyy-MM-dd');
+                      await base44.entities.Delivery.create({
+                        patient_id: returnPatient.id,
+                        store_id: originalDelivery.store_id,
+                        driver_id: originalDelivery.driver_id,
+                        driver_name: originalDelivery.driver_name,
+                        delivery_date: currentDate,
+                        delivery_time_start: originalDelivery.delivery_time_start,
+                        delivery_time_end: originalDelivery.delivery_time_end,
+                        status: 'in_transit',
+                        delivery_notes: `PATIENT RETURN From: ${originalDelivery.delivery_date}`,
+                        patient_name: returnPatient.full_name,
+                        patient_phone: returnPatient.phone || store?.phone || '',
+                        store_phone: store?.phone || ''
+                      });
+                      await invalidate('Delivery');
+                      await loadData(true);
+                    } catch (error) {
+                      console.error('Error creating return:', error);
+                      throw error;
+                    }
+                  }}
                   patients={effectivePatients || []}
                   drivers={effectiveDrivers || []}
                   stores={stores || []}
+                  appUsers={contextUsers || []}
                   dragHandleProps={canCreateDeliveries ? provided.dragHandleProps : null}
                   showDragHandle={false} />
 
