@@ -1015,10 +1015,20 @@ Deno.serve(async (req) => {
     console.log(`   Updated ${updates.length} deliveries`);
     console.log('═══════════════════════════════════');
     
+    // CRITICAL: Return ALL deliveries for the route, not just those with updates
+    // This ensures the frontend can properly sync isNextDelivery flags
+    const allDeliveriesForRoute = await base44.asServiceRole.entities.Delivery.filter({
+      delivery_date: deliveryDate,
+      driver_id: driverId
+    });
+    
+    console.log(`📦 Returning ${allDeliveriesForRoute.length} total deliveries to frontend`);
+    
     return Response.json({
       success: true,
       message: `Optimized route with ${updates.length} stops`,
       updates,
+      allDeliveries: allDeliveriesForRoute, // NEW: Return all deliveries so frontend can sync
       routeComplete: false
     });
     

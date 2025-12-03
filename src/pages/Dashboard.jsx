@@ -1,4 +1,3 @@
-
 // Dashboard.js - Delivery Management Dashboard
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -4526,10 +4525,11 @@ function Dashboard() {
             console.log('✅ Backend optimization result:', optimizationResult.data);
             fetchPolylineCount();
 
-            // CRITICAL: Apply backend updates directly to local state
-            if (optimizationResult.data?.updates && Array.isArray(optimizationResult.data.updates)) {
-              console.log('🔄 Applying', optimizationResult.data.updates.length, 'backend updates to local state');
-              updateDeliveriesLocally(optimizationResult.data.updates);
+            // CRITICAL: Use allDeliveries from backend (includes ALL route deliveries with correct isNextDelivery)
+            // This ensures we sync ALL fields, especially isNextDelivery which was reset in backend
+            if (optimizationResult.data?.allDeliveries && Array.isArray(optimizationResult.data.allDeliveries)) {
+              console.log('🔄 Syncing', optimizationResult.data.allDeliveries.length, 'deliveries from backend (full sync)');
+              updateDeliveriesLocally(optimizationResult.data.allDeliveries);
             }
 
             if (optimizationResult.data?.routeComplete) {
@@ -4725,10 +4725,10 @@ function Dashboard() {
         console.log('✅ [START] Backend optimizer complete:', optimizationResult.data);
         fetchPolylineCount();
 
-        // CRITICAL: Apply backend updates directly to local state
-        if (optimizationResult.data?.updates && Array.isArray(optimizationResult.data.updates)) {
-          console.log('🔄 Applying', optimizationResult.data.updates.length, 'backend updates to local state');
-          updateDeliveriesLocally(optimizationResult.data.updates);
+        // CRITICAL: Use allDeliveries from backend (includes ALL route deliveries with correct isNextDelivery)
+        if (optimizationResult.data?.allDeliveries && Array.isArray(optimizationResult.data.allDeliveries)) {
+          console.log('🔄 Syncing', optimizationResult.data.allDeliveries.length, 'deliveries from backend (full sync)');
+          updateDeliveriesLocally(optimizationResult.data.allDeliveries);
         }
       } catch (optimizerError) {
         console.error('❌ [START] Backend optimizer failed:', optimizerError);
