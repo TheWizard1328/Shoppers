@@ -1,4 +1,3 @@
-
 import { User } from '@/entities/User';
 import { AppUser } from '@/entities/AppUser';
 import { createMergedUser } from './driverUtils';
@@ -8,9 +7,16 @@ import { getCached } from './dataManager';
 let userCache = {
   data: null,
   timestamp: 0,
-  ttl: 30000, // REDUCED: 30 seconds cache (was 5 minutes)
+  ttl: 120000, // 2 minutes cache to prevent rate limits
   lastFailureTime: 0,
   backoffTime: 0
+};
+
+// Separate cache for AppUser list (longer TTL since it changes less frequently)
+let appUserListCache = {
+  data: null,
+  timestamp: 0,
+  ttl: 300000 // 5 minutes cache for AppUser list
 };
 
 /**
