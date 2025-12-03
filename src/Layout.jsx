@@ -630,6 +630,25 @@ export default function Layout({ children, currentPageName }) {
   const isReloadingFromAppUserChange = useRef(false);
   const needsDataReload = useRef(false);
 
+  // Granular delivery update function for immediate UI synchronization
+  const updateDeliveriesLocally = useCallback((updates) => {
+    console.log('🔄 [Layout] updateDeliveriesLocally called with', updates.length, 'updates');
+    
+    setDeliveries(prevDeliveries => {
+      const updatesMap = new Map(updates.map(u => [u.id, u]));
+      
+      return prevDeliveries.map(delivery => {
+        if (!delivery) return delivery;
+        const update = updatesMap.get(delivery.id);
+        if (update) {
+          console.log(`  ✅ Applying update to delivery ${delivery.id}`);
+          return { ...delivery, ...update };
+        }
+        return delivery;
+      });
+    });
+  }, []);
+
   // Callback to update state from smartRefreshManager
   const updateAppDataState = useCallback(async (updates) => {
     // CRITICAL: Don't update state if a form is open to prevent unwanted re-renders
@@ -2098,6 +2117,7 @@ export default function Layout({ children, currentPageName }) {
               cities: cities || [],
               isDataLoaded: dataLoaded,
               refreshData: triggerFullDataLoad,
+              updateDeliveriesLocally: updateDeliveriesLocally,
               isFormOverlayOpen: isFormOverlayOpen,
               setIsFormOverlayOpen: setIsFormOverlayOpen,
               isEntityUpdating: isEntityUpdating,

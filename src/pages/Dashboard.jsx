@@ -1,4 +1,3 @@
-
 // Dashboard.js - Delivery Management Dashboard
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -183,6 +182,7 @@ function Dashboard() {
     cities,
     isDataLoaded,
     refreshData,
+    updateDeliveriesLocally,
     setIsFormOverlayOpen,
     setIsEntityUpdating,
     setOnSmartRefreshComplete
@@ -4498,17 +4498,20 @@ function Dashboard() {
               } : null,
               completedDeliveryId: deliveryId,
               clientCurrentTime: format(new Date(), 'HH:mm'),
-              generatePolyline: true,
-              selectNextStop: true
+              generatePolyline: true
             });
 
             console.log('✅ Backend optimization result:', optimizationResult.data);
             fetchPolylineCount();
 
+            // CRITICAL: Apply backend updates directly to local state
+            if (optimizationResult.data?.updates && Array.isArray(optimizationResult.data.updates)) {
+              console.log('🔄 Applying backend updates to local state');
+              updateDeliveriesLocally(optimizationResult.data.updates);
+            }
+
             if (optimizationResult.data?.routeComplete) {
               console.log('✅ Route complete - no more stops');
-              invalidate('Delivery');
-              await refreshData();
 
               // Show route summary modal only for completed status
               if (newStatus === 'completed' && !hasShownSummaryRef.current) {
@@ -4524,55 +4527,12 @@ function Dashboard() {
         } else {
           console.log('⏭️ Desktop device - skipping backend optimizer (mobile-only feature)');
         }
-        
-        // Desktop fallback or backend failure - just refresh data without optimization
-        {
-
-          const freshDeliveries = await base44.entities.Delivery.filter({
-            delivery_date: deliveryDate,
-            driver_id: driverId
-          });
-
-          const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-          const completedDeliveries = freshDeliveries.filter((d) => d && finishedStatuses.includes(d.status));
-          const incompleteDeliveries = freshDeliveries.filter((d) => d && !finishedStatuses.includes(d.status));
-
-          if (incompleteDeliveries.length === 0) {
-            invalidate('Delivery');
-            await refreshData();
-            if (newStatus === 'completed' && !hasShownSummaryRef.current) {
-              setShowRouteSummary(true);
-              hasShownSummaryRef.current = true;
-            }
-            return;
-          }
-
-          // Simple reordering for desktop - no ETA recalculation
-          // Desktop view - just reorder without ETA calculation
-          const sortedCompleted = [...completedDeliveries].sort((a, b) =>
-            new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time)
-          );
-          
-          incompleteDeliveries.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-          
-          const finalSortedRoute = [...sortedCompleted, ...incompleteDeliveries];
-          for (let i = 0; i < finalSortedRoute.length; i++) {
-            const stop = finalSortedRoute[i];
-            if (!stop) continue;
-            await base44.entities.Delivery.update(stop.id, { stop_order: i + 1 });
-          }
-          
-          console.log('✅ Desktop fallback: Reordered stops without ETA calculation');
-        }
 
         console.log('');
         console.log('═══════════════════════════════════');
         console.log('✅ Completion logic complete!');
         console.log('═══════════════════════════════════');
       }
-
-      invalidate('Delivery');
-      await refreshData();
 
       if (!skipAutoCenter) {
         // CRITICAL: Use scrollToNextCardAfter mechanism instead of manual DOM query
@@ -4734,19 +4694,21 @@ function Dashboard() {
           startedDeliveryId: deliveryId,
           clientCurrentTime: format(new Date(), 'HH:mm'),
           generatePolyline: true,
-          forceReoptimization: true // Force optimization to run
+          forceReoptimization: true
         });
         
         console.log('✅ [START] Backend optimizer complete:', optimizationResult.data);
         fetchPolylineCount();
+
+        // CRITICAL: Apply backend updates directly to local state
+        if (optimizationResult.data?.updates && Array.isArray(optimizationResult.data.updates)) {
+          console.log('🔄 Applying backend updates to local state');
+          updateDeliveriesLocally(optimizationResult.data.updates);
+        }
       } catch (optimizerError) {
         console.error('❌ [START] Backend optimizer failed:', optimizerError);
-        // Don't throw - status update already succeeded, we'll refresh anyway
+        // Don't throw - status update already succeeded
       }
-
-      // Refresh data to show updated status and route
-      invalidate('Delivery');
-      await refreshData();
 
       // Scroll to card
       setSelectedCardId(null);
