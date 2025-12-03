@@ -147,18 +147,60 @@ Deno.serve(async (req) => {
       });
     }
     
-    // Determine driver's current location
+    // Determine driver's current location (priority: provided location > GPS > last completed stop)
     let startLocation = null;
+    let startLocationSource = null;
+    
     if (currentLocation?.latitude && currentLocation?.longitude) {
       startLocation = currentLocation;
+      startLocationSource = 'provided';
+      console.log(`   📍 Using provided current location`);
     } else if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
       const locationAge = driverAppUser.location_updated_at 
         ? Date.now() - new Date(driverAppUser.location_updated_at).getTime()
         : Infinity;
       if (locationAge < 10 * 60 * 1000) {
         startLocation = { latitude: driverAppUser.current_latitude, longitude: driverAppUser.current_longitude };
+        startLocationSource = 'GPS';
+        console.log(`   📍 Using driver GPS location (${Math.round(locationAge / 1000)}s old)`);
       }
     }
+    
+    // Fallback: Use last completed delivery location
+    if (!startLocation && completedDeliveries.length > 0) {
+      const sortedCompleted = [...completedDeliveries].sort((a, b) => {
+        const timeA = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : 0;
+        const timeB = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : 0;
+        return timeB - timeA; // Most recent first
+      });
+      const lastCompleted = sortedCompleted[0];
+      
+      // Get location from patient or store
+      if (lastCompleted.patient_id) {
+        const patient = patients.find(p => p?.id === lastCompleted.patient_id);
+        if (patient?.latitude && patient?.longitude) {
+          startLocation = { latitude: patient.latitude, longitude: patient.longitude };
+          startLocationSource = 'last_completed';
+          console.log(`   📍 Using last completed delivery location (${patient.full_name})`);
+        }
+      } else {
+        const store = stores.find(s => s?.id === lastCompleted.store_id);
+        if (store?.latitude && store?.longitude) {
+          startLocation = { latitude: store.latitude, longitude: store.longitude };
+          startLocationSource = 'last_completed';
+          console.log(`   📍 Using last completed pickup location (${store.name})`);
+        }
+      }
+    }
+    
+    // Final fallback: Use driver home location
+    if (!startLocation && driverAppUser?.home_latitude && driverAppUser?.home_longitude) {
+      startLocation = { latitude: driverAppUser.home_latitude, longitude: driverAppUser.home_longitude };
+      startLocationSource = 'home';
+      console.log(`   📍 Using driver home location (fallback)`);
+    }
+    
+    console.log(`   📍 Start location source: ${startLocationSource || 'none'}`)
     
     // Enrich deliveries with coordinates
     const enrichedDeliveries = incompleteDeliveries.map(delivery => {
