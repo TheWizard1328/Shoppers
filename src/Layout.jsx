@@ -593,12 +593,13 @@ export default function Layout({ children, currentPageName }) {
 
   // Fetch unread message count - only when messaging panel is closed
   // When panel is open, ConversationsList handles the count
+  // OPTIMIZED: Reduced frequency significantly to prevent rate limits
   useEffect(() => {
     if (!currentUser?.id || showMessaging) return;
 
     const fetchUnreadCount = async () => {
       try {
-        // OPTIMIZED: Only count unread, limit to 50 to reduce load
+        // Only fetch count, limit to 50 to reduce load
         const unreadMessages = await base44.entities.Message.filter({
           receiver_id: currentUser.id,
           read: false
@@ -610,7 +611,7 @@ export default function Layout({ children, currentPageName }) {
     };
 
     fetchUnreadCount();
-    // Poll every 10 minutes when panel is closed (reduced to prevent rate limits)
+    // Poll every 10 minutes when panel is closed (reduced from 5 min)
     const interval = setInterval(fetchUnreadCount, 600000);
     return () => clearInterval(interval);
   }, [currentUser?.id, showMessaging]);
@@ -917,8 +918,9 @@ export default function Layout({ children, currentPageName }) {
       // Initial refresh after short delay
       setTimeout(performUnifiedRefresh, 500);
 
-      // Single unified interval - 60 seconds to prevent rate limits (increased from 30s)
-      refreshIntervalRef.current = setInterval(performUnifiedRefresh, 60000);
+      // Single unified interval - 45 seconds for balanced refresh rate
+      // Individual entity intervals are managed by smartRefreshManager
+      refreshIntervalRef.current = setInterval(performUnifiedRefresh, 45000);
     }, 500);
 
     return () => {
