@@ -1609,14 +1609,11 @@ export default function StopCard({
                             }
                           }).catch((err) => console.warn('Route optimization failed:', err));
 
-                          // NOTE: Don't reset isCompleting here - the card will be replaced/hidden
-                          // when parent refreshes. This keeps the spinner visible during transition.
                         } catch (error) {
                           console.error('Complete delivery error:', error);
-                          setIsCompleting(false);
-                          console.log('▶️ [COMPLETE] Resuming smart refresh (error)');
-                          setIsEntityUpdating(false);
                         } finally {
+                          // CRITICAL: Always reset isCompleting to allow button to be clickable again
+                          setIsCompleting(false);
                           console.log('▶️ [COMPLETE] Resuming smart refresh');
                           setIsEntityUpdating(false);
                           await new Promise((resolve) => setTimeout(resolve, 100));
