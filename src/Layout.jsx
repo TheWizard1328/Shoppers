@@ -416,6 +416,7 @@ export default function Layout({ children, currentPageName }) {
       const [themePreference, setThemePreference] = useState('auto');
       const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
       const [showMessaging, setShowMessaging] = useState(false);
+      const [unreadMessageCount, setUnreadMessageCount] = useState(0);
 
   useEffect(() => {
     const init = async () => {
@@ -587,6 +588,28 @@ export default function Layout({ children, currentPageName }) {
 
     init();
   }, []);
+
+  // Fetch unread message count
+  useEffect(() => {
+    if (!currentUser?.id) return;
+
+    const fetchUnreadCount = async () => {
+      try {
+        const allMessages = await base44.entities.Message.filter({
+          receiver_id: currentUser.id,
+          read: false
+        });
+        setUnreadMessageCount(allMessages.length);
+      } catch (error) {
+        console.error('Error fetching unread messages:', error);
+      }
+    };
+
+    fetchUnreadCount();
+    // Poll every 15 seconds
+    const interval = setInterval(fetchUnreadCount, 15000);
+    return () => clearInterval(interval);
+  }, [currentUser?.id]);
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -2378,11 +2401,19 @@ export default function Layout({ children, currentPageName }) {
                           }
                         </div>
                         <button 
-                              onClick={() => setShowMessaging(true)}
-                              className="p-1 hover:bg-slate-100 rounded-lg transition-colors"
+                              onClick={() => {
+                                setShowMessaging(true);
+                                setUnreadMessageCount(0);
+                              }}
+                              className="p-2 hover:bg-slate-100 rounded-lg transition-colors relative"
                               title="Messages"
                             >
-                              <MessageCircle className="w-4 h-4 text-slate-500 hover:text-slate-700" />
+                              <MessageCircle className={`w-5 h-5 ${unreadMessageCount > 0 ? 'text-emerald-500' : 'text-slate-500 hover:text-slate-700'}`} />
+                              {unreadMessageCount > 0 && (
+                                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-emerald-500 text-white text-xs font-bold rounded-full flex items-center justify-center px-1">
+                                  {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
+                                </span>
+                              )}
                             </button>
                       </div>
 

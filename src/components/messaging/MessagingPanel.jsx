@@ -11,6 +11,11 @@ export default function MessagingPanel({ currentUser, users, onClose }) {
     setSelectedConversation({ conversationId, otherUserId, otherUserName });
   };
 
+  const handleCloseMessaging = () => {
+    // Mark all messages as read when closing
+    onClose();
+  };
+
   const handleBack = () => {
     setSelectedConversation(null);
   };
@@ -21,7 +26,7 @@ export default function MessagingPanel({ currentUser, users, onClose }) {
         {/* Header */}
         <div className="p-4 border-b flex items-center justify-between bg-slate-50">
           <h2 className="text-lg font-semibold text-slate-900">Messages</h2>
-          <Button variant="ghost" size="icon" onClick={onClose}>
+          <Button variant="ghost" size="icon" onClick={handleCloseMessaging}>
             <X className="w-5 h-5" />
           </Button>
         </div>
