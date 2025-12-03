@@ -1896,7 +1896,7 @@ export default function RouteImport({
 
         {!showPreview ?
           <div className="flex-1 overflow-y-auto p-6">
-            <div className="space-y-6">
+            <div className="space-y-1">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <div className="space-y-2">
