@@ -249,27 +249,20 @@ export default function StopCard({
   const isCODComplete = useMemo(() => codTotalCollected >= codTotalRequired, [codTotalCollected, codTotalRequired]);
   const isCompleted = useMemo(() => delivery ? FINISHED_STATUSES.includes(delivery.status) : false, [delivery?.status]);
 
-  // Check if this is a first delivery based on EXPLICIT flags only
-  // Do NOT infer from delivery count - that's unreliable with partial data
+  // Check if this is a first delivery based on patient's last_delivery_date
+  // If patient has no last_delivery_date, they are a new patient
   const isFirstDelivery = useMemo(() => {
     if (!delivery || isPickup) return false;
 
-    // ONLY check if explicitly marked as first_delivery
-    if (delivery.first_delivery === true) return true;
+    // Check if patient has no last_delivery_date (new patient)
+    if (patient && !patient.last_delivery_date) return true;
 
-    // Check patient notes for "First Delivery"
-    if (patient?.notes?.toLowerCase().includes('first delivery')) return true;
-
-    // Check delivery instructions for "First Delivery"
-    if (delivery.delivery_instructions?.toLowerCase().includes('first delivery')) return true;
-
-    // Check driver notes for "First Delivery"
+    // Also check driver notes for "First Delivery" (set when staged)
     if (delivery.delivery_notes?.toLowerCase().includes('first delivery')) return true;
 
-    // REMOVED: Do NOT infer from allDeliveries count - this is unreliable
-    // The allDeliveries array often doesn't contain historical data,
-    // causing false positives for the "N" badge
-    
+    // Check if explicitly marked as first_delivery
+    if (delivery.first_delivery === true) return true;
+
     return false;
   }, [delivery, patient, isPickup]);
 
