@@ -61,7 +61,7 @@ const StatBadge = ({ icon: Icon, value, color, label, tooltip }) => {
   }), []);
 
   const badge =
-    <div className="px-1 flex items-center gap-2 cursor-help">
+  <div className="px-1 flex items-center gap-2 cursor-help">
       <div className={`p-1.5 rounded-lg ${colorClasses[color]}`}>
         <Icon className="w-3.5 h-3.5" />
       </div>
@@ -88,9 +88,9 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+  Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c; // Distance in kilometers
 };
@@ -148,9 +148,9 @@ const populateTemporaryStartTimes = (deliveries, stores) => {
 
     // Find the parent store's pickup
     const parentPickup = deliveriesCopy.find((d) =>
-      !d.patient_id &&
-      d.store_id === delivery.store_id &&
-      d.driver_id === delivery.driver_id
+    !d.patient_id &&
+    d.store_id === delivery.store_id &&
+    d.driver_id === delivery.driver_id
     );
 
     if (parentPickup) {
@@ -318,8 +318,8 @@ function Dashboard() {
         // Mobile drivers with active route should ALWAYS see their own route first
         if (isMobile && currentUser && userHasRole(currentUser, 'driver')) {
           const todayStr = format(new Date(), 'yyyy-MM-dd');
-          const hasActiveRoute = deliveries?.some(d =>
-            d && d.driver_id === currentUser.id && d.delivery_date === todayStr
+          const hasActiveRoute = deliveries?.some((d) =>
+          d && d.driver_id === currentUser.id && d.delivery_date === todayStr
           );
           if (hasActiveRoute) {
             driverToSelect = currentUser.id;
@@ -358,9 +358,9 @@ function Dashboard() {
 
       // Get deliveries for dispatcher's stores on this date
       const storeDeliveries = deliveries.filter((d) =>
-        d &&
-        d.delivery_date === dateStr &&
-        dispatcherStoreIds.includes(d.store_id)
+      d &&
+      d.delivery_date === dateStr &&
+      dispatcherStoreIds.includes(d.store_id)
       );
 
       // Get unique driver IDs who have deliveries for these stores
@@ -500,7 +500,7 @@ function Dashboard() {
 
     const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
     const allFinished = filteredDeliveries.length > 0 &&
-      filteredDeliveries.every((d) => d && finishedStatuses.includes(d.status));
+    filteredDeliveries.every((d) => d && finishedStatuses.includes(d.status));
 
     return allFinished;
   }, [selectedDate, filteredDeliveries]);
@@ -525,8 +525,8 @@ function Dashboard() {
   }, [drivers, currentUser]);
 
   const shouldShowLocationToggle = useMemo(() =>
-    isMobile && isDriver && !userHasRole(currentUser, 'dispatcher'),
-    [isMobile, isDriver, currentUser]
+  isMobile && isDriver && !userHasRole(currentUser, 'dispatcher'),
+  [isMobile, isDriver, currentUser]
   );
 
   const isFiltersReady = useMemo(() => globalFilters.isReadyForDataFetch(), []);
@@ -555,8 +555,8 @@ function Dashboard() {
     if (!isDriver || !currentUser || !filteredDeliveries || !Array.isArray(filteredDeliveries) || filteredDeliveries.length === 0) return null;
 
     // CRITICAL: Use the backend's isNextDelivery flag for accuracy
-    const nextDeliveryFromBackend = filteredDeliveries.find(d =>
-      d && d.isNextDelivery === true && d.driver_id === currentUser.id
+    const nextDeliveryFromBackend = filteredDeliveries.find((d) =>
+    d && d.isNextDelivery === true && d.driver_id === currentUser.id
     );
 
     if (nextDeliveryFromBackend) {
@@ -568,7 +568,7 @@ function Dashboard() {
     const unfinishedStops = filteredDeliveries.filter((d) => {
       if (!d) return false;
       return d.driver_id === currentUser.id &&
-        !['completed', 'failed', 'cancelled', 'returned'].includes(d.status);
+      !['completed', 'failed', 'cancelled', 'returned'].includes(d.status);
     });
 
     if (unfinishedStops.length === 0) return null;
@@ -719,18 +719,18 @@ function Dashboard() {
 
       if (newFilters.selectedDate) {
         const dateObj = typeof newFilters.selectedDate === 'string' ?
-          new Date(newFilters.selectedDate + 'T00:00:00') :
-          new Date(newFilters.selectedDate);
+        new Date(newFilters.selectedDate + 'T00:00:00') :
+        new Date(newFilters.selectedDate);
         setSelectedDate(dateObj);
         setCalendarMonth(dateObj);
       }
 
       if (newFilters.selectedDriverId !== undefined) {
 
-        // This subscription handles changes from other components
-      }
-    });
 
+
+        // This subscription handles changes from other components
+      }});
     return unsubscribe;
   }, []);
 
@@ -931,14 +931,14 @@ function Dashboard() {
     driverLocationPoller.start(() => {
 
 
+
+
+
+
       // Callback provided for future use, but not actively calling refreshData
       // to prevent triggering auto-selection every 15 seconds
-    });
-    const unsubscribe = driverLocationPoller.subscribe((locations) => {
-      if (!locations || !Array.isArray(locations)) return;
-
-      setAllDriverLocations(locations);
-    });
+    });const unsubscribe = driverLocationPoller.subscribe((locations) => {if (!locations || !Array.isArray(locations)) return;setAllDriverLocations(locations);
+      });
 
     return () => {
       unsubscribe();
@@ -980,8 +980,8 @@ function Dashboard() {
     // Determine which driver's polyline to fetch
     // If viewing "all drivers", use the first driver's route, otherwise use selected driver
     const driverIdToFetch = selectedDriverId && selectedDriverId !== 'all' ?
-      selectedDriverId :
-      currentUser?.id;
+    selectedDriverId :
+    currentUser?.id;
 
     if (!driverIdToFetch) {
       console.log('⏭️ [Polyline Display] Skipping - no driver ID to fetch');
@@ -1066,7 +1066,7 @@ function Dashboard() {
 
     const checkAlerts = async () => {
       try {
-        if (!filteredDeliveries || !Array.isArray(filteredDeliveries)) { // Defensive check
+        if (!filteredDeliveries || !Array.isArray(filteredDeliveries)) {// Defensive check
           setHasUnreadAIAlerts(false);
           return;
         }
@@ -1312,10 +1312,10 @@ function Dashboard() {
         // - Must be a driver role
         // - Must be viewing TODAY's date (driver location irrelevant for past/future dates)
         const isCurrentDriverMarkerVisible =
-          isMobile &&
-          isDriver &&
-          isViewingToday &&
-          driversWithVisibleDeliveries.has(currentUser?.id);
+        isMobile &&
+        isDriver &&
+        isViewingToday &&
+        driversWithVisibleDeliveries.has(currentUser?.id);
 
         // Add current driver location only if their marker is visible AND viewing today
         if (driverLocation?.latitude && driverLocation?.longitude) {
@@ -1333,7 +1333,7 @@ function Dashboard() {
         if (currentUser?.home_latitude && currentUser?.home_longitude && !isAllDriversMode && isViewingToday) {
           // Check if route has active stops (home should be visible)
           const hasActiveStops = deliveriesWithStopOrder.some((d) =>
-            d && !['completed', 'failed', 'cancelled', 'returned'].includes(d.status)
+          d && !['completed', 'failed', 'cancelled', 'returned'].includes(d.status)
           );
           // Home location visibility follows same rules as driver marker
           if (hasActiveStops && isCurrentDriverMarkerVisible) {
@@ -1450,8 +1450,8 @@ function Dashboard() {
             const lonOffset = targetRadiusKm * lonDegPerKm;
 
             const bounds = [
-              [closestCity.latitude - latOffset, closestCity.longitude - lonOffset],
-              [closestCity.latitude + latOffset, closestCity.longitude + lonOffset]];
+            [closestCity.latitude - latOffset, closestCity.longitude - lonOffset],
+            [closestCity.latitude + latOffset, closestCity.longitude + lonOffset]];
 
 
             setShouldFitBounds({
@@ -1492,7 +1492,7 @@ function Dashboard() {
           // Calculate span to determine appropriate maxZoom
           // Prevent over-zooming when stops are close together
           // Prevent under-zooming when stops are far apart
-          let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+          let minLat = Infinity,maxLat = -Infinity,minLon = Infinity,maxLon = -Infinity;
           allCoordinates.forEach(([lat, lon]) => {
             minLat = Math.min(minLat, lat);
             maxLat = Math.max(maxLat, lat);
@@ -1544,16 +1544,16 @@ function Dashboard() {
 
         if (nextStopCoordinates) {
           const bounds = [
-            [driverLocation.latitude, driverLocation.longitude],
-            [nextStopCoordinates.lat, nextStopCoordinates.lon]];
+          [driverLocation.latitude, driverLocation.longitude],
+          [nextStopCoordinates.lat, nextStopCoordinates.lon]];
 
 
           // CRITICAL: Only include driver's home location if home IS the next stop
           // (i.e., the next stop coordinates match the driver's home coordinates)
           if (currentUser?.home_latitude && currentUser?.home_longitude) {
             const isHomeNextStop =
-              Math.abs(nextStopCoordinates.lat - currentUser.home_latitude) < 0.0001 &&
-              Math.abs(nextStopCoordinates.lon - currentUser.home_longitude) < 0.0001;
+            Math.abs(nextStopCoordinates.lat - currentUser.home_latitude) < 0.0001 &&
+            Math.abs(nextStopCoordinates.lon - currentUser.home_longitude) < 0.0001;
 
             if (isHomeNextStop) {
               console.log('🏠 [FAB Click] Phase 2 - Home IS the next stop, including in bounds');
@@ -1874,15 +1874,15 @@ function Dashboard() {
         window._lastProgrammaticMapMove = Date.now();
 
         const bounds = [
-          [driverLocation.latitude, driverLocation.longitude],
-          [nextStopCoordinates.lat, nextStopCoordinates.lon]];
+        [driverLocation.latitude, driverLocation.longitude],
+        [nextStopCoordinates.lat, nextStopCoordinates.lon]];
 
 
         // CRITICAL: Only include driver's home location if home IS the next stop
         if (currentUser?.home_latitude && currentUser?.home_longitude) {
           const isHomeNextStop =
-            Math.abs(nextStopCoordinates.lat - currentUser.home_latitude) < 0.0001 &&
-            Math.abs(nextStopCoordinates.lon - currentUser.home_longitude) < 0.0001;
+          Math.abs(nextStopCoordinates.lat - currentUser.home_latitude) < 0.0001 &&
+          Math.abs(nextStopCoordinates.lon - currentUser.home_longitude) < 0.0001;
 
           if (isHomeNextStop) {
             console.log('🏠 [Smart Refresh] Phase 2 - Home IS the next stop');
@@ -2037,8 +2037,8 @@ function Dashboard() {
     console.log('🎯 [Dashboard] PHASE 4: Checking if pure driver needs forced self-selection...');
 
     const isPureDriver = userHasRole(currentUser, 'driver') &&
-      !userHasRole(currentUser, 'admin') &&
-      !userHasRole(currentUser, 'dispatcher');
+    !userHasRole(currentUser, 'admin') &&
+    !userHasRole(currentUser, 'dispatcher');
 
     if (isPureDriver) {
       console.log('🚗 [Dashboard] Pure driver detected - forcing self-selection (ignoring saved settings)');
@@ -2165,8 +2165,8 @@ function Dashboard() {
 
         if (patient?.latitude && patient?.longitude && store?.latitude && store?.longitude) {
           const bounds = [
-            [patient.latitude, patient.longitude],
-            [store.latitude, store.longitude]];
+          [patient.latitude, patient.longitude],
+          [store.latitude, store.longitude]];
 
 
           // CRITICAL: Use expanded height for padding calculation
@@ -2351,7 +2351,7 @@ function Dashboard() {
           console.log('[AddToRoute] STEP 4: Determining required store pickups');
 
           // CRITICAL: Always create pickups for ALL assigned stores when adding deliveries (batch mode)
-          const assignedStores = (stores || []).filter((store) => { // Defensive check
+          const assignedStores = (stores || []).filter((store) => {// Defensive check
             if (!store) return false;
             if (isSaturday) {
               return isDriverAssignedToSlot(store, 'saturday_am') || isDriverAssignedToSlot(store, 'saturday_pm');
@@ -2371,8 +2371,8 @@ function Dashboard() {
             console.log(`[AddToRoute]   - Checking store: ${store.name}`);
 
             if (isSaturday ? isDriverAssignedToSlot(store, 'saturday_am') :
-              isSunday ? isDriverAssignedToSlot(store, 'sunday_am') :
-              isDriverAssignedToSlot(store, 'weekday_am')) {
+            isSunday ? isDriverAssignedToSlot(store, 'sunday_am') :
+            isDriverAssignedToSlot(store, 'weekday_am')) {
 
               const existingAMPickup = stopsToProcess.find((delivery) => {
                 if (!delivery) return false;
@@ -2381,11 +2381,11 @@ function Dashboard() {
 
               if (!existingAMPickup) {
                 const amPickupTime = isSaturday ? store.saturday_am_start || '09:00' :
-                  isSunday ? store.sunday_am_start || '09:00' :
-                  store.weekday_am_start || '09:00';
+                isSunday ? store.sunday_am_start || '09:00' :
+                store.weekday_am_start || '09:00';
                 const amPickupEndTime = isSaturday ? store.saturday_am_end || '12:00' :
-                  isSunday ? store.sunday_am_end || '12:00' :
-                  store.weekday_am_end || '12:00';
+                isSunday ? store.sunday_am_end || '12:00' :
+                store.weekday_am_end || '12:00';
 
                 stopsToProcess.push({
                   isNew: true,
@@ -2412,8 +2412,8 @@ function Dashboard() {
             }
 
             if (isSaturday ? isDriverAssignedToSlot(store, 'saturday_pm') :
-              isSunday ? isDriverAssignedToSlot(store, 'sunday_pm') :
-              isDriverAssignedToSlot(store, 'weekday_pm')) {
+            isSunday ? isDriverAssignedToSlot(store, 'sunday_pm') :
+            isDriverAssignedToSlot(store, 'weekday_pm')) {
 
               const existingPMPickup = stopsToProcess.find((delivery) => {
                 if (!delivery) return false;
@@ -2422,11 +2422,11 @@ function Dashboard() {
 
               if (!existingPMPickup) {
                 const pmPickupTime = isSaturday ? store.saturday_pm_start || '13:00' :
-                  isSunday ? store.sunday_pm_start || '13:00' :
-                  store.weekday_pm_start || '13:00';
+                isSunday ? store.sunday_pm_start || '13:00' :
+                store.weekday_pm_start || '13:00';
                 const pmPickupEndTime = isSaturday ? store.saturday_pm_end || '17:00' :
-                  isSunday ? store.sunday_pm_end || '17:00' :
-                  store.weekday_pm_end || '17:00';
+                isSunday ? store.sunday_pm_end || '17:00' :
+                store.weekday_pm_end || '17:00';
 
                 stopsToProcess.push({
                   isNew: true,
@@ -2505,10 +2505,10 @@ function Dashboard() {
             if (!stop || !stop.isNew || !stop.patient_id) continue;
 
             const correspondingPickup = stopsToProcess.find((p) =>
-              p && !p.patient_id &&
-              p.store_id === stop.store_id &&
-              p.ampm_deliveries === stop.ampm_deliveries &&
-              p.stop_id
+            p && !p.patient_id &&
+            p.store_id === stop.store_id &&
+            p.ampm_deliveries === stop.ampm_deliveries &&
+            p.stop_id
             );
 
             if (correspondingPickup) {
@@ -2532,8 +2532,8 @@ function Dashboard() {
               const correspondingPickup = stopsToProcess.find((s) => {
                 if (!s) return false;
                 return s.store_id === stop.store_id &&
-                  s.patient_id === null &&
-                  s.ampm_deliveries === stop.ampm_deliveries;
+                s.patient_id === null &&
+                s.ampm_deliveries === stop.ampm_deliveries;
               });
 
               if (stopPatient?.time_window_start) {
@@ -2615,8 +2615,8 @@ function Dashboard() {
               const correspondingPickup = optimizedRoute.find((s) => {
                 if (!s) return false;
                 return s.store_id === stop.store_id &&
-                  s.patient_id === null &&
-                  s.ampm_deliveries === stop.ampm_deliveries;
+                s.patient_id === null &&
+                s.ampm_deliveries === stop.ampm_deliveries;
               });
 
               if (stopPatient?.time_window_start) {
@@ -2624,7 +2624,7 @@ function Dashboard() {
               } else if (correspondingPickup) {
                 const pickupStartPlus5 = addMinutesToTime(correspondingPickup.delivery_time_start, 5);
                 const pickupETAPlus5 = correspondingPickup.estimated_arrival ?
-                  addMinutesToTime(correspondingPickup.estimated_arrival, 5) : null;
+                addMinutesToTime(correspondingPickup.estimated_arrival, 5) : null;
 
                 if (pickupETAPlus5 && pickupETAPlus5 > pickupStartPlus5) {
                   stop.delivery_time_start = pickupETAPlus5;
@@ -2639,7 +2639,7 @@ function Dashboard() {
               } else if (stop.isNew && !stop.delivery_time_end) {
                 // Only set default end time for NEW deliveries
                 stop.delivery_time_end = stop.delivery_time_start ?
-                  addMinutesToTime(stop.delivery_time_start, 60) : '21:00';
+                addMinutesToTime(stop.delivery_time_start, 60) : '21:00';
               }
               // Leave existing delivery_time_end unchanged for non-new stops
               windowsProcessed++;
@@ -2677,10 +2677,10 @@ function Dashboard() {
               // Find the corresponding pickup for this store + AM/PM combination
               if (!stop.puid) {
                 const correspondingPickup = optimizedRoute.find((p) =>
-                  p && !p.patient_id &&
-                  p.store_id === stop.store_id &&
-                  p.ampm_deliveries === ampm &&
-                  p.stop_id
+                p && !p.patient_id &&
+                p.store_id === stop.store_id &&
+                p.ampm_deliveries === ampm &&
+                p.stop_id
                 );
                 if (correspondingPickup) {
                   stop.puid = correspondingPickup.stop_id;
@@ -2735,9 +2735,9 @@ function Dashboard() {
                 const deliveriesBeforeThis = optimizedRoute.filter((s) => {
                   if (!s) return false;
                   return s.patient_id !== null &&
-                    s.store_id === stop.store_id &&
-                    s.ampm_deliveries === stop.ampm_deliveries &&
-                    optimizedRoute.indexOf(s) < optimizedRoute.indexOf(stop);
+                  s.store_id === stop.store_id &&
+                  s.ampm_deliveries === stop.ampm_deliveries &&
+                  optimizedRoute.indexOf(s) < optimizedRoute.indexOf(stop);
                 }).length;
 
                 const trNumber = String(pickupBaseTR + deliveriesBeforeThis + 1).padStart(2, '0');
@@ -2977,11 +2977,11 @@ function Dashboard() {
       console.log('🏗️ STEP 1: Get existing deliveries for this driver (NEW delivery only)');
       console.log('─────────────────────────────────');
 
-      const allDeliveriesForDate = (deliveries || []).filter((delivery) => { // Defensive check
+      const allDeliveriesForDate = (deliveries || []).filter((delivery) => {// Defensive check
         if (!delivery) return false;
         return delivery.delivery_date === deliveryDate;
       });
-      const driverDeliveriesForDate = allDeliveriesForDate.filter((delivery) => { // Defensive check
+      const driverDeliveriesForDate = allDeliveriesForDate.filter((delivery) => {// Defensive check
         if (!delivery) return false;
         return delivery.driver_id === driverId;
       });
@@ -3002,7 +3002,7 @@ function Dashboard() {
 
       console.log(`📅 Day of week: ${dayName} (${dayOfWeek})`);
 
-      const assignedStores = (stores || []).filter((store) => { // Defensive check
+      const assignedStores = (stores || []).filter((store) => {// Defensive check
         if (!store) return false;
         if (isSaturday) {
           return isDriverAssignedToSlot(store, 'saturday_am') || isDriverAssignedToSlot(store, 'saturday_pm');
@@ -3066,12 +3066,12 @@ function Dashboard() {
         console.log(`\n  🔍 Checking ${store.name}...`);
 
         const isAssignedToAM = isSaturday ? isDriverAssignedToSlot(store, 'saturday_am') :
-          isSunday ? isDriverAssignedToSlot(store, 'sunday_am') :
-          isDriverAssignedToSlot(store, 'weekday_am');
+        isSunday ? isDriverAssignedToSlot(store, 'sunday_am') :
+        isDriverAssignedToSlot(store, 'weekday_am');
 
         const isAssignedToPM = isSaturday ? isDriverAssignedToSlot(store, 'saturday_pm') :
-          isSunday ? isDriverAssignedToSlot(store, 'sunday_pm') :
-          isDriverAssignedToSlot(store, 'weekday_pm');
+        isSunday ? isDriverAssignedToSlot(store, 'sunday_pm') :
+        isDriverAssignedToSlot(store, 'weekday_pm');
 
         console.log(`     Driver assigned to: ${isAssignedToAM ? 'AM' : ''} ${isAssignedToPM ? 'PM' : ''} ${!isAssignedToAM && !isAssignedToPM ? 'NONE' : ''}`);
 
@@ -3083,11 +3083,11 @@ function Dashboard() {
 
           if (!existingAMPickup) {
             const amPickupTime = isSaturday ? store.saturday_am_start || '09:00' :
-              isSunday ? store.sunday_am_start || '09:00' :
-              store.weekday_am_start || '09:00';
+            isSunday ? store.sunday_am_start || '09:00' :
+            store.weekday_am_start || '09:00';
             const amPickupEndTime = isSaturday ? store.saturday_am_end || '12:00' :
-              isSunday ? store.sunday_am_end || '12:00' :
-              store.weekday_am_end || '12:00';
+            isSunday ? store.sunday_am_end || '12:00' :
+            store.weekday_am_end || '12:00';
 
             const amPickup = {
               isNew: true,
@@ -3124,11 +3124,11 @@ function Dashboard() {
 
           if (!existingPMPickup) {
             const pmPickupTime = isSaturday ? store.saturday_pm_start || '13:00' :
-              isSunday ? store.sunday_pm_start || '13:00' :
-              store.weekday_pm_start || '13:00';
+            isSunday ? store.sunday_pm_start || '13:00' :
+            store.weekday_pm_start || '13:00';
             const pmPickupEndTime = isSaturday ? store.saturday_pm_end || '17:00' :
-              isSunday ? store.sunday_pm_end || '17:00' :
-              store.weekday_pm_end || '17:00';
+            isSunday ? store.sunday_pm_end || '17:00' :
+            store.weekday_pm_end || '17:00';
 
             const pmPickup = {
               isNew: true,
@@ -3306,8 +3306,8 @@ function Dashboard() {
           } else if (correspondingPickup) {
             const pickupStartPlus5 = addMinutesToTime(correspondingPickup.delivery_time_start, 5);
             const pickupETAPlus5 = correspondingPickup.estimated_arrival ?
-              addMinutesToTime(correspondingPickup.estimated_arrival, 5) :
-              null;
+            addMinutesToTime(correspondingPickup.estimated_arrival, 5) :
+            null;
 
             if (pickupETAPlus5 && pickupETAPlus5 > pickupStartPlus5) {
               stop.delivery_time_start = pickupETAPlus5;
@@ -3355,8 +3355,8 @@ function Dashboard() {
         }
 
         const stopName = stop.patient_id ?
-          patients.find((p) => p.id === stop.patient_id)?.full_name :
-          stores.find((s) => s.id === stop.store_id)?.name + ' Pickup';
+        patients.find((p) => p.id === stop.patient_id)?.full_name :
+        stores.find((s) => s.id === stop.store_id)?.name + ' Pickup';
         console.log(`   📍 ${stopName}: ${stop.ampm_deliveries}`);
       }
 
@@ -3391,8 +3391,8 @@ function Dashboard() {
             const deliveriesBeforeThis = optimizedRoute.filter((s) => {
               if (!s) return false; // Defensive check
               return s.patient_id !== null &&
-                s.store_id === stop.store_id &&
-                optimizedRoute.indexOf(s) < optimizedRoute.indexOf(stop);
+              s.store_id === stop.store_id &&
+              optimizedRoute.indexOf(s) < optimizedRoute.indexOf(stop);
             }).length;
 
             const trNumber = String(pickupBaseTR + deliveriesBeforeThis + 1).padStart(2, '0');
@@ -3556,12 +3556,12 @@ function Dashboard() {
       console.log('─────────────────────────────────');
 
       const [latestDeliveries, latestPatients, latestStores, latestAppUsers, latestAuthUsers] = await Promise.all([
-        base44.entities.Delivery.filter({ delivery_date: deliveryDate }),
-        base44.entities.Patient.list(),
-        base44.entities.Store.list(),
-        base44.entities.AppUser.list(),
-        base44.entities.User.list()
-      ]);
+      base44.entities.Delivery.filter({ delivery_date: deliveryDate }),
+      base44.entities.Patient.list(),
+      base44.entities.Store.list(),
+      base44.entities.AppUser.list(),
+      base44.entities.User.list()]
+      );
 
       console.log(`✅ Fetched ${latestDeliveries.length} deliveries, ${latestPatients.length} patients, ${latestStores.length} stores`);
 
@@ -3583,8 +3583,8 @@ function Dashboard() {
       console.log(`✅ Merged ${allMergedUsers.length} users`);
 
       isDateFinished = isPastDate &&
-        latestDeliveries.length > 0 &&
-        latestDeliveries.every((d) => d && finishedStatuses.includes(d.status)); // Defensive check
+      latestDeliveries.length > 0 &&
+      latestDeliveries.every((d) => d && finishedStatuses.includes(d.status)); // Defensive check
 
       if (isDateFinished) {
         console.log('⚠️ Past finished date detected - data refresh only, skipping optimization');
@@ -3749,8 +3749,8 @@ function Dashboard() {
               const lastCompleted = completedStops[0];
 
               const location = lastCompleted.patient_id ?
-                latestPatients.find((p) => p.id === lastCompleted.patient_id) :
-                latestStores.find((s) => s.id === lastCompleted.store_id);
+              latestPatients.find((p) => p.id === lastCompleted.patient_id) :
+              latestStores.find((s) => s.id === lastCompleted.store_id);
 
               if (location?.latitude && location?.longitude) {
                 startLocation = { lat: location.latitude, lon: location.longitude };
@@ -3770,8 +3770,8 @@ function Dashboard() {
 
               const firstStop = sortedActive[0];
               const location = firstStop.patient_id ?
-                latestPatients.find((p) => p.id === firstStop.patient_id) :
-                latestStores.find((s) => s.id === firstStop.store_id);
+              latestPatients.find((p) => p.id === firstStop.patient_id) :
+              latestStores.find((s) => s.id === firstStop.store_id);
 
               if (location?.latitude && location?.longitude) {
                 startLocation = { lat: location.latitude, lon: location.longitude };
@@ -3792,8 +3792,8 @@ function Dashboard() {
 
             const firstStop = sortedActive[0];
             const location = firstStop?.patient_id ?
-              latestPatients.find((p) => p.id === firstStop.patient_id) :
-              latestStores.find((s) => s && s.id === firstStop?.store_id);
+            latestPatients.find((p) => p.id === firstStop.patient_id) :
+            latestStores.find((s) => s && s.id === firstStop?.store_id);
 
             if (location?.latitude && location?.longitude) {
               startLocation = { lat: location.latitude, lon: location.longitude };
@@ -3907,8 +3907,8 @@ function Dashboard() {
               } else if (correspondingPickup) {
                 const pickupStartPlus5 = addMinutesToTime(correspondingPickup.delivery_time_start, 5);
                 const pickupETAPlus5 = correspondingPickup.estimated_arrival ?
-                  addMinutesToTime(correspondingPickup.estimated_arrival, 5) :
-                  null;
+                addMinutesToTime(correspondingPickup.estimated_arrival, 5) :
+                null;
 
                 if (pickupETAPlus5 && pickupETAPlus5 > pickupStartPlus5) {
                   stop.delivery_time_start = pickupETAPlus5;
@@ -3956,8 +3956,8 @@ function Dashboard() {
             }
 
             const stopName = stop.patient_id ?
-              latestPatients.find((p) => p.id === stop.patient_id)?.full_name :
-              latestStores.find((s) => s.id === stop.store_id)?.name + ' Pickup';
+            latestPatients.find((p) => p.id === stop.patient_id)?.full_name :
+            latestStores.find((s) => s.id === stop.store_id)?.name + ' Pickup';
             console.log(`   📍 ${stopName}: ${stop.ampm_deliveries}`);
           }
 
@@ -4008,9 +4008,9 @@ function Dashboard() {
                   const deliveriesBeforeThis = optimizedRoute.filter((s) => {
                     if (!s) return false; // Defensive check
                     return s.patient_id !== null &&
-                      s.store_id === stop.store_id &&
-                      !lockedStatuses.includes(s.status) &&
-                      optimizedRoute.indexOf(s) < optimizedRoute.indexOf(stop);
+                    s.store_id === stop.store_id &&
+                    !lockedStatuses.includes(s.status) &&
+                    optimizedRoute.indexOf(s) < optimizedRoute.indexOf(stop);
                   }).length;
 
                   const trNumber = String(pickupBaseTR + deliveriesBeforeThis + 1).padStart(2, '0');
@@ -4084,8 +4084,8 @@ function Dashboard() {
             totalUpdated++;
 
             const stopName = stop.patient_id ?
-              latestPatients.find((p) => p.id === stop.patient_id)?.full_name :
-              latestStores.find((s) => s.id === stop.store_id)?.name + ' Pickup';
+            latestPatients.find((p) => p.id === stop.patient_id)?.full_name :
+            latestStores.find((s) => s.id === stop.store_id)?.name + ' Pickup';
             console.log(`   ✅ Updated stop #${sequentialStopOrder}: ${stopName}`);
           }
 
@@ -4180,8 +4180,8 @@ function Dashboard() {
             if (!stop) continue; // Defensive check
             await base44.entities.Delivery.update(stop.id, { stop_order: i + 1 });
             const stopName = stop.patient_id ?
-              patients.find((p) => p && p.id === stop.patient_id)?.full_name :
-              stores.find((s) => s && s.id === stop.store_id)?.name + ' Pickup'; // Fixed: store.id should be stop.store_id
+            patients.find((p) => p && p.id === stop.patient_id)?.full_name :
+            stores.find((s) => s && s.id === stop.store_id)?.name + ' Pickup'; // Fixed: store.id should be stop.store_id
             console.log(`   ✅ Updated completed stop #${i + 1}: ${stopName}`);
           }
           console.log(`✅ Updated ${sortedCompleted.length} completed stops for ${driver.user_name}`);
@@ -4263,8 +4263,8 @@ function Dashboard() {
         await base44.entities.Delivery.update(stop.id, updatePayload);
 
         const stopName = stop.patient_id ?
-          patients.find((p) => p.id === stop.patient_id)?.full_name :
-          stores.find((s) => s.id === stop.store_id)?.name + ' Pickup';
+        patients.find((p) => p.id === stop.patient_id)?.full_name :
+        stores.find((s) => s.id === stop.store_id)?.name + ' Pickup';
         console.log(`   ✅ Updated stop #${sequentialStopOrder}: ${stopName}`);
       }
 
@@ -4381,7 +4381,7 @@ function Dashboard() {
     setIsEntityUpdating(true);
 
     // Wait 100ms to ensure smart refresh has paused before proceeding
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 100));
     console.log('✅ [STATUS UPDATE] Smart refresh paused, proceeding with update');
 
     try {
@@ -4479,7 +4479,7 @@ function Dashboard() {
       const updateData = { status: newStatus, ...extraData };
 
       // CRITICAL: Cancelled pickups are treated as completed (with timestamp)
-      if (['completed', 'failed', 'delivered'].includes(newStatus) || (newStatus === 'cancelled' && isPickup)) {
+      if (['completed', 'failed', 'delivered'].includes(newStatus) || newStatus === 'cancelled' && isPickup) {
         updateData.actual_delivery_time = currentTimeISO;
         console.log(`⏰ Setting actual_delivery_time: ${currentTimeISO} (status: ${newStatus}${isPickup && newStatus === 'cancelled' ? ', pickup cancelled = completed' : ''})`);
       } else {
@@ -4589,7 +4589,7 @@ function Dashboard() {
       console.log('▶️ [STATUS UPDATE] Resuming smart refresh');
       setIsEntityUpdating(false);
 
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       console.log('✅ [STATUS UPDATE] Update cycle complete');
     }
   };
@@ -4691,7 +4691,7 @@ function Dashboard() {
 
     setIsEntityUpdating(true);
 
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 100));
     console.log('✅ [START] Smart refresh paused, proceeding with start delivery');
 
     try {
@@ -4761,7 +4761,7 @@ function Dashboard() {
       console.log('▶️ [START] Resuming smart refresh');
       setIsEntityUpdating(false);
 
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       console.log('✅ [START] Start delivery cycle complete');
     }
   };
@@ -4828,33 +4828,33 @@ function Dashboard() {
     <div className="h-full w-full flex flex-col bg-slate-50 overflow-hidden">
       <AnimatePresence>
         {optimizationMessage &&
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className={optimizationMessagePositioning}
-            style={{ top: isExpanded ? '216px' : '116px' }}>
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          className={optimizationMessagePositioning}
+          style={{ top: isExpanded ? '216px' : '116px' }}>
 
             <div className="bg-white rounded-lg shadow-2xl border-2 border-emerald-500 p-3 flex items-center gap-3">
               {isOptimizing &&
-                <div className="animate-spin w-4 h-4 border-3 border-emerald-500 border-t-transparent rounded-full flex-shrink-0"></div>
-              }
+            <div className="animate-spin w-4 h-4 border-3 border-emerald-500 border-t-transparent rounded-full flex-shrink-0"></div>
+            }
               <p className="text-slate-900 font-medium flex-1 text-sm">{optimizationMessage}</p>
               {!isOptimizing &&
-                <button
-                  onClick={() => setOptimizationMessage(null)}
-                  className="text-slate-400 hover:text-slate-600 flex-shrink-0">
+            <button
+              onClick={() => setOptimizationMessage(null)}
+              className="text-slate-400 hover:text-slate-600 flex-shrink-0">
 
                   <X className="w-3.5 h-3.5" />
                 </button>
-              }
+            }
             </div>
           </motion.div>
         }
       </AnimatePresence>
 
       <div className={statsCardPositioning}>
-        <div className="flex flex-col items-center gap-1">
+        <div className="flex flex-col items-center gap-1 z-[100]">
           <motion.div
             ref={statsCardRef}
             initial={{ opacity: 0, y: -20 }}
@@ -4868,10 +4868,10 @@ function Dashboard() {
               if (retractClustersRef.current) {
                 retractClustersRef.current();
               }
-            }}
-            className={`bg-white px-2 py-2 rounded-2xl shadow-xl border min-w-[340px] cursor-pointer z-[8888] ${
-              currentUser?.location_tracking_enabled ? 'border-2 border-emerald-500' : 'border-slate-200'}`
-            }>
+            }} className="bg-white px-2 py-2 rounded-2xl shadow-xl border min-w-[340px] cursor-pointer z-[101] border-slate-200">
+
+
+            
 
 
 
@@ -4907,18 +4907,18 @@ function Dashboard() {
                       month={calendarMonth}
                       onMonthChange={setCalendarMonth}
                       footer={
-                        <div className="px-3 pb-2 pt-1 border-t border-slate-100">
+                      <div className="px-3 pb-2 pt-1 border-t border-slate-100">
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <button
-                                  type="button"
-                                  onClick={() => {
-                                    const today = new Date();
-                                    setCalendarMonth(today);
-                                    handleDateChange(today);
-                                  }}
-                                  className="w-full flex items-center justify-center gap-1 p-1.5 rounded hover:bg-slate-100 text-slate-600 hover:text-slate-800 text-xs">
+                                type="button"
+                                onClick={() => {
+                                  const today = new Date();
+                                  setCalendarMonth(today);
+                                  handleDateChange(today);
+                                }}
+                                className="w-full flex items-center justify-center gap-1 p-1.5 rounded hover:bg-slate-100 text-slate-600 hover:text-slate-800 text-xs">
                                   <Clock className="w-3 h-3" />
                                   Today
                                 </button>
@@ -4935,17 +4935,17 @@ function Dashboard() {
                 </Popover>
 
                 {(isAppOwner(currentUser) || isDriver) &&
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowAIRoutePlanner(true)}
-                    disabled={
-                      isOptimizing ||
-                      isAIAnalyzing ||
-                      filteredDeliveries.length === 0
-                    }
-                    className="h-8 w-8 p-0"
-                    title="AI Route Planner">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAIRoutePlanner(true)}
+                  disabled={
+                  isOptimizing ||
+                  isAIAnalyzing ||
+                  filteredDeliveries.length === 0
+                  }
+                  className="h-8 w-8 p-0"
+                  title="AI Route Planner">
                     <Sparkles className={`w-3.5 h-3.5 text-purple-600 ${isAIAnalyzing ? 'animate-spin' : ''}`} />
                   </Button>
                 }
@@ -5009,17 +5009,17 @@ function Dashboard() {
 
             <AnimatePresence>
               {isExpanded &&
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="overflow-hidden">
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden">
                   <div className="mt-2 pt-2 border-t border-slate-200 flex items-center gap-2">
                     <Select
-                      value={selectedDriverId}
-                      onValueChange={handleDriverChange}
-                      disabled={isDriverDropdownDisabled}>
+                    value={selectedDriverId}
+                    onValueChange={handleDriverChange}
+                    disabled={isDriverDropdownDisabled}>
 
                       <SelectTrigger className="flex h-8 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 flex-1">
                         <SelectValue placeholder="All Drivers" />
@@ -5027,75 +5027,75 @@ function Dashboard() {
                       <SelectContent>
                         <SelectItem value="all">All Drivers</SelectItem>
                         {driversList.map((driver) =>
-                          <SelectItem key={driver.id} value={driver.id}>
+                      <SelectItem key={driver.id} value={driver.id}>
                             {driver.user_name || driver.full_name}
                           </SelectItem>
-                        )}
+                      )}
                       </SelectContent>
                     </Select>
 
                     <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowOptimizationSettings(true)}
-                      className="h-8 w-8 p-0 flex-shrink-0"
-                      title="Route Optimization Settings">
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowOptimizationSettings(true)}
+                    className="h-8 w-8 p-0 flex-shrink-0"
+                    title="Route Optimization Settings">
                       <Settings className="w-3.5 h-3.5" />
                     </Button>
 
                     {userHasRole(currentUser, 'driver') &&
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleAIToggle}
-                        className={`h-8 w-8 p-0 flex-shrink-0 relative ${isAIEnabled ? 'bg-purple-100 border-purple-300' : ''}`}
-                        title={isAIEnabled ? "Disable AI Assistant" : "Enable AI Assistant"}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAIToggle}
+                    className={`h-8 w-8 p-0 flex-shrink-0 relative ${isAIEnabled ? 'bg-purple-100 border-purple-300' : ''}`}
+                    title={isAIEnabled ? "Disable AI Assistant" : "Enable AI Assistant"}>
                         <Bot className={`w-3.5 h-3.5 ${isAIEnabled ? 'text-purple-600' : 'text-slate-400'}`} />
                         {hasUnreadAIAlerts && isAIEnabled &&
-                          <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white"></span>
-                        }
-                      </Button>
+                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white"></span>
                     }
+                      </Button>
+                  }
 
                     <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => {
-                        setShowRoutes(!showRoutes);
-                        setIsExpanded(false);
-                      }}
-                      className="gap-2 h-8 flex-shrink-0">
+                    variant="default"
+                    size="sm"
+                    onClick={() => {
+                      setShowRoutes(!showRoutes);
+                      setIsExpanded(false);
+                    }}
+                    className="gap-2 h-8 flex-shrink-0">
                       <Truck className="w-3.5 h-3.5" />
                       {showRoutes ? 'Hide Routes' : 'Show Routes'}
                     </Button>
                   </div>
 
                   {shouldShowLocationToggle &&
-                    <>
+                <>
                       <div className="border-t border-slate-200 mt-2 pt-2"></div>
                       <div className="flex items-center gap-2">
                         <LocationTrackingToggle
-                          user={currentUser}
-                          onToggle={async () => {
-                            await refreshUser();
-                          }} />
+                      user={currentUser}
+                      onToggle={async () => {
+                        await refreshUser();
+                      }} />
                       </div>
                     </>
-                  }
+                }
 
                   {userHasRole(currentUser, 'driver') && isExpanded && isMobile && stats.inTransit > 0 &&
-                    <div className="mt-3 pt-3 border-t border-slate-200">
+                <div className="mt-3 pt-3 border-t border-slate-200">
                       <AIRouteOptimizer
-                        deliveries={filteredDeliveries}
-                        currentDriverLocation={driverLocation}
-                        stores={stores}
-                        patients={patients}
-                        onAcceptOptimization={handleAcceptAIOptimization}
-                        currentUser={currentUser}
-                        isVisible={isExpanded} />
+                    deliveries={filteredDeliveries}
+                    currentDriverLocation={driverLocation}
+                    stores={stores}
+                    patients={patients}
+                    onAcceptOptimization={handleAcceptAIOptimization}
+                    currentUser={currentUser}
+                    isVisible={isExpanded} />
 
                     </div>
-                  }
+                }
                 </motion.div>
               }
             </AnimatePresence>
@@ -5103,25 +5103,25 @@ function Dashboard() {
 
           {/* Driver Legend - positioned directly below stats card */}
           {isAllDriversMode && driverRoutes.length > 0 &&
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: areCardsVisible ? 1 : 0.4, y: 0 }}
-              transition={{ duration: 0.3 }}
-              onMouseEnter={() => handleCardInteraction(true)}
-              onMouseLeave={() => handleCardInteraction(false)}
-              className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 px-3 py-2">
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: areCardsVisible ? 1 : 0.4, y: 0 }}
+            transition={{ duration: 0.3 }}
+            onMouseEnter={() => handleCardInteraction(true)}
+            onMouseLeave={() => handleCardInteraction(false)}
+            className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 px-3 py-2">
 
               <div className="flex flex-wrap gap-x-3 gap-y-1.5 items-center justify-center">
                 {driverRoutes.
-                  sort((a, b) => a.sortOrder - b.sortOrder).
-                  map((route) =>
-                    <div
-                      key={route.driverId}
-                      className="flex items-center gap-1.5">
+              sort((a, b) => a.sortOrder - b.sortOrder).
+              map((route) =>
+              <div
+                key={route.driverId}
+                className="flex items-center gap-1.5">
 
                       <div
-                        className="w-3 h-3 rounded-full border-2 border-white shadow-sm flex-shrink-0"
-                        style={{ backgroundColor: route.color }} />
+                  className="w-3 h-3 rounded-full border-2 border-white shadow-sm flex-shrink-0"
+                  style={{ backgroundColor: route.color }} />
 
                       <span className="text-xs font-medium text-slate-700 whitespace-nowrap">
                         {route.driverName}
@@ -5130,7 +5130,7 @@ function Dashboard() {
                         ({route.stops.length})
                       </span>
                     </div>
-                  )}
+              )}
               </div>
             </motion.div>
           }
@@ -5140,7 +5140,7 @@ function Dashboard() {
       <div className="flex-1 w-full relative min-h-0">
         {/* Polyline API hits badge - App Owner only */}
         {currentUser && isAppOwner(currentUser) && dailyPolylineCount !== null &&
-          <div className="absolute top-2 left-2 z-[20] flex flex-col gap-2">
+        <div className="absolute top-2 left-2 z-[20] flex flex-col gap-2">
             <div className="bg-white/90 backdrop-blur-sm rounded-lg px-2 py-1 shadow-sm border border-slate-200 text-xs font-medium text-slate-600">
               🛣️ {dailyPolylineCount}
             </div>
@@ -5233,48 +5233,48 @@ function Dashboard() {
 
             <HorizontalStopCards
               pickupCards={deliveriesWithStopOrder.
-                filter((delivery) => delivery && delivery.status !== 'pending') // Hide pending deliveries from cards
-                .map((delivery) => {
-                  if (!delivery) return delivery;
+              filter((delivery) => delivery && delivery.status !== 'pending') // Hide pending deliveries from cards
+              .map((delivery) => {
+                if (!delivery) return delivery;
 
-                  // For pickups with status 'en_route', attach pending deliveries
-                  if (!delivery.patient_id && delivery.status === 'en_route' && delivery.puid) {
-                    const pendingDeliveriesForPickup = (deliveries || []).filter((d) =>
-                      d &&
-                      d.puid === delivery.puid &&
-                      d.status === 'pending' &&
-                      d.patient_id // Only patient deliveries, not other pickups
-                    );
+                // For pickups with status 'en_route', attach pending deliveries
+                if (!delivery.patient_id && delivery.status === 'en_route' && delivery.puid) {
+                  const pendingDeliveriesForPickup = (deliveries || []).filter((d) =>
+                  d &&
+                  d.puid === delivery.puid &&
+                  d.status === 'pending' &&
+                  d.patient_id // Only patient deliveries, not other pickups
+                  );
 
-                    if (pendingDeliveriesForPickup.length > 0) {
-                      return {
-                        ...delivery,
-                        projected_deliveries: pendingDeliveriesForPickup
-                      };
-                    }
-                  }
-
-                  if (!isDispatcher || !currentUser.store_ids || currentUser.store_ids.length === 0) {
-                    return delivery;
-                  }
-
-                  // If delivery is from a store not in dispatcher's store_ids, mark as stripped
-                  if (!currentUser.store_ids.includes(delivery.store_id)) {
+                  if (pendingDeliveriesForPickup.length > 0) {
                     return {
                       ...delivery,
-                      _isStripped: true
+                      projected_deliveries: pendingDeliveriesForPickup
                     };
                   }
+                }
 
+                if (!isDispatcher || !currentUser.store_ids || currentUser.store_ids.length === 0) {
                   return delivery;
-                })}
+                }
+
+                // If delivery is from a store not in dispatcher's store_ids, mark as stripped
+                if (!currentUser.store_ids.includes(delivery.store_id)) {
+                  return {
+                    ...delivery,
+                    _isStripped: true
+                  };
+                }
+
+                return delivery;
+              })}
               onCardClick={handleCardClick}
               selectedCardId={selectedCardId}
               stores={stores}
               drivers={drivers}
               patients={patients}
               currentUser={currentUser}
-              onSelectionChange={() => flushSync(() => { })}
+              onSelectionChange={() => flushSync(() => {})}
               selectedDeliveryIds={{}}
               stopOrder={{}}
               showDriverName={isAllDriversMode}
@@ -5301,39 +5301,39 @@ function Dashboard() {
 
       <AnimatePresence>
         {showDeliveryForm &&
-          <DeliveryForm
-            delivery={editingDelivery}
-            patients={patients}
-            stores={stores}
-            drivers={drivers}
-            onSave={handleSaveDelivery}
-            onCancel={() => {
-              console.log('🚪 [Dashboard] DeliveryForm onCancel called - just closing form');
-              setShowDeliveryForm(false);
-              setEditingDelivery(null);
-            }}
-            suggestedDate={format(selectedDate, 'yyyy-MM-dd')}
-            currentUser={currentUser}
-            allDeliveries={deliveries}
-            onCreatePatient={handleCreatePatientFromDelivery} />
+        <DeliveryForm
+          delivery={editingDelivery}
+          patients={patients}
+          stores={stores}
+          drivers={drivers}
+          onSave={handleSaveDelivery}
+          onCancel={() => {
+            console.log('🚪 [Dashboard] DeliveryForm onCancel called - just closing form');
+            setShowDeliveryForm(false);
+            setEditingDelivery(null);
+          }}
+          suggestedDate={format(selectedDate, 'yyyy-MM-dd')}
+          currentUser={currentUser}
+          allDeliveries={deliveries}
+          onCreatePatient={handleCreatePatientFromDelivery} />
         }
       </AnimatePresence>
 
       <AnimatePresence>
         {showPatientForm &&
-          <PatientForm
-            patient={editingPatient}
-            stores={stores}
-            cities={[]}
-            currentUser={currentUser}
-            allPatients={patients}
-            onSave={handleSavePatient}
-            onCancel={() => {
-              setShowPatientForm(false);
-              setEditingPatient(null);
-              setPatientFormCallback(null);
-            }}
-            returnPatientOnSave={!!patientFormCallback} />
+        <PatientForm
+          patient={editingPatient}
+          stores={stores}
+          cities={[]}
+          currentUser={currentUser}
+          allPatients={patients}
+          onSave={handleSavePatient}
+          onCancel={() => {
+            setShowPatientForm(false);
+            setEditingPatient(null);
+            setPatientFormCallback(null);
+          }}
+          returnPatientOnSave={!!patientFormCallback} />
 
         }
       </AnimatePresence>
@@ -5349,47 +5349,47 @@ function Dashboard() {
 
       <AnimatePresence>
         {showAIAssistant && isAIEnabled && userHasRole(currentUser, 'driver') &&
-          <AIDriverAssistant
-            currentUser={currentUser}
-            deliveries={filteredDeliveries}
-            patients={patients}
-            stores={stores}
-            drivers={drivers}
-            currentLocation={driverLocation}
-            selectedDate={selectedDate}
-            onClose={() => setShowAIAssistant(false)} />
+        <AIDriverAssistant
+          currentUser={currentUser}
+          deliveries={filteredDeliveries}
+          patients={patients}
+          stores={stores}
+          drivers={drivers}
+          currentLocation={driverLocation}
+          selectedDate={selectedDate}
+          onClose={() => setShowAIAssistant(false)} />
 
         }
       </AnimatePresence>
 
       {!showAIAssistant && isAIEnabled && userHasRole(currentUser, 'driver') &&
-        <AIAssistantFAB
-          onClick={() => setShowAIAssistant(true)}
-          hasUnreadAlerts={hasUnreadAIAlerts}
-          hasVisibleCards={deliveriesWithStopOrder.length > 0} />
+      <AIAssistantFAB
+        onClick={() => setShowAIAssistant(true)}
+        hasUnreadAlerts={hasUnreadAIAlerts}
+        hasVisibleCards={deliveriesWithStopOrder.length > 0} />
 
       }
 
       {(isDriver || isDispatcher) &&
-        <MapViewCycleFAB
-          onClick={handleMapViewCycle}
-          currentPhase={mapViewPhase}
-          hasVisibleCards={deliveriesWithStopOrder.length > 0}
-          isAIVisible={showAIAssistant && isAIEnabled}
-          isLocked={isMapViewLocked} />
+      <MapViewCycleFAB
+        onClick={handleMapViewCycle}
+        currentPhase={mapViewPhase}
+        hasVisibleCards={deliveriesWithStopOrder.length > 0}
+        isAIVisible={showAIAssistant && isAIEnabled}
+        isLocked={isMapViewLocked} />
 
       }
 
       <AnimatePresence>
         {showRouteSummary &&
-          <RouteSummaryModal
-            deliveries={filteredDeliveries}
-            patients={patients}
-            stores={stores}
-            onClose={() => {
-              setShowRouteSummary(false);
-              hasShownSummaryRef.current = false;
-            }} />
+        <RouteSummaryModal
+          deliveries={filteredDeliveries}
+          patients={patients}
+          stores={stores}
+          onClose={() => {
+            setShowRouteSummary(false);
+            hasShownSummaryRef.current = false;
+          }} />
         }
       </AnimatePresence>
 
@@ -5400,7 +5400,7 @@ function Dashboard() {
           // Navigate to next stop when notification is clicked
           const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
           const nextIncomplete = deliveriesWithStopOrder.find((d) =>
-            d && d.isNextDelivery && !finishedStatuses.includes(d.status)
+          d && d.isNextDelivery && !finishedStatuses.includes(d.status)
           );
           if (nextIncomplete) {
             const cardElement = document.getElementById(`stop-card-${nextIncomplete.id}`);
@@ -5413,101 +5413,101 @@ function Dashboard() {
 
       {/* Proactive Alert System - monitors route for potential issues */}
       {isDriver && isAIEnabled &&
-        <ProactiveAlertSystem
-          currentUser={currentUser}
-          deliveries={filteredDeliveries}
-          patients={patients}
-          stores={stores}
-          driverLocation={driverLocation}
-          isEnabled={isAIEnabled}
-          onAlert={(alerts) => {
-            console.log('🚨 [Dashboard] Received proactive alerts:', alerts.length);
-          }} />
+      <ProactiveAlertSystem
+        currentUser={currentUser}
+        deliveries={filteredDeliveries}
+        patients={patients}
+        stores={stores}
+        driverLocation={driverLocation}
+        isEnabled={isAIEnabled}
+        onAlert={(alerts) => {
+          console.log('🚨 [Dashboard] Received proactive alerts:', alerts.length);
+        }} />
 
       }
 
       <AnimatePresence>
         {showAIRoutePlanner &&
-          <AIRoutePlanner
-            deliveries={deliveries}
-            patients={patients}
-            stores={stores}
-            drivers={drivers}
-            currentUser={currentUser}
-            selectedDate={selectedDate}
-            selectedDriverId={selectedDriverId}
-            onAnalyzingChange={setIsAIAnalyzing}
-            onApplyOptimization={async (updates, options = {}) => {
-              try {
-                console.log('🤖 [AI Route Planner] Applying route optimization:', updates);
+        <AIRoutePlanner
+          deliveries={deliveries}
+          patients={patients}
+          stores={stores}
+          drivers={drivers}
+          currentUser={currentUser}
+          selectedDate={selectedDate}
+          selectedDriverId={selectedDriverId}
+          onAnalyzingChange={setIsAIAnalyzing}
+          onApplyOptimization={async (updates, options = {}) => {
+            try {
+              console.log('🤖 [AI Route Planner] Applying route optimization:', updates);
 
-                // STEP 1: Update stop orders
-                console.log('🏗️ STEP 1: Updating stop orders');
-                for (const update of updates) {
-                  await base44.entities.Delivery.update(update.id, {
-                    stop_order: update.stop_order
-                  });
-                }
-                console.log(`✅ Updated ${updates.length} stop orders`);
+              // STEP 1: Update stop orders
+              console.log('🏗️ STEP 1: Updating stop orders');
+              for (const update of updates) {
+                await base44.entities.Delivery.update(update.id, {
+                  stop_order: update.stop_order
+                });
+              }
+              console.log(`✅ Updated ${updates.length} stop orders`);
 
-                // STEP 2: Recalculate ETAs if requested
-                if (options.recalculateETAs) {
-                  console.log('🏗️ STEP 2: Recalculating ETAs');
+              // STEP 2: Recalculate ETAs if requested
+              if (options.recalculateETAs) {
+                console.log('🏗️ STEP 2: Recalculating ETAs');
 
-                  // Get the driver ID from first update
-                  const firstDelivery = deliveries.find((d) => d && d.id === updates[0]?.id);
-                  if (firstDelivery?.driver_id) {
-                    try {
-                      await optimizeDriverRoute({
-                        driverId: firstDelivery.driver_id,
-                        deliveryDate: format(selectedDate, 'yyyy-MM-dd'),
-                        currentLocation: driverLocation ? {
-                          lat: driverLocation.latitude,
-                          lon: driverLocation.longitude
-                        } : null,
-                        clientCurrentTime: format(new Date(), 'HH:mm'), // Send device's current time
-                        forceReoptimization: true
-                      });
-                      console.log('✅ ETAs recalculated via backend optimizer');
-                    } catch (etaError) {
-                      console.warn('⚠️ Backend ETA calculation failed:', etaError.message);
-                    }
+                // Get the driver ID from first update
+                const firstDelivery = deliveries.find((d) => d && d.id === updates[0]?.id);
+                if (firstDelivery?.driver_id) {
+                  try {
+                    await optimizeDriverRoute({
+                      driverId: firstDelivery.driver_id,
+                      deliveryDate: format(selectedDate, 'yyyy-MM-dd'),
+                      currentLocation: driverLocation ? {
+                        lat: driverLocation.latitude,
+                        lon: driverLocation.longitude
+                      } : null,
+                      clientCurrentTime: format(new Date(), 'HH:mm'), // Send device's current time
+                      forceReoptimization: true
+                    });
+                    console.log('✅ ETAs recalculated via backend optimizer');
+                  } catch (etaError) {
+                    console.warn('⚠️ Backend ETA calculation failed:', etaError.message);
                   }
                 }
-
-                // STEP 3: Refresh data
-                console.log('🏗️ STEP 3: Refreshing data');
-                invalidate('Delivery');
-                await refreshData();
-
-                // STEP 4: Auto-center on next delivery card
-                if (options.autoCenterNext) {
-                  console.log('🏗️ STEP 4: Auto-centering on next delivery');
-                  setTimeout(() => {
-                    // Find the isNextDelivery card
-                    const allCards = document.querySelectorAll('[id^="stop-card-"]');
-                    for (const card of allCards) {
-                      const cardId = card.id.replace('stop-card-', '');
-                      // After refresh, check the fresh deliveries
-                      const nextDeliveryCard = deliveriesWithStopOrder.find((d) =>
-                        d && d.id === cardId && d.isNextDelivery
-                      );
-                      if (nextDeliveryCard) {
-                        card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                        console.log(`✅ Auto-centered on next delivery: ${nextDeliveryCard.patient_name || 'Pickup'}`);
-                        break;
-                      }
-                    }
-                  }, 500);
-                }
-
-                console.log('✅ [AI Route Planner] Route updated successfully');
-              } catch (error) {
-                console.error('❌ [AI Route Planner] Error:', error);
-                throw error;
               }
-            }}
-            onClose={() => setShowAIRoutePlanner(false)} />
+
+              // STEP 3: Refresh data
+              console.log('🏗️ STEP 3: Refreshing data');
+              invalidate('Delivery');
+              await refreshData();
+
+              // STEP 4: Auto-center on next delivery card
+              if (options.autoCenterNext) {
+                console.log('🏗️ STEP 4: Auto-centering on next delivery');
+                setTimeout(() => {
+                  // Find the isNextDelivery card
+                  const allCards = document.querySelectorAll('[id^="stop-card-"]');
+                  for (const card of allCards) {
+                    const cardId = card.id.replace('stop-card-', '');
+                    // After refresh, check the fresh deliveries
+                    const nextDeliveryCard = deliveriesWithStopOrder.find((d) =>
+                    d && d.id === cardId && d.isNextDelivery
+                    );
+                    if (nextDeliveryCard) {
+                      card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                      console.log(`✅ Auto-centered on next delivery: ${nextDeliveryCard.patient_name || 'Pickup'}`);
+                      break;
+                    }
+                  }
+                }, 500);
+              }
+
+              console.log('✅ [AI Route Planner] Route updated successfully');
+            } catch (error) {
+              console.error('❌ [AI Route Planner] Error:', error);
+              throw error;
+            }
+          }}
+          onClose={() => setShowAIRoutePlanner(false)} />
         }
       </AnimatePresence>
     </div>);
@@ -5532,7 +5532,7 @@ async function geocodeAddress(address) {
     const geoResponse = await fetch(url);
     const data = await geoResponse.json();
 
-    if (data.status === 'OK' && data.results && Array.isArray(data.results) && data.results.length > 0) { // Defensive check
+    if (data.status === 'OK' && data.results && Array.isArray(data.results) && data.results.length > 0) {// Defensive check
       const location = data.results[0].geometry.location;
       return { lat: location.lat, lon: location.lng };
     } else {
