@@ -239,8 +239,8 @@ function Dashboard() {
   const hasShownSummaryRef = useRef(false);
   const stopCardsContainerRef = useRef(null);
 
-  const STOP_CARDS_BASE_HEIGHT = 145; // Fixed non-expanded height for map padding
   const STOP_CARDS_EXPANDED_HEIGHT = 450; // Expanded card height for map padding
+  const STOP_CARDS_BASE_HEIGHT = 145; // Fixed non-expanded height for map padding
   const StopCardsHeight = STOP_CARDS_BASE_HEIGHT + 100;
 
   const mapLockTimeoutRef = useRef(null);
