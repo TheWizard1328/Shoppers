@@ -19,117 +19,57 @@ export default function MessageNotificationBalloon({ currentUser, onOpenConversa
       setLastSeenMessageId(storedLastSeen);
     }
 
-    const connectSSE = async () => {
+    let pollingInterval = null;
+
+    // Simple polling function - no SSE to avoid auth issues
+    const checkForNewMessages = async () => {
       try {
-        // Get the function URL dynamically
-        const response = await base44.functions.invoke('messageStream', {}, { 
-          responseType: 'stream',
-          headers: { 'Accept': 'text/event-stream' }
-        });
-        
-        // If streaming isn't supported, fall back to polling
-        if (!response || response.status !== 200) {
-          console.log('SSE not available, falling back to polling');
-          startPolling();
-          return;
-        }
+        const unreadMessages = await base44.entities.Message.filter({
+          receiver_id: currentUser.id,
+          read: false
+        }, '-created_date', 1);
 
-        // Create EventSource using the function endpoint
-        const functionUrl = `${window.location.origin}/api/functions/messageStream`;
-        eventSourceRef.current = new EventSource(functionUrl, { withCredentials: true });
-
-        eventSourceRef.current.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            
-            if (data.type === 'new_message' && data.message) {
-              const msg = data.message;
-              
-              // Only show if we haven't seen this message
-              if (msg.id !== lastSeenMessageId) {
-                setNotification(msg);
-                setLastSeenMessageId(msg.id);
-                localStorage.setItem(`lastSeenMessageId_${currentUser.id}`, msg.id);
-                
-                // Clear existing auto-dismiss timeout
-                if (autoDismissTimeoutRef.current) {
-                  clearTimeout(autoDismissTimeoutRef.current);
-                }
-                
-                // Auto-dismiss after 8 seconds
-                autoDismissTimeoutRef.current = setTimeout(() => {
-                  setNotification(null);
-                }, 8000);
-              }
-            }
-          } catch (e) {
-            console.error('Error parsing SSE message:', e);
-          }
-        };
-
-        eventSourceRef.current.onerror = () => {
-          console.log('SSE connection error, reconnecting...');
-          eventSourceRef.current?.close();
+        if (unreadMessages.length > 0) {
+          const latestMessage = unreadMessages[0];
+          const currentLastSeen = localStorage.getItem(`lastSeenMessageId_${currentUser.id}`);
           
-          // Reconnect after 5 seconds
-          reconnectTimeoutRef.current = setTimeout(connectSSE, 5000);
-        };
-
+          if (latestMessage.id !== currentLastSeen) {
+            setNotification(latestMessage);
+            setLastSeenMessageId(latestMessage.id);
+            localStorage.setItem(`lastSeenMessageId_${currentUser.id}`, latestMessage.id);
+            
+            if (autoDismissTimeoutRef.current) {
+              clearTimeout(autoDismissTimeoutRef.current);
+            }
+            
+            autoDismissTimeoutRef.current = setTimeout(() => {
+              setNotification(null);
+            }, 8000);
+          }
+        }
       } catch (error) {
-        console.error('Error connecting to SSE:', error);
-        startPolling();
+        // Silently ignore errors to prevent auth issues
+        console.warn('Message notification check failed:', error.message);
       }
     };
 
-    // Fallback polling function
-    const startPolling = () => {
-      const checkForNewMessages = async () => {
-        try {
-          const unreadMessages = await base44.entities.Message.filter({
-            receiver_id: currentUser.id,
-            read: false
-          }, '-created_date', 1);
-
-          if (unreadMessages.length > 0) {
-            const latestMessage = unreadMessages[0];
-            
-            if (latestMessage.id !== lastSeenMessageId) {
-              setNotification(latestMessage);
-              setLastSeenMessageId(latestMessage.id);
-              localStorage.setItem(`lastSeenMessageId_${currentUser.id}`, latestMessage.id);
-              
-              if (autoDismissTimeoutRef.current) {
-                clearTimeout(autoDismissTimeoutRef.current);
-              }
-              
-              autoDismissTimeoutRef.current = setTimeout(() => {
-                setNotification(null);
-              }, 8000);
-            }
-          }
-        } catch (error) {
-          console.error('Error checking for new messages:', error);
-        }
-      };
-
+    // Initial check after a short delay to ensure auth is ready
+    const initialTimeout = setTimeout(() => {
       checkForNewMessages();
-      const interval = setInterval(checkForNewMessages, 15000);
-      return () => clearInterval(interval);
-    };
-
-    // Try SSE first, with polling as fallback
-    connectSSE();
+      // Poll every 30 seconds to reduce API load
+      pollingInterval = setInterval(checkForNewMessages, 30000);
+    }, 2000);
 
     return () => {
-      eventSourceRef.current?.close();
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
+      clearTimeout(initialTimeout);
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
       }
       if (autoDismissTimeoutRef.current) {
         clearTimeout(autoDismissTimeoutRef.current);
       }
     };
-  }, [currentUser?.id, lastSeenMessageId]);
+  }, [currentUser?.id]);
 
   const handleClick = () => {
     if (notification) {
