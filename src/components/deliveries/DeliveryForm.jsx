@@ -1240,8 +1240,10 @@ export default function DeliveryForm({
     }
 
     // CRITICAL: Split into NEW deliveries (no id) and UPDATED deliveries (have id, status changed from pending)
-    const newDeliveries = stagedDeliveries.filter((staged) => !staged.id);
-    const updatedDeliveries = stagedDeliveries.filter((staged) => staged.id && staged.status !== 'pending');
+    // Also filter out any deliveries that were deleted (marked with _deleted flag)
+    const validStagedDeliveries = stagedDeliveries.filter((staged) => !staged._deleted);
+    const newDeliveries = validStagedDeliveries.filter((staged) => !staged.id);
+    const updatedDeliveries = validStagedDeliveries.filter((staged) => staged.id && staged.status !== 'pending');
 
     console.log('[AddToRoute] 🔍 Total staged:', stagedDeliveries.length, '| New:', newDeliveries.length, '| Updated:', updatedDeliveries.length, '| Unchanged pending:', stagedDeliveries.length - newDeliveries.length - updatedDeliveries.length);
     console.log('[AddToRoute] 🔍 New deliveries to save:', newDeliveries.map((s) => ({
@@ -3480,8 +3482,8 @@ export default function DeliveryForm({
                     await base44.entities.Delivery.delete(staged.id);
                     console.log('✅ [DeliveryForm] Pending delivery deleted successfully');
                     
-                    // Remove from staged list
-                    setStagedDeliveries((prev) => prev.filter((item) => item._tempId !== staged._tempId));
+                    // Remove from staged list completely
+                    setStagedDeliveries((prev) => prev.filter((item) => item.id !== staged.id && item._tempId !== staged._tempId));
                     
                     // Clear editing state if this was the one being edited
                     if (editingStagedId === staged._tempId) {
