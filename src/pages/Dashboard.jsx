@@ -647,7 +647,7 @@ function Dashboard() {
   const prevSelectedDateRef = useRef(format(selectedDate, 'yyyy-MM-dd'));
   const pendingMapRepositionRef = useRef(false);
 
-  // Effect to detect driver/date changes and flag for repositioning
+  // Effect to detect driver/date changes and trigger repositioning AFTER data loads
   useEffect(() => {
     const currentDateStr = format(selectedDate, 'yyyy-MM-dd');
 
@@ -659,42 +659,19 @@ function Dashboard() {
     prevSelectedDriverIdRef.current = selectedDriverId;
     prevSelectedDateRef.current = currentDateStr;
 
-    // Flag that we need to reposition when markers are ready
-    if (driverChanged || dateChanged) {
-      console.log(`🗺️ [Filter Change] Flagging pending map reposition`);
+    // Only reposition if we actually have data loaded
+    if ((driverChanged || dateChanged) && isDataLoaded && deliveriesWithStopOrder.length > 0) {
+      console.log(`🗺️ [Filter Change] Triggering map reposition for new data`);
       console.log(`   Driver: ${driverChanged ? 'changed' : 'same'}, Date: ${dateChanged ? 'changed' : 'same'}`);
-      pendingMapRepositionRef.current = true;
+      
+      // Trigger immediately without the flag system
+      if (mapViewPhase > 0) {
+        setMapViewTrigger((prev) => prev + 1);
+      }
     }
-  }, [selectedDriverId, selectedDate]);
+  }, [selectedDriverId, selectedDate, isDataLoaded, deliveriesWithStopOrder.length, mapViewPhase]);
 
-  // Effect to reposition map AFTER deliveries have been rendered (markers exist)
-  // CRITICAL: This only runs when driver/date changes (pendingMapRepositionRef is set)
-  // It should NOT interfere with FAB click timers
-  useEffect(() => {
-    // Only run if we have a pending reposition and data is loaded
-    if (!pendingMapRepositionRef.current || !isDataLoaded) {
-      return;
-    }
 
-    // Wait for markers to render before repositioning
-    // Use requestAnimationFrame to ensure DOM has updated, then add delay for map tiles
-    const frameId = requestAnimationFrame(() => {
-      setTimeout(() => {
-        if (pendingMapRepositionRef.current && mapViewPhase > 0) {
-          console.log(`🗺️ [Markers Ready] Triggering FAB phase ${mapViewPhase}`);
-          console.log(`   Deliveries count: ${deliveriesWithStopOrder.length}`);
-
-          pendingMapRepositionRef.current = false;
-
-          // Just trigger the map view, don't set up timers here
-          // The timer logic is handled by handleMapViewCycle
-          setMapViewTrigger((prev) => prev + 1);
-        }
-      }, 500); // 500ms delay after RAF to ensure markers and tiles are rendered
-    });
-
-    return () => cancelAnimationFrame(frameId);
-  }, [deliveriesWithStopOrder, isDataLoaded, mapViewPhase]);
 
   const handleMapInteraction = useCallback(() => {
     console.log('🗺️ [Map Interaction] Called - FORCE UNLOCK');
