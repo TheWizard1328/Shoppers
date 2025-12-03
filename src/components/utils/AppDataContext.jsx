@@ -23,6 +23,7 @@ export const useAppData = () => {
       cities: [],
       isDataLoaded: false,
       refreshData: () => {},
+      updateDeliveriesLocally: () => {},
       isFormOverlayOpen: false,
       setIsFormOverlayOpen: () => {},
       isEntityUpdating: false,
