@@ -2824,7 +2824,8 @@ function Dashboard() {
               fridge_item: stop.fridge_item || false,
               oversized: stop.oversized || false,
               extra_time: stop.extra_time || 5,
-              first_delivery: stop.first_delivery || false
+              first_delivery: stop.first_delivery || false,
+              isNextDelivery: false // CRITICAL: Always false when creating new routes
             };
 
             if (stop.isNew) {
@@ -2842,7 +2843,8 @@ function Dashboard() {
                   delivery_time_eta: payload.delivery_time_eta,
                   time_window_start: payload.time_window_start,
                   time_window_end: payload.time_window_end,
-                  ampm_deliveries: payload.ampm_deliveries
+                  ampm_deliveries: payload.ampm_deliveries,
+                  isNextDelivery: false // CRITICAL: Always false when creating new routes
                 }
               });
             }
@@ -3500,17 +3502,14 @@ function Dashboard() {
           fridge_item: stop.fridge_item || false,
           oversized: stop.oversized || false,
           extra_time: stop.extra_time || 5,
-          first_delivery: stop.first_delivery || false
+          first_delivery: stop.first_delivery || false,
+          isNextDelivery: false // CRITICAL: Always false for single delivery adds
         };
 
         if (stop.isNew) {
           await base44.entities.Delivery.create(payload);
           createdCount++;
         } else {
-          // CRITICAL: Only update TR# for existing stops during single delivery save if:
-          // 1. This is a NEW stop (doesn't have a TR# yet), OR
-          // 2. Manual admin edit (handled separately in DeliveryForm)
-          // NEVER auto-update TR# for existing stops with TR#s during route optimization
           const updatePayload = {
             stop_id: payload.stop_id,
             puid: payload.puid,
@@ -3520,7 +3519,8 @@ function Dashboard() {
             delivery_time_eta: payload.delivery_time_eta,
             time_window_start: payload.time_window_start,
             time_window_end: payload.time_window_end,
-            ampm_deliveries: payload.ampm_deliveries
+            ampm_deliveries: payload.ampm_deliveries,
+            isNextDelivery: false // CRITICAL: Always false for single delivery adds
           };
 
           // Only include tracking_number if stop doesn't have one yet (new stop)
