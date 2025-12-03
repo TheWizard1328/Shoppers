@@ -610,9 +610,9 @@ function Dashboard() {
     const ratio = screenWidth / cardWidth;
 
     if (ratio < 2) {
-      return 'absolute top-2 left-1/2 -translate-x-1/2 z-[100]';
+      return 'absolute top-2 left-1/2 -translate-x-1/2 z-[500]';
     } else {
-      return 'absolute top-2 right-2 z-[100]';
+      return 'absolute top-2 right-2 z-[500]';
     }
   }, [screenWidth, cardWidth]);
 
