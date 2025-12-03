@@ -186,6 +186,7 @@ function Dashboard() {
     isDataLoaded,
     refreshData,
     updateDeliveriesLocally,
+    forceRefreshDriverDeliveries,
     setIsFormOverlayOpen,
     setIsEntityUpdating,
     setOnSmartRefreshComplete
@@ -4429,6 +4430,15 @@ function Dashboard() {
         throw new Error('Delivery not found');
       }
 
+      // CRITICAL: Force refresh latest deliveries for this driver/date BEFORE updating
+      console.log('🔄 [STATUS UPDATE] Force refreshing driver deliveries from database...');
+      try {
+        await forceRefreshDriverDeliveries(targetDelivery.driver_id, targetDelivery.delivery_date);
+        console.log('✅ [STATUS UPDATE] Fresh data loaded, proceeding with status update');
+      } catch (refreshError) {
+        console.warn('⚠️ [STATUS UPDATE] Pre-refresh failed, continuing anyway:', refreshError.message);
+      }
+
       const currentDate = format(new Date(), 'yyyy-MM-dd');
       const deliveryDate = targetDelivery.delivery_date;
       const isPickup = !targetDelivery.patient_id;
@@ -4724,6 +4734,15 @@ function Dashboard() {
       const deliveryDate = deliveryFromUI.delivery_date;
       const isPickup = !deliveryFromUI.patient_id;
       const newStatus = isPickup ? 'en_route' : 'in_transit';
+
+      // CRITICAL: Force refresh latest deliveries for this driver/date BEFORE starting
+      console.log('🔄 [START] Force refreshing driver deliveries from database...');
+      try {
+        await forceRefreshDriverDeliveries(driverId, deliveryDate);
+        console.log('✅ [START] Fresh data loaded, proceeding with start delivery');
+      } catch (refreshError) {
+        console.warn('⚠️ [START] Pre-refresh failed, continuing anyway:', refreshError.message);
+      }
 
       console.log(`📦 Starting: ${deliveryFromUI.patient_name || 'Pickup'} (#${deliveryFromUI.stop_order})`);
 
