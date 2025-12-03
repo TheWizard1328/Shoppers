@@ -2213,8 +2213,13 @@ export default function DeliveryForm({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Package className="w-5 h-5 text-emerald-600" />
-                <CardTitle className="text-xl font-bold">
+                <CardTitle className="text-xl font-bold flex items-center gap-2">
                   {delivery ? isPickupMode ? 'Edit Pickup' : 'Edit Delivery' : 'Add To Route'}
+                  {selectedPatient?.last_delivery_date && (
+                    <Badge variant="outline" className="text-xs font-normal">
+                      LD: {format(new Date(selectedPatient.last_delivery_date + 'T00:00:00'), 'MMM d, yyyy')}
+                    </Badge>
+                  )}
                 </CardTitle>
 
                 {!delivery &&
