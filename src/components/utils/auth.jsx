@@ -211,16 +211,23 @@ export const getEffectiveUser = async () => {
                 return null;
             }
 
-            // Handle rate limiting specifically
-            if (error.response?.status === 429 || errorMessage.includes('429')) {
+            // Handle rate limiting specifically - use aggressive backoff
+            if (error.response?.status === 429 || errorMessage.includes('429') || errorMessage.includes('Rate limit')) {
                 userCache.lastFailureTime = now;
-                userCache.backoffTime = Math.min(userCache.backoffTime * 2 || 120000, 600000);
+                // Start with 60s backoff, double each time, max 10 minutes
+                userCache.backoffTime = Math.min((userCache.backoffTime || 30000) * 2, 600000);
                 console.warn(`⏰ [auth.js] Rate limit detected. Backing off for ${userCache.backoffTime / 1000}s`);
                 
+                // CRITICAL: Return cached data if available, even if stale
                 if (userCache.data) {
                     console.warn('⚠️ [auth.js] Returning cached user data due to rate limit');
                     return userCache.data;
                 }
+                
+                // If no cached data, wait before retry
+                const waitTime = Math.min(5000 * retryCount, 15000);
+                console.log(`⏳ [auth.js] Waiting ${waitTime}ms before retry...`);
+                await new Promise(resolve => setTimeout(resolve, waitTime));
             }
             
             // Check for timeout or network errors
