@@ -1,3 +1,4 @@
+
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, Circle } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -69,7 +70,7 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false) => 
   const textColor = getContrastColor(color);
 
   // CRITICAL: Match exact sizing from regular markers
-  let baseSize = 24 * 0.75; // Same as regular markers
+  let baseSize = 24 * 0.75;
   if (zoomLevel >= ZOOM_LEVELS.FULL_DETAIL) {
     baseSize = 28 * 0.75;
   } else if (zoomLevel < ZOOM_LEVELS.SIMPLIFY_ROUTES) {
@@ -787,31 +788,10 @@ export default function DeliveryMap({
     fetchGoogleRoute();
   }, [safeDeliveries, isSingleDriverMode, showRoutes]);
 
-  // Get coordinates for deliveries and pickups - UNIFIED CLUSTER TRACKING
+  // Get coordinates for deliveries and pickups - Use backend isNextDelivery flag
   const { deliveryMarkers, groupedDeliveryMarkers, pickupMarkers, groupedPickupMarkers } = useMemo(() => {
-    // Determine the next in-line delivery for each driver
+    // Define finished statuses (can be local if not used elsewhere in this useMemo)
     const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-    const nextDeliveryByDriver = new Map();
-    
-    // Group deliveries by driver and find the first incomplete one
-    const deliveriesByDriver = new Map();
-    patientDeliveries.forEach((delivery) => {
-      if (!delivery || !delivery.driver_id) return;
-      if (!deliveriesByDriver.has(delivery.driver_id)) {
-        deliveriesByDriver.set(delivery.driver_id, []);
-      }
-      deliveriesByDriver.get(delivery.driver_id).push(delivery);
-    });
-    
-    deliveriesByDriver.forEach((driverDeliveries, driverId) => {
-      // Sort by stop_order
-      const sorted = [...driverDeliveries].sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-      // Find first incomplete delivery
-      const nextDelivery = sorted.find((d) => !finishedStatuses.includes(d.status) && d.status !== 'pending');
-      if (nextDelivery) {
-        nextDeliveryByDriver.set(driverId, nextDelivery.id);
-      }
-    });
 
     // Process delivery markers
     const deliveryMarkersRaw = patientDeliveries.map((delivery) => {
@@ -820,35 +800,26 @@ export default function DeliveryMap({
       const patient = safePatients.find((p) => p && p.id === delivery.patient_id);
       if (!patient?.latitude || !patient?.longitude) return null;
 
-      // FIXED: Find driver by ID only, don't require user_name in find condition
       const driver = safeUsers.find((u) => u && typeof u === 'object' && u.id === delivery.driver_id);
       const store = safeStores.find((s) => s && s.id === delivery.store_id);
 
-      // Check if this is a first-time delivery
       const isFirstTime = isFirstTimeDelivery(delivery);
 
-      // Determine if dispatcher should see simple circle for this stop
       const isCurrentUserDispatcher = userHasRole(currentUser, 'dispatcher');
       const isStopInDispatcherStore = isCurrentUserDispatcher && currentUser.store_ids && store && currentUser.store_ids.includes(store.id);
       const useSimpleCircle = isCurrentUserDispatcher && !isStopInDispatcherStore;
 
-      // Check if this is the next in-line delivery for its driver
-      const isNextInLine = nextDeliveryByDriver.get(delivery.driver_id) === delivery.id;
+      // CRITICAL: Use backend isNextDelivery flag for blue marker circle
+      const isNextInLine = delivery.isNextDelivery || false;
 
-      // CRITICAL: Check if delivery has no pickup (missing PUID)
-      // Only check for patient deliveries - pickups don't need PUID validation
       const hasNoPickup = delivery.patient_id && (!delivery.puid || delivery.puid.trim() === '');
 
-      // Determine pin color based on mode
       let pinColor;
       if (hasNoPickup) {
-        // Bright yellow for PATIENT deliveries with no associated pickup
         pinColor = '#FBBF24';
       } else if (isSingleDriverMode) {
-        // Single driver mode: use store colors
         pinColor = store ? getStoreColor(store) : '#6B7280';
       } else {
-        // All drivers mode: use driver colors, with fallback
         pinColor = driver && typeof driver === 'object' ? getDriverColor(driver) : '#607D8B';
       }
 
@@ -1161,7 +1132,7 @@ export default function DeliveryMap({
       }
 
       const driverId = location.driver_id || location.user_id || location.id;
-      const driver = safeUsers.find((u) => u && u.id === driverId);
+      const driver = safeUsers.find((u) => u && typeof u === 'object' && u.id === driverId);
       
       if (!driver) {
         console.log('  ⏭️ Skipping location: driver not found');
@@ -1658,7 +1629,7 @@ export default function DeliveryMap({
     }
 
     // CRITICAL: Only apply map changes when shouldFitBounds is explicitly set
-    // This prevents auto-centering when other props change
+    // This prevents auto-centering when other props changes
     if (!shouldFitBounds) {
       return;
     }
@@ -1797,7 +1768,7 @@ export default function DeliveryMap({
         const timeSinceLastTap = now - lastTapRef.current;
         
         if (timeSinceLastTap < 300) {
-          // Double-tap detected - trigger FAB activation
+          // Double-tap detected - trigger FAB reactivation
           console.log('🗺️ [Double-Tap] Detected on map, triggering FAB reactivation');
           if (onDoubleTap) {
             onDoubleTap();
