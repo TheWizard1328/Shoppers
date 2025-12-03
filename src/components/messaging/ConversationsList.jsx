@@ -34,14 +34,6 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
     return () => clearInterval(interval);
   }, [currentUser?.id]);
 
-  // Notify parent of total unread count changes
-  useEffect(() => {
-    const totalUnread = conversations.reduce((sum, conv) => sum + conv.unreadCount, 0);
-    if (onUnreadCountChange) {
-      onUnreadCountChange(totalUnread);
-    }
-  }, [conversations, onUnreadCountChange]);
-
   // Group messages by conversation and get latest + unread count
   const conversations = useMemo(() => {
     const convMap = new Map();
@@ -74,6 +66,14 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
       }))
       .sort((a, b) => new Date(b.lastMessage?.created_date) - new Date(a.lastMessage?.created_date));
   }, [messages, currentUser?.id]);
+
+  // Notify parent of total unread count changes
+  useEffect(() => {
+    const totalUnread = conversations.reduce((sum, conv) => sum + conv.unreadCount, 0);
+    if (onUnreadCountChange) {
+      onUnreadCountChange(totalUnread);
+    }
+  }, [conversations, onUnreadCountChange]);
 
   // Filter by search
   const filteredConversations = useMemo(() => {
