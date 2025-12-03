@@ -35,9 +35,9 @@ class SmartRefreshManager {
       stores: 0
     };
     
-    // Rate limit protection - INCREASED to prevent 429 errors
+    // Rate limit protection - INCREASED significantly to prevent 429 errors
     this.lastApiCallTime = 0;
-    this.minTimeBetweenCalls = 3000; // 3 seconds minimum between any API call (increased from 2s)
+    this.minTimeBetweenCalls = 5000; // 5 seconds minimum between any API call (increased from 3s)
     
     // Rate limit error callback
     this.rateLimitCallback = null;
