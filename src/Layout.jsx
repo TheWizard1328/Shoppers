@@ -916,8 +916,8 @@ export default function Layout({ children, currentPageName }) {
       // Initial refresh after short delay
       setTimeout(performUnifiedRefresh, 500);
 
-      // Single unified interval - 30 seconds to prevent rate limits (increased from 20s)
-      refreshIntervalRef.current = setInterval(performUnifiedRefresh, 30000);
+      // Single unified interval - 60 seconds to prevent rate limits (increased from 30s)
+      refreshIntervalRef.current = setInterval(performUnifiedRefresh, 60000);
     }, 500);
 
     return () => {
