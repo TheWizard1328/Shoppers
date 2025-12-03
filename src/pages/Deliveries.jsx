@@ -1208,28 +1208,37 @@ export default function DeliveriesPage() {
   );
 
   // Sort deliveries by time for display - MATCHES DASHBOARD SORTING LOGIC
+  // Extra rule: completed deliveries go to the bottom
   const sortDeliveriesByTime = useCallback((deliveries) => {
     if (!Array.isArray(deliveries)) return [];
 
-    console.log(`🔢 [sortDeliveriesByTime] Sorting ${deliveries.length} deliveries (Dashboard-style)`);
+    const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+    
+    // Separate incomplete and completed
+    const incomplete = deliveries.filter((d) => d && !finishedStatuses.includes(d.status));
+    const completed = deliveries.filter((d) => d && finishedStatuses.includes(d.status));
 
-    // Use the same sorting logic as Dashboard (lines 411-422)
-    return [...deliveries].sort((a, b) => {
+    // Sort incomplete by stop_order, then delivery_time_start (Dashboard logic)
+    incomplete.sort((a, b) => {
       if (!a || !b) return 0;
-      
-      // Sort by stop_order first (primary sort)
       const stopOrderA = a.stop_order ?? Infinity;
       const stopOrderB = b.stop_order ?? Infinity;
-
-      if (stopOrderA !== stopOrderB) {
-        return stopOrderA - stopOrderB;
-      }
-
-      // Then by delivery_time_start (secondary sort)
+      if (stopOrderA !== stopOrderB) return stopOrderA - stopOrderB;
       const timeA = a.delivery_time_start || '';
       const timeB = b.delivery_time_start || '';
       return timeA.localeCompare(timeB);
     });
+
+    // Sort completed by stop_order (maintain their original order)
+    completed.sort((a, b) => {
+      if (!a || !b) return 0;
+      const stopOrderA = a.stop_order ?? Infinity;
+      const stopOrderB = b.stop_order ?? Infinity;
+      return stopOrderA - stopOrderB;
+    });
+
+    // Incomplete first, completed at bottom
+    return [...incomplete, ...completed];
   }, []);
 
   const filteredAndSortedDeliveries = useMemo(() => {
