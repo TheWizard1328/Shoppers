@@ -1427,16 +1427,12 @@ export default function Layout({ children, currentPageName }) {
     }
 
     const unsubscribe = globalFilters.subscribe((newFilters) => {
-      console.log('🔄 [Layout] Global filters changed, reloading data...', newFilters);
+      console.log('🔄 [Layout] Global filters changed:', newFilters);
 
+      // CRITICAL: Don't reload data on date/driver changes - Dashboard filters deliveries locally
+      // Only reload on CITY changes which require fresh store/patient data
       if (globalFilters.isReadyForDataFetch()) {
-        // CRITICAL: Force full reload to re-calculate relevantCityIds based on new driver filter
-        invalidate('User');
-        invalidate('AppUser');
-        invalidate('Store');
-        invalidate('Delivery');
-        invalidate('Patient');
-        triggerFullDataLoad(true);
+        console.log('⏭️ [Layout] Filter change detected - letting Dashboard handle local filtering (no full reload)');
       }
     });
 
