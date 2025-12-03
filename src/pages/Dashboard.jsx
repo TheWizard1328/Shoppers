@@ -409,7 +409,7 @@ function Dashboard() {
     const result = [];
     Object.keys(groupedByDriver).forEach((driverId) => {
       const driverDeliveries = groupedByDriver[driverId].sort((a, b) => {
-        if (!a || !b) return 0; // Defensive check for null/undefined objects during sort
+        if (!a || !b) return 0;
         const stopOrderA = a.stop_order ?? Infinity;
         const stopOrderB = b.stop_order ?? Infinity;
 
@@ -422,8 +422,7 @@ function Dashboard() {
         return timeA.localeCompare(timeB);
       });
 
-      // CRITICAL: Exclude pending deliveries from display_stop_order numbering
-      const nonPendingDeliveries = driverDeliveries.filter((d) => d && d.status !== 'pending');
+      // CRITICAL: Include ALL deliveries (including pending) in result
       let displayCounter = 1;
 
       driverDeliveries.forEach((delivery) => {
@@ -437,7 +436,7 @@ function Dashboard() {
           });
           displayCounter++;
         } else {
-          // Pending deliveries still get added to result, but without display_stop_order
+          // CRITICAL: Pending deliveries MUST be included in result for projected_deliveries attachment
           result.push({
             ...delivery,
             display_stop_order: null
@@ -446,6 +445,7 @@ function Dashboard() {
       });
     });
 
+    console.log(`📊 [deliveriesWithStopOrder] Total: ${result.length} (${result.filter(d => d.status === 'pending').length} pending)`);
     return result;
   }, [filteredDeliveries]);
 
