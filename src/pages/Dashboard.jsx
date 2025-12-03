@@ -234,6 +234,8 @@ function Dashboard() {
   const [screenWidth, setScreenWidth] = useState(window.innerWidth);
   const [cardWidth, setCardWidth] = useState(340);
   const [areCardsVisible, setAreCardsVisible] = useState(false);
+  const [statsPanelOpacity, setStatsPanelOpacity] = useState(1);
+  const statsFadeTimeoutRef = useRef(null);
   const fadeTimeoutRef = useRef(null);
   const statsCardRef = useRef(null);
   const [isMapViewLocked, setIsMapViewLocked] = useState(false);
@@ -639,6 +641,46 @@ function Dashboard() {
     }
   }, [isExpanded]);
 
+  // Handle stats panel fade-out when mouse leaves and not expanded
+  const handleStatsPanelMouseEnter = useCallback(() => {
+    if (statsFadeTimeoutRef.current) {
+      clearTimeout(statsFadeTimeoutRef.current);
+      statsFadeTimeoutRef.current = null;
+    }
+    setStatsPanelOpacity(1);
+  }, []);
+
+  const handleStatsPanelMouseLeave = useCallback(() => {
+    if (isExpanded) return; // Don't fade if expanded
+    
+    if (statsFadeTimeoutRef.current) {
+      clearTimeout(statsFadeTimeoutRef.current);
+    }
+    
+    statsFadeTimeoutRef.current = setTimeout(() => {
+      setStatsPanelOpacity(0.5);
+    }, 3000);
+  }, [isExpanded]);
+
+  // Reset opacity to full when expanded changes
+  useEffect(() => {
+    if (isExpanded) {
+      setStatsPanelOpacity(1);
+      if (statsFadeTimeoutRef.current) {
+        clearTimeout(statsFadeTimeoutRef.current);
+        statsFadeTimeoutRef.current = null;
+      }
+    } else {
+      // Start fade timer when collapsing
+      if (statsFadeTimeoutRef.current) {
+        clearTimeout(statsFadeTimeoutRef.current);
+      }
+      statsFadeTimeoutRef.current = setTimeout(() => {
+        setStatsPanelOpacity(0.5);
+      }, 3000);
+    }
+  }, [isExpanded]);
+
   // Track when the last programmatic map move happened (to debounce interaction handler)
   const lastProgrammaticMapMoveRef = useRef(0);
 
@@ -779,6 +821,9 @@ function Dashboard() {
       }
       if (mapLockTimeoutRef.current) {
         clearTimeout(mapLockTimeoutRef.current);
+      }
+      if (statsFadeTimeoutRef.current) {
+        clearTimeout(statsFadeTimeoutRef.current);
       }
     };
   }, []);
@@ -4768,10 +4813,18 @@ function Dashboard() {
   };
 
   // CRITICAL: Add click handler BEFORE early return to ensure hooks are always called
+  // Collapse stats card when clicking anywhere outside it
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (isExpanded && statsCardRef.current && !statsCardRef.current.contains(event.target)) {
         setIsExpanded(false);
+        // Start fade timer after collapsing
+        if (statsFadeTimeoutRef.current) {
+          clearTimeout(statsFadeTimeoutRef.current);
+        }
+        statsFadeTimeoutRef.current = setTimeout(() => {
+          setStatsPanelOpacity(0.5);
+        }, 3000);
       }
     };
 
