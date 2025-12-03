@@ -299,15 +299,25 @@ class SmartRefreshManager {
       console.log('🔀 MERGE OPERATION:');
       const mergedDateDeliveries = mergeEntityChanges(currentDateDeliveries, diff);
       
-      // CRITICAL: Re-apply protected deliveries from currentDeliveries (keep local updates)
+      // CRITICAL: Preserve isNextDelivery from current state if it exists
+      // This prevents the flag from being lost during smart refresh
       const finalMergedDeliveries = mergedDateDeliveries.map(d => {
+        const currentVersion = currentDateDeliveries.find(cd => cd.id === d.id);
+        
+        // If delivery has pending update, keep local version entirely
         if (this.hasPendingUpdate(d.id)) {
-          const localVersion = currentDateDeliveries.find(cd => cd.id === d.id);
-          if (localVersion) {
+          if (currentVersion) {
             console.log(`   🔒 Preserving local update for: ${d.patient_name || 'Pickup'}`);
-            return localVersion;
+            return currentVersion;
           }
         }
+        
+        // CRITICAL: Preserve isNextDelivery from current state if backend hasn't updated it
+        // Only overwrite with false if backend EXPLICITLY set it to false AND it's different
+        if (currentVersion?.isNextDelivery === true && d.isNextDelivery === false) {
+          console.log(`   ⚠️ Backend cleared isNextDelivery for: ${d.patient_name || 'Pickup'}`);
+        }
+        
         return d;
       });
       
@@ -483,15 +493,24 @@ class SmartRefreshManager {
       
       const mergedRelevantDeliveries = mergeEntityChanges(relevantCurrentDeliveries, diff);
       
-      // CRITICAL: Re-apply protected deliveries from currentDeliveries
+      // CRITICAL: Preserve isNextDelivery and protected deliveries
       const finalMergedRelevant = mergedRelevantDeliveries.map(d => {
+        const currentVersion = relevantCurrentDeliveries.find(cd => cd.id === d.id);
+        
+        // If delivery has pending update, keep local version entirely
         if (this.hasPendingUpdate(d.id)) {
-          const localVersion = relevantCurrentDeliveries.find(cd => cd.id === d.id);
-          if (localVersion) {
+          if (currentVersion) {
             console.log(`   🔒 Preserving local update for: ${d.patient_name || 'Pickup'}`);
-            return localVersion;
+            return currentVersion;
           }
         }
+        
+        // CRITICAL: Preserve isNextDelivery from current state if backend hasn't updated it
+        if (currentVersion?.isNextDelivery === true && d.isNextDelivery === false) {
+          console.log(`   ⚠️ Backend cleared isNextDelivery for: ${d.patient_name || 'Pickup'} - preserving current state`);
+          return { ...d, isNextDelivery: true };
+        }
+        
         return d;
       });
       
@@ -966,6 +985,13 @@ class SmartRefreshManager {
               oldDriver: d.driver_name,
               newDriver: fetchedVersion.driver_name
             });
+            
+            // CRITICAL: Preserve isNextDelivery=true if backend hasn't updated it yet
+            if (d.isNextDelivery === true && fetchedVersion.isNextDelivery === false) {
+              console.log(`   ⚠️ Preserving isNextDelivery=true for: ${fetchedVersion.patient_name || 'Pickup'}`);
+              return { ...fetchedVersion, isNextDelivery: true };
+            }
+            
             return fetchedVersion;
           }
         }
