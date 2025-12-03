@@ -48,28 +48,28 @@ class SmartRefreshManager {
     
     // CRITICAL: Track deliveries that have pending local updates
     // This prevents smart refresh from overwriting them with stale DB data
-    this.pendingLocalUpdates = new Map(); // deliveryId -> timestamp
+    this.pendingLocalUpdates = new Map(); // deliveryId -> { expiresAt, driverId, deliveryDate }
   }
   
   /**
    * Register a pending local update for a delivery
-   * This prevents smart refresh from overwriting it for 5 seconds
+   * This prevents smart refresh from overwriting it for 15 seconds (extended from 5s)
+   * The longer window accounts for backend optimizer latency
    */
-  registerPendingUpdate(deliveryId) {
-    const expiresAt = Date.now() + 5000; // 5 second protection window
-    this.pendingLocalUpdates.set(deliveryId, expiresAt);
-    console.log(`🔒 [SmartRefresh] Protected delivery ${deliveryId} from overwrite (5s window)`);
+  registerPendingUpdate(deliveryId, driverId = null, deliveryDate = null) {
+    const expiresAt = Date.now() + 15000; // 15 second protection window
+    this.pendingLocalUpdates.set(deliveryId, { expiresAt, driverId, deliveryDate });
   }
   
   /**
    * Check if a delivery has a pending local update
    */
   hasPendingUpdate(deliveryId) {
-    const expiresAt = this.pendingLocalUpdates.get(deliveryId);
-    if (!expiresAt) return false;
+    const entry = this.pendingLocalUpdates.get(deliveryId);
+    if (!entry) return false;
     
     // Check if protection window expired
-    if (Date.now() > expiresAt) {
+    if (Date.now() > entry.expiresAt) {
       this.pendingLocalUpdates.delete(deliveryId);
       return false;
     }
@@ -82,6 +82,22 @@ class SmartRefreshManager {
    */
   clearPendingUpdates() {
     this.pendingLocalUpdates.clear();
+  }
+  
+  /**
+   * Clear pending updates for a specific driver and date
+   * Called when we receive authoritative data from the backend for that route
+   */
+  clearPendingUpdatesForDriver(driverId, deliveryDate) {
+    if (!driverId || !deliveryDate) return;
+    
+    const idsToRemove = [];
+    for (const [id, entry] of this.pendingLocalUpdates.entries()) {
+      if (entry.driverId === driverId && entry.deliveryDate === deliveryDate) {
+        idsToRemove.push(id);
+      }
+    }
+    idsToRemove.forEach(id => this.pendingLocalUpdates.delete(id));
   }
   
   setRateLimitCallback(callback) {
