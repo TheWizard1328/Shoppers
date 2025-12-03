@@ -608,10 +608,10 @@ export default function Layout({ children, currentPageName }) {
     };
 
     fetchUnreadCount();
-    // Poll every 15 seconds
-    const interval = setInterval(fetchUnreadCount, 15000);
+    // Poll every 30 seconds (reduced to prevent rate limiting)
+    const interval = setInterval(fetchUnreadCount, 30000);
     return () => clearInterval(interval);
-  }, [currentUser?.id]);
+    }, [currentUser?.id]);
 
   useEffect(() => {
     const handleKeyDown = (event) => {

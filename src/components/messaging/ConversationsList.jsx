@@ -29,8 +29,8 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
     };
 
     fetchMessages();
-    // Poll for new messages every 5 seconds
-    const interval = setInterval(fetchMessages, 5000);
+    // Poll for new messages every 15 seconds (reduced to prevent rate limiting)
+    const interval = setInterval(fetchMessages, 15000);
     return () => clearInterval(interval);
   }, [currentUser?.id]);
 
