@@ -827,7 +827,7 @@ export default function DeliveryForm({
     setStagedDeliveries((prev) => [...prev, {
       ...updatedFormData,
       delivery_time_start: patient.time_window_start || '',
-      delivery_time_end: patient.time_window_end || '',
+      delivery_time_end: patient.time_window_end || (patient.time_window_start ? '' : ''),
       puid: puid || '',
       ampm_deliveries: timeSlot,
       _tempId: Date.now() + Math.random(),
@@ -835,7 +835,8 @@ export default function DeliveryForm({
       store_name: patientStore.name,
       store_abbreviation: patientStore.abbreviation,
       distanceFromStore: distanceFromStore,
-      delivery_address: patient.address || patientStore.address
+      delivery_address: patient.address || patientStore.address,
+      isNextDelivery: false
     }]);
 
     // Remove from projected deliveries if exists
@@ -1452,21 +1453,37 @@ export default function DeliveryForm({
       // Second, update pending deliveries that had status changes (from "pending" to "in_transit")
       if (updatedDeliveries.length > 0) {
         console.log(`[AddToRoute] 📝 Updating ${updatedDeliveries.length} pending deliveries with status changes...`);
+        
+        // Check if any deliveries are completed for this driver/date
+        const hasCompletedDeliveries = allDeliveries?.some((d) => 
+          d && 
+          d.driver_id === formData.driver_id && 
+          d.delivery_date === formData.delivery_date && 
+          d.status === 'completed'
+        );
+        
         for (const updated of updatedDeliveries) {
           console.log(`[AddToRoute] 🔄 Updating delivery ${updated.id}: ${updated.patient_name}`);
           console.log(`   - Old status: pending → New status: ${updated.status}`);
           console.log(`   - Tracking Number: ${updated.tracking_number}`);
           
-          await base44.entities.Delivery.update(updated.id, {
+          const updateData = {
             status: updated.status,
             delivery_notes: updated.delivery_notes || '',
             prescription_number: updated.prescription_number || '',
             cod_total_amount_required: updated.cod_total_amount_required || 0,
             delivery_instructions: updated.delivery_instructions || '',
-            time_window_start: updated.time_window_start || '',
-            time_window_end: updated.time_window_end || '',
-            tracking_number: updated.tracking_number || '99'
-          });
+            tracking_number: updated.tracking_number || '99',
+            isNextDelivery: hasCompletedDeliveries ? false : updated.isNextDelivery || false
+          };
+          
+          // Only update time windows if patient has time_window_start
+          if (updated.time_window_start) {
+            updateData.time_window_start = updated.time_window_start;
+            updateData.time_window_end = updated.time_window_end || '';
+          }
+          
+          await base44.entities.Delivery.update(updated.id, updateData);
           console.log(`[AddToRoute] ✅ Updated pending delivery: ${updated.patient_name} → status: ${updated.status}`);
         }
         console.log('[AddToRoute] ✅ All pending deliveries updated');
@@ -2088,9 +2105,9 @@ export default function DeliveryForm({
       unit_number: patient.unit_number || '',
       delivery_date: formData.delivery_date,
       delivery_time_start: patient.time_window_start || '',
-      delivery_time_end: patient.time_window_end || '',
+      delivery_time_end: patient.time_window_end || (patient.time_window_start ? '' : ''),
       time_window_start: patient.time_window_start || '',
-      time_window_end: patient.time_window_end || '',
+      time_window_end: patient.time_window_end || (patient.time_window_start ? '' : ''),
       puid: puid || '',
       ampm_deliveries: timeSlot,
       status: 'Ready For Pickup',
@@ -2137,7 +2154,8 @@ export default function DeliveryForm({
       _wasProjected: true,
       _originalProjected: projected,
       distanceFromStore: distanceFromStore,
-      delivery_address: patient.address || ''
+      delivery_address: patient.address || '',
+      isNextDelivery: false
     }]);
 
     setProjectedDeliveries((prev) => prev.filter((p) => p.patient_id !== projected.patient_id));

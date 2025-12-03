@@ -3108,13 +3108,15 @@ export default function DeliveriesPage() {
                   // Clear all delivery caches
                   invalidate('Delivery');
                   
-                  // Update local state immediately
+                  // Update local state immediately - remove deleted deliveries
                   setAllDeliveries(prev => prev.filter(d => 
                     !(d.delivery_date === dateStr && d.driver_id === driverId)
                   ));
                   
-                  // Force full refresh
-                  await loadData(true);
+                  // Force context to update by invalidating and refreshing
+                  const { invalidate: contextInvalidate } = await import('../components/utils/dataManager');
+                  contextInvalidate('Delivery');
+                  
                   console.log(`✅ Route deleted successfully`);
                 } catch (error) {
                   console.error('Error deleting route:', error);
@@ -3191,13 +3193,15 @@ export default function DeliveriesPage() {
                     // Clear all delivery caches
                     invalidate('Delivery');
                     
-                    // Update local state immediately
+                    // Update local state immediately - remove deleted deliveries
                     setAllDeliveries(prev => prev.filter(d => 
                       !(d.delivery_date === dateStr && d.driver_id === driverId)
                     ));
                     
-                    // Force full refresh
-                    await loadData(true);
+                    // Force context to update by invalidating
+                    const { invalidate: contextInvalidate } = await import('../components/utils/dataManager');
+                    contextInvalidate('Delivery');
+                    
                     setIsMobileMenuOpen(false);
                     console.log(`✅ Route deleted successfully`);
                   } catch (error) {
