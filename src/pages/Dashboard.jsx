@@ -817,6 +817,9 @@ function Dashboard() {
       if (mapLockTimeoutRef.current) {
         clearTimeout(mapLockTimeoutRef.current);
       }
+      if (statsPanelFadeTimeoutRef.current) {
+        clearTimeout(statsPanelFadeTimeoutRef.current);
+      }
     };
   }, []);
 
