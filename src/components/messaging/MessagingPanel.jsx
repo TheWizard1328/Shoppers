@@ -4,8 +4,15 @@ import ChatWindow from './ChatWindow';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-export default function MessagingPanel({ currentUser, users, onClose, initialConversation }) {
+export default function MessagingPanel({ currentUser, users, onClose, initialConversation, onUnreadCountChange }) {
   const [selectedConversation, setSelectedConversation] = useState(initialConversation || null);
+  
+  const handleMessagesRead = (count) => {
+    // Immediately notify parent that messages were read
+    if (onUnreadCountChange) {
+      onUnreadCountChange(prev => Math.max(0, prev - count));
+    }
+  };
 
   const handleSelectConversation = (conversationId, otherUserId, otherUserName) => {
     setSelectedConversation({ conversationId, otherUserId, otherUserName });
@@ -42,6 +49,7 @@ export default function MessagingPanel({ currentUser, users, onClose, initialCon
               users={users}
               onSelectConversation={handleSelectConversation}
               selectedConversationId={selectedConversation?.conversationId}
+              onUnreadCountChange={onUnreadCountChange}
             />
           </div>
 
@@ -56,6 +64,7 @@ export default function MessagingPanel({ currentUser, users, onClose, initialCon
                 otherUserId={selectedConversation.otherUserId}
                 otherUserName={selectedConversation.otherUserName}
                 onBack={handleBack}
+                onMessagesRead={handleMessagesRead}
               />
             ) : (
               <div className="flex-1 flex items-center justify-center text-slate-500">

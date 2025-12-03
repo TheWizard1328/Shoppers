@@ -2075,6 +2075,7 @@ export default function Layout({ children, currentPageName }) {
                         setInitialConversation(null);
                       }}
                       initialConversation={initialConversation}
+                      onUnreadCountChange={setUnreadMessageCount}
                     />
                   )}
                   

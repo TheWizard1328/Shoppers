@@ -10,7 +10,8 @@ export default function ChatWindow({
   conversationId,
   otherUserId,
   otherUserName,
-  onBack
+  onBack,
+  onMessagesRead
 }) {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
@@ -33,12 +34,18 @@ export default function ChatWindow({
         );
         setMessages(allMessages);
 
-        // Mark unread messages as read
+        // Mark unread messages as read (in parallel for speed)
         const unreadMessages = allMessages.filter(
           (m) => !m.read && m.receiver_id === currentUser?.id
         );
-        for (const msg of unreadMessages) {
-          await base44.entities.Message.update(msg.id, { read: true });
+        if (unreadMessages.length > 0) {
+          await Promise.all(
+            unreadMessages.map(msg => base44.entities.Message.update(msg.id, { read: true }))
+          );
+          // Notify parent immediately that messages were read
+          if (onMessagesRead) {
+            onMessagesRead(unreadMessages.length);
+          }
         }
       } catch (error) {
         console.error('Error fetching messages:', error);
@@ -48,10 +55,10 @@ export default function ChatWindow({
     };
 
     fetchMessages();
-    // Poll for new messages every 3 seconds when chat is open
-    const interval = setInterval(fetchMessages, 3000);
+    // Poll for new messages every 2 seconds when chat is open
+    const interval = setInterval(fetchMessages, 2000);
     return () => clearInterval(interval);
-  }, [conversationId, currentUser?.id]);
+  }, [conversationId, currentUser?.id, onMessagesRead]);
 
   useEffect(() => {
     scrollToBottom();

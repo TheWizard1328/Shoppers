@@ -5,7 +5,7 @@ import { MessageCircle, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 
-export default function ConversationsList({ currentUser, users, onSelectConversation, selectedConversationId }) {
+export default function ConversationsList({ currentUser, users, onSelectConversation, selectedConversationId, onUnreadCountChange }) {
   const [messages, setMessages] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -29,10 +29,18 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
     };
 
     fetchMessages();
-    // Poll for new messages every 10 seconds
-    const interval = setInterval(fetchMessages, 10000);
+    // Poll for new messages every 5 seconds
+    const interval = setInterval(fetchMessages, 5000);
     return () => clearInterval(interval);
   }, [currentUser?.id]);
+
+  // Notify parent of total unread count changes
+  useEffect(() => {
+    const totalUnread = conversations.reduce((sum, conv) => sum + conv.unreadCount, 0);
+    if (onUnreadCountChange) {
+      onUnreadCountChange(totalUnread);
+    }
+  }, [conversations, onUnreadCountChange]);
 
   // Group messages by conversation and get latest + unread count
   const conversations = useMemo(() => {
