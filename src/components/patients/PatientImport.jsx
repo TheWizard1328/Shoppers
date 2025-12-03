@@ -1185,7 +1185,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[9999] overflow-hidden">
-            <Card className="w-full max-w-6xl h-[85vh] flex flex-col relative">
+            <Card className="rounded-xl border bg-card text-card-foreground shadow w-full max-w-5xl h-[70vh] flex flex-col relative">
                 {/* Floating Progress Overlay */}
                 {isProcessing &&
         <div className="absolute inset-0 bg-white bg-opacity-95 z-[99999] flex items-center justify-center p-6">
@@ -1248,11 +1248,11 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                     </div>
                 </CardHeader>
                 
-                <CardContent className="px-3 py-3 flex-1 overflow-y-auto space-y-3">
+                <CardContent className="px-3 py-3 flex-1 overflow-y-auto space-y-2">
                     {/* Two-column layout: File Selector (40%) + Import Rules (60%) */}
                     <div className="flex gap-3">
                         {/* Left Column: File Selector - 40% */}
-                        <div className="flex-[2] space-y-5">
+                        <div className="flex-[1] min-w-[30%] space-y-2 p-2">
                             <div className="space-y-2">
                                 <Label htmlFor="csv-upload">Select CSV File(s)</Label>
                                 <Input
@@ -1269,9 +1269,9 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                             </div>
 
                             {files.length > 0 &&
-              <div className="space-y-2">
+              <div className="space-y-1">
                                     <Label className="text-sm font-medium">Selected Files ({files.length})</Label>
-                                    <div className="space-y-1 max-h-32 overflow-y-auto border rounded-lg p-2">
+                                    <div className="space-y-1 max-h-32 overflow-y-auto border rounded-lg p-1">
                                         {files.map((file, index) =>
                   <div key={index} className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded text-sm">
                                                 <span className="truncate flex-1">{file.name}</span>
@@ -1294,7 +1294,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                         {/* Right Column: Import Rules - 60% */}
                         <div className="bg-blue-50 px-2 py-1 rounded-lg flex-[3] border border-blue-200">
                         <h4 className="font-semibold mb-3 text-blue-900">Import Rules:</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-xs text-blue-800">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-0 gap-y-2 text-xs text-blue-800">
                             {/* Left Column */}
                             <div className="space-y-1">
                                 <div>
@@ -1420,8 +1420,8 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
                     <Button
             onClick={generatePreview}
-            disabled={isProcessing || files.length === 0}
-            className="w-full">
+            disabled={isProcessing || files.length === 0} className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-4 py-3 w-full">
+            
 
                         {isProcessing ? 'Generating Preview...' : `Preview Import (${files.length} file${files.length !== 1 ? 's' : ''})`}
                     </Button>
