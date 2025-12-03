@@ -24,6 +24,20 @@ const deliveryRangeCache = new Map();
 const deliveryRangeCacheTimestamps = new Map();
 const DELIVERY_RANGE_CACHE_DURATION = 30 * 60 * 1000; // 30 minutes for historical data
 
+// Rate limit protection - track last API call time
+let lastApiCallTime = 0;
+const MIN_API_INTERVAL = 150; // Minimum 150ms between API calls
+
+const waitForRateLimit = async () => {
+  const now = Date.now();
+  const timeSinceLastCall = now - lastApiCallTime;
+  if (timeSinceLastCall < MIN_API_INTERVAL) {
+    const waitTime = MIN_API_INTERVAL - timeSinceLastCall;
+    await new Promise(resolve => setTimeout(resolve, waitTime));
+  }
+  lastApiCallTime = Date.now();
+};
+
 export const getData = async (entityName, sortKey = null, queryOrLimit = null, forceRefresh = false) => {
   // Determine if queryOrLimit is a query object or a limit number
   const isQueryObject = queryOrLimit && typeof queryOrLimit === 'object' && !Array.isArray(queryOrLimit);
@@ -51,8 +65,11 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
 
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
+      // CRITICAL: Wait for rate limit before making API call
+      await waitForRateLimit();
+      
       if (attempt > 0) {
-        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+        const delay = Math.min(2000 * Math.pow(2, attempt - 1), 10000);
         console.log(`⏳ [dataManager] Retry attempt ${attempt + 1}/${retries} for ${entityName} after ${delay}ms delay`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
