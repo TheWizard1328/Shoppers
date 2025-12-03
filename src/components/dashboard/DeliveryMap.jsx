@@ -635,13 +635,13 @@ export default function DeliveryMap({
   onMapInteraction = () => {}, // NEW: Callback for any map interaction (zoom, pan, cluster click)
   onDoubleTap = () => {}, // NEW: Callback for double-tap on map
   retractClustersRef, // NEW: Ref to allow parent to retract clusters
-  stopCardsHeight = 0, // NEW: Height of the horizontal stop cards for fitBounds padding
+  STOP_CARDS_BASE_HEIGHT = 145, // Fixed non-expanded height for map padding
+  stopCardsHeight = STOP_CARDS_BASE_HEIGHT + 100, // NEW: Height of the horizontal stop cards for fitBounds padding
   currentToNextPolyline = null, // NEW: Google Maps polyline from current position to next stop
   statsCardPositioning = '', // NEW: CSS classes for stats card positioning
   isStatsCardExpanded = false, // NEW: Whether stats card is expanded
   statsCardRect = null, // NEW: Stats card bounding rect for legend positioning
   highlightedDeliveryId = null, // NEW: ID of delivery to highlight (from card hover/selection)
-  STOP_CARDS_BASE_HEIGHT = 145, // NEW: Base height for stop cards
   areStopCardsVisible = false, // NEW: Whether stop cards are visible
   onDriverRoutesCalculated = () => {} // NEW: Callback to pass driver routes to parent
 }) {
@@ -1052,9 +1052,6 @@ export default function DeliveryMap({
       
       // Zoom and center on cluster location (if map is available)
       if (map) {
-        // CRITICAL: Account for stop cards buffer like FAB does
-        const stopCardsBuffer = stopCardsHeight > 0 ? stopCardsHeight + 40 : 0;
-        
         // First zoom to 14, then use fitBounds with proper padding for stop cards
         map.setView([marker.latitude, marker.longitude], 14, { 
           animate: true, 
@@ -1063,12 +1060,12 @@ export default function DeliveryMap({
         
         // Then fit bounds to show all fanned markers with bottom padding for stop cards
         setTimeout(() => {
-          console.log('🗺️ Fitting bounds after zoom with stop cards padding:', stopCardsBuffer);
+          console.log('🗺️ Fitting bounds after zoom with stop cards padding:', stopCardsHeight);
           
           // Apply bottom padding to account for stop cards
           const fitOptions = { 
             paddingTopLeft: [80, 80],
-            paddingBottomRight: [80, stopCardsBuffer > 0 ? stopCardsBuffer : 80],
+            paddingBottomRight: [80, stopCardsHeight > 0 ? stopCardsHeight : 80],
             maxZoom: 14,
             animate: true,
             duration: 0.3
@@ -1652,10 +1649,10 @@ export default function DeliveryMap({
         duration: 0.8 // Smooth 800ms animation
       };
       
-      if (stopCardsHeight > 0) {
+      if (STOP_CARDS_BASE_HEIGHT > 0) {
         modifiedOptions.paddingBottomRight = [
           modifiedOptions.paddingBottomRight?.[0] || 50,
-          stopCardsHeight + 40
+          stopCardsHeight
         ];
       }
       
