@@ -56,8 +56,8 @@ import {
   Download,
   Upload,
   RotateCcw,
-  GripVertical
-} from "lucide-react";
+  GripVertical } from
+"lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { getEffectiveUser, isUserDataAvailable } from "../components/utils/auth";
 import StopCard from "../components/common/StopCard";
@@ -130,10 +130,10 @@ export default function DeliveriesPage() {
   const navigate = useNavigate();
 
   // Get data from AppDataContext for real-time updates
-  const { 
-    deliveries: contextDeliveries = [], 
-    patients: contextPatients = [], 
-    stores: contextStores = [], 
+  const {
+    deliveries: contextDeliveries = [],
+    patients: contextPatients = [],
+    stores: contextStores = [],
     drivers: contextDrivers = [],
     users: contextUsers = [],
     cities: contextCities = [],
@@ -1126,7 +1126,7 @@ export default function DeliveriesPage() {
         const topDate = dateListWithStats[0].date;
         const topDateObj = new Date(topDate.replace(/-/g, '/'));
         topDateObj.setHours(0, 0, 0, 0);
-        
+
         console.log(`📅 [Deliveries] Current date not in list, auto-selecting topmost date: ${topDate}`);
         setSelectedDate(topDateObj);
         updateUrl({ date: topDate });
@@ -1533,13 +1533,13 @@ export default function DeliveriesPage() {
       if (deliveryData._isBatchSave && deliveryData._stagedDeliveries) {
         console.log(`📦 [Deliveries] Processing batch save for ${deliveryData._stagedDeliveries.length} deliveries`);
         console.log('📦 [Deliveries] Staged deliveries:', deliveryData._stagedDeliveries);
-        
+
         const stagedDeliveries = deliveryData._stagedDeliveries;
-        
+
         for (const staged of stagedDeliveries) {
           const patient = staged.patient_id ? (allPatients || []).find((p) => p && p.id === staged.patient_id) : null;
           const store = (stores || []).find((s) => s && s.id === staged.store_id);
-          
+
           if (!store) {
             console.warn('⚠️ Skipping staged delivery - store not found:', staged.store_id);
             continue;
@@ -1570,10 +1570,10 @@ export default function DeliveriesPage() {
           if (actualDriver) {
             const allCurrentDeliveries = await getData('Delivery');
             const hasPickupForStore = (allCurrentDeliveries || []).some((d) =>
-              d.store_id === store.id && 
-              d.patient_id === null &&
-              d.delivery_date === staged.delivery_date &&
-              (d.driver_id === actualDriver.id || d.driver_name === actualDriver.full_name)
+            d.store_id === store.id &&
+            d.patient_id === null &&
+            d.delivery_date === staged.delivery_date && (
+            d.driver_id === actualDriver.id || d.driver_name === actualDriver.full_name)
             );
 
             if (!hasPickupForStore) {
@@ -1582,9 +1582,9 @@ export default function DeliveriesPage() {
           }
 
           // Prepare final delivery data
-          const timeWindows = patient ? 
-            calculateOptimalTimeWindow(patient, store, [], staged.delivery_date) :
-            { delivery_time_start: staged.time_window_start || '09:00', delivery_time_end: staged.time_window_end || '17:00' };
+          const timeWindows = patient ?
+          calculateOptimalTimeWindow(patient, store, [], staged.delivery_date) :
+          { delivery_time_start: staged.time_window_start || '09:00', delivery_time_end: staged.time_window_end || '17:00' };
 
           const finalDeliveryData = {
             ...staged,
@@ -1607,7 +1607,7 @@ export default function DeliveriesPage() {
 
           console.log(`✅ [Deliveries] Created delivery for ${staged.patient_name || 'pickup'}`);
           await Delivery.create(finalDeliveryData);
-          
+
           // Optimize route order for this store
           if (actualDriver) {
             console.log(`🔄 [Deliveries] Optimizing route for store ${store.name}`);
@@ -1621,7 +1621,7 @@ export default function DeliveriesPage() {
         setAllDeliveries(freshDeliveries || []);
         setShowDeliveryForm(false);
         setEditingDelivery(null);
-        
+
         console.log(`✅ [Deliveries] Batch save complete - UI refreshed`);
         return;
       }
@@ -1945,7 +1945,7 @@ export default function DeliveriesPage() {
 
       // CRITICAL: Invalidate all delivery caches to force Dashboard to refresh
       invalidate('Delivery');
-      
+
       // Force a background refresh of context data
       await loadData(true);
 
@@ -3077,11 +3077,11 @@ export default function DeliveriesPage() {
 
         {!isDriverOverviewMode &&
         <div className="hidden lg:flex w-72 bg-white border-r border-slate-200 flex-col h-full">
-            <div className="p-4 border-b border-slate-100 flex items-center gap-2">
+            <div className="p-2 border-b border-slate-100 flex items-center gap-2">
               <CalendarIcon className="w-5 h-5" />
               <h2 className="text-lg font-semibold text-slate-800">Route Dates</h2>
             </div>
-            <div className="flex-1 p-2 sm:p-4 overflow-y-auto">
+            <div className="flex-1 p-1 sm:p-2 overflow-y-auto">
               <DateListPanel
               deliveries={driverFilteredDeliveries}
               selectedDate={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null}
@@ -3151,7 +3151,7 @@ export default function DeliveriesPage() {
           }
         </AnimatePresence>
 
-        <div className="flex-1 p-3 sm:p-6">
+        <div className="flex-1 p-2 sm:p-4">
 
           {isDriverOverviewMode ?
           <div className="space-y-6">
@@ -3456,7 +3456,7 @@ export default function DeliveriesPage() {
                   {isDriverOnline &&
               <div className="absolute top-3 left-3 w-3 h-3 bg-emerald-500 rounded-full ring-2 ring-white"></div>
               }
-                  <CardContent className="p-6">
+                  <CardContent className="p-3">
                     <div className="flex items-start gap-4 w-full">
                       <div className="flex-shrink-0 w-16 h-16 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center">
                         <span className="text-3xl font-bold text-slate-600">
@@ -3475,27 +3475,27 @@ export default function DeliveriesPage() {
                             </div>
                           </div>
                           {driverOverviewStats &&
-                            <div className="flex gap-3 flex-shrink-0">
+                      <div className="flex gap-3 flex-shrink-0">
                               <StatBox
-                                value={driverOverviewStats.totalStops}
-                                label="Total Stops"
-                                valueClass="text-slate-800"
-                                onMeasure={handleStatMeasure}
-                                fixedWidth={statCardBaseWidth || undefined} />
+                          value={driverOverviewStats.totalStops}
+                          label="Total Stops"
+                          valueClass="text-slate-800"
+                          onMeasure={handleStatMeasure}
+                          fixedWidth={statCardBaseWidth || undefined} />
                               <StatBox
-                                value={driverOverviewStats.completed}
-                                label="Completed"
-                                valueClass="text-emerald-600"
-                                onMeasure={handleStatMeasure}
-                                fixedWidth={statCardBaseWidth || undefined} />
+                          value={driverOverviewStats.completed}
+                          label="Completed"
+                          valueClass="text-emerald-600"
+                          onMeasure={handleStatMeasure}
+                          fixedWidth={statCardBaseWidth || undefined} />
                               <StatBox
-                                value={`${driverOverviewStats.failed}/${driverOverviewStats.returned}`}
-                                label="Failed/Returned"
-                                valueClass="text-red-600"
-                                onMeasure={handleStatMeasure}
-                                fixedWidth={statCardBaseWidth || undefined} />
+                          value={`${driverOverviewStats.failed}/${driverOverviewStats.returned}`}
+                          label="Failed/Returned"
+                          valueClass="text-red-600"
+                          onMeasure={handleStatMeasure}
+                          fixedWidth={statCardBaseWidth || undefined} />
                             </div>
-                          }
+                      }
                         </div>
                       </div>
                     </div>
