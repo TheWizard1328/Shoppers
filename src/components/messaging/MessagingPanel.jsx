@@ -4,8 +4,8 @@ import ChatWindow from './ChatWindow';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-export default function MessagingPanel({ currentUser, users, onClose }) {
-  const [selectedConversation, setSelectedConversation] = useState(null);
+export default function MessagingPanel({ currentUser, users, onClose, initialConversation }) {
+  const [selectedConversation, setSelectedConversation] = useState(initialConversation || null);
 
   const handleSelectConversation = (conversationId, otherUserId, otherUserName) => {
     setSelectedConversation({ conversationId, otherUserId, otherUserName });
