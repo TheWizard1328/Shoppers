@@ -868,6 +868,36 @@ Deno.serve(async (req) => {
       
       optimizedRoute.unshift(startedDelivery);
       console.log(`   ✅ Prepended started delivery to route (now ${optimizedRoute.length} stops)`);
+      
+      // CRITICAL: Re-validate future pickup time windows after adding started delivery
+      // If started delivery is late, future pickups need time adjustment
+      console.log('');
+      console.log('🏗️ STEP 5.5: Enforcing future pickup time windows after started delivery');
+      
+      const startedDeliveryEtaMinutes = timeToMinutes(startedDeliveryETA || startedDelivery.delivery_time_eta || '09:00');
+      const startedDeliveryStopTime = startedDelivery.extra_time || 5;
+      const timeAfterStartedDelivery = startedDeliveryEtaMinutes + startedDeliveryStopTime;
+      
+      console.log(`   ⏰ Started delivery will complete at: ${minutesToTime(timeAfterStartedDelivery)}`);
+      
+      // Check all future pickups to ensure they respect their time windows
+      for (let i = 1; i < optimizedRoute.length; i++) {
+        const stop = optimizedRoute[i];
+        if (!stop || stop.patient_id) continue; // Only check pickups
+        
+        const pickupWindowStart = timeToMinutes(stop.delivery_time_start || stop.time_window_start || '00:00');
+        const currentETA = timeToMinutes(stop.delivery_time_eta || stop.estimated_arrival || '09:00');
+        
+        // If pickup ETA is earlier than its window start, enforce the window
+        if (currentETA < pickupWindowStart) {
+          const oldETA = stop.delivery_time_eta;
+          stop.delivery_time_eta = minutesToTime(pickupWindowStart);
+          stop.estimated_arrival = minutesToTime(pickupWindowStart);
+          
+          const storeName = stores.find(s => s?.id === stop.store_id)?.name || 'Unknown';
+          console.log(`   ⚠️ ${storeName} pickup ETA adjusted: ${oldETA} → ${stop.delivery_time_eta} (enforcing window start)`);
+        }
+      }
     }
     
     // =============================================
