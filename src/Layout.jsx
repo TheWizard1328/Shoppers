@@ -598,19 +598,20 @@ export default function Layout({ children, currentPageName }) {
 
     const fetchUnreadCount = async () => {
       try {
-        const allMessages = await base44.entities.Message.filter({
+        // OPTIMIZED: Only count unread, limit to 50 to reduce load
+        const unreadMessages = await base44.entities.Message.filter({
           receiver_id: currentUser.id,
           read: false
-        });
-        setUnreadMessageCount(allMessages.length);
+        }, '-created_date', 50);
+        setUnreadMessageCount(unreadMessages.length);
       } catch (error) {
         console.error('Error fetching unread messages:', error);
       }
     };
 
     fetchUnreadCount();
-    // Poll every 5 minutes when panel is closed (reduced from 60s to avoid rate limits)
-    const interval = setInterval(fetchUnreadCount, 300000);
+    // Poll every 10 minutes when panel is closed (reduced to prevent rate limits)
+    const interval = setInterval(fetchUnreadCount, 600000);
     return () => clearInterval(interval);
   }, [currentUser?.id, showMessaging]);
 
@@ -916,9 +917,8 @@ export default function Layout({ children, currentPageName }) {
       // Initial refresh after short delay
       setTimeout(performUnifiedRefresh, 500);
 
-      // Single unified interval - 45 seconds for balanced refresh rate
-      // Individual entity intervals are managed by smartRefreshManager
-      refreshIntervalRef.current = setInterval(performUnifiedRefresh, 45000);
+      // Single unified interval - 60 seconds to prevent rate limits (increased from 30s)
+      refreshIntervalRef.current = setInterval(performUnifiedRefresh, 60000);
     }, 500);
 
     return () => {
