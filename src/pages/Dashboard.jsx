@@ -641,6 +641,41 @@ function Dashboard() {
     }
   }, [isExpanded]);
 
+  // Stats panel fade effect - fades to 50% opacity 3 seconds after mouse leaves (when not expanded)
+  const handleStatsPanelInteraction = useCallback((isHovering) => {
+    // Clear any existing fade timeout
+    if (statsPanelFadeTimeoutRef.current) {
+      clearTimeout(statsPanelFadeTimeoutRef.current);
+      statsPanelFadeTimeoutRef.current = null;
+    }
+
+    if (isHovering || isExpanded) {
+      // Mouse over or expanded - full opacity
+      setStatsPanelOpacity(1);
+    } else {
+      // Mouse left and not expanded - start 3 second timer to fade
+      statsPanelFadeTimeoutRef.current = setTimeout(() => {
+        setStatsPanelOpacity(0.5);
+      }, 3000);
+    }
+  }, [isExpanded]);
+
+  // When isExpanded changes, update opacity accordingly
+  useEffect(() => {
+    if (isExpanded) {
+      setStatsPanelOpacity(1);
+      if (statsPanelFadeTimeoutRef.current) {
+        clearTimeout(statsPanelFadeTimeoutRef.current);
+        statsPanelFadeTimeoutRef.current = null;
+      }
+    } else {
+      // When collapsing, start fade timer
+      statsPanelFadeTimeoutRef.current = setTimeout(() => {
+        setStatsPanelOpacity(0.5);
+      }, 3000);
+    }
+  }, [isExpanded]);
+
   // Track when the last programmatic map move happened (to debounce interaction handler)
   const lastProgrammaticMapMoveRef = useRef(0);
 
