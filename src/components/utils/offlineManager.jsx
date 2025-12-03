@@ -144,14 +144,16 @@ class OfflineManager {
 
   // Register for service worker background sync (if available)
   async registerBackgroundSync() {
-    if ('serviceWorker' in navigator && 'sync' in window.registration) {
-      try {
+    try {
+      if ('serviceWorker' in navigator) {
         const registration = await navigator.serviceWorker.ready;
-        await registration.sync.register('offline-sync');
-        console.log('📡 [OfflineManager] Service worker background sync registered');
-      } catch (error) {
-        console.log('ℹ️ [OfflineManager] Service worker background sync not available');
+        if (registration && 'sync' in registration) {
+          await registration.sync.register('offline-sync');
+          console.log('📡 [OfflineManager] Service worker background sync registered');
+        }
       }
+    } catch (error) {
+      console.log('ℹ️ [OfflineManager] Service worker background sync not available');
     }
   }
 
