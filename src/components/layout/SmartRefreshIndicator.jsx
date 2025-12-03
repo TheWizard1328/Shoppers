@@ -4,6 +4,7 @@ import { RefreshCw } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { isAppOwner } from '../utils/userRoles';
 import { useUser } from '../utils/UserContext';
+import { offlineManager } from '../utils/offlineManager';
 
 /**
  * Smart Refresh Indicator - Shows app owners when smart refresh is active
@@ -13,6 +14,7 @@ export default function SmartRefreshIndicator() {
   const { smartRefreshActivity, isEntityUpdating } = useAppData();
   const { currentUser } = useUser();
   const [recentUpdates, setRecentUpdates] = useState([]);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   // Clear updates after 3 seconds
   useEffect(() => {
@@ -30,6 +32,14 @@ export default function SmartRefreshIndicator() {
       setRecentUpdates(smartRefreshActivity.updatedEntities);
     }
   }, [smartRefreshActivity?.updatedEntities]);
+
+  // Subscribe to online/offline status
+  useEffect(() => {
+    const unsubscribe = offlineManager.subscribe((online) => {
+      setIsOnline(online);
+    });
+    return unsubscribe;
+  }, []);
 
   // Only show for app owners
   if (!currentUser || !isAppOwner(currentUser)) {
@@ -62,11 +72,18 @@ export default function SmartRefreshIndicator() {
       {/* Spinning icon when active, paused indicator, or static when idle */}
       <div 
         className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
-          isPaused ? 'bg-yellow-100' : isActive ? 'bg-emerald-500' : 'bg-slate-100'
+          !isOnline ? 'bg-red-500' : isPaused ? 'bg-yellow-100' : isActive ? 'bg-emerald-500' : 'bg-slate-100'
         }`}
-        title={isPaused ? 'Smart refresh paused' : isActive ? 'Smart refresh active' : 'Smart refresh idle'}
+        title={!isOnline ? 'Offline - changes will sync when online' : isPaused ? 'Smart refresh paused' : isActive ? 'Smart refresh active' : 'Smart refresh idle'}
       >
-        {isActive && !isPaused ? (
+        {!isOnline ? (
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-white" />
+          </motion.div>
+        ) : isActive && !isPaused ? (
           <motion.div
             animate={{ rotate: 360 }}
             transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
