@@ -4428,6 +4428,7 @@ function Dashboard() {
       }
 
       const currentDate = format(new Date(), 'yyyy-MM-dd');
+      const deliveryDate = targetDelivery.delivery_date;
       const isPickup = !targetDelivery.patient_id;
       const isRetry = targetDelivery.status === 'failed' && (newStatus === 'in_transit' || newStatus === 'en_route');
 
