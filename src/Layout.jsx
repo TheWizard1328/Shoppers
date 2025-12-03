@@ -83,6 +83,7 @@ import { ResizableDivider } from './components/ui/resizable-divider';
       import { loadUserSettings, saveSetting, clearSettingsCache } from './components/utils/userSettingsManager';
       import MessagingPanel from './components/messaging/MessagingPanel';
       import SmartRefreshIndicator from './components/layout/SmartRefreshIndicator';
+      import MessageNotificationBalloon from './components/messaging/MessageNotificationBalloon';
 
 const createMergedUser = (authUser, appUser) => {
   // CRITICAL: Allow creating users from AppUser data alone (for non-admin users who can't fetch User.list())
@@ -417,6 +418,7 @@ export default function Layout({ children, currentPageName }) {
       const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
       const [showMessaging, setShowMessaging] = useState(false);
       const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+      const [initialConversation, setInitialConversation] = useState(null);
 
   useEffect(() => {
     const init = async () => {
@@ -2068,7 +2070,23 @@ export default function Layout({ children, currentPageName }) {
                     <MessagingPanel
                       currentUser={currentUser}
                       users={users}
-                      onClose={() => setShowMessaging(false)}
+                      onClose={() => {
+                        setShowMessaging(false);
+                        setInitialConversation(null);
+                      }}
+                      initialConversation={initialConversation}
+                    />
+                  )}
+                  
+                  {/* Message Notification Balloon */}
+                  {currentUser && !showMessaging && (
+                    <MessageNotificationBalloon
+                      currentUser={currentUser}
+                      onOpenConversation={(conversationId, otherUserId, otherUserName) => {
+                        setInitialConversation({ conversationId, otherUserId, otherUserName });
+                        setShowMessaging(true);
+                        setUnreadMessageCount(0);
+                      }}
                     />
                   )}
 
