@@ -5,13 +5,13 @@ import { base44 } from '@/api/base44Client';
 const AppDataContext = createContext(null);
 
 export const AppDataProvider = ({ children, value }) => {
-  // Wrap updateDeliveriesLocally to register pending updates
+  // Wrap updateDeliveriesLocally to register pending updates with driver/date context
   const wrappedUpdateDeliveriesLocally = (updates) => {
     if (value.updateDeliveriesLocally) {
-      // Register all updated delivery IDs as pending
+      // Register all updated delivery IDs as pending with driver/date info
       updates.forEach(update => {
-        if (update.id) {
-          smartRefreshManager.registerPendingUpdate(update.id);
+        if (update.id && update.driver_id && update.delivery_date) {
+          smartRefreshManager.registerPendingUpdate(update.id, update.driver_id, update.delivery_date);
         }
       });
       
@@ -32,20 +32,16 @@ export const AppDataProvider = ({ children, value }) => {
       
       console.log(`✅ [Force Refresh] Got ${freshDeliveries.length} deliveries from database`);
       
+      // CRITICAL: Clear ALL pending updates for this driver/route FIRST
+      // This ensures the fresh server data takes precedence
+      smartRefreshManager.clearPendingUpdatesForDriver(driverId, deliveryDate);
+      
       // CRITICAL: ALWAYS update state, even if freshDeliveries is empty
       // This ensures removed deliveries are properly cleared from UI
       const otherDeliveries = (value.deliveries || []).filter(d => 
         d && (d.delivery_date !== deliveryDate || d.driver_id !== driverId)
       );
       const mergedDeliveries = [...otherDeliveries, ...freshDeliveries];
-      
-      // CRITICAL: Clear pending updates protection for this driver's route
-      // This ensures the fresh data is not blocked by the protection mechanism
-      freshDeliveries.forEach(d => {
-        if (d?.id) {
-          smartRefreshManager.pendingLocalUpdates.delete(d.id);
-        }
-      });
       
       if (value.updateDeliveriesLocally) {
         // Call directly without wrapper to bypass pending update registration
