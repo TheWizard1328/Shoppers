@@ -663,7 +663,7 @@ function Dashboard() {
     if ((driverChanged || dateChanged) && isDataLoaded && deliveriesWithStopOrder.length > 0) {
       console.log(`🗺️ [Filter Change] Triggering map reposition for new data`);
       console.log(`   Driver: ${driverChanged ? 'changed' : 'same'}, Date: ${dateChanged ? 'changed' : 'same'}`);
-      
+
       // Trigger immediately without the flag system
       if (mapViewPhase > 0) {
         setMapViewTrigger((prev) => prev + 1);
@@ -710,9 +710,9 @@ function Dashboard() {
 
 
 
+
         // This subscription handles changes from other components
-      }});return unsubscribe;
-  }, []);
+      }});return unsubscribe;}, []);
 
   // Listen for driver status break/resume events from DriverStatusToggle
   useEffect(() => {
@@ -917,11 +917,11 @@ function Dashboard() {
 
 
 
+
+
       // Callback provided for future use, but not actively calling refreshData
       // to prevent triggering auto-selection every 15 seconds
-    });const unsubscribe = driverLocationPoller.subscribe((locations) => {if (!locations || !Array.isArray(locations)) return;setAllDriverLocations(locations);});
-    return () => {
-      unsubscribe();
+    });const unsubscribe = driverLocationPoller.subscribe((locations) => {if (!locations || !Array.isArray(locations)) return;setAllDriverLocations(locations);});return () => {unsubscribe();
       driverLocationPoller.stop();
     };
   }, [isDataLoaded, currentUser, deliveries, drivers]);
@@ -4909,7 +4909,7 @@ function Dashboard() {
                             </Tooltip>
                           </TooltipProvider>
                         </div>
-                      } />
+                      } className="rdp p-3 z-[999]" />
 
                   </PopoverContent>
                 </Popover>
