@@ -4888,6 +4888,7 @@ function Dashboard() {
             onClick={(e) => {
               e.stopPropagation();
               handleCardInteraction(true);
+              handleStatsPanelInteraction(true);
               if (retractClustersRef.current) {
                 retractClustersRef.current();
               }
