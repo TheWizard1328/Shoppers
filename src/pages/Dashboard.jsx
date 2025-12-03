@@ -1,3 +1,4 @@
+
 // Dashboard.js - Delivery Management Dashboard
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -610,9 +611,9 @@ function Dashboard() {
     const ratio = screenWidth / cardWidth;
 
     if (ratio < 2) {
-      return 'absolute top-2 left-1/2 -translate-x-1/2 z-[500]';
+      return 'absolute top-2 left-1/2 -translate-x-1/2 z-[600]';
     } else {
-      return 'absolute top-2 right-2 z-[500]';
+      return 'absolute top-2 right-2 z-[600]';
     }
   }, [screenWidth, cardWidth]);
 
@@ -1299,7 +1300,7 @@ function Dashboard() {
     // Mark that this positioning is from a FAB interaction (prevents unlock on programmatic map moves)
     mapPositioningTriggerRef.current = 'fab';
     lastProgrammaticMapMoveRef.current = Date.now();
-    window._lastProgrammaticMapMove = Date.now();
+    window._lastProgrammaticMapMove = Date2.now();
 
     console.log(`🗺️ [Map Position] Applying Phase ${mapViewPhase}...`);
 
@@ -3528,9 +3529,6 @@ function Dashboard() {
 
       hasAutoSelectedRef.current = false; // Reset to allow auto-selection after saving
 
-      setShowDeliveryForm(false);
-      setEditingDelivery(null);
-
       console.log('');
       console.log('═══════════════════════════════════');
       console.log('✅ Route optimization complete!');
@@ -4241,7 +4239,7 @@ function Dashboard() {
 
       const sortedCompleted = [...completedDeliveries].sort((a, b) => {
         if (!a || !b) return 0; // Defensive check
-        return new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time);
+        return new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time);
       });
 
       const finalSortedRoute = [...sortedCompleted, ...optimizedRoute];
@@ -4875,7 +4873,7 @@ function Dashboard() {
       </AnimatePresence>
 
       <div className={statsCardPositioning}>
-        <div className="flex flex-col items-center gap-1 z-[100]">
+        <div className="flex flex-col items-center gap-1 z-[600]">
           <motion.div
             ref={statsCardRef}
             initial={{ opacity: 0, y: -20 }}
@@ -4889,12 +4887,10 @@ function Dashboard() {
               if (retractClustersRef.current) {
                 retractClustersRef.current();
               }
-            }} className="bg-white px-2 py-2 rounded-2xl shadow-xl border min-w-[340px] cursor-pointer z-[601] border-slate-200">
+            }} className="bg-white px-2 py-2 rounded-2xl shadow-xl border min-w-[340px] cursor-pointer z-[700] border-slate-200">
 
 
             
-
-
 
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-slate-900 pr-3 pl-3 text-lg font-bold">Dashboard</h2>
@@ -4912,7 +4908,7 @@ function Dashboard() {
                       <span className="text-sm">{format(selectedDate, 'EEE MMM dd')}</span>
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="end">
+                  <PopoverContent className="w-auto p-0 z-[10001]" align="end">
                     <Calendar
                       mode="single"
                       selected={selectedDate}
@@ -4950,7 +4946,7 @@ function Dashboard() {
                             </Tooltip>
                           </TooltipProvider>
                         </div>
-                      } className="rdp p-3 z-[999]" />
+                      } className="rdp p-3" />
 
                   </PopoverContent>
                 </Popover>
@@ -5045,7 +5041,7 @@ function Dashboard() {
                       <SelectTrigger className="flex h-8 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 flex-1">
                         <SelectValue placeholder="All Drivers" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="z-[10001]">
                         <SelectItem value="all">All Drivers</SelectItem>
                         {driversList.map((driver) =>
                       <SelectItem key={driver.id} value={driver.id}>
