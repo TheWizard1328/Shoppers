@@ -4889,7 +4889,7 @@ function Dashboard() {
               if (retractClustersRef.current) {
                 retractClustersRef.current();
               }
-            }} className="bg-white px-2 py-2 rounded-2xl shadow-xl border min-w-[340px] cursor-pointer z-[101] border-slate-200">
+            }} className="bg-white px-2 py-2 rounded-2xl shadow-xl border min-w-[340px] cursor-pointer z-[601] border-slate-200">
 
 
             
