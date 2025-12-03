@@ -4727,8 +4727,8 @@ function Dashboard() {
     console.log('✅ [START] Smart refresh paused, proceeding with start delivery');
 
     try {
-      const deliveryFromUI = await base44.entities.Delivery.get(deliveryId);
-      if (!deliveryFromUI) throw new Error('Delivery not found in DB after refetch');
+      const deliveryFromUI = deliveriesWithStopOrder.find(d => d?.id === deliveryId);
+      if (!deliveryFromUI) throw new Error('Delivery not found in local state');
 
       const driverId = deliveryFromUI.driver_id;
       const deliveryDate = deliveryFromUI.delivery_date;
@@ -4743,42 +4743,47 @@ function Dashboard() {
       });
       console.log(`✅ [START] Status updated to ${newStatus}`);
 
-      // CRITICAL: Call backend optimizer to update route and set isNextDelivery
-      console.log('🔄 [START] Calling backend optimizer to update route and isNextDelivery...');
-      try {
-        const optimizationResult = await optimizeDriverRoute({
-          driverId: driverId,
-          deliveryDate: deliveryDate,
-          currentLocation: driverLocation ? {
-            lat: driverLocation.latitude,
-            lon: driverLocation.longitude
-          } : null,
-          startedDeliveryId: deliveryId,
-          clientCurrentTime: format(new Date(), 'HH:mm'),
-          generatePolyline: true,
-          forceReoptimization: true
-        });
+      // CRITICAL: Call backend optimizer to calculate ETAs and set isNextDelivery
+      console.log('🔄 [START] Calling backend optimizer...');
+      const optimizationResult = await optimizeDriverRoute({
+        driverId: driverId,
+        deliveryDate: deliveryDate,
+        currentLocation: driverLocation ? {
+          lat: driverLocation.latitude,
+          lon: driverLocation.longitude
+        } : null,
+        startedDeliveryId: deliveryId,
+        clientCurrentTime: format(new Date(), 'HH:mm'),
+        generatePolyline: true,
+        forceReoptimization: true
+      });
 
-        console.log('✅ [START] Backend optimizer complete:', optimizationResult.data);
-        fetchPolylineCount();
+      console.log('✅ [START] Backend optimizer complete:', optimizationResult.data);
+      fetchPolylineCount();
 
-        // CRITICAL: Use allDeliveries from backend (includes ALL route deliveries with correct isNextDelivery)
-        if (optimizationResult.data?.allDeliveries && Array.isArray(optimizationResult.data.allDeliveries)) {
-          console.log('🔄 Syncing', optimizationResult.data.allDeliveries.length, 'deliveries from backend (full sync)');
-          updateDeliveriesLocally(optimizationResult.data.allDeliveries);
-        }
-      } catch (optimizerError) {
-        console.error('❌ [START] Backend optimizer failed:', optimizerError);
+      // CRITICAL: Apply backend updates immediately to UI
+      if (optimizationResult.data?.allDeliveries && Array.isArray(optimizationResult.data.allDeliveries)) {
+        console.log('🔄 [START] Syncing', optimizationResult.data.allDeliveries.length, 'deliveries from backend');
+        updateDeliveriesLocally(optimizationResult.data.allDeliveries);
       }
 
-      // Scroll to card
-      setSelectedCardId(null);
+      // CRITICAL: Force data refresh to ensure UI is in sync
+      invalidateDeliveriesForDate(deliveryDate);
+      await refreshData();
+
+      // Scroll to next card after refresh
       setTimeout(() => {
-        const cardElement = document.getElementById(`stop-card-${deliveryId}`);
-        if (cardElement) {
-          cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+        const nextCard = deliveriesWithStopOrder.find(d => 
+          d && d.isNextDelivery && !finishedStatuses.includes(d.status)
+        );
+        if (nextCard) {
+          const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
+          if (cardElement) {
+            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+          }
         }
-      }, 300);
+      }, 500);
 
       // Re-trigger map view for Phase 2
       if (mapViewPhase === 2 && isMapViewLocked) {
