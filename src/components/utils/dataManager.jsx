@@ -17,7 +17,7 @@ const entities = {
 
 const cache = new Map();
 const cacheTimestamps = new Map();
-const CACHE_DURATION = 5 * 60 * 1000;
+const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes (increased from 5 min) to prevent stale data issues
 
 // Date range-based delivery cache for staged loading
 const deliveryRangeCache = new Map();

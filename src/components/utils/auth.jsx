@@ -4,10 +4,11 @@ import { createMergedUser } from './driverUtils';
 import { getCached } from './dataManager';
 
 // Global cache for user data to prevent repeated API calls
+// EXTENDED TTLs to prevent session issues during idle periods
 let userCache = {
   data: null,
   timestamp: 0,
-  ttl: 120000, // 2 minutes cache to prevent rate limits
+  ttl: 600000, // 10 minutes cache (increased from 2 min) to prevent stale session issues
   lastFailureTime: 0,
   backoffTime: 0
 };
@@ -16,7 +17,7 @@ let userCache = {
 let appUserListCache = {
   data: null,
   timestamp: 0,
-  ttl: 300000 // 5 minutes cache for AppUser list
+  ttl: 900000 // 15 minutes cache for AppUser list (increased from 5 min)
 };
 
 /**
@@ -290,15 +291,23 @@ export const clearUserCache = () => {
     userCache = {
         data: null,
         timestamp: 0,
-        ttl: 120000, // 2 minutes
+        ttl: 600000, // 10 minutes
         lastFailureTime: 0,
         backoffTime: 0
     };
     appUserListCache = {
         data: null,
         timestamp: 0,
-        ttl: 300000 // 5 minutes
+        ttl: 900000 // 15 minutes
     };
     sessionStorage.removeItem('impersonationId');
     console.log(`🗑️ [auth.js] User cache cleared`);
+};
+
+// Function to extend cache TTL when user is active (prevents session timeout during idle)
+export const touchUserCache = () => {
+    if (userCache.data) {
+        userCache.timestamp = Date.now();
+        console.log(`🔄 [auth.js] User cache TTL extended`);
+    }
 };
