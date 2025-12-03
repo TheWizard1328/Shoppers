@@ -249,12 +249,13 @@ export default function StopCard({
   const isCODComplete = useMemo(() => codTotalCollected >= codTotalRequired, [codTotalCollected, codTotalRequired]);
   const isCompleted = useMemo(() => delivery ? FINISHED_STATUSES.includes(delivery.status) : false, [delivery?.status]);
 
-  // Check if this is a first delivery based on notes, instructions, or delivery count
+  // Check if this is a first delivery based on EXPLICIT flags only
+  // Do NOT infer from delivery count - that's unreliable with partial data
   const isFirstDelivery = useMemo(() => {
     if (!delivery || isPickup) return false;
 
-    // Check if already marked as first_delivery
-    if (delivery.first_delivery) return true;
+    // ONLY check if explicitly marked as first_delivery
+    if (delivery.first_delivery === true) return true;
 
     // Check patient notes for "First Delivery"
     if (patient?.notes?.toLowerCase().includes('first delivery')) return true;
@@ -265,16 +266,12 @@ export default function StopCard({
     // Check driver notes for "First Delivery"
     if (delivery.delivery_notes?.toLowerCase().includes('first delivery')) return true;
 
-    // Check total delivery count for this patient
-    if (!patient?.id || !allDeliveries || allDeliveries.length === 0) return false;
-
-    const patientDeliveryCount = allDeliveries.filter((d) =>
-    d && d.patient_id === patient.id && FINISHED_STATUSES.includes(d.status)
-    ).length;
-
-    // If no completed deliveries, it's a first delivery
-    return patientDeliveryCount === 0;
-  }, [delivery, patient, isPickup, allDeliveries]);
+    // REMOVED: Do NOT infer from allDeliveries count - this is unreliable
+    // The allDeliveries array often doesn't contain historical data,
+    // causing false positives for the "N" badge
+    
+    return false;
+  }, [delivery, patient, isPickup]);
 
   const storeColor = useMemo(() => store ? getStoreColor(store) : "#71717A", [store]);
 
