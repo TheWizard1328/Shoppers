@@ -591,9 +591,10 @@ export default function Layout({ children, currentPageName }) {
     init();
   }, []);
 
-  // Fetch unread message count
+  // Fetch unread message count - only when messaging panel is closed
+  // When panel is open, ConversationsList handles the count
   useEffect(() => {
-    if (!currentUser?.id) return;
+    if (!currentUser?.id || showMessaging) return;
 
     const fetchUnreadCount = async () => {
       try {
@@ -608,10 +609,10 @@ export default function Layout({ children, currentPageName }) {
     };
 
     fetchUnreadCount();
-    // Poll every 30 seconds (reduced to prevent rate limiting)
-    const interval = setInterval(fetchUnreadCount, 30000);
+    // Poll every 60 seconds when panel is closed (SSE/notification balloon handles real-time)
+    const interval = setInterval(fetchUnreadCount, 60000);
     return () => clearInterval(interval);
-    }, [currentUser?.id]);
+  }, [currentUser?.id, showMessaging]);
 
   useEffect(() => {
     const handleKeyDown = (event) => {

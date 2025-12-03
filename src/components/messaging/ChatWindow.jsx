@@ -55,8 +55,8 @@ export default function ChatWindow({
     };
 
     fetchMessages();
-    // Poll for new messages every 5 seconds when chat is open
-    const interval = setInterval(fetchMessages, 5000);
+    // Poll for new messages every 8 seconds when chat is open
+    const interval = setInterval(fetchMessages, 8000);
     return () => clearInterval(interval);
   }, [conversationId, currentUser?.id, onMessagesRead]);
 

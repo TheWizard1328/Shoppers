@@ -113,7 +113,7 @@ export default function MessageNotificationBalloon({ currentUser, onOpenConversa
       };
 
       checkForNewMessages();
-      const interval = setInterval(checkForNewMessages, 5000);
+      const interval = setInterval(checkForNewMessages, 15000);
       return () => clearInterval(interval);
     };
 
