@@ -1327,6 +1327,8 @@ export default function Layout({ children, currentPageName }) {
       );
       console.log(`✅ [Layout] Stage 1 loaded: ${stage1Deliveries.length} deliveries (today)`);
 
+      await new Promise(resolve => setTimeout(resolve, 200));
+
       // CRITICAL: Only admins can list all Users (others get 403)
       let authUsersData = [];
       if (userHasRole(currentUser, 'admin')) {
