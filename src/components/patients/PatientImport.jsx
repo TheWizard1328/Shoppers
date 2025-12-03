@@ -1185,7 +1185,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[9999] overflow-hidden">
-            <Card className="rounded-xl border bg-card text-card-foreground shadow w-full max-w-5xl h-[70vh] flex flex-col relative">
+            <Card className="rounded-xl border bg-card text-card-foreground shadow w-full max-w-5xl h-[42vh] flex flex-col relative">
                 {/* Floating Progress Overlay */}
                 {isProcessing &&
         <div className="absolute inset-0 bg-white bg-opacity-95 z-[99999] flex items-center justify-center p-6">
