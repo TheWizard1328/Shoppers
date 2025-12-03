@@ -2215,11 +2215,19 @@ export default function DeliveryForm({
                 <Package className="w-5 h-5 text-emerald-600" />
                 <CardTitle className="text-xl font-bold flex items-center gap-2">
                   {delivery ? isPickupMode ? 'Edit Pickup' : 'Edit Delivery' : 'Add To Route'}
-                  {selectedPatient?.last_delivery_date && (
-                    <Badge variant="outline" className="text-xs font-normal">
-                      LD: {format(new Date(selectedPatient.last_delivery_date + 'T00:00:00'), 'MMM d, yyyy')}
-                    </Badge>
-                  )}
+                  {selectedPatient?.last_delivery_date && (() => {
+                    try {
+                      const date = new Date(selectedPatient.last_delivery_date + 'T00:00:00');
+                      if (isNaN(date.getTime())) return null;
+                      return (
+                        <Badge variant="outline" className="text-xs font-normal">
+                          LD: {format(date, 'MMM d, yyyy')}
+                        </Badge>
+                      );
+                    } catch {
+                      return null;
+                    }
+                  })()}
                 </CardTitle>
 
                 {!delivery &&
