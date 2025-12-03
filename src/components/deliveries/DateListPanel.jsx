@@ -3,7 +3,8 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, parseIS
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar, Package, CheckCircle, XCircle, RotateCcw } from 'lucide-react';
+import { Calendar, Package, CheckCircle, XCircle, RotateCcw, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 export default function DateListPanel({
   deliveries = [],
@@ -13,7 +14,9 @@ export default function DateListPanel({
   selectedYear,
   onMonthChange,
   onYearChange,
-  patients = []
+  patients = [],
+  selectedDriverId,
+  onDeleteRoute
 }) {
   const months = [
   { value: 0, label: 'January' },
@@ -68,7 +71,8 @@ export default function DateListPanel({
         completed,
         failed,
         returned,
-        hasDeliveries: total > 0
+        hasDeliveries: total > 0,
+        canDelete: completed === 0 && total > 0 // Can delete if no completed deliveries
       };
     }).filter((d) => d.hasDeliveries);
 
@@ -119,11 +123,11 @@ export default function DateListPanel({
             <p className="text-sm">No deliveries this month</p>
           </div> :
 
-        datesWithDeliveries.map(({ date, dateStr, total, completed, failed, returned }) =>
+        datesWithDeliveries.map(({ date, dateStr, total, completed, failed, returned, canDelete }) =>
         <Card
           key={dateStr}
           onClick={() => onDateSelect(dateStr)}
-          className={`p-3 cursor-pointer transition-all hover:shadow-md ${
+          className={`p-3 cursor-pointer transition-all hover:shadow-md relative ${
           isSelected(dateStr) ?
           'bg-emerald-50 border-emerald-500 shadow-md' :
           'bg-white hover:bg-slate-50'}`
@@ -143,23 +147,43 @@ export default function DateListPanel({
                 </Badge>
               </div>
 
-              <div className="flex gap-3 text-xs">
-                <div className="flex items-center gap-1 text-green-600">
-                  <CheckCircle className="w-3 h-3" />
-                  <span>{completed}</span>
+              <div className="flex items-center justify-between">
+                <div className="flex gap-3 text-xs">
+                  <div className="flex items-center gap-1 text-green-600">
+                    <CheckCircle className="w-3 h-3" />
+                    <span>{completed}</span>
+                  </div>
+                  {failed > 0 &&
+              <div className="flex items-center gap-1 text-red-600">
+                      <XCircle className="w-3 h-3" />
+                      <span>{failed}</span>
+                    </div>
+              }
+                  {returned > 0 &&
+              <div className="flex items-center gap-1 text-amber-600">
+                      <RotateCcw className="w-3 h-3" />
+                      <span>{returned}</span>
+                    </div>
+              }
                 </div>
-                {failed > 0 &&
-            <div className="flex items-center gap-1 text-red-600">
-                    <XCircle className="w-3 h-3" />
-                    <span>{failed}</span>
-                  </div>
-            }
-                {returned > 0 &&
-            <div className="flex items-center gap-1 text-amber-600">
-                    <RotateCcw className="w-3 h-3" />
-                    <span>{returned}</span>
-                  </div>
-            }
+                
+                {/* Delete route button - only show if no completed deliveries and a driver is selected */}
+                {canDelete && selectedDriverId && selectedDriverId !== 'all' && onDeleteRoute &&
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm(`Delete all ${total} stops for this date? This cannot be undone.`)) {
+                        onDeleteRoute(dateStr, selectedDriverId);
+                      }
+                    }}
+                    title="Delete entire route for this date"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                }
               </div>
             </Card>
         )
