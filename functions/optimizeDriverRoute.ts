@@ -469,7 +469,17 @@ Deno.serve(async (req) => {
     const completedDeliveries = deliveries.filter(d => d && finishedStatuses.includes(d.status));
     const incompleteDeliveries = deliveries.filter(d => d && !finishedStatuses.includes(d.status));
     
+    // CRITICAL: Determine if route is "in progress" (has completed stops)
+    // Routes with NO completed stops are NOT in progress yet
+    const hasCompletedStops = completedDeliveries.length > 0;
+    const isRouteInProgress = hasCompletedStops;
+    
     console.log(`📊 Completed: ${completedDeliveries.length}, Incomplete: ${incompleteDeliveries.length}`);
+    console.log(`🚦 Route in progress: ${isRouteInProgress} (has completed stops: ${hasCompletedStops})`);
+    
+    if (!isRouteInProgress) {
+      console.log(`⚠️ Route NOT in progress - will use TIME WINDOW ordering only, NO isNextDelivery, NO driver location`);
+    }
     
     if (incompleteDeliveries.length === 0) {
       console.log('✅ No incomplete deliveries - route complete!');
@@ -681,6 +691,7 @@ Deno.serve(async (req) => {
     
     // =============================================
     // STEP 3: Determine starting point for optimization
+    // CRITICAL: If route NOT in progress, IGNORE driver location - use time windows only
     // =============================================
     console.log('');
     console.log('🏗️ STEP 3: Determining starting location for optimization');
@@ -688,15 +699,37 @@ Deno.serve(async (req) => {
     let startLocation = null;
     let startTime = null;
     
+    // CRITICAL: If route is NOT in progress (no completed stops), do NOT use driver location
+    // Only use time windows for ordering - driver location is irrelevant for routes not yet started
+    if (!isRouteInProgress) {
+      console.log(`   ⚠️ Route NOT in progress - IGNORING driver location`);
+      console.log(`   📋 Will use TIME WINDOW ordering only (no distance optimization)`);
+      
+      // Use the earliest pickup time as start time reference
+      const pickups = incompleteDeliveries.filter(d => !d.patient_id);
+      if (pickups.length > 0) {
+        const earliestPickup = pickups.sort((a, b) => {
+          const timeA = a.delivery_time_start || a.time_window_start || '23:59';
+          const timeB = b.delivery_time_start || b.time_window_start || '23:59';
+          return timeA.localeCompare(timeB);
+        })[0];
+        startTime = timeToMinutes(earliestPickup.delivery_time_start || earliestPickup.time_window_start || '09:00');
+        console.log(`   ⏰ Using earliest pickup time as start: ${minutesToTime(startTime)}`);
+      } else {
+        startTime = timeToMinutes('09:00');
+        console.log(`   ⏰ Using default start time: 09:00`);
+      }
+      // startLocation stays null - optimizer will use time-window-only mode
+    }
     // If we have a started delivery, use ITS location and ETA as the starting point for remaining stops
-    if (startedDelivery && startedDeliveryLocation && startedDeliveryETA) {
+    else if (startedDelivery && startedDeliveryLocation && startedDeliveryETA) {
       startLocation = startedDeliveryLocation;
       // Add stop time to the started delivery's ETA for when driver will leave
       const stopDuration = startedDelivery.extra_time || 5;
       startTime = timeToMinutes(startedDeliveryETA) + stopDuration;
       console.log(`   ✅ Using started delivery location as start point (will leave at ${minutesToTime(startTime)})`);
     }
-    // Otherwise, use normal priority order
+    // Otherwise, use normal priority order (route IS in progress)
     else {
       // Priority 1: Use provided current location
       if (currentLocation?.lat && currentLocation?.lon) {
@@ -753,6 +786,8 @@ Deno.serve(async (req) => {
     
     if (startLocation) {
       console.log(`📍 Start: [${startLocation.lat.toFixed(6)}, ${startLocation.lon.toFixed(6)}] at ${minutesToTime(startTime || 600)}`);
+    } else if (!isRouteInProgress) {
+      console.log(`📍 No start location (route not in progress - time window ordering only)`);
     }
     
     // =============================================
@@ -837,14 +872,19 @@ Deno.serve(async (req) => {
     
     // =============================================
     // STEP 6: Determine which stop should be marked as isNextDelivery
+    // CRITICAL: Only set isNextDelivery if route is IN PROGRESS (has completed stops)
     // =============================================
     console.log('');
     console.log('🏗️ STEP 6: Determining next delivery (first incomplete stop)');
     
     // The first incomplete stop (first in optimizedRoute) is the next delivery
+    // BUT only if route is in progress (has completed stops)
     let nextDeliveryId = null;
     
-    if (optimizedRoute.length > 0) {
+    if (!isRouteInProgress) {
+      console.log(`   ⏭️ Route NOT in progress - skipping isNextDelivery assignment`);
+      console.log(`   📋 All stops will have isNextDelivery = false`);
+    } else if (optimizedRoute.length > 0) {
       // Find the FIRST incomplete stop in the optimized route
       const firstIncomplete = optimizedRoute.find(stop => 
         stop && !finishedStatuses.includes(stop.status)
