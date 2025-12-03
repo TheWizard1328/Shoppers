@@ -760,7 +760,7 @@ export default function DeliveryForm({
       dont_ring_bell: patient.dont_ring_bell || false,
       back_door: patient.back_door || false,
       signature_needed: patient.signature_needed || false,
-      delivery_instructions: isFirstDelivery ? 'First Delivery' : patient.notes || '',
+      delivery_instructions: patient.notes || '',
       store_id: patient.store_id || '',
       driver_id: autoSelectedDriverId,
       driver_name: autoSelectedDriverName,
