@@ -144,7 +144,7 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
                     {conv.otherUserName || 'Unknown User'}
                   </span>
                   {conv.unreadCount > 0 && (
-                    <Badge className="bg-emerald-500 text-white ml-2">
+                    <Badge className="bg-blue-500 text-white ml-2">
                       {conv.unreadCount}
                     </Badge>
                   )}
