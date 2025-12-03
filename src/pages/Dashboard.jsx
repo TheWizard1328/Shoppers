@@ -4352,13 +4352,18 @@ function Dashboard() {
       console.log(`📦 Original delivery: ${originalDelivery.patient_name || 'Store Pickup'}`);
       console.log(`📅 Original date: ${originalDelivery.delivery_date}`);
 
-      // IMPORTANT: Restart now just resets status to pending on the SAME delivery
+      const isPickup = !originalDelivery.patient_id;
+      const newStatus = isPickup ? 'en_route' : 'in_transit';
+
+      // IMPORTANT: Restart sets status to in_transit/en_route (active) on the SAME delivery
       // It does NOT duplicate or change date - that's handled by Retry button for failed deliveries
       await base44.entities.Delivery.update(deliveryId, {
-        status: 'pending',
+        status: newStatus,
         actual_delivery_time: null,
         delivery_notes: ''
       });
+
+      console.log(`✅ [RESTART DELIVERY] Status set to ${newStatus}`);
 
       invalidate('Delivery');
       await refreshData();
