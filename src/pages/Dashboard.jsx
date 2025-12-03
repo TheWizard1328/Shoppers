@@ -4838,7 +4838,7 @@ function Dashboard() {
           <motion.div
             ref={statsCardRef}
             initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: areCardsVisible ? 1 : 0.4, y: 0 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
             onMouseEnter={() => handleCardInteraction(true)}
             onMouseLeave={() => handleCardInteraction(false)}
@@ -5085,7 +5085,7 @@ function Dashboard() {
           {isAllDriversMode && driverRoutes.length > 0 &&
           <motion.div
             initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: areCardsVisible ? 1 : 0.4, y: 0 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
             onMouseEnter={() => handleCardInteraction(true)}
             onMouseLeave={() => handleCardInteraction(false)}
