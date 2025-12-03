@@ -1255,19 +1255,26 @@ export default function StopCard({
                         const allPendingDeliveries = pendingPickups.filter((p) => p.status === 'pending');
                         console.log('  All pending deliveries:', allPendingDeliveries.length);
 
-                        // Sort by patient name for consistent processing
-                        const sortedPending = [...allPendingDeliveries].sort((a, b) =>
-                        (a.patient_name || '').localeCompare(b.patient_name || '')
-                        );
+                        // Sort by existing TR# to maintain order (new stops will be placed after pickup in sequence)
+                        const sortedPending = [...allPendingDeliveries].sort((a, b) => {
+                          const trA = parseInt(a.tracking_number, 10) || 999;
+                          const trB = parseInt(b.tracking_number, 10) || 999;
+                          return trA - trB;
+                        });
 
-                        // Update ALL pending deliveries to 'in_transit' status
+                        // CRITICAL: Get the pickup's stop_order to determine placement
+                        const pickupStopOrder = delivery.stop_order || 0;
+                        console.log('  Pickup stop_order:', pickupStopOrder);
+
+                        // Update ALL pending deliveries to 'in_transit' status with sequential stop_order AFTER pickup
                         for (let i = 0; i < sortedPending.length; i++) {
                           const pendingDelivery = sortedPending[i];
                           const existingTR = pendingDelivery.tracking_number || '99';
-                          console.log(`  Accepting: ${pendingDelivery.patient_name} (TR#${existingTR}) → status: in_transit`);
+                          const newStopOrder = pickupStopOrder + i + 1;
+                          console.log(`  Accepting: ${pendingDelivery.patient_name} (TR#${existingTR}) → status: in_transit, stop_order: ${newStopOrder}`);
 
-                          // Update status to in_transit (keep existing TR#), skip auto-center
-                          await onStatusUpdate(pendingDelivery.id, 'in_transit', {}, true);
+                          // Update status AND stop_order to place after pickup, skip auto-center
+                          await onStatusUpdate(pendingDelivery.id, 'in_transit', { stop_order: newStopOrder }, true);
                         }
 
                         console.log('✅ [Assign All Button] All pending deliveries accepted');
