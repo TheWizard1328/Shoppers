@@ -831,16 +831,18 @@ class SmartRefreshManager {
         delivery_date: dateStr
       };
       
-      const activeDeliveries = await base44.entities.Delivery.filter(activeFilter);
+      const fetchedDeliveries = await base44.entities.Delivery.filter(activeFilter);
       
-      if (!activeDeliveries || activeDeliveries.length === 0) {
+      if (!fetchedDeliveries || fetchedDeliveries.length === 0) {
         return null;
       }
       
       // CRITICAL: Filter out protected deliveries
-      const protectedCount = activeDeliveries.filter(d => this.hasPendingUpdate(d.id)).length;
+      const protectedCount = fetchedDeliveries.filter(d => this.hasPendingUpdate(d.id)).length;
       
       let hasChanges = false;
+      let changedDeliveries = [];
+      
       const updatedDeliveries = currentDeliveries.map(d => {
         if (!d || d.delivery_date !== dateStr) return d;
         
@@ -849,23 +851,41 @@ class SmartRefreshManager {
           return d;
         }
         
-        const activeVersion = activeDeliveries.find(ad => ad.id === d.id);
-        if (activeVersion) {
-          if (d.status !== activeVersion.status ||
-              d.delivery_time_eta !== activeVersion.delivery_time_eta ||
-              d.isNextDelivery !== activeVersion.isNextDelivery ||
-              d.stop_order !== activeVersion.stop_order) {
+        const fetchedVersion = fetchedDeliveries.find(fd => fd.id === d.id);
+        if (fetchedVersion) {
+          // Check for ANY changes, not just status
+          if (d.status !== fetchedVersion.status ||
+              d.delivery_time_eta !== fetchedVersion.delivery_time_eta ||
+              d.isNextDelivery !== fetchedVersion.isNextDelivery ||
+              d.stop_order !== fetchedVersion.stop_order ||
+              d.driver_id !== fetchedVersion.driver_id ||
+              d.driver_name !== fetchedVersion.driver_name ||
+              d.delivery_notes !== fetchedVersion.delivery_notes ||
+              d.actual_delivery_time !== fetchedVersion.actual_delivery_time) {
             hasChanges = true;
-            return activeVersion;
+            changedDeliveries.push({
+              name: fetchedVersion.patient_name || 'Pickup',
+              oldStatus: d.status,
+              newStatus: fetchedVersion.status,
+              oldDriver: d.driver_name,
+              newDriver: fetchedVersion.driver_name
+            });
+            return fetchedVersion;
           }
         }
         return d;
       });
       
-      activeDeliveries.forEach(ad => {
-        if (!updatedDeliveries.find(d => d?.id === ad.id) && !this.hasPendingUpdate(ad.id)) {
+      // Add any new deliveries that weren't in current list
+      fetchedDeliveries.forEach(fd => {
+        if (!updatedDeliveries.find(d => d?.id === fd.id) && !this.hasPendingUpdate(fd.id)) {
           hasChanges = true;
-          updatedDeliveries.push(ad);
+          changedDeliveries.push({
+            name: fd.patient_name || 'Pickup',
+            type: 'NEW',
+            status: fd.status
+          });
+          updatedDeliveries.push(fd);
         }
       });
       
@@ -873,10 +893,20 @@ class SmartRefreshManager {
         return null;
       }
       
-      if (protectedCount > 0) {
-        console.log(`📦 [SmartRefresh] Active delivery statuses updated (${activeDeliveries.length} active, ${protectedCount} protected)`);
-      } else {
-        console.log(`📦 [SmartRefresh] Active delivery statuses updated (${activeDeliveries.length} active)`);
+      console.log(`📦 [SmartRefresh] Delivery changes detected (${changedDeliveries.length} changes):`);
+      changedDeliveries.slice(0, 5).forEach(c => {
+        if (c.type === 'NEW') {
+          console.log(`   + NEW: ${c.name} (${c.status})`);
+        } else if (c.oldStatus !== c.newStatus) {
+          console.log(`   • ${c.name}: ${c.oldStatus} → ${c.newStatus}`);
+        } else if (c.oldDriver !== c.newDriver) {
+          console.log(`   • ${c.name}: driver ${c.oldDriver} → ${c.newDriver}`);
+        } else {
+          console.log(`   • ${c.name}: updated`);
+        }
+      });
+      if (changedDeliveries.length > 5) {
+        console.log(`   ... and ${changedDeliveries.length - 5} more`);
       }
       
       return {
