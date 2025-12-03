@@ -4537,69 +4537,49 @@ function Dashboard() {
         }
       }
 
-      // CRITICAL: Recalculate ETAs for remaining stops when ANY delivery is finished
-      const finishedStatusesTrigger = ['completed', 'failed', 'cancelled', 'returned'];
-      if (finishedStatusesTrigger.includes(newStatus) && driverId) {
-        console.log('');
-        console.log('🏗️ STEP 2: Route optimizer logic (mobile-only)');
+      // CRITICAL: Call backend optimizer for ALL status changes (not just finished ones)
+      // This ensures ETAs are recalculated and isNextDelivery is set correctly
+      console.log('');
+      console.log('🏗️ STEP 2: Calling backend optimizer for route update');
 
-        if (isMobileDevice()) {
-          console.log('📱 Mobile device detected - calling backend route optimizer');
+      try {
+        const optimizationResult = await optimizeDriverRoute({
+          driverId: targetDelivery.driver_id,
+          deliveryDate: deliveryDate,
+          currentLocation: driverLocation ? {
+            lat: driverLocation.latitude,
+            lon: driverLocation.longitude
+          } : null,
+          completedDeliveryId: finishedStatusesTrigger.includes(newStatus) ? deliveryId : null,
+          clientCurrentTime: format(new Date(), 'HH:mm'),
+          generatePolyline: true,
+          forceReoptimization: true
+        });
 
-          try {
-            const optimizationResult = await optimizeDriverRoute({
-              driverId: driverId,
-              deliveryDate: deliveryDate,
-              currentLocation: driverLocation ? {
-                lat: driverLocation.latitude,
-                lon: driverLocation.longitude
-              } : null,
-              completedDeliveryId: deliveryId,
-              clientCurrentTime: format(new Date(), 'HH:mm'),
-              generatePolyline: true,
-              forceReoptimization: true
-            });
+        console.log('✅ [STATUS UPDATE] Backend optimizer complete:', optimizationResult.data);
+        fetchPolylineCount();
 
-            console.log('✅ Backend optimization result:', optimizationResult.data);
-            fetchPolylineCount();
-
-            // CRITICAL: Use allDeliveries from backend (includes ALL route deliveries with correct isNextDelivery)
-            // This ensures we sync ALL fields, especially isNextDelivery which was reset in backend
-            if (optimizationResult.data?.allDeliveries && Array.isArray(optimizationResult.data.allDeliveries)) {
-              console.log('🔄 Syncing', optimizationResult.data.allDeliveries.length, 'deliveries from backend (full sync)');
-              updateDeliveriesLocally(optimizationResult.data.allDeliveries);
-            }
-
-            if (optimizationResult.data?.routeComplete) {
-              console.log('✅ Route complete - no more stops');
-
-              if (newStatus === 'completed' && !hasShownSummaryRef.current) {
-                setShowRouteSummary(true);
-                hasShownSummaryRef.current = true;
-              }
-
-              return;
-            }
-          } catch (backendError) {
-            console.warn('⚠️ Backend optimization failed:', backendError.message);
-          }
-        } else {
-          console.log('⏭️ Desktop device - applying basic local updates');
-
-          // Desktop: apply simple local update with new status
-          updateDeliveriesLocally([{
-            id: deliveryId,
-            status: newStatus,
-            actual_delivery_time: updateData.actual_delivery_time,
-            ...extraData
-          }]);
+        // CRITICAL: Apply ALL deliveries from backend immediately to UI
+        if (optimizationResult.data?.allDeliveries && Array.isArray(optimizationResult.data.allDeliveries)) {
+          console.log('🔄 [STATUS UPDATE] Syncing', optimizationResult.data.allDeliveries.length, 'deliveries from backend');
+          updateDeliveriesLocally(optimizationResult.data.allDeliveries);
         }
 
-        console.log('');
-        console.log('═══════════════════════════════════');
-        console.log('✅ Completion logic complete!');
-        console.log('═══════════════════════════════════');
+        if (optimizationResult.data?.routeComplete && newStatus === 'completed') {
+          console.log('✅ Route complete - showing summary');
+          if (!hasShownSummaryRef.current) {
+            setShowRouteSummary(true);
+            hasShownSummaryRef.current = true;
+          }
+        }
+      } catch (backendError) {
+        console.warn('⚠️ [STATUS UPDATE] Backend optimization failed:', backendError.message);
       }
+
+      // CRITICAL: Force full data refresh to sync UI
+      console.log('🔄 [STATUS UPDATE] Forcing data refresh...');
+      invalidateDeliveriesForDate(deliveryDate);
+      await refreshData();
 
       if (!skipAutoCenter) {
         setScrollToNextCardAfter(deliveryId);
