@@ -2837,7 +2837,8 @@ export default function DeliveriesPage() {
                 style={{
                   ...provided.draggableProps.style,
                   opacity: snapshot.isDragging ? 0.8 : 1,
-                  width: '100%'
+                  width: '280px',
+                  flexShrink: 0
                 }}>
 
                       <StopCard
