@@ -4990,7 +4990,7 @@ function Dashboard() {
                     tooltip={tooltipValues.completed} />
                   <StatBadge
                     icon={XCircle}
-                    value={`${stats.failed} / ${stats.returned}`}
+                    value={`${stats.failed}/${stats.returned}`}
                     color="red"
                     label="Failed/Returned"
                     tooltip={tooltipValues.failed} />
