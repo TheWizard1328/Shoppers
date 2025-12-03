@@ -3105,7 +3105,15 @@ export default function DeliveriesPage() {
                     await base44.entities.Delivery.delete(delivery.id);
                   }
                   
+                  // Clear all delivery caches
                   invalidate('Delivery');
+                  
+                  // Update local state immediately
+                  setAllDeliveries(prev => prev.filter(d => 
+                    !(d.delivery_date === dateStr && d.driver_id === driverId)
+                  ));
+                  
+                  // Force full refresh
                   await loadData(true);
                   console.log(`✅ Route deleted successfully`);
                 } catch (error) {
@@ -3180,7 +3188,15 @@ export default function DeliveriesPage() {
                       await base44.entities.Delivery.delete(delivery.id);
                     }
                     
+                    // Clear all delivery caches
                     invalidate('Delivery');
+                    
+                    // Update local state immediately
+                    setAllDeliveries(prev => prev.filter(d => 
+                      !(d.delivery_date === dateStr && d.driver_id === driverId)
+                    ));
+                    
+                    // Force full refresh
                     await loadData(true);
                     setIsMobileMenuOpen(false);
                     console.log(`✅ Route deleted successfully`);
