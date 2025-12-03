@@ -4774,12 +4774,27 @@ function Dashboard() {
       // CRITICAL: Apply backend updates immediately to UI
       if (optimizationResult.data?.allDeliveries && Array.isArray(optimizationResult.data.allDeliveries)) {
         console.log('🔄 [START] Syncing', optimizationResult.data.allDeliveries.length, 'deliveries from backend');
-        updateDeliveriesLocally(optimizationResult.data.allDeliveries);
+        
+        // CRITICAL: Clear pending updates protection before applying backend data
+        optimizationResult.data.allDeliveries.forEach(d => {
+          if (d?.id) {
+            smartRefreshManager.pendingLocalUpdates.delete(d.id);
+          }
+        });
+        
+        // Merge with other drivers' deliveries
+        const otherDriverDeliveries = (deliveries || []).filter(d =>
+          d && (d.driver_id !== driverId || d.delivery_date !== deliveryDate)
+        );
+        const mergedDeliveries = [...otherDriverDeliveries, ...optimizationResult.data.allDeliveries];
+        updateDeliveriesLocally(mergedDeliveries);
+        console.log(`✅ [START] UI updated with ${optimizationResult.data.allDeliveries.length} deliveries`);
       }
 
-      // CRITICAL: Force data refresh to ensure UI is in sync
+      // CRITICAL: Force final data refresh to ensure UI is 100% synced
+      console.log('🔄 [START] Final data refresh for complete sync...');
       invalidateDeliveriesForDate(deliveryDate);
-      await refreshData();
+      await forceRefreshDriverDeliveries(driverId, deliveryDate);
 
       // Scroll to next card after refresh
       setTimeout(() => {
