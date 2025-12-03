@@ -1,4 +1,3 @@
-
 // Dashboard.js - Delivery Management Dashboard
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -4873,7 +4872,12 @@ function Dashboard() {
       </AnimatePresence>
 
       <div className={statsCardPositioning}>
-        <div className="flex flex-col items-center gap-1 z-[600]">
+        <div 
+          className="flex flex-col items-center gap-1 z-[600]"
+          style={{ opacity: statsPanelOpacity, transition: 'opacity 0.5s ease-in-out' }}
+          onMouseEnter={() => handleStatsPanelInteraction(true)}
+          onMouseLeave={() => handleStatsPanelInteraction(false)}
+        >
           <motion.div
             ref={statsCardRef}
             initial={{ opacity: 0, y: -20 }}
