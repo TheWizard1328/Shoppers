@@ -265,16 +265,29 @@ const optimizeStoreRoute = (stops, startLocation, startTime, driverHome, patient
       // SCORING SYSTEM
       let score = 0;
       
-      // RULE 4 & 5: Distance score (shortest route)
-      const distanceScore = Math.max(0, 200 - distanceToStop * 20); // Higher score for closer stops
-      score += distanceScore;
+      // Check if delivery has a FLEXIBLE time window (no window, or very wide window 4+ hours)
+      const stopTWStart = stop.time_window_start || stop.delivery_time_start;
+      const stopTWEnd = stop.time_window_end || stop.delivery_time_end;
+      const windowStart = stopTWStart ? timeToMinutes(stopTWStart) : 0;
+      const windowEnd = stopTWEnd ? timeToMinutes(stopTWEnd) : 1439; // 23:59
+      const windowDuration = windowEnd - windowStart;
+      const isFlexibleWindow = !stopTWStart || windowDuration >= 240; // 4+ hours = flexible
       
-      // Time window compliance score
-      const stopTW = stop.time_window_start || stop.delivery_time_start;
-      if (stopTW) {
-        const windowStart = timeToMinutes(stopTW);
-        const windowEnd = timeToMinutes(stop.time_window_end || stopTW);
-        
+      // RULE 4 & 5: Distance score (shortest route)
+      // For FLEXIBLE deliveries, distance is the PRIMARY factor
+      if (isFlexibleWindow && !isPickup) {
+        // Flexible delivery - optimize purely by distance
+        const distanceScore = Math.max(0, 500 - distanceToStop * 50); // Much higher weight for distance
+        score += distanceScore;
+        console.log(`    📍 Flexible delivery ${patientName || 'Unknown'}: distance score = ${distanceScore.toFixed(0)}`);
+      } else {
+        // Fixed time window - use normal distance scoring
+        const distanceScore = Math.max(0, 200 - distanceToStop * 20); // Higher score for closer stops
+        score += distanceScore;
+      }
+      
+      // Time window compliance score (only for fixed windows)
+      if (stopTWStart && !isFlexibleWindow) {
         if (isPickup) {
           // CRITICAL: Pickup time windows represent when items are READY
           // We CANNOT arrive before the window start - items won't be ready
@@ -290,7 +303,7 @@ const optimizeStoreRoute = (stops, startLocation, startTime, driverHome, patient
             score += 50; // Late pickup is OK (items are ready)
           }
         } else {
-          // Patient deliveries: Strong time window preference
+          // Patient deliveries with FIXED time windows: Strong time window preference
           if (arrivalTime >= windowStart && arrivalTime <= windowEnd) {
             score += 300; // High priority for in-window delivery
             const minutesUntilEnd = windowEnd - arrivalTime;
@@ -303,6 +316,11 @@ const optimizeStoreRoute = (stops, startLocation, startTime, driverHome, patient
             const minutesLate = arrivalTime - windowEnd;
             score -= 500 + (minutesLate * 10);
           }
+        }
+      } else if (stopTWStart) {
+        // Has a time window but it's flexible - minor preference for being in window
+        if (arrivalTime >= windowStart && arrivalTime <= windowEnd) {
+          score += 50; // Small bonus for being in window
         }
       }
       
