@@ -1,4 +1,3 @@
-
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, Circle } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -1053,8 +1052,37 @@ export default function DeliveryMap({
       
       // Zoom and center on cluster location (if map is available)
       if (map) {
-        // First, zoom to 14 centered on the cluster
-        map.setView([marker.latitude, marker.longitude], 14, { 
+        // CRITICAL: Account for stop cards buffer like FAB does
+        // Calculate the offset to shift the center point up so markers appear above stop cards
+        const stopCardsBuffer = stopCardsHeight > 0 ? stopCardsHeight + 40 : 0;
+        
+        // First, zoom to 14 centered on the cluster (with offset for stop cards)
+        // We need to offset the center point to account for stop cards taking up bottom of screen
+        let adjustedCenter = [marker.latitude, marker.longitude];
+        
+        if (stopCardsBuffer > 0) {
+          // Get the map container dimensions
+          const mapContainer = map.getContainer();
+          const mapHeight = mapContainer.clientHeight;
+          
+          // Calculate how much to shift the center point up (in lat/lng)
+          // The shift should move the visual center up by half the stop cards height
+          const shiftRatio = (stopCardsBuffer / 2) / mapHeight;
+          
+          // At zoom 14, approximate degrees per pixel
+          // This is a rough approximation - at zoom 14, 1 degree lat ≈ 111km, and map is ~10km wide
+          const latDegreesPerPixel = 0.00001 * Math.pow(2, 18 - 14); // Rough approximation
+          const latShift = shiftRatio * mapHeight * latDegreesPerPixel;
+          
+          adjustedCenter = [marker.latitude + latShift, marker.longitude];
+          console.log('🗺️ Adjusted center for stop cards buffer:', { 
+            original: [marker.latitude, marker.longitude], 
+            adjusted: adjustedCenter,
+            stopCardsBuffer 
+          });
+        }
+        
+        map.setView(adjustedCenter, 14, { 
           animate: true, 
           duration: 0.6 
         });
@@ -1062,12 +1090,20 @@ export default function DeliveryMap({
         // Then fit bounds to show all fanned markers
         setTimeout(() => {
           console.log('🗺️ Fitting bounds after zoom...');
-          map.fitBounds(bounds, { 
+          
+          // Apply bottom padding to account for stop cards
+          const fitOptions = { 
             padding: [80, 80], 
             maxZoom: 14,
             animate: true,
             duration: 0.3
-          });
+          };
+          
+          if (stopCardsBuffer > 0) {
+            fitOptions.paddingBottomRight = [80, stopCardsBuffer];
+          }
+          
+          map.fitBounds(bounds, fitOptions);
           
           // Fan out the markers
           setFannedLocationKey(locationKey);
