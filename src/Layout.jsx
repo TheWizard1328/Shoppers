@@ -2408,9 +2408,9 @@ export default function Layout({ children, currentPageName }) {
                               className="p-2 hover:bg-slate-100 rounded-lg transition-colors relative"
                               title="Messages"
                             >
-                              <MessageCircle className={`w-5 h-5 ${unreadMessageCount > 0 ? 'text-emerald-500' : 'text-slate-500 hover:text-slate-700'}`} />
+                              <MessageCircle className="w-5 h-5 text-slate-500 hover:text-slate-700" fill={unreadMessageCount > 0 ? '#10b981' : 'none'} />
                               {unreadMessageCount > 0 && (
-                                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-emerald-500 text-white text-xs font-bold rounded-full flex items-center justify-center px-1">
+                                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-500 text-white text-xs font-bold rounded-full flex items-center justify-center px-1 border-2 border-white">
                                   {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
                                 </span>
                               )}
