@@ -656,16 +656,18 @@ class SmartRefreshManager {
   }
 
   /**
-   * Smart refresh for TODAY'S route patients only (HIGH PRIORITY)
-   * Only refreshes patients that are part of today's deliveries
+   * Smart refresh for patients ON TODAY'S ROUTES ONLY
+   * Only refreshes patients who have deliveries scheduled for today
    */
   async refreshTodayPatients(currentPatients, todayDeliveries) {
     try {
-      if (!todayDeliveries || todayDeliveries.length === 0) {
+      if (!this.shouldRefresh('todayPatients')) {
         return null;
       }
       
-      // Get patient IDs from today's deliveries
+      this.markRefreshed('todayPatients');
+      
+      // Get patient IDs from today's deliveries only
       const todayPatientIds = [...new Set(
         todayDeliveries
           .filter(d => d && d.patient_id)
@@ -676,44 +678,38 @@ class SmartRefreshManager {
         return null;
       }
       
-      // Filter current patients to only those on today's routes
-      const todayCurrentPatients = currentPatients.filter(p => 
-        p && todayPatientIds.includes(p.id)
-      );
-      
-      const lastTimestamp = getLatestUpdateTimestamp(todayCurrentPatients);
-      
-      if (!lastTimestamp) {
-        return null;
-      }
-      
-      // Only fetch patients that are on today's routes AND updated recently
-      const queryFilter = {
-        id: { $in: todayPatientIds },
-        updated_date: { $gte: lastTimestamp.toISOString() }
-      };
+      console.log(`👤 [SmartRefresh] Checking ${todayPatientIds.length} patients on today's routes`);
       
       await this.waitForRateLimit();
-      const updatedPatients = await base44.entities.Patient.filter(queryFilter);
+      
+      // Only fetch patients that are on today's routes
+      const updatedPatients = await base44.entities.Patient.filter({
+        id: { $in: todayPatientIds }
+      });
       
       if (!updatedPatients || updatedPatients.length === 0) {
         return null;
       }
       
-      console.log(`📋 [SmartRefresh] ${updatedPatients.length} today's patients updated`);
-      
-      // Merge updates into full patient list
+      // Check for actual changes
+      let hasChanges = false;
       const mergedPatients = currentPatients.map(p => {
-        const updated = updatedPatients.find(u => u.id === p.id);
-        return updated || p;
+        const updated = updatedPatients.find(up => up.id === p.id);
+        if (updated) {
+          // Check if anything actually changed
+          if (JSON.stringify(p) !== JSON.stringify(updated)) {
+            hasChanges = true;
+            return updated;
+          }
+        }
+        return p;
       });
       
-      // Add any new patients
-      updatedPatients.forEach(up => {
-        if (!mergedPatients.find(p => p.id === up.id)) {
-          mergedPatients.push(up);
-        }
-      });
+      if (!hasChanges) {
+        return null;
+      }
+      
+      console.log(`👤 [SmartRefresh] Today's patients updated`);
       
       return {
         hasChanges: true,
@@ -730,17 +726,24 @@ class SmartRefreshManager {
   }
 
   /**
-   * Smart refresh for ALL patients (LOW PRIORITY - background)
-   * Runs at longer intervals for patients not on today's routes
+   * Smart refresh for ALL patients (background, low priority)
    */
   async refreshPatients(currentPatients, filters) {
     try {
+      if (!this.shouldRefresh('patients')) {
+        return null;
+      }
+      
+      this.markRefreshed('patients');
+      
       const lastTimestamp = getLatestUpdateTimestamp(currentPatients);
       
       if (!lastTimestamp) {
         console.log('⏭️ [SmartRefresh] Skipping patient refresh - no existing data (wait for initial load)');
         return null;
       }
+      
+      await this.waitForRateLimit();
       
       const queryFilter = {
         ...filters,
@@ -749,7 +752,6 @@ class SmartRefreshManager {
         }
       };
       
-      await this.waitForRateLimit();
       const updatedPatients = await base44.entities.Patient.filter(queryFilter);
       
       if (!updatedPatients || updatedPatients.length === 0) {
