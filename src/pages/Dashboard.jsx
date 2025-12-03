@@ -4575,12 +4575,8 @@ function Dashboard() {
         if (optimizationResult.data?.allDeliveries && Array.isArray(optimizationResult.data.allDeliveries)) {
           console.log('🔄 [STATUS UPDATE] Syncing', optimizationResult.data.allDeliveries.length, 'deliveries from backend');
 
-          // CRITICAL: Clear pending updates protection before applying backend data
-          optimizationResult.data.allDeliveries.forEach(d => {
-            if (d?.id) {
-              smartRefreshManager.pendingLocalUpdates.delete(d.id);
-            }
-          });
+          // CRITICAL: Clear pending updates for this driver/route (authoritative server data)
+          smartRefreshManager.clearPendingUpdatesForDriver(targetDelivery.driver_id, deliveryDate);
 
           // Merge with other drivers' deliveries
           const otherDriverDeliveries = (deliveries || []).filter(d =>
@@ -4788,12 +4784,8 @@ function Dashboard() {
       if (optimizationResult.data?.allDeliveries && Array.isArray(optimizationResult.data.allDeliveries)) {
         console.log('🔄 [START] Syncing', optimizationResult.data.allDeliveries.length, 'deliveries from backend');
         
-        // CRITICAL: Clear pending updates protection before applying backend data
-        optimizationResult.data.allDeliveries.forEach(d => {
-          if (d?.id) {
-            smartRefreshManager.pendingLocalUpdates.delete(d.id);
-          }
-        });
+        // CRITICAL: Clear pending updates for this driver/route (authoritative server data)
+        smartRefreshManager.clearPendingUpdatesForDriver(driverId, deliveryDate);
         
         // Merge with other drivers' deliveries
         const otherDriverDeliveries = (deliveries || []).filter(d =>
