@@ -20,9 +20,9 @@ export default function MessageNotificationBalloon({ currentUser, onOpenConversa
     let pollingInterval = null;
 
     // Simple polling function - no SSE to avoid auth issues
-    // OPTIMIZED: Reduced polling frequency to prevent rate limits
     const checkForNewMessages = async () => {
       try {
+        // OPTIMIZED: Only check for unread messages for current user
         const unreadMessages = await base44.entities.Message.filter({
           receiver_id: currentUser.id,
           read: false
@@ -55,7 +55,7 @@ export default function MessageNotificationBalloon({ currentUser, onOpenConversa
     // Initial check after a short delay to ensure auth is ready
     const initialTimeout = setTimeout(() => {
       checkForNewMessages();
-      // Poll every 90 seconds to reduce API load (increased from 30s)
+      // Poll every 90 seconds (reduced from 30s to prevent rate limits)
       pollingInterval = setInterval(checkForNewMessages, 90000);
     }, 3000);
 
