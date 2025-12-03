@@ -1519,7 +1519,7 @@ export default function DeliveryForm({
     } finally {
       setIsSaving(false);
     }
-  }, [stagedDeliveries, onSave, onCancel, allDeliveries, formData.delivery_date, formData.driver_id, handleClearForm, editingStagedId]);
+  }, [stagedDeliveries, onSave, onCancel, allDeliveries, formData.delivery_date, formData.driver_id, editingStagedId]);
 
   const handleSearchKeyDown = useCallback((e) => {
     if (!patientSearch) return;
