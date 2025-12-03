@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Patient } from "@/entities/Patient";
 import { Store } from "@/entities/Store";
@@ -1185,7 +1186,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[9999] overflow-hidden">
-            <Card className="rounded-xl border bg-card text-card-foreground shadow w-full max-w-5xl h-[42vh] flex flex-col relative">
+            <Card className={`rounded-xl border bg-card text-card-foreground shadow w-full max-w-5xl flex flex-col relative transition-all duration-300 ${files.length > 0 ? 'h-[70vh]' : 'h-[42vh]'}`}>
                 {/* Floating Progress Overlay */}
                 {isProcessing &&
         <div className="absolute inset-0 bg-white bg-opacity-95 z-[99999] flex items-center justify-center p-6">
