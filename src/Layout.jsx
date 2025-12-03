@@ -2170,27 +2170,14 @@ export default function Layout({ children, currentPageName }) {
                         </button>
                       )}
 
-                      <div className="relative">
-                        <img
-                          src="/app-logo.png"
-                          alt="RxDeliver"
-                          className="w-10 h-10 rounded object-contain cursor-pointer"
-                          onClick={() => {
-                            if (!sidebarOpen && unreadMessageCount > 0) {
-                              setShowMessaging(true);
-                              setUnreadMessageCount(0);
-                            }
-                          }}
-                          onError={(e) => {
-                            e.currentTarget.src = 'https://cdn-icons-png.flaticon.com/512/3843/3843479.png';
-                            e.currentTarget.onerror = null;
-                          }} />
-                        {!sidebarOpen && unreadMessageCount > 0 && (
-                          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-500 text-white text-xs font-bold rounded-full flex items-center justify-center px-1 border-2 border-white pointer-events-none">
-                            {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
-                          </span>
-                        )}
-                      </div>
+                      <img
+                        src="/app-logo.png"
+                        alt="RxDeliver"
+                        className="w-10 h-10 rounded object-contain"
+                        onError={(e) => {
+                          e.currentTarget.src = 'https://cdn-icons-png.flaticon.com/512/3843/3843479.png';
+                          e.currentTarget.onerror = null;
+                        }} />
 
                       <div>
                         <h2 className="font-bold text-lg text-slate-900">RxDeliver</h2>
@@ -2199,18 +2186,6 @@ export default function Layout({ children, currentPageName }) {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {/* Message count badge on logo when sidebar is closed */}
-                      {!sidebarOpen && unreadMessageCount > 0 && (
-                        <button
-                          onClick={() => {
-                            setShowMessaging(true);
-                            setUnreadMessageCount(0);
-                          }}
-                          className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-500 text-white text-xs font-bold rounded-full flex items-center justify-center px-1 border-2 border-white hover:bg-blue-600 transition-colors z-10"
-                        >
-                          {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
-                        </button>
-                      )}
 
                       {/* --- PHASE 4: SUBTLE SETTINGS MENU (DESKTOP) --- */}
                       {/* Only show if at least one menu item is visible */}
@@ -2433,7 +2408,7 @@ export default function Layout({ children, currentPageName }) {
                               className="p-2 hover:bg-slate-100 rounded-lg transition-colors relative"
                               title="Messages"
                             >
-                              <MessageCircle className="w-5 h-5 text-slate-700" fill={unreadMessageCount > 0 ? '#10b981' : 'none'} />
+                              <MessageCircle className="w-5 h-5 text-slate-500 hover:text-slate-700" fill={unreadMessageCount > 0 ? '#10b981' : 'none'} />
                               {unreadMessageCount > 0 && (
                                 <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-500 text-white text-xs font-bold rounded-full flex items-center justify-center px-1 border-2 border-white">
                                   {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
