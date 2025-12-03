@@ -236,6 +236,9 @@ export const getDeliveriesForDateRange = async (startDate, endDate, filters = {}
   console.log(`🔄 [dataManager] Fetching deliveries for ${startDate} to ${endDate}...`);
   
   try {
+    // CRITICAL: Wait for rate limit before making API call
+    await waitForRateLimit();
+    
     const Entity = entities.Delivery;
     const deliveries = await Entity.filter(rangeFilters, '-updated_date');
     
