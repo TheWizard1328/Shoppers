@@ -137,7 +137,8 @@ export default function DeliveriesPage() {
     drivers: contextDrivers = [],
     users: contextUsers = [],
     cities: contextCities = [],
-    isDataLoaded: contextDataLoaded
+    isDataLoaded: contextDataLoaded,
+    updateDeliveriesLocally
   } = useAppData();
 
   // Replaced monolithic 'data' state with individual states
@@ -3108,14 +3109,18 @@ export default function DeliveriesPage() {
                   // Clear all delivery caches
                   invalidate('Delivery');
                   
-                  // Update local state immediately - remove deleted deliveries
+                  // Update local state immediately
                   setAllDeliveries(prev => prev.filter(d => 
                     !(d.delivery_date === dateStr && d.driver_id === driverId)
                   ));
                   
-                  // Force context to update by invalidating and refreshing
-                  const { invalidate: contextInvalidate } = await import('../components/utils/dataManager');
-                  contextInvalidate('Delivery');
+                  // CRITICAL: Update context to sync with Dashboard
+                  if (updateDeliveriesLocally) {
+                    const remainingDeliveries = allDeliveries.filter(d => 
+                      !(d.delivery_date === dateStr && d.driver_id === driverId)
+                    );
+                    updateDeliveriesLocally(remainingDeliveries);
+                  }
                   
                   console.log(`✅ Route deleted successfully`);
                 } catch (error) {
@@ -3193,14 +3198,18 @@ export default function DeliveriesPage() {
                     // Clear all delivery caches
                     invalidate('Delivery');
                     
-                    // Update local state immediately - remove deleted deliveries
+                    // Update local state immediately
                     setAllDeliveries(prev => prev.filter(d => 
                       !(d.delivery_date === dateStr && d.driver_id === driverId)
                     ));
                     
-                    // Force context to update by invalidating
-                    const { invalidate: contextInvalidate } = await import('../components/utils/dataManager');
-                    contextInvalidate('Delivery');
+                    // CRITICAL: Update context to sync with Dashboard
+                    if (updateDeliveriesLocally) {
+                      const remainingDeliveries = allDeliveries.filter(d => 
+                        !(d.delivery_date === dateStr && d.driver_id === driverId)
+                      );
+                      updateDeliveriesLocally(remainingDeliveries);
+                    }
                     
                     setIsMobileMenuOpen(false);
                     console.log(`✅ Route deleted successfully`);
