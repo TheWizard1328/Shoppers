@@ -825,9 +825,10 @@ class SmartRefreshManager {
       
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
       
+      // CRITICAL: Fetch ALL deliveries for the date, not just active ones
+      // This ensures we catch status changes (e.g., pending -> in_transit, in_transit -> completed)
       const activeFilter = {
-        delivery_date: dateStr,
-        status: { $in: ['in_transit', 'en_route', 'Ready For Pickup'] }
+        delivery_date: dateStr
       };
       
       const activeDeliveries = await base44.entities.Delivery.filter(activeFilter);
