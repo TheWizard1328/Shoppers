@@ -2579,7 +2579,6 @@ export default function DeliveryMap({
           padding: 6px;
           border-radius: 8px;
           box-shadow: 0 3px 14px rgba(0,0,0,0.25);
-          z-index: 999999;
         }
         .custom-popup .leaflet-popup-content {
           margin: 0;
@@ -2589,10 +2588,10 @@ export default function DeliveryMap({
           box-shadow: 0 3px 14px rgba(0,0,0,0.25);
         }
         .leaflet-popup-pane {
-          z-index: 999999 !important;
+          z-index: 10010 !important;
         }
         .leaflet-popup {
-          z-index: 999999 !important;
+          z-index: 10010 !important;
         }
         .route-popup .leaflet-popup-content-wrapper {
           padding: 4px 8px;
