@@ -283,9 +283,14 @@ export const clearUserCache = () => {
     userCache = {
         data: null,
         timestamp: 0,
-        ttl: 30000, // REDUCED: 30 seconds
+        ttl: 120000, // 2 minutes
         lastFailureTime: 0,
         backoffTime: 0
+    };
+    appUserListCache = {
+        data: null,
+        timestamp: 0,
+        ttl: 300000 // 5 minutes
     };
     sessionStorage.removeItem('impersonationId');
     console.log(`🗑️ [auth.js] User cache cleared`);
