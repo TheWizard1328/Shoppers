@@ -14,8 +14,6 @@ export default function MapCrosshair({ stopCardsHeight = 0 }) {
   // To center the crosshair in the VISIBLE area (above the cards), we shift UP.
   // Shift amount = stopCardsHeight / 2 (half the obscured area)
   const verticalShift = stopCardsHeight > 0 ? Math.round(stopCardsHeight / 2) : 0;
-  
-  console.log('🎯 [MapCrosshair] stopCardsHeight:', stopCardsHeight, 'verticalShift:', verticalShift);
 
   return (
     <div 
