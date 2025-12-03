@@ -4808,6 +4808,7 @@ function Dashboard() {
   };
 
   // CRITICAL: Add click handler BEFORE early return to ensure hooks are always called
+  // Also handles collapsing stats card when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (isExpanded && statsCardRef.current && !statsCardRef.current.contains(event.target)) {
