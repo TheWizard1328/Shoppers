@@ -4598,6 +4598,14 @@ function Dashboard() {
       console.error('Error updating delivery status:', error);
       console.error('Stack trace:', error.stack);
       console.error('');
+      
+      // CRITICAL: Handle session expiration errors
+      if (error.response?.status === 401 || error.message?.includes('Unauthorized') || error.message?.includes('session')) {
+        alert('Your session has expired. The page will now reload.');
+        window.location.reload();
+        return;
+      }
+      
       alert('Failed to update delivery status. Please try again.');
     } finally {
       console.log('▶️ [STATUS UPDATE] Resuming smart refresh');
@@ -4775,6 +4783,14 @@ function Dashboard() {
     } catch (error) {
       console.error('❌ [START] Failed:', error.message);
       console.error('❌ [START] Error stack:', error.stack);
+      
+      // CRITICAL: Handle session expiration errors
+      if (error.response?.status === 401 || error.message?.includes('Unauthorized') || error.message?.includes('session')) {
+        alert('Your session has expired. The page will now reload.');
+        window.location.reload();
+        return;
+      }
+      
       alert(`Failed to start delivery: ${error.message}`);
     } finally {
       console.log('▶️ [START] Resuming smart refresh');

@@ -396,11 +396,28 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     
-    // Authenticate
-    const user = await base44.auth.me();
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    // CRITICAL: Validate authentication FIRST with better error handling
+    let user = null;
+    try {
+      user = await base44.auth.me();
+    } catch (authError) {
+      console.error('❌ [Auth Check] Failed:', authError.message);
+      return Response.json({ 
+        error: 'Authentication failed - please refresh and try again',
+        details: authError.message 
+      }, { status: 401 });
     }
+    
+    if (!user) {
+      console.error('❌ [Auth Check] No user returned - session may have expired');
+      return Response.json({ 
+        error: 'Session expired - please refresh the page',
+        sessionExpired: true 
+      }, { status: 401 });
+    }
+    
+    console.log(`✅ [Auth Check] User authenticated: ${user.email}`);
+
     
     // Parse request body
     const body = await req.json();
