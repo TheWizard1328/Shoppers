@@ -33,6 +33,7 @@ class SmartRefreshManager {
       activeDeliveries: 0,
       todayDeliveries: 0,
       appUsers: 0,
+      todayPatients: 0,
       patients: 0,
       stores: 0
     };
