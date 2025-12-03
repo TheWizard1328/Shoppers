@@ -234,9 +234,7 @@ function Dashboard() {
   const [screenWidth, setScreenWidth] = useState(window.innerWidth);
   const [cardWidth, setCardWidth] = useState(340);
   const [areCardsVisible, setAreCardsVisible] = useState(false);
-  const [statsPanelFaded, setStatsPanelFaded] = useState(false);
   const fadeTimeoutRef = useRef(null);
-  const statsFadeTimeoutRef = useRef(null);
   const statsCardRef = useRef(null);
   const [isMapViewLocked, setIsMapViewLocked] = useState(false);
   const retractClustersRef = useRef(null);
@@ -641,37 +639,6 @@ function Dashboard() {
     }
   }, [isExpanded]);
 
-  // Handle stats panel fade effect
-  const handleStatsPanelInteraction = useCallback((isHovering) => {
-    // Clear any pending fade timeout
-    if (statsFadeTimeoutRef.current) {
-      clearTimeout(statsFadeTimeoutRef.current);
-      statsFadeTimeoutRef.current = null;
-    }
-
-    if (isHovering) {
-      // Mouse entered - restore full opacity
-      setStatsPanelFaded(false);
-    } else if (!isExpanded) {
-      // Mouse left and not expanded - start 3 second fade timer
-      statsFadeTimeoutRef.current = setTimeout(() => {
-        setStatsPanelFaded(true);
-      }, 3000);
-    }
-  }, [isExpanded]);
-
-  // When expanded state changes, handle fade accordingly
-  useEffect(() => {
-    if (isExpanded) {
-      // Expanded - always full opacity, clear any pending fade
-      if (statsFadeTimeoutRef.current) {
-        clearTimeout(statsFadeTimeoutRef.current);
-        statsFadeTimeoutRef.current = null;
-      }
-      setStatsPanelFaded(false);
-    }
-  }, [isExpanded]);
-
   // Track when the last programmatic map move happened (to debounce interaction handler)
   const lastProgrammaticMapMoveRef = useRef(0);
 
@@ -812,9 +779,6 @@ function Dashboard() {
       }
       if (mapLockTimeoutRef.current) {
         clearTimeout(mapLockTimeoutRef.current);
-      }
-      if (statsFadeTimeoutRef.current) {
-        clearTimeout(statsFadeTimeoutRef.current);
       }
     };
   }, []);
@@ -4808,13 +4772,6 @@ function Dashboard() {
     const handleClickOutside = (event) => {
       if (isExpanded && statsCardRef.current && !statsCardRef.current.contains(event.target)) {
         setIsExpanded(false);
-        // Start fade timer when clicking outside to collapse
-        if (statsFadeTimeoutRef.current) {
-          clearTimeout(statsFadeTimeoutRef.current);
-        }
-        statsFadeTimeoutRef.current = setTimeout(() => {
-          setStatsPanelFaded(true);
-        }, 3000);
       }
     };
 
@@ -4888,7 +4845,6 @@ function Dashboard() {
             onClick={(e) => {
               e.stopPropagation();
               handleCardInteraction(true);
-              handleStatsPanelInteraction(true);
               if (retractClustersRef.current) {
                 retractClustersRef.current();
               }
