@@ -656,7 +656,82 @@ class SmartRefreshManager {
   }
 
   /**
-   * Smart refresh for patients
+   * Smart refresh for TODAY'S route patients only (HIGH PRIORITY)
+   * Only refreshes patients that are part of today's deliveries
+   */
+  async refreshTodayPatients(currentPatients, todayDeliveries) {
+    try {
+      if (!todayDeliveries || todayDeliveries.length === 0) {
+        return null;
+      }
+      
+      // Get patient IDs from today's deliveries
+      const todayPatientIds = [...new Set(
+        todayDeliveries
+          .filter(d => d && d.patient_id)
+          .map(d => d.patient_id)
+      )];
+      
+      if (todayPatientIds.length === 0) {
+        return null;
+      }
+      
+      // Filter current patients to only those on today's routes
+      const todayCurrentPatients = currentPatients.filter(p => 
+        p && todayPatientIds.includes(p.id)
+      );
+      
+      const lastTimestamp = getLatestUpdateTimestamp(todayCurrentPatients);
+      
+      if (!lastTimestamp) {
+        return null;
+      }
+      
+      // Only fetch patients that are on today's routes AND updated recently
+      const queryFilter = {
+        id: { $in: todayPatientIds },
+        updated_date: { $gte: lastTimestamp.toISOString() }
+      };
+      
+      await this.waitForRateLimit();
+      const updatedPatients = await base44.entities.Patient.filter(queryFilter);
+      
+      if (!updatedPatients || updatedPatients.length === 0) {
+        return null;
+      }
+      
+      console.log(`📋 [SmartRefresh] ${updatedPatients.length} today's patients updated`);
+      
+      // Merge updates into full patient list
+      const mergedPatients = currentPatients.map(p => {
+        const updated = updatedPatients.find(u => u.id === p.id);
+        return updated || p;
+      });
+      
+      // Add any new patients
+      updatedPatients.forEach(up => {
+        if (!mergedPatients.find(p => p.id === up.id)) {
+          mergedPatients.push(up);
+        }
+      });
+      
+      return {
+        hasChanges: true,
+        patients: mergedPatients
+      };
+      
+    } catch (error) {
+      if (error.message?.includes('WebSocket') || error.message?.includes('closed')) {
+        return null;
+      }
+      console.error('❌ [SmartRefresh] Error refreshing today patients:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Smart refresh for ALL patients (LOW PRIORITY - background)
+   * Runs at longer intervals for patients not on today's routes
    */
   async refreshPatients(currentPatients, filters) {
     try {
@@ -674,13 +749,14 @@ class SmartRefreshManager {
         }
       };
       
+      await this.waitForRateLimit();
       const updatedPatients = await base44.entities.Patient.filter(queryFilter);
       
       if (!updatedPatients || updatedPatients.length === 0) {
         return null;
       }
       
-      console.log(`📋 [SmartRefresh] ${updatedPatients.length} patients updated since last check`);
+      console.log(`📋 [SmartRefresh] ${updatedPatients.length} patients updated since last check (background)`);
       
       const diff = diffEntityArrays(currentPatients, updatedPatients);
       
