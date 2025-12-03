@@ -5089,7 +5089,7 @@ function Dashboard() {
             transition={{ duration: 0.3 }}
             onMouseEnter={() => handleCardInteraction(true)}
             onMouseLeave={() => handleCardInteraction(false)}
-            className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 px-3 py-2 z-[102]">
+            className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 px-3 py-2">
 
               <div className="flex flex-wrap gap-x-3 gap-y-1.5 items-center justify-center">
                 {driverRoutes.
