@@ -49,9 +49,40 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     return null;
   }
 
-  const isActive = smartRefreshActivity?.active;
+  const isActive = smartRefreshActivity?.active || isManualRefreshing;
   const isPaused = isEntityUpdating;
   const hasUpdates = recentUpdates.length > 0;
+
+  // Handle manual refresh click
+  const handleManualRefresh = async () => {
+    if (isManualRefreshing || isPaused) return;
+    
+    console.log('🔄 [SmartRefreshIndicator] Manual refresh triggered');
+    setIsManualRefreshing(true);
+    
+    try {
+      // Reset all refresh timers to force immediate refresh
+      smartRefreshManager.lastRefreshTimes = {
+        driverLocation: 0,
+        activeDeliveries: 0,
+        todayDeliveries: 0,
+        appUsers: 0,
+        patients: 0,
+        stores: 0
+      };
+      
+      // Trigger the callback if provided (Dashboard uses this)
+      if (onManualRefresh) {
+        await onManualRefresh();
+      } else if (refreshData) {
+        await refreshData(true);
+      }
+    } catch (error) {
+      console.error('❌ [SmartRefreshIndicator] Manual refresh failed:', error);
+    } finally {
+      setTimeout(() => setIsManualRefreshing(false), 1000);
+    }
+  };
 
   // Entity labels
   const entityLabels = {
