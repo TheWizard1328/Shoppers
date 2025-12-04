@@ -2367,7 +2367,12 @@ export default function AdminUtilities() {
 
   const { data: allDeliveries, isLoading: deliveriesLoading, refetch: refetchDeliveries } = useQuery({
     queryKey: ['deliveries'],
-    queryFn: () => getData('Delivery', '-created_date'),
+    queryFn: async () => {
+      console.log('📊 [AdminUtilities] Fetching all deliveries...');
+      const deliveries = await getData('Delivery', '-created_date');
+      console.log(`✅ [AdminUtilities] Fetched ${deliveries?.length || 0} deliveries`);
+      return deliveries;
+    },
     enabled: filtersReady,
     ...queryOptions
   });
