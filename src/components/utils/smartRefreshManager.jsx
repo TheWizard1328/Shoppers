@@ -689,7 +689,7 @@ class SmartRefreshManager {
     try {
       // Check if disabled - use private property directly to avoid getter logging
       if (!this._enabled) {
-        console.log('⏸️ [SmartRefresh] refreshDriverLocations SKIPPED - disabled');
+        // Don't log every time - just silently return
         return null;
       }
       
