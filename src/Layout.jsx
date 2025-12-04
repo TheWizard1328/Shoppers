@@ -1542,8 +1542,8 @@ export default function Layout({ children, currentPageName }) {
     return data;
   }, [patients, currentUser, selectedStoreId]);
 
-  // CRITICAL: Use deliveries directly (not filteredDeliveries) to show total routes count
-  // This ensures the count updates as staged loading brings in more data
+  // Route count from local deliveries (last 30 days only)
+  // Full month/year counts come from backend via getDeliveryStats
   const totalRoutesCount = useMemo(() => {
     if (!deliveries || deliveries.length === 0) return 0;
     return new Set(deliveries.filter(delivery => delivery && delivery.delivery_date).map((delivery) => delivery.delivery_date)).size;
