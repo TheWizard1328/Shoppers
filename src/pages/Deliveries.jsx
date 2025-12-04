@@ -529,6 +529,27 @@ export default function DeliveriesPage() {
     }
   }, [contextDataLoaded, contextDeliveries, contextPatients, contextStores, contextCities, contextUsers]);
 
+  // Force smart refresh when Driver Overview page is active
+  useEffect(() => {
+    if (!isDriverOverviewMode || !dataLoaded || !hasAccess) return;
+    
+    console.log('🔄 [Deliveries] Driver Overview active - triggering smart refresh');
+    
+    // Reset refresh timers to force immediate refresh
+    smartRefreshManager.lastRefreshTimes = {
+      driverLocation: 0,
+      activeDeliveries: 0,
+      todayDeliveries: 0,
+      appUsers: 0,
+      todayPatients: 0,
+      patients: 0,
+      stores: 0
+    };
+    
+    // Also trigger a data refresh
+    setRefreshKey(k => k + 1);
+  }, [isDriverOverviewMode, dataLoaded, hasAccess]);
+
   // Run checkAccess on mount to set hasAccess state
   useEffect(() => {
     console.log('🔐 [Deliveries] Running checkAccess on mount...');
