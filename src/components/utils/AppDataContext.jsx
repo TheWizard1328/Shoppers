@@ -59,7 +59,10 @@ export const AppDataProvider = ({ children, value }) => {
   const wrappedValue = {
     ...value,
     updateDeliveriesLocally: wrappedUpdateDeliveriesLocally,
-    forceRefreshDriverDeliveries
+    forceRefreshDriverDeliveries,
+    // Expose a way for Dashboard to know when data for selected date is ready
+    onSelectedDateDataReady: value.onSelectedDateDataReady,
+    setOnSelectedDateDataReady: value.setOnSelectedDateDataReady
   };
   
   return (
