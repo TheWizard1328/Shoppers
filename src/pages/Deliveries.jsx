@@ -3546,7 +3546,7 @@ export default function DeliveriesPage() {
                 const isInactive = card.driver.status === 'inactive';
                 return (
                   <Card
-                    key={card.driver.id} className="rounded-xl border text-card-foreground shadow cursor-pointer transition-shadow bg-white/80 backdrop-blur-sm hover:shadow-lg min-w-[280px]"
+                    key={card.driver.id} className="rounded-xl border text-card-foreground shadow cursor-pointer transition-shadow bg-white/80 backdrop-blur-sm hover:shadow-lg"
 
                     onClick={() => handleDriverCardClick(card.driver)}>
 
