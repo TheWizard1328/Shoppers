@@ -1629,15 +1629,20 @@ export default function Layout({ children, currentPageName }) {
           storeIds: storeIds.length > 0 ? storeIds : null
         });
 
+        console.log('📊 [Layout] Raw response from getDeliveryStats:', response);
+        console.log('📊 [Layout] Response type:', typeof response);
+        console.log('📊 [Layout] Response keys:', response ? Object.keys(response) : 'null');
+
         // Handle both response.data (axios-style) and direct response
         const data = response?.data || response;
-        console.log('📊 [Layout] Nav panel stats response:', data);
+        console.log('📊 [Layout] Extracted data:', data);
+        console.log('📊 [Layout] Data keys:', data ? Object.keys(data) : 'null');
         
         if (data?.routeCounts) {
           console.log('✅ [Layout] Setting routeCounts:', data.routeCounts);
           setRouteCounts(data.routeCounts);
         } else {
-          console.warn('⚠️ [Layout] No routeCounts in response');
+          console.warn('⚠️ [Layout] No routeCounts in response. Data structure:', JSON.stringify(data, null, 2));
         }
         if (data?.entityCounts) {
           console.log('✅ [Layout] Setting entityCounts:', data.entityCounts);
@@ -1646,8 +1651,8 @@ export default function Layout({ children, currentPageName }) {
           console.warn('⚠️ [Layout] No entityCounts in response');
         }
       } catch (error) {
-        // Silently fail - counts are not critical
-        console.warn('Failed to fetch stats:', error);
+        console.error('❌ [Layout] Failed to fetch stats:', error);
+        console.error('❌ [Layout] Error details:', error.message, error.stack);
       }
     };
 
