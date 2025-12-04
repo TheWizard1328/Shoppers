@@ -4959,11 +4959,20 @@ function Dashboard() {
                 <SmartRefreshIndicator
                   inline={true}
                   onManualRefresh={async () => {
-                    console.log('🔄 [Dashboard] Manual refresh triggered from stats card');
+                    console.log('🔄 [Dashboard] Manual historical refresh triggered from stats card');
+                    
+                    // CRITICAL: Invalidate ALL caches to force fresh data fetch
                     invalidate('Delivery');
                     invalidate('Patient');
                     invalidate('AppUser');
+                    invalidate('Store');
+                    invalidate('User');
+                    invalidate('City');
+                    
+                    // Trigger full data refresh (force=true skips cache)
                     await refreshData(true);
+                    
+                    console.log('✅ [Dashboard] Historical data refreshed');
                   }} />
 
                 }
