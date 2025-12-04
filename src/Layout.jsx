@@ -625,14 +625,21 @@ export default function Layout({ children, currentPageName }) {
         }, '-created_date', 50);
         setUnreadMessageCount(unreadMessages.length);
       } catch (error) {
-        console.error('Error fetching unread messages:', error);
+        // Silently handle rate limits - don't spam console
+        if (!error.message?.includes('429') && !error.message?.includes('Rate limit')) {
+          console.error('Error fetching unread messages:', error);
+        }
       }
     };
 
-    fetchUnreadCount();
-    // Poll every 10 minutes when panel is closed (reduced from 5 min)
-    const interval = setInterval(fetchUnreadCount, 600000);
-    return () => clearInterval(interval);
+    // Delay initial fetch to avoid competing with init load
+    const initialTimer = setTimeout(fetchUnreadCount, 5000);
+    // Poll every 30 minutes when panel is closed
+    const interval = setInterval(fetchUnreadCount, 1800000);
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(interval);
+    };
   }, [currentUser?.id, showMessaging]);
 
   useEffect(() => {
