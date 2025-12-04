@@ -3644,6 +3644,7 @@ export default function AdminUtilities() {
                         onDeleteAll={_confirmDeleteAllDeliveries}
                         onDeleteSelected={_confirmDeleteSelectedDeliveries}
                         onBackfillPUIDs={handleBackfillPUIDs}
+                        onDeleteDuplicates={handleDeleteDuplicates}
                         filterText={deliveryFilterText}
                         onFilterChange={setDeliveryFilterText}
                         sortColumn={deliverySortColumn}
