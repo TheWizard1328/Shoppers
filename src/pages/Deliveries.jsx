@@ -2718,15 +2718,11 @@ export default function DeliveriesPage() {
       driverNamesInDeliveries.includes(userFullNameLower) ||
       driverNamesInDeliveries.includes(userUserNameLower);
       
-      // In overview mode with 'all' years selected, show ALL drivers regardless of deliveries
+      // CRITICAL: In Driver Overview mode, ALWAYS show ALL drivers regardless of deliveries or status
       // This ensures inactive drivers and those without recent deliveries still appear
-      const showAllDrivers = selectedOverviewYear === 'all';
-      
-      if (hasDeliveries || showAllDrivers) {
-        console.log(`   ✅ Including driver: ${u.user_name || u.full_name} (has deliveries: ${hasDeliveries}, status: ${u.status})`);
-        return true;
-      }
-      return false;
+      // The overview is meant to show a complete picture of all drivers
+      console.log(`   ✅ Including driver: ${u.user_name || u.full_name} (has deliveries: ${hasDeliveries}, status: ${u.status})`);
+      return true;
     });
 
     console.log(`✅ Found ${driversWithDeliveries.length} drivers to show (after city filter)`);
