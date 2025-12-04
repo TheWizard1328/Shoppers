@@ -1556,7 +1556,8 @@ export default function Layout({ children, currentPageName }) {
 
   const patientStoreData = getPatientStoreData();
 
-  const getRouteCountsForNavigation = useCallback(() => {
+  // Use useMemo instead of useCallback for route counts - updates when deliveries change
+  const routeCounts = useMemo(() => {
     if (!deliveries || deliveries.length === 0 || !currentUser) return { monthly: 0, yearly: 0 };
 
     const now = new Date();
@@ -1581,8 +1582,6 @@ export default function Layout({ children, currentPageName }) {
 
     return { monthly: monthlyCount, yearly: yearlyCount };
   }, [deliveries, currentUser]);
-
-  const routeCounts = getRouteCountsForNavigation();
 
   const statsCardPositioning = useMemo(() => {
     const ratio = screenWidth / cardWidth;
