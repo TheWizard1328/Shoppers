@@ -144,6 +144,7 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
   const [selectedDateStr, setSelectedDateStr] = useState(() => globalFilters.getSelectedDate());
   const [stats, setStats] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
     const checkDateChange = () => {
@@ -163,6 +164,7 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
 
     const fetchStats = async () => {
       try {
+        setHasError(false);
         const driverId = userHasRole(currentUser, 'driver') ? currentUser.id : 
                          globalFilters.getSelectedDriverId();
         
@@ -177,15 +179,20 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
         }
       } catch (error) {
         console.error('Error fetching delivery stats:', error);
+        setHasError(true);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchStats();
+    // Delay initial fetch slightly to avoid competing with layout init
+    const initialTimer = setTimeout(fetchStats, 1000);
     // Refresh stats every 60 seconds
     const interval = setInterval(fetchStats, 60000);
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(interval);
+    };
   }, [currentUser, selectedDateStr, storeIds]);
 
   const StatItem = ({ icon: Icon, label, value, colorClass }) =>
@@ -204,7 +211,7 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
   const todayString = format(now, 'yyyy-MM-dd');
   const isToday = format(selectedDate, 'yyyy-MM-dd') === todayString;
 
-  if (isLoading || !stats) {
+  if (isLoading) {
     return (
       <div className="px-3 py-2">
         <div className="animate-pulse space-y-2">
@@ -212,6 +219,14 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
           <div className="h-6 bg-slate-200 rounded"></div>
           <div className="h-6 bg-slate-200 rounded"></div>
         </div>
+      </div>
+    );
+  }
+
+  if (hasError || !stats) {
+    return (
+      <div className="px-3 py-2 text-sm text-slate-500">
+        Unable to load stats
       </div>
     );
   }
