@@ -2642,8 +2642,8 @@ export default function DeliveriesPage() {
     // Filter deliveries by selectedOverviewYear
     // CRITICAL: When 'all' is selected, use ALL deliveries without filtering
     const yearFilteredDeliveries = selectedOverviewYear === 'all' ?
-      effectiveDeliveries :
-      effectiveDeliveries.filter((d) => {
+      deliveriesToUse :
+      deliveriesToUse.filter((d) => {
         if (!d || !d.delivery_date) return false;
         try {
           const deliveryYear = new Date(d.delivery_date.replace(/-/g, '/')).getFullYear();
