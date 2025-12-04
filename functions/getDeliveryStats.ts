@@ -1,53 +1,82 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
-import { format, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'npm:date-fns@3.6.0';
 
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
-
+    
     if (!user) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Parse request body for filters
     let body = {};
     try {
-      body = await req.json();
-    } catch (e) {
-      // No body or invalid JSON - use defaults
+      const text = await req.text();
+      if (text) {
+        body = JSON.parse(text);
+      }
+    } catch (parseError) {
+      console.warn('Failed to parse request body:', parseError);
     }
+
     const { selectedDate, driverId, storeIds } = body;
     
-    const now = selectedDate ? new Date(selectedDate + 'T00:00:00') : new Date();
-    const monthStart = format(startOfMonth(now), 'yyyy-MM-dd');
-    const monthEnd = format(endOfMonth(now), 'yyyy-MM-dd');
-    const yearStart = format(startOfYear(now), 'yyyy-MM-dd');
-    const yearEnd = format(endOfYear(now), 'yyyy-MM-dd');
-    const todayStr = format(now, 'yyyy-MM-dd');
-
-    // Build base filter
+    // Use selected date or default to today
+    const dateObj = selectedDate ? new Date(selectedDate + 'T00:00:00') : new Date();
+    const year = dateObj.getFullYear();
+    const month = dateObj.getMonth() + 1; // 1-12
+    const todayStr = selectedDate || dateObj.toISOString().split('T')[0];
+    
+    // Build filter for deliveries
     const baseFilter = {};
-    if (storeIds && storeIds.length > 0) {
+    if (storeIds && Array.isArray(storeIds) && storeIds.length > 0) {
       baseFilter.store_id = { $in: storeIds };
     }
+    
+    // If specific driver selected, filter by driver
     if (driverId && driverId !== 'all') {
       baseFilter.driver_id = driverId;
     }
-
-    // Fetch deliveries for the month (for daily stats)
-    const monthDeliveries = await base44.entities.Delivery.filter({
-      ...baseFilter,
-      delivery_date: { $gte: monthStart, $lte: monthEnd }
-    }, '-delivery_date', 5000);
-
-    // Fetch deliveries for the year (just to count unique dates)
-    const yearDeliveries = await base44.entities.Delivery.filter({
-      ...baseFilter,
-      delivery_date: { $gte: yearStart, $lte: yearEnd }
-    }, '-delivery_date', 5000);
-
-    // Calculate stats
+    
+    console.log('📊 [getDeliveryStats] Fetching stats for:', { todayStr, year, month, storeIds: storeIds?.length || 0, driverId });
+    
+    // Calculate date ranges
+    const startOfMonth = `${year}-${String(month).padStart(2, '0')}-01`;
+    const endOfMonth = new Date(year, month, 0);
+    const endOfMonthStr = endOfMonth.toISOString().split('T')[0];
+    
+    const startOfYear = `${year}-01-01`;
+    const endOfYear = `${year}-12-31`;
+    
+    // Parallel fetch for efficiency - use service role for all data
+    const [monthDeliveries, yearDeliveries, allPatients, allCities, allStores, allUsers] = await Promise.all([
+      base44.asServiceRole.entities.Delivery.filter({
+        ...baseFilter,
+        delivery_date: { $gte: startOfMonth, $lte: endOfMonthStr }
+      }),
+      base44.asServiceRole.entities.Delivery.filter({
+        ...baseFilter,
+        delivery_date: { $gte: startOfYear, $lte: endOfYear }
+      }),
+      base44.asServiceRole.entities.Patient.list(),
+      base44.asServiceRole.entities.City.list(),
+      base44.asServiceRole.entities.Store.list(),
+      base44.asServiceRole.entities.AppUser.list()
+    ]);
+    
+    // Filter today's deliveries from month data
     const todayDeliveries = monthDeliveries.filter(d => d.delivery_date === todayStr);
+    
+    console.log('✅ [getDeliveryStats] Fetched:', {
+      today: todayDeliveries.length,
+      month: monthDeliveries.length,
+      year: yearDeliveries.length,
+      patients: allPatients.length,
+      cities: allCities.length,
+      stores: allStores.length,
+      users: allUsers.length
+    });
     
     // Helper: Check if delivery is countable (patient delivery or after-hours pickup)
     const isCountableDelivery = (d) => {
@@ -78,6 +107,14 @@ Deno.serve(async (req) => {
       todayDeliveries.filter(d => d.driver_name).map(d => d.driver_name)
     ).size;
 
+    const todayStats = {
+      completed: todayCompleted,
+      activeStops: todayActiveStops,
+      returns: todayReturns,
+      failed: todayFailed,
+      activeDrivers: todayActiveDrivers
+    };
+
     // Month stats
     const monthCompleted = monthDeliveries.filter(d => 
       ['completed', 'delivered'].includes(d.status) && isCountableDelivery(d)
@@ -87,13 +124,15 @@ Deno.serve(async (req) => {
       d.status === 'failed' && !isReturn(d) && isCountableDelivery(d)
     ).length;
 
+    const monthStats = {
+      completed: monthCompleted,
+      returns: monthReturns,
+      failed: monthFailed
+    };
+
     // Route counts (unique dates)
-    const monthlyRouteCount = new Set(
-      monthDeliveries.filter(d => d.delivery_date).map(d => d.delivery_date)
-    ).size;
-    const yearlyRouteCount = new Set(
-      yearDeliveries.filter(d => d.delivery_date).map(d => d.delivery_date)
-    ).size;
+    const monthlyRoutes = new Set(monthDeliveries.map(d => d.delivery_date)).size;
+    const yearlyRoutes = new Set(yearDeliveries.map(d => d.delivery_date)).size;
     
     // Entity counts for navigation panel
     const entityCounts = {
@@ -102,29 +141,18 @@ Deno.serve(async (req) => {
       stores: allStores.length,
       users: allUsers.length
     };
-
+    
     return Response.json({
-      today: {
-        completed: todayCompleted,
-        activeStops: todayActiveStops,
-        returns: todayReturns,
-        failed: todayFailed,
-        activeDrivers: todayActiveDrivers
-      },
-      month: {
-        completed: monthCompleted,
-        returns: monthReturns,
-        failed: monthFailed
-      },
+      today: todayStats,
+      month: monthStats,
       routeCounts: {
-        monthly: monthlyRouteCount,
-        yearly: yearlyRouteCount
+        monthly: monthlyRoutes,
+        yearly: yearlyRoutes
       },
       entityCounts: entityCounts
     });
-
   } catch (error) {
-    console.error('getDeliveryStats error:', error);
+    console.error('Error in getDeliveryStats:', error);
     return Response.json({ error: error.message }, { status: 500 });
   }
 });
