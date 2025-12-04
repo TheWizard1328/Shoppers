@@ -3810,6 +3810,30 @@ export default function AdminUtilities() {
         />
       )}
 
+      {editingDelivery && (
+        <DeliveryForm
+          delivery={editingDelivery}
+          patients={patients || []}
+          stores={stores || []}
+          drivers={mergedUsers || []}
+          currentUser={currentUser}
+          allDeliveries={allDeliveries || []}
+          onSave={async (updatedData) => {
+            try {
+              await base44.entities.Delivery.update(editingDelivery.id, updatedData);
+              setEditingDelivery(null);
+              await refetchDeliveries();
+              await refreshData();
+            } catch (error) {
+              console.error('Failed to update delivery:', error);
+              throw error;
+            }
+          }}
+          onCancel={() => setEditingDelivery(null)}
+          closeOnSave={true}
+        />
+      )}
+
       <Dialog open={bulkDelete.open} onOpenChange={(open) => {
         if (!bulkDelete.running) {
           setBulkDelete(prev => ({ ...prev, open }));
