@@ -2623,22 +2623,27 @@ export default function DeliveriesPage() {
       return [];
     }
 
-    // REMOVED OPTIMIZATION: Don't skip computation for 'all' - let it work normally
-    // The auto-select will handle switching to a specific year if needed
-
     // Filter deliveries by selectedOverviewYear
-    const yearFilteredDeliveries = selectedOverviewYear === 'all' ?
-    effectiveDeliveries :
-    effectiveDeliveries.filter((d) => {
-      if (!d || !d.delivery_date) return false;
-      try {
-        const deliveryYear = new Date(d.delivery_date.replace(/-/g, '/')).getFullYear();
-        return deliveryYear === parseInt(selectedOverviewYear, 10);
-      } catch (error) {
-        console.warn('⚠️ Invalid delivery_date during year filtering:', d.delivery_date);
-        return false;
+    // CRITICAL: When 'all' is selected, use ALL deliveries without filtering
+    const yearFilteredDeliveries = useMemo(() => {
+      if (selectedOverviewYear === 'all') {
+        console.log('📊 Using ALL deliveries (no year filter):', effectiveDeliveries.length);
+        return effectiveDeliveries;
       }
-    });
+      
+      const filtered = effectiveDeliveries.filter((d) => {
+        if (!d || !d.delivery_date) return false;
+        try {
+          const deliveryYear = new Date(d.delivery_date.replace(/-/g, '/')).getFullYear();
+          return deliveryYear === parseInt(selectedOverviewYear, 10);
+        } catch (error) {
+          console.warn('⚠️ Invalid delivery_date during year filtering:', d.delivery_date);
+          return false;
+        }
+      });
+      console.log(`📊 Filtered to year ${selectedOverviewYear}:`, filtered.length, 'deliveries');
+      return filtered;
+    }, [effectiveDeliveries, selectedOverviewYear]);
 
     console.log(`📊 Year-filtered deliveries: ${yearFilteredDeliveries.length} of ${effectiveDeliveries.length} total`);
 
