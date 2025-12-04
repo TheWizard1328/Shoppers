@@ -575,7 +575,7 @@ export default function RouteImport({
     { key: 'signature_needed', label: 'Signature' },
     { key: 'fridge_item', label: 'Fridge' },
     { key: 'oversized', label: 'Oversized' },
-    { key: 'after_hours_pickup', label: 'After Hours' },
+    { key: 'after_hours_pickup', label: 'After Hrs' },
     { key: 'ampm_deliveries', label: 'AM/PM' },
     { key: 'first_delivery', label: 'First Delivery' }];
     // NOTE: PUID is intentionally excluded from change detection
