@@ -1345,7 +1345,7 @@ export default function RouteImport({
 
       console.log(`📌 [RouteImport] PUID assignment was done during parsing. Total: ${totalToCreate.length} to create, ${totalToUpdate.length} to update`);
 
-      setProgressPercent(100);
+      setProgressPercent(90);
       setProgressMessage('Parsing complete, generating preview data...');
 
       setPreviewData({
