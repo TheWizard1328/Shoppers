@@ -3325,6 +3325,59 @@ export default function AdminUtilities() {
     });
   }, [performBulkDeleteCities]);
 
+  const handleDeleteDuplicates = useCallback(async (deliveriesToProcess) => {
+    // Find duplicates: same PID + SID + date + driver
+    const duplicateGroups = new Map();
+    
+    deliveriesToProcess.forEach(d => {
+      if (!d) return;
+      // Build key: PID (patient_id from patient entity) + SID (stop_id) + date + driver_id
+      const patient = (patients || []).find(p => p.id === d.patient_id);
+      const pid = patient?.patient_id || '';
+      const sid = d.stop_id || '';
+      const date = d.delivery_date || '';
+      const driverId = d.driver_id || '';
+      
+      // Only consider items with at least PID or SID
+      if (!pid && !sid) return;
+      
+      const key = `${pid}_${sid}_${date}_${driverId}`;
+      if (!duplicateGroups.has(key)) {
+        duplicateGroups.set(key, []);
+      }
+      duplicateGroups.get(key).push(d);
+    });
+    
+    // Find duplicates (groups with more than 1 item)
+    const duplicatesToDelete = [];
+    duplicateGroups.forEach((group, key) => {
+      if (group.length > 1) {
+        // Keep the first one (oldest by created_date), delete the rest
+        const sorted = [...group].sort((a, b) => {
+          const aDate = new Date(a.created_date || 0);
+          const bDate = new Date(b.created_date || 0);
+          return aDate - bDate;
+        });
+        // Add all but the first (oldest) to delete list
+        duplicatesToDelete.push(...sorted.slice(1));
+      }
+    });
+    
+    if (duplicatesToDelete.length === 0) {
+      alert('No duplicates found in the current filtered list.\n\nDuplicates are identified by matching:\n• Patient ID (PID)\n• Stop ID (SID)\n• Delivery Date\n• Driver');
+      return;
+    }
+    
+    setConfirmDialog({
+      open: true,
+      title: `Delete ${duplicatesToDelete.length} Duplicate Deliveries?`,
+      description: `Found ${duplicatesToDelete.length} duplicate deliveries (same PID + SID + Date + Driver). The oldest record in each group will be kept, and duplicates will be deleted. This action cannot be undone.`,
+      confirmText: 'Delete Duplicates',
+      variant: 'destructive',
+      onConfirm: () => performBulkDeleteDeliveries(duplicatesToDelete)
+    });
+  }, [patients, performBulkDeleteDeliveries]);
+
   const handleBackfillPUIDs = async (deliveriesToProcess) => {
     const count = deliveriesToProcess.length;
     const scope = deliveriesToProcess === filteredAndSortedDeliveries ? 'all filtered' : 'selected';
