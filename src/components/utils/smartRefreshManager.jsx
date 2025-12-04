@@ -18,7 +18,7 @@ class SmartRefreshManager {
     this.refreshCallbacks = new Set();
     this.refreshQueue = [];
     this.lastRefreshTime = 0;
-    this.minRefreshInterval = 14900; // ~15 seconds minimum between full refreshes
+    this.minRefreshInterval = 30000; // 30 seconds minimum between full refreshes
     this.lastFullRefreshTime = 0; // Track full refresh separately
     
     // Real-time refresh intervals (milliseconds) - AGGRESSIVE rate limit protection
