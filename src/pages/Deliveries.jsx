@@ -558,31 +558,10 @@ export default function DeliveriesPage() {
     }
   }, [contextDataLoaded, contextDeliveries, contextPatients, contextStores, contextCities, contextUsers, dataLoaded, allDeliveries.length, allPatients.length, allUsers.length]);
 
-  // Force smart refresh when Driver Overview page is active - ONLY ONCE on initial load
-  const driverOverviewInitialized = useRef(false);
-  
-  useEffect(() => {
-    if (!isDriverOverviewMode || !dataLoaded || !hasAccess) return;
-    
-    // Only run once per session to prevent repeated refreshes
-    if (driverOverviewInitialized.current) return;
-    driverOverviewInitialized.current = true;
-
-    console.log('🔄 [Deliveries] Driver Overview active - triggering initial smart refresh');
-
-    // Reset refresh timers to force immediate refresh
-    smartRefreshManager.lastRefreshTimes = {
-      driverLocation: 0,
-      activeDeliveries: 0,
-      todayDeliveries: 0,
-      appUsers: 0,
-      todayPatients: 0,
-      patients: 0,
-      stores: 0
-    };
-
-    // Note: Removed setRefreshKey trigger to prevent unnecessary re-renders
-  }, [isDriverOverviewMode, dataLoaded, hasAccess]);
+  // REMOVED: Force smart refresh on Driver Overview load
+  // This was causing data to disappear because it reset refresh timers
+  // which triggered Layout's smart refresh to overwrite freshly loaded data with stale/empty data
+  // The normal smart refresh cycle in Layout handles this correctly now
 
   // Run checkAccess on mount to set hasAccess state
   useEffect(() => {
