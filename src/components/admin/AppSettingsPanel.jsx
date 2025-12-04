@@ -123,9 +123,16 @@ export default function AppSettingsPanel() {
         const loaded = { ...DEFAULT_INTERVALS, ...settings[0].setting_value };
         setIntervals(loaded);
         setSavedIntervals(loaded);
+        // Load smart refresh enabled state
+        const enabled = settings[0].setting_value.smartRefreshEnabled !== false;
+        setSmartRefreshEnabled(enabled);
+        setSavedSmartRefreshEnabled(enabled);
+        smartRefreshManager.enabled = enabled;
       } else {
         setIntervals(DEFAULT_INTERVALS);
         setSavedIntervals(DEFAULT_INTERVALS);
+        setSmartRefreshEnabled(true);
+        setSavedSmartRefreshEnabled(true);
       }
     } catch (error) {
       console.error('Failed to load app settings:', error);
