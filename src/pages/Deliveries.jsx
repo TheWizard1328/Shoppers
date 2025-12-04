@@ -2718,6 +2718,9 @@ export default function DeliveriesPage() {
       return [];
     }
 
+    // Get today's date for today stats
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+
     const cards = driversToShow.map((driver) => {
       const driverDeliveries = yearFilteredDeliveries.filter((d) => {
         if (d.driver_id && (d.driver_id === driver.id || d.driver_id === driver.appUserId)) {
@@ -2756,6 +2759,26 @@ export default function DeliveriesPage() {
       // Calculate failed (deliveries with 'failed' status)
       const failed = driverDeliveries.filter((d) => d.status === 'failed').length;
 
+      // TODAY's stats - filter to today's deliveries only
+      const todayDeliveries = driverDeliveries.filter((d) => d.delivery_date === todayStr);
+      
+      // Check if delivery is a return (helper for today stats)
+      const isReturn = (delivery) => {
+        if (!delivery) return false;
+        const patient = effectivePatients.find((p) => p.id === delivery.patient_id);
+        const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return');
+        const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
+        return notesReturn || addressReturn;
+      };
+
+      const todayStats = {
+        active: todayDeliveries.filter((d) => ['picked_up', 'in_transit', 'pending'].includes(d.status)).length,
+        completed: todayDeliveries.filter((d) => d.status === 'completed' || d.status === 'delivered').length,
+        failed: todayDeliveries.filter((d) => d.status === 'failed' && !isReturn(d)).length,
+        returned: todayDeliveries.filter((d) => d.status === 'returned' || isReturn(d)).length,
+        total: todayDeliveries.length
+      };
+
       const firstName = getDriverDisplayName(driver);
 
       return {
@@ -2768,7 +2791,8 @@ export default function DeliveriesPage() {
           failed,
           returned,
           completionRate: totalStops > 0 ? Math.round(completed / totalStops * 100) : 0
-        }
+        },
+        todayStats
       };
     });
 
