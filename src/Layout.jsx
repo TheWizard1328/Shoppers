@@ -1623,42 +1623,29 @@ export default function Layout({ children, currentPageName }) {
     const fetchStats = async () => {
       try {
         const storeIds = stores.map(s => s?.id).filter(Boolean);
-        console.log('📊 [Layout] Fetching nav panel stats...');
         const response = await base44.functions.invoke('getDeliveryStats', {
           selectedDate: globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd'),
           storeIds: storeIds.length > 0 ? storeIds : null
         });
 
-        console.log('📊 [Layout] Raw response from getDeliveryStats:', response);
-        console.log('📊 [Layout] Response type:', typeof response);
-        console.log('📊 [Layout] Response keys:', response ? Object.keys(response) : 'null');
+        // DEBUG: Log the response structure
+        console.log('📊 [NavStats] Response:', JSON.stringify(response, null, 2));
 
         // Handle both response.data (axios-style) and direct response
         const data = response?.data || response;
-        console.log('📊 [Layout] Extracted data:', data);
-        console.log('📊 [Layout] Data keys:', data ? Object.keys(data) : 'null');
         
         if (data?.routeCounts) {
-          console.log('✅ [Layout] Setting routeCounts:', data.routeCounts);
           setRouteCounts(data.routeCounts);
-        } else {
-          console.warn('⚠️ [Layout] No routeCounts in response. Data structure:', JSON.stringify(data, null, 2));
         }
         if (data?.entityCounts) {
-          console.log('✅ [Layout] Setting entityCounts:', data.entityCounts);
           setEntityCounts(data.entityCounts);
-        } else {
-          console.warn('⚠️ [Layout] No entityCounts in response');
         }
       } catch (error) {
-        console.error('❌ [Layout] Failed to fetch stats:', error);
-        console.error('❌ [Layout] Error details:', error.message, error.stack);
+        console.error('❌ [NavStats] Error:', error.message);
       }
     };
 
-    // Delay initial fetch to avoid competing with other init calls
     const timer = setTimeout(fetchStats, 2000);
-    // Refresh every 5 minutes
     const interval = setInterval(fetchStats, 300000);
 
     return () => {
