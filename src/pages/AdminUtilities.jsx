@@ -706,6 +706,15 @@ const DeliveryDataTable = ({
                   Backfill PUIDs (All {(deliveries || []).length})
                 </Button>
                 <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onDeleteDuplicates(deliveries)}
+                  disabled={isLoadingData}
+                  className="text-orange-600 border-orange-300 hover:bg-orange-50"
+                >
+                  Delete Duplicates
+                </Button>
+                <Button
                   variant="destructive"
                   size="sm"
                   onClick={onDeleteAll}
