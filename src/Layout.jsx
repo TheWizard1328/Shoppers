@@ -1382,7 +1382,7 @@ export default function Layout({ children, currentPageName }) {
       console.log(`🎯 [Layout] Priority date for fast UI: ${priorityDateStr}`);
 
       // Load selected date first, then full 30 days
-      const deliveriesData = await loadDeliveries(deliveryFilter, forceRefresh, selectedDateStr, (priorityDeliveries, dateStr) => {
+      const deliveriesData = await loadDeliveries(deliveryFilter, forceRefresh, priorityDateStr, (priorityDeliveries, dateStr) => {
         // Immediately update state with priority date data for fast UI
         console.log(`⚡ [Layout] Fast UI update: ${priorityDeliveries.length} deliveries for ${dateStr}`);
         setDeliveries(priorityDeliveries);
