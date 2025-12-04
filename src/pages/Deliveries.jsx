@@ -2760,12 +2760,28 @@ export default function DeliveriesPage() {
           if (deliveryDriverName === driverFullName || deliveryDriverName === driverUserName) {
             return true;
           }
+          
+          // Additional fallback: partial match for first name only (handles "lisa" matching "Lisa S")
+          const driverFirstName = driverUserName.split(' ')[0];
+          if (driverFirstName && deliveryDriverName === driverFirstName) {
+            return true;
+          }
         }
         
         return false;
       });
 
       const totalStops = driverDeliveries.length;
+
+      // Debug log for drivers with 0 deliveries to help troubleshoot
+      if (totalStops === 0 && yearFilteredDeliveries.length > 0) {
+        console.log(`🔍 [Driver Debug] ${driver.user_name || driver.full_name}:`, {
+          driverId: driver.id,
+          appUserId: driver.appUserId,
+          full_name: driver.full_name,
+          user_name: driver.user_name
+        });
+      }
 
       console.log(`🚗 Processing driver: ${driver.user_name || driver.full_name} - Found ${totalStops} deliveries in selected year`);
 
