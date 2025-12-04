@@ -14,6 +14,12 @@ import { useAppData } from "../components/utils/AppDataContext";
 
 export default function StoresPage() {
   const { currentUser } = useUser();
+  const { 
+    stores: contextStores = [], 
+    cities: contextCities = [], 
+    users: contextUsers = [], 
+    isDataLoaded: contextDataLoaded 
+  } = useAppData();
   const [stores, setStores] = useState([]);
   const [cities, setCities] = useState([]);
   const [drivers, setDrivers] = useState([]);
@@ -25,6 +31,37 @@ export default function StoresPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Sync context data for real-time updates
+  useEffect(() => {
+    if (contextDataLoaded) {
+      console.log("🔄 [Stores] Syncing data from AppDataContext");
+      if (contextStores.length > 0) {
+        const sortedStores = sortStores(contextStores);
+        setStores(sortedStores);
+      }
+      if (contextCities.length > 0) {
+        setCities(contextCities);
+      }
+      if (contextUsers.length > 0) {
+        const activeDrivers = contextUsers.filter(user =>
+          user &&
+          user.status === 'active' &&
+          (userHasRole(user, 'driver') || userHasRole(user, 'admin'))
+        );
+        const sortedDrivers = activeDrivers.sort((a, b) => {
+          const orderA = a.sort_order ?? Infinity;
+          const orderB = b.sort_order ?? Infinity;
+          if (orderA !== orderB) return orderA - orderB;
+          const nameA = a.user_name || a.full_name || '';
+          const nameB = b.user_name || b.full_name || '';
+          return nameA.localeCompare(nameB);
+        });
+        setDrivers(sortedDrivers);
+        setAllUsers(contextUsers);
+      }
+    }
+  }, [contextDataLoaded, contextStores, contextCities, contextUsers]);
 
   const loadData = async () => {
     try {
