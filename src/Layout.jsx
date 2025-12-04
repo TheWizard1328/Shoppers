@@ -2224,8 +2224,10 @@ export default function Layout({ children, currentPageName }) {
               setIsEntityUpdating: setIsEntityUpdating,
               smartRefreshActivity: smartRefreshActivity,
               setSmartRefreshActivity: setSmartRefreshActivity,
-              setOnSmartRefreshComplete: (callback) => { onSmartRefreshCompleteRef.current = callback; }
-            }}>
+              setOnSmartRefreshComplete: (callback) => { onSmartRefreshCompleteRef.current = callback; },
+              // Data is already loaded from last 30 days - Dashboard filters locally
+              dataReadyForSelectedDate: dataLoaded
+              }}>
             <div className="app-container">
               {isMobile && sidebarOpen &&
                 <div
