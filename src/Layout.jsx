@@ -1374,21 +1374,22 @@ export default function Layout({ children, currentPageName }) {
 
       await new Promise(resolve => setTimeout(resolve, 200));
 
-      // Step 5: PRIORITY LOADING - Load selected date first, then background load rest
-      const priorityDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
-      console.log(`🎯 [Layout] PRIORITY: Loading deliveries for selected date (${priorityDateStr}) FIRST...`);
+      // Step 5: Load deliveries - PRIORITY: Load selected date FIRST for fast UI
+      console.log(`📦 [Layout] Loading deliveries with priority date loading...`);
 
-      // Load selected date immediately for fast UI update
-      const priorityDeliveries = await loadDeliveriesForDate(priorityDateStr, deliveryFilter, forceRefresh);
-      console.log(`✅ [Layout] PRIORITY: Loaded ${priorityDeliveries.length} deliveries for ${priorityDateStr}`);
+      // Get the currently selected date from globalFilters
+      const selectedDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
+      console.log(`🎯 [Layout] Priority date for fast UI: ${selectedDateStr}`);
 
-      // Update state immediately with priority data so Dashboard can render
-      setDeliveries(priorityDeliveries);
-
-      // Now load full 30-day range in background (will include priority date data)
-      console.log(`📦 [Layout] Background loading last 30 days of deliveries...`);
-      const deliveriesData = await loadDeliveries(deliveryFilter, forceRefresh);
-      console.log(`✅ [Layout] Loaded ${deliveriesData.length} total deliveries (30 days)`);
+      // Load selected date first, then full 30 days
+      const deliveriesData = await loadDeliveries(deliveryFilter, forceRefresh, selectedDateStr, (priorityDeliveries, dateStr) => {
+        // Immediately update state with priority date data for fast UI
+        console.log(`⚡ [Layout] Fast UI update: ${priorityDeliveries.length} deliveries for ${dateStr}`);
+        setDeliveries(priorityDeliveries);
+        // Mark data as loaded so Dashboard can render immediately
+        setDataLoaded(true);
+      });
+      console.log(`✅ [Layout] Loaded ${deliveriesData.length} total deliveries (last 30 days)`);
 
       await new Promise(resolve => setTimeout(resolve, 200));
 
@@ -1486,7 +1487,11 @@ export default function Layout({ children, currentPageName }) {
       setDrivers(activeDrivers);
       setStores(allStores);
       setPatients(patientsData);
-      setDeliveries(deliveriesData);
+      // CRITICAL: Only update deliveries if we haven't already set them from priority load
+      // or if the full load has more data (includes other dates)
+      if (deliveriesData.length >= (deliveries?.length || 0)) {
+        setDeliveries(deliveriesData);
+      }
       setAppUsers(allAppUsers);
 
       setDataLoaded(true);
