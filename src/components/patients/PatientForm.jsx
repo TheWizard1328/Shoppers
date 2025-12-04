@@ -544,7 +544,7 @@ export default function PatientForm({
   const pidBackgroundColor = isPIDValid === null ? '' : isPIDValid ? 'bg-emerald-50' : 'bg-red-50';
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 pt-20 lg:pt-4 z-[9999] lg:pl-64">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 pt-20 lg:pt-4 z-[10020] lg:pl-64">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
