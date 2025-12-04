@@ -5,16 +5,19 @@ import { AnimatePresence, motion } from "framer-motion";
 import { isAppOwner } from '../utils/userRoles';
 import { useUser } from '../utils/UserContext';
 import { offlineManager } from '../utils/offlineManager';
+import { smartRefreshManager } from '../utils/smartRefreshManager';
 
 /**
  * Smart Refresh Indicator - Shows app owners when smart refresh is active
  * and which entities were updated (A=AppUser, P=Patient, D=Delivery, S=Store)
+ * Now inline and clickable to trigger manual refresh
  */
-export default function SmartRefreshIndicator() {
-  const { smartRefreshActivity, isEntityUpdating } = useAppData();
+export default function SmartRefreshIndicator({ inline = false, onManualRefresh }) {
+  const { smartRefreshActivity, isEntityUpdating, refreshData } = useAppData();
   const { currentUser } = useUser();
   const [recentUpdates, setRecentUpdates] = useState([]);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
 
   // Clear updates after 3 seconds
   useEffect(() => {
