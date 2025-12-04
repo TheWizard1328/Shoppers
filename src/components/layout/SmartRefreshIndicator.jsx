@@ -68,59 +68,59 @@ export default function SmartRefreshIndicator() {
   };
 
   return (
-    <div className="flex flex-col items-center gap-1">
+    <div className="flex flex-col items-center gap-1 z-[601]">
       {/* Spinning icon when active, paused indicator, or static when idle */}
-      <div 
+      <div
         className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
-          !isOnline ? 'bg-red-500' : isPaused ? 'bg-yellow-100' : isActive ? 'bg-emerald-500' : 'bg-slate-100'
-        }`}
-        title={!isOnline ? 'Offline - changes will sync when online' : isPaused ? 'Smart refresh paused' : isActive ? 'Smart refresh active' : 'Smart refresh idle'}
-      >
-        {!isOnline ? (
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          >
+        !isOnline ? 'bg-red-500' : isPaused ? 'bg-yellow-100' : isActive ? 'bg-emerald-500' : 'bg-slate-100'}`
+        }
+        title={!isOnline ? 'Offline - changes will sync when online' : isPaused ? 'Smart refresh paused' : isActive ? 'Smart refresh active' : 'Smart refresh idle'}>
+
+        {!isOnline ?
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
+
             <RefreshCw className="w-3.5 h-3.5 text-white" />
-          </motion.div>
-        ) : isActive && !isPaused ? (
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          >
+          </motion.div> :
+        isActive && !isPaused ?
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
+
             <RefreshCw className="w-3.5 h-3.5 text-white" />
-          </motion.div>
-        ) : isPaused ? (
-          <div className="w-2 h-2 rounded-full bg-yellow-500" />
-        ) : (
-          <RefreshCw className="w-3.5 h-3.5 text-slate-400" />
-        )}
+          </motion.div> :
+        isPaused ?
+        <div className="w-2 h-2 rounded-full bg-yellow-500" /> :
+
+        <RefreshCw className="w-3.5 h-3.5 text-slate-400" />
+        }
       </div>
 
       {/* Updated entities badges - vertical stack */}
       <AnimatePresence>
-        {hasUpdates && (
+        {hasUpdates &&
+        <motion.div
+          initial={{ opacity: 0, y: -5 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -5 }}
+          className="flex flex-col gap-0.5">
+
+            {recentUpdates.map((entity) =>
           <motion.div
-            initial={{ opacity: 0, y: -5 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -5 }}
-            className="flex flex-col gap-0.5"
-          >
-            {recentUpdates.map((entity) => (
-              <motion.div
-                key={entity}
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                exit={{ scale: 0 }}
-                className={`w-5 h-5 rounded text-[10px] font-bold text-white flex items-center justify-center ${entityColors[entity] || 'bg-slate-500'}`}
-                title={entity}
-              >
+            key={entity}
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            exit={{ scale: 0 }}
+            className={`w-5 h-5 rounded text-[10px] font-bold text-white flex items-center justify-center ${entityColors[entity] || 'bg-slate-500'}`}
+            title={entity}>
+
                 {entityLabels[entity] || '?'}
               </motion.div>
-            ))}
+          )}
           </motion.div>
-        )}
+        }
       </AnimatePresence>
-    </div>
-  );
+    </div>);
+
 }
