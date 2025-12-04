@@ -9,7 +9,7 @@ import { Patient } from "@/entities/Patient";
 import { City } from "@/entities/City";
 import { Store } from "@/entities/Store";
 import { format } from "date-fns";
-import { getData, invalidate, loadDeliveries, loadDeliveriesForDate } from './components/utils/dataManager';
+import { getData, invalidate, loadDeliveries, loadDeliveriesForDate, loadFullMonthDeliveries } from './components/utils/dataManager';
 import { smartRefreshManager } from './components/utils/smartRefreshManager';
 import {
   LayoutDashboard,
@@ -1337,126 +1337,107 @@ export default function Layout({ children, currentPageName }) {
       const selectedYear = selectedDate.getFullYear();
 
       console.log(`📅 [Layout] Starting sequential data loading with rate limit protection...`);
-      console.log(`📋 [Layout] Load order: AppUsers → Cities → Stores → Patients → Deliveries`);
+      console.log(`📋 [Layout] NEW Load order: AppUsers → Cities → Stores → Patients → Deliveries (selected date) → UI Render → Full Month Background`);
       console.log(`⏱️ [Layout] Adding 200ms delays between entity loads to prevent rate limits`);
 
-      // Cities are checked in Step 2 of the loading sequence
       let workingCities = cities;
-
       const isAdmin = userHasRole(currentUser, 'admin');
 
-      // Load data sequentially with delays: AppUsers → Cities → Stores → Patients → Deliveries
-      // Step 1: AppUsers (needed for driver/dispatcher info)
+      // Step 1: AppUsers
       const allAppUsers = await getData('AppUser', null, null, forceRefresh);
-      console.log(`✅ [Layout] Loaded ${allAppUsers.length} AppUsers`);
-
-      // CRITICAL: Add delay between entity loads to prevent rate limits
+      console.log(`✅ [Layout] Step 1: Loaded ${allAppUsers.length} AppUsers`);
       await new Promise(resolve => setTimeout(resolve, 200));
 
-      // Step 2: Cities (if not already loaded)
+      // Step 2: Cities
       if (!workingCities || workingCities.length === 0) {
         workingCities = await City.list();
         workingCities.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
         setCities(workingCities);
-        console.log(`✅ [Layout] Loaded ${workingCities.length} Cities`);
+        console.log(`✅ [Layout] Step 2: Loaded ${workingCities.length} Cities`);
         await new Promise(resolve => setTimeout(resolve, 200));
       }
 
       // Step 3: Stores
       const allStores = await getData('Store', null, null, forceRefresh);
       allStores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
-      const allStoreIds = allStores.map(store => store && store.id).filter(Boolean);
-      console.log(`✅ [Layout] Loaded ${allStores.length} Stores`);
-
+      console.log(`✅ [Layout] Step 3: Loaded ${allStores.length} Stores`);
       await new Promise(resolve => setTimeout(resolve, 200));
 
-      // Initialize filters - will be refined based on role
+      // Step 4: Patients (with role-based filter)
       let patientFilter = {};
-      let deliveryFilter = {};
-
-      console.log('📦 [Layout] Loading data with role-based filtering...');
-
-      // NOTE: Patient filter is built AFTER deliveries are loaded (Step 5b)
-      // This allows us to include patients from cross-store deliveries
-
-      await new Promise(resolve => setTimeout(resolve, 200));
-
-      // Step 5: Load deliveries - PRIORITY: Load selected date FIRST for fast UI
-      console.log(`📦 [Layout] Loading deliveries with priority date loading...`);
-
-      // Get the currently selected date from globalFilters
-      const priorityDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
-      console.log(`🎯 [Layout] Priority date for fast UI: ${priorityDateStr}`);
-
-      // Load selected date first, then full 30 days
-      const deliveriesData = await loadDeliveries(deliveryFilter, forceRefresh, priorityDateStr, async (priorityDeliveries, dateStr) => {
-        // Immediately update state with priority date data for fast UI
-        console.log(`⚡ [Layout] Fast UI update: ${priorityDeliveries.length} deliveries for ${dateStr}`);
-        setDeliveries(priorityDeliveries);
-
-        // CRITICAL: Also load patients for priority deliveries immediately
-        const priorityPatientIds = [...new Set(priorityDeliveries.filter(d => d?.patient_id).map(d => d.patient_id))];
-        if (priorityPatientIds.length > 0) {
-          console.log(`⚡ [Layout] Fast loading ${priorityPatientIds.length} patients for priority date...`);
-          try {
-            const priorityPatients = await Patient.filter({ id: { $in: priorityPatientIds } });
-            console.log(`⚡ [Layout] Fast UI update: ${priorityPatients.length} patients for ${dateStr}`);
-            setPatients(priorityPatients);
-          } catch (err) {
-            console.warn('⚠️ [Layout] Error loading priority patients:', err);
-          }
-        }
-
-        // Mark data as loaded so Dashboard can render immediately
-        setDataLoaded(true);
-      });
-      console.log(`✅ [Layout] Loaded ${deliveriesData.length} total deliveries (last 30 days)`);
-
-      await new Promise(resolve => setTimeout(resolve, 200));
-
-      // Step 5b: Build role-based patient filter AFTER deliveries are loaded
-      // Drivers/Dispatchers: Only load patients from assigned stores + patients in their deliveries
       if (!isAdmin) {
         const userStoreIds = currentUser.store_ids || [];
+        if (userStoreIds.length > 0) {
+          patientFilter = { store_id: { $in: userStoreIds } };
+        }
+      }
+      const patientsData = await getData('Patient', null, patientFilter, forceRefresh);
+      setPatients(patientsData);
+      console.log(`✅ [Layout] Step 4: Loaded ${patientsData.length} Patients`);
+      await new Promise(resolve => setTimeout(resolve, 200));
 
-        // Get unique patient IDs from this user's deliveries (handles cross-store transfers)
-        const patientIdsFromDeliveries = [...new Set(
-          deliveriesData
-            .filter(d => d && d.patient_id)
-            .map(d => d.patient_id)
-        )];
-
-        console.log(`🎯 [Layout] Building role-based patient filter:`);
-        console.log(`   - User's assigned stores: ${userStoreIds.length}`);
-        console.log(`   - Patient IDs from deliveries: ${patientIdsFromDeliveries.length}`);
-
-        // Build $or filter: patients from assigned stores OR patients in deliveries
-        if (userStoreIds.length > 0 || patientIdsFromDeliveries.length > 0) {
-          const orConditions = [];
-          if (userStoreIds.length > 0) {
-            orConditions.push({ store_id: { $in: userStoreIds } });
-          }
-          if (patientIdsFromDeliveries.length > 0) {
-            orConditions.push({ id: { $in: patientIdsFromDeliveries } });
-          }
-          patientFilter = { $or: orConditions };
+      // Step 5: Deliveries - selected date first, then background full month
+      let deliveryFilter = {};
+      if (!isAdmin) {
+        if (userHasRole(currentUser, 'driver')) {
+          deliveryFilter.driver_id = currentUser.id;
+        }
+        if (currentUser.store_ids?.length > 0) {
+          deliveryFilter.store_id = { $in: currentUser.store_ids };
         }
       }
 
-      // CRITICAL: Only admins can list all Users (others get 403)
+      await loadDeliveries(
+        selectedDateStr,
+        deliveryFilter,
+        forceRefresh,
+        // Initial load callback (selected date only)
+        (initialDeliveries) => {
+          console.log(`⚡ [Layout] Step 5a: Initial UI update with ${initialDeliveries.length} deliveries for ${selectedDateStr}`);
+          setDeliveries(initialDeliveries);
+
+          // Update patient cache with missing patients from deliveries
+          const patientIdsInDeliveries = [...new Set(initialDeliveries.filter(d => d?.patient_id).map(d => d.patient_id))];
+          const existingPatientIds = new Set(patientsData.map(p => p.id));
+          const missingPatientIds = patientIdsInDeliveries.filter(pId => !existingPatientIds.has(pId));
+
+          if (missingPatientIds.length > 0) {
+            console.log(`⚡ [Layout] Fetching ${missingPatientIds.length} missing patients...`);
+            Patient.filter({ id: { $in: missingPatientIds } }).then(newPatients => {
+              setPatients(prev => [...prev, ...newPatients]);
+              console.log(`✅ [Layout] Added ${newPatients.length} missing patients`);
+            }).catch(err => {
+              console.warn('⚠️ [Layout] Error fetching missing patients:', err);
+            });
+          }
+
+          // UI is ready to render
+          setDataLoaded(true);
+          console.log(`✅ [Layout] === UI READY - Dashboard can render ===`);
+        },
+        // Background full month callback
+        (fullMonthDeliveries) => {
+          console.log(`🔄 [Layout] Step 5b: Background merge of ${fullMonthDeliveries.length} full month deliveries`);
+          setDeliveries(prevDeliveries => {
+            const map = new Map();
+            fullMonthDeliveries.forEach(d => map.set(d.id, d));
+            prevDeliveries.forEach(d => map.set(d.id, d)); // Selected date takes priority
+            return Array.from(map.values());
+          });
+          console.log(`✅ [Layout] Background: Full month merged`);
+        }
+      );
+
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      // Step 6: Users (admin only)
       let authUsersData = [];
       if (userHasRole(currentUser, 'admin')) {
-        // Step 6: Users (admin only - for merging with AppUsers)
         authUsersData = await getData('User', null, null, forceRefresh);
-        console.log(`✅ [Layout] Loaded ${authUsersData.length} platform Users (admin access)`);
+        console.log(`✅ [Layout] Step 6: Loaded ${authUsersData.length} Users`);
       } else {
-        console.log(`ℹ️ [Layout] Skipping User.list() - non-admin user (would get 403)`);
+        console.log(`ℹ️ [Layout] Step 6: Skipping User.list() - non-admin`);
       }
-
-      // Step 6b: Now load patients with role-based filter
-      const patientsData = await getData('Patient', null, patientFilter, forceRefresh);
-      console.log(`✅ [Layout] Loaded ${patientsData.length} Patients (role-based filter applied)`);
-
       await new Promise(resolve => setTimeout(resolve, 200));
 
       console.log('🔀 [Layout] Building merged user list from AppUsers and currentUser...');
@@ -1503,20 +1484,13 @@ export default function Layout({ children, currentPageName }) {
       console.log(`✅ [Layout] Populated ${activeDrivers.length} active drivers`);
 
 
-      console.log('💾 [Layout] Updating Layout state...');
+      console.log('💾 [Layout] Updating Layout state (users, drivers, stores, appUsers)...');
       setUsers(mergedUsers);
       setDrivers(activeDrivers);
       setStores(allStores);
-      setPatients(patientsData);
-      // CRITICAL: Only update deliveries if we haven't already set them from priority load
-      // or if the full load has more data (includes other dates)
-      if (deliveriesData.length >= (deliveries?.length || 0)) {
-        setDeliveries(deliveriesData);
-      }
       setAppUsers(allAppUsers);
 
-      setDataLoaded(true);
-      console.log("✅ [Layout] === PHASE 3: INITIAL DATA LOAD COMPLETE ===")
+      console.log("✅ [Layout] === PHASE 3: ALL DATA LOAD COMPLETE ===")
 
       } catch (error) {
       console.error("❌ [Layout] Error during full data load:", error);
@@ -1526,7 +1500,7 @@ export default function Layout({ children, currentPageName }) {
       setPatients([]);
       setDeliveries([]);
       setAppUsers([]);
-      setDataLoaded(true);
+      setDataLoaded(true); // Ensure it's set even on error
       } finally {
       triggerFullDataLoad.isRunning = false;
       }

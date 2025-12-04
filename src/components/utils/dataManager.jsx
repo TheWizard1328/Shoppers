@@ -320,39 +320,42 @@ export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh 
 };
 
 /**
- * Load deliveries for the last 30 days only
- * Route counts are now fetched from backend via getDeliveryStats function
- * 
- * @param {object} filters - Filters to apply (store_id, driver_id, etc.)
- * @param {boolean} forceRefresh - Force bypass cache
- * @param {string} priorityDate - Optional date to load first (for immediate UI update)
- * @param {function} onPriorityLoaded - Callback when priority date is loaded
- * @returns {Promise<Array>} - Deliveries from last 30 days
+ * Load full month of deliveries (background)
  */
-export const loadDeliveries = async (filters = {}, forceRefresh = false, priorityDate = null, onPriorityLoaded = null) => {
+export const loadFullMonthDeliveries = async (filters = {}, forceRefresh = false) => {
   const today = new Date();
   const todayStr = format(today, 'yyyy-MM-dd');
-  
-  // CRITICAL: If priority date specified, load that first for immediate UI update
-  if (priorityDate && onPriorityLoaded) {
-    console.log(`🎯 [dataManager] Priority loading: ${priorityDate}`);
-    const priorityDeliveries = await loadDeliveriesForDate(priorityDate, filters, forceRefresh);
-    
-    // Immediately notify callback with priority date data
-    onPriorityLoaded(priorityDeliveries, priorityDate);
-    console.log(`✅ [dataManager] Priority date ${priorityDate} loaded first (${priorityDeliveries.length} deliveries)`);
-  }
-  
-  // Load last 30 days of deliveries
   const last30Days = subDays(today, 30);
   const last30DaysStr = format(last30Days, 'yyyy-MM-dd');
-  
-  console.log(`🚀 [dataManager] Loading last 30 days of deliveries (${last30DaysStr} to ${todayStr})`);
-  
+
+  console.log(`🚀 [dataManager] Background: Loading full 30 days of deliveries (${last30DaysStr} to ${todayStr})`);
   const deliveries = await getDeliveriesForDateRange(last30DaysStr, todayStr, filters, forceRefresh);
-  console.log(`✅ [dataManager] Loaded ${deliveries.length} deliveries`);
-  
+  console.log(`✅ [dataManager] Background: Loaded ${deliveries.length} deliveries for full month`);
   return deliveries;
+};
+
+/**
+ * Load deliveries: selected date first, then full month in background
+ */
+export const loadDeliveries = async (
+  selectedDateStr,
+  filters = {},
+  forceRefresh = false,
+  onInitialLoadComplete = () => {},
+  onFullMonthLoadComplete = () => {}
+) => {
+  // 1. Load selected date deliveries first (for immediate UI)
+  const initialDeliveries = await loadDeliveriesForDate(selectedDateStr, filters, forceRefresh);
+  onInitialLoadComplete(initialDeliveries);
+  
+  // 2. Background: load full month's deliveries
+  loadFullMonthDeliveries(filters, forceRefresh).then(fullMonthDeliveries => {
+    onFullMonthLoadComplete(fullMonthDeliveries);
+  }).catch(error => {
+    console.error('❌ [dataManager] Error loading full month deliveries in background:', error);
+  });
+
+  return initialDeliveries;
 };
 
 /**
