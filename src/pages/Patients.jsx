@@ -220,7 +220,7 @@ const sortPatients = (patients) => {
   const today = new Date();
   const dayMapForGetDay = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
   const todayDayStr = dayMapForGetDay[getDay(today)];
-  
+
   // Day order starts from TODAY, not Monday
   const dayOrderFromToday = getDayOrderFromToday();
 
@@ -252,7 +252,7 @@ const sortPatients = (patients) => {
     // PRIORITY 4: Recurring patients come before non-recurring
     const aHasRecurring = aRecurring !== null;
     const bHasRecurring = bRecurring !== null;
-    
+
     if (aHasRecurring && !bHasRecurring) return -1;
     if (!aHasRecurring && bHasRecurring) return 1;
 
@@ -270,11 +270,11 @@ const sortPatients = (patients) => {
       if (aRecurring.type === 'weekly' && bRecurring.type === 'weekly') {
         // Find the nearest scheduled day for each (from today's perspective)
         const aNearestDayIndex = aRecurring.days && aRecurring.days.length > 0 ?
-          Math.min(...aRecurring.days.map(day => dayOrderFromToday.indexOf(day)).filter(i => i >= 0)) :
-          Infinity;
+        Math.min(...aRecurring.days.map((day) => dayOrderFromToday.indexOf(day)).filter((i) => i >= 0)) :
+        Infinity;
         const bNearestDayIndex = bRecurring.days && bRecurring.days.length > 0 ?
-          Math.min(...bRecurring.days.map(day => dayOrderFromToday.indexOf(day)).filter(i => i >= 0)) :
-          Infinity;
+        Math.min(...bRecurring.days.map((day) => dayOrderFromToday.indexOf(day)).filter((i) => i >= 0)) :
+        Infinity;
 
         if (aNearestDayIndex !== bNearestDayIndex) {
           return aNearestDayIndex - bNearestDayIndex;
@@ -299,11 +299,11 @@ const sortPatients = (patients) => {
         });
 
         const aNearestDayIndex = aScheduledDays.length > 0 ?
-          Math.min(...aScheduledDays.map(day => dayOrderFromToday.indexOf(day)).filter(i => i >= 0)) :
-          Infinity;
+        Math.min(...aScheduledDays.map((day) => dayOrderFromToday.indexOf(day)).filter((i) => i >= 0)) :
+        Infinity;
         const bNearestDayIndex = bScheduledDays.length > 0 ?
-          Math.min(...bScheduledDays.map(day => dayOrderFromToday.indexOf(day)).filter(i => i >= 0)) :
-          Infinity;
+        Math.min(...bScheduledDays.map((day) => dayOrderFromToday.indexOf(day)).filter((i) => i >= 0)) :
+        Infinity;
 
         if (aNearestDayIndex !== bNearestDayIndex) {
           return aNearestDayIndex - bNearestDayIndex;
@@ -379,14 +379,14 @@ function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, importS
     // Check for returns - delivery notes containing 'return' or patient address containing 'rtn'
     const isReturn = (delivery) => {
       if (!delivery) return false;
-      const patient = allPatients.find(p => p.id === delivery.patient_id);
+      const patient = allPatients.find((p) => p.id === delivery.patient_id);
       const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return');
       const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
       return notesReturn || addressReturn;
     };
 
-    const returnedDeliveries = storeDeliveries.filter(d => d.status === 'returned' || isReturn(d));
-    const failedDeliveries = storeDeliveries.filter(d => d.status === 'failed' && !isReturn(d));
+    const returnedDeliveries = storeDeliveries.filter((d) => d.status === 'returned' || isReturn(d));
+    const failedDeliveries = storeDeliveries.filter((d) => d.status === 'failed' && !isReturn(d));
 
     return {
       activeRoutes: storeDeliveries.filter((d) => ['picked_up', 'in_transit', 'pending'].includes(d.status)).length,
@@ -470,7 +470,7 @@ function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, importS
                   </div>
                   <div className="border-t border-slate-100 pt-2 mt-2">
                     {stats.totalRoutes > 0 &&
-                    <div className="grid grid-cols-4 gap-1 text-center text-xs font-medium mb-2">
+                    <div className="text-xs font-medium text-center grid grid-cols-4 gap-1">
                         <div className="text-blue-600">
                           <div className="text-lg font-bold">{stats.activeRoutes}</div>
                           <div>Active</div>
@@ -630,7 +630,7 @@ export default function Patients() {
 
   const [cities, setCities] = useState([]);
   const [selectedCityId, setSelectedCityId] = useState("all");
-  
+
   // Unfiltered deliveries for patient history (all drivers)
   const [allDriverDeliveries, setAllDriverDeliveries] = useState([]);
 
@@ -642,14 +642,14 @@ export default function Patients() {
 
   // Add state for header container width tracking
   const [headerElement, setHeaderElement] = useState(null);
-  const headerRef = useCallback(node => {
+  const headerRef = useCallback((node) => {
     if (node !== null) {
       setHeaderElement(node);
     }
   }, []);
   const [headerWidth, setHeaderWidth] = useState(0);
   const [useCompactLayout, setUseCompactLayout] = useState(false);
-  
+
   // Device detection - memoized to prevent unnecessary re-renders
   const isMobile = useMemo(() => {
     const { deviceType } = getUserAgentInfo();
@@ -664,20 +664,20 @@ export default function Patients() {
     if (contextDataLoaded) {
       console.log("🔄 [Patients] Syncing data from AppDataContext");
       console.log(`   contextUsers.length: ${contextUsers.length}, contextAppUsers.length: ${contextAppUsers.length}`);
-      
+
       // Always sync when context updates
       setAllPatients(contextPatients);
       setDeliveries(contextDeliveries);
       setStores(contextStores);
       setDrivers(contextDrivers);
-      
+
       // CRITICAL FIX: Use contextUsers if available, otherwise fall back to contextAppUsers
       const finalUsers = contextUsers.length > 0 ? contextUsers : contextAppUsers;
       console.log(`   Setting allUsers to: ${finalUsers.length} users`);
       setAllUsers(finalUsers);
-      
+
       // Force refresh of import stats display when data changes
-      setImportStats(prev => prev ? { ...prev, timestamp: new Date() } : null);
+      setImportStats((prev) => prev ? { ...prev, timestamp: new Date() } : null);
     }
   }, [contextDataLoaded, contextPatients, contextDeliveries, contextStores, contextDrivers, contextUsers, contextAppUsers]);
 
@@ -685,7 +685,7 @@ export default function Patients() {
   useEffect(() => {
     const fetchAllDeliveries = async () => {
       if (!hasAccess || !contextDataLoaded) return;
-      
+
       try {
         const allDeliveries = await getData('Delivery', '-delivery_date');
         setAllDriverDeliveries(allDeliveries || []);
@@ -693,7 +693,7 @@ export default function Patients() {
         console.error('[Patients] Error fetching all deliveries:', error);
       }
     };
-    
+
     fetchAllDeliveries();
   }, [hasAccess, contextDataLoaded]);
 
@@ -744,14 +744,14 @@ export default function Patients() {
 
   const getStoreOverview = useCallback((cityIdOverride = null) => {
     const currentCityFilter = cityIdOverride !== null ? cityIdOverride : selectedCityId;
-    
+
     // CRITICAL: Admins see ALL stores regardless of city filter
     let cityStores;
     if (currentUser && userHasRole(currentUser, 'admin')) {
       cityStores = [...stores]; // All stores for admins
     } else {
       cityStores = stores.filter((store) =>
-        currentCityFilter === "all" || store.city_id === currentCityFilter
+      currentCityFilter === "all" || store.city_id === currentCityFilter
       );
     }
 
@@ -775,13 +775,13 @@ export default function Patients() {
   const handleStoreOverviewClick = useCallback((storeId) => {
     console.log(`[Patients] handleStoreOverviewClick called with storeId: ${storeId}`);
     setStoreFilter(storeId);
-    
+
     // Auto-select the store's city
-    const selectedStore = stores.find(s => s.id === storeId);
+    const selectedStore = stores.find((s) => s.id === storeId);
     if (selectedStore?.city_id) {
       setSelectedCityId(selectedStore.city_id);
     }
-    
+
     const urlParams = new URLSearchParams(location.search);
     urlParams.set('store', storeId);
     const newUrl = `${location.pathname}?${urlParams.toString()}`;
@@ -928,11 +928,11 @@ export default function Patients() {
   // Combined useEffect for final isLoading state
   useEffect(() => {
     // isLoading remains true until all conditions are met or access is definitively denied.
-    if (currentUser === undefined) { // Still waiting for initUserAndAccess to run
+    if (currentUser === undefined) {// Still waiting for initUserAndAccess to run
       setIsLoading(true);
-    } else if (!hasAccess) { // Access denied after initUserAndAccess
+    } else if (!hasAccess) {// Access denied after initUserAndAccess
       setIsLoading(false);
-    } else if (hasAccess && contextDataLoaded && cities.length > 0) { // All good, data and access ready
+    } else if (hasAccess && contextDataLoaded && cities.length > 0) {// All good, data and access ready
       setIsLoading(false);
     }
     // If hasAccess is true but contextDataLoaded is false, or cities are not yet loaded, isLoading remains true.
@@ -970,7 +970,7 @@ export default function Patients() {
   // Add ResizeObserver to track header width and dynamically calculate layout
   useEffect(() => {
     console.log(`[Patients - ResizeObserver useEffect] Starting... isMobile: ${isMobile}, headerElement exists: ${!!headerElement}`);
-    
+
     if (!headerElement) {
       console.log(`[Patients - ResizeObserver useEffect] headerElement is null, exiting`);
       return;
@@ -980,7 +980,7 @@ export default function Patients() {
       for (const entry of entries) {
         const width = entry.contentRect.width;
         setHeaderWidth(width);
-        
+
         // Simple two-rule breakpoint logic:
         // Rule 1: isMobile = true, OR
         // Rule 2: Screen width < 840px
@@ -1599,11 +1599,11 @@ export default function Patients() {
                 <div className="flex flex-col gap-3 mb-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 relative">
-                      {isLoading && (
-                        <div className="absolute -left-8 top-1/2 -translate-y-1/2">
+                      {isLoading &&
+                  <div className="absolute -left-8 top-1/2 -translate-y-1/2">
                           <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
                         </div>
-                      )}
+                  }
                       <h1 className="text-2xl font-bold text-slate-900">Patient Database</h1>
                       <Badge
                     className="text-white px-2.5 py-0.5 text-sm font-semibold rounded-md"
@@ -1632,11 +1632,11 @@ export default function Patients() {
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
                 <div>
                   <div className="flex items-center gap-3 relative">
-                    {isLoading && (
-                      <div className="absolute -left-8 top-1/2 -translate-y-1/2">
+                    {isLoading &&
+                <div className="absolute -left-8 top-1/2 -translate-y-1/2">
                         <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
                       </div>
-                    )}
+                }
                     <h1 className="text-3xl font-bold text-slate-900">Patient Database</h1>
                     <Badge className="bg-primary text-white px-3 py-1 text-lg font-semibold rounded-[10px] inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent shadow hover:bg-primary/80"
 
@@ -1710,7 +1710,7 @@ export default function Patients() {
                     value={selectedCityId}
                     onValueChange={(cityId) => {
                       setSelectedCityId(cityId);
-                      
+
                       // When selecting "All Cities", also select "All Stores"
                       if (cityId === 'all') {
                         setStoreFilter('all');
@@ -1758,15 +1758,15 @@ export default function Patients() {
                     onValueChange={(value) => {
                       console.log(`[Patients] Store filter changed to: ${value}`);
                       setStoreFilter(value);
-                      
+
                       // Auto-select corresponding city when store is selected
                       if (value !== 'all') {
-                        const selectedStore = stores.find(s => s.id === value);
+                        const selectedStore = stores.find((s) => s.id === value);
                         if (selectedStore?.city_id && selectedStore.city_id !== selectedCityId) {
                           setSelectedCityId(selectedStore.city_id);
                         }
                       }
-                      
+
                       const urlParams = new URLSearchParams(location.search);
                       urlParams.set('store', value);
                       navigate(`${location.pathname}?${urlParams.toString()}`, { replace: true });
@@ -1846,7 +1846,7 @@ export default function Patients() {
                     value={selectedCityId}
                     onValueChange={(cityId) => {
                       setSelectedCityId(cityId);
-                      
+
                       // When "All Cities" is selected, also select "All Stores"
                       if (cityId === 'all') {
                         setStoreFilter('all');
@@ -1894,15 +1894,15 @@ export default function Patients() {
                     onValueChange={(value) => {
                       console.log(`[Patients] Store filter changed to: ${value}`);
                       setStoreFilter(value);
-                      
+
                       // Auto-select corresponding city when store is selected
                       if (value !== 'all') {
-                        const selectedStore = stores.find(s => s.id === value);
+                        const selectedStore = stores.find((s) => s.id === value);
                         if (selectedStore?.city_id && selectedStore.city_id !== selectedCityId) {
                           setSelectedCityId(selectedStore.city_id);
                         }
                       }
-                      
+
                       const urlParams = new URLSearchParams(location.search);
                       urlParams.set('store', value);
                       navigate(`${location.pathname}?${urlParams.toString()}`, { replace: true });
@@ -1964,11 +1964,11 @@ export default function Patients() {
           <div className="p-4">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div className="flex-1 relative">
-                {isLoading && (
-                  <div className="absolute -left-8 top-1/2 -translate-y-1/2">
+                {isLoading &&
+              <div className="absolute -left-8 top-1/2 -translate-y-1/2">
                     <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
                   </div>
-                )}
+              }
                 <h1 className="text-3xl font-bold text-slate-900">Store Overview</h1>
                 <p className="text-slate-600 mt-1">Select a store to view and manage patients</p>
               </div>
