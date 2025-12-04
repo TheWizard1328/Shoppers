@@ -140,9 +140,10 @@ const createMergedUser = (authUser, appUser) => {
   return merged;
 };
 
-const QuickStats = ({ currentUser, deliveries = [], patients = [] }) => {
+const QuickStats = ({ currentUser, storeIds = [] }) => {
   const [selectedDateStr, setSelectedDateStr] = useState(() => globalFilters.getSelectedDate());
-  const [, forceUpdate] = useState(0);
+  const [stats, setStats] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const checkDateChange = () => {
@@ -156,64 +157,36 @@ const QuickStats = ({ currentUser, deliveries = [], patients = [] }) => {
     return () => clearInterval(interval);
   }, [selectedDateStr]);
 
-  // Force re-render when deliveries array length changes (staged loading)
+  // Fetch stats from backend function (lightweight - no full data load)
   useEffect(() => {
-    forceUpdate(prev => prev + 1);
-  }, [deliveries.length]);
+    if (!currentUser) return;
 
-  const patientMap = useMemo(() => new Map((patients || []).filter(p => p && p.id).map((p) => [p.id, p])), [patients]);
+    const fetchStats = async () => {
+      try {
+        const driverId = userHasRole(currentUser, 'driver') ? currentUser.id : 
+                         globalFilters.getSelectedDriverId();
+        
+        const response = await base44.functions.invoke('getDeliveryStats', {
+          selectedDate: selectedDateStr,
+          driverId: driverId !== 'all' ? driverId : null,
+          storeIds: storeIds.length > 0 ? storeIds : null
+        });
+        
+        if (response.data) {
+          setStats(response.data);
+        }
+      } catch (error) {
+        console.error('Error fetching delivery stats:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  if (!currentUser) return null;
-
-  const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
-
-  const now = new Date();
-  const todayString = format(now, 'yyyy-MM-dd');
-  const isToday = format(selectedDate, 'yyyy-MM-dd') === todayString;
-
-  const selectedMonth = selectedDate.getMonth();
-  const selectedYear = selectedDate.getFullYear();
-
-  let visibleDeliveries = deliveries || [];
-
-  const isReturn = (delivery) => {
-    if (!delivery) return false;
-    const patient = patientMap.get(delivery.patient_id);
-    const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return');
-    const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
-    return notesReturn || addressReturn;
-  };
-
-  // Helper: Check if a stop is a "countable delivery" (patient delivery OR after-hours pickup)
-  const isCountableDelivery = (delivery) => {
-    if (!delivery) return false;
-    // Patient deliveries always count
-    if (delivery.patient_id) return true;
-    // After-hours pickups count as deliveries
-    if (!delivery.patient_id && delivery.after_hours_pickup) return true;
-    return false;
-  };
-
-  const selectedDateString = format(selectedDate, 'yyyy-MM-dd');
-  const selectedDateDeliveries = visibleDeliveries.filter((delivery) => delivery && delivery.delivery_date === selectedDateString);
-  const selectedDateActiveDrivers = userHasRole(currentUser, 'driver') ? 1 : new Set(selectedDateDeliveries.filter(delivery => delivery && delivery.driver_name).map((delivery) => delivery.driver_name)).size;
-  // Count completed: patient deliveries + after-hours pickups
-  const selectedDateCompleted = selectedDateDeliveries.filter((delivery) => delivery && ['completed', 'delivered'].includes(delivery.status) && isCountableDelivery(delivery)).length;
-  const selectedDateActiveStops = selectedDateDeliveries.filter((delivery) => delivery && (delivery.status === 'in_transit' || delivery.status === 'en_route')).length;
-
-  const selectedDateReturns = selectedDateDeliveries.filter(isReturn).length;
-  const selectedDatePureFailed = selectedDateDeliveries.filter((delivery) => delivery && delivery.status === 'failed' && !isReturn(delivery) && isCountableDelivery(delivery)).length;
-
-  const monthDeliveries = visibleDeliveries.filter((delivery) => {
-    if (!delivery || !delivery.delivery_date) return false;
-    const deliveryDate = new Date(delivery.delivery_date);
-    return deliveryDate.getMonth() === selectedMonth && deliveryDate.getFullYear() === selectedYear;
-  });
-  // Count completed: patient deliveries + after-hours pickups
-  const monthCompleted = monthDeliveries.filter((delivery) => delivery && ['completed', 'delivered'].includes(delivery.status) && isCountableDelivery(delivery)).length;
-
-  const monthReturns = monthDeliveries.filter(isReturn).length;
-  const monthPureFailed = monthDeliveries.filter((delivery) => delivery && delivery.status === 'failed' && !isReturn(delivery) && isCountableDelivery(delivery)).length;
+    fetchStats();
+    // Refresh stats every 60 seconds
+    const interval = setInterval(fetchStats, 60000);
+    return () => clearInterval(interval);
+  }, [currentUser, selectedDateStr, storeIds]);
 
   const StatItem = ({ icon: Icon, label, value, colorClass }) =>
     <div className="flex items-center justify-between text-sm">
@@ -224,6 +197,24 @@ const QuickStats = ({ currentUser, deliveries = [], patients = [] }) => {
       <Badge variant="secondary" className="inline-flex border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 bg-slate-100 text-slate-700 justify-center w-[55px] rounded-[10px]">{value}</Badge>
     </div>;
 
+  if (!currentUser) return null;
+
+  const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
+  const now = new Date();
+  const todayString = format(now, 'yyyy-MM-dd');
+  const isToday = format(selectedDate, 'yyyy-MM-dd') === todayString;
+
+  if (isLoading || !stats) {
+    return (
+      <div className="px-3 py-2">
+        <div className="animate-pulse space-y-2">
+          <div className="h-4 bg-slate-200 rounded w-1/2"></div>
+          <div className="h-6 bg-slate-200 rounded"></div>
+          <div className="h-6 bg-slate-200 rounded"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="px-3 py-2 space-y-3">
@@ -232,16 +223,15 @@ const QuickStats = ({ currentUser, deliveries = [], patients = [] }) => {
           {isToday ? 'Today:' : format(selectedDate, 'MMM dd, yyyy') + ':'}
         </h4>
         <div className="space-y-2">
-          {!userHasRole(currentUser, 'driver') && <StatItem icon={Truck} label="Active Drivers" value={selectedDateActiveDrivers} colorClass="text-blue-600" />}
-          <StatItem icon={Package} label="Active Stops" value={selectedDateActiveStops} colorClass="text-slate-600" />
-          <StatItem icon={CheckCircle} label="Completed" value={selectedDateCompleted} colorClass="text-green-600" />
-          {(selectedDatePureFailed > 0 || selectedDateReturns > 0) &&
+          {!userHasRole(currentUser, 'driver') && <StatItem icon={Truck} label="Active Drivers" value={stats.today.activeDrivers} colorClass="text-blue-600" />}
+          <StatItem icon={Package} label="Active Stops" value={stats.today.activeStops} colorClass="text-slate-600" />
+          <StatItem icon={CheckCircle} label="Completed" value={stats.today.completed} colorClass="text-green-600" />
+          {(stats.today.failed > 0 || stats.today.returns > 0) &&
             <StatItem
               icon={AlertCircle}
               label="Failed/Returned"
-              value={`${selectedDatePureFailed} / ${selectedDateReturns}`}
+              value={`${stats.today.failed} / ${stats.today.returns}`}
               colorClass="text-red-600" />
-
           }
         </div>
       </div>
@@ -249,19 +239,18 @@ const QuickStats = ({ currentUser, deliveries = [], patients = [] }) => {
       <div>
         <h4 className="xs font-semibold text-slate-500 uppercase tracking-wider mb-2">{format(selectedDate, 'MMMM yyyy')}:</h4>
         <div className="space-y-2">
-          <StatItem icon={CheckCircle} label="Completed" value={monthCompleted} colorClass="text-green-600" />
-          {(monthPureFailed > 0 || monthReturns > 0) &&
+          <StatItem icon={CheckCircle} label="Completed" value={stats.month.completed} colorClass="text-green-600" />
+          {(stats.month.failed > 0 || stats.month.returns > 0) &&
             <StatItem
               icon={AlertCircle}
               label="Failed/Returned"
-              value={`${monthPureFailed} / ${monthReturns}`}
+              value={`${stats.month.failed} / ${stats.month.returns}`}
               colorClass="text-red-600" />
-
           }
         </div>
       </div>
-    </div>);
-
+    </div>
+  );
 };
 
 const UserImpersonation = ({ users = [], onImpersonate, onStopImpersonating, impersonatingUser, currentUser }) => {
