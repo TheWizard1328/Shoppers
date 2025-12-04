@@ -2670,7 +2670,7 @@ export default function DeliveriesPage() {
 
     // Get all drivers (active AND inactive) who have driver role
     // Only include users with 'driver' role for the overview - not dispatchers or admins without driver role
-    const driversWithRoles = allUsers.filter((u) => {
+    const driversWithRoles = usersToUse.filter((u) => {
       if (!u) return false;
       const roles = Array.isArray(u.app_roles) ? u.app_roles : [];
       // Must have driver role to appear in Driver Overview
