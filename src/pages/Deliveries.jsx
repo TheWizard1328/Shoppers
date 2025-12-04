@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
@@ -56,8 +57,8 @@ import {
   Download,
   Upload,
   RotateCcw,
-  GripVertical } from
-"lucide-react";
+  GripVertical
+} from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { getEffectiveUser, isUserDataAvailable } from "../components/utils/auth";
 import StopCard from "../components/common/StopCard";
@@ -280,8 +281,7 @@ export default function DeliveriesPage() {
       const [storesData, appUsersData, citiesData] = await Promise.all([
       getData('Store', '-created_date', null, forceRefresh),
       getData('AppUser', '-created_date', null, forceRefresh),
-      getData('City', '-created_date', null, forceRefresh)]
-      );
+      getData('City', '-created_date', null, forceRefresh)]);
 
       if (isMounted.current) {
         setStores(storesData || []);
@@ -1242,9 +1242,8 @@ export default function DeliveriesPage() {
   activeDriver,
   hasAccess,
   groupedDeliveries,
-  isLoadingData]
-
-  );
+  isLoadingData
+  ]);
 
   // Sort deliveries by time for display - MATCHES DASHBOARD SORTING LOGIC
   // Extra rule: completed deliveries go to the bottom
@@ -1300,8 +1299,8 @@ export default function DeliveriesPage() {
           (patient?.address || '').toLowerCase().includes(lowerSearch) ||
           (d.driver_name || '').toLowerCase().includes(lowerSearch) ||
           (store?.name || '').toLowerCase().includes(lowerSearch) ||
-          (d.prescription_number || '').toLowerCase().includes(lowerSearch));
-
+          (d.prescription_number || '').toLowerCase().includes(lowerSearch)
+        );
       });
     }
 
@@ -3574,17 +3573,18 @@ export default function DeliveriesPage() {
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="px-3 py-3">
-                          {/* Today's Stats - single line */}
-                          {card.todayStats && card.todayStats.total > 0 &&
-                      <div className="mb-3 pb-3 border-b border-slate-100">
-                              <div className="flex items-center justify-center gap-2 text-xs font-medium flex-wrap">
+                          {/* Today's Stats - single line (fixed height for alignment) */}
+                          <div className="mb-3 pb-3 border-b border-slate-100 h-[40px] flex items-center justify-center">
+                            {card.todayStats && card.todayStats.total > 0 ?
+                            <div className="flex items-center justify-center gap-2 text-xs font-medium flex-wrap">
                                 <span className="text-blue-600">Active: {card.todayStats.active}</span>
                                 <span className="text-green-600">Comp: {card.todayStats.completed}</span>
                                 <span className="text-red-600">Failed: {card.todayStats.failed}</span>
                                 <span className="text-orange-600">Returns: {card.todayStats.returned}</span>
-                              </div>
-                            </div>
-                      }
+                              </div> :
+                            <div className="text-xs text-slate-400">No deliveries today</div>
+                            }
+                          </div>
                           <div className="space-y-1 text-sm">
                             <div className="flex justify-between items-center">
                               <span className="text-slate-600">Pickups:</span>
