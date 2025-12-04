@@ -1359,36 +1359,10 @@ export default function Layout({ children, currentPageName }) {
 
       await new Promise(resolve => setTimeout(resolve, 200));
 
-      // Step 5: Three-stage delivery loading for faster initial load
-      // Stage 1: Last 30 days (returned immediately)
-      // Stage 2 & 3: Rest of year + past years (background, merged into state)
-      console.log(`📦 [Layout] Starting three-stage delivery loading...`);
-      const stage1Deliveries = await loadDeliveriesThreeStage(
-        deliveryFilter,
-        // Stage 2 callback: merge rest of current year
-        (stage2Deliveries) => {
-          console.log(`🔄 [Layout] Stage 2 complete: merging ${stage2Deliveries.length} deliveries`);
-          setDeliveries(prev => {
-            const existingIds = new Set(prev.map(d => d.id));
-            const newDeliveries = stage2Deliveries.filter(d => !existingIds.has(d.id));
-            console.log(`🔄 [Layout] Stage 2: ${newDeliveries.length} new deliveries added (total: ${prev.length + newDeliveries.length})`);
-            return [...prev, ...newDeliveries];
-          });
-        },
-        // Stage 3 callback: merge past years
-        (stage3Deliveries) => {
-          console.log(`🔄 [Layout] Stage 3 complete: merging ${stage3Deliveries.length} deliveries`);
-          setDeliveries(prev => {
-            const existingIds = new Set(prev.map(d => d.id));
-            const newDeliveries = stage3Deliveries.filter(d => !existingIds.has(d.id));
-            console.log(`🔄 [Layout] Stage 3: ${newDeliveries.length} new deliveries added (total: ${prev.length + newDeliveries.length})`);
-            return [...prev, ...newDeliveries];
-          });
-        },
-        2, // yearsBack
-        forceRefresh
-      );
-      console.log(`✅ [Layout] Stage 1 loaded: ${stage1Deliveries.length} deliveries (last 30 days)`);
+      // Step 5: Load last 30 days of deliveries (route counts come from backend)
+      console.log(`📦 [Layout] Loading deliveries (last 30 days)...`);
+      const deliveriesData = await loadDeliveries(deliveryFilter, forceRefresh);
+      console.log(`✅ [Layout] Loaded ${deliveriesData.length} deliveries`);
 
       await new Promise(resolve => setTimeout(resolve, 200));
 
