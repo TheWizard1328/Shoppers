@@ -621,13 +621,77 @@ const DeliveryDataTable = ({
     return { date, time };
   };
 
-  const getStatusBadge = (status) => {
+  const [editingStatusId, setEditingStatusId] = useState(null);
+  const [editingDriverId, setEditingDriverId] = useState(null);
+
+  const handleStatusChange = useCallback(async (delivery, newStatus) => {
+    try {
+      await Delivery.update(delivery.id, { status: newStatus });
+      setEditingStatusId(null);
+      await refetchDeliveries();
+    } catch (error) {
+      console.error('Failed to update status:', error);
+      alert('Failed to update status: ' + error.message);
+    }
+  }, [refetchDeliveries]);
+
+  const handleDriverChange = useCallback(async (delivery, newDriverId) => {
+    try {
+      const driver = driversForDropdown.find(d => d && d.id === newDriverId);
+      const driverName = driver ? getDriverDisplayName(driver) : '';
+      
+      await Delivery.update(delivery.id, { 
+        driver_id: newDriverId,
+        driver_name: driverName
+      });
+      setEditingDriverId(null);
+      await refetchDeliveries();
+    } catch (error) {
+      console.error('Failed to update driver:', error);
+      alert('Failed to update driver: ' + error.message);
+    }
+  }, [driversForDropdown, refetchDeliveries]);
+
+  const getStatusBadge = (delivery) => {
+    const status = delivery.status;
+    const isEditing = editingStatusId === delivery.id;
+
+    if (isEditing) {
+      return (
+        <Select
+          value={status}
+          onValueChange={(newStatus) => handleStatusChange(delivery, newStatus)}
+          onOpenChange={(open) => {
+            if (!open) setEditingStatusId(null);
+          }}
+        >
+          <SelectTrigger className="h-7 w-full text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="z-[9999]">
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="Ready For Pickup">Ready For Pickup</SelectItem>
+            <SelectItem value="in_transit">In Transit</SelectItem>
+            <SelectItem value="en_route">En Route</SelectItem>
+            <SelectItem value="completed">Completed</SelectItem>
+            <SelectItem value="failed">Failed</SelectItem>
+            <SelectItem value="cancelled">Cancelled</SelectItem>
+            <SelectItem value="returned">Returned</SelectItem>
+          </SelectContent>
+        </Select>
+      );
+    }
+
     return (
-      <Badge variant={
-        status === 'completed' ? 'default' :
-        status === 'failed' ? 'destructive' :
-        'secondary'
-      }>
+      <Badge 
+        variant={
+          status === 'completed' ? 'default' :
+          status === 'failed' ? 'destructive' :
+          'secondary'
+        }
+        className="cursor-pointer hover:opacity-80"
+        onClick={() => setEditingStatusId(delivery.id)}
+      >
         {status}
       </Badge>
     );
