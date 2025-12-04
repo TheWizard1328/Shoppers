@@ -435,6 +435,7 @@ const ColumnVisibilityControl = ({ config, visibleColumns, onToggle }) => {
 
 const getData = async (entityName, sortKey) => {
   let data = [];
+  console.log(`📥 [getData] Fetching ${entityName}...`);
   try {
     switch (entityName) {
       case 'Patient':
@@ -450,7 +451,9 @@ const getData = async (entityName, sortKey) => {
         data = await AppUser.list();
         break;
       case 'Delivery':
+        console.log(`📥 [getData] Calling Delivery.list()...`);
         data = await Delivery.list();
+        console.log(`📥 [getData] Delivery.list() returned ${data?.length || 0} records`);
         break;
       case 'ActiveDeliveries':
         data = await ActiveDeliveries.list();
@@ -461,8 +464,9 @@ const getData = async (entityName, sortKey) => {
       default:
         data = [];
     }
+    console.log(`✅ [getData] ${entityName}: ${data?.length || 0} records fetched`);
   } catch (error) {
-    console.error(`[getData] Error fetching ${entityName} data:`, error);
+    console.error(`❌ [getData] Error fetching ${entityName} data:`, error);
     data = [];
   }
 
