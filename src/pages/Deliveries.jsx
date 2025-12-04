@@ -2615,21 +2615,28 @@ export default function DeliveriesPage() {
     console.log(`📅 Selected overview year: ${selectedOverviewYear}`);
     console.log(`📍 Selected City ID: ${selectedCityId}`);
     console.log(`📊 effectiveDeliveries count: ${effectiveDeliveries?.length || 0}`);
+    console.log(`📊 allDeliveries count: ${allDeliveries?.length || 0}`);
+    console.log(`📊 allPatients count: ${allPatients?.length || 0}`);
 
     // Safety check: ensure we have the required data
-    if (!effectiveDeliveries || !Array.isArray(effectiveDeliveries)) {
-      console.warn('⚠️ effectiveDeliveries is not available');
+    // CRITICAL: Use allDeliveries and allPatients as fallbacks when effective versions are empty
+    const deliveriesToUse = effectiveDeliveries?.length > 0 ? effectiveDeliveries : allDeliveries;
+    const patientsToUse = effectivePatients?.length > 0 ? effectivePatients : allPatients;
+    const usersToUse = allUsers?.length > 0 ? allUsers : [];
+
+    if (!deliveriesToUse || !Array.isArray(deliveriesToUse)) {
+      console.warn('⚠️ No deliveries available');
       return [];
     }
 
-    if (!allUsers || !Array.isArray(allUsers)) {
-      console.warn('⚠️ allUsers is not available');
+    if (!usersToUse || usersToUse.length === 0) {
+      console.warn('⚠️ No users available');
       return [];
     }
 
-    if (!effectivePatients || !Array.isArray(effectivePatients)) {
-      console.warn('⚠️ effectivePatients is not available');
-      return [];
+    if (!patientsToUse || !Array.isArray(patientsToUse)) {
+      console.warn('⚠️ No patients available');
+      // Don't return empty - patients are only needed for return detection
     }
 
     // Filter deliveries by selectedOverviewYear
