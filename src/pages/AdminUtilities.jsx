@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { User } from '@/entities/User';
 import { AppUser } from '@/entities/AppUser';
 import { Delivery } from '@/entities/Delivery';
-import { ActiveDeliveries } from '@/entities/ActiveDeliveries';
+// import { ActiveDeliveries } from '@/entities/ActiveDeliveries'; // This entity doesn't exist
 import { City } from '@/entities/City';
 import { Store } from '@/entities/Store';
 import { Patient } from '@/entities/Patient';
