@@ -1939,6 +1939,8 @@ export default function Layout({ children, currentPageName }) {
             display: flex !important;
             flex-direction: column !important;
             overflow: hidden !important;
+            max-height: 100vh !important;
+            max-height: 100dvh !important;
           }
         }
 
