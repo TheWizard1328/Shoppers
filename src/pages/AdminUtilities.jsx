@@ -3503,7 +3503,7 @@ export default function AdminUtilities() {
       variant: 'destructive',
       onConfirm: () => performBulkDeleteDeliveriesBatch(duplicatesToDelete)
     });
-  }, [patients, performBulkDeleteDeliveries]);
+  }, [patients, performBulkDeleteDeliveriesBatch]);
 
   const handleBackfillPUIDs = async (deliveriesToProcess) => {
     const count = deliveriesToProcess.length;
