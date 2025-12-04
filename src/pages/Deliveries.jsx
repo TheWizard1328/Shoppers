@@ -396,19 +396,18 @@ export default function DeliveriesPage() {
       let deliveriesData = [];
 
       if (isDriverOverviewMode) {
-        console.log('Fetching deliveries for overview mode');
-        let query = {};
-        if (selectedOverviewYear && selectedOverviewYear !== 'all') {
-          const year = parseInt(selectedOverviewYear, 10);
-          const startDate = new Date(year, 0, 1);
-          const endDate = new Date(year + 1, 0, 0); // Last day of the year
-          query.delivery_date = { $gte: format(startDate, 'yyyy-MM-dd'), $lte: format(endDate, 'yyyy-MM-dd') };
-          console.log(`Filtering deliveries for year ${selectedOverviewYear}: ${query.delivery_date.$gte} to ${query.delivery_date.$lte}`);
-        } else {
-          console.log('Fetching all deliveries for overview (no year filter)');
+        console.log('📋 [Deliveries] Fetching ALL deliveries for Driver Overview mode');
+        // CRITICAL: In Driver Overview mode, fetch ALL deliveries without year filter initially
+        // This ensures all drivers appear even if they only have deliveries in other years
+        // Year filtering is done client-side in driverCards useMemo
+        deliveriesData = await getData('Delivery', '-delivery_date', {}, forceRefresh);
+        console.log(`✅ [Deliveries] Loaded ${deliveriesData?.length || 0} total deliveries for overview`);
+        
+        // Log date range for debugging
+        if (deliveriesData && deliveriesData.length > 0) {
+          const dates = deliveriesData.map(d => d.delivery_date).filter(Boolean).sort();
+          console.log(`📅 [Deliveries] Delivery date range: ${dates[0]} to ${dates[dates.length - 1]}`);
         }
-        deliveriesData = await getData('Delivery', '-delivery_date', query, forceRefresh);
-        console.log('Found total deliveries for overview:', deliveriesData?.length || 0);
       } else {
         // In daily view mode, fetch deliveries for the selected month
         const currentYear = selectedYear;
