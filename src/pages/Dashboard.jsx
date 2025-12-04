@@ -4953,7 +4953,21 @@ function Dashboard() {
             
 
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-slate-900 pr-3 pl-3 text-lg font-bold">Dashboard</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-slate-900 pr-1 pl-3 text-lg font-bold">Dashboard</h2>
+                {currentUser && isAppOwner(currentUser) && (
+                  <SmartRefreshIndicator 
+                    inline={true} 
+                    onManualRefresh={async () => {
+                      console.log('🔄 [Dashboard] Manual refresh triggered from stats card');
+                      invalidate('Delivery');
+                      invalidate('Patient');
+                      invalidate('AppUser');
+                      await refreshData(true);
+                    }}
+                  />
+                )}
+              </div>
 
               <div className="flex items-center gap-2">
                 <Popover open={isCalendarOpen} onOpenChange={(open) => {
