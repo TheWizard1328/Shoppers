@@ -32,7 +32,8 @@ export default function ChatWindow({
           { conversation_id: conversationId },
           'created_date'
         );
-        setMessages(allMessages);
+        console.log('📨 [ChatWindow] Fetched messages:', allMessages.length, 'for conversation:', conversationId);
+        setMessages(allMessages || []);
 
         // Mark unread messages as read (in parallel for speed)
         const unreadMessages = allMessages.filter(
