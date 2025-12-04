@@ -427,8 +427,8 @@ function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, importS
 
             return (
               <Card
-                key={store.id}
-                className="cursor-pointer hover:shadow-md transition-all duration-200 bg-white"
+                key={store.id} className="rounded-xl border text-card-foreground shadow cursor-pointer hover:shadow-md transition-all duration-200 bg-white min-w-[340px]"
+
                 style={{
                   borderColor: store.color || '#e2e8f0',
                   borderWidth: '2px'
@@ -470,11 +470,23 @@ function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, importS
                   </div>
                   <div className="border-t border-slate-100 pt-2 mt-2">
                     {stats.totalRoutes > 0 &&
-                    <div className="flex justify-center gap-3 text-xs font-medium flex-wrap">
-                        <span className="text-blue-600">Active: {stats.activeRoutes}</span>
-                        <span className="text-green-600">Comp: {stats.completedRoutes}</span>
-                        <span className="text-red-600">Failed: {stats.failedRoutes}</span>
-                        <span className="text-orange-600">Returns: {stats.returnedRoutes}</span>
+                    <div className="text-xs font-medium text-center grid grid-cols-4 gap-1">
+                        <div className="text-blue-600">
+                          <div className="text-lg font-bold">{stats.activeRoutes}</div>
+                          <div>Active</div>
+                        </div>
+                        <div className="text-green-600">
+                          <div className="text-lg font-bold">{stats.completedRoutes}</div>
+                          <div>Completed</div>
+                        </div>
+                        <div className="text-red-600">
+                          <div className="text-lg font-bold">{stats.failedRoutes}</div>
+                          <div>Failed</div>
+                        </div>
+                        <div className="text-orange-600">
+                          <div className="text-lg font-bold">{stats.returnedRoutes}</div>
+                          <div>Returned</div>
+                        </div>
                       </div>
                     }
 
