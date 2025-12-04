@@ -227,7 +227,41 @@ export default function AppSettingsPanel() {
 
   return (
     <div className="space-y-6">
-      <Card>
+      {/* Master Toggle Card */}
+      <Card className={!smartRefreshEnabled ? 'border-red-300 bg-red-50' : ''}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Power className={`w-5 h-5 ${smartRefreshEnabled ? 'text-emerald-500' : 'text-red-500'}`} />
+            Smart Refresh
+          </CardTitle>
+          <CardDescription>
+            Master toggle to enable or disable all automatic data refreshing.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between p-4 bg-white rounded-lg border">
+            <div>
+              <Label className="font-medium text-slate-900">Enable Smart Refresh</Label>
+              <p className="text-sm text-slate-500">
+                {smartRefreshEnabled 
+                  ? 'Data will automatically refresh in the background' 
+                  : 'All automatic refreshing is disabled - data will only update on page reload'}
+              </p>
+            </div>
+            <Switch
+              checked={smartRefreshEnabled}
+              onCheckedChange={setSmartRefreshEnabled}
+            />
+          </div>
+          {!smartRefreshEnabled && (
+            <div className="mt-3 p-3 bg-red-100 text-red-800 rounded-lg text-sm font-medium">
+              ⚠️ Smart Refresh is DISABLED. The app will not automatically update data.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className={!smartRefreshEnabled ? 'opacity-50 pointer-events-none' : ''}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Clock className="w-5 h-5" />
