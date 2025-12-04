@@ -4730,12 +4730,9 @@ function Dashboard() {
   };
 
   const handleStartDelivery = async (deliveryId) => {
-    console.log('🚀 [START] Button clicked - pausing smart refresh...');
-
+    console.log('🚀 [START] Button clicked - pausing background polling...');
     setIsEntityUpdating(true);
-
     await new Promise((resolve) => setTimeout(resolve, 100));
-    console.log('✅ [START] Smart refresh paused, proceeding with start delivery');
 
     try {
       const deliveryFromUI = deliveriesWithStopOrder.find((d) => d?.id === deliveryId);
@@ -4746,25 +4743,96 @@ function Dashboard() {
       const isPickup = !deliveryFromUI.patient_id;
       const newStatus = isPickup ? 'en_route' : 'in_transit';
 
-      // CRITICAL: Force refresh latest deliveries for this driver/date BEFORE starting
-      console.log('🔄 [START] Force refreshing driver deliveries from database...');
-      try {
-        await forceRefreshDriverDeliveries(driverId, deliveryDate);
-        console.log('✅ [START] Fresh data loaded, proceeding with start delivery');
-      } catch (refreshError) {
-        console.warn('⚠️ [START] Pre-refresh failed, continuing anyway:', refreshError.message);
-      }
-
+      console.log('');
+      console.log('═══════════════════════════════════════════════════');
+      console.log('🚀 [START DELIVERY] 4-Step Process');
+      console.log('═══════════════════════════════════════════════════');
       console.log(`📦 Starting: ${deliveryFromUI.patient_name || 'Pickup'} (#${deliveryFromUI.stop_order})`);
 
-      // CRITICAL: Update status FIRST
-      await base44.entities.Delivery.update(deliveryId, {
-        status: newStatus
+      // STEP 1: Clear all isNextDelivery flags to false
+      console.log('');
+      console.log('📍 STEP 1: Clearing all isNextDelivery flags');
+      const allDriverDeliveriesForDate = await base44.entities.Delivery.filter({
+        driver_id: driverId,
+        delivery_date: deliveryDate
       });
-      console.log(`✅ [START] Status updated to ${newStatus}`);
+      
+      const clearNextPromises = allDriverDeliveriesForDate
+        .filter(d => d.isNextDelivery === true)
+        .map(d => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
+      
+      if (clearNextPromises.length > 0) {
+        await Promise.all(clearNextPromises);
+        console.log(`✅ Cleared isNextDelivery for ${clearNextPromises.length} deliveries`);
+      }
 
-      // CRITICAL: Call backend optimizer to calculate ETAs and set isNextDelivery
-      console.log('🔄 [START] Calling backend optimizer...');
+      // STEP 2: Set isNextDelivery=true, update status, ETA, and stop_order for started delivery
+      console.log('');
+      console.log('📍 STEP 2: Marking started delivery and updating');
+      const currentTime = format(new Date(), 'HH:mm');
+      const currentStopOrder = deliveryFromUI.stop_order || 1;
+      
+      await base44.entities.Delivery.update(deliveryId, {
+        status: newStatus,
+        isNextDelivery: true,
+        delivery_time_eta: currentTime,
+        stop_order: currentStopOrder
+      });
+      console.log(`✅ Set isNextDelivery=true, status=${newStatus}, ETA=${currentTime}, stop_order=${currentStopOrder}`);
+
+      // STEP 2b: Initial UI update and center on new stop
+      console.log('');
+      console.log('📍 STEP 2b: Initial UI update and center');
+      invalidateDeliveriesForDate(deliveryDate);
+      await refreshData();
+      
+      // Center on the started card
+      setTimeout(() => {
+        const cardElement = document.getElementById(`stop-card-${deliveryId}`);
+        if (cardElement) {
+          cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+          console.log('✅ Centered on started delivery');
+        }
+      }, 300);
+
+      // STEP 3: Reorder the route
+      console.log('');
+      console.log('📍 STEP 3: Reordering route');
+      const freshDeliveries = await base44.entities.Delivery.filter({
+        driver_id: driverId,
+        delivery_date: deliveryDate
+      });
+      
+      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+      const completedStops = freshDeliveries.filter(d => d && finishedStatuses.includes(d.status));
+      const incompleteStops = freshDeliveries.filter(d => d && !finishedStatuses.includes(d.status));
+      
+      // Sort completed by actual time
+      completedStops.sort((a, b) => {
+        if (!a?.actual_delivery_time || !b?.actual_delivery_time) return 0;
+        return new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time);
+      });
+      
+      // Sort incomplete by ETA
+      incompleteStops.sort((a, b) => {
+        const etaA = a?.delivery_time_eta || a?.delivery_time_start || '99:99';
+        const etaB = b?.delivery_time_eta || b?.delivery_time_start || '99:99';
+        return etaA.localeCompare(etaB);
+      });
+      
+      const reorderedRoute = [...completedStops, ...incompleteStops];
+      
+      // Update stop_order for all
+      for (let i = 0; i < reorderedRoute.length; i++) {
+        await base44.entities.Delivery.update(reorderedRoute[i].id, {
+          stop_order: i + 1
+        });
+      }
+      console.log(`✅ Reordered ${reorderedRoute.length} stops`);
+
+      // STEP 4: Re-optimize remaining stops based on started delivery's ETA
+      console.log('');
+      console.log('📍 STEP 4: Re-optimizing remaining stops with backend');
       const optimizationResult = await optimizeDriverRoute({
         driverId: driverId,
         deliveryDate: deliveryDate,
@@ -4773,42 +4841,36 @@ function Dashboard() {
           lon: driverLocation.longitude
         } : null,
         startedDeliveryId: deliveryId,
-        clientCurrentTime: format(new Date(), 'HH:mm'),
+        clientCurrentTime: currentTime,
         generatePolyline: true,
         forceReoptimization: true
       });
 
-      console.log('✅ [START] Backend optimizer complete:', optimizationResult.data);
+      console.log('✅ Backend optimizer complete');
+      fetchPolylineCount();
+
+      // STEP 4b: Final UI update
+      console.log('');
+      console.log('📍 STEP 4b: Final UI update');
       
-      // CRITICAL: Don't call fetchPolylineCount during entity update to avoid re-enabling smart refresh
-      if (!setIsEntityUpdating) {
-        fetchPolylineCount();
-      }
-
-      // CRITICAL: Apply backend updates immediately to UI
+      // Apply backend updates
       if (optimizationResult.data?.allDeliveries && Array.isArray(optimizationResult.data.allDeliveries)) {
-        console.log('🔄 [START] Syncing', optimizationResult.data.allDeliveries.length, 'deliveries from backend');
-
-        // CRITICAL: Clear pending updates for this driver/route (authoritative server data)
         smartRefreshManager.clearPendingUpdatesForDriver(driverId, deliveryDate);
-
-        // Merge with other drivers' deliveries
+        
         const otherDriverDeliveries = (deliveries || []).filter((d) =>
-        d && (d.driver_id !== driverId || d.delivery_date !== deliveryDate)
+          d && (d.driver_id !== driverId || d.delivery_date !== deliveryDate)
         );
         const mergedDeliveries = [...otherDriverDeliveries, ...optimizationResult.data.allDeliveries];
         updateDeliveriesLocally(mergedDeliveries);
       }
 
-      // CRITICAL: Force data refresh to ensure UI is in sync
       invalidateDeliveriesForDate(deliveryDate);
       await refreshData();
 
-      // Scroll to next card after refresh
+      // Scroll to next card
       setTimeout(() => {
-        const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
         const nextCard = deliveriesWithStopOrder.find((d) =>
-        d && d.isNextDelivery && !finishedStatuses.includes(d.status)
+          d && d.isNextDelivery && !finishedStatuses.includes(d.status)
         );
         if (nextCard) {
           const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
@@ -4823,11 +4885,21 @@ function Dashboard() {
         setMapViewTrigger((prev) => prev + 1);
       }
 
+      // Show route summary if complete
+      if (optimizationResult.data?.routeComplete) {
+        if (!hasShownSummaryRef.current) {
+          setShowRouteSummary(true);
+          hasShownSummaryRef.current = true;
+        }
+      }
+
+      console.log('');
+      console.log('✅ [START DELIVERY] 4-Step Process Complete');
+      console.log('═══════════════════════════════════════════════════');
+
     } catch (error) {
       console.error('❌ [START] Failed:', error.message);
-      console.error('❌ [START] Error stack:', error.stack);
 
-      // CRITICAL: Handle session expiration errors
       if (error.response?.status === 401 || error.message?.includes('Unauthorized') || error.message?.includes('session')) {
         alert('Your session has expired. The page will now reload.');
         window.location.reload();
@@ -4836,11 +4908,8 @@ function Dashboard() {
 
       alert(`Failed to start delivery: ${error.message}`);
     } finally {
-      console.log('▶️ [START] Resuming smart refresh');
       setIsEntityUpdating(false);
-
       await new Promise((resolve) => setTimeout(resolve, 100));
-      console.log('✅ [START] Start delivery cycle complete');
     }
   };
 
