@@ -555,11 +555,17 @@ export default function DeliveriesPage() {
     // The driverCards useMemo will update when its dependencies change
   }, [contextDataLoaded, contextDeliveries.length, contextPatients.length, contextStores.length, contextCities.length, contextUsers.length]);
 
-  // Force smart refresh when Driver Overview page is active
+  // Force smart refresh when Driver Overview page is active - ONLY ONCE on initial load
+  const driverOverviewInitialized = useRef(false);
+  
   useEffect(() => {
     if (!isDriverOverviewMode || !dataLoaded || !hasAccess) return;
+    
+    // Only run once per session to prevent repeated refreshes
+    if (driverOverviewInitialized.current) return;
+    driverOverviewInitialized.current = true;
 
-    console.log('🔄 [Deliveries] Driver Overview active - triggering smart refresh');
+    console.log('🔄 [Deliveries] Driver Overview active - triggering initial smart refresh');
 
     // Reset refresh timers to force immediate refresh
     smartRefreshManager.lastRefreshTimes = {
@@ -572,8 +578,7 @@ export default function DeliveriesPage() {
       stores: 0
     };
 
-    // Also trigger a data refresh
-    setRefreshKey((k) => k + 1);
+    // Note: Removed setRefreshKey trigger to prevent unnecessary re-renders
   }, [isDriverOverviewMode, dataLoaded, hasAccess]);
 
   // Run checkAccess on mount to set hasAccess state
