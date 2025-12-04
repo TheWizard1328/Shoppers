@@ -2404,6 +2404,8 @@ export default function AdminUtilities() {
 
   const [showRouteImport, setShowRouteImport] = useState(false);
   const [editingDelivery, setEditingDelivery] = useState(null);
+  const [editingStatusId, setEditingStatusId] = useState(null);
+  const [editingDriverId, setEditingDriverId] = useState(null);
   
   const refreshIntervalRef = useRef(null);
 
