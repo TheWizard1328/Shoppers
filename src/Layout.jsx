@@ -83,7 +83,8 @@ import { ResizableDivider } from './components/ui/resizable-divider';
       import { loadUserSettings, saveSetting, clearSettingsCache } from './components/utils/userSettingsManager';
       import MessagingPanel from './components/messaging/MessagingPanel';
       import SmartRefreshIndicator from './components/layout/SmartRefreshIndicator';
-import { isMobileDevice } from './components/utils/deviceUtils';
+      import { isMobileDevice } from './components/utils/deviceUtils';
+      import { AppSettings } from '@/entities/AppSettings';
       import MessageNotificationBalloon from './components/messaging/MessageNotificationBalloon';
 
 const createMergedUser = (authUser, appUser) => {
