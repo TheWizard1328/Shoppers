@@ -4779,7 +4779,11 @@ function Dashboard() {
       });
 
       console.log('✅ [START] Backend optimizer complete:', optimizationResult.data);
-      fetchPolylineCount();
+      
+      // CRITICAL: Don't call fetchPolylineCount during entity update to avoid re-enabling smart refresh
+      if (!setIsEntityUpdating) {
+        fetchPolylineCount();
+      }
 
       // CRITICAL: Apply backend updates immediately to UI
       if (optimizationResult.data?.allDeliveries && Array.isArray(optimizationResult.data.allDeliveries)) {
