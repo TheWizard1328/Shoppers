@@ -497,12 +497,7 @@ export default function Layout({ children, currentPageName }) {
       // Load app-wide settings (smart refresh toggle)
       console.log('⚙️ [Layout] Step 2.1c: Loading app settings...');
       try {
-        const appSettings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-        if (appSettings && appSettings.length > 0 && appSettings[0].setting_value) {
-          const smartRefreshEnabled = appSettings[0].setting_value.smartRefreshEnabled !== false;
-          smartRefreshManager.enabled = smartRefreshEnabled;
-          console.log(`✅ [Layout] Smart refresh ${smartRefreshEnabled ? 'ENABLED' : 'DISABLED'} from app settings`);
-        }
+        await smartRefreshManager.initializeFromSettings();
       } catch (appSettingsError) {
         console.warn('⚠️ [Layout] Error loading app settings:', appSettingsError);
       }
