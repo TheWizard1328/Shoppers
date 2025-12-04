@@ -928,6 +928,11 @@ class SmartRefreshManager {
    */
   async refreshActiveDeliveryStatuses(currentDeliveries, selectedDate) {
     try {
+      // Check if disabled
+      if (!this.enabled) {
+        return null;
+      }
+      
       if (!this.shouldRefresh('activeDeliveries')) {
         return null;
       }
