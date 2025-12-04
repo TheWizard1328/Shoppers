@@ -2654,7 +2654,7 @@ export default function DeliveriesPage() {
         }
       });
 
-    console.log(`📊 Year-filtered deliveries: ${yearFilteredDeliveries.length} of ${effectiveDeliveries.length} total`);
+    console.log(`📊 Year-filtered deliveries: ${yearFilteredDeliveries.length} of ${deliveriesToUse.length} total`);
 
     if (yearFilteredDeliveries.length > 0) {
       const dates = yearFilteredDeliveries.map((d) => d.delivery_date).filter(Boolean).sort();
