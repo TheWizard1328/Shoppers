@@ -1347,15 +1347,14 @@ export default function Layout({ children, currentPageName }) {
 
       await new Promise(resolve => setTimeout(resolve, 200));
 
-      // No filtering - load all patients and deliveries
+      // Initialize filters - will be refined based on role
       let patientFilter = {};
       let deliveryFilter = {};
 
-      console.log('📦 [Layout] Loading all data (no geographic filtering)');
+      console.log('📦 [Layout] Loading data with role-based filtering...');
 
-      // Step 4: Patients
-      const patientsData = await getData('Patient', null, patientFilter);
-      console.log(`✅ [Layout] Loaded ${patientsData.length} Patients (no date filter - all patients for city)`);
+      // NOTE: Patient filter is built AFTER deliveries are loaded (Step 5b)
+      // This allows us to include patients from cross-store deliveries
 
       await new Promise(resolve => setTimeout(resolve, 200));
 
@@ -1366,6 +1365,35 @@ export default function Layout({ children, currentPageName }) {
 
       await new Promise(resolve => setTimeout(resolve, 200));
 
+      // Step 5b: Build role-based patient filter AFTER deliveries are loaded
+      // Drivers/Dispatchers: Only load patients from assigned stores + patients in their deliveries
+      if (!isAdmin) {
+        const userStoreIds = currentUser.store_ids || [];
+
+        // Get unique patient IDs from this user's deliveries (handles cross-store transfers)
+        const patientIdsFromDeliveries = [...new Set(
+          deliveriesData
+            .filter(d => d && d.patient_id)
+            .map(d => d.patient_id)
+        )];
+
+        console.log(`🎯 [Layout] Building role-based patient filter:`);
+        console.log(`   - User's assigned stores: ${userStoreIds.length}`);
+        console.log(`   - Patient IDs from deliveries: ${patientIdsFromDeliveries.length}`);
+
+        // Build $or filter: patients from assigned stores OR patients in deliveries
+        if (userStoreIds.length > 0 || patientIdsFromDeliveries.length > 0) {
+          const orConditions = [];
+          if (userStoreIds.length > 0) {
+            orConditions.push({ store_id: { $in: userStoreIds } });
+          }
+          if (patientIdsFromDeliveries.length > 0) {
+            orConditions.push({ id: { $in: patientIdsFromDeliveries } });
+          }
+          patientFilter = { $or: orConditions };
+        }
+      }
+
       // CRITICAL: Only admins can list all Users (others get 403)
       let authUsersData = [];
       if (userHasRole(currentUser, 'admin')) {
@@ -1375,6 +1403,12 @@ export default function Layout({ children, currentPageName }) {
       } else {
         console.log(`ℹ️ [Layout] Skipping User.list() - non-admin user (would get 403)`);
       }
+
+      // Step 6b: Now load patients with role-based filter
+      const patientsData = await getData('Patient', null, patientFilter, forceRefresh);
+      console.log(`✅ [Layout] Loaded ${patientsData.length} Patients (role-based filter applied)`);
+
+      await new Promise(resolve => setTimeout(resolve, 200));
 
       console.log('🔀 [Layout] Building merged user list from AppUsers and currentUser...');
       const mergedUsersMap = new Map();
