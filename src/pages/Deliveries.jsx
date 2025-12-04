@@ -2603,6 +2603,7 @@ export default function DeliveriesPage() {
     console.log(`📍 Selected City ID: ${selectedCityId}`);
     console.log(`📊 effectiveDeliveries count: ${effectiveDeliveries?.length || 0}`);
     console.log(`📊 allDeliveries count: ${allDeliveries?.length || 0}`);
+    console.log(`📊 contextDeliveries count: ${contextDeliveries?.length || 0}`);
     console.log(`📊 allPatients count: ${allPatients?.length || 0}`);
 
     // Safety check: ensure we have the required data
