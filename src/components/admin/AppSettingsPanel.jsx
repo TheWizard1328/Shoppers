@@ -163,23 +163,29 @@ export default function AppSettingsPanel() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
+      const settingsToSave = {
+        ...intervals,
+        smartRefreshEnabled: smartRefreshEnabled
+      };
+
       // Check if setting exists
       const existing = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
       
       if (existing && existing.length > 0) {
         await base44.entities.AppSettings.update(existing[0].id, {
-          setting_value: intervals,
+          setting_value: settingsToSave,
           description: 'Smart refresh interval settings (in milliseconds)'
         });
       } else {
         await base44.entities.AppSettings.create({
           setting_key: 'refresh_intervals',
-          setting_value: intervals,
+          setting_value: settingsToSave,
           description: 'Smart refresh interval settings (in milliseconds)'
         });
       }
 
       // Apply to smartRefreshManager immediately
+      smartRefreshManager.enabled = smartRefreshEnabled;
       smartRefreshManager.intervals = {
         driverLocation: intervals.driverLocation,
         activeDeliveries: intervals.activeDeliveries,
@@ -191,6 +197,7 @@ export default function AppSettingsPanel() {
       };
 
       setSavedIntervals({ ...intervals });
+      setSavedSmartRefreshEnabled(smartRefreshEnabled);
       setHasChanges(false);
       alert('Settings saved! Changes will take effect on the next refresh cycle.');
     } catch (error) {
