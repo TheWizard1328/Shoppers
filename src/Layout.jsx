@@ -2521,6 +2521,7 @@ export default function Layout({ children, currentPageName }) {
                               onClick={() => {
                                 setShowMessaging(true);
                                 setUnreadMessageCount(0);
+                                setSidebarOpen(false); // Close sidebar when opening messages
                               }}
                               className="p-2 hover:bg-slate-100 rounded-lg transition-colors relative"
                               title="Messages"
@@ -2528,8 +2529,8 @@ export default function Layout({ children, currentPageName }) {
                               <MessageCircle className="w-5 h-5 text-slate-500 hover:text-slate-700" fill={unreadMessageCount > 0 ? '#10b981' : 'none'} />
                               {unreadMessageCount > 0 && (
                                 <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-500 text-xs font-bold rounded-full flex items-center justify-center px-1 border-2 border-white" style={{ color: '#ffffff' }}>
-                                  {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
-                                </span>
+                                      {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
+                                    </span>
                               )}
                             </button>
                       </div>
