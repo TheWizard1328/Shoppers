@@ -150,10 +150,11 @@ export default function AppSettingsPanel() {
   // Check for changes
   useEffect(() => {
     if (savedIntervals) {
-      const changed = Object.keys(intervals).some(key => intervals[key] !== savedIntervals[key]);
-      setHasChanges(changed);
+      const intervalsChanged = Object.keys(intervals).some(key => intervals[key] !== savedIntervals[key]);
+      const enabledChanged = smartRefreshEnabled !== savedSmartRefreshEnabled;
+      setHasChanges(intervalsChanged || enabledChanged);
     }
-  }, [intervals, savedIntervals]);
+  }, [intervals, savedIntervals, smartRefreshEnabled, savedSmartRefreshEnabled]);
 
   const handleIntervalChange = (key, value) => {
     setIntervals(prev => ({ ...prev, [key]: value }));
