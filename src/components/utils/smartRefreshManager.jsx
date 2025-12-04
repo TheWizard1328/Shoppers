@@ -631,6 +631,11 @@ class SmartRefreshManager {
    */
   async refreshDriverLocations(currentAppUsers) {
     try {
+      // Check if disabled
+      if (!this.enabled) {
+        return null;
+      }
+      
       if (!this.shouldRefresh('driverLocation')) {
         return null;
       }
