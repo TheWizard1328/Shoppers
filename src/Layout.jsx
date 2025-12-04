@@ -1420,16 +1420,16 @@ export default function Layout({ children, currentPageName }) {
       console.log(`✅ [Layout] Populated ${activeDrivers.length} active drivers`);
 
 
-      console.log('💾 [Layout] Updating Layout state with Stage 1 data...');
+      console.log('💾 [Layout] Updating Layout state...');
       setUsers(mergedUsers);
       setDrivers(activeDrivers);
       setStores(allStores);
       setPatients(patientsData);
-      setDeliveries(stage1Deliveries); // Start with Stage 1 (last 30 days)
+      setDeliveries(deliveriesData);
       setAppUsers(allAppUsers);
 
       setDataLoaded(true);
-      console.log("✅ [Layout] === PHASE 3: INITIAL DATA LOAD COMPLETE (historical data loading in background) ===")
+      console.log("✅ [Layout] === PHASE 3: INITIAL DATA LOAD COMPLETE ===")
 
       } catch (error) {
       console.error("❌ [Layout] Error during full data load:", error);
