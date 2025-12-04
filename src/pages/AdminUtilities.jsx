@@ -2541,6 +2541,28 @@ export default function AdminUtilities() {
         const realUserData = await User.me();
         setCurrentUser(user);
         setHasAccess(isAppOwner(realUserData));
+        
+        // Load user settings for Admin Utilities filters
+        if (user?.id) {
+          try {
+            const settings = await loadUserSettings(user.id);
+            console.log('📋 [AdminUtilities] Loaded user settings:', settings);
+            
+            if (settings.admin_utilities_year) {
+              setSelectedDeliveryYear(settings.admin_utilities_year);
+            }
+            if (settings.admin_utilities_month) {
+              setSelectedDeliveryMonth(settings.admin_utilities_month);
+            }
+            if (settings.admin_utilities_driver) {
+              setSelectedDriver(settings.admin_utilities_driver);
+            }
+            setUserSettingsLoaded(true);
+          } catch (settingsError) {
+            console.warn('⚠️ [AdminUtilities] Error loading user settings:', settingsError);
+            setUserSettingsLoaded(true);
+          }
+        }
       } catch (error) {
         console.error('Access check failed:', error);
         setHasAccess(false);
