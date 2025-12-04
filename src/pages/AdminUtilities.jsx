@@ -990,11 +990,39 @@ const DeliveryDataTable = ({
                           </td>
                         )}
                         {visibleColumns.includes('driver') && (
-                          <td className="p-2">{driverName}</td>
+                          <td className="p-2">
+                            {editingDriverId === delivery.id ? (
+                              <Select
+                                value={delivery.driver_id || ''}
+                                onValueChange={(newDriverId) => handleDriverChange(delivery, newDriverId)}
+                                onOpenChange={(open) => {
+                                  if (!open) setEditingDriverId(null);
+                                }}
+                              >
+                                <SelectTrigger className="h-7 w-full text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="z-[9999]">
+                                  {driversForDropdown.map((driver) => (
+                                    <SelectItem key={driver.id} value={driver.id}>
+                                      {getDriverDisplayName(driver)}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <span 
+                                className="cursor-pointer hover:bg-slate-100 px-2 py-1 rounded transition-colors inline-block"
+                                onClick={() => setEditingDriverId(delivery.id)}
+                              >
+                                {driverName}
+                              </span>
+                            )}
+                          </td>
                         )}
                         {visibleColumns.includes('status') && (
                           <td className="p-2">
-                            {getStatusBadge(delivery.status)}
+                            {getStatusBadge(delivery)}
                           </td>
                         )}
                         {visibleColumns.includes('actions') && (
