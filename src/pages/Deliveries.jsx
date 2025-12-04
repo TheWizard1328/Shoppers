@@ -2607,10 +2607,20 @@ export default function DeliveriesPage() {
     console.log(`📊 allPatients count: ${allPatients?.length || 0}`);
 
     // Safety check: ensure we have the required data
-    // CRITICAL: Use allDeliveries and allPatients as fallbacks when effective versions are empty
-    const deliveriesToUse = effectiveDeliveries?.length > 0 ? effectiveDeliveries : allDeliveries;
-    const patientsToUse = effectivePatients?.length > 0 ? effectivePatients : allPatients;
-    const usersToUse = allUsers?.length > 0 ? allUsers : [];
+    // CRITICAL: ALWAYS use allDeliveries and allPatients directly - they have ALL the data
+    // effectiveDeliveries is role-filtered and will be missing data for other drivers
+    const deliveriesToUse = allDeliveries?.length > 0 ? allDeliveries : contextDeliveries;
+    const patientsToUse = allPatients?.length > 0 ? allPatients : contextPatients;
+    const usersToUse = allUsers?.length > 0 ? allUsers : contextUsers;
+    
+    console.log(`🔍 [DriverCards] Data sources selected:`, {
+      deliveries: deliveriesToUse.length,
+      deliveriesSource: allDeliveries?.length > 0 ? 'allDeliveries' : 'contextDeliveries',
+      patients: patientsToUse.length,
+      patientsSource: allPatients?.length > 0 ? 'allPatients' : 'contextPatients',
+      users: usersToUse.length,
+      usersSource: allUsers?.length > 0 ? 'allUsers' : 'contextUsers'
+    });
 
     if (!deliveriesToUse || !Array.isArray(deliveriesToUse)) {
       console.warn('⚠️ No deliveries available');
