@@ -702,7 +702,7 @@ export default function StopCard({
                   }
                   {showDriverName && safeDriver &&
                   <>
-                      <span className="bg-secondary text-secondary-foreground px-2 py-0.5 text-xs font-semibold opacity-60 rounded-full inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80">•</span>
+                      <span className="bg-secondary text-secondary-foreground px-1 py-0.5 text-xs font-semibold opacity-60 rounded-full inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80">•</span>
                       <Badge
                       variant="secondary" className="inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 px-2 py-0.5 rounded-full text-xs !text-white  font-semibold"
 
@@ -840,7 +840,7 @@ export default function StopCard({
                     
                     {/* Unit/Buzzer + Phone on second row */}
                     {!isStrippedDelivery && !shouldRedact &&
-                  <div className="flex items-center gap-2 text-sm text-slate-600">
+                  <div className="flex items-center text-sm text-slate-600">
                         {/* Unit and Buzzer info */}
                         {(() => {
                       const unitNum = !isPickup ? delivery?.unit_number || patient?.unit_number : null;
@@ -854,7 +854,7 @@ export default function StopCard({
                         <>
                               {unitNum && <span className="text-base font-medium">#{unitNum}</span>}
                               {buzzerNum && <span className="text-sm font-medium">Buzz {buzzerNum}</span>}
-                              <span className="bg-secondary text-secondary-foreground px-2 py-0.5 text-xs font-semibold opacity-60 rounded-full inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80">•</span>
+                              <span className="bg-secondary text-secondary-foreground px-1 py-0.5 text-xs font-semibold opacity-60 rounded-full inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80">•</span>
                             </>);
 
                     })()}
