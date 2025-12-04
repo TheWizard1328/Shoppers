@@ -2811,7 +2811,7 @@ export default function DeliveriesPage() {
       // Check if delivery is a return (helper for today stats)
       const isReturn = (delivery) => {
         if (!delivery) return false;
-        const patient = effectivePatients.find((p) => p.id === delivery.patient_id);
+        const patient = patientsToUse.find((p) => p && p.id === delivery.patient_id);
         const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return');
         const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
         return notesReturn || addressReturn;
