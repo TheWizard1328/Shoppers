@@ -1,0 +1,79 @@
+/**
+ * Stop Reordering Utility
+ * 
+ * Handles automatic reordering of stops when a status changes:
+ * 1. Completed/Failed/Returned stops are sorted by actual_delivery_time
+ * 2. Incomplete stops are sorted by delivery_time_eta
+ * 3. Stop orders are updated sequentially
+ */
+
+import { base44 } from '@/api/base44Client';
+
+/**
+ * Reorder stops for a driver's route on a specific date
+ * @param {string} driverId - The driver's ID
+ * @param {string} deliveryDate - The date in yyyy-MM-dd format
+ * @param {Array} allDeliveries - All deliveries (to filter by driver/date)
+ * @returns {Promise<Array>} - The reordered deliveries
+ */
+export const reorderStops = async (driverId, deliveryDate, allDeliveries) => {
+  console.log('🔄 [Reorder] Starting stop reordering for driver:', driverId, 'date:', deliveryDate);
+  
+  // Filter deliveries for this driver and date
+  const driverDeliveries = allDeliveries.filter(d => 
+    d && d.driver_id === driverId && d.delivery_date === deliveryDate
+  );
+  
+  if (driverDeliveries.length === 0) {
+    console.log('⏭️ [Reorder] No deliveries found for this driver/date');
+    return [];
+  }
+  
+  const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+  
+  // Separate finished and incomplete deliveries
+  const finishedDeliveries = driverDeliveries.filter(d => finishedStatuses.includes(d.status));
+  const incompleteDeliveries = driverDeliveries.filter(d => !finishedStatuses.includes(d.status));
+  
+  console.log(`📊 [Reorder] Found ${finishedDeliveries.length} finished, ${incompleteDeliveries.length} incomplete`);
+  
+  // Sort finished by actual_delivery_time (earliest first)
+  const sortedFinished = [...finishedDeliveries].sort((a, b) => {
+    if (!a.actual_delivery_time || !b.actual_delivery_time) return 0;
+    return new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time);
+  });
+  
+  // Sort incomplete by delivery_time_eta
+  const sortedIncomplete = [...incompleteDeliveries].sort((a, b) => {
+    const etaA = a.delivery_time_eta || a.delivery_time_start || '99:99';
+    const etaB = b.delivery_time_eta || b.delivery_time_start || '99:99';
+    return etaA.localeCompare(etaB);
+  });
+  
+  // Combine: finished first, then incomplete
+  const reorderedDeliveries = [...sortedFinished, ...sortedIncomplete];
+  
+  console.log('📋 [Reorder] New stop order:');
+  reorderedDeliveries.forEach((d, idx) => {
+    console.log(`  ${idx + 1}. ${d.patient_name || 'Pickup'} - ${d.status} - ${d.actual_delivery_time ? new Date(d.actual_delivery_time).toLocaleTimeString() : d.delivery_time_eta}`);
+  });
+  
+  // Update stop_order in database
+  const updates = [];
+  for (let i = 0; i < reorderedDeliveries.length; i++) {
+    const delivery = reorderedDeliveries[i];
+    const newStopOrder = i + 1;
+    
+    // Only update if stop_order changed
+    if (delivery.stop_order !== newStopOrder) {
+      await base44.entities.Delivery.update(delivery.id, {
+        stop_order: newStopOrder
+      });
+      updates.push({ id: delivery.id, stop_order: newStopOrder });
+    }
+  }
+  
+  console.log(`✅ [Reorder] Updated ${updates.length} stop orders`);
+  
+  return reorderedDeliveries;
+};

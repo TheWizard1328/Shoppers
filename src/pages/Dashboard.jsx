@@ -43,6 +43,7 @@ import RouteSummaryModal from "@/components/dashboard/RouteSummaryModal";
 import { isMobileDevice } from "@/components/utils/deviceUtils";
 import { optimizeDriverRoute } from "@/functions/optimizeDriverRoute";
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
+import { reorderStops } from "@/components/utils/stopReorderer";
 import { loadUserSettings, saveSetting, getSetting } from "@/components/utils/userSettingsManager";
 import { fabControlEvents } from "@/components/utils/fabControlEvents";
 import RouteNotification from "@/components/dashboard/RouteNotification";
@@ -4550,10 +4551,21 @@ function Dashboard() {
         }
       }
 
+      // CRITICAL: Reorder stops based on completion time and ETAs
+      console.log('');
+      console.log('🏗️ STEP 2: Reordering stops after status change');
+      
+      try {
+        await reorderStops(targetDelivery.driver_id, deliveryDate, deliveries);
+        console.log('✅ [STATUS UPDATE] Stops reordered');
+      } catch (reorderError) {
+        console.warn('⚠️ [STATUS UPDATE] Reordering failed:', reorderError.message);
+      }
+
       // CRITICAL: Call backend optimizer for ALL status changes (not just finished ones)
       // This ensures ETAs are recalculated and isNextDelivery is set correctly
       console.log('');
-      console.log('🏗️ STEP 2: Calling backend optimizer for route update');
+      console.log('🏗️ STEP 3: Calling backend optimizer for route update');
 
       try {
         const optimizationResult = await optimizeDriverRoute({
