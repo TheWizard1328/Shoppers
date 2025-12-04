@@ -1,47 +1,96 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Badge } from '@/components/ui/badge';
-import { MessageCircle, Search, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { MessageCircle, Search, Trash2, ChevronUp, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { format } from 'date-fns';
+import { format, subDays } from 'date-fns';
 
 export default function ConversationsList({ currentUser, users, onSelectConversation, selectedConversationId, onUnreadCountChange }) {
   const [messages, setMessages] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState(true);
+  const [loadedDays, setLoadedDays] = useState(1); // Start with just today/yesterday
+
+  const fetchMessages = useCallback(async (daysBack = 1, append = false) => {
+    if (!currentUser?.id) return;
+    
+    try {
+      if (append) {
+        setIsLoadingMore(true);
+      }
+      
+      // Calculate date range - only fetch messages from the last N days
+      const startDate = format(subDays(new Date(), daysBack), 'yyyy-MM-dd');
+      
+      // Fetch only recent messages (limit to 20 initially, more when loading more)
+      const limit = append ? 50 : 20;
+      
+      const [sentMessages, receivedMessages] = await Promise.all([
+        base44.entities.Message.filter({ 
+          sender_id: currentUser.id 
+        }, '-created_date', limit),
+        base44.entities.Message.filter({ 
+          receiver_id: currentUser.id 
+        }, '-created_date', limit)
+      ]);
+      
+      // Merge and deduplicate
+      const messageMap = new Map();
+      
+      // If appending, keep existing messages
+      if (append) {
+        messages.forEach(m => {
+          if (m && m.id) messageMap.set(m.id, m);
+        });
+      }
+      
+      [...sentMessages, ...receivedMessages].forEach(m => {
+        if (m && m.id) messageMap.set(m.id, m);
+      });
+      
+      const userMessages = Array.from(messageMap.values());
+      setMessages(userMessages);
+      
+      // Check if there might be more messages
+      const totalFetched = sentMessages.length + receivedMessages.length;
+      setHasMoreMessages(totalFetched >= limit);
+      
+    } catch (error) {
+      // Silently handle rate limits
+      if (!error.message?.includes('429') && !error.message?.includes('Rate limit')) {
+        console.error('Error fetching messages:', error);
+      }
+    } finally {
+      setIsLoading(false);
+      setIsLoadingMore(false);
+    }
+  }, [currentUser?.id, messages]);
 
   useEffect(() => {
     if (!currentUser?.id) return;
     
-    const fetchMessages = async () => {
-      try {
-        // OPTIMIZED: Only fetch messages for current user (not all messages)
-        // This reduces API load by filtering server-side
-        const [sentMessages, receivedMessages] = await Promise.all([
-          base44.entities.Message.filter({ sender_id: currentUser.id }, '-created_date', 100),
-          base44.entities.Message.filter({ receiver_id: currentUser.id }, '-created_date', 100)
-        ]);
-        
-        // Merge and deduplicate
-        const messageMap = new Map();
-        [...sentMessages, ...receivedMessages].forEach(m => {
-          if (m && m.id) messageMap.set(m.id, m);
-        });
-        
-        const userMessages = Array.from(messageMap.values());
-        setMessages(userMessages);
-      } catch (error) {
-        console.error('Error fetching messages:', error);
-      } finally {
-        setIsLoading(false);
-      }
+    // Delay initial load to avoid competing with other API calls
+    const timer = setTimeout(() => {
+      fetchMessages(loadedDays, false);
+    }, 2000);
+    
+    // Poll for new messages every 2 minutes
+    const interval = setInterval(() => fetchMessages(loadedDays, false), 120000);
+    
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
     };
-
-    fetchMessages();
-    // Poll for new messages every 60 seconds (increased from 20s to reduce rate limits)
-    const interval = setInterval(fetchMessages, 60000);
-    return () => clearInterval(interval);
   }, [currentUser?.id]);
+
+  const handleLoadMore = async () => {
+    const newDays = loadedDays + 7; // Load 7 more days
+    setLoadedDays(newDays);
+    await fetchMessages(newDays, true);
+  };
 
   // Group messages by conversation and get latest + unread count
   const conversations = useMemo(() => {
