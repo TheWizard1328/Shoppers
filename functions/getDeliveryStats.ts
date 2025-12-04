@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
     const endOfYear = `${year}-12-31`;
     
     // Parallel fetch for efficiency - use service role for all data
-    const [monthDeliveries, yearDeliveries, allPatients, allCities, allStores, allUsers] = await Promise.all([
+    const [monthDeliveries, yearDeliveries, allPatients, allCities, allStores, allAppUsers] = await Promise.all([
       base44.asServiceRole.entities.Delivery.filter({
         ...baseFilter,
         delivery_date: { $gte: startOfMonth, $lte: endOfMonthStr }
@@ -75,79 +75,126 @@ Deno.serve(async (req) => {
       patients: allPatients.length,
       cities: allCities.length,
       stores: allStores.length,
-      users: allUsers.length
+      appUsers: allAppUsers.length
     });
     
-    // Helper: Check if delivery is countable (patient delivery or after-hours pickup)
-    const isCountableDelivery = (d) => {
-      if (!d) return false;
-      if (d.patient_id) return true;
-      if (!d.patient_id && d.after_hours_pickup) return true;
-      return false;
-    };
+    // ===========================================
+    // HELPER FUNCTIONS
+    // ===========================================
+    
+    // Helper: Check if delivery is a return (status-based)
+    const isReturn = (d) => d && d.status === 'returned';
+    
+    // Helper: Check if delivery is failed
+    const isFailed = (d) => d && d.status === 'failed';
+    
+    // Helper: Check if delivery is completed
+    const isCompleted = (d) => d && ['completed', 'delivered'].includes(d.status);
+    
+    // Helper: Check if delivery is in progress (active stop)
+    const isInProgress = (d) => d && ['in_transit', 'en_route', 'pending', 'Ready For Pickup'].includes(d.status);
+    
+    // Helper: Check if a delivery should be counted for MONTHLY stats
+    // Only patient deliveries (has patient_id) OR after-hours pickups count
+    const isPaidDelivery = (d) => d && (d.patient_id || d.after_hours_pickup);
 
-    // Helper: Check if delivery is a return
-    const isReturn = (d) => {
-      if (!d) return false;
-      return (d.delivery_notes || '').toLowerCase().includes('return');
-    };
-
-    // Today stats
-    const todayCompleted = todayDeliveries.filter(d => 
-      ['completed', 'delivered'].includes(d.status) && isCountableDelivery(d)
-    ).length;
-    const todayActiveStops = todayDeliveries.filter(d => 
-      d.status === 'in_transit' || d.status === 'en_route'
-    ).length;
+    // ===========================================
+    // TODAY'S STATS - Counts ALL activities (pickups + deliveries)
+    // ===========================================
+    
+    // Completed: All completed pickups and deliveries for today
+    const todayCompleted = todayDeliveries.filter(isCompleted).length;
+    
+    // Active Stops: Everything in progress (pickups, deliveries, pending)
+    const todayActiveStops = todayDeliveries.filter(isInProgress).length;
+    
+    // Failed: All failed for today
+    const todayFailedCount = todayDeliveries.filter(d => isFailed(d) && !isReturn(d)).length;
+    
+    // Returns: All returned for today
     const todayReturns = todayDeliveries.filter(isReturn).length;
-    const todayFailed = todayDeliveries.filter(d => 
-      d.status === 'failed' && !isReturn(d) && isCountableDelivery(d)
-    ).length;
+    
+    // Active Drivers: Unique drivers with any activity today
     const todayActiveDrivers = new Set(
-      todayDeliveries.filter(d => d.driver_name).map(d => d.driver_name)
+      todayDeliveries.filter(d => d.driver_id).map(d => d.driver_id)
     ).size;
 
     const todayStats = {
       completed: todayCompleted,
       activeStops: todayActiveStops,
+      failed: todayFailedCount,
       returns: todayReturns,
-      failed: todayFailed,
       activeDrivers: todayActiveDrivers
     };
 
-    // Month stats
+    // ===========================================
+    // MONTH STATS - Only counts DELIVERIES (patient_id OR after_hours_pickup)
+    // ===========================================
+    
+    // Completed: Only paid deliveries that are completed
     const monthCompleted = monthDeliveries.filter(d => 
-      ['completed', 'delivered'].includes(d.status) && isCountableDelivery(d)
+      isPaidDelivery(d) && isCompleted(d)
     ).length;
-    const monthReturns = monthDeliveries.filter(isReturn).length;
+    
+    // Failed: Only paid deliveries that failed (not returns)
     const monthFailed = monthDeliveries.filter(d => 
-      d.status === 'failed' && !isReturn(d) && isCountableDelivery(d)
+      isPaidDelivery(d) && isFailed(d) && !isReturn(d)
+    ).length;
+    
+    // Returns: Only paid deliveries that are returned
+    const monthReturns = monthDeliveries.filter(d => 
+      isPaidDelivery(d) && isReturn(d)
     ).length;
 
     const monthStats = {
       completed: monthCompleted,
-      returns: monthReturns,
-      failed: monthFailed
+      failed: monthFailed,
+      returns: monthReturns
     };
 
-    // Route counts (unique dates)
-    const monthlyRoutes = new Set(monthDeliveries.map(d => d.delivery_date)).size;
-    const yearlyRoutes = new Set(yearDeliveries.map(d => d.delivery_date)).size;
+    // ===========================================
+    // DELIVERY TOTALS (Monthly & Yearly) - Only paid deliveries
+    // ===========================================
     
-    // Entity counts for navigation panel
+    const totalMonthlyDeliveries = monthDeliveries.filter(isPaidDelivery).length;
+    const totalYearlyDeliveries = yearDeliveries.filter(isPaidDelivery).length;
+
+    // ===========================================
+    // DRIVER ROUTES (Yearly) - Unique driver-days for paid deliveries
+    // ===========================================
+    
+    const yearlyDriverDeliveriesByDay = {};
+    yearDeliveries.forEach(d => {
+      if (isPaidDelivery(d) && d.driver_id && d.delivery_date) {
+        if (!yearlyDriverDeliveriesByDay[d.delivery_date]) {
+          yearlyDriverDeliveriesByDay[d.delivery_date] = new Set();
+        }
+        yearlyDriverDeliveriesByDay[d.delivery_date].add(d.driver_id);
+      }
+    });
+    const yearlyTotalDriverRoutes = Object.values(yearlyDriverDeliveriesByDay)
+      .reduce((sum, driversSet) => sum + driversSet.size, 0);
+    
+    // ===========================================
+    // ENTITY COUNTS for navigation panel
+    // ===========================================
+    
     const entityCounts = {
       patients: allPatients.length,
       cities: allCities.length,
       stores: allStores.length,
-      users: allUsers.length
+      users: allAppUsers.length
     };
     
     return Response.json({
       today: todayStats,
       month: monthStats,
-      routeCounts: {
-        monthly: monthlyRoutes,
-        yearly: yearlyRoutes
+      deliveries: {
+        monthly: totalMonthlyDeliveries,
+        yearly: totalYearlyDeliveries
+      },
+      drivers: {
+        yearlyTotalDriverRoutes: yearlyTotalDriverRoutes
       },
       entityCounts: entityCounts
     });
