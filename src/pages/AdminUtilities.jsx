@@ -3522,7 +3522,7 @@ export default function AdminUtilities() {
         }
       }
     });
-  }, [allDeliveries, filteredAndSortedDeliveries, queryClient, refetchDeliveries, refreshData]);
+  }, [allDeliveries, queryClient, refetchDeliveries, refreshData]);
 
   const handleEditEntity = (entity) => {
     console.log('Edit entity:', entity);
