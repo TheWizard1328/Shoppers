@@ -2352,35 +2352,45 @@ export default function AdminUtilities() {
     staleTime: Infinity,
   };
 
-  const { data: patients, isLoading: patientsLoading, refetch: refetchPatients } = useQuery({
+  const { data: fetchedPatients, isLoading: patientsLoading, refetch: refetchPatients } = useQuery({
     queryKey: ['patients'],
     queryFn: () => getData('Patient', 'full_name'),
+    initialData: contextPatients?.length > 0 ? contextPatients : undefined,
     ...queryOptions
   });
+  // Use context patients for real-time updates
+  const patients = contextPatients?.length > 0 ? contextPatients : (fetchedPatients || []);
 
-  const { data: stores, isLoading: storesLoading, refetch: refetchStores } = useQuery({
+  const { data: fetchedStores, isLoading: storesLoading, refetch: refetchStores } = useQuery({
     queryKey: ['stores'],
     queryFn: () => getData('Store', 'name'),
+    initialData: contextStores?.length > 0 ? contextStores : undefined,
     ...queryOptions
   });
+  const stores = contextStores?.length > 0 ? contextStores : (fetchedStores || []);
 
   const { data: authUsers, isLoading: authUsersLoading, refetch: refetchAuthUsers } = useQuery({
     queryKey: ['authUsers'],
     queryFn: () => getData('User', 'full_name'),
+    initialData: contextUsers?.length > 0 ? contextUsers : undefined,
     ...queryOptions
   });
 
-  const { data: appUsers, isLoading: appUsersLoading, refetch: refetchAppUsers } = useQuery({
+  const { data: fetchedAppUsers, isLoading: appUsersLoading, refetch: refetchAppUsers } = useQuery({
     queryKey: ['appUsers'],
     queryFn: () => getData('AppUser', 'user_name'),
+    initialData: contextAppUsers?.length > 0 ? contextAppUsers : undefined,
     ...queryOptions
   });
+  const appUsers = contextAppUsers?.length > 0 ? contextAppUsers : (fetchedAppUsers || []);
 
-  const { data: cities, isLoading: citiesLoading, refetch: refetchCities } = useQuery({
+  const { data: fetchedCities, isLoading: citiesLoading, refetch: refetchCities } = useQuery({
     queryKey: ['cities'],
     queryFn: () => getData('City', 'name'),
+    initialData: contextCities?.length > 0 ? contextCities : undefined,
     ...queryOptions
   });
+  const cities = contextCities?.length > 0 ? contextCities : (fetchedCities || []);
 
   // Use context deliveries as initial data, then merge with any fresh fetches
   const { data: fetchedDeliveries, isLoading: deliveriesLoading, refetch: refetchDeliveries } = useQuery({
