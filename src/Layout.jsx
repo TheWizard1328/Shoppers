@@ -191,6 +191,7 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
     };
 
     // Delay initial fetch slightly to avoid competing with layout init
+    console.log('🔄 [QuickStats] Scheduling stats fetch for date:', selectedDateStr);
     const initialTimer = setTimeout(fetchStats, 1000);
     // Refresh stats every 60 seconds
     const interval = setInterval(fetchStats, 60000);
