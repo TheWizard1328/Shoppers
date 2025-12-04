@@ -2382,7 +2382,8 @@ export default function AdminUtilities() {
     ...queryOptions
   });
 
-  const { data: allDeliveries, isLoading: deliveriesLoading, refetch: refetchDeliveries } = useQuery({
+  // Use context deliveries as initial data, then merge with any fresh fetches
+  const { data: fetchedDeliveries, isLoading: deliveriesLoading, refetch: refetchDeliveries } = useQuery({
     queryKey: ['deliveries'],
     queryFn: async () => {
       console.log('📊 [AdminUtilities] Fetching all deliveries...');
@@ -2391,8 +2392,26 @@ export default function AdminUtilities() {
       return deliveries;
     },
     enabled: filtersReady,
+    initialData: contextDeliveries?.length > 0 ? contextDeliveries : undefined,
     ...queryOptions
   });
+  
+  // Merge context deliveries with fetched deliveries for real-time updates
+  const allDeliveries = useMemo(() => {
+    // If we have fetched data, use it as base and merge any newer context data
+    if (fetchedDeliveries?.length > 0) {
+      const fetchedMap = new Map(fetchedDeliveries.map(d => [d.id, d]));
+      // Add any context deliveries not in fetched (newly loaded from stages)
+      (contextDeliveries || []).forEach(d => {
+        if (!fetchedMap.has(d.id)) {
+          fetchedMap.set(d.id, d);
+        }
+      });
+      return Array.from(fetchedMap.values());
+    }
+    // Otherwise use context deliveries
+    return contextDeliveries || [];
+  }, [fetchedDeliveries, contextDeliveries]);
 
 
   const dataLoading = patientsLoading || storesLoading || authUsersLoading || appUsersLoading || citiesLoading || deliveriesLoading;
