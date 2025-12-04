@@ -8,6 +8,9 @@ import { touchUserCache } from "./auth";
 
 class SmartRefreshManager {
   constructor() {
+    // Master toggle - can be disabled via AppSettings
+    this.enabled = true;
+    
     this.lastFetchTimestamps = new Map();
     this.isRefreshing = false;
     this.refreshCallbacks = new Set();
