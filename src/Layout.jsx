@@ -168,11 +168,13 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
         const driverId = userHasRole(currentUser, 'driver') ? currentUser.id : 
                          globalFilters.getSelectedDriverId();
         
+        console.log('📊 [QuickStats] Fetching stats...', { selectedDateStr, driverId, storeIds });
         const response = await base44.functions.invoke('getDeliveryStats', {
           selectedDate: selectedDateStr,
           driverId: driverId !== 'all' ? driverId : null,
           storeIds: storeIds.length > 0 ? storeIds : null
         });
+        console.log('📊 [QuickStats] Response:', response);
         
         // Handle both response.data (axios-style) and direct response
         const data = response?.data || response;
