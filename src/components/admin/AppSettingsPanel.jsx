@@ -107,10 +107,12 @@ const IntervalSlider = ({ id, label, value, onChange, min, max, step, priority }
 
 export default function AppSettingsPanel() {
   const [intervals, setIntervals] = useState(DEFAULT_INTERVALS);
+  const [smartRefreshEnabled, setSmartRefreshEnabled] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [savedIntervals, setSavedIntervals] = useState(null);
+  const [savedSmartRefreshEnabled, setSavedSmartRefreshEnabled] = useState(true);
 
   // Load settings from database
   const loadSettings = useCallback(async () => {
