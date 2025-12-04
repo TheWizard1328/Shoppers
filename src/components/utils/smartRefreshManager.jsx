@@ -116,6 +116,29 @@ class SmartRefreshManager {
   }
   
   /**
+   * Initialize enabled state from AppSettings
+   * Called once during app startup
+   */
+  async initializeFromSettings() {
+    try {
+      const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+      if (settings && settings.length > 0 && settings[0].setting_value) {
+        const enabled = settings[0].setting_value.smartRefreshEnabled !== false;
+        this.enabled = enabled;
+        console.log(`⚙️ [SmartRefresh] Initialized from settings: ${enabled ? 'ENABLED' : 'DISABLED'}`);
+        return enabled;
+      }
+      // Default to enabled if no setting exists
+      this.enabled = true;
+      return true;
+    } catch (error) {
+      console.warn('⚠️ [SmartRefresh] Error loading settings, defaulting to enabled:', error);
+      this.enabled = true;
+      return true;
+    }
+  }
+  
+  /**
    * Wait for rate limit cooldown if needed
    */
   async waitForRateLimit() {
