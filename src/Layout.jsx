@@ -496,9 +496,11 @@ export default function Layout({ children, currentPageName }) {
       // Load app-wide settings (smart refresh toggle)
       console.log('⚙️ [Layout] Step 2.1c: Loading app settings...');
       try {
-        await smartRefreshManager.initializeFromSettings();
+        const smartRefreshEnabled = await smartRefreshManager.initializeFromSettings();
+        console.log(`⚙️ [Layout] Smart refresh initialized: ${smartRefreshEnabled ? 'ENABLED' : 'DISABLED'}`);
       } catch (appSettingsError) {
         console.warn('⚠️ [Layout] Error loading app settings:', appSettingsError);
+        // Default to enabled on error
       }
 
         console.log('🔐 [Layout] Step 2.2: Checking access permissions...');
