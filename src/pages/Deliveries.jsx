@@ -518,12 +518,12 @@ export default function DeliveriesPage() {
   useEffect(() => {
     if (contextDataLoaded) {
       console.log("🔄 [Deliveries] Syncing data from AppDataContext");
-      
+
       // Always sync deliveries when context updates
       if (contextDeliveries.length > 0 || allDeliveries.length > 0) {
         setAllDeliveries(contextDeliveries);
       }
-      
+
       // Sync other entities
       if (contextPatients.length > 0) {
         setAllPatients(contextPatients);
@@ -537,10 +537,10 @@ export default function DeliveriesPage() {
       if (contextUsers.length > 0) {
         setAllUsers(contextUsers);
       }
-      
+
       // Force driver cards to refresh when data changes
       if (isDriverOverviewMode) {
-        setRefreshKey(k => k + 1);
+        setRefreshKey((k) => k + 1);
       }
     }
   }, [contextDataLoaded, contextDeliveries, contextPatients, contextStores, contextCities, contextUsers, isDriverOverviewMode]);
@@ -548,9 +548,9 @@ export default function DeliveriesPage() {
   // Force smart refresh when Driver Overview page is active
   useEffect(() => {
     if (!isDriverOverviewMode || !dataLoaded || !hasAccess) return;
-    
+
     console.log('🔄 [Deliveries] Driver Overview active - triggering smart refresh');
-    
+
     // Reset refresh timers to force immediate refresh
     smartRefreshManager.lastRefreshTimes = {
       driverLocation: 0,
@@ -561,9 +561,9 @@ export default function DeliveriesPage() {
       patients: 0,
       stores: 0
     };
-    
+
     // Also trigger a data refresh
-    setRefreshKey(k => k + 1);
+    setRefreshKey((k) => k + 1);
   }, [isDriverOverviewMode, dataLoaded, hasAccess]);
 
   // Run checkAccess on mount to set hasAccess state
@@ -2761,7 +2761,7 @@ export default function DeliveriesPage() {
 
       // TODAY's stats - filter to today's deliveries only
       const todayDeliveries = driverDeliveries.filter((d) => d.delivery_date === todayStr);
-      
+
       // Check if delivery is a return (helper for today stats)
       const isReturn = (delivery) => {
         if (!delivery) return false;
@@ -3058,11 +3058,11 @@ export default function DeliveriesPage() {
       <div className="hidden lg:block border-b border-slate-200 bg-white px-6 py-4 sticky top-0 z-20">
         {isDriverOverviewMode ?
         <div className="relative">
-          {isLoading && (
-            <div className="absolute -left-8 top-1/2 -translate-y-1/2">
+          {isLoading &&
+          <div className="absolute -left-8 top-1/2 -translate-y-1/2">
               <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
             </div>
-          )}
+          }
           <h1 className="text-3xl font-bold text-slate-900">Driver Overview</h1>
         </div> :
 
@@ -3070,11 +3070,11 @@ export default function DeliveriesPage() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
               <div>
                 <h1 className="text-3xl font-bold text-slate-900 flex items-baseline gap-3 relative">
-                  {isLoading && (
-                    <div className="absolute -left-8 top-1/2 -translate-y-1/2">
+                  {isLoading &&
+                <div className="absolute -left-8 top-1/2 -translate-y-1/2">
                       <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
                     </div>
-                  )}
+                }
                   Route Management
                   <Badge variant="outline" className="ml-2 text-sm font-normal">
                     {selectedDate ? format(selectedDate, 'MMM d, yyyy') : 'Select a Date'}
@@ -3546,8 +3546,8 @@ export default function DeliveriesPage() {
                 const isInactive = card.driver.status === 'inactive';
                 return (
                   <Card
-                    key={card.driver.id}
-                    className={`cursor-pointer transition-shadow bg-white/80 backdrop-blur-sm ${isInactive ? 'opacity-60 grayscale hover:shadow-md' : 'hover:shadow-lg'}`}
+                    key={card.driver.id} className="rounded-xl border text-card-foreground shadow cursor-pointer transition-shadow bg-white/80 backdrop-blur-sm hover:shadow-lg min-w-[280px]"
+
                     onClick={() => handleDriverCardClick(card.driver)}>
 
                         <CardHeader className="pb-2">
@@ -3555,29 +3555,29 @@ export default function DeliveriesPage() {
                             <span className="text-lg font-bold">
                               {card.firstName}
                             </span>
-                            <Badge 
-                              variant="outline" 
-                              className={`text-xs font-semibold rounded-full w-[80px] inline-flex items-center justify-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${
-                                card.driver.driver_status === 'on_duty' 
-                                  ? 'bg-emerald-500 text-white border-emerald-500' 
-                                  : card.driver.driver_status === 'on_break'
-                                    ? 'bg-orange-400 text-white border-orange-400'
-                                    : card.driver.driver_status === 'online'
-                                      ? 'bg-emerald-500 text-white border-emerald-500'
-                                      : card.driver.driver_status === 'off_duty'
-                                        ? 'bg-red-500 text-white border-red-500'
-                                        : 'bg-white text-slate-600 border-slate-300'
-                              }`}
-                            >
+                            <Badge
+                          variant="outline"
+                          className={`text-xs font-semibold rounded-full w-[80px] inline-flex items-center justify-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${
+                          card.driver.driver_status === 'on_duty' ?
+                          'bg-emerald-500 text-white border-emerald-500' :
+                          card.driver.driver_status === 'on_break' ?
+                          'bg-orange-400 text-white border-orange-400' :
+                          card.driver.driver_status === 'online' ?
+                          'bg-emerald-500 text-white border-emerald-500' :
+                          card.driver.driver_status === 'off_duty' ?
+                          'bg-red-500 text-white border-red-500' :
+                          'bg-white text-slate-600 border-slate-300'}`
+                          }>
+
                               {card.stats.totalStops} stops
                             </Badge>
                           </CardTitle>
                         </CardHeader>
-                        <CardContent className="px-6 py-3">
+                        <CardContent className="px-3 py-3">
                           {/* Today's Stats - single line */}
                           {card.todayStats && card.todayStats.total > 0 &&
-                        <div className="mb-3 pb-3 border-b border-slate-100">
-                              <div className="flex items-center gap-3 text-xs font-medium flex-wrap">
+                      <div className="mb-3 pb-3 border-b border-slate-100">
+                              <div className="flex items-center gap-2 text-xs font-medium flex-wrap">
                                 <span className="text-slate-500">Today:</span>
                                 <span className="text-blue-600">Active: {card.todayStats.active}</span>
                                 <span className="text-green-600">Comp: {card.todayStats.completed}</span>
@@ -3585,7 +3585,7 @@ export default function DeliveriesPage() {
                                 <span className="text-orange-600">Returns: {card.todayStats.returned}</span>
                               </div>
                             </div>
-                        }
+                      }
                           <div className="space-y-1 text-sm">
                             <div className="flex justify-between items-center">
                               <span className="text-slate-600">Pickups:</span>
