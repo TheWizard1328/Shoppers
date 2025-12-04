@@ -378,13 +378,13 @@ export default function DeliveriesPage() {
       });
 
       // Filter drivers/admins/dispatchers
-      // CRITICAL: In Driver Overview mode, include ALL drivers regardless of status
+      // CRITICAL: Always include ALL drivers (both active and inactive) regardless of mode
+      // This ensures Driver Overview has complete data even if mode changes after initial load
       mergedUsers = mergedUsers.filter((u) => {
         const roles = Array.isArray(u.app_roles) ? u.app_roles : u.app_role ? [u.app_role] : [];
         const hasRole = roles.some((r) => r === 'driver' || r === 'admin' || r === 'dispatcher');
-        // In overview mode, include both active AND inactive users
-        const statusOk = isDriverOverviewMode ? true : u.status === 'active';
-        return hasRole && statusOk;
+        // ALWAYS include both active AND inactive users - filtering by status happens in driverCards
+        return hasRole;
       });
 
       if (isMounted.current) {
