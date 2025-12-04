@@ -94,6 +94,14 @@ Deno.serve(async (req) => {
     const yearlyRouteCount = new Set(
       yearDeliveries.filter(d => d.delivery_date).map(d => d.delivery_date)
     ).size;
+    
+    // Entity counts for navigation panel
+    const entityCounts = {
+      patients: allPatients.length,
+      cities: allCities.length,
+      stores: allStores.length,
+      users: allUsers.length
+    };
 
     return Response.json({
       today: {
@@ -111,7 +119,8 @@ Deno.serve(async (req) => {
       routeCounts: {
         monthly: monthlyRouteCount,
         yearly: yearlyRouteCount
-      }
+      },
+      entityCounts: entityCounts
     });
 
   } catch (error) {
