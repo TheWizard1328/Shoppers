@@ -10,7 +10,13 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { selectedDate, driverId, storeIds } = await req.json();
+    let body = {};
+    try {
+      body = await req.json();
+    } catch (e) {
+      // No body or invalid JSON - use defaults
+    }
+    const { selectedDate, driverId, storeIds } = body;
     
     const now = selectedDate ? new Date(selectedDate + 'T00:00:00') : new Date();
     const monthStart = format(startOfMonth(now), 'yyyy-MM-dd');
