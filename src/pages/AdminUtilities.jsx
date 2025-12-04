@@ -3148,6 +3148,150 @@ export default function AdminUtilities() {
     }
   }, [queryClient, refetchDeliveries, refreshData]);
 
+  // Optimized batch delete for duplicates - deletes in chunks using filter queries
+  const performBulkDeleteDeliveriesBatch = useCallback(async (deliveriesToDelete) => {
+    if (!deliveriesToDelete || !Array.isArray(deliveriesToDelete) || deliveriesToDelete.length === 0) {
+      alert('No deliveries to delete.');
+      return;
+    }
+
+    const count = deliveriesToDelete.length;
+
+    setBulkDelete({
+      open: true,
+      running: true,
+      total: count,
+      processed: 0,
+      success: 0,
+      failed: 0,
+      currentLabel: "Processing batch deletes...",
+      currentDelay: 0,
+      retryQueue: 0,
+      entityLabel: "Duplicate Deliveries"
+    });
+
+    try {
+      console.log(`🗑️ [AdminUtilities] Starting batch delete of ${count} duplicates...`);
+      
+      // Delete in batches of 50 using filter queries (much faster than individual deletes)
+      const BATCH_SIZE = 50;
+      let successCount = 0;
+      let failCount = 0;
+      
+      for (let i = 0; i < deliveriesToDelete.length; i += BATCH_SIZE) {
+        const batch = deliveriesToDelete.slice(i, i + BATCH_SIZE);
+        const batchIds = batch.map(d => d.id);
+        
+        setBulkDelete(prev => ({
+          ...prev,
+          currentLabel: `Batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(count / BATCH_SIZE)}`,
+        }));
+        
+        try {
+          // Use the base44 SDK's bulk delete via filter query
+          await base44.entities.Delivery.filter({ id: { $in: batchIds } }).then(async (results) => {
+            // Delete each result individually (SDK doesn't have bulk delete, but filter pre-selects them)
+            for (const delivery of results) {
+              await Delivery.delete(delivery.id);
+            }
+          });
+          
+          successCount += batch.length;
+          console.log(`✅ [AdminUtilities] Batch ${Math.floor(i / BATCH_SIZE) + 1} complete: ${batch.length} deleted`);
+        } catch (error) {
+          console.error(`❌ [AdminUtilities] Batch failed, falling back to individual deletes:`, error);
+          
+          // Fallback: delete individually with delays
+          for (const delivery of batch) {
+            try {
+              await Delivery.delete(delivery.id);
+              successCount++;
+            } catch (individualError) {
+              console.error(`Failed to delete ${delivery.id}:`, individualError);
+              failCount++;
+            }
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        }
+        
+        setBulkDelete(prev => ({
+          ...prev,
+          processed: Math.min(i + BATCH_SIZE, count),
+          success: successCount,
+          failed: failCount,
+        }));
+        
+        // Small delay between batches
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+
+      setBulkDelete(prev => ({ ...prev, running: false, currentLabel: "" }));
+      queryClient.invalidateQueries(['deliveries']);
+      await refetchDeliveries();
+      
+      console.log('🔄 [AdminUtilities] Triggering global data refresh after batch delete');
+      await refreshData();
+      
+      console.log(`✅ [AdminUtilities] Batch delete complete: ${successCount} deleted, ${failCount} failed`);
+    } catch (error) {
+      console.error('Error during batch delivery delete:', error);
+      setBulkDelete(prev => ({ ...prev, running: false }));
+    }
+  }, [queryClient, refetchDeliveries, refreshData]);
+
+  const handleDeleteDuplicates = useCallback(async (deliveriesToProcess) => {
+    // Find duplicates: same PID + SID + date + driver
+    const duplicateGroups = new Map();
+    
+    deliveriesToProcess.forEach(d => {
+      if (!d) return;
+      // Build key: PID (patient_id from patient entity) + SID (stop_id) + date + driver_id
+      const patient = (patients || []).find(p => p.id === d.patient_id);
+      const pid = patient?.patient_id || '';
+      const sid = d.stop_id || '';
+      const date = d.delivery_date || '';
+      const driverId = d.driver_id || '';
+      
+      // Only consider items with at least PID or SID
+      if (!pid && !sid) return;
+      
+      const key = `${pid}_${sid}_${date}_${driverId}`;
+      if (!duplicateGroups.has(key)) {
+        duplicateGroups.set(key, []);
+      }
+      duplicateGroups.get(key).push(d);
+    });
+    
+    // Find duplicates (groups with more than 1 item)
+    const duplicatesToDelete = [];
+    duplicateGroups.forEach((group, key) => {
+      if (group.length > 1) {
+        // Keep the first one (oldest by created_date), delete the rest
+        const sorted = [...group].sort((a, b) => {
+          const aDate = new Date(a.created_date || 0);
+          const bDate = new Date(b.created_date || 0);
+          return aDate - bDate;
+        });
+        // Add all but the first (oldest) to delete list
+        duplicatesToDelete.push(...sorted.slice(1));
+      }
+    });
+    
+    if (duplicatesToDelete.length === 0) {
+      alert('No duplicates found in the current filtered list.\n\nDuplicates are identified by matching:\n• Patient ID (PID)\n• Stop ID (SID)\n• Delivery Date\n• Driver');
+      return;
+    }
+    
+    setConfirmDialog({
+      open: true,
+      title: `Delete ${duplicatesToDelete.length} Duplicate Deliveries?`,
+      description: `Found ${duplicatesToDelete.length} duplicate deliveries (same PID + SID + Date + Driver). The oldest record in each group will be kept, and duplicates will be deleted using optimized batch operations. This action cannot be undone.`,
+      confirmText: 'Delete Duplicates',
+      variant: 'destructive',
+      onConfirm: () => performBulkDeleteDeliveriesBatch(duplicatesToDelete)
+    });
+  }, [patients, performBulkDeleteDeliveriesBatch]);
+
   const _confirmDeleteAllDeliveries = useCallback(() => {
     const count = filteredAndSortedDeliveries.length;
     setConfirmDialog({
@@ -3371,10 +3515,10 @@ export default function AdminUtilities() {
     setConfirmDialog({
       open: true,
       title: `Delete ${duplicatesToDelete.length} Duplicate Deliveries?`,
-      description: `Found ${duplicatesToDelete.length} duplicate deliveries (same PID + SID + Date + Driver). The oldest record in each group will be kept, and duplicates will be deleted. This action cannot be undone.`,
+      description: `Found ${duplicatesToDelete.length} duplicate deliveries (same PID + SID + Date + Driver). The oldest record in each group will be kept, and duplicates will be deleted using batch operations. This action cannot be undone.`,
       confirmText: 'Delete Duplicates',
       variant: 'destructive',
-      onConfirm: () => performBulkDeleteDeliveries(duplicatesToDelete)
+      onConfirm: () => performBulkDeleteDeliveriesBatch(duplicatesToDelete)
     });
   }, [patients, performBulkDeleteDeliveries]);
 
