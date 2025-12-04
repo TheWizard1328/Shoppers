@@ -751,65 +751,65 @@ function Dashboard() {
 
 
 
+
+
         // This subscription handles changes from other components
-      }});return unsubscribe;}, []);
-  // Listen for driver status break/resume events from DriverStatusToggle
-  useEffect(() => {
-    const unsubscribe = fabControlEvents.subscribe((event) => {
-      if (event.type === 'BREAK_START') {
-        console.log('🗺️ [Dashboard] Driver going on break - unlocking FAB and zooming to phase 1');
+      }});return unsubscribe;}, []); // Listen for driver status break/resume events from DriverStatusToggle
+  useEffect(() => {const unsubscribe = fabControlEvents.subscribe((event) => {
+        if (event.type === 'BREAK_START') {
+          console.log('🗺️ [Dashboard] Driver going on break - unlocking FAB and zooming to phase 1');
 
-        // Save current phase for later restoration
-        phaseBeforeBreakRef.current = event.previousPhase;
+          // Save current phase for later restoration
+          phaseBeforeBreakRef.current = event.previousPhase;
 
-        // Clear any timers
-        if (mapLockTimeoutRef.current) {
-          clearTimeout(mapLockTimeoutRef.current);
-          mapLockTimeoutRef.current = null;
+          // Clear any timers
+          if (mapLockTimeoutRef.current) {
+            clearTimeout(mapLockTimeoutRef.current);
+            mapLockTimeoutRef.current = null;
+          }
+          mapLockExpiresAtRef.current = null;
+
+          // Unlock FAB and set to phase 1
+          setIsMapViewLocked(false);
+          setMapViewPhase(1);
+          setMapViewTrigger((prev) => prev + 1); // Trigger zoom out to all markers
+
+          console.log(`💾 [Dashboard] Saved phase ${event.previousPhase} for restoration after break`);
+        } else if (event.type === 'BREAK_END') {
+          console.log('🗺️ [Dashboard] Driver back on duty - restoring FAB phase:', event.phaseToRestore);
+
+          // Restore the saved phase
+          const phaseToRestore = event.phaseToRestore || 1;
+          setMapViewPhase(phaseToRestore);
+
+          // Lock the FAB and trigger map view
+          setIsMapViewLocked(true);
+          setMapViewTrigger((prev) => prev + 1);
+
+          // Set up appropriate timer based on restored phase
+          if (phaseToRestore === 1 || phaseToRestore === 3) {
+            const lockDuration = 3000;
+            const expiresAt = Date.now() + lockDuration;
+            mapLockExpiresAtRef.current = expiresAt;
+
+            mapLockTimeoutRef.current = window.setTimeout(() => {
+              if (mapLockExpiresAtRef.current === expiresAt) {
+                console.log(`⚫ [Break End] Phase ${phaseToRestore} auto-unlocking after ${lockDuration}ms`);
+                setIsMapViewLocked(false);
+                mapLockExpiresAtRef.current = null;
+                mapLockTimeoutRef.current = null;
+              }
+            }, lockDuration);
+          }
+          // Phase 2 stays locked permanently
+
+          console.log(`✅ [Dashboard] Restored FAB to phase ${phaseToRestore}`);
+          phaseBeforeBreakRef.current = null;
         }
-        mapLockExpiresAtRef.current = null;
+      });
 
-        // Unlock FAB and set to phase 1
-        setIsMapViewLocked(false);
-        setMapViewPhase(1);
-        setMapViewTrigger((prev) => prev + 1); // Trigger zoom out to all markers
-
-        console.log(`💾 [Dashboard] Saved phase ${event.previousPhase} for restoration after break`);
-      } else if (event.type === 'BREAK_END') {
-        console.log('🗺️ [Dashboard] Driver back on duty - restoring FAB phase:', event.phaseToRestore);
-
-        // Restore the saved phase
-        const phaseToRestore = event.phaseToRestore || 1;
-        setMapViewPhase(phaseToRestore);
-
-        // Lock the FAB and trigger map view
-        setIsMapViewLocked(true);
-        setMapViewTrigger((prev) => prev + 1);
-
-        // Set up appropriate timer based on restored phase
-        if (phaseToRestore === 1 || phaseToRestore === 3) {
-          const lockDuration = 3000;
-          const expiresAt = Date.now() + lockDuration;
-          mapLockExpiresAtRef.current = expiresAt;
-
-          mapLockTimeoutRef.current = window.setTimeout(() => {
-            if (mapLockExpiresAtRef.current === expiresAt) {
-              console.log(`⚫ [Break End] Phase ${phaseToRestore} auto-unlocking after ${lockDuration}ms`);
-              setIsMapViewLocked(false);
-              mapLockExpiresAtRef.current = null;
-              mapLockTimeoutRef.current = null;
-            }
-          }, lockDuration);
-        }
-        // Phase 2 stays locked permanently
-
-        console.log(`✅ [Dashboard] Restored FAB to phase ${phaseToRestore}`);
-        phaseBeforeBreakRef.current = null;
-      }
-    });
-
-    return unsubscribe;
-  }, []);
+      return unsubscribe;
+    }, []);
 
   useEffect(() => {
     return () => {
@@ -963,19 +963,19 @@ function Dashboard() {
 
 
 
+
+
+
+
       // Callback provided for future use, but not actively calling refreshData
       // to prevent triggering auto-selection every 15 seconds
-    });const unsubscribe = driverLocationPoller.subscribe((locations) => {if (!locations || !Array.isArray(locations)) return;setAllDriverLocations(locations);});return () => {unsubscribe();driverLocationPoller.stop();};
-  }, [isDataLoaded, currentUser, deliveries, drivers]);
+    });const unsubscribe = driverLocationPoller.subscribe((locations) => {if (!locations || !Array.isArray(locations)) return;setAllDriverLocations(locations);});return () => {unsubscribe();driverLocationPoller.stop();};}, [isDataLoaded, currentUser, deliveries, drivers]);useEffect(() => {if (!isDataLoaded || !currentUser || !deliveries || !drivers) {
+        return;
+      }
 
-  useEffect(() => {
-    if (!isDataLoaded || !currentUser || !deliveries || !drivers) {
-      return;
-    }
-
-    const appUsers = users?.filter((u) => u.user_id) || [];
-    driverLocationPoller.processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate);
-  }, [isDataLoaded, currentUser, deliveries, drivers, stores, users, selectedDate]);
+      const appUsers = users?.filter((u) => u.user_id) || [];
+      driverLocationPoller.processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate);
+    }, [isDataLoaded, currentUser, deliveries, drivers, stores, users, selectedDate]);
 
   // Track the next stop ID to detect when it changes (stop completed/failed/cancelled)
   const nextStopIdRef = useRef(nextStop?.id);
@@ -4952,21 +4952,21 @@ function Dashboard() {
 
             
 
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <h2 className="text-slate-900 pr-1 pl-3 text-lg font-bold">Dashboard</h2>
-                {currentUser && isAppOwner(currentUser) && (
-                  <SmartRefreshIndicator 
-                    inline={true} 
-                    onManualRefresh={async () => {
-                      console.log('🔄 [Dashboard] Manual refresh triggered from stats card');
-                      invalidate('Delivery');
-                      invalidate('Patient');
-                      invalidate('AppUser');
-                      await refreshData(true);
-                    }}
-                  />
-                )}
+                <h2 className="text-slate-900 pl-2 text-lg font-bold">Dashboard</h2>
+                {currentUser && isAppOwner(currentUser) &&
+                <SmartRefreshIndicator
+                  inline={true}
+                  onManualRefresh={async () => {
+                    console.log('🔄 [Dashboard] Manual refresh triggered from stats card');
+                    invalidate('Delivery');
+                    invalidate('Patient');
+                    invalidate('AppUser');
+                    await refreshData(true);
+                  }} />
+
+                }
               </div>
 
               <div className="flex items-center gap-2">
