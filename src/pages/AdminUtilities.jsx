@@ -2340,6 +2340,7 @@ export default function AdminUtilities() {
   const [patientSortDirection, setPatientSortDirection] = useState('asc');
 
   const [showRouteImport, setShowRouteImport] = useState(false);
+  const [editingDelivery, setEditingDelivery] = useState(null);
   
   const refreshIntervalRef = useRef(null);
 
