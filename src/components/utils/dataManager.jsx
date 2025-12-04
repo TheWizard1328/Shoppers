@@ -293,39 +293,22 @@ export const loadDeliveriesThreeStage = async (filters = {}, onStage2Complete = 
   const recentDeliveries = await getDeliveriesForDateRange(last30DaysStr, todayStr, filters, forceRefresh);
   console.log(`✅ [dataManager] Stage 1: Last 30 days loaded (${recentDeliveries.length} deliveries) - returning to UI`);
   
-  // Background loading for rest of Stage 1 + Stage 2 + Stage 3
+  // Background loading for Stage 2 + Stage 3 (rest of current year + past years)
   const loadRemainingData = async () => {
     try {
-      // Stage 1b: Load tomorrow through +6 days (batch request)
-      if (next6DaysStr !== todayStr) {
-        const tomorrowStr = format(new Date(today.getTime() + 86400000), 'yyyy-MM-dd');
-        console.log(`🔄 [dataManager] Stage 1b: Loading ${tomorrowStr} to ${next6DaysStr}...`);
-        
-        try {
-          const restOfWeek = await getDeliveriesForDateRange(tomorrowStr, next6DaysStr, filters, forceRefresh);
-          console.log(`✅ [dataManager] Stage 1b complete: ${restOfWeek.length} deliveries`);
-          
-          if (onStage2Complete && restOfWeek.length > 0) {
-            onStage2Complete(restOfWeek);
-          }
-        } catch (error) {
-          console.warn(`⚠️ [dataManager] Stage 1b failed:`, error.message);
-        }
-      }
-      
-      // Stage 2: Remainder of current year (Jan 1 to yesterday)
-      console.log(`🔄 [dataManager] === STAGE 2: Loading remainder of ${currentYear} ===`);
+      // Stage 2: Rest of current year (Jan 1 to 31 days ago)
+      console.log(`🔄 [dataManager] === STAGE 2: Loading rest of ${currentYear} ===`);
       
       const yearStart = new Date(currentYear, 0, 1);
-      const yesterday = subDays(today, 1);
+      const day31Ago = subDays(today, 31);
       
-      if (yearStart <= yesterday) {
+      if (yearStart <= day31Ago) {
         const yearStartStr = format(yearStart, 'yyyy-MM-dd');
-        const yesterdayStr = format(yesterday, 'yyyy-MM-dd');
+        const day31AgoStr = format(day31Ago, 'yyyy-MM-dd');
         
         try {
-          const yearDeliveries = await getDeliveriesForDateRange(yearStartStr, yesterdayStr, filters, false);
-          console.log(`✅ [dataManager] Stage 2 complete: ${yearDeliveries.length} deliveries (${yearStartStr} to ${yesterdayStr})`);
+          const yearDeliveries = await getDeliveriesForDateRange(yearStartStr, day31AgoStr, filters, false);
+          console.log(`✅ [dataManager] Stage 2 complete: ${yearDeliveries.length} deliveries (${yearStartStr} to ${day31AgoStr})`);
           
           if (onStage2Complete && yearDeliveries.length > 0) {
             onStage2Complete(yearDeliveries);
