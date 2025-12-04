@@ -5231,11 +5231,10 @@ function Dashboard() {
       <div className="flex-1 w-full relative min-h-0">
         {/* Polyline API hits badge - App Owner only */}
         {currentUser && isAppOwner(currentUser) && dailyPolylineCount !== null &&
-        <div className="absolute top-2 left-2 z-[20] flex flex-col gap-2">
+        <div className="absolute top-2 left-2 z-[20]">
             <div className="bg-white/90 backdrop-blur-sm rounded-lg px-2 py-1 shadow-sm border border-slate-200 text-xs font-medium text-slate-600 z-[601]">
               🛣️ {dailyPolylineCount}
             </div>
-            <SmartRefreshIndicator />
           </div>
         }
 
