@@ -4947,25 +4947,26 @@ function Dashboard() {
               if (retractClustersRef.current) {
                 retractClustersRef.current();
               }
-            }} className="bg-white px-2 py-2 rounded-2xl shadow-xl border min-w-[340px] cursor-pointer z-[700] border-slate-200 relative">
+            }} className="bg-white px-2 py-2 rounded-2xl shadow-xl border min-w-[340px] cursor-pointer z-[700] border-slate-200">
 
-            {currentUser && isAppOwner(currentUser) && (
-              <SmartRefreshIndicator
-                inline={true}
-                onManualRefresh={async () => {
-                  console.log('🔄 [Dashboard] Manual refresh triggered from stats card');
-                  invalidate('Delivery');
-                  invalidate('Patient');
-                  invalidate('AppUser');
-                  await refreshData(true);
-                }}
-              />
-            )}
+
             
 
-            <div className="flex items-center justify-between mb-2 relative">
+            <div className="flex items-center justify-between mb-2">
               <div className="pr-1 flex items-center gap-2">
                 <h2 className="text-slate-900 pl-2 text-lg font-bold">Dashboard</h2>
+                {currentUser && isAppOwner(currentUser) &&
+                <SmartRefreshIndicator
+                  inline={true}
+                  onManualRefresh={async () => {
+                    console.log('🔄 [Dashboard] Manual refresh triggered from stats card');
+                    invalidate('Delivery');
+                    invalidate('Patient');
+                    invalidate('AppUser');
+                    await refreshData(true);
+                  }} />
+
+                }
               </div>
 
               <div className="flex items-center gap-3">
