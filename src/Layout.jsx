@@ -2418,8 +2418,7 @@ export default function Layout({ children, currentPageName }) {
                       </div>
                       <QuickStats
                         currentUser={currentUser}
-                        deliveries={filteredDeliveries}
-                        patients={filteredPatients} />
+                        storeIds={stores.map(s => s?.id).filter(Boolean)} />
 
                     </div>
                   }
