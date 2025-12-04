@@ -98,17 +98,29 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
     
     messages.forEach(msg => {
       const convId = msg.conversation_id;
+      
+      // Determine who the OTHER user is (not the current user)
+      const isCurrentUserSender = msg.sender_id === currentUser?.id;
+      const otherUserId = isCurrentUserSender ? msg.receiver_id : msg.sender_id;
+      const otherUserName = isCurrentUserSender ? msg.receiver_name : msg.sender_name;
+      
       if (!convMap.has(convId)) {
         convMap.set(convId, {
           id: convId,
           messages: [],
           unreadCount: 0,
-          otherUserId: msg.sender_id === currentUser?.id ? msg.receiver_id : msg.sender_id,
-          otherUserName: msg.sender_id === currentUser?.id ? msg.receiver_name : msg.sender_name
+          otherUserId: otherUserId,
+          otherUserName: otherUserName
         });
       }
       const conv = convMap.get(convId);
       conv.messages.push(msg);
+      
+      // Update otherUserName if we have a better value (non-empty)
+      if (otherUserName && (!conv.otherUserName || conv.otherUserName === 'Unknown User')) {
+        conv.otherUserName = otherUserName;
+      }
+      
       if (!msg.read && msg.receiver_id === currentUser?.id) {
         conv.unreadCount++;
       }
