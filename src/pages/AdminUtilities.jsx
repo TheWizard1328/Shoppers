@@ -3008,6 +3008,80 @@ export default function AdminUtilities() {
   }, [queryClient, refetchPatients, refreshData]);
 
 
+  // Optimized batch delete for duplicates - deletes in chunks with minimal delays
+  const performBulkDeleteDeliveriesBatch = useCallback(async (deliveriesToDelete) => {
+    if (!deliveriesToDelete || !Array.isArray(deliveriesToDelete) || deliveriesToDelete.length === 0) {
+      alert('No deliveries to delete.');
+      return;
+    }
+
+    const count = deliveriesToDelete.length;
+
+    setBulkDelete({
+      open: true,
+      running: true,
+      total: count,
+      processed: 0,
+      success: 0,
+      failed: 0,
+      currentLabel: "Processing batch deletes...",
+      currentDelay: 0,
+      retryQueue: 0,
+      entityLabel: "Duplicate Deliveries"
+    });
+
+    try {
+      console.log(`🗑️ [AdminUtilities] Starting batch delete of ${count} duplicates...`);
+      
+      // Delete in batches of 50 (much faster than one-at-a-time)
+      const BATCH_SIZE = 50;
+      let successCount = 0;
+      let failCount = 0;
+      
+      for (let i = 0; i < deliveriesToDelete.length; i += BATCH_SIZE) {
+        const batch = deliveriesToDelete.slice(i, i + BATCH_SIZE);
+        
+        setBulkDelete(prev => ({
+          ...prev,
+          currentLabel: `Batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(count / BATCH_SIZE)}`,
+        }));
+        
+        // Delete all in this batch with minimal delay
+        for (const delivery of batch) {
+          try {
+            await Delivery.delete(delivery.id);
+            successCount++;
+          } catch (error) {
+            console.error(`Failed to delete ${delivery.id}:`, error);
+            failCount++;
+          }
+          await new Promise(resolve => setTimeout(resolve, 50)); // Minimal 50ms delay
+        }
+        
+        setBulkDelete(prev => ({
+          ...prev,
+          processed: Math.min(i + BATCH_SIZE, count),
+          success: successCount,
+          failed: failCount,
+        }));
+        
+        console.log(`✅ [AdminUtilities] Batch ${Math.floor(i / BATCH_SIZE) + 1} complete: ${successCount} deleted, ${failCount} failed`);
+      }
+
+      setBulkDelete(prev => ({ ...prev, running: false, currentLabel: "" }));
+      queryClient.invalidateQueries(['deliveries']);
+      await refetchDeliveries();
+      
+      console.log('🔄 [AdminUtilities] Triggering global data refresh after batch delete');
+      await refreshData();
+      
+      console.log(`✅ [AdminUtilities] Batch delete complete: ${successCount} deleted, ${failCount} failed`);
+    } catch (error) {
+      console.error('Error during batch delivery delete:', error);
+      setBulkDelete(prev => ({ ...prev, running: false }));
+    }
+  }, [queryClient, refetchDeliveries, refreshData]);
+
   const performBulkDeleteDeliveries = useCallback(async (deliveriesToDelete) => {
     if (!deliveriesToDelete || !Array.isArray(deliveriesToDelete)) {
       console.error('[AdminUtilities] performBulkDeleteDeliveries: Invalid input - not an array:', typeof deliveriesToDelete);
@@ -3144,97 +3218,6 @@ export default function AdminUtilities() {
       await refreshData();
     } catch (error) {
       console.error('Error during bulk delivery delete:', error);
-      setBulkDelete(prev => ({ ...prev, running: false }));
-    }
-  }, [queryClient, refetchDeliveries, refreshData]);
-
-  // Optimized batch delete for duplicates - deletes in chunks using filter queries
-  const performBulkDeleteDeliveriesBatch = useCallback(async (deliveriesToDelete) => {
-    if (!deliveriesToDelete || !Array.isArray(deliveriesToDelete) || deliveriesToDelete.length === 0) {
-      alert('No deliveries to delete.');
-      return;
-    }
-
-    const count = deliveriesToDelete.length;
-
-    setBulkDelete({
-      open: true,
-      running: true,
-      total: count,
-      processed: 0,
-      success: 0,
-      failed: 0,
-      currentLabel: "Processing batch deletes...",
-      currentDelay: 0,
-      retryQueue: 0,
-      entityLabel: "Duplicate Deliveries"
-    });
-
-    try {
-      console.log(`🗑️ [AdminUtilities] Starting batch delete of ${count} duplicates...`);
-      
-      // Delete in batches of 50 using filter queries (much faster than individual deletes)
-      const BATCH_SIZE = 50;
-      let successCount = 0;
-      let failCount = 0;
-      
-      for (let i = 0; i < deliveriesToDelete.length; i += BATCH_SIZE) {
-        const batch = deliveriesToDelete.slice(i, i + BATCH_SIZE);
-        const batchIds = batch.map(d => d.id);
-        
-        setBulkDelete(prev => ({
-          ...prev,
-          currentLabel: `Batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(count / BATCH_SIZE)}`,
-        }));
-        
-        try {
-          // Use the base44 SDK's bulk delete via filter query
-          await base44.entities.Delivery.filter({ id: { $in: batchIds } }).then(async (results) => {
-            // Delete each result individually (SDK doesn't have bulk delete, but filter pre-selects them)
-            for (const delivery of results) {
-              await Delivery.delete(delivery.id);
-            }
-          });
-          
-          successCount += batch.length;
-          console.log(`✅ [AdminUtilities] Batch ${Math.floor(i / BATCH_SIZE) + 1} complete: ${batch.length} deleted`);
-        } catch (error) {
-          console.error(`❌ [AdminUtilities] Batch failed, falling back to individual deletes:`, error);
-          
-          // Fallback: delete individually with delays
-          for (const delivery of batch) {
-            try {
-              await Delivery.delete(delivery.id);
-              successCount++;
-            } catch (individualError) {
-              console.error(`Failed to delete ${delivery.id}:`, individualError);
-              failCount++;
-            }
-            await new Promise(resolve => setTimeout(resolve, 100));
-          }
-        }
-        
-        setBulkDelete(prev => ({
-          ...prev,
-          processed: Math.min(i + BATCH_SIZE, count),
-          success: successCount,
-          failed: failCount,
-        }));
-        
-        // Small delay between batches
-        await new Promise(resolve => setTimeout(resolve, 300));
-      }
-
-      setBulkDelete(prev => ({ ...prev, running: false, currentLabel: "" }));
-      queryClient.invalidateQueries(['deliveries']);
-      await refetchDeliveries();
-      
-      console.log('🔄 [AdminUtilities] Triggering global data refresh after batch delete');
-      await refreshData();
-      
-      console.log(`✅ [AdminUtilities] Batch delete complete: ${successCount} deleted, ${failCount} failed`);
-    } catch (error) {
-      console.error('Error during batch delivery delete:', error);
       setBulkDelete(prev => ({ ...prev, running: false }));
     }
   }, [queryClient, refetchDeliveries, refreshData]);
