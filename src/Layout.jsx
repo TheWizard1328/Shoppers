@@ -1519,10 +1519,12 @@ export default function Layout({ children, currentPageName }) {
     return data;
   }, [patients, currentUser, selectedStoreId]);
 
+  // CRITICAL: Use deliveries directly (not filteredDeliveries) to show total routes count
+  // This ensures the count updates as staged loading brings in more data
   const totalRoutesCount = useMemo(() => {
-    if (!filteredDeliveries || filteredDeliveries.length === 0) return 0;
-    return new Set(filteredDeliveries.filter(delivery => delivery && delivery.delivery_date).map((delivery) => delivery.delivery_date)).size;
-  }, [filteredDeliveries]);
+    if (!deliveries || deliveries.length === 0) return 0;
+    return new Set(deliveries.filter(delivery => delivery && delivery.delivery_date).map((delivery) => delivery.delivery_date)).size;
+  }, [deliveries]);
 
   const getPatientStoreData = useCallback(() => {
     if (!stores.length || !filteredPatients.length) return [];
