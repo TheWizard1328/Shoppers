@@ -476,21 +476,34 @@ export default function Layout({ children, currentPageName }) {
       try {
         const settings = await loadUserSettings(fetchedUser.id);
         console.log('✅ [Layout] User settings loaded:', settings);
-        
+
         // Apply sidebar width
         if (settings.sidebar_width) {
           setSidebarWidth(settings.sidebar_width);
         }
-        
+
         // Apply theme preference
         if (settings.theme_preference) {
           setThemePreference(settings.theme_preference);
         }
-        
+
         setUserSettingsLoaded(true);
       } catch (settingsError) {
         console.warn('⚠️ [Layout] Error loading user settings:', settingsError);
         setUserSettingsLoaded(true);
+      }
+
+      // Load app-wide settings (smart refresh toggle)
+      console.log('⚙️ [Layout] Step 2.1c: Loading app settings...');
+      try {
+        const appSettings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+        if (appSettings && appSettings.length > 0 && appSettings[0].setting_value) {
+          const smartRefreshEnabled = appSettings[0].setting_value.smartRefreshEnabled !== false;
+          smartRefreshManager.enabled = smartRefreshEnabled;
+          console.log(`✅ [Layout] Smart refresh ${smartRefreshEnabled ? 'ENABLED' : 'DISABLED'} from app settings`);
+        }
+      } catch (appSettingsError) {
+        console.warn('⚠️ [Layout] Error loading app settings:', appSettingsError);
       }
 
         console.log('🔐 [Layout] Step 2.2: Checking access permissions...');
