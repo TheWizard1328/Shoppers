@@ -4563,7 +4563,7 @@ function Dashboard() {
             lat: driverLocation.latitude,
             lon: driverLocation.longitude
           } : null,
-          completedDeliveryId: finishedStatusesTrigger.includes(newStatus) ? deliveryId : null,
+          completedDeliveryId: ['completed', 'failed', 'cancelled', 'returned'].includes(newStatus) ? deliveryId : null,
           clientCurrentTime: format(new Date(), 'HH:mm'),
           generatePolyline: true,
           forceReoptimization: true
