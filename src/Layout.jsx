@@ -973,9 +973,9 @@ export default function Layout({ children, currentPageName }) {
       // The normal interval will handle the first refresh after data is stable
       console.log('🚀 [Layout] Smart refresh started - first refresh in 45s (not immediate)');
 
-      // Single unified interval - 45 seconds for balanced refresh rate
+      // Single unified interval - 90 seconds for rate limit protection
       // Individual entity intervals are managed by smartRefreshManager
-      refreshIntervalRef.current = setInterval(performUnifiedRefresh, 45000);
+      refreshIntervalRef.current = setInterval(performUnifiedRefresh, 90000);
     }, 500);
 
     return () => {
