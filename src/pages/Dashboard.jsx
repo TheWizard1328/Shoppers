@@ -4886,12 +4886,21 @@ function Dashboard() {
     }
   }, [isExpanded, areCardsVisible]);
 
-  // Check if data for selected date is available (from last 30 days cache)
+  // Force UI refresh when data for selected date becomes available
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-  const hasDataForSelectedDate = useMemo(() => {
-    if (!isDataLoaded || !deliveries) return false;
-    // Check if we have any deliveries for the selected date
-    return deliveries.some(d => d && d.delivery_date === selectedDateStr);
+  const [forceRender, setForceRender] = useState(0);
+  
+  useEffect(() => {
+    if (!isDataLoaded || !deliveries) return;
+    
+    // Check if we have deliveries for the selected date
+    const hasDataForDate = deliveries.some(d => d && d.delivery_date === selectedDateStr);
+    
+    if (hasDataForDate) {
+      console.log('✅ [Dashboard] Data ready for selected date, forcing UI refresh');
+      // Force a re-render to update stats and cards immediately
+      setForceRender(prev => prev + 1);
+    }
   }, [isDataLoaded, deliveries, selectedDateStr]);
 
   if (isLoadingUser || !isDataLoaded || !isFiltersReady) {
