@@ -2739,13 +2739,28 @@ export default function DeliveriesPage() {
     const todayStr = format(new Date(), 'yyyy-MM-dd');
 
     const cards = driversToShow.map((driver) => {
+      // Match deliveries by driver_id (primary) or driver_name (fallback)
       const driverDeliveries = yearFilteredDeliveries.filter((d) => {
-        if (d.driver_id && (d.driver_id === driver.id || d.driver_id === driver.appUserId)) {
-          return true;
+        if (!d) return false;
+        
+        // Primary: Match by driver_id
+        if (d.driver_id) {
+          if (d.driver_id === driver.id || d.driver_id === driver.appUserId) {
+            return true;
+          }
         }
-        if (d.driver_name && (d.driver_name === driver.full_name || d.driver_name === driver.user_name)) {
-          return true;
+        
+        // Fallback: Match by driver_name (case-insensitive, trimmed)
+        if (d.driver_name) {
+          const deliveryDriverName = (d.driver_name || '').toLowerCase().trim();
+          const driverFullName = (driver.full_name || '').toLowerCase().trim();
+          const driverUserName = (driver.user_name || '').toLowerCase().trim();
+          
+          if (deliveryDriverName === driverFullName || deliveryDriverName === driverUserName) {
+            return true;
+          }
         }
+        
         return false;
       });
 
