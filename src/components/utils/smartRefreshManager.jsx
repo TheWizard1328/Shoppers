@@ -687,8 +687,9 @@ class SmartRefreshManager {
    */
   async refreshDriverLocations(currentAppUsers) {
     try {
-      // Check if disabled
-      if (!this.enabled) {
+      // Check if disabled - use private property directly to avoid getter logging
+      if (!this._enabled) {
+        console.log('⏸️ [SmartRefresh] refreshDriverLocations SKIPPED - disabled');
         return null;
       }
       
@@ -984,8 +985,9 @@ class SmartRefreshManager {
    */
   async refreshActiveDeliveryStatuses(currentDeliveries, selectedDate) {
     try {
-      // Check if disabled
-      if (!this.enabled) {
+      // Check if disabled - use private property directly to avoid getter logging
+      if (!this._enabled) {
+        console.log('⏸️ [SmartRefresh] refreshActiveDeliveryStatuses SKIPPED - disabled');
         return null;
       }
       
