@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
@@ -2671,9 +2670,14 @@ export default function DeliveriesPage() {
     let cityFilteredDrivers = driversWithRoles; // Start with drivers that have relevant roles
 
     if (userHasRole(currentUser, 'admin')) {
-      // Admins see ALL drivers regardless of city filter
-      console.log('👑 Admin - showing all drivers from all cities');
-      // No city filtering for admins - they see everything
+      // Admins can filter by city if they select one, otherwise see ALL drivers
+      if (selectedCityId && selectedCityId !== 'all') {
+        cityFilteredDrivers = driversWithRoles.filter((d) => d.city_id === selectedCityId);
+        console.log(`👑 Admin - filtered to city ${selectedCityId}: ${cityFilteredDrivers.length} drivers`);
+      } else {
+        console.log('👑 Admin - showing all drivers from all cities');
+        // No city filtering for admins when 'all' is selected
+      }
     } else if (userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) {
       // Dispatchers and drivers only see drivers from their own city
       if (currentUser.city_id) {
