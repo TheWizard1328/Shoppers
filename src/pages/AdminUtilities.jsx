@@ -3404,14 +3404,12 @@ export default function AdminUtilities() {
     
     deliveriesToProcess.forEach(d => {
       if (!d) return;
-      // Build key: PID (patient_id from patient entity) + SID (stop_id) + date + driver_id
       const patient = (patients || []).find(p => p.id === d.patient_id);
       const pid = patient?.patient_id || '';
       const sid = d.stop_id || '';
       const date = d.delivery_date || '';
       const driverId = d.driver_id || '';
       
-      // Only consider items with at least PID or SID
       if (!pid && !sid) return;
       
       const key = `${pid}_${sid}_${date}_${driverId}`;
@@ -3421,17 +3419,14 @@ export default function AdminUtilities() {
       duplicateGroups.get(key).push(d);
     });
     
-    // Find duplicates (groups with more than 1 item)
     const duplicatesToDelete = [];
-    duplicateGroups.forEach((group, key) => {
+    duplicateGroups.forEach((group) => {
       if (group.length > 1) {
-        // Keep the first one (oldest by created_date), delete the rest
         const sorted = [...group].sort((a, b) => {
           const aDate = new Date(a.created_date || 0);
           const bDate = new Date(b.created_date || 0);
           return aDate - bDate;
         });
-        // Add all but the first (oldest) to delete list
         duplicatesToDelete.push(...sorted.slice(1));
       }
     });
@@ -3451,7 +3446,7 @@ export default function AdminUtilities() {
     });
   }, [patients, performBulkDeleteDeliveriesBatch]);
 
-  const handleBackfillPUIDs = async (deliveriesToProcess) => {
+  const handleBackfillPUIDs = useCallback(async (deliveriesToProcess) => {
     const count = deliveriesToProcess.length;
     const scope = deliveriesToProcess === filteredAndSortedDeliveries ? 'all filtered' : 'selected';
     
@@ -3477,7 +3472,6 @@ export default function AdminUtilities() {
 
               if (!delivery.patient_id && delivery.stop_id) {
                 puidToSet = delivery.stop_id;
-                console.log(`✅ [AdminUtilities] Pickup ${delivery.stop_id} will use own SID as PUID`);
               } else if (delivery.patient_id) {
                 let pickup = (allDeliveries || []).find(p => 
                   p && !p.patient_id && p.store_id === delivery.store_id &&
@@ -3494,10 +3488,6 @@ export default function AdminUtilities() {
                     p.ampm_deliveries === delivery.ampm_deliveries &&
                     p.stop_id
                   );
-                  
-                  if (pickup) {
-                    console.log(`🔄 [AdminUtilities] Found pickup on different driver for ${delivery.patient_name}`);
-                  }
                 }
 
                 if (pickup && pickup.stop_id) {
@@ -3508,11 +3498,7 @@ export default function AdminUtilities() {
               if (puidToSet) {
                 await Delivery.update(delivery.id, { puid: puidToSet });
                 updated++;
-                const label = delivery.patient_id ? delivery.patient_name : `Pickup ${delivery.stop_id}`;
-                console.log(`✅ [AdminUtilities] Updated ${label} with PUID: ${puidToSet}`);
               } else {
-                const label = delivery.patient_id ? delivery.patient_name : `Pickup ${delivery.stop_id}`;
-                console.warn(`⚠️ [AdminUtilities] Skipping ${label}: No PUID could be determined`);
                 skipped++;
               }
             } catch (error) {
@@ -3526,8 +3512,6 @@ export default function AdminUtilities() {
           alert(`PUID Backfill complete!\n\nUpdated: ${updated} deliveries.\nFailed: ${failed} deliveries.\nSkipped: ${skipped} deliveries (no matching pickup found).`);
           queryClient.invalidateQueries(['deliveries']);
           await refetchDeliveries();
-          
-          console.log('🔄 [AdminUtilities] Triggering global data refresh after PUID backfill');
           await refreshData();
 
         } catch (error) {
@@ -3538,9 +3522,7 @@ export default function AdminUtilities() {
         }
       }
     });
-  };
-
-  const _confirmDeleteAllDeliveries
+  }, [allDeliveries, filteredAndSortedDeliveries, queryClient, refetchDeliveries, refreshData]);
 
   const handleEditEntity = (entity) => {
     console.log('Edit entity:', entity);
