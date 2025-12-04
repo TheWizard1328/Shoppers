@@ -1842,6 +1842,7 @@ export default function Layout({ children, currentPageName }) {
         main {
           overscroll-behavior-y: contain !important;
           -webkit-overflow-scrolling: touch !important;
+          max-height: 100%;
         }
 
         .leaflet-container {
