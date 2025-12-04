@@ -3550,7 +3550,7 @@ export default function DeliveriesPage() {
                     className={`cursor-pointer transition-shadow bg-white/80 backdrop-blur-sm ${isInactive ? 'opacity-60 grayscale hover:shadow-md' : 'hover:shadow-lg'}`}
                     onClick={() => handleDriverCardClick(card.driver)}>
 
-                        <CardHeader>
+                        <CardHeader className="pb-2">
                           <CardTitle className="text-base flex items-center justify-between">
                             <span className="text-lg font-bold">
                               {card.firstName}
@@ -3574,6 +3574,18 @@ export default function DeliveriesPage() {
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="px-6 py-3">
+                          {/* Today's Stats - single line */}
+                          {card.todayStats && card.todayStats.total > 0 &&
+                        <div className="mb-3 pb-3 border-b border-slate-100">
+                              <div className="flex items-center gap-3 text-xs font-medium flex-wrap">
+                                <span className="text-slate-500">Today:</span>
+                                <span className="text-blue-600">Active: {card.todayStats.active}</span>
+                                <span className="text-green-600">Comp: {card.todayStats.completed}</span>
+                                <span className="text-red-600">Failed: {card.todayStats.failed}</span>
+                                <span className="text-orange-600">Returns: {card.todayStats.returned}</span>
+                              </div>
+                            </div>
+                        }
                           <div className="space-y-1 text-sm">
                             <div className="flex justify-between items-center">
                               <span className="text-slate-600">Pickups:</span>
