@@ -192,6 +192,31 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
 
       {/* Conversations list */}
       <div className="flex-1 overflow-y-auto">
+        {/* Load More button at top */}
+        {hasMoreMessages && !isLoading && filteredConversations.length > 0 && (
+          <div className="p-2 border-b bg-slate-50">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLoadMore}
+              disabled={isLoadingMore}
+              className="w-full text-xs text-slate-600 hover:text-slate-900"
+            >
+              {isLoadingMore ? (
+                <>
+                  <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                  Loading older messages...
+                </>
+              ) : (
+                <>
+                  <ChevronUp className="w-3 h-3 mr-2" />
+                  Load older messages
+                </>
+              )}
+            </Button>
+          </div>
+        )}
+
         {filteredConversations.length === 0 && availableUsers.length === 0 && (
           <div className="text-center text-slate-500 py-8">
             <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
