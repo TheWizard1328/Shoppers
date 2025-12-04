@@ -31,6 +31,7 @@ import { findFuzzyMatch, normalizeText } from '../components/utils/fuzzyMatching
 import { smartRefreshManager } from '../components/utils/smartRefreshManager';
 import { base44 } from '@/api/base44Client';
 import AppSettingsPanel from '../components/admin/AppSettingsPanel';
+import { loadUserSettings, saveSetting } from '../components/utils/userSettingsManager';
 
 // Custom Confirmation Dialog Component
 const ConfirmationDialog = ({ open, onOpenChange, title, description, onConfirm, confirmText = "Delete", variant = "destructive" }) => {
