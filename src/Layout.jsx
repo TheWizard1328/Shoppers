@@ -184,24 +184,36 @@ const QuickStats = ({ currentUser, deliveries = [], patients = [] }) => {
     return notesReturn || addressReturn;
   };
 
+  // Helper: Check if a stop is a "countable delivery" (patient delivery OR after-hours pickup)
+  const isCountableDelivery = (delivery) => {
+    if (!delivery) return false;
+    // Patient deliveries always count
+    if (delivery.patient_id) return true;
+    // After-hours pickups count as deliveries
+    if (!delivery.patient_id && delivery.after_hours_pickup) return true;
+    return false;
+  };
+
   const selectedDateString = format(selectedDate, 'yyyy-MM-dd');
   const selectedDateDeliveries = visibleDeliveries.filter((delivery) => delivery && delivery.delivery_date === selectedDateString);
   const selectedDateActiveDrivers = userHasRole(currentUser, 'driver') ? 1 : new Set(selectedDateDeliveries.filter(delivery => delivery && delivery.driver_name).map((delivery) => delivery.driver_name)).size;
-  const selectedDateCompleted = selectedDateDeliveries.filter((delivery) => delivery && ['completed', 'delivered'].includes(delivery.status)).length;
+  // Count completed: patient deliveries + after-hours pickups
+  const selectedDateCompleted = selectedDateDeliveries.filter((delivery) => delivery && ['completed', 'delivered'].includes(delivery.status) && isCountableDelivery(delivery)).length;
   const selectedDateActiveStops = selectedDateDeliveries.filter((delivery) => delivery && (delivery.status === 'in_transit' || delivery.status === 'en_route')).length;
 
   const selectedDateReturns = selectedDateDeliveries.filter(isReturn).length;
-  const selectedDatePureFailed = selectedDateDeliveries.filter((delivery) => delivery && delivery.status === 'failed' && !isReturn(delivery)).length;
+  const selectedDatePureFailed = selectedDateDeliveries.filter((delivery) => delivery && delivery.status === 'failed' && !isReturn(delivery) && isCountableDelivery(delivery)).length;
 
   const monthDeliveries = visibleDeliveries.filter((delivery) => {
     if (!delivery || !delivery.delivery_date) return false;
     const deliveryDate = new Date(delivery.delivery_date);
     return deliveryDate.getMonth() === selectedMonth && deliveryDate.getFullYear() === selectedYear;
   });
-  const monthCompleted = monthDeliveries.filter((delivery) => delivery && ['completed', 'delivered'].includes(delivery.status)).length;
+  // Count completed: patient deliveries + after-hours pickups
+  const monthCompleted = monthDeliveries.filter((delivery) => delivery && ['completed', 'delivered'].includes(delivery.status) && isCountableDelivery(delivery)).length;
 
   const monthReturns = monthDeliveries.filter(isReturn).length;
-  const monthPureFailed = monthDeliveries.filter((delivery) => delivery && delivery.status === 'failed' && !isReturn(delivery)).length;
+  const monthPureFailed = monthDeliveries.filter((delivery) => delivery && delivery.status === 'failed' && !isReturn(delivery) && isCountableDelivery(delivery)).length;
 
   const StatItem = ({ icon: Icon, label, value, colorClass }) =>
     <div className="flex items-center justify-between text-sm">
