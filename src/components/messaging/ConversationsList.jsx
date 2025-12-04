@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Badge } from '@/components/ui/badge';
-import { MessageCircle, Search } from 'lucide-react';
+import { MessageCircle, Search, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 
@@ -16,19 +16,20 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
     const fetchMessages = async () => {
       try {
         // OPTIMIZED: Only fetch messages for current user (not all messages)
-        // This reduces API load significantly
+        // This reduces API load by filtering server-side
         const [sentMessages, receivedMessages] = await Promise.all([
           base44.entities.Message.filter({ sender_id: currentUser.id }, '-created_date', 100),
           base44.entities.Message.filter({ receiver_id: currentUser.id }, '-created_date', 100)
         ]);
         
-        // Merge and dedupe messages
-        const allUserMessages = [...sentMessages, ...receivedMessages];
-        const uniqueMessages = allUserMessages.filter((msg, index, self) => 
-          index === self.findIndex(m => m.id === msg.id)
-        );
+        // Merge and deduplicate
+        const messageMap = new Map();
+        [...sentMessages, ...receivedMessages].forEach(m => {
+          if (m && m.id) messageMap.set(m.id, m);
+        });
         
-        setMessages(uniqueMessages);
+        const userMessages = Array.from(messageMap.values());
+        setMessages(userMessages);
       } catch (error) {
         console.error('Error fetching messages:', error);
       } finally {
@@ -37,7 +38,7 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
     };
 
     fetchMessages();
-    // Poll every 60 seconds (reduced from 20s to prevent rate limiting)
+    // Poll for new messages every 60 seconds (increased from 20s to reduce rate limits)
     const interval = setInterval(fetchMessages, 60000);
     return () => clearInterval(interval);
   }, [currentUser?.id]);
@@ -92,23 +93,30 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
     );
   }, [conversations, searchQuery]);
 
-  // Available users to start new conversation
+  // Available users to start new conversation (shown when searching)
   const availableUsers = useMemo(() => {
+    if (!searchQuery.trim()) return []; // Only show when searching
     const existingConvUserIds = new Set(conversations.map(c => c.otherUserId));
+    const query = searchQuery.toLowerCase();
     return (users || []).filter(u => 
       u.id !== currentUser?.id && 
       !existingConvUserIds.has(u.id) &&
-      u.status === 'active'
-    );
-  }, [users, conversations, currentUser?.id]);
-
-  const filteredAvailableUsers = useMemo(() => {
-    if (!searchQuery.trim()) return availableUsers;
-    const query = searchQuery.toLowerCase();
-    return availableUsers.filter(u => 
+      u.status === 'active' &&
       (u.user_name || u.full_name || '').toLowerCase().includes(query)
     );
-  }, [availableUsers, searchQuery]);
+  }, [users, conversations, currentUser?.id, searchQuery]);
+
+  const handleDeleteConversation = async (e, convId, convMessages) => {
+    e.stopPropagation();
+    if (!window.confirm('Delete this conversation? All messages will be removed.')) return;
+    
+    try {
+      await Promise.all(convMessages.map(msg => base44.entities.Message.delete(msg.id)));
+      setMessages(prev => prev.filter(m => m.conversation_id !== convId));
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -135,10 +143,11 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
 
       {/* Conversations list */}
       <div className="flex-1 overflow-y-auto">
-        {filteredConversations.length === 0 && filteredAvailableUsers.length === 0 && (
+        {filteredConversations.length === 0 && availableUsers.length === 0 && (
           <div className="text-center text-slate-500 py-8">
             <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p>No conversations yet</p>
+            <p>{searchQuery ? 'No users found' : 'No conversations yet'}</p>
+            {!searchQuery && <p className="text-xs mt-1">Search for a user to start chatting</p>}
           </div>
         )}
 
@@ -146,7 +155,7 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
           <div
             key={conv.id}
             onClick={() => onSelectConversation(conv.id, conv.otherUserId, conv.otherUserName)}
-            className={`p-3 border-b cursor-pointer hover:bg-slate-50 transition-colors ${
+            className={`p-3 border-b cursor-pointer hover:bg-slate-50 transition-colors group ${
               selectedConversationId === conv.id ? 'bg-slate-100' : ''
             }`}
           >
@@ -159,11 +168,20 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
                   <span className="font-medium text-slate-900 truncate">
                     {conv.otherUserName || 'Unknown User'}
                   </span>
-                  {conv.unreadCount > 0 && (
-                    <Badge className="bg-emerald-500 text-white ml-2">
-                      {conv.unreadCount}
-                    </Badge>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {conv.unreadCount > 0 && (
+                      <Badge className="bg-emerald-500 text-white">
+                        {conv.unreadCount}
+                      </Badge>
+                    )}
+                    <button
+                      onClick={(e) => handleDeleteConversation(e, conv.id, conv.messages)}
+                      className="p-1 opacity-0 group-hover:opacity-100 hover:bg-red-100 rounded transition-all"
+                      title="Delete conversation"
+                    >
+                      <Trash2 className="w-4 h-4 text-red-500" />
+                    </button>
+                  </div>
                 </div>
                 <p className="text-sm text-slate-500 truncate">
                   {conv.lastMessage?.content}
@@ -176,18 +194,19 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
           </div>
         ))}
 
-        {/* New conversation options */}
-        {filteredAvailableUsers.length > 0 && (
+        {/* New conversation options - only shown when searching */}
+        {availableUsers.length > 0 && (
           <>
             <div className="px-3 py-2 bg-slate-50 text-xs font-semibold text-slate-500 uppercase">
-              Start New Conversation
+              Start New Chat
             </div>
-            {filteredAvailableUsers.map(user => (
+            {availableUsers.map(user => (
               <div
                 key={user.id}
                 onClick={() => {
                   const convId = [currentUser.id, user.id].sort().join('_');
                   onSelectConversation(convId, user.id, user.user_name || user.full_name);
+                  setSearchQuery('');
                 }}
                 className="p-3 border-b cursor-pointer hover:bg-slate-50 transition-colors"
               >
