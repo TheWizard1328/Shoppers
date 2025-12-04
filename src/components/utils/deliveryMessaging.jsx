@@ -40,32 +40,7 @@ export async function sendDeliveryMessage({
 }
 
 /**
- * Send a WhatsApp message via the agent
- * Note: This creates a message that the WhatsApp agent can pick up
- */
-async function sendWhatsAppMessage({ receiverId, receiverName, content }) {
-  if (!receiverId || !content) return;
-  
-  try {
-    // Create a system message for WhatsApp delivery
-    // The agent monitors these and forwards to WhatsApp
-    await base44.entities.Message.create({
-      sender_id: 'system_whatsapp',
-      sender_name: 'RxDeliver WhatsApp',
-      receiver_id: receiverId,
-      receiver_name: receiverName || 'User',
-      conversation_id: `whatsapp_${receiverId}`,
-      content: `[WhatsApp] ${content}`,
-      read: false
-    });
-    console.log(`📱 [deliveryMessaging] WhatsApp message queued for ${receiverName}`);
-  } catch (error) {
-    console.error('[deliveryMessaging] Failed to queue WhatsApp message:', error);
-  }
-}
-
-/**
- * Send notification through configured channels (in-app and/or WhatsApp)
+ * Send notification through configured channels (in-app only)
  */
 async function sendNotification({
   event,
@@ -83,15 +58,6 @@ async function sendNotification({
     await sendDeliveryMessage({
       senderId,
       senderName,
-      receiverId,
-      receiverName,
-      content
-    });
-  }
-
-  // Send WhatsApp message if enabled
-  if (shouldNotify(event, 'whatsApp')) {
-    await sendWhatsAppMessage({
       receiverId,
       receiverName,
       content
