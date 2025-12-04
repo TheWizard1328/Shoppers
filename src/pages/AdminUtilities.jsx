@@ -3273,6 +3273,95 @@ export default function AdminUtilities() {
     });
   }, [patients, performBulkDeleteDeliveriesBatch]);
 
+  const handleBackfillPUIDs = async (deliveriesToProcess) => {
+    const count = deliveriesToProcess.length;
+    const scope = deliveriesToProcess === filteredAndSortedDeliveries ? 'all filtered' : 'selected';
+    
+    setConfirmDialog({
+      open: true,
+      title: `Backfill Missing PUIDs for ${count} ${scope} deliveries?`,
+      description: `This will analyze ${count} ${scope} deliveries and automatically assign PUIDs. Pickups get their own SID as PUID. Patient deliveries are matched to pickups (checks driver transfers too).`,
+      confirmText: 'Yes, Backfill',
+      variant: 'default',
+      onConfirm: async () => {
+        setIsBackfilling(true);
+        let updated = 0;
+        let failed = 0;
+        let skipped = 0;
+
+        try {
+          const deliveriesNeedingPUID = deliveriesToProcess.filter(d => d && !d.puid);
+          console.log(`🔄 [AdminUtilities] Backfilling PUIDs for ${deliveriesNeedingPUID.length} deliveries...`);
+
+          for (const delivery of deliveriesNeedingPUID) {
+            try {
+              let puidToSet = null;
+
+              if (!delivery.patient_id && delivery.stop_id) {
+                puidToSet = delivery.stop_id;
+                console.log(`✅ [AdminUtilities] Pickup ${delivery.stop_id} will use own SID as PUID`);
+              } else if (delivery.patient_id) {
+                let pickup = (allDeliveries || []).find(p => 
+                  p && !p.patient_id && p.store_id === delivery.store_id &&
+                  p.delivery_date === delivery.delivery_date &&
+                  p.driver_id === delivery.driver_id &&
+                  p.ampm_deliveries === delivery.ampm_deliveries &&
+                  p.stop_id
+                );
+
+                if (!pickup) {
+                  pickup = (allDeliveries || []).find(p => 
+                    p && !p.patient_id && p.store_id === delivery.store_id &&
+                    p.delivery_date === delivery.delivery_date &&
+                    p.ampm_deliveries === delivery.ampm_deliveries &&
+                    p.stop_id
+                  );
+                  
+                  if (pickup) {
+                    console.log(`🔄 [AdminUtilities] Found pickup on different driver for ${delivery.patient_name}`);
+                  }
+                }
+
+                if (pickup && pickup.stop_id) {
+                  puidToSet = pickup.stop_id;
+                }
+              }
+
+              if (puidToSet) {
+                await Delivery.update(delivery.id, { puid: puidToSet });
+                updated++;
+                const label = delivery.patient_id ? delivery.patient_name : `Pickup ${delivery.stop_id}`;
+                console.log(`✅ [AdminUtilities] Updated ${label} with PUID: ${puidToSet}`);
+              } else {
+                const label = delivery.patient_id ? delivery.patient_name : `Pickup ${delivery.stop_id}`;
+                console.warn(`⚠️ [AdminUtilities] Skipping ${label}: No PUID could be determined`);
+                skipped++;
+              }
+            } catch (error) {
+              console.error(`❌ [AdminUtilities] Failed to update delivery ${delivery.id}:`, error);
+              failed++;
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+
+          alert(`PUID Backfill complete!\n\nUpdated: ${updated} deliveries.\nFailed: ${failed} deliveries.\nSkipped: ${skipped} deliveries (no matching pickup found).`);
+          queryClient.invalidateQueries(['deliveries']);
+          await refetchDeliveries();
+          
+          console.log('🔄 [AdminUtilities] Triggering global data refresh after PUID backfill');
+          await refreshData();
+
+        } catch (error) {
+          console.error('❌ [AdminUtilities] PUID Backfill error:', error);
+          alert(`PUID Backfill failed: ${error.message}`);
+        } finally {
+          setIsBackfilling(false);
+        }
+      }
+    });
+  };
+
   const _confirmDeleteAllDeliveries = useCallback(() => {
     const count = filteredAndSortedDeliveries.length;
     setConfirmDialog({
