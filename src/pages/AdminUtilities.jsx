@@ -3443,6 +3443,7 @@ export default function AdminUtilities() {
               </div>
             )}
             <h1 className="text-3xl font-bold text-slate-900">Admin Utilities</h1>
+          </div>
           <Button onClick={handleRefreshAllData} variant="outline" disabled={isRefreshing}>
             <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
             {isRefreshing ? 'Refreshing...' : 'Refresh All Data'}
