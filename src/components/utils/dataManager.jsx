@@ -283,16 +283,15 @@ export const loadDeliveriesThreeStage = async (filters = {}, onStage2Complete = 
   const currentYear = today.getFullYear();
   const todayStr = format(today, 'yyyy-MM-dd');
   
-  // Calculate date ranges
-  const next6Days = new Date(today);
-  next6Days.setDate(next6Days.getDate() + 6);
-  const next6DaysStr = format(next6Days, 'yyyy-MM-dd');
+  // Calculate date ranges - load last 30 days as Stage 1 for immediate display
+  const last30Days = subDays(today, 30);
+  const last30DaysStr = format(last30Days, 'yyyy-MM-dd');
   
-  // Stage 1: Load today first (return immediately), then rest of week in background
-  console.log(`🚀 [dataManager] === STAGE 1: Loading today's deliveries ===`);
+  // Stage 1: Load last 30 days first (return immediately), then rest in background
+  console.log(`🚀 [dataManager] === STAGE 1: Loading last 30 days of deliveries ===`);
   
-  const todayDeliveries = await getDeliveriesForDateRange(todayStr, todayStr, filters, forceRefresh);
-  console.log(`✅ [dataManager] Stage 1a: Today loaded (${todayDeliveries.length} deliveries) - returning to UI`);
+  const recentDeliveries = await getDeliveriesForDateRange(last30DaysStr, todayStr, filters, forceRefresh);
+  console.log(`✅ [dataManager] Stage 1: Last 30 days loaded (${recentDeliveries.length} deliveries) - returning to UI`);
   
   // Background loading for rest of Stage 1 + Stage 2 + Stage 3
   const loadRemainingData = async () => {
