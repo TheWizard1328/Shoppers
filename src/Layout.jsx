@@ -1581,7 +1581,7 @@ export default function Layout({ children, currentPageName }) {
 
   // Route counts - fetched from server-side stats function
   const [routeCounts, setRouteCounts] = useState({ monthly: 0, yearly: 0 });
-  
+
   useEffect(() => {
     if (!currentUser || !dataLoaded) return;
 
@@ -1592,9 +1592,11 @@ export default function Layout({ children, currentPageName }) {
           selectedDate: format(new Date(), 'yyyy-MM-dd'),
           storeIds: storeIds.length > 0 ? storeIds : null
         });
-        
-        if (response.data?.routeCounts) {
-          setRouteCounts(response.data.routeCounts);
+
+        // Handle both response.data (axios-style) and direct response
+        const data = response?.data || response;
+        if (data?.routeCounts) {
+          setRouteCounts(data.routeCounts);
         }
       } catch (error) {
         // Silently fail - route counts are not critical
@@ -1603,10 +1605,10 @@ export default function Layout({ children, currentPageName }) {
     };
 
     // Delay initial fetch to avoid competing with other init calls
-    const timer = setTimeout(fetchRouteCounts, 3000);
+    const timer = setTimeout(fetchRouteCounts, 2000);
     // Refresh every 5 minutes
     const interval = setInterval(fetchRouteCounts, 300000);
-    
+
     return () => {
       clearTimeout(timer);
       clearInterval(interval);
