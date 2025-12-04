@@ -1614,8 +1614,8 @@ export default function Layout({ children, currentPageName }) {
   const patientStoreData = getPatientStoreData();
 
   // Route counts - fetched from server-side stats function
-  const [routeCounts, setRouteCounts] = useState({ monthly: 0, yearly: 0 });
-  const [entityCounts, setEntityCounts] = useState({ patients: 0, cities: 0, stores: 0, users: 0 });
+  const [routeCounts, setRouteCounts] = useState({ monthly: '...', yearly: '...' });
+  const [entityCounts, setEntityCounts] = useState({ patients: '...', cities: '...', stores: '...', users: '...' });
 
   useEffect(() => {
     if (!currentUser || !dataLoaded) return;
