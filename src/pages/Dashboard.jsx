@@ -4886,6 +4886,14 @@ function Dashboard() {
     }
   }, [isExpanded, areCardsVisible]);
 
+  // Check if data for selected date is available (from last 30 days cache)
+  const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+  const hasDataForSelectedDate = useMemo(() => {
+    if (!isDataLoaded || !deliveries) return false;
+    // Check if we have any deliveries for the selected date
+    return deliveries.some(d => d && d.delivery_date === selectedDateStr);
+  }, [isDataLoaded, deliveries, selectedDateStr]);
+
   if (isLoadingUser || !isDataLoaded || !isFiltersReady) {
     return (
       <div className="h-screen flex items-center justify-center">
