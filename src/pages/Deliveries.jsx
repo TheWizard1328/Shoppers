@@ -516,21 +516,29 @@ export default function DeliveriesPage() {
   }, []);
 
   // Sync context data to local state for real-time updates
-  // CRITICAL: Only sync when context has data, never overwrite with empty
+  // CRITICAL: Only sync AFTER initial load is done and context has meaningful data
+  // This prevents context empty arrays from overwriting freshly loaded data
   useEffect(() => {
-    if (!contextDataLoaded) return;
+    // CRITICAL: Don't sync from context until our own initial load is done
+    // This prevents Layout's empty context from overwriting our freshly loaded data
+    if (!contextDataLoaded || !initialLoadDone.current || !dataLoaded) {
+      console.log(`⏸️ [Deliveries] Skipping context sync - waiting for initial load (contextDataLoaded: ${contextDataLoaded}, initialLoadDone: ${initialLoadDone.current}, dataLoaded: ${dataLoaded})`);
+      return;
+    }
     
     // CRITICAL: Don't sync if context data is empty but local data exists
     // This prevents data from disappearing during refresh cycles
     
-    // Sync deliveries if context has data (always sync to get latest)
-    if (contextDeliveries.length > 0) {
-      console.log(`🔄 [Deliveries] Syncing ${contextDeliveries.length} deliveries from context`);
+    // Sync deliveries if context has MORE data than local (avoid overwriting with less data)
+    if (contextDeliveries.length > 0 && contextDeliveries.length >= allDeliveries.length) {
+      console.log(`🔄 [Deliveries] Syncing ${contextDeliveries.length} deliveries from context (local had ${allDeliveries.length})`);
       setAllDeliveries(contextDeliveries);
+    } else if (contextDeliveries.length > 0 && contextDeliveries.length < allDeliveries.length) {
+      console.log(`⚠️ [Deliveries] NOT syncing context deliveries - context has LESS data (${contextDeliveries.length}) than local (${allDeliveries.length})`);
     }
 
     // Sync patients if context has data
-    if (contextPatients.length > 0) {
+    if (contextPatients.length > 0 && contextPatients.length >= allPatients.length) {
       setAllPatients(contextPatients);
     }
     
@@ -545,10 +553,10 @@ export default function DeliveriesPage() {
     }
     
     // Sync users if context has data
-    if (contextUsers.length > 0) {
+    if (contextUsers.length > 0 && contextUsers.length >= allUsers.length) {
       setAllUsers(contextUsers);
     }
-  }, [contextDataLoaded, contextDeliveries, contextPatients, contextStores, contextCities, contextUsers]);
+  }, [contextDataLoaded, contextDeliveries, contextPatients, contextStores, contextCities, contextUsers, dataLoaded, allDeliveries.length, allPatients.length, allUsers.length]);
 
   // Force smart refresh when Driver Overview page is active - ONLY ONCE on initial load
   const driverOverviewInitialized = useRef(false);
