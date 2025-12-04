@@ -174,8 +174,13 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
           storeIds: storeIds.length > 0 ? storeIds : null
         });
         
-        if (response.data) {
-          setStats(response.data);
+        // Handle both response.data (axios-style) and direct response
+        const data = response?.data || response;
+        if (data && data.today) {
+          setStats(data);
+        } else {
+          console.warn('Invalid stats response:', response);
+          setHasError(true);
         }
       } catch (error) {
         console.error('Error fetching delivery stats:', error);
