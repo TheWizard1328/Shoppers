@@ -3577,7 +3577,7 @@ export default function DeliveriesPage() {
                           {/* Today's Stats - single line */}
                           {card.todayStats && card.todayStats.total > 0 &&
                       <div className="mb-3 pb-3 border-b border-slate-100">
-                              <div className="flex items-center gap-2 text-xs font-medium flex-wrap">
+                              <div className="flex items-center justify-center gap-2 text-xs font-medium flex-wrap">
                                 <span className="text-blue-600">Active: {card.todayStats.active}</span>
                                 <span className="text-green-600">Comp: {card.todayStats.completed}</span>
                                 <span className="text-red-600">Failed: {card.todayStats.failed}</span>
