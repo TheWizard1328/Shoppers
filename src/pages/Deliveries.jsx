@@ -80,6 +80,7 @@ import { formatPhoneNumber } from "../components/utils/phoneFormatter";
 import { useUser } from '../components/utils/UserContext';
 import { isMobileDevice } from "../components/utils/deviceUtils";
 import { useAppData } from '../components/utils/AppDataContext';
+import { smartRefreshManager } from '../components/utils/smartRefreshManager';
 //import { parseAddress } from '../components/utils/addressParser';
 
 // Utility function to add minutes to a time string
