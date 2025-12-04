@@ -129,12 +129,12 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
             <motion.div
               animate={{ rotate: 360 }}
               transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
-              <RefreshCw className="w-3 h-3 text-slate-500" />
+              <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
             </motion.div>
           ) : isPaused ? (
             <div className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
           ) : (
-            <RefreshCw className={`w-3 h-3 ${!isOnline ? 'text-white' : 'text-slate-500'}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${!isOnline ? 'text-white' : 'text-slate-400'}`} />
           )}
           
           {/* Show entity badge on top of spinner */}
