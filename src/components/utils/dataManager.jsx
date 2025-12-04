@@ -265,18 +265,19 @@ export const getDeliveriesForDateRange = async (startDate, endDate, filters = {}
 
 /**
  * Three-stage delivery loading for optimized initial load times
- * Stage 1: Today + next 6 days (7 days total) - returns after today loads, continues in background
- * Stage 2: Remainder of current year (background)
- * Stage 3: Previous years data (background)
+ * Stage 1: Last 30 days - returns immediately for fast UI display
+ * Stage 2: Rest of current year (background)
+ * Stage 3: Previous years data in 6-month chunks (background)
  * 
  * All stages are non-blocking - user can interact while loading continues.
+ * Increased from 5K to 10K limit per query to handle larger datasets.
  * 
  * @param {object} filters - Filters to apply (store_id, driver_id, etc.)
  * @param {function} onStage2Complete - Callback with Stage 2 deliveries
  * @param {function} onStage3Complete - Callback with Stage 3 deliveries
  * @param {number} yearsBack - How many past years to load (default: 2)
  * @param {boolean} forceRefresh - Force bypass cache
- * @returns {Promise<Array>} - Stage 1 deliveries (today only, rest loads in background)
+ * @returns {Promise<Array>} - Stage 1 deliveries (last 30 days, rest loads in background)
  */
 export const loadDeliveriesThreeStage = async (filters = {}, onStage2Complete = null, onStage3Complete = null, yearsBack = 2, forceRefresh = false) => {
   const today = new Date();
@@ -296,48 +297,75 @@ export const loadDeliveriesThreeStage = async (filters = {}, onStage2Complete = 
   // Background loading for Stage 2 + Stage 3 (rest of current year + past years)
   const loadRemainingData = async () => {
     try {
-      // Stage 2: Rest of current year (Jan 1 to 31 days ago)
-      console.log(`🔄 [dataManager] === STAGE 2: Loading rest of ${currentYear} ===`);
+      // Stage 2: Rest of current year (Jan 1 to 31 days ago) in 3-month chunks
+      console.log(`🔄 [dataManager] === STAGE 2: Loading rest of ${currentYear} in chunks ===`);
       
       const yearStart = new Date(currentYear, 0, 1);
       const day31Ago = subDays(today, 31);
       
       if (yearStart <= day31Ago) {
-        const yearStartStr = format(yearStart, 'yyyy-MM-dd');
-        const day31AgoStr = format(day31Ago, 'yyyy-MM-dd');
+        // Load rest of year in 3-month chunks to avoid hitting 10K limit per query
+        const chunks = [];
+        let chunkStart = yearStart;
         
-        try {
-          const yearDeliveries = await getDeliveriesForDateRange(yearStartStr, day31AgoStr, filters, false);
-          console.log(`✅ [dataManager] Stage 2 complete: ${yearDeliveries.length} deliveries (${yearStartStr} to ${day31AgoStr})`);
+        while (chunkStart <= day31Ago) {
+          const chunkEnd = new Date(Math.min(
+            new Date(chunkStart.getFullYear(), chunkStart.getMonth() + 3, 0).getTime(), // End of 3rd month
+            day31Ago.getTime()
+          ));
           
-          if (onStage2Complete && yearDeliveries.length > 0) {
-            onStage2Complete(yearDeliveries);
+          chunks.push({
+            start: format(chunkStart, 'yyyy-MM-dd'),
+            end: format(chunkEnd, 'yyyy-MM-dd')
+          });
+          
+          // Move to next chunk
+          chunkStart = new Date(chunkEnd);
+          chunkStart.setDate(chunkStart.getDate() + 1);
+        }
+        
+        console.log(`📊 [dataManager] Stage 2: Loading ${chunks.length} chunk(s) for current year`);
+        
+        for (const chunk of chunks) {
+          try {
+            const chunkDeliveries = await getDeliveriesForDateRange(chunk.start, chunk.end, filters, false);
+            console.log(`✅ [dataManager] Stage 2 chunk complete: ${chunkDeliveries.length} deliveries (${chunk.start} to ${chunk.end})`);
+            
+            if (onStage2Complete && chunkDeliveries.length > 0) {
+              onStage2Complete(chunkDeliveries);
+            }
+          } catch (error) {
+            console.warn(`⚠️ [dataManager] Stage 2 chunk failed (${chunk.start} to ${chunk.end}):`, error.message);
           }
-        } catch (error) {
-          console.warn(`⚠️ [dataManager] Stage 2 failed:`, error.message);
         }
       }
       
-      // Stage 3: Previous years (batch by year)
-      console.log(`🔄 [dataManager] === STAGE 3: Loading previous ${yearsBack} years ===`);
+      // Stage 3: Previous years in 6-month chunks to handle large datasets
+      console.log(`🔄 [dataManager] === STAGE 3: Loading previous ${yearsBack} years in 6-month chunks ===`);
       
       for (let yearOffset = 1; yearOffset <= yearsBack; yearOffset++) {
         const year = currentYear - yearOffset;
-        const yearStartDate = new Date(year, 0, 1);
-        const yearEndDate = new Date(year, 11, 31);
         
-        const yearStartStr = format(yearStartDate, 'yyyy-MM-dd');
-        const yearEndStr = format(yearEndDate, 'yyyy-MM-dd');
+        // Split each year into 2 chunks (6 months each)
+        const chunks = [
+          { start: new Date(year, 0, 1), end: new Date(year, 5, 30) }, // Jan-Jun
+          { start: new Date(year, 6, 1), end: new Date(year, 11, 31) }  // Jul-Dec
+        ];
         
-        try {
-          const yearDeliveries = await getDeliveriesForDateRange(yearStartStr, yearEndStr, filters, false);
-          console.log(`✅ [dataManager] Stage 3: Year ${year} loaded (${yearDeliveries.length} deliveries)`);
+        for (const chunk of chunks) {
+          const chunkStartStr = format(chunk.start, 'yyyy-MM-dd');
+          const chunkEndStr = format(chunk.end, 'yyyy-MM-dd');
           
-          if (onStage3Complete && yearDeliveries.length > 0) {
-            onStage3Complete(yearDeliveries);
+          try {
+            const chunkDeliveries = await getDeliveriesForDateRange(chunkStartStr, chunkEndStr, filters, false);
+            console.log(`✅ [dataManager] Stage 3: Year ${year} chunk loaded (${chunkDeliveries.length} deliveries, ${chunkStartStr} to ${chunkEndStr})`);
+            
+            if (onStage3Complete && chunkDeliveries.length > 0) {
+              onStage3Complete(chunkDeliveries);
+            }
+          } catch (error) {
+            console.warn(`⚠️ [dataManager] Stage 3: Year ${year} chunk failed (${chunkStartStr} to ${chunkEndStr}):`, error.message);
           }
-        } catch (error) {
-          console.warn(`⚠️ [dataManager] Stage 3: Year ${year} failed:`, error.message);
         }
       }
       
