@@ -3450,8 +3450,7 @@ export default function AdminUtilities() {
     });
   }, [performBulkDeleteCities]);
 
-  const handleBackfillPUIDs = async (deliveriesToProcess) => {
-    // Find duplicates: same PID + SID + date + driver
+  const handleDeleteDuplicates = useCallback(async (deliveriesToProcess) => {
     const duplicateGroups = new Map();
     
     deliveriesToProcess.forEach(d => {
