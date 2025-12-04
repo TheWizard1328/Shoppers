@@ -940,11 +940,11 @@ export default function Layout({ children, currentPageName }) {
           console.log('   ⏭️ No entity updates needed');
         }
 
-        // Notify map of any updates
+        // Notify map of any updates and reactivate FAB phase
         const hasAnyUpdates = locationUpdates?.hasChanges || activeDeliveryUpdates?.hasChanges || updates;
         if (hasAnyUpdates) {
           console.log('');
-          console.log('🔔 Notifying map of updates');
+          console.log('🔔 Notifying map of updates and reactivating FAB phase');
           if (onSmartRefreshCompleteRef.current) {
             onSmartRefreshCompleteRef.current();
           }
