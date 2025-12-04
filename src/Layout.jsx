@@ -1056,7 +1056,14 @@ export default function Layout({ children, currentPageName }) {
 
       console.log(`📄 [Layout] ===== PAGE NAVIGATION DETECTED =====`);
       console.log(`📄 [Layout] Switched to: ${currentPageName}`);
-      console.log(`📄 [Layout] Forcing immediate smart refresh...`);
+      
+      // CRITICAL: Only trigger immediate refresh when returning to Dashboard
+      if (currentPageName !== 'Dashboard') {
+        console.log(`📄 [Layout] Non-dashboard page - skipping immediate refresh`);
+        return;
+      }
+      
+      console.log(`📄 [Layout] Dashboard detected - forcing IMMEDIATE smart refresh...`);
 
       // CRITICAL: Reset all smart refresh timers to force immediate data sync
       smartRefreshManager.lastRefreshTimes = {
