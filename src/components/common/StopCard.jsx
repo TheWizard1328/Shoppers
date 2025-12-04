@@ -687,11 +687,11 @@ export default function StopCard({
             </div>
 
             <div className="flex-1 min-w-0">
-              <h3 className="text-slate-900 pt-0 text-lg font-semibold text-center truncate">
+              <h3 className="text-slate-900 pt-0 text-xl font-semibold text-center truncate">
                 {finalDisplayName}
               </h3>
               <div className="flex flex-col items-center">
-                <div className="text-slate-600 text-xs flex items-center justify-center">
+                <div className="text-slate-600 text-sm flex items-center justify-center">
                   {FINISHED_STATUSES.includes(delivery.status) && delivery.actual_delivery_time ?
                   <>
                       <Clock className="w-3 h-3" />
@@ -712,7 +712,7 @@ export default function StopCard({
                     </>
                   }
                 </div>
-                <div className="text-[10px] text-slate-500 min-h-[14px]">
+                <div className="text-[11px] text-slate-500 min-h-[14px]">
                   {!FINISHED_STATUSES.includes(delivery.status) && (delivery.time_window_start || delivery.time_window_end) &&
                   <>
                       {delivery.time_window_start && formatTime12Hour(delivery.time_window_start)}
@@ -831,16 +831,16 @@ export default function StopCard({
               <div className="mt-1 flex flex-col gap-0.5 flex-1 min-w-0">
                 {finalDisplayAddress ?
                 <>
-                    {/* Main address without unit/buzzer */}
-                    <div className="flex items-start gap-2 text-sm text-slate-700">
-                      <span className="text-lg font-medium truncate">
+                   {/* Main address without unit/buzzer */}
+                   <div className="flex items-start gap-2 text-sm text-slate-700">
+                     <span className="text-xl font-medium truncate">
                         {isPickup ? store?.address || '' : patient?.address || ''}
                       </span>
                     </div>
                     
                     {/* Unit/Buzzer + Phone on second row */}
                     {!isStrippedDelivery && !shouldRedact &&
-                  <div className="flex items-center gap-2 text-xs text-slate-600">
+                  <div className="flex items-center gap-2 text-sm text-slate-600">
                         {/* Unit and Buzzer info */}
                         {(() => {
                       const unitNum = !isPickup ? delivery?.unit_number || patient?.unit_number : null;
@@ -852,15 +852,15 @@ export default function StopCard({
 
                       return (
                         <>
-                              {unitNum && <span className="text-sm font-medium">#{unitNum}</span>}
-                              {buzzerNum && <span className="font-medium">Buzz {buzzerNum}</span>}
+                              {unitNum && <span className="text-base font-medium">#{unitNum}</span>}
+                              {buzzerNum && <span className="text-sm font-medium">Buzz {buzzerNum}</span>}
                             </>);
 
                     })()}
                         
                         {/* Phone number */}
                         {finalDisplayPhone &&
-                    <span className="text-sm font-medium">Ph: {formatPhoneNumber(finalDisplayPhone)}</span>
+                    <span className="text-base font-medium">Ph: {formatPhoneNumber(finalDisplayPhone)}</span>
                     }
                       </div>
                   }
