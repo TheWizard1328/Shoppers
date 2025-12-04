@@ -2666,12 +2666,17 @@ export default function DeliveriesPage() {
       const isAdminDriver = roles.includes('admin') && roles.includes('driver');
       
       if (hasDriverRole || isAdminDriver) {
-        console.log(`✅ Including driver ${u.user_name || u.full_name} with roles: ${roles.join(', ')}, status: ${u.status}`);
+        console.log(`✅ Including driver ${u.user_name || u.full_name} (id: ${u.id}, appUserId: ${u.appUserId}) with roles: ${roles.join(', ')}, status: ${u.status}`);
         return true;
       }
       return false;
     });
     console.log(`👥 Total drivers with driver role: ${driversWithRoles.length}`);
+    
+    // Debug: Log unique driver IDs from deliveries for comparison
+    const deliveryDriverIds = [...new Set(deliveriesToUse.map(d => d.driver_id).filter(Boolean))];
+    console.log(`📊 [Debug] Unique driver_ids in deliveries:`, deliveryDriverIds);
+    console.log(`📊 [Debug] Driver IDs from driversWithRoles:`, driversWithRoles.map(d => ({ name: d.user_name, id: d.id, appUserId: d.appUserId })));
 
     // Filter by city based on user role and selected city
     let cityFilteredDrivers = driversWithRoles; // Start with drivers that have relevant roles
