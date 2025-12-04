@@ -3528,6 +3528,14 @@ export default function AdminUtilities() {
 
   const handleEditEntity = (entity) => {
     console.log('Edit entity:', entity);
+    
+    // If it's a delivery, open the form
+    if (activeDataTab === 'deliveries') {
+      setEditingDelivery(entity);
+      return;
+    }
+    
+    // For other entities, show message
     alert('Edit functionality not implemented yet. Please use the dedicated management pages (Patients, Stores, etc.) to edit records.');
   };
 
