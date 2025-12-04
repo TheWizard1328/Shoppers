@@ -1582,32 +1582,39 @@ export default function Layout({ children, currentPageName }) {
 
   const patientStoreData = getPatientStoreData();
 
-  // Use useMemo instead of useCallback for route counts - updates when deliveries change
-  const routeCounts = useMemo(() => {
-    if (!deliveries || deliveries.length === 0 || !currentUser) return { monthly: 0, yearly: 0 };
+  // Route counts - fetched from server-side stats function
+  const [routeCounts, setRouteCounts] = useState({ monthly: 0, yearly: 0 });
+  
+  useEffect(() => {
+    if (!currentUser || !dataLoaded) return;
 
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
+    const fetchRouteCounts = async () => {
+      try {
+        const storeIds = stores.map(s => s?.id).filter(Boolean);
+        const response = await base44.functions.invoke('getDeliveryStats', {
+          selectedDate: format(new Date(), 'yyyy-MM-dd'),
+          storeIds: storeIds.length > 0 ? storeIds : null
+        });
+        
+        if (response.data?.routeCounts) {
+          setRouteCounts(response.data.routeCounts);
+        }
+      } catch (error) {
+        // Silently fail - route counts are not critical
+        console.warn('Failed to fetch route counts:', error);
+      }
+    };
 
-    const monthlyCount = new Set(
-      deliveries.filter((delivery) => {
-        if (!delivery || !delivery.delivery_date) return false;
-        const deliveryDate = new Date(delivery.delivery_date);
-        return deliveryDate.getMonth() === currentMonth && deliveryDate.getFullYear() === currentYear;
-      }).map((delivery) => delivery.delivery_date)
-    ).size;
-
-    const yearlyCount = new Set(
-      deliveries.filter((delivery) => {
-        if (!delivery || !delivery.delivery_date) return false;
-        const deliveryDate = new Date(delivery.delivery_date);
-        return deliveryDate.getFullYear() === currentYear;
-      }).map((delivery) => delivery.delivery_date)
-    ).size;
-
-    return { monthly: monthlyCount, yearly: yearlyCount };
-  }, [deliveries, currentUser]);
+    // Delay initial fetch to avoid competing with other init calls
+    const timer = setTimeout(fetchRouteCounts, 3000);
+    // Refresh every 5 minutes
+    const interval = setInterval(fetchRouteCounts, 300000);
+    
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+    };
+  }, [currentUser, dataLoaded, stores]);
 
   const statsCardPositioning = useMemo(() => {
     const ratio = screenWidth / cardWidth;
