@@ -2853,6 +2853,8 @@ export default function DeliveriesPage() {
   effectiveDeliveries, // Need full array to compute stats
   effectivePatients, // Need full array for return detection
   allUsers, // Need full array for driver data
+  allDeliveries, // Fallback when effectiveDeliveries is empty
+  allPatients, // Fallback when effectivePatients is empty
   currentUser?.id,
   selectedOverviewYear,
   selectedCityId
