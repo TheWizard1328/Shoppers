@@ -620,48 +620,46 @@ export default function DeliveriesPage() {
   }, [allDeliveries.length]); // CHANGED: Only depend on length, not entire array
 
 
-  // Auto-select most recent year ONLY if currently 'all' and no URL param exists
+  // Auto-select most recent year ONLY on initial load if no URL param exists
+  // CRITICAL: This should only run ONCE on initial load, not on every state change
   useEffect(() => {
     if (!isDriverOverviewMode || !dataLoaded || !hasAccess) return;
     if (!availableOverviewYears || availableOverviewYears.length === 0) return;
+    
+    // Only run this logic once per page load
+    if (yearAutoSelectDone.current) {
+      return;
+    }
 
     const params = new URLSearchParams(location.search);
     const yearParam = params.get('overviewYear');
 
-    // IMPORTANT: If 'all' is explicitly in the URL, respect it.
-    if (yearParam === 'all') {
-      console.log('📅 [Deliveries] URL explicitly requests "all" years, respecting selection.');
-      if (selectedOverviewYear !== 'all') {
+    // If any year param is in URL (including 'all'), respect it and don't auto-select
+    if (yearParam) {
+      console.log('📅 [Deliveries] URL has year param:', yearParam);
+      if (yearParam === 'all') {
         setSelectedOverviewYear('all');
-      }
-      yearAutoSelectDone.current = true; // Mark as done to prevent re-runs
-      yearManuallySelected.current = true; // Also mark as manually selected implicitly
-      return;
-    }
-
-    // If a specific year is in the URL, use it
-    if (yearParam && yearParam !== 'all') {
-      console.log('📅 [Deliveries] Using specific year from URL:', yearParam);
-      if (selectedOverviewYear !== yearParam) {
+      } else {
         setSelectedOverviewYear(yearParam);
       }
-      yearAutoSelectDone.current = true; // Mark as done to prevent re-runs
-      yearManuallySelected.current = true; // Also mark as manually selected implicitly
+      yearAutoSelectDone.current = true;
+      yearManuallySelected.current = true;
       return;
     }
 
-    // If no yearParam in URL and no manual selection, then auto-select the most recent year.
-    // This check for yearAutoSelectDone.current prevents it from running multiple times if state changes.
-    if (!yearManuallySelected.current && selectedOverviewYear === 'all' && !yearAutoSelectDone.current) {
-      const mostRecentYear = availableOverviewYears[0];
-      if (mostRecentYear) {// Ensure there's a year to auto-select
-        console.log('📅 [Deliveries] Auto-selecting most recent year:', mostRecentYear);
-        setSelectedOverviewYear(mostRecentYear.toString());
-        // Do NOT set yearManuallySelected.current to true here, as it's an auto-selection
-      }
-      yearAutoSelectDone.current = true; // Mark as done after the initial auto-selection or decision not to auto-select
+    // No URL param - auto-select current year if available, otherwise most recent
+    const currentYear = new Date().getFullYear();
+    const targetYear = availableOverviewYears.includes(currentYear) 
+      ? currentYear.toString() 
+      : availableOverviewYears[0]?.toString();
+    
+    if (targetYear) {
+      console.log('📅 [Deliveries] Auto-selecting year:', targetYear);
+      setSelectedOverviewYear(targetYear);
     }
-  }, [isDriverOverviewMode, dataLoaded, availableOverviewYears.length, hasAccess, location.search, selectedOverviewYear]);
+    
+    yearAutoSelectDone.current = true;
+  }, [isDriverOverviewMode, dataLoaded, hasAccess, availableOverviewYears.length, location.search]);
 
 
   // Ensure mobile date menu is closed when switching to Driver Overview
