@@ -9,7 +9,7 @@ import { Patient } from "@/entities/Patient";
 import { City } from "@/entities/City";
 import { Store } from "@/entities/Store";
 import { format } from "date-fns";
-import { getData, invalidate, loadDeliveries } from './components/utils/dataManager';
+import { getData, invalidate, loadDeliveries, loadDeliveriesForDate } from './components/utils/dataManager';
 import { smartRefreshManager } from './components/utils/smartRefreshManager';
 import {
   LayoutDashboard,
