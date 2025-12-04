@@ -2616,9 +2616,13 @@ export default function AdminUtilities() {
 
   const filteredAndSortedDeliveries = useMemo(() => {
     let filtered = allDeliveries || [];
+    
+    console.log(`📊 [AdminUtilities] filteredAndSortedDeliveries starting with ${filtered.length} deliveries`);
+    console.log(`📊 [AdminUtilities] Filters: year=${selectedDeliveryYear}, month=${selectedDeliveryMonth}, driver=${selectedDriver}`);
 
     if (selectedDeliveryYear && selectedDeliveryYear !== 'all') {
       const year = parseInt(selectedDeliveryYear);
+      const beforeFilter = filtered.length;
       filtered = filtered.filter(d => {
         if (!d.delivery_date || typeof d.delivery_date !== 'string') return false;
         const dateParts = d.delivery_date.split('-');
@@ -2628,9 +2632,11 @@ export default function AdminUtilities() {
         }
         return false;
       });
+      console.log(`📊 [AdminUtilities] Year filter (${year}): ${beforeFilter} → ${filtered.length}`);
 
       if (selectedDeliveryMonth !== 'all') {
         const month = parseInt(selectedDeliveryMonth);
+        const beforeMonthFilter = filtered.length;
         filtered = filtered.filter(d => {
           if (!d.delivery_date || typeof d.delivery_date !== 'string') return false;
           const dateParts = d.delivery_date.split('-');
@@ -2640,9 +2646,11 @@ export default function AdminUtilities() {
           }
           return false;
         });
+        console.log(`📊 [AdminUtilities] Month filter (${month}): ${beforeMonthFilter} → ${filtered.length}`);
       }
     } else if (selectedDeliveryYear === 'all' && selectedDeliveryMonth !== 'all') {
       const month = parseInt(selectedDeliveryMonth);
+      const beforeFilter = filtered.length;
       filtered = filtered.filter(d => {
         if (!d.delivery_date || typeof d.delivery_date !== 'string') return false;
         const dateParts = d.delivery_date.split('-');
@@ -2652,6 +2660,7 @@ export default function AdminUtilities() {
         }
         return false;
       });
+      console.log(`📊 [AdminUtilities] Month-only filter (${month}): ${beforeFilter} → ${filtered.length}`);
     }
 
     if (selectedDriver && selectedDriver !== 'all') {
