@@ -4778,11 +4778,13 @@ function Dashboard() {
 
       console.log('✅ Backend optimizer complete');
 
-      // STEP 3: Apply backend updates to UI (single refresh)
+      // STEP 3: Apply backend updates to UI (immediate + full refresh)
       console.log('');
       console.log('📍 STEP 3: Applying backend updates to UI');
       
+      // 3a: Immediate UI update with backend data
       if (optimizationResult.data?.allDeliveries && Array.isArray(optimizationResult.data.allDeliveries)) {
+        console.log(`🔄 Immediate UI update with ${optimizationResult.data.allDeliveries.length} deliveries from backend`);
         smartRefreshManager.clearPendingUpdatesForDriver(driverId, deliveryDate);
         
         const otherDriverDeliveries = (deliveries || []).filter((d) =>
@@ -4790,8 +4792,14 @@ function Dashboard() {
         );
         const mergedDeliveries = [...otherDriverDeliveries, ...optimizationResult.data.allDeliveries];
         updateDeliveriesLocally(mergedDeliveries);
-        console.log('✅ UI updated with backend data');
+        console.log('✅ Immediate UI update applied');
       }
+      
+      // 3b: Force full data refresh to ensure consistency
+      console.log('🔄 Triggering full data refresh for consistency...');
+      invalidateDeliveriesForDate(deliveryDate);
+      await refreshData();
+      console.log('✅ Full data refresh complete');
 
       // STEP 4: Scroll to next card
       console.log('');
