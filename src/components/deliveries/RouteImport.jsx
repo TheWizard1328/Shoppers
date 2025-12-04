@@ -2217,15 +2217,7 @@ export default function RouteImport({
               importResult ?
               <>
                   <Button
-                  onClick={async () => {
-                    console.log('🔄 [RouteImport] Start New Import clicked - triggering full historical refresh...');
-                    
-                    // Trigger full refresh before resetting form
-                    if (onImportComplete) {
-                      await onImportComplete();
-                    }
-                    
-                    // Reset form state
+                  onClick={() => {
                     setFiles([]);
                     setSelectedDriverId('');
                     setIsProcessing(false);
@@ -2250,8 +2242,6 @@ export default function RouteImport({
                       filesCompleted: 0,
                       totalFiles: 0
                     });
-                    
-                    console.log('✅ [RouteImport] Ready for new import with fresh data');
                   }}
                   variant="outline"
                   className="flex-1">
