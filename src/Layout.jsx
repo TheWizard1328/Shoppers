@@ -1623,6 +1623,7 @@ export default function Layout({ children, currentPageName }) {
     const fetchStats = async () => {
       try {
         const storeIds = stores.map(s => s?.id).filter(Boolean);
+        console.log('📊 [Layout] Fetching nav panel stats...');
         const response = await base44.functions.invoke('getDeliveryStats', {
           selectedDate: globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd'),
           storeIds: storeIds.length > 0 ? storeIds : null
@@ -1630,11 +1631,19 @@ export default function Layout({ children, currentPageName }) {
 
         // Handle both response.data (axios-style) and direct response
         const data = response?.data || response;
+        console.log('📊 [Layout] Nav panel stats response:', data);
+        
         if (data?.routeCounts) {
+          console.log('✅ [Layout] Setting routeCounts:', data.routeCounts);
           setRouteCounts(data.routeCounts);
+        } else {
+          console.warn('⚠️ [Layout] No routeCounts in response');
         }
         if (data?.entityCounts) {
+          console.log('✅ [Layout] Setting entityCounts:', data.entityCounts);
           setEntityCounts(data.entityCounts);
+        } else {
+          console.warn('⚠️ [Layout] No entityCounts in response');
         }
       } catch (error) {
         // Silently fail - counts are not critical
