@@ -2648,7 +2648,8 @@ export default function DeliveriesPage() {
       console.log(`📊 Sample delivery dates:`, dates.slice(0, 5), '...', dates.slice(-5));
     }
 
-    const driverNamesInDeliveries = [...new Set(yearFilteredDeliveries.map((d) => d.driver_name).filter(Boolean))];
+    // Normalize driver names for matching (lowercase, trimmed)
+    const driverNamesInDeliveries = [...new Set(yearFilteredDeliveries.map((d) => (d.driver_name || '').toLowerCase().trim()).filter(Boolean))];
     const driverIdsInDeliveries = [...new Set(yearFilteredDeliveries.map((d) => d.driver_id).filter(Boolean))];
     console.log(`📊 Unique driver names in deliveries:`, driverNamesInDeliveries);
     console.log(`📊 Unique driver IDs in deliveries:`, driverIdsInDeliveries);
