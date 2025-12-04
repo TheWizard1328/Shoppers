@@ -2623,13 +2623,9 @@ export default function DeliveriesPage() {
 
     // Filter deliveries by selectedOverviewYear
     // CRITICAL: When 'all' is selected, use ALL deliveries without filtering
-    const yearFilteredDeliveries = useMemo(() => {
-      if (selectedOverviewYear === 'all') {
-        console.log('📊 Using ALL deliveries (no year filter):', effectiveDeliveries.length);
-        return effectiveDeliveries;
-      }
-      
-      const filtered = effectiveDeliveries.filter((d) => {
+    const yearFilteredDeliveries = selectedOverviewYear === 'all' ?
+      effectiveDeliveries :
+      effectiveDeliveries.filter((d) => {
         if (!d || !d.delivery_date) return false;
         try {
           const deliveryYear = new Date(d.delivery_date.replace(/-/g, '/')).getFullYear();
@@ -2639,9 +2635,6 @@ export default function DeliveriesPage() {
           return false;
         }
       });
-      console.log(`📊 Filtered to year ${selectedOverviewYear}:`, filtered.length, 'deliveries');
-      return filtered;
-    }, [effectiveDeliveries, selectedOverviewYear]);
 
     console.log(`📊 Year-filtered deliveries: ${yearFilteredDeliveries.length} of ${effectiveDeliveries.length} total`);
 
