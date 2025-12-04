@@ -2796,7 +2796,7 @@ export default function DeliveriesPage() {
 
       // Calculate returns (by flag)
       const returned = driverDeliveries.filter((d) => {
-        const patient = effectivePatients.find((p) => p.id === d.patient_id);
+        const patient = patientsToUse.find((p) => p && p.id === d.patient_id);
         const notesReturn = (d.delivery_notes || '').toLowerCase().includes('return');
         const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
         return notesReturn || addressReturn;
