@@ -1339,8 +1339,8 @@ export default function RouteImport({
         totalSkippedItems = [...totalSkippedItems, ...result.skippedItems];
         totalErrors = [...totalErrors, ...result.errors];
 
-        const currentParsingProgress = Math.round((i + 1) / files.length * 50);
-        setProgressPercent(50 + currentParsingProgress);
+        const currentParsingProgress = Math.round((i + 1) / files.length * 45);
+        setProgressPercent(40 + currentParsingProgress);
       }
 
       console.log(`📌 [RouteImport] PUID assignment was done during parsing. Total: ${totalToCreate.length} to create, ${totalToUpdate.length} to update`);
