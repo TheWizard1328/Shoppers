@@ -92,6 +92,13 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
     await fetchMessages(newDays, true);
   };
 
+  // Helper to look up user name from users array
+  const getUserName = (userId) => {
+    if (!userId) return null;
+    const user = (users || []).find(u => u?.id === userId);
+    return user?.user_name || user?.full_name || null;
+  };
+
   // Group messages by conversation and get latest + unread count
   const conversations = useMemo(() => {
     const convMap = new Map();
@@ -102,7 +109,14 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
       // Determine who the OTHER user is (not the current user)
       const isCurrentUserSender = msg.sender_id === currentUser?.id;
       const otherUserId = isCurrentUserSender ? msg.receiver_id : msg.sender_id;
-      const otherUserName = isCurrentUserSender ? msg.receiver_name : msg.sender_name;
+      
+      // Get the other user's name - first try from message, then lookup from users array
+      let otherUserName = isCurrentUserSender ? msg.receiver_name : msg.sender_name;
+      
+      // Fallback: lookup from users array if message doesn't have correct name
+      if (!otherUserName || otherUserName === currentUser?.user_name || otherUserName === currentUser?.full_name) {
+        otherUserName = getUserName(otherUserId) || otherUserName;
+      }
       
       if (!convMap.has(convId)) {
         convMap.set(convId, {
@@ -116,13 +130,26 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
       const conv = convMap.get(convId);
       conv.messages.push(msg);
       
-      // Update otherUserName if we have a better value (non-empty)
-      if (otherUserName && (!conv.otherUserName || conv.otherUserName === 'Unknown User')) {
+      // Update otherUserName if we have a better value (non-empty and not current user's name)
+      if (otherUserName && 
+          otherUserName !== currentUser?.user_name && 
+          otherUserName !== currentUser?.full_name &&
+          (!conv.otherUserName || conv.otherUserName === 'Unknown User' || conv.otherUserName === currentUser?.user_name)) {
         conv.otherUserName = otherUserName;
       }
       
       if (!msg.read && msg.receiver_id === currentUser?.id) {
         conv.unreadCount++;
+      }
+    });
+
+    // Final pass: ensure we have the correct name from users array
+    convMap.forEach((conv, convId) => {
+      if (!conv.otherUserName || conv.otherUserName === currentUser?.user_name || conv.otherUserName === currentUser?.full_name) {
+        const lookedUpName = getUserName(conv.otherUserId);
+        if (lookedUpName) {
+          conv.otherUserName = lookedUpName;
+        }
       }
     });
 
@@ -135,7 +162,7 @@ export default function ConversationsList({ currentUser, users, onSelectConversa
         )[0]
       }))
       .sort((a, b) => new Date(b.lastMessage?.created_date) - new Date(a.lastMessage?.created_date));
-  }, [messages, currentUser?.id]);
+  }, [messages, currentUser?.id, users]);
 
   // Notify parent of total unread count changes
   useEffect(() => {
