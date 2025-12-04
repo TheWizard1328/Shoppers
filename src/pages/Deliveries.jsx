@@ -3481,7 +3481,16 @@ export default function DeliveriesPage() {
                             <span className="text-lg font-bold">
                               {card.firstName}
                             </span>
-                            <Badge variant="outline" className="text-foreground text-xs font-semibold rounded-full w-[80px] inline-flex items-center justify-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+                            <Badge 
+                              variant="outline" 
+                              className={`text-xs font-semibold rounded-full w-[80px] inline-flex items-center justify-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${
+                                card.driver.driver_status === 'on_duty' 
+                                  ? 'bg-emerald-500 text-white border-emerald-500' 
+                                  : card.driver.driver_status === 'on_break'
+                                    ? 'bg-orange-400 text-black border-orange-400'
+                                    : 'text-foreground'
+                              }`}
+                            >
                               {card.stats.totalStops} stops
                             </Badge>
                           </CardTitle>
