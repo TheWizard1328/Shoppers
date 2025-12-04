@@ -1581,15 +1581,16 @@ export default function Layout({ children, currentPageName }) {
 
   // Route counts - fetched from server-side stats function
   const [routeCounts, setRouteCounts] = useState({ monthly: 0, yearly: 0 });
+  const [entityCounts, setEntityCounts] = useState({ patients: 0, cities: 0, stores: 0, users: 0 });
 
   useEffect(() => {
     if (!currentUser || !dataLoaded) return;
 
-    const fetchRouteCounts = async () => {
+    const fetchStats = async () => {
       try {
         const storeIds = stores.map(s => s?.id).filter(Boolean);
         const response = await base44.functions.invoke('getDeliveryStats', {
-          selectedDate: format(new Date(), 'yyyy-MM-dd'),
+          selectedDate: globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd'),
           storeIds: storeIds.length > 0 ? storeIds : null
         });
 
@@ -1598,16 +1599,19 @@ export default function Layout({ children, currentPageName }) {
         if (data?.routeCounts) {
           setRouteCounts(data.routeCounts);
         }
+        if (data?.entityCounts) {
+          setEntityCounts(data.entityCounts);
+        }
       } catch (error) {
-        // Silently fail - route counts are not critical
-        console.warn('Failed to fetch route counts:', error);
+        // Silently fail - counts are not critical
+        console.warn('Failed to fetch stats:', error);
       }
     };
 
     // Delay initial fetch to avoid competing with other init calls
-    const timer = setTimeout(fetchRouteCounts, 2000);
+    const timer = setTimeout(fetchStats, 2000);
     // Refresh every 5 minutes
-    const interval = setInterval(fetchRouteCounts, 300000);
+    const interval = setInterval(fetchStats, 300000);
 
     return () => {
       clearTimeout(timer);
@@ -1632,21 +1636,21 @@ export default function Layout({ children, currentPageName }) {
       {
         title: 'Cities',
         pageName: 'Cities',
-        count: cities.length,
+        count: entityCounts.cities,
         url: createPageUrl("Cities"),
         icon: Building2
       },
       {
         title: 'Stores',
         pageName: 'Stores',
-        count: stores.length,
+        count: entityCounts.stores,
         url: createPageUrl("Stores"),
         icon: Building
       },
       {
         title: 'Users',
         pageName: 'AppUsers',
-        count: users.length,
+        count: entityCounts.users,
         url: createPageUrl("AppUsers"),
         icon: Users2
       }];
@@ -1662,7 +1666,7 @@ export default function Layout({ children, currentPageName }) {
       });
     }
     return items;
-  }, [cities.length, stores.length, users.length, realUser]);
+  }, [entityCounts.cities, entityCounts.stores, entityCounts.users, realUser]);
 
   const constructUrlWithParams = useCallback((baseUrl) => {
     const currentParams = new URLSearchParams(location.search);
@@ -2358,7 +2362,7 @@ export default function Layout({ children, currentPageName }) {
                         }>
                         <Users className="w-5 h-5" />
                         <span className="font-semibold">Patients</span>
-                        <Badge variant="secondary" className="ml-auto bg-slate-200 text-slate-600 justify-center w-[45px] rounded-[10px]">{filteredPatients.length}</Badge>
+                        <Badge variant="secondary" className="ml-auto bg-slate-200 text-slate-600 justify-center w-[45px] rounded-[10px]">{entityCounts.patients}</Badge>
                       </Link>
                     }
 
