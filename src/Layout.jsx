@@ -1374,10 +1374,21 @@ export default function Layout({ children, currentPageName }) {
 
       await new Promise(resolve => setTimeout(resolve, 200));
 
-      // Step 5: Load last 30 days of deliveries (route counts come from backend)
-      console.log(`📦 [Layout] Loading deliveries (last 30 days)...`);
+      // Step 5: PRIORITY LOADING - Load selected date first, then background load rest
+      const selectedDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
+      console.log(`🎯 [Layout] PRIORITY: Loading deliveries for selected date (${selectedDateStr}) FIRST...`);
+
+      // Load selected date immediately for fast UI update
+      const priorityDeliveries = await loadDeliveriesForDate(selectedDateStr, deliveryFilter, forceRefresh);
+      console.log(`✅ [Layout] PRIORITY: Loaded ${priorityDeliveries.length} deliveries for ${selectedDateStr}`);
+
+      // Update state immediately with priority data so Dashboard can render
+      setDeliveries(priorityDeliveries);
+
+      // Now load full 30-day range in background (will include priority date data)
+      console.log(`📦 [Layout] Background loading last 30 days of deliveries...`);
       const deliveriesData = await loadDeliveries(deliveryFilter, forceRefresh);
-      console.log(`✅ [Layout] Loaded ${deliveriesData.length} deliveries`);
+      console.log(`✅ [Layout] Loaded ${deliveriesData.length} total deliveries (30 days)`);
 
       await new Promise(resolve => setTimeout(resolve, 200));
 
