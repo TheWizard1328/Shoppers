@@ -516,18 +516,34 @@ export default function DeliveriesPage() {
 
   // Sync context data to local state for real-time updates
   useEffect(() => {
-    if (contextDataLoaded && contextDeliveries.length > 0) {
+    if (contextDataLoaded) {
       console.log("🔄 [Deliveries] Syncing data from AppDataContext");
-      setAllDeliveries(contextDeliveries);
-      setAllPatients(contextPatients);
-      setStores(contextStores);
-      setCities(contextCities);
-      // Sync users if available
+      
+      // Always sync deliveries when context updates
+      if (contextDeliveries.length > 0 || allDeliveries.length > 0) {
+        setAllDeliveries(contextDeliveries);
+      }
+      
+      // Sync other entities
+      if (contextPatients.length > 0) {
+        setAllPatients(contextPatients);
+      }
+      if (contextStores.length > 0) {
+        setStores(contextStores);
+      }
+      if (contextCities.length > 0) {
+        setCities(contextCities);
+      }
       if (contextUsers.length > 0) {
         setAllUsers(contextUsers);
       }
+      
+      // Force driver cards to refresh when data changes
+      if (isDriverOverviewMode) {
+        setRefreshKey(k => k + 1);
+      }
     }
-  }, [contextDataLoaded, contextDeliveries, contextPatients, contextStores, contextCities, contextUsers]);
+  }, [contextDataLoaded, contextDeliveries, contextPatients, contextStores, contextCities, contextUsers, isDriverOverviewMode]);
 
   // Force smart refresh when Driver Overview page is active
   useEffect(() => {
