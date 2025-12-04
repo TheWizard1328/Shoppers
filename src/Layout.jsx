@@ -1021,17 +1021,30 @@ export default function Layout({ children, currentPageName }) {
 
       console.log(`📄 [Layout] ===== PAGE NAVIGATION DETECTED =====`);
       console.log(`📄 [Layout] Switched to: ${currentPageName}`);
-      console.log(`📄 [Layout] Triggering smart refresh...`);
+      console.log(`📄 [Layout] Forcing immediate smart refresh...`);
+
+      // CRITICAL: Reset all smart refresh timers to force immediate data sync
+      smartRefreshManager.lastRefreshTimes = {
+        driverLocation: 0,
+        activeDeliveries: 0,
+        todayDeliveries: 0,
+        appUsers: 0,
+        patients: 0,
+        stores: 0
+      };
 
       const performPageChangeRefresh = async () => {
         try {
+          setSmartRefreshActivity(prev => ({ ...prev, active: true }));
+
           const selectedDateStr = globalFilters.getSelectedDate();
           const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
 
           const currentData = {
             deliveries,
             patients,
-            appUsers
+            appUsers,
+            stores
           };
 
           const filters = {
@@ -1041,7 +1054,6 @@ export default function Layout({ children, currentPageName }) {
             activeDriverIds: drivers.map(d => d?.id).filter(Boolean)
           };
 
-          const selectedCityId = globalFilters.getSelectedCityId();
           const selectedDriverId = globalFilters.getSelectedDriverId();
           const cityStoreIds = stores.map(s => s?.id).filter(Boolean);
 
@@ -1058,24 +1070,30 @@ export default function Layout({ children, currentPageName }) {
             if (isDriver && !isDispatcher) {
               filters.deliveryFilter.driver_id = currentUser.id;
             }
-            // CRITICAL: Dispatchers in "All Drivers" mode get ALL city deliveries (not filtered by store)
-            // This allows simple circle markers to display for other stores
-            // Individual pages/components handle the detailed filtering
           }
 
           if (selectedDriverId && selectedDriverId !== 'all') {
             filters.deliveryFilter.driver_id = selectedDriverId;
           }
 
-          const updates = await smartRefreshManager.performSmartRefresh(currentData, filters);
+          // Force refresh all entities by passing isEntityUpdating=false
+          const updates = await smartRefreshManager.performSmartRefresh(currentData, filters, false);
           if (updates) {
             console.log(`✅ [Layout] Page navigation refresh complete - updated ${Object.keys(updates).length} data types`);
             updateAppDataState(updates);
+
+            // Notify map of updates
+            if (onSmartRefreshCompleteRef.current) {
+              onSmartRefreshCompleteRef.current();
+            }
           } else {
             console.log(`✅ [Layout] Page navigation refresh complete - no updates needed`);
           }
+
+          setSmartRefreshActivity({ active: false, updatedEntities: updates ? Object.keys(updates) : [] });
         } catch (error) {
           console.error('🛑 [Layout] Page change refresh error:', error);
+          setSmartRefreshActivity({ active: false, updatedEntities: [] });
         }
       };
 
