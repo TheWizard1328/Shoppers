@@ -1170,6 +1170,34 @@ export default function RouteImport({
   }, [filteredPreviewDeliveries, previewData.skippedItems]);
 
 
+  // Helper function to extract dates from CSV files without full parsing
+  const extractDateRangeFromFiles = async (filesToParse) => {
+    const dates = new Set();
+    
+    for (const file of filesToParse) {
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).filter((line) => line.trim());
+      
+      for (const line of lines) {
+        // Look for date metadata lines: #YYYY-MM-DD#,TotalDeliveries,...
+        const dateMetaMatch = line.match(/^#(\d{4}-\d{2}-\d{2})#,/);
+        if (dateMetaMatch) {
+          dates.add(dateMetaMatch[1]);
+        }
+      }
+    }
+    
+    const sortedDates = Array.from(dates).sort();
+    if (sortedDates.length === 0) {
+      return { minDate: null, maxDate: null };
+    }
+    
+    return {
+      minDate: sortedDates[0],
+      maxDate: sortedDates[sortedDates.length - 1]
+    };
+  };
+
   const handlePreview = async () => {
     if (files.length === 0) {
       alert('Please select at least one CSV file');
@@ -1195,6 +1223,24 @@ export default function RouteImport({
       const selectedUser = usersToSearch.find((u) => u.id === selectedDriverId);
       if (!selectedUser) throw new Error('Selected driver not found');
 
+      // STEP 1: Extract date range from import files FIRST
+      console.log(`[RouteImport] 📅 Step 1: Extracting date range from ${files.length} import file(s)...`);
+      setProgressMessage('Analyzing import files for date range...');
+      setProgressPercent(5);
+      
+      const { minDate, maxDate } = await extractDateRangeFromFiles(files);
+      
+      if (!minDate || !maxDate) {
+        alert('Could not detect any dates in the import files. Please ensure files contain date metadata lines (e.g., #2024-01-15#,...)');
+        setIsParsing(false);
+        setShowProgress(false);
+        return;
+      }
+      
+      console.log(`[RouteImport] 📅 Date range detected: ${minDate} to ${maxDate}`);
+      setProgressMessage(`Date range: ${minDate} to ${maxDate}`);
+      setProgressPercent(10);
+
       console.log(`[RouteImport] Fetching fresh store data from ALL cities...`);
       setProgressMessage('Fetching store data from all cities...');
       // CRITICAL: Fetch ALL stores without any city filter
@@ -1205,6 +1251,7 @@ export default function RouteImport({
       if (freshStoresAll && freshStoresAll.length > 0) {
         console.log(`[RouteImport] Store abbreviations available:`, freshStoresAll.map((s) => `${s.abbreviation || 'N/A'} (${s.name})`).slice(0, 30));
       }
+      setProgressPercent(15);
 
       console.log(`[RouteImport] Fetching fresh patient data from ALL stores/cities...`);
       setProgressMessage('Fetching patient data from all stores...');
@@ -1212,6 +1259,7 @@ export default function RouteImport({
       const freshPatients = await base44.entities.Patient.list('-created_date');
       setPatients(freshPatients);
       console.log(`[RouteImport] Fresh patient data loaded: ${freshPatients?.length || 0} patients from ALL stores`);
+      setProgressPercent(20);
 
       if (!freshPatients || freshPatients.length === 0) {
         alert('No patient data available.');
@@ -1228,30 +1276,34 @@ export default function RouteImport({
         })));
       }
 
-      console.log('[RouteImport] Fetching fresh delivery data from ALL cities for duplicate detection...');
-      setProgressMessage('Fetching delivery data for selected driver...');
+      // STEP 2: Fetch fresh deliveries for the SPECIFIC driver and date range
+      console.log(`[RouteImport] 🔄 Step 2: Fetching FRESH delivery data for driver "${selectedUser.user_name}" from ${minDate} to ${maxDate}...`);
+      setProgressMessage(`Refreshing delivery cache for ${selectedUser.user_name || selectedUser.full_name} (${minDate} to ${maxDate})...`);
+      setProgressPercent(25);
 
-      // CRITICAL FIX: Instead of fetching ALL deliveries (which may hit API limits),
-      // fetch deliveries specifically for the selected driver using driver_id filter
-      // This ensures we always get the driver's deliveries regardless of city
-      console.log(`[RouteImport] Fetching deliveries for driver_id: ${selectedUser.id}`);
-      const driverDeliveries = await base44.entities.Delivery.filter(
-        { driver_id: selectedUser.id },
+      // CRITICAL: Use $gte and $lte filters to get deliveries within the date range
+      // This ensures we fetch fresh data directly from the database for the relevant period
+      console.log(`[RouteImport] Fetching deliveries with filter: driver_id=${selectedUser.id}, delivery_date >= ${minDate}, delivery_date <= ${maxDate}`);
+      
+      const freshDeliveries = await base44.entities.Delivery.filter(
+        { 
+          driver_id: selectedUser.id,
+          delivery_date: { $gte: minDate, $lte: maxDate }
+        },
         '-delivery_date',
         10000
       );
-      console.log(`[RouteImport] Loaded ${driverDeliveries.length} existing deliveries for driver "${selectedUser.user_name || selectedUser.full_name}"`);
-
-      // Use driver's deliveries as the comparison set
-      const freshDeliveries = driverDeliveries;
+      
+      console.log(`[RouteImport] ✅ Loaded ${freshDeliveries.length} existing deliveries for driver "${selectedUser.user_name || selectedUser.full_name}" in date range ${minDate} to ${maxDate}`);
+      setProgressPercent(35);
 
       if (freshDeliveries.length > 0) {
-        console.log('[RouteImport] Sample of driver\'s deliveries:');
+        console.log('[RouteImport] Sample of driver\'s deliveries in date range:');
         freshDeliveries.slice(0, 5).forEach((d) => {
           console.log(`  - Date: "${d.delivery_date}", SID: "${d.stop_id || 'none'}", PID: "${d.patient_id || 'none'}", Store: "${d.store_id}"`);
         });
       } else {
-        console.warn(`[RouteImport] ⚠️ NO existing deliveries found for driver "${selectedUser.user_name || selectedUser.full_name}". This may be a new driver.`);
+        console.warn(`[RouteImport] ⚠️ NO existing deliveries found for driver "${selectedUser.user_name || selectedUser.full_name}" in date range ${minDate} to ${maxDate}. These will all be new records.`);
       }
 
       if (freshDeliveries.length > 0) {
