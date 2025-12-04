@@ -243,7 +243,7 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
     <div className="px-3 py-2 space-y-3">
       <div>
         <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-          {isToday ? 'Today:' : format(selectedDate, 'MMM dd, yyyy') + ':'}
+          {isToday ? "Today's Stats:" : format(selectedDate, 'MMM dd, yyyy') + ':'}
         </h4>
         <div className="space-y-2">
           {!userHasRole(currentUser, 'driver') && <StatItem icon={Truck} label="Active Drivers" value={stats.today.activeDrivers} colorClass="text-blue-600" />}
