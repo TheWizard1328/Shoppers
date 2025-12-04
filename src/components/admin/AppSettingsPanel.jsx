@@ -5,7 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
-import { Settings, Save, RefreshCw, Loader2, Clock, AlertCircle, RotateCcw } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Settings, Save, RefreshCw, Loader2, Clock, AlertCircle, RotateCcw, Power } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { smartRefreshManager } from '../utils/smartRefreshManager';
 
