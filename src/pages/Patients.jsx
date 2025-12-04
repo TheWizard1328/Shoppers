@@ -376,9 +376,23 @@ function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, importS
 
     console.log(`[StoreOverview] ${store.name}: ${storePatients.length} patients, ${storeDeliveries.length} deliveries`);
 
+    // Check for returns - delivery notes containing 'return' or patient address containing 'rtn'
+    const isReturn = (delivery) => {
+      if (!delivery) return false;
+      const patient = allPatients.find(p => p.id === delivery.patient_id);
+      const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return');
+      const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
+      return notesReturn || addressReturn;
+    };
+
+    const returnedDeliveries = storeDeliveries.filter(d => d.status === 'returned' || isReturn(d));
+    const failedDeliveries = storeDeliveries.filter(d => d.status === 'failed' && !isReturn(d));
+
     return {
       activeRoutes: storeDeliveries.filter((d) => ['picked_up', 'in_transit', 'pending'].includes(d.status)).length,
-      completedRoutes: storeDeliveries.filter((d) => d.status === 'delivered').length,
+      completedRoutes: storeDeliveries.filter((d) => d.status === 'delivered' || d.status === 'completed').length,
+      failedRoutes: failedDeliveries.length,
+      returnedRoutes: returnedDeliveries.length,
       totalRoutes: storeDeliveries.length
     };
   }, [allPatients, deliveries, today]);
@@ -456,8 +470,23 @@ function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, importS
                   </div>
                   <div className="border-t border-slate-100 pt-2 mt-2">
                     {stats.totalRoutes > 0 &&
-                    <div className="text-sm font-medium text-blue-600 mb-2">
-                        Active: {stats.activeRoutes} / Completed: {stats.completedRoutes}
+                    <div className="grid grid-cols-4 gap-1 text-center text-xs font-medium mb-2">
+                        <div className="text-blue-600">
+                          <div className="text-lg font-bold">{stats.activeRoutes}</div>
+                          <div>Active</div>
+                        </div>
+                        <div className="text-green-600">
+                          <div className="text-lg font-bold">{stats.completedRoutes}</div>
+                          <div>Completed</div>
+                        </div>
+                        <div className="text-red-600">
+                          <div className="text-lg font-bold">{stats.failedRoutes}</div>
+                          <div>Failed</div>
+                        </div>
+                        <div className="text-orange-600">
+                          <div className="text-lg font-bold">{stats.returnedRoutes}</div>
+                          <div>Returned</div>
+                        </div>
                       </div>
                     }
 
@@ -635,14 +664,20 @@ export default function Patients() {
     if (contextDataLoaded) {
       console.log("🔄 [Patients] Syncing data from AppDataContext");
       console.log(`   contextUsers.length: ${contextUsers.length}, contextAppUsers.length: ${contextAppUsers.length}`);
+      
+      // Always sync when context updates
       setAllPatients(contextPatients);
       setDeliveries(contextDeliveries);
       setStores(contextStores);
       setDrivers(contextDrivers);
+      
       // CRITICAL FIX: Use contextUsers if available, otherwise fall back to contextAppUsers
       const finalUsers = contextUsers.length > 0 ? contextUsers : contextAppUsers;
       console.log(`   Setting allUsers to: ${finalUsers.length} users`);
       setAllUsers(finalUsers);
+      
+      // Force refresh of import stats display when data changes
+      setImportStats(prev => prev ? { ...prev, timestamp: new Date() } : null);
     }
   }, [contextDataLoaded, contextPatients, contextDeliveries, contextStores, contextDrivers, contextUsers, contextAppUsers]);
 
@@ -1563,7 +1598,12 @@ export default function Patients() {
           <>
                 <div className="flex flex-col gap-3 mb-4">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 relative">
+                      {isLoading && (
+                        <div className="absolute -left-8 top-1/2 -translate-y-1/2">
+                          <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
+                        </div>
+                      )}
                       <h1 className="text-2xl font-bold text-slate-900">Patient Database</h1>
                       <Badge
                     className="text-white px-2.5 py-0.5 text-sm font-semibold rounded-md"
@@ -1591,7 +1631,12 @@ export default function Patients() {
           /* Desktop Layout */
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
                 <div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 relative">
+                    {isLoading && (
+                      <div className="absolute -left-8 top-1/2 -translate-y-1/2">
+                        <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
+                      </div>
+                    )}
                     <h1 className="text-3xl font-bold text-slate-900">Patient Database</h1>
                     <Badge className="bg-primary text-white px-3 py-1 text-lg font-semibold rounded-[10px] inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent shadow hover:bg-primary/80"
 
@@ -1918,7 +1963,12 @@ export default function Patients() {
       <div className="flex-shrink-0 bg-white border-b border-slate-200 shadow-sm">
           <div className="p-4">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-              <div className="flex-1">
+              <div className="flex-1 relative">
+                {isLoading && (
+                  <div className="absolute -left-8 top-1/2 -translate-y-1/2">
+                    <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
+                  </div>
+                )}
                 <h1 className="text-3xl font-bold text-slate-900">Store Overview</h1>
                 <p className="text-slate-600 mt-1">Select a store to view and manage patients</p>
               </div>
