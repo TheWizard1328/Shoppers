@@ -838,6 +838,12 @@ export default function Layout({ children, currentPageName }) {
 
     // Unified refresh function - runs every 30s, each entity checks its own interval
     const performUnifiedRefresh = async () => {
+      // CRITICAL: Check if smart refresh is disabled
+      // When disabled, skip automatic background polling entirely
+      if (!smartRefreshManager._enabled) {
+        return;
+      }
+
       const updatedEntities = [];
       try {
         setSmartRefreshActivity(prev => ({ ...prev, active: true }));

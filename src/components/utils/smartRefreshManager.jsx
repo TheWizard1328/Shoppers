@@ -687,9 +687,8 @@ class SmartRefreshManager {
    */
   async refreshDriverLocations(currentAppUsers) {
     try {
-      // Check if disabled - use private property directly to avoid getter logging
+      // Check if disabled - silently skip automatic polling
       if (!this._enabled) {
-        // Don't log every time - just silently return
         return null;
       }
       
@@ -985,9 +984,8 @@ class SmartRefreshManager {
    */
   async refreshActiveDeliveryStatuses(currentDeliveries, selectedDate) {
     try {
-      // Check if disabled - use private property directly to avoid getter logging
+      // Check if disabled - silently skip automatic polling
       if (!this._enabled) {
-        // Don't log every time - just silently return
         return null;
       }
       
@@ -1111,9 +1109,10 @@ class SmartRefreshManager {
    * Full smart refresh - checks all entities based on their individual intervals
    */
   async performSmartRefresh(currentData, filters, isEntityUpdating = false) {
-    // CRITICAL: Check if smart refresh is disabled - use private property directly
+    // CRITICAL: When disabled, skip background polling but still allow manual refreshes
+    // The toggle only affects automatic background data fetching
     if (!this._enabled) {
-      console.log('🔄 [Smart Refresh] ⏸️ DISABLED - Smart refresh is turned off in settings');
+      // Silently skip automatic background polling
       return null;
     }
     
