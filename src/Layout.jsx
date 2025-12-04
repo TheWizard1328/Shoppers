@@ -1378,8 +1378,8 @@ export default function Layout({ children, currentPageName }) {
       console.log(`📦 [Layout] Loading deliveries with priority date loading...`);
 
       // Get the currently selected date from globalFilters
-      const selectedDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
-      console.log(`🎯 [Layout] Priority date for fast UI: ${selectedDateStr}`);
+      const priorityDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
+      console.log(`🎯 [Layout] Priority date for fast UI: ${priorityDateStr}`);
 
       // Load selected date first, then full 30 days
       const deliveriesData = await loadDeliveries(deliveryFilter, forceRefresh, selectedDateStr, (priorityDeliveries, dateStr) => {
