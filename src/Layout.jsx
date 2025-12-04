@@ -916,8 +916,9 @@ export default function Layout({ children, currentPageName }) {
       }
     };
 
-      // Initial refresh after short delay
-      setTimeout(performUnifiedRefresh, 500);
+      // CRITICAL: Don't run initial refresh immediately - wait for data to be fully loaded
+      // The normal interval will handle the first refresh after data is stable
+      console.log('🚀 [Layout] Smart refresh started - first refresh in 45s (not immediate)');
 
       // Single unified interval - 45 seconds for balanced refresh rate
       // Individual entity intervals are managed by smartRefreshManager
