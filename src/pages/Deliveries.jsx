@@ -2686,20 +2686,29 @@ export default function DeliveriesPage() {
       }
     }
 
-    // Find drivers who have deliveries in the filtered set
+    // Find drivers who have deliveries in the filtered set OR are active/inactive drivers
+    // For Driver Overview, we want to show ALL drivers (even those without deliveries in the selected period)
     const driversWithDeliveries = cityFilteredDrivers.filter((u) => {
       if (!u) return false;
+      
+      // Check if driver has deliveries in the current filter
       const hasDeliveries = driverIdsInDeliveries.includes(u.id) ||
       u.appUserId && driverIdsInDeliveries.includes(u.appUserId) ||
       driverNamesInDeliveries.includes(u.full_name) ||
       driverNamesInDeliveries.includes(u.user_name);
-      if (hasDeliveries) {
-        console.log(`   ✅ Found driver: ${u.user_name || u.full_name} (full_name: ${u.full_name}, ID: ${u.id}, AppUser ID: ${u.appUserId}), roles: [${(u.app_roles || []).join(', ')}]`);
+      
+      // In overview mode with 'all' years selected, show ALL drivers regardless of deliveries
+      // This ensures inactive drivers and those without recent deliveries still appear
+      const showAllDrivers = selectedOverviewYear === 'all';
+      
+      if (hasDeliveries || showAllDrivers) {
+        console.log(`   ✅ Including driver: ${u.user_name || u.full_name} (has deliveries: ${hasDeliveries}, status: ${u.status})`);
+        return true;
       }
-      return hasDeliveries;
+      return false;
     });
 
-    console.log(`✅ Found ${driversWithDeliveries.length} drivers with deliveries (after city filter)`);
+    console.log(`✅ Found ${driversWithDeliveries.length} drivers to show (after city filter)`);
 
     let driversToShow = [];
 
