@@ -635,14 +635,20 @@ export default function Patients() {
     if (contextDataLoaded) {
       console.log("🔄 [Patients] Syncing data from AppDataContext");
       console.log(`   contextUsers.length: ${contextUsers.length}, contextAppUsers.length: ${contextAppUsers.length}`);
+      
+      // Always sync when context updates
       setAllPatients(contextPatients);
       setDeliveries(contextDeliveries);
       setStores(contextStores);
       setDrivers(contextDrivers);
+      
       // CRITICAL FIX: Use contextUsers if available, otherwise fall back to contextAppUsers
       const finalUsers = contextUsers.length > 0 ? contextUsers : contextAppUsers;
       console.log(`   Setting allUsers to: ${finalUsers.length} users`);
       setAllUsers(finalUsers);
+      
+      // Force refresh of import stats display when data changes
+      setImportStats(prev => prev ? { ...prev, timestamp: new Date() } : null);
     }
   }, [contextDataLoaded, contextPatients, contextDeliveries, contextStores, contextDrivers, contextUsers, contextAppUsers]);
 

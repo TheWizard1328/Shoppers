@@ -10,6 +10,7 @@ import { sortStores } from "../components/utils/sorting";
 import { mergeUsersWithAppUsers } from "../components/utils/driverUtils";
 import { userHasRole } from "../components/utils/userRoles";
 import { useUser } from "../components/utils/UserContext";
+import { useAppData } from "../components/utils/AppDataContext";
 
 export default function StoresPage() {
   const { currentUser } = useUser();
