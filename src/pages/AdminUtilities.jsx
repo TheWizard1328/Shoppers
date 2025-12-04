@@ -3608,41 +3608,31 @@ export default function AdminUtilities() {
         let skipped = 0;
 
         try {
-          // Process all deliveries missing PUID
           const deliveriesNeedingPUID = deliveriesToProcess.filter(d => d && !d.puid);
-
           console.log(`🔄 [AdminUtilities] Backfilling PUIDs for ${deliveriesNeedingPUID.length} deliveries...`);
 
           for (const delivery of deliveriesNeedingPUID) {
             try {
               let puidToSet = null;
 
-              // If this is a pickup, use its own stop_id as PUID
               if (!delivery.patient_id && delivery.stop_id) {
                 puidToSet = delivery.stop_id;
                 console.log(`✅ [AdminUtilities] Pickup ${delivery.stop_id} will use own SID as PUID`);
               } else if (delivery.patient_id) {
-                // This is a patient delivery - find the corresponding pickup
-                // First try same driver
                 let pickup = (allDeliveries || []).find(p => 
-                  p && 
-                  !p.patient_id && // Is a pickup
-                  p.store_id === delivery.store_id &&
+                  p && !p.patient_id && p.store_id === delivery.store_id &&
                   p.delivery_date === delivery.delivery_date &&
                   p.driver_id === delivery.driver_id &&
                   p.ampm_deliveries === delivery.ampm_deliveries &&
-                  p.stop_id // Has a stop_id to use as PUID
+                  p.stop_id
                 );
 
-                // If not found, check other drivers (driver transfer case)
                 if (!pickup) {
                   pickup = (allDeliveries || []).find(p => 
-                    p && 
-                    !p.patient_id && // Is a pickup
-                    p.store_id === delivery.store_id &&
+                    p && !p.patient_id && p.store_id === delivery.store_id &&
                     p.delivery_date === delivery.delivery_date &&
                     p.ampm_deliveries === delivery.ampm_deliveries &&
-                    p.stop_id // Has a stop_id to use as PUID
+                    p.stop_id
                   );
                   
                   if (pickup) {
@@ -3689,6 +3679,8 @@ export default function AdminUtilities() {
       }
     });
   };
+
+  const _confirmDeleteAllDeliveries
 
   const handleEditEntity = (entity) => {
     console.log('Edit entity:', entity);
