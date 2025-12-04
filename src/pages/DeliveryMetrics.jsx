@@ -22,8 +22,8 @@ import {
   CheckCircle,
   XCircle,
   Truck,
-  Target
-} from "lucide-react";
+  Target } from
+"lucide-react";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays, subWeeks, subMonths, subYears, parseISO, startOfQuarter, endOfQuarter, subQuarters } from "date-fns";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { getEffectiveUser } from "../components/utils/auth";
@@ -32,13 +32,13 @@ import { sortUsers } from '../components/utils/sorting';
 
 const calculateDistance = (lat1, lng1, lat2, lng2) => {
   if (!lat1 || !lng1 || !lat2 || !lng2) return 0;
-  const toRad = (value) => (value * Math.PI) / 180;
+  const toRad = (value) => value * Math.PI / 180;
   const R = 6371;
   const dLat = toRad(lat2 - lat1);
   const dLng = toRad(lng2 - lng1);
   const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-            Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+  Math.sin(dLng / 2) * Math.sin(dLng / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 };
@@ -58,7 +58,7 @@ const MetricCard = ({ title, value, subtitle, icon: Icon, trend, previousValue, 
   if (previousValue !== null && previousValue !== undefined && previousValue !== 0) {
     const numValue = parseFloat(String(value).replace(/[^0-9.-]/g, '')) || 0; // Robustly parse value
     const numPrevious = parseFloat(String(previousValue).replace(/[^0-9.-]/g, '')) || 0; // Robustly parse previousValue
-    if (numPrevious !== 0) { // Avoid division by zero
+    if (numPrevious !== 0) {// Avoid division by zero
       percentChange = ((numValue - numPrevious) / numPrevious * 100).toFixed(1);
       isPositive = numValue >= numPrevious;
     } else if (numValue > 0) {
@@ -83,18 +83,18 @@ const MetricCard = ({ title, value, subtitle, icon: Icon, trend, previousValue, 
       <CardContent>
         <div className="text-2xl font-bold">{value}</div>
         {subtitle && <p className="text-xs text-slate-500 mt-1">{subtitle}</p>}
-        {percentChange !== null && (
-          <div className={`flex items-center mt-2 text-xs ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+        {percentChange !== null &&
+        <div className={`flex items-center mt-2 text-xs ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
             {isPositive ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
             {Math.abs(percentChange)}% vs previous period
           </div>
-        )}
-        {previousValue !== null && previousValue !== undefined && percentChange === null && (
-          <p className="text-xs text-slate-400 mt-1">Previous: {previousValue}</p>
-        )}
+        }
+        {previousValue !== null && previousValue !== undefined && percentChange === null &&
+        <p className="text-xs text-slate-400 mt-1">Previous: {previousValue}</p>
+        }
       </CardContent>
-    </Card>
-  );
+    </Card>);
+
 };
 
 // Helper function to get date ranges based on selection
@@ -109,70 +109,70 @@ const getDateRanges = (rangeType) => {
       prevStart = subDays(start, 1);
       prevEnd = subDays(end, 1);
       break;
-    
+
     case 'week':
       start = startOfWeek(now, { weekStartsOn: 1 }); // Monday
       end = endOfWeek(now, { weekStartsOn: 1 }); // Sunday
       prevStart = startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
       prevEnd = endOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
       break;
-    
+
     case 'lastWeek':
       start = startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
       end = endOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
       prevStart = startOfWeek(subWeeks(now, 2), { weekStartsOn: 1 });
       prevEnd = endOfWeek(subWeeks(now, 2), { weekStartsOn: 1 });
       break;
-    
+
     case 'month':
       start = startOfMonth(now);
       end = endOfMonth(now);
       prevStart = startOfMonth(subMonths(now, 1));
       prevEnd = endOfMonth(subMonths(now, 1));
       break;
-    
+
     case 'lastMonth':
       start = startOfMonth(subMonths(now, 1));
       end = endOfMonth(subMonths(now, 1));
       prevStart = startOfMonth(subMonths(now, 2));
       prevEnd = endOfMonth(subMonths(now, 2));
       break;
-    
+
     case 'q1':
       start = startOfQuarter(new Date(now.getFullYear(), 0, 1));
       end = endOfQuarter(new Date(now.getFullYear(), 0, 1));
       prevStart = startOfQuarter(subQuarters(new Date(now.getFullYear(), 0, 1), 1));
       prevEnd = endOfQuarter(subQuarters(new Date(now.getFullYear(), 0, 1), 1));
       break;
-    
+
     case 'q2':
       start = startOfQuarter(new Date(now.getFullYear(), 3, 1));
       end = endOfQuarter(new Date(now.getFullYear(), 3, 1));
       prevStart = startOfQuarter(subQuarters(new Date(now.getFullYear(), 3, 1), 1));
       prevEnd = endOfQuarter(subQuarters(new Date(now.getFullYear(), 3, 1), 1));
       break;
-    
+
     case 'q3':
       start = startOfQuarter(new Date(now.getFullYear(), 6, 1));
       end = endOfQuarter(new Date(now.getFullYear(), 6, 1));
       prevStart = startOfQuarter(subQuarters(new Date(now.getFullYear(), 6, 1), 1));
       prevEnd = endOfQuarter(subQuarters(new Date(now.getFullYear(), 6, 1), 1));
       break;
-    
+
     case 'q4':
       start = startOfQuarter(new Date(now.getFullYear(), 9, 1));
       end = endOfQuarter(new Date(now.getFullYear(), 9, 1));
       prevStart = startOfQuarter(subQuarters(new Date(now.getFullYear(), 9, 1), 1));
       prevEnd = endOfQuarter(subQuarters(new Date(now.getFullYear(), 9, 1), 1));
       break;
-    
+
     case 'year':
       start = startOfYear(now);
       end = endOfYear(now);
       prevStart = startOfYear(subYears(now, 1));
       prevEnd = endOfYear(subYears(now, 1));
       break;
-    
+
     default: // Defaulting to 'week' calculation
       start = startOfWeek(now, { weekStartsOn: 1 });
       end = endOfWeek(now, { weekStartsOn: 1 });
@@ -219,27 +219,27 @@ export default function DeliveryMetrics() {
 
   const loadData = async () => {
     if (!currentUser) return;
-    
+
     setIsLoading(true);
     try {
       const [deliveriesData, patientsData, storesData, appUsersData] = await Promise.all([
-        Delivery.list(),
-        Patient.list(),
-        Store.list(),
-        AppUser.list()
-      ]);
+      Delivery.list(),
+      Patient.list(),
+      Store.list(),
+      AppUser.list()]
+      );
 
       setPatients(patientsData || []);
       setStores(storesData || []);
 
       const isAdmin = currentUser?.role === 'admin';
       let allDrivers = [];
-      
+
       if (isAdmin) {
         const usersData = await User.list();
-        const allAuthUsers = (usersData || []).filter(u => u.role === 'admin' || u.role === 'user');
-        allDrivers = allAuthUsers.map(authUser => {
-          const appUser = (appUsersData || []).find(au => au.user_id === authUser.id);
+        const allAuthUsers = (usersData || []).filter((u) => u.role === 'admin' || u.role === 'user');
+        allDrivers = allAuthUsers.map((authUser) => {
+          const appUser = (appUsersData || []).find((au) => au.user_id === authUser.id);
           if (appUser) {
             return {
               ...authUser,
@@ -250,12 +250,12 @@ export default function DeliveryMetrics() {
             };
           }
           return authUser;
-        }).filter(u => {
+        }).filter((u) => {
           const appRole = u.app_role || u.app_roles?.[0];
           return appRole === 'driver' || appRole === 'admin';
         });
       } else {
-        const currentAppUser = (appUsersData || []).find(au => au.user_id === currentUser.id);
+        const currentAppUser = (appUsersData || []).find((au) => au.user_id === currentUser.id);
         if (currentAppUser) {
           allDrivers = [{
             ...currentUser,
@@ -274,7 +274,7 @@ export default function DeliveryMetrics() {
       // CRITICAL FIX: Store ALL deliveries, don't filter by date here
       // We need all deliveries to calculate previous period comparisons
       setDeliveries(deliveriesData || []);
-      
+
       console.log(`✅ [DeliveryMetrics] Loaded ${deliveriesData?.length || 0} total deliveries`);
     } catch (error) {
       console.error("Error loading metrics data:", error);
@@ -290,21 +290,21 @@ export default function DeliveryMetrics() {
     console.log('👤 Selected driver:', selectedDriver);
     console.log('👥 Available drivers:', drivers.length);
 
-    let relevantDeliveries = deliveries.filter(d => {
+    let relevantDeliveries = deliveries.filter((d) => {
       const deliveryDate = parseISO(d.delivery_date);
       return deliveryDate >= startDate && deliveryDate <= endDate;
     });
-    
+
     console.log('📊 Deliveries in current date range:', relevantDeliveries.length);
 
     let prevRelevantDeliveries = [];
 
     if (selectedDriver !== 'all') {
-      const driver = drivers.find(d => d.id === selectedDriver);
+      const driver = drivers.find((d) => d.id === selectedDriver);
       if (driver) {
         const driverFirstName = getDriverNameForComparison(driver);
         console.log('🔍 Filtering for driver:', driverFirstName);
-        relevantDeliveries = relevantDeliveries.filter(d => {
+        relevantDeliveries = relevantDeliveries.filter((d) => {
           const deliveryDriverFirstName = d.driver_name ? d.driver_name.split(' ')[0] : null;
           return deliveryDriverFirstName === driverFirstName;
         });
@@ -315,16 +315,16 @@ export default function DeliveryMetrics() {
     console.log('📊 Relevant deliveries for current period (after driver filter):', relevantDeliveries.length);
 
     if (prevStartDate && prevEndDate) {
-      prevRelevantDeliveries = deliveries.filter(d => {
+      prevRelevantDeliveries = deliveries.filter((d) => {
         const deliveryDate = parseISO(d.delivery_date);
         return deliveryDate >= prevStartDate && deliveryDate <= prevEndDate;
       });
 
       if (selectedDriver !== 'all') {
-        const driver = drivers.find(d => d.id === selectedDriver);
+        const driver = drivers.find((d) => d.id === selectedDriver);
         if (driver) {
           const driverFirstName = getDriverNameForComparison(driver);
-          prevRelevantDeliveries = prevRelevantDeliveries.filter(d => {
+          prevRelevantDeliveries = prevRelevantDeliveries.filter((d) => {
             const deliveryDriverFirstName = d.driver_name ? d.driver_name.split(' ')[0] : null;
             return deliveryDriverFirstName === driverFirstName;
           });
@@ -333,7 +333,7 @@ export default function DeliveryMetrics() {
       console.log('📊 Relevant deliveries for previous period:', prevRelevantDeliveries.length);
     }
 
-    const patientDeliveries = relevantDeliveries.filter(d => {
+    const patientDeliveries = relevantDeliveries.filter((d) => {
       const hasPatient = d.patient_id && d.patient_id !== "";
       const wasAttempted = d.status === 'completed' || d.status === 'failed';
       const hasTimestamp = d.actual_delivery_time;
@@ -345,7 +345,7 @@ export default function DeliveryMetrics() {
       console.log('📊 Sample delivery:', patientDeliveries[0]);
     }
 
-    const prevPatientDeliveries = prevRelevantDeliveries.filter(d => {
+    const prevPatientDeliveries = prevRelevantDeliveries.filter((d) => {
       const hasPatient = d.patient_id && d.patient_id !== "";
       const wasAttempted = d.status === 'completed' || d.status === 'failed';
       const hasTimestamp = d.actual_delivery_time;
@@ -353,38 +353,38 @@ export default function DeliveryMetrics() {
     });
 
     const totalDeliveries = relevantDeliveries.length;
-    const completedDeliveries = relevantDeliveries.filter(d => d.status === 'completed').length;
-    const failedDeliveries = relevantDeliveries.filter(d => d.status === 'failed').length;
-    const returnedDeliveries = relevantDeliveries.filter(d => {
-      const patient = patients.find(p => p.id === d.patient_id);
+    const completedDeliveries = relevantDeliveries.filter((d) => d.status === 'completed').length;
+    const failedDeliveries = relevantDeliveries.filter((d) => d.status === 'failed').length;
+    const returnedDeliveries = relevantDeliveries.filter((d) => {
+      const patient = patients.find((p) => p.id === d.patient_id);
       const notesReturn = (d.delivery_notes || '').toLowerCase().includes('return');
       const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
       return notesReturn || addressReturn;
     }).length;
 
-    const completionRate = (completedDeliveries + failedDeliveries) > 0 
-      ? ((completedDeliveries / (completedDeliveries + failedDeliveries)) * 100).toFixed(1)
-      : 0;
+    const completionRate = completedDeliveries + failedDeliveries > 0 ?
+    (completedDeliveries / (completedDeliveries + failedDeliveries) * 100).toFixed(1) :
+    0;
 
     console.log('📊 Stats - Total:', totalDeliveries, 'Completed:', completedDeliveries, 'Failed:', failedDeliveries, 'Returned:', returnedDeliveries);
 
     const prevTotalDeliveries = prevRelevantDeliveries.length;
-    const prevCompletedDeliveries = prevRelevantDeliveries.filter(d => d.status === 'completed').length;
-    const prevFailedDeliveries = prevRelevantDeliveries.filter(d => d.status === 'failed').length;
-    const prevReturnedDeliveries = prevRelevantDeliveries.filter(d => {
-      const patient = patients.find(p => p.id === d.patient_id);
+    const prevCompletedDeliveries = prevRelevantDeliveries.filter((d) => d.status === 'completed').length;
+    const prevFailedDeliveries = prevRelevantDeliveries.filter((d) => d.status === 'failed').length;
+    const prevReturnedDeliveries = prevRelevantDeliveries.filter((d) => {
+      const patient = patients.find((p) => p.id === d.patient_id);
       const notesReturn = (d.delivery_notes || '').toLowerCase().includes('return');
       const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
       return notesReturn || addressReturn;
     }).length;
 
-    const prevCompletionRate = (prevCompletedDeliveries + prevFailedDeliveries) > 0 
-      ? ((prevCompletedDeliveries / (prevCompletedDeliveries + prevFailedDeliveries)) * 100).toFixed(1)
-      : 0;
+    const prevCompletionRate = prevCompletedDeliveries + prevFailedDeliveries > 0 ?
+    (prevCompletedDeliveries / (prevCompletedDeliveries + prevFailedDeliveries) * 100).toFixed(1) :
+    0;
 
     // Calculate route metrics for current period
     const routeGroups = new Map();
-    patientDeliveries.forEach(delivery => {
+    patientDeliveries.forEach((delivery) => {
       const key = `${delivery.driver_name}-${delivery.delivery_date}`;
       if (!routeGroups.has(key)) {
         routeGroups.set(key, []);
@@ -400,24 +400,24 @@ export default function DeliveryMetrics() {
     let onTimeDeliveries = 0;
     let totalDeliveriesWithTimeWindow = 0;
 
-    routeGroups.forEach(routeDeliveries => {
-      const sortedRoute = [...routeDeliveries].sort((a, b) => 
-        new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time)
+    routeGroups.forEach((routeDeliveries) => {
+      const sortedRoute = [...routeDeliveries].sort((a, b) =>
+      new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time)
       );
 
       for (let i = 0; i < sortedRoute.length - 1; i++) {
         const currentDelivery = sortedRoute[i];
         const nextDelivery = sortedRoute[i + 1];
 
-        const currentPatient = patients.find(p => p.id === currentDelivery.patient_id);
-        const nextPatient = patients.find(p => p.id === nextDelivery.patient_id);
+        const currentPatient = patients.find((p) => p.id === currentDelivery.patient_id);
+        const nextPatient = patients.find((p) => p.id === nextDelivery.patient_id);
 
-        if (currentPatient?.latitude && currentPatient?.longitude && 
-            nextPatient?.latitude && nextPatient?.longitude) {
+        if (currentPatient?.latitude && currentPatient?.longitude &&
+        nextPatient?.latitude && nextPatient?.longitude) {
           const distance = calculateDistance(
-            currentPatient.latitude, 
+            currentPatient.latitude,
             currentPatient.longitude,
-            nextPatient.latitude, 
+            nextPatient.latitude,
             nextPatient.longitude
           );
           totalDistance += distance;
@@ -435,7 +435,7 @@ export default function DeliveryMetrics() {
           const actualTime = new Date(currentDelivery.actual_delivery_time);
           const [startHour, startMin] = currentDelivery.delivery_time_start.split(':').map(Number);
           const [endHour, endMin] = currentDelivery.delivery_time_end.split(':').map(Number);
-          
+
           const deliveryDate = new Date(currentDelivery.delivery_date);
           const windowStart = new Date(deliveryDate);
           windowStart.setHours(startHour, startMin, 0, 0);
@@ -453,7 +453,7 @@ export default function DeliveryMetrics() {
 
     // Calculate previous period route metrics
     const prevRouteGroups = new Map();
-    prevPatientDeliveries.forEach(delivery => {
+    prevPatientDeliveries.forEach((delivery) => {
       const key = `${delivery.driver_name}-${delivery.delivery_date}`;
       if (!prevRouteGroups.has(key)) {
         prevRouteGroups.set(key, []);
@@ -467,24 +467,24 @@ export default function DeliveryMetrics() {
     let prevOnTimeDeliveries = 0;
     let prevTotalDeliveriesWithTimeWindow = 0;
 
-    prevRouteGroups.forEach(routeDeliveries => {
-      const sortedRoute = [...routeDeliveries].sort((a, b) => 
-        new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time)
+    prevRouteGroups.forEach((routeDeliveries) => {
+      const sortedRoute = [...routeDeliveries].sort((a, b) =>
+      new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time)
       );
 
       for (let i = 0; i < sortedRoute.length - 1; i++) {
         const currentDelivery = sortedRoute[i];
         const nextDelivery = sortedRoute[i + 1];
 
-        const currentPatient = patients.find(p => p.id === currentDelivery.patient_id);
-        const nextPatient = patients.find(p => p.id === nextDelivery.patient_id);
+        const currentPatient = patients.find((p) => p.id === currentDelivery.patient_id);
+        const nextPatient = patients.find((p) => p.id === nextDelivery.patient_id);
 
-        if (currentPatient?.latitude && currentPatient?.longitude && 
-            nextPatient?.latitude && nextPatient?.longitude) {
+        if (currentPatient?.latitude && currentPatient?.longitude &&
+        nextPatient?.latitude && nextPatient?.longitude) {
           const distance = calculateDistance(
-            currentPatient.latitude, 
+            currentPatient.latitude,
             currentPatient.longitude,
-            nextPatient.latitude, 
+            nextPatient.latitude,
             nextPatient.longitude
           );
           prevTotalDistance += distance;
@@ -502,7 +502,7 @@ export default function DeliveryMetrics() {
           const actualTime = new Date(currentDelivery.actual_delivery_time);
           const [startHour, startMin] = currentDelivery.delivery_time_start.split(':').map(Number);
           const [endHour, endMin] = currentDelivery.delivery_time_end.split(':').map(Number);
-          
+
           const deliveryDate = new Date(currentDelivery.delivery_date);
           const windowStart = new Date(deliveryDate);
           windowStart.setHours(startHour, startMin, 0, 0);
@@ -518,35 +518,35 @@ export default function DeliveryMetrics() {
 
     const avgDistance = stopCount > 0 ? (totalDistance / stopCount).toFixed(2) : 0;
     const avgTimeBetweenStops = stopCount > 0 ? Math.round(totalTimeBetweenStops / stopCount) : 0;
-    const onTimeRate = totalDeliveriesWithTimeWindow > 0 
-      ? ((onTimeDeliveries / totalDeliveriesWithTimeWindow) * 100).toFixed(1)
-      : 0;
+    const onTimeRate = totalDeliveriesWithTimeWindow > 0 ?
+    (onTimeDeliveries / totalDeliveriesWithTimeWindow * 100).toFixed(1) :
+    0;
 
     const prevAvgDistance = prevStopCount > 0 ? (prevTotalDistance / prevStopCount).toFixed(2) : 0;
     const prevAvgTimeBetweenStops = prevStopCount > 0 ? Math.round(prevTotalTimeBetweenStops / prevStopCount) : 0;
-    const prevOnTimeRate = prevTotalDeliveriesWithTimeWindow > 0 
-      ? ((prevOnTimeDeliveries / prevTotalDeliveriesWithTimeWindow) * 100).toFixed(1)
-      : 0;
+    const prevOnTimeRate = prevTotalDeliveriesWithTimeWindow > 0 ?
+    (prevOnTimeDeliveries / prevTotalDeliveriesWithTimeWindow * 100).toFixed(1) :
+    0;
 
-    const uniqueDays = new Set(relevantDeliveries.map(d => d.delivery_date)).size;
+    const uniqueDays = new Set(relevantDeliveries.map((d) => d.delivery_date)).size;
     const avgDeliveriesPerDay = uniqueDays > 0 ? (totalDeliveries / uniqueDays).toFixed(1) : 0;
 
-    const prevUniqueDays = new Set(prevRelevantDeliveries.map(d => d.delivery_date)).size;
+    const prevUniqueDays = new Set(prevRelevantDeliveries.map((d) => d.delivery_date)).size;
     const prevAvgDeliveriesPerDay = prevUniqueDays > 0 ? (prevTotalDeliveries / prevUniqueDays).toFixed(1) : 0;
 
     // Status breakdown
     const statusCounts = {
-      completed: relevantDeliveries.filter(d => d.status === 'completed').length,
-      inTransit: relevantDeliveries.filter(d => d.status === 'in_transit').length,
-      pending: relevantDeliveries.filter(d => d.status === 'pending' || d.status === 'Ready For Pickup').length,
+      completed: relevantDeliveries.filter((d) => d.status === 'completed').length,
+      inTransit: relevantDeliveries.filter((d) => d.status === 'in_transit').length,
+      pending: relevantDeliveries.filter((d) => d.status === 'pending' || d.status === 'Ready For Pickup').length,
       failed: failedDeliveries,
       returned: returnedDeliveries
     };
 
     const prevStatusCounts = {
-      completed: prevRelevantDeliveries.filter(d => d.status === 'completed').length,
-      inTransit: prevRelevantDeliveries.filter(d => d.status === 'in_transit').length,
-      pending: prevRelevantDeliveries.filter(d => d.status === 'pending' || d.status === 'Ready For Pickup').length,
+      completed: prevRelevantDeliveries.filter((d) => d.status === 'completed').length,
+      inTransit: prevRelevantDeliveries.filter((d) => d.status === 'in_transit').length,
+      pending: prevRelevantDeliveries.filter((d) => d.status === 'pending' || d.status === 'Ready For Pickup').length,
       failed: prevFailedDeliveries,
       returned: prevReturnedDeliveries
     };
@@ -562,10 +562,10 @@ export default function DeliveryMetrics() {
       // For weekly ranges (and today, which is a single day, can fit in this too for XAxis consistency)
       // Create a fixed 7-day structure (Mon-Sun)
       const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-      const weeklyDataMap = new Map(dayNames.map(day => [day, { day, completed: 0, failed: 0, returned: 0, total: 0, prevCompleted: 0, prevFailed: 0, prevReturned: 0, prevTotal: 0 }]));
+      const weeklyDataMap = new Map(dayNames.map((day) => [day, { day, completed: 0, failed: 0, returned: 0, total: 0, prevCompleted: 0, prevFailed: 0, prevReturned: 0, prevTotal: 0 }]));
 
       const processDeliveriesForWeeklyMap = (deliveriesToProcess, isPrevious = false) => {
-        deliveriesToProcess.forEach(delivery => {
+        deliveriesToProcess.forEach((delivery) => {
           const deliveryDate = parseISO(delivery.delivery_date);
           const dayIndex = (deliveryDate.getDay() + 6) % 7; // Convert Sunday=0 to Monday=0
           const dayName = dayNames[dayIndex];
@@ -575,7 +575,7 @@ export default function DeliveryMetrics() {
             dayData.prevTotal++;
             if (delivery.status === 'completed') dayData.prevCompleted++;
             if (delivery.status === 'failed') dayData.prevFailed++;
-            const patient = patients.find(p => p.id === delivery.patient_id);
+            const patient = patients.find((p) => p.id === delivery.patient_id);
             const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return');
             const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
             if (notesReturn || addressReturn) dayData.prevReturned++;
@@ -583,7 +583,7 @@ export default function DeliveryMetrics() {
             dayData.total++;
             if (delivery.status === 'completed') dayData.completed++;
             if (delivery.status === 'failed') dayData.failed++;
-            const patient = patients.find(p => p.id === delivery.patient_id);
+            const patient = patients.find((p) => p.id === delivery.patient_id);
             const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return');
             const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
             if (notesReturn || addressReturn) dayData.returned++;
@@ -600,7 +600,7 @@ export default function DeliveryMetrics() {
     } else {
       // For monthly/quarterly/yearly ranges, use date-based breakdown
       const dailyStats = {};
-      relevantDeliveries.forEach(delivery => {
+      relevantDeliveries.forEach((delivery) => {
         const date = delivery.delivery_date;
         if (!dailyStats[date]) {
           dailyStats[date] = { date, completed: 0, failed: 0, returned: 0, total: 0 };
@@ -608,7 +608,7 @@ export default function DeliveryMetrics() {
         dailyStats[date].total++;
         if (delivery.status === 'completed') dailyStats[date].completed++;
         if (delivery.status === 'failed') dailyStats[date].failed++;
-        const patient = patients.find(p => p.id === delivery.patient_id);
+        const patient = patients.find((p) => p.id === delivery.patient_id);
         const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return');
         const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
         if (notesReturn || addressReturn) dailyStats[date].returned++;
@@ -616,7 +616,7 @@ export default function DeliveryMetrics() {
 
       const prevDailyStats = {};
       if (prevStartDate && prevEndDate) {
-        prevRelevantDeliveries.forEach(delivery => {
+        prevRelevantDeliveries.forEach((delivery) => {
           const date = delivery.delivery_date;
           if (!prevDailyStats[date]) {
             prevDailyStats[date] = { date, completed: 0, failed: 0, returned: 0, total: 0 };
@@ -624,7 +624,7 @@ export default function DeliveryMetrics() {
           prevDailyStats[date].total++;
           if (delivery.status === 'completed') prevDailyStats[date].completed++;
           if (delivery.status === 'failed') prevDailyStats[date].failed++;
-          const patient = patients.find(p => p.id === delivery.patient_id);
+          const patient = patients.find((p) => p.id === delivery.patient_id);
           const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return');
           const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
           if (notesReturn || addressReturn) prevDailyStats[date].returned++;
@@ -632,15 +632,15 @@ export default function DeliveryMetrics() {
       }
 
       currentPeriodDailyData = Object.values(dailyStats).sort((a, b) =>
-        new Date(a.date) - new Date(b.date)
-      ).map(d => ({
+      new Date(a.date) - new Date(b.date)
+      ).map((d) => ({
         ...d,
         date: format(parseISO(d.date), 'MMM d')
       }));
 
       previousPeriodDailyData = Object.values(prevDailyStats).sort((a, b) =>
-        new Date(a.date) - new Date(b.date)
-      ).map(d => ({
+      new Date(a.date) - new Date(b.date)
+      ).map((d) => ({
         ...d,
         date: format(parseISO(d.date), 'MMM d')
       }));
@@ -648,7 +648,7 @@ export default function DeliveryMetrics() {
 
     // Driver stats
     const driverStats = {};
-    relevantDeliveries.forEach(delivery => {
+    relevantDeliveries.forEach((delivery) => {
       const driverName = delivery.driver_name || 'Unassigned';
       const driverFirstName = driverName.split(' ')[0];
       if (!driverStats[driverFirstName]) {
@@ -657,15 +657,15 @@ export default function DeliveryMetrics() {
       driverStats[driverFirstName].total++;
       if (delivery.status === 'completed') driverStats[driverFirstName].completed++;
       if (delivery.status === 'failed') driverStats[driverFirstName].failed++;
-      
-      const patient = patients.find(p => p.id === delivery.patient_id);
+
+      const patient = patients.find((p) => p.id === delivery.patient_id);
       const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return');
       const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
       if (notesReturn || addressReturn) driverStats[driverFirstName].returned++;
     });
 
     const prevDriverStats = {};
-    prevRelevantDeliveries.forEach(delivery => {
+    prevRelevantDeliveries.forEach((delivery) => {
       const driverName = delivery.driver_name || 'Unassigned';
       const driverFirstName = driverName.split(' ')[0];
       if (!prevDriverStats[driverFirstName]) {
@@ -674,8 +674,8 @@ export default function DeliveryMetrics() {
       prevDriverStats[driverFirstName].total++;
       if (delivery.status === 'completed') prevDriverStats[driverFirstName].completed++;
       if (delivery.status === 'failed') prevDriverStats[driverFirstName].failed++;
-      
-      const patient = patients.find(p => p.id === delivery.patient_id);
+
+      const patient = patients.find((p) => p.id === delivery.patient_id);
       const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return');
       const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
       if (notesReturn || addressReturn) prevDriverStats[driverFirstName].returned++;
@@ -684,8 +684,8 @@ export default function DeliveryMetrics() {
     const driverData = Object.values(driverStats).sort((a, b) => b.total - a.total);
     const prevDriverData = Object.values(prevDriverStats).sort((a, b) => b.total - a.total);
 
-    const mergedDriverData = driverData.map(current => {
-      const previous = prevDriverData.find(p => p.name === current.name);
+    const mergedDriverData = driverData.map((current) => {
+      const previous = prevDriverData.find((p) => p.name === current.name);
       return {
         ...current,
         prevCompleted: previous?.completed || 0,
@@ -741,8 +741,8 @@ export default function DeliveryMetrics() {
           <div className="animate-spin w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
           <p className="text-slate-600">Loading metrics...</p>
         </div>
-      </div>
-    );
+      </div>);
+
   }
 
   return (
@@ -750,14 +750,14 @@ export default function DeliveryMetrics() {
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">Delivery Metrics</h1>
+            <h1 className="text-3xl font-bold text-slate-900">Route Metrics</h1>
             <p className="text-slate-600 mt-1">
               {format(startDate, 'MMM d, yyyy')} - {format(endDate, 'MMM d, yyyy')}
-              {showComparison && prevStartDate && prevEndDate && (
-                <span className="text-xs ml-2 text-slate-500">
+              {showComparison && prevStartDate && prevEndDate &&
+              <span className="text-xs ml-2 text-slate-500">
                   (vs {format(prevStartDate, 'MMM d')} - {format(prevEndDate, 'MMM d')})
                 </span>
-              )}
+              }
             </p>
           </div>
 
@@ -786,11 +786,11 @@ export default function DeliveryMetrics() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Drivers</SelectItem>
-                {drivers.map(driver => (
-                  <SelectItem key={driver.id} value={driver.id}>
+                {drivers.map((driver) =>
+                <SelectItem key={driver.id} value={driver.id}>
                     {getDriverDisplayName(driver)}
                   </SelectItem>
-                ))}
+                )}
               </SelectContent>
             </Select>
 
@@ -808,32 +808,32 @@ export default function DeliveryMetrics() {
             subtitle={`${metrics.avgDeliveriesPerDay} per day avg`}
             icon={Package}
             color="blue"
-            previousValue={showComparison ? metrics.prevTotalDeliveries : null}
-          />
+            previousValue={showComparison ? metrics.prevTotalDeliveries : null} />
+
           <MetricCard
             title="Completion Rate"
             value={`${metrics.completionRate}%`}
             subtitle={`${metrics.completedDeliveries} completed`}
             icon={CheckCircle}
             color="green"
-            previousValue={showComparison ? `${metrics.prevCompletionRate}%` : null}
-          />
+            previousValue={showComparison ? `${metrics.prevCompletionRate}%` : null} />
+
           <MetricCard
             title="Avg Time Between Stops"
             value={`${metrics.avgTimeBetweenStops} min`}
             subtitle={`${metrics.avgDistance} km per stop`}
             icon={Clock}
             color="purple"
-            previousValue={showComparison ? `${metrics.prevAvgTimeBetweenStops}` : null}
-          />
+            previousValue={showComparison ? `${metrics.prevAvgTimeBetweenStops}` : null} />
+
           <MetricCard
             title="On-Time Delivery"
             value={`${metrics.onTimeRate}%`}
             subtitle="Of completed deliveries"
             icon={Target}
             color="orange"
-            previousValue={showComparison ? `${metrics.prevOnTimeRate}` : null}
-          />
+            previousValue={showComparison ? `${metrics.prevOnTimeRate}` : null} />
+
         </div>
 
         {/* Charts */}
@@ -861,22 +861,22 @@ export default function DeliveryMetrics() {
                     <Line type="monotone" dataKey="failed" stroke="#ef4444" name="Failed" strokeWidth={2} />
                     <Line type="monotone" dataKey="returned" stroke="#f59e0b" name="Returned" strokeWidth={2} />
                     <Line type="monotone" dataKey="total" stroke="#3b82f6" name="Total" strokeWidth={2} />
-                    {showComparison && isWeeklyRangeForChart && (
-                      <>
+                    {showComparison && isWeeklyRangeForChart &&
+                    <>
                         <Line type="monotone" dataKey="prevCompleted" stroke="#10b981" name="Prev Completed" strokeWidth={2} strokeDasharray="5 5" opacity={0.6} />
                         <Line type="monotone" dataKey="prevFailed" stroke="#ef4444" name="Prev Failed" strokeWidth={2} strokeDasharray="5 5" opacity={0.6} />
                         <Line type="monotone" dataKey="prevReturned" stroke="#f59e0b" name="Prev Returned" strokeWidth={2} strokeDasharray="5 5" opacity={0.6} />
                         <Line type="monotone" dataKey="prevTotal" stroke="#3b82f6" name="Prev Total" strokeWidth={2} strokeDasharray="5 5" opacity={0.6} />
                       </>
-                    )}
+                    }
                   </LineChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
 
             {/* Render separate chart for previous period if not a weekly range and comparison is enabled */}
-            {showComparison && !isWeeklyRangeForChart && metrics.prevDailyData.length > 0 && (
-              <Card>
+            {showComparison && !isWeeklyRangeForChart && metrics.prevDailyData.length > 0 &&
+            <Card>
                 <CardHeader>
                   <CardTitle>Daily Delivery Performance - Previous Period</CardTitle>
                 </CardHeader>
@@ -896,7 +896,7 @@ export default function DeliveryMetrics() {
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
-            )}
+            }
           </TabsContent>
 
           <TabsContent value="drivers" className="space-y-4">
@@ -915,13 +915,13 @@ export default function DeliveryMetrics() {
                     <Bar dataKey="completed" fill="#10b981" name="Completed" />
                     <Bar dataKey="failed" fill="#ef4444" name="Failed" />
                     <Bar dataKey="returned" fill="#f59e0b" name="Returned" />
-                    {showComparison && (
-                      <>
+                    {showComparison &&
+                    <>
                         <Bar dataKey="prevCompleted" fill="#10b981" opacity={0.3} name="Prev Completed" />
                         <Bar dataKey="prevFailed" fill="#ef4444" opacity={0.3} name="Prev Failed" />
                         <Bar dataKey="prevReturned" fill="#f59e0b" opacity={0.3} name="Prev Returned" />
                       </>
-                    )}
+                    }
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -938,20 +938,20 @@ export default function DeliveryMetrics() {
                   <PieChart>
                     <Pie
                       data={[
-                        { name: 'Completed', value: metrics.statusCounts.completed },
-                        { name: 'In Transit', value: metrics.statusCounts.inTransit },
-                        { name: 'Pending', value: metrics.statusCounts.pending },
-                        { name: 'Failed', value: metrics.statusCounts.failed },
-                        { name: 'Returned', value: metrics.statusCounts.returned }
-                      ]}
+                      { name: 'Completed', value: metrics.statusCounts.completed },
+                      { name: 'In Transit', value: metrics.statusCounts.inTransit },
+                      { name: 'Pending', value: metrics.statusCounts.pending },
+                      { name: 'Failed', value: metrics.statusCounts.failed },
+                      { name: 'Returned', value: metrics.statusCounts.returned }]
+                      }
                       cx="50%"
                       cy="50%"
                       labelLine={false}
                       label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                       outerRadius={80}
                       fill="#8884d8"
-                      dataKey="value"
-                    >
+                      dataKey="value">
+
                       <Cell key={`cell-0`} fill={COLORS[0]} />
                       <Cell key={`cell-1`} fill={COLORS[1]} />
                       <Cell key={`cell-2`} fill="#f59e0b" /> {/* Specific color for pending/returned */}
@@ -977,9 +977,9 @@ export default function DeliveryMetrics() {
             <CardContent>
               <div className="text-2xl font-bold">{metrics.totalDistance} km</div>
               <p className="text-xs text-slate-500 mt-1">Across all routes</p>
-              {showComparison && (
-                <p className="text-xs text-slate-400 mt-1">Previous: {metrics.prevTotalDistance} km</p>
-              )}
+              {showComparison &&
+              <p className="text-xs text-slate-400 mt-1">Previous: {metrics.prevTotalDistance} km</p>
+              }
             </CardContent>
           </Card>
 
@@ -991,9 +991,9 @@ export default function DeliveryMetrics() {
             <CardContent>
               <div className="text-2xl font-bold">{metrics.failedDeliveries}/{metrics.returnedDeliveries}</div>
               <p className="text-xs text-slate-500 mt-1">Total failed and returned</p>
-              {showComparison && (
-                <p className="text-xs text-slate-400 mt-1">Previous: {metrics.prevFailedDeliveries}/{metrics.prevReturnedDeliveries}</p>
-              )}
+              {showComparison &&
+              <p className="text-xs text-slate-400 mt-1">Previous: {metrics.prevFailedDeliveries}/{metrics.prevReturnedDeliveries}</p>
+              }
             </CardContent>
           </Card>
 
@@ -1005,13 +1005,13 @@ export default function DeliveryMetrics() {
             <CardContent>
               <div className="text-2xl font-bold">{metrics.avgDistance} km</div>
               <p className="text-xs text-slate-500 mt-1">Between deliveries</p>
-              {showComparison && (
-                <p className="text-xs text-slate-400 mt-1">Previous: {metrics.prevAvgDistance} km</p>
-              )}
+              {showComparison &&
+              <p className="text-xs text-slate-400 mt-1">Previous: {metrics.prevAvgDistance} km</p>
+              }
             </CardContent>
           </Card>
         </div>
       </div>
-    </div>
-  );
+    </div>);
+
 }
