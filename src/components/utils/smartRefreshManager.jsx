@@ -945,8 +945,12 @@ class SmartRefreshManager {
       let hasChanges = false;
       let changedDeliveries = [];
       
-      const updatedDeliveries = currentDeliveries.map(d => {
-        if (!d || d.delivery_date !== dateStr) return d;
+      // CRITICAL: Separate deliveries by date - only update target date, preserve all others
+      const currentDateDeliveries = currentDeliveries.filter(d => d && d.delivery_date === dateStr);
+      const otherDateDeliveries = currentDeliveries.filter(d => d && d.delivery_date !== dateStr);
+      
+      const updatedCurrentDateDeliveries = currentDateDeliveries.map(d => {
+        if (!d) return d;
         
         // CRITICAL: Skip if delivery has pending local update
         if (this.hasPendingUpdate(d.id)) {
@@ -982,16 +986,19 @@ class SmartRefreshManager {
       
       // Add any new deliveries that weren't in current list
       fetchedDeliveries.forEach(fd => {
-        if (!updatedDeliveries.find(d => d?.id === fd.id) && !this.hasPendingUpdate(fd.id)) {
+        if (!updatedCurrentDateDeliveries.find(d => d?.id === fd.id) && !this.hasPendingUpdate(fd.id)) {
           hasChanges = true;
           changedDeliveries.push({
             name: fd.patient_name || 'Pickup',
             type: 'NEW',
             status: fd.status
           });
-          updatedDeliveries.push(fd);
+          updatedCurrentDateDeliveries.push(fd);
         }
       });
+      
+      // CRITICAL: Merge back with other dates
+      const updatedDeliveries = [...otherDateDeliveries, ...updatedCurrentDateDeliveries];
       
       if (!hasChanges) {
         return null;
