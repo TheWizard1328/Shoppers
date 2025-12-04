@@ -1307,6 +1307,7 @@ export default function Layout({ children, currentPageName }) {
       // Step 5: Three-stage delivery loading for faster initial load
       // Stage 1: Last 30 days (returned immediately)
       // Stage 2 & 3: Rest of year + past years (background, merged into state)
+      console.log(`📦 [Layout] Starting three-stage delivery loading...`);
       const stage1Deliveries = await loadDeliveriesThreeStage(
         deliveryFilter,
         // Stage 2 callback: merge rest of current year
@@ -1315,6 +1316,7 @@ export default function Layout({ children, currentPageName }) {
           setDeliveries(prev => {
             const existingIds = new Set(prev.map(d => d.id));
             const newDeliveries = stage2Deliveries.filter(d => !existingIds.has(d.id));
+            console.log(`🔄 [Layout] Stage 2: ${newDeliveries.length} new deliveries added (total: ${prev.length + newDeliveries.length})`);
             return [...prev, ...newDeliveries];
           });
         },
@@ -1324,13 +1326,14 @@ export default function Layout({ children, currentPageName }) {
           setDeliveries(prev => {
             const existingIds = new Set(prev.map(d => d.id));
             const newDeliveries = stage3Deliveries.filter(d => !existingIds.has(d.id));
+            console.log(`🔄 [Layout] Stage 3: ${newDeliveries.length} new deliveries added (total: ${prev.length + newDeliveries.length})`);
             return [...prev, ...newDeliveries];
           });
         },
         2, // yearsBack
         forceRefresh
       );
-      console.log(`✅ [Layout] Stage 1 loaded: ${stage1Deliveries.length} deliveries (today)`);
+      console.log(`✅ [Layout] Stage 1 loaded: ${stage1Deliveries.length} deliveries (last 30 days)`);
 
       await new Promise(resolve => setTimeout(resolve, 200));
 
