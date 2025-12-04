@@ -2377,7 +2377,7 @@ export default function Layout({ children, currentPageName }) {
                 <div className="flex-1 overflow-y-auto p-3 custom-scrollbar">
                   <div className="">
                     <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 py-1">
-                      Routes ({routeCounts.monthly} this month / {routeCounts.yearly} this year)
+                      {routeCounts.monthly} Month / {routeCounts.yearly} Year
                     </div>
 
                     <Link
