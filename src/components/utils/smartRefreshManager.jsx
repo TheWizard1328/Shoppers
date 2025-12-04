@@ -1106,13 +1106,13 @@ class SmartRefreshManager {
   }
 
   /**
-   * Full smart refresh - checks all entities based on their individual intervals
+   * Minimal smart refresh - ONLY refreshes selected date deliveries and driver status
+   * Full entity refreshes (patients, stores) are removed to reduce API calls
+   * Other pages will handle their own data fetching needs
    */
   async performSmartRefresh(currentData, filters, isEntityUpdating = false) {
-    // CRITICAL: When disabled, skip background polling but still allow manual refreshes
-    // The toggle only affects automatic background data fetching
+    // CRITICAL: When disabled, skip background polling
     if (!this._enabled) {
-      // Silently skip automatic background polling
       return null;
     }
     
@@ -1126,7 +1126,6 @@ class SmartRefreshManager {
     }
     
     // CRITICAL: Touch user cache on every refresh cycle to prevent session timeout
-    // This extends the auth cache TTL while the app is actively being used
     try {
       touchUserCache();
     } catch (e) {
@@ -1137,122 +1136,20 @@ class SmartRefreshManager {
     const updates = {};
     
     try {
-      // HIGH PRIORITY: Today's deliveries ONLY (not future dates)
-      if (currentData.deliveries && filters.selectedDate && this.shouldRefresh('todayDeliveries')) {
-        // Only refresh today's date, not the full range
-        const today = new Date();
-        const todayStr = format(today, 'yyyy-MM-dd');
-        
-        const deliveryUpdate = await this.refreshCurrentDayDeliveries(
-          currentData.deliveries,
-          today, // Always refresh TODAY, not selectedDate
-          filters.deliveryFilter
-        );
-        
-        if (deliveryUpdate?.hasChanges) {
-          updates.deliveries = deliveryUpdate.deliveries;
-        }
-        this.markRefreshed('todayDeliveries');
-      }
+      // REMOVED: Full entity refresh for patients, stores
+      // Dashboard only needs: selected date deliveries + driver locations/status
+      // Other pages handle their own data needs
       
-      // HIGH PRIORITY: AppUsers (driver locations and status)
-      if (currentData.appUsers && this.shouldRefresh('appUsers')) {
-        const appUserUpdate = await this.refreshAppUsers(currentData.appUsers);
-        
-        if (appUserUpdate?.hasChanges) {
-          updates.appUsers = appUserUpdate.appUsers;
-        }
-        this.markRefreshed('appUsers');
-      }
-      
-      // MEDIUM PRIORITY: Today's route patients only
-      if (currentData.patients && currentData.patients.length > 0 && 
-          currentData.deliveries && this.shouldRefresh('todayPatients')) {
-        
-        const today = new Date();
-        const todayStr = format(today, 'yyyy-MM-dd');
-        const todayDeliveries = currentData.deliveries.filter(d => 
-          d && d.delivery_date === todayStr
-        );
-        
-        const patientUpdate = await this.refreshTodayPatients(
-          currentData.patients,
-          todayDeliveries
-        );
-        
-        if (patientUpdate?.hasChanges) {
-          updates.patients = patientUpdate.patients;
-        }
-        this.markRefreshed('todayPatients');
-      }
-      
-      // LOW PRIORITY: All other patients (background - 15 min interval)
-      if (currentData.patients && currentData.patients.length > 0 && this.shouldRefresh('patients')) {
-        const patientUpdate = await this.refreshPatients(
-          currentData.patients,
-          filters.patientFilter || {}
-        );
-        
-        if (patientUpdate?.hasChanges) {
-          updates.patients = patientUpdate.patients;
-        }
-        this.markRefreshed('patients');
-      }
-      
-      // VERY LOW PRIORITY: Stores (30 min interval)
-      if (currentData.stores && currentData.stores.length > 0 && this.shouldRefresh('stores')) {
-        const storeUpdate = await this.refreshStores(currentData.stores);
-        
-        if (storeUpdate?.hasChanges) {
-          updates.stores = storeUpdate.stores;
-        }
-        this.markRefreshed('stores');
-      }
+      // Note: Driver locations and active delivery statuses are handled separately
+      // by refreshDriverLocations() and refreshActiveDeliveryStatuses() 
+      // which are called directly from Layout.jsx's unified refresh
       
       const hasAnyUpdates = Object.keys(updates).length > 0;
-
-      if (hasAnyUpdates) {
-          console.log('✅ [SmartRefresh] Updates found:', Object.keys(updates).join(', '));
-
-          Object.keys(updates).forEach(key => {
-              const oldData = currentData[key] || [];
-              const newData = updates[key] || [];
-
-              if (key === 'deliveries') {
-                  const changes = newData.filter(newItem => {
-                      const oldItem = oldData.find(o => o?.id === newItem?.id);
-                      return !oldItem || JSON.stringify(oldItem) !== JSON.stringify(newItem);
-                  });
-                  if (changes.length > 0) {
-                      console.log(`   📦 ${changes.length} delivery changes`);
-                  }
-              } else if (key === 'patients') {
-                  const changes = newData.filter(newItem => {
-                      const oldItem = oldData.find(o => o?.id === newItem?.id);
-                      return !oldItem || JSON.stringify(oldItem) !== JSON.stringify(newItem);
-                  });
-                  if (changes.length > 0) {
-                      console.log(`   👤 ${changes.length} patient changes`);
-                  }
-              } else if (key === 'appUsers') {
-                  const changes = newData.filter(newItem => {
-                      const oldItem = oldData.find(o => o?.user_id === newItem?.user_id);
-                      return !oldItem || JSON.stringify(oldItem) !== JSON.stringify(newItem);
-                  });
-                  if (changes.length > 0) {
-                      console.log(`   👥 ${changes.length} appUser changes`);
-                  }
-              }
-          });
-      }
-      
       return hasAnyUpdates ? updates : null;
       
     } catch (error) {
-      // CRITICAL: Handle auth errors gracefully - don't crash the app
       if (error.response?.status === 401 || error.response?.status === 403) {
         console.warn('🔐 [SmartRefresh] Auth error during refresh - session may have expired');
-        // Don't throw - let the app continue and handle auth at the next user action
         return null;
       }
       console.error('❌ [SmartRefresh] Error during smart refresh:', error);
