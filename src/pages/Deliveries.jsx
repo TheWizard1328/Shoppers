@@ -514,35 +514,46 @@ export default function DeliveriesPage() {
   }, []);
 
   // Sync context data to local state for real-time updates
+  // CRITICAL: Only sync when context has MORE data than local state, never overwrite with empty
   useEffect(() => {
-    if (contextDataLoaded) {
-      console.log("🔄 [Deliveries] Syncing data from AppDataContext");
-
-      // Always sync deliveries when context updates
-      if (contextDeliveries.length > 0 || allDeliveries.length > 0) {
+    if (!contextDataLoaded) return;
+    
+    // CRITICAL: Don't sync if context data is empty but local data exists
+    // This prevents data from disappearing during refresh cycles
+    
+    // Only sync deliveries if context has data
+    if (contextDeliveries.length > 0) {
+      // Only update if context has more recent/different data
+      if (contextDeliveries.length !== allDeliveries.length) {
+        console.log(`🔄 [Deliveries] Syncing ${contextDeliveries.length} deliveries from context (was ${allDeliveries.length})`);
         setAllDeliveries(contextDeliveries);
       }
-
-      // Sync other entities
-      if (contextPatients.length > 0) {
-        setAllPatients(contextPatients);
-      }
-      if (contextStores.length > 0) {
-        setStores(contextStores);
-      }
-      if (contextCities.length > 0) {
-        setCities(contextCities);
-      }
-      if (contextUsers.length > 0) {
-        setAllUsers(contextUsers);
-      }
-
-      // Force driver cards to refresh when data changes
-      if (isDriverOverviewMode) {
-        setRefreshKey((k) => k + 1);
-      }
     }
-  }, [contextDataLoaded, contextDeliveries, contextPatients, contextStores, contextCities, contextUsers, isDriverOverviewMode]);
+
+    // Only sync patients if context has data
+    if (contextPatients.length > 0 && contextPatients.length !== allPatients.length) {
+      console.log(`🔄 [Deliveries] Syncing ${contextPatients.length} patients from context`);
+      setAllPatients(contextPatients);
+    }
+    
+    // Only sync stores if context has data
+    if (contextStores.length > 0 && contextStores.length !== stores.length) {
+      setStores(contextStores);
+    }
+    
+    // Only sync cities if context has data
+    if (contextCities.length > 0 && contextCities.length !== cities.length) {
+      setCities(contextCities);
+    }
+    
+    // Only sync users if context has data
+    if (contextUsers.length > 0 && contextUsers.length !== allUsers.length) {
+      setAllUsers(contextUsers);
+    }
+
+    // Note: Removed automatic refreshKey increment to prevent unnecessary re-renders
+    // The driverCards useMemo will update when its dependencies change
+  }, [contextDataLoaded, contextDeliveries.length, contextPatients.length, contextStores.length, contextCities.length, contextUsers.length]);
 
   // Force smart refresh when Driver Overview page is active
   useEffect(() => {
