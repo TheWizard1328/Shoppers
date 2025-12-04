@@ -197,6 +197,23 @@ export const getEffectiveUser = async () => {
             userCache.timestamp = now;
             userCache.backoffTime = 0;
             
+            // Set online status for non-driver users (drivers use the status toggle)
+            const isDriver = Array.isArray(mergedUser.app_roles) && mergedUser.app_roles.includes('driver');
+            const currentStatus = mergedUser.driver_status;
+            
+            // Only auto-set online for non-drivers who don't already have a status set
+            if (!isDriver && (!currentStatus || currentStatus === 'off_duty') && appUser) {
+              try {
+                console.log(`🟢 [auth.js] Setting online status for non-driver user: ${mergedUser.user_name}`);
+                await AppUser.update(appUser.id, { driver_status: 'online' });
+                mergedUser.driver_status = 'online';
+                // Invalidate AppUser cache so other components pick up the change
+                appUserListCache.timestamp = 0;
+              } catch (statusError) {
+                console.warn(`⚠️ [auth.js] Failed to set online status:`, statusError.message);
+              }
+            }
+            
             console.log(`✅ [auth.js] User data cached successfully with TTL of ${userCache.ttl}ms`);
             return mergedUser;
 
