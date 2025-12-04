@@ -2843,15 +2843,13 @@ export default function DeliveriesPage() {
     return sortedCards;
   }, [
   isDriverOverviewMode,
-  effectiveDeliveries.length, // CHANGED: Only depend on length
-  effectivePatients.length, // CHANGED: Only depend on length
-  allUsers.length, // CHANGED: Only depend on ID
-  currentUser?.id, // CHANGED: Only depend on ID
+  effectiveDeliveries, // Need full array to compute stats
+  effectivePatients, // Need full array for return detection
+  allUsers, // Need full array for driver data
+  currentUser?.id,
   selectedOverviewYear,
-  availableOverviewYears.length, // CHANGED: Only depend on length
-  selectedCityId, // NEW: Dependency for city filter
-  yearManuallySelected.current // NEW: Added to trigger re-computation when manual selection state changes
-  ]); // REMOVED refreshKey from dependencies
+  selectedCityId
+  ]); // Simplified dependencies - removed refs and lengths that cause stale closures
 
   const canCreateDeliveries = useMemo(() => {
     return userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher');
