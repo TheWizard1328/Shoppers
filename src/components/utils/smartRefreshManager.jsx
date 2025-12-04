@@ -1111,8 +1111,8 @@ class SmartRefreshManager {
    * Full smart refresh - checks all entities based on their individual intervals
    */
   async performSmartRefresh(currentData, filters, isEntityUpdating = false) {
-    // CRITICAL: Check if smart refresh is disabled
-    if (!this.enabled) {
+    // CRITICAL: Check if smart refresh is disabled - use private property directly
+    if (!this._enabled) {
       console.log('🔄 [Smart Refresh] ⏸️ DISABLED - Smart refresh is turned off in settings');
       return null;
     }
