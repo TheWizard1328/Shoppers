@@ -455,9 +455,6 @@ const getData = async (entityName, sortKey) => {
         data = await Delivery.list();
         console.log(`📥 [getData] Delivery.list() returned ${data?.length || 0} records`);
         break;
-      case 'ActiveDeliveries':
-        data = await ActiveDeliveries.list();
-        break;
       case 'City':
         data = await City.list();
         break;
