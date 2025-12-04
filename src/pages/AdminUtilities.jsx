@@ -2370,7 +2370,7 @@ export default function AdminUtilities() {
     queryKey: ['deliveries'],
     queryFn: async () => {
       console.log('📊 [AdminUtilities] Fetching all deliveries...');
-      const deliveries = await getData('Delivery', '-created_date');
+      const deliveries = await Delivery.list('-created_date', 5000);
       console.log(`✅ [AdminUtilities] Fetched ${deliveries?.length || 0} deliveries`);
       return deliveries;
     },
