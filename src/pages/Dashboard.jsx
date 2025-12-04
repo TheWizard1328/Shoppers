@@ -447,7 +447,7 @@ function Dashboard() {
       });
     });
 
-    console.log(`📊 [deliveriesWithStopOrder] Total: ${result.length} (${result.filter(d => d.status === 'pending').length} pending)`);
+    console.log(`📊 [deliveriesWithStopOrder] Total: ${result.length} (${result.filter((d) => d.status === 'pending').length} pending)`);
     return result;
   }, [filteredDeliveries]);
 
@@ -750,9 +750,9 @@ function Dashboard() {
 
 
 
+
         // This subscription handles changes from other components
       }});return unsubscribe;}, []);
-
   // Listen for driver status break/resume events from DriverStatusToggle
   useEffect(() => {
     const unsubscribe = fabControlEvents.subscribe((event) => {
@@ -961,11 +961,11 @@ function Dashboard() {
 
 
 
+
+
       // Callback provided for future use, but not actively calling refreshData
       // to prevent triggering auto-selection every 15 seconds
-    });const unsubscribe = driverLocationPoller.subscribe((locations) => {if (!locations || !Array.isArray(locations)) return;setAllDriverLocations(locations);});return () => {unsubscribe();
-      driverLocationPoller.stop();
-    };
+    });const unsubscribe = driverLocationPoller.subscribe((locations) => {if (!locations || !Array.isArray(locations)) return;setAllDriverLocations(locations);});return () => {unsubscribe();driverLocationPoller.stop();};
   }, [isDataLoaded, currentUser, deliveries, drivers]);
 
   useEffect(() => {
@@ -2892,7 +2892,7 @@ function Dashboard() {
         });
 
         console.log('[AddToRoute] ✅ Fetched fresh deliveries:', freshDeliveries.length);
-        console.log('[AddToRoute] 📊 Pending deliveries:', freshDeliveries.filter(d => d.status === 'pending').length);
+        console.log('[AddToRoute] 📊 Pending deliveries:', freshDeliveries.filter((d) => d.status === 'pending').length);
 
         // Update context immediately with fresh data
         if (updateDeliveriesLocally) {
@@ -4579,8 +4579,8 @@ function Dashboard() {
           smartRefreshManager.clearPendingUpdatesForDriver(targetDelivery.driver_id, deliveryDate);
 
           // Merge with other drivers' deliveries
-          const otherDriverDeliveries = (deliveries || []).filter(d =>
-            d && (d.driver_id !== targetDelivery.driver_id || d.delivery_date !== deliveryDate)
+          const otherDriverDeliveries = (deliveries || []).filter((d) =>
+          d && (d.driver_id !== targetDelivery.driver_id || d.delivery_date !== deliveryDate)
           );
           const mergedDeliveries = [...otherDriverDeliveries, ...optimizationResult.data.allDeliveries];
           updateDeliveriesLocally(mergedDeliveries);
@@ -4618,14 +4618,14 @@ function Dashboard() {
       console.error('Error updating delivery status:', error);
       console.error('Stack trace:', error.stack);
       console.error('');
-      
+
       // CRITICAL: Handle session expiration errors
       if (error.response?.status === 401 || error.message?.includes('Unauthorized') || error.message?.includes('session')) {
         alert('Your session has expired. The page will now reload.');
         window.location.reload();
         return;
       }
-      
+
       alert('Failed to update delivery status. Please try again.');
     } finally {
       console.log('▶️ [STATUS UPDATE] Resuming smart refresh');
@@ -4737,7 +4737,7 @@ function Dashboard() {
     console.log('✅ [START] Smart refresh paused, proceeding with start delivery');
 
     try {
-      const deliveryFromUI = deliveriesWithStopOrder.find(d => d?.id === deliveryId);
+      const deliveryFromUI = deliveriesWithStopOrder.find((d) => d?.id === deliveryId);
       if (!deliveryFromUI) throw new Error('Delivery not found in local state');
 
       const driverId = deliveryFromUI.driver_id;
@@ -4783,13 +4783,13 @@ function Dashboard() {
       // CRITICAL: Apply backend updates immediately to UI
       if (optimizationResult.data?.allDeliveries && Array.isArray(optimizationResult.data.allDeliveries)) {
         console.log('🔄 [START] Syncing', optimizationResult.data.allDeliveries.length, 'deliveries from backend');
-        
+
         // CRITICAL: Clear pending updates for this driver/route (authoritative server data)
         smartRefreshManager.clearPendingUpdatesForDriver(driverId, deliveryDate);
-        
+
         // Merge with other drivers' deliveries
-        const otherDriverDeliveries = (deliveries || []).filter(d =>
-          d && (d.driver_id !== driverId || d.delivery_date !== deliveryDate)
+        const otherDriverDeliveries = (deliveries || []).filter((d) =>
+        d && (d.driver_id !== driverId || d.delivery_date !== deliveryDate)
         );
         const mergedDeliveries = [...otherDriverDeliveries, ...optimizationResult.data.allDeliveries];
         updateDeliveriesLocally(mergedDeliveries);
@@ -4802,8 +4802,8 @@ function Dashboard() {
       // Scroll to next card after refresh
       setTimeout(() => {
         const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-        const nextCard = deliveriesWithStopOrder.find(d => 
-          d && d.isNextDelivery && !finishedStatuses.includes(d.status)
+        const nextCard = deliveriesWithStopOrder.find((d) =>
+        d && d.isNextDelivery && !finishedStatuses.includes(d.status)
         );
         if (nextCard) {
           const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
@@ -4821,14 +4821,14 @@ function Dashboard() {
     } catch (error) {
       console.error('❌ [START] Failed:', error.message);
       console.error('❌ [START] Error stack:', error.stack);
-      
+
       // CRITICAL: Handle session expiration errors
       if (error.response?.status === 401 || error.message?.includes('Unauthorized') || error.message?.includes('session')) {
         alert('Your session has expired. The page will now reload.');
         window.location.reload();
         return;
       }
-      
+
       alert(`Failed to start delivery: ${error.message}`);
     } finally {
       console.log('▶️ [START] Resuming smart refresh');
@@ -4928,12 +4928,12 @@ function Dashboard() {
       </AnimatePresence>
 
       <div className={statsCardPositioning}>
-        <div 
+        <div
           className="flex flex-col items-center gap-1 z-[600]"
           style={{ opacity: statsPanelOpacity, transition: 'opacity 0.5s ease-in-out' }}
           onMouseEnter={() => handleStatsPanelInteraction(true)}
-          onMouseLeave={() => handleStatsPanelInteraction(false)}
-        >
+          onMouseLeave={() => handleStatsPanelInteraction(false)}>
+
           <motion.div
             ref={statsCardRef}
             initial={{ opacity: 0, y: -20 }}
@@ -5218,7 +5218,7 @@ function Dashboard() {
         {/* Polyline API hits badge - App Owner only */}
         {currentUser && isAppOwner(currentUser) && dailyPolylineCount !== null &&
         <div className="absolute top-2 left-2 z-[20] flex flex-col gap-2">
-            <div className="bg-white/90 backdrop-blur-sm rounded-lg px-2 py-1 shadow-sm border border-slate-200 text-xs font-medium text-slate-600">
+            <div className="bg-white/90 backdrop-blur-sm rounded-lg px-2 py-1 shadow-sm border border-slate-200 text-xs font-medium text-slate-600 z-[601]">
               🛣️ {dailyPolylineCount}
             </div>
             <SmartRefreshIndicator />
