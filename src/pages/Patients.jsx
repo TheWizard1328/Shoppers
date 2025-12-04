@@ -1291,8 +1291,8 @@ export default function Patients() {
   }, []);
 
   const handleDeletePatient = useCallback(async (patient) => {
-    const userRole = currentUser?.app_role;
-    if (userRole !== 'admin') {
+    // Allow admins to delete patients
+    if (!userHasRole(currentUser, 'admin')) {
       alert('You do not have permission to delete patients.');
       return;
     }
