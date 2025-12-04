@@ -101,60 +101,106 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     locations: 'bg-cyan-500'
   };
 
+  // Inline version for stats card header
+  if (inline) {
+    return (
+      <div className="flex items-center gap-1">
+        <button
+          onClick={handleManualRefresh}
+          disabled={isPaused}
+          className={`w-5 h-5 rounded-full flex items-center justify-center transition-all hover:scale-110 ${
+            !isOnline ? 'bg-red-500' : isPaused ? 'bg-yellow-100 cursor-not-allowed' : isActive ? 'bg-emerald-500' : 'bg-slate-200 hover:bg-slate-300'
+          }`}
+          title={!isOnline ? 'Offline' : isPaused ? 'Refresh paused' : 'Click to refresh'}
+        >
+          {isActive && !isPaused ? (
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            >
+              <RefreshCw className="w-3 h-3 text-white" />
+            </motion.div>
+          ) : isPaused ? (
+            <div className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
+          ) : (
+            <RefreshCw className={`w-3 h-3 ${!isOnline ? 'text-white' : 'text-slate-500'}`} />
+          )}
+        </button>
+        
+        {/* Entity badges inline */}
+        <AnimatePresence>
+          {hasUpdates && recentUpdates.slice(0, 3).map((entity) => (
+            <motion.div
+              key={entity}
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0, opacity: 0 }}
+              className={`w-4 h-4 rounded text-[9px] font-bold text-white flex items-center justify-center ${entityColors[entity] || 'bg-slate-500'}`}
+              title={entity}
+            >
+              {entityLabels[entity] || '?'}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+    );
+  }
+
+  // Original vertical version for fixed position
   return (
     <div className="flex flex-col items-center gap-1 z-[601]">
-      {/* Spinning icon when active, paused indicator, or static when idle */}
-      <div
-        className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
-        !isOnline ? 'bg-red-500' : isPaused ? 'bg-yellow-100' : isActive ? 'bg-emerald-500' : 'bg-slate-100'}`
-        }
-        title={!isOnline ? 'Offline - changes will sync when online' : isPaused ? 'Smart refresh paused' : isActive ? 'Smart refresh active' : 'Smart refresh idle'}>
-
-        {!isOnline ?
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
-
-            <RefreshCw className="w-3.5 h-3.5 text-white" />
-          </motion.div> :
-        isActive && !isPaused ?
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
-
-            <RefreshCw className="w-3.5 h-3.5 text-white" />
-          </motion.div> :
-        isPaused ?
-        <div className="w-2 h-2 rounded-full bg-yellow-500" /> :
-
-        <RefreshCw className="w-3.5 h-3.5 text-slate-400" />
-        }
-      </div>
-
-      {/* Updated entities badges - vertical stack */}
-      <AnimatePresence>
-        {hasUpdates &&
-        <motion.div
-          initial={{ opacity: 0, y: -5 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -5 }}
-          className="flex flex-col gap-0.5">
-
-            {recentUpdates.map((entity) =>
+      <button
+        onClick={handleManualRefresh}
+        disabled={isPaused}
+        className={`w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110 ${
+          !isOnline ? 'bg-red-500' : isPaused ? 'bg-yellow-100 cursor-not-allowed' : isActive ? 'bg-emerald-500' : 'bg-slate-100 hover:bg-slate-200'
+        }`}
+        title={!isOnline ? 'Offline - changes will sync when online' : isPaused ? 'Smart refresh paused' : 'Click to refresh'}
+      >
+        {!isOnline ? (
           <motion.div
-            key={entity}
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            exit={{ scale: 0 }}
-            className={`w-5 h-5 rounded text-[10px] font-bold text-white flex items-center justify-center ${entityColors[entity] || 'bg-slate-500'}`}
-            title={entity}>
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-white" />
+          </motion.div>
+        ) : isActive && !isPaused ? (
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-white" />
+          </motion.div>
+        ) : isPaused ? (
+          <div className="w-2 h-2 rounded-full bg-yellow-500" />
+        ) : (
+          <RefreshCw className="w-3.5 h-3.5 text-slate-400" />
+        )}
+      </button>
 
+      <AnimatePresence>
+        {hasUpdates && (
+          <motion.div
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -5 }}
+            className="flex flex-col gap-0.5"
+          >
+            {recentUpdates.map((entity) => (
+              <motion.div
+                key={entity}
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0 }}
+                className={`w-5 h-5 rounded text-[10px] font-bold text-white flex items-center justify-center ${entityColors[entity] || 'bg-slate-500'}`}
+                title={entity}
+              >
                 {entityLabels[entity] || '?'}
               </motion.div>
-          )}
+            ))}
           </motion.div>
-        }
+        )}
       </AnimatePresence>
-    </div>);
-
+    </div>
+  );
 }
