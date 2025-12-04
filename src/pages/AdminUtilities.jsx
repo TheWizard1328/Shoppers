@@ -2322,6 +2322,7 @@ export default function AdminUtilities() {
   const [selectedDriver, setSelectedDriver] = useState('all');
   const [availableDeliveryYears, setAvailableDeliveryYears] = useState([]);
   const [filtersReady, setFiltersReady] = useState(false);
+  const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
 
   const [patientFilterText, setPatientFilterText] = useState('');
   const [patientSortColumn, setPatientSortColumn] = useState('full_name');
