@@ -29,14 +29,16 @@ class SmartRefreshManager {
     };
     
     // Track last refresh time for each entity type
+    // Initialize to NOW so the first refresh waits for the full interval
+    const now = Date.now();
     this.lastRefreshTimes = {
-      driverLocation: 0,
-      activeDeliveries: 0,
-      todayDeliveries: 0,
-      appUsers: 0,
-      todayPatients: 0,
-      patients: 0,
-      stores: 0
+      driverLocation: now,
+      activeDeliveries: now,
+      todayDeliveries: now,
+      appUsers: now,
+      todayPatients: now,
+      patients: now,
+      stores: now
     };
     
     // Rate limit protection - INCREASED significantly to prevent 429 errors
