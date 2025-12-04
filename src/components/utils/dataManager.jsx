@@ -264,16 +264,84 @@ export const getDeliveriesForDateRange = async (startDate, endDate, filters = {}
 };
 
 /**
+ * Load deliveries for a specific date (priority loading)
+ * Used for loading today's/selected date's data first
+ * 
+ * @param {string} dateStr - Date in yyyy-MM-dd format
+ * @param {object} filters - Filters to apply (store_id, driver_id, etc.)
+ * @param {boolean} forceRefresh - Force bypass cache
+ * @returns {Promise<Array>} - Deliveries for that date
+ */
+export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh = false) => {
+  const cacheKey = `Delivery_date_${dateStr}_${JSON.stringify(filters)}`;
+  
+  // Check cache first
+  if (!forceRefresh) {
+    const cachedData = deliveryRangeCache.get(cacheKey);
+    const cachedTimestamp = deliveryRangeCacheTimestamps.get(cacheKey);
+    
+    if (cachedData && cachedTimestamp && (Date.now() - cachedTimestamp < DELIVERY_RANGE_CACHE_DURATION)) {
+      console.log(`📦 [dataManager] Using cached deliveries for ${dateStr} (${cachedData.length} records)`);
+      return cachedData;
+    }
+  }
+  
+  const dateFilters = {
+    ...filters,
+    delivery_date: dateStr
+  };
+  
+  console.log(`🚀 [dataManager] PRIORITY: Loading deliveries for ${dateStr}...`);
+  
+  try {
+    await waitForRateLimit();
+    
+    const Entity = entities.Delivery;
+    const deliveries = await Entity.filter(dateFilters, '-updated_date');
+    
+    // Cache the result
+    deliveryRangeCache.set(cacheKey, deliveries);
+    deliveryRangeCacheTimestamps.set(cacheKey, Date.now());
+    
+    console.log(`✅ [dataManager] PRIORITY: Loaded ${deliveries.length} deliveries for ${dateStr}`);
+    return deliveries;
+  } catch (error) {
+    if (error.message?.includes('WebSocket') || error.message?.includes('closed without opened')) {
+      console.warn(`⚠️ [dataManager] WebSocket issue for ${dateStr}, using cached data`);
+      if (deliveryRangeCache.has(cacheKey)) {
+        return deliveryRangeCache.get(cacheKey);
+      }
+      return [];
+    }
+    
+    console.error(`❌ [dataManager] Error fetching deliveries for ${dateStr}:`, error);
+    throw error;
+  }
+};
+
+/**
  * Load deliveries for the last 30 days only
  * Route counts are now fetched from backend via getDeliveryStats function
  * 
  * @param {object} filters - Filters to apply (store_id, driver_id, etc.)
  * @param {boolean} forceRefresh - Force bypass cache
+ * @param {string} priorityDate - Optional date to load first (for immediate UI update)
+ * @param {function} onPriorityLoaded - Callback when priority date is loaded
  * @returns {Promise<Array>} - Deliveries from last 30 days
  */
-export const loadDeliveries = async (filters = {}, forceRefresh = false) => {
+export const loadDeliveries = async (filters = {}, forceRefresh = false, priorityDate = null, onPriorityLoaded = null) => {
   const today = new Date();
   const todayStr = format(today, 'yyyy-MM-dd');
+  
+  // CRITICAL: If priority date specified, load that first for immediate UI update
+  if (priorityDate && onPriorityLoaded) {
+    console.log(`🎯 [dataManager] Priority loading: ${priorityDate}`);
+    const priorityDeliveries = await loadDeliveriesForDate(priorityDate, filters, forceRefresh);
+    
+    // Immediately notify callback with priority date data
+    onPriorityLoaded(priorityDeliveries, priorityDate);
+    console.log(`✅ [dataManager] Priority date ${priorityDate} loaded first (${priorityDeliveries.length} deliveries)`);
+  }
   
   // Load last 30 days of deliveries
   const last30Days = subDays(today, 30);
