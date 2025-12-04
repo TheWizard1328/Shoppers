@@ -351,8 +351,8 @@ export const loadDeliveriesThreeStage = async (filters = {}, onStage2Complete = 
   // Start background loading (non-blocking)
   loadRemainingData();
   
-  // Return today's deliveries immediately
-  return todayDeliveries;
+  // Return last 30 days deliveries immediately
+  return recentDeliveries;
 };
 
 /**
