@@ -142,6 +142,7 @@ const createMergedUser = (authUser, appUser) => {
 
 const QuickStats = ({ currentUser, deliveries = [], patients = [] }) => {
   const [selectedDateStr, setSelectedDateStr] = useState(() => globalFilters.getSelectedDate());
+  const [, forceUpdate] = useState(0);
 
   useEffect(() => {
     const checkDateChange = () => {
@@ -154,6 +155,11 @@ const QuickStats = ({ currentUser, deliveries = [], patients = [] }) => {
     const interval = setInterval(checkDateChange, 100);
     return () => clearInterval(interval);
   }, [selectedDateStr]);
+
+  // Force re-render when deliveries array length changes (staged loading)
+  useEffect(() => {
+    forceUpdate(prev => prev + 1);
+  }, [deliveries.length]);
 
   const patientMap = useMemo(() => new Map((patients || []).filter(p => p && p.id).map((p) => [p.id, p])), [patients]);
 
