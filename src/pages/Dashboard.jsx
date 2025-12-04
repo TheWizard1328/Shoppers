@@ -190,7 +190,8 @@ function Dashboard() {
     forceRefreshDriverDeliveries,
     setIsFormOverlayOpen,
     setIsEntityUpdating,
-    setOnSmartRefreshComplete
+    setOnSmartRefreshComplete,
+    dataReadyForSelectedDate
   } = useAppData();
 
   const isDispatcher = currentUser ? userHasRole(currentUser, 'dispatcher') : false;
