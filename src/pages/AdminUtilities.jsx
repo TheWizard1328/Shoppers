@@ -2471,36 +2471,60 @@ export default function AdminUtilities() {
   });
   const cities = contextCities?.length > 0 ? contextCities : (fetchedCities || []);
 
-  // Use context deliveries as initial data, then merge with any fresh fetches
+  // CRITICAL: Disable automatic delivery loading - only load on explicit "Load Data" button click
+  const [manualLoadTriggered, setManualLoadTriggered] = useState(false);
+  
   const { data: fetchedDeliveries, isLoading: deliveriesLoading, refetch: refetchDeliveries } = useQuery({
     queryKey: ['deliveries'],
     queryFn: async () => {
-      console.log('📊 [AdminUtilities] Fetching all deliveries...');
-      const deliveries = await Delivery.list('-created_date', 5000);
+      console.log('📊 [AdminUtilities] Fetching deliveries with filters...');
+      
+      // Build server-side filter to reduce data transfer
+      const filter = {};
+      
+      // Year filter
+      if (selectedDeliveryYear && selectedDeliveryYear !== 'all') {
+        const year = parseInt(selectedDeliveryYear);
+        const startDate = `${year}-01-01`;
+        const endDate = `${year}-12-31`;
+        filter.delivery_date = { $gte: startDate, $lte: endDate };
+        
+        // Month filter (only if year is selected)
+        if (selectedDeliveryMonth !== 'all') {
+          const month = parseInt(selectedDeliveryMonth);
+          const monthStartDate = `${year}-${month.toString().padStart(2, '0')}-01`;
+          const daysInMonth = new Date(year, month, 0).getDate();
+          const monthEndDate = `${year}-${month.toString().padStart(2, '0')}-${daysInMonth}`;
+          filter.delivery_date = { $gte: monthStartDate, $lte: monthEndDate };
+        }
+      }
+      
+      // Driver filter
+      if (selectedDriver && selectedDriver !== 'all') {
+        const targetDriver = driversForDropdown.find(d => d.user_name === selectedDriver);
+        if (targetDriver) {
+          filter.driver_id = targetDriver.id;
+        }
+      }
+      
+      console.log('📊 [AdminUtilities] Server-side filter:', filter);
+      
+      const deliveries = Object.keys(filter).length > 0 
+        ? await Delivery.filter(filter, '-created_date', 5000)
+        : await Delivery.list('-created_date', 5000);
+        
       console.log(`✅ [AdminUtilities] Fetched ${deliveries?.length || 0} deliveries`);
       return deliveries;
     },
-    enabled: filtersReady,
-    initialData: contextDeliveries?.length > 0 ? contextDeliveries : undefined,
+    enabled: filtersReady && manualLoadTriggered,
+    initialData: undefined, // Never use context - admin needs fresh filtered data
     ...queryOptions
   });
   
-  // Merge context deliveries with fetched deliveries for real-time updates
+  // Use ONLY fetched deliveries (not context) for admin view
   const allDeliveries = useMemo(() => {
-    // If we have fetched data, use it as base and merge any newer context data
-    if (fetchedDeliveries?.length > 0) {
-      const fetchedMap = new Map(fetchedDeliveries.map(d => [d.id, d]));
-      // Add any context deliveries not in fetched (newly loaded from stages)
-      (contextDeliveries || []).forEach(d => {
-        if (!fetchedMap.has(d.id)) {
-          fetchedMap.set(d.id, d);
-        }
-      });
-      return Array.from(fetchedMap.values());
-    }
-    // Otherwise use context deliveries
-    return contextDeliveries || [];
-  }, [fetchedDeliveries, contextDeliveries]);
+    return fetchedDeliveries || [];
+  }, [fetchedDeliveries]);
 
 
   const dataLoading = patientsLoading || storesLoading || authUsersLoading || appUsersLoading || citiesLoading || deliveriesLoading;
@@ -3774,17 +3798,49 @@ export default function AdminUtilities() {
                   <TabsContent value="deliveries" className="mt-6">
                     <div className="space-y-4">
                       <div className="flex gap-2">
-                        <Button
-                          onClick={() => setShowRouteImport(true)}
-                          className="hidden md:inline-flex"
-                        >
-                          Import Routes
-                        </Button>
+                        {!manualLoadTriggered ? (
+                          <Alert className="flex-1">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertDescription className="flex items-center justify-between">
+                              <span>Select filters above, then click "Load Data" to fetch deliveries.</span>
+                              <Button
+                                onClick={() => setManualLoadTriggered(true)}
+                                disabled={deliveriesLoading}
+                                size="sm"
+                              >
+                                <Database className="w-4 h-4 mr-2" />
+                                Load Data
+                              </Button>
+                            </AlertDescription>
+                          </Alert>
+                        ) : (
+                          <>
+                            <Button
+                              onClick={() => {
+                                setManualLoadTriggered(false);
+                                setTimeout(() => setManualLoadTriggered(true), 100);
+                              }}
+                              disabled={deliveriesLoading}
+                              variant="outline"
+                            >
+                              <RefreshCw className={`w-4 h-4 mr-2 ${deliveriesLoading ? 'animate-spin' : ''}`} />
+                              Reload Data
+                            </Button>
+                            <Button
+                              onClick={() => setShowRouteImport(true)}
+                              className="hidden md:inline-flex"
+                            >
+                              Import Routes
+                            </Button>
+                          </>
+                        )}
                       </div>
-                      <div className="text-sm text-slate-600 bg-blue-50 border border-blue-200 rounded-lg p-3">
-                        <strong>PUID Backfill:</strong> Use the "Backfill PUIDs" button in the table header to automatically link deliveries to their pickups. Works on all filtered deliveries or just selected ones.
-                      </div>
-                      <DeliveryDataTable
+                      {manualLoadTriggered && (
+                        <div className="text-sm text-slate-600 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                          <strong>PUID Backfill:</strong> Use the "Backfill PUIDs" button in the table header to automatically link deliveries to their pickups. Works on all filtered deliveries or just selected ones.
+                        </div>
+                      )}
+                      {manualLoadTriggered && <DeliveryDataTable
                         deliveries={filteredAndSortedDeliveries}
                         patients={patients || []}
                         stores={stores || []}
@@ -3823,7 +3879,7 @@ export default function AdminUtilities() {
                             saveSetting(currentUser.id, 'admin_utilities_driver', driver);
                           }
                         }}
-                      />
+                      />}
                     </div>
                   </TabsContent>
 
