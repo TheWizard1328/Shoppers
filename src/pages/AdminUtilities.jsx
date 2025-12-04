@@ -2267,7 +2267,16 @@ const CityDataTable = ({ cities, onEdit, onDelete, onDeleteSelected, isLoadingDa
 
 export default function AdminUtilities() {
   const queryClient = useQueryClient();
-  const { refreshData } = useAppData();
+  const { 
+    deliveries: contextDeliveries, 
+    patients: contextPatients, 
+    stores: contextStores, 
+    users: contextUsers,
+    appUsers: contextAppUsers,
+    cities: contextCities,
+    isDataLoaded: contextDataLoaded,
+    refreshData 
+  } = useAppData();
   
   const [currentUser, setCurrentUser] = useState(null);
   const [hasAccess, setHasAccess] = useState(true);
