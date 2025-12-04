@@ -3510,9 +3510,11 @@ export default function DeliveriesPage() {
                                   ? 'bg-emerald-500 text-white border-emerald-500' 
                                   : card.driver.driver_status === 'on_break'
                                     ? 'bg-orange-400 text-white border-orange-400'
-                                    : card.driver.driver_status === 'off_duty'
-                                      ? 'bg-red-500 text-white border-red-500'
-                                      : 'bg-white text-slate-600 border-slate-300'
+                                    : card.driver.driver_status === 'online'
+                                      ? 'bg-emerald-500 text-white border-emerald-500'
+                                      : card.driver.driver_status === 'off_duty'
+                                        ? 'bg-red-500 text-white border-red-500'
+                                        : 'bg-white text-slate-600 border-slate-300'
                               }`}
                             >
                               {card.stats.totalStops} stops
