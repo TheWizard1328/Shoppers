@@ -264,123 +264,27 @@ export const getDeliveriesForDateRange = async (startDate, endDate, filters = {}
 };
 
 /**
- * Three-stage delivery loading for optimized initial load times
- * Stage 1: Last 30 days - returns immediately for fast UI display
- * Stage 2: Rest of current year (background)
- * Stage 3: Previous years data in 6-month chunks (background)
- * 
- * All stages are non-blocking - user can interact while loading continues.
- * Increased from 5K to 10K limit per query to handle larger datasets.
+ * Load deliveries for the last 30 days only
+ * Route counts are now fetched from backend via getDeliveryStats function
  * 
  * @param {object} filters - Filters to apply (store_id, driver_id, etc.)
- * @param {function} onStage2Complete - Callback with Stage 2 deliveries
- * @param {function} onStage3Complete - Callback with Stage 3 deliveries
- * @param {number} yearsBack - How many past years to load (default: 2)
  * @param {boolean} forceRefresh - Force bypass cache
- * @returns {Promise<Array>} - Stage 1 deliveries (last 30 days, rest loads in background)
+ * @returns {Promise<Array>} - Deliveries from last 30 days
  */
-export const loadDeliveriesThreeStage = async (filters = {}, onStage2Complete = null, onStage3Complete = null, yearsBack = 2, forceRefresh = false) => {
+export const loadDeliveries = async (filters = {}, forceRefresh = false) => {
   const today = new Date();
-  const currentYear = today.getFullYear();
   const todayStr = format(today, 'yyyy-MM-dd');
   
-  // Calculate date ranges - load last 30 days as Stage 1 for immediate display
+  // Load last 30 days of deliveries
   const last30Days = subDays(today, 30);
   const last30DaysStr = format(last30Days, 'yyyy-MM-dd');
   
-  // Stage 1: Load last 30 days first (return immediately), then rest in background
-  console.log(`🚀 [dataManager] === STAGE 1: Loading last 30 days of deliveries ===`);
+  console.log(`🚀 [dataManager] Loading last 30 days of deliveries (${last30DaysStr} to ${todayStr})`);
   
-  const recentDeliveries = await getDeliveriesForDateRange(last30DaysStr, todayStr, filters, forceRefresh);
-  console.log(`✅ [dataManager] Stage 1: Last 30 days loaded (${recentDeliveries.length} deliveries) - returning to UI`);
+  const deliveries = await getDeliveriesForDateRange(last30DaysStr, todayStr, filters, forceRefresh);
+  console.log(`✅ [dataManager] Loaded ${deliveries.length} deliveries`);
   
-  // Background loading for Stage 2 + Stage 3 (rest of current year + past years)
-  const loadRemainingData = async () => {
-    try {
-      // Stage 2: Rest of current year (Jan 1 to 31 days ago) in 3-month chunks
-      console.log(`🔄 [dataManager] === STAGE 2: Loading rest of ${currentYear} in chunks ===`);
-      
-      const yearStart = new Date(currentYear, 0, 1);
-      const day31Ago = subDays(today, 31);
-      
-      if (yearStart <= day31Ago) {
-        // Load rest of year in 3-month chunks to avoid hitting 10K limit per query
-        const chunks = [];
-        let chunkStart = yearStart;
-        
-        while (chunkStart <= day31Ago) {
-          const chunkEnd = new Date(Math.min(
-            new Date(chunkStart.getFullYear(), chunkStart.getMonth() + 3, 0).getTime(), // End of 3rd month
-            day31Ago.getTime()
-          ));
-          
-          chunks.push({
-            start: format(chunkStart, 'yyyy-MM-dd'),
-            end: format(chunkEnd, 'yyyy-MM-dd')
-          });
-          
-          // Move to next chunk
-          chunkStart = new Date(chunkEnd);
-          chunkStart.setDate(chunkStart.getDate() + 1);
-        }
-        
-        console.log(`📊 [dataManager] Stage 2: Loading ${chunks.length} chunk(s) for current year`);
-        
-        for (const chunk of chunks) {
-          try {
-            const chunkDeliveries = await getDeliveriesForDateRange(chunk.start, chunk.end, filters, false);
-            console.log(`✅ [dataManager] Stage 2 chunk complete: ${chunkDeliveries.length} deliveries (${chunk.start} to ${chunk.end})`);
-            
-            if (onStage2Complete && chunkDeliveries.length > 0) {
-              onStage2Complete(chunkDeliveries);
-            }
-          } catch (error) {
-            console.warn(`⚠️ [dataManager] Stage 2 chunk failed (${chunk.start} to ${chunk.end}):`, error.message);
-          }
-        }
-      }
-      
-      // Stage 3: Previous years in 6-month chunks to handle large datasets
-      console.log(`🔄 [dataManager] === STAGE 3: Loading previous ${yearsBack} years in 6-month chunks ===`);
-      
-      for (let yearOffset = 1; yearOffset <= yearsBack; yearOffset++) {
-        const year = currentYear - yearOffset;
-        
-        // Split each year into 2 chunks (6 months each)
-        const chunks = [
-          { start: new Date(year, 0, 1), end: new Date(year, 5, 30) }, // Jan-Jun
-          { start: new Date(year, 6, 1), end: new Date(year, 11, 31) }  // Jul-Dec
-        ];
-        
-        for (const chunk of chunks) {
-          const chunkStartStr = format(chunk.start, 'yyyy-MM-dd');
-          const chunkEndStr = format(chunk.end, 'yyyy-MM-dd');
-          
-          try {
-            const chunkDeliveries = await getDeliveriesForDateRange(chunkStartStr, chunkEndStr, filters, false);
-            console.log(`✅ [dataManager] Stage 3: Year ${year} chunk loaded (${chunkDeliveries.length} deliveries, ${chunkStartStr} to ${chunkEndStr})`);
-            
-            if (onStage3Complete && chunkDeliveries.length > 0) {
-              onStage3Complete(chunkDeliveries);
-            }
-          } catch (error) {
-            console.warn(`⚠️ [dataManager] Stage 3: Year ${year} chunk failed (${chunkStartStr} to ${chunkEndStr}):`, error.message);
-          }
-        }
-      }
-      
-      console.log(`✅ [dataManager] === ALL STAGES COMPLETE ===`);
-      
-    } catch (error) {
-      console.error(`❌ [dataManager] Error in background loading:`, error);
-    }
-  };
-  
-  // Start background loading (non-blocking)
-  loadRemainingData();
-  
-  // Return last 30 days deliveries immediately
-  return recentDeliveries;
+  return deliveries;
 };
 
 /**
