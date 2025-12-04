@@ -513,7 +513,8 @@ const DeliveryDataTable = ({
   selectedYear, onYearChange, availableYears,
   selectedMonth, onMonthChange,
   selectedDriver, onDriverChange,
-  onBackfillPUIDs
+  onBackfillPUIDs,
+  onDeleteDuplicates
 }) => {
   const { visibleColumns, toggleColumn, config } = useColumnVisibility('deliveries');
   const [columnWidths, setColumnWidths] = useState(() => {
