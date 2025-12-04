@@ -3222,9 +3222,7 @@ export default function AdminUtilities() {
     }
   }, [queryClient, refetchDeliveries, refreshData]);
 
-  const handleDeleteDuplicates = useCallback(async (deliveriesToProcess) => {
-    // Find duplicates: same PID + SID + date + driver
-    const duplicateGroups = new Map();
+  // This duplicate declaration has been removed - see line 3225
     
     deliveriesToProcess.forEach(d => {
       if (!d) return;
