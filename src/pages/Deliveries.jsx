@@ -2697,11 +2697,14 @@ export default function DeliveriesPage() {
     const driversWithDeliveries = cityFilteredDrivers.filter((u) => {
       if (!u) return false;
       
-      // Check if driver has deliveries in the current filter
+      // Check if driver has deliveries in the current filter (case-insensitive name matching)
+      const userFullNameLower = (u.full_name || '').toLowerCase().trim();
+      const userUserNameLower = (u.user_name || '').toLowerCase().trim();
+      
       const hasDeliveries = driverIdsInDeliveries.includes(u.id) ||
-      u.appUserId && driverIdsInDeliveries.includes(u.appUserId) ||
-      driverNamesInDeliveries.includes(u.full_name) ||
-      driverNamesInDeliveries.includes(u.user_name);
+      (u.appUserId && driverIdsInDeliveries.includes(u.appUserId)) ||
+      driverNamesInDeliveries.includes(userFullNameLower) ||
+      driverNamesInDeliveries.includes(userUserNameLower);
       
       // In overview mode with 'all' years selected, show ALL drivers regardless of deliveries
       // This ensures inactive drivers and those without recent deliveries still appear
