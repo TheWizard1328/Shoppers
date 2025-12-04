@@ -13,19 +13,102 @@ const LOCAL_SETTINGS_KEY = 'rxdeliver_user_settings_cache';
 // In-memory cache for current session
 let cachedSettings = null;
 let currentUserId = null;
+let cachedDeviceId = null; // In-memory cache to avoid repeated async calls
+
+// IndexedDB setup for device ID persistence
+const DB_NAME = 'rxdeliver_device_db';
+const STORE_NAME = 'device_store';
+
+function openDeviceDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+    };
+
+    request.onsuccess = (event) => {
+      resolve(event.target.result);
+    };
+
+    request.onerror = (event) => {
+      console.error('IndexedDB error:', event.target.errorCode);
+      reject(event.target.error);
+    };
+  });
+}
+
+async function saveDeviceIdToIndexedDB(id) {
+  try {
+    const db = await openDeviceDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.put(id, DEVICE_ID_KEY);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    console.warn('⚠️ [UserSettings] Failed to save device ID to IndexedDB:', error);
+  }
+}
+
+async function getDeviceIdFromIndexedDB() {
+  try {
+    const db = await openDeviceDb();
+    return new Promise((resolve) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.get(DEVICE_ID_KEY);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => resolve(null);
+    });
+  } catch (error) {
+    console.warn('⚠️ [UserSettings] Failed to get device ID from IndexedDB:', error);
+    return null;
+  }
+}
 
 /**
- * Gets or generates a unique device ID stored in localStorage
+ * Gets or generates a unique device ID, preferring IndexedDB for persistence
  */
-export function getDeviceId() {
-  let deviceId = localStorage.getItem(DEVICE_ID_KEY);
-  
-  if (!deviceId) {
-    // Generate a UUID-like device ID
-    deviceId = 'device_' + crypto.randomUUID();
-    localStorage.setItem(DEVICE_ID_KEY, deviceId);
-    console.log('📱 [UserSettings] Generated new device ID:', deviceId);
+export async function getDeviceId() {
+  // Return cached if available
+  if (cachedDeviceId) {
+    return cachedDeviceId;
   }
+
+  // 1. Try to get from IndexedDB first (most persistent)
+  let deviceId = await getDeviceIdFromIndexedDB();
+
+  if (deviceId) {
+    // If found in IndexedDB, ensure it's also in localStorage
+    if (localStorage.getItem(DEVICE_ID_KEY) !== deviceId) {
+      localStorage.setItem(DEVICE_ID_KEY, deviceId);
+    }
+    cachedDeviceId = deviceId;
+    return deviceId;
+  }
+
+  // 2. If not in IndexedDB, try localStorage
+  deviceId = localStorage.getItem(DEVICE_ID_KEY);
+
+  if (deviceId) {
+    // If found in localStorage, save to IndexedDB for future persistence
+    await saveDeviceIdToIndexedDB(deviceId);
+    cachedDeviceId = deviceId;
+    return deviceId;
+  }
+
+  // 3. If not found in either, generate a new one
+  deviceId = 'device_' + crypto.randomUUID();
+  localStorage.setItem(DEVICE_ID_KEY, deviceId);
+  await saveDeviceIdToIndexedDB(deviceId);
+  cachedDeviceId = deviceId;
+  console.log('📱 [UserSettings] Generated new device ID:', deviceId);
   
   return deviceId;
 }
@@ -95,7 +178,7 @@ export async function loadUserSettings(userId) {
     return { ...DEFAULT_SETTINGS };
   }
 
-  const deviceId = getDeviceId();
+  const deviceId = await getDeviceId();
   
   // Return cached if same user
   if (cachedSettings && currentUserId === userId) {
@@ -201,7 +284,7 @@ export async function saveSetting(userId, key, value) {
     return cachedSettings || { ...DEFAULT_SETTINGS };
   }
 
-  const deviceId = getDeviceId();
+  const deviceId = await getDeviceId();
   
   // Update local cache immediately for responsive UI
   if (cachedSettings) {
@@ -300,7 +383,7 @@ export async function saveSettings(userId, settings) {
     return cachedSettings || { ...DEFAULT_SETTINGS };
   }
 
-  const deviceId = getDeviceId();
+  const deviceId = await getDeviceId();
   
   // Update local cache immediately
   if (cachedSettings) {
