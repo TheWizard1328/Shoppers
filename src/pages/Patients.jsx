@@ -376,9 +376,23 @@ function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, importS
 
     console.log(`[StoreOverview] ${store.name}: ${storePatients.length} patients, ${storeDeliveries.length} deliveries`);
 
+    // Check for returns - delivery notes containing 'return' or patient address containing 'rtn'
+    const isReturn = (delivery) => {
+      if (!delivery) return false;
+      const patient = allPatients.find(p => p.id === delivery.patient_id);
+      const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return');
+      const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
+      return notesReturn || addressReturn;
+    };
+
+    const returnedDeliveries = storeDeliveries.filter(d => d.status === 'returned' || isReturn(d));
+    const failedDeliveries = storeDeliveries.filter(d => d.status === 'failed' && !isReturn(d));
+
     return {
       activeRoutes: storeDeliveries.filter((d) => ['picked_up', 'in_transit', 'pending'].includes(d.status)).length,
-      completedRoutes: storeDeliveries.filter((d) => d.status === 'delivered').length,
+      completedRoutes: storeDeliveries.filter((d) => d.status === 'delivered' || d.status === 'completed').length,
+      failedRoutes: failedDeliveries.length,
+      returnedRoutes: returnedDeliveries.length,
       totalRoutes: storeDeliveries.length
     };
   }, [allPatients, deliveries, today]);
@@ -456,8 +470,23 @@ function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, importS
                   </div>
                   <div className="border-t border-slate-100 pt-2 mt-2">
                     {stats.totalRoutes > 0 &&
-                    <div className="text-sm font-medium text-blue-600 mb-2">
-                        Active: {stats.activeRoutes} / Completed: {stats.completedRoutes}
+                    <div className="grid grid-cols-4 gap-1 text-center text-xs font-medium mb-2">
+                        <div className="text-blue-600">
+                          <div className="text-lg font-bold">{stats.activeRoutes}</div>
+                          <div>Active</div>
+                        </div>
+                        <div className="text-green-600">
+                          <div className="text-lg font-bold">{stats.completedRoutes}</div>
+                          <div>Completed</div>
+                        </div>
+                        <div className="text-red-600">
+                          <div className="text-lg font-bold">{stats.failedRoutes}</div>
+                          <div>Failed</div>
+                        </div>
+                        <div className="text-orange-600">
+                          <div className="text-lg font-bold">{stats.returnedRoutes}</div>
+                          <div>Returned</div>
+                        </div>
                       </div>
                     }
 
