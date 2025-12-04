@@ -4742,97 +4742,27 @@ function Dashboard() {
       const deliveryDate = deliveryFromUI.delivery_date;
       const isPickup = !deliveryFromUI.patient_id;
       const newStatus = isPickup ? 'en_route' : 'in_transit';
+      const currentTime = format(new Date(), 'HH:mm');
 
       console.log('');
       console.log('═══════════════════════════════════════════════════');
-      console.log('🚀 [START DELIVERY] 4-Step Process');
+      console.log('🚀 [START DELIVERY] Simplified Process');
       console.log('═══════════════════════════════════════════════════');
       console.log(`📦 Starting: ${deliveryFromUI.patient_name || 'Pickup'} (#${deliveryFromUI.stop_order})`);
 
-      // STEP 1: Clear all isNextDelivery flags to false
+      // STEP 1: Update status and call backend optimizer
       console.log('');
-      console.log('📍 STEP 1: Clearing all isNextDelivery flags');
-      const allDriverDeliveriesForDate = await base44.entities.Delivery.filter({
-        driver_id: driverId,
-        delivery_date: deliveryDate
-      });
-      
-      const clearNextPromises = allDriverDeliveriesForDate
-        .filter(d => d.isNextDelivery === true)
-        .map(d => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
-      
-      if (clearNextPromises.length > 0) {
-        await Promise.all(clearNextPromises);
-        console.log(`✅ Cleared isNextDelivery for ${clearNextPromises.length} deliveries`);
-      }
-
-      // STEP 2: Set isNextDelivery=true, update status, ETA, and stop_order for started delivery
-      console.log('');
-      console.log('📍 STEP 2: Marking started delivery and updating');
-      const currentTime = format(new Date(), 'HH:mm');
-      const currentStopOrder = deliveryFromUI.stop_order || 1;
+      console.log('📍 STEP 1: Updating status and calling backend optimizer');
       
       await base44.entities.Delivery.update(deliveryId, {
         status: newStatus,
-        isNextDelivery: true,
-        delivery_time_eta: currentTime,
-        stop_order: currentStopOrder
+        delivery_time_eta: currentTime
       });
-      console.log(`✅ Set isNextDelivery=true, status=${newStatus}, ETA=${currentTime}, stop_order=${currentStopOrder}`);
+      console.log(`✅ Updated status to ${newStatus}, ETA=${currentTime}`);
 
-      // STEP 2b: Initial UI update and center on new stop
+      // STEP 2: Call backend optimizer (handles isNextDelivery, stop_order, ETAs)
       console.log('');
-      console.log('📍 STEP 2b: Initial UI update and center');
-      invalidateDeliveriesForDate(deliveryDate);
-      await refreshData();
-      
-      // Center on the started card
-      setTimeout(() => {
-        const cardElement = document.getElementById(`stop-card-${deliveryId}`);
-        if (cardElement) {
-          cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-          console.log('✅ Centered on started delivery');
-        }
-      }, 300);
-
-      // STEP 3: Reorder the route
-      console.log('');
-      console.log('📍 STEP 3: Reordering route');
-      const freshDeliveries = await base44.entities.Delivery.filter({
-        driver_id: driverId,
-        delivery_date: deliveryDate
-      });
-      
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-      const completedStops = freshDeliveries.filter(d => d && finishedStatuses.includes(d.status));
-      const incompleteStops = freshDeliveries.filter(d => d && !finishedStatuses.includes(d.status));
-      
-      // Sort completed by actual time
-      completedStops.sort((a, b) => {
-        if (!a?.actual_delivery_time || !b?.actual_delivery_time) return 0;
-        return new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time);
-      });
-      
-      // Sort incomplete by ETA
-      incompleteStops.sort((a, b) => {
-        const etaA = a?.delivery_time_eta || a?.delivery_time_start || '99:99';
-        const etaB = b?.delivery_time_eta || b?.delivery_time_start || '99:99';
-        return etaA.localeCompare(etaB);
-      });
-      
-      const reorderedRoute = [...completedStops, ...incompleteStops];
-      
-      // Update stop_order for all
-      for (let i = 0; i < reorderedRoute.length; i++) {
-        await base44.entities.Delivery.update(reorderedRoute[i].id, {
-          stop_order: i + 1
-        });
-      }
-      console.log(`✅ Reordered ${reorderedRoute.length} stops`);
-
-      // STEP 4: Re-optimize remaining stops based on started delivery's ETA
-      console.log('');
-      console.log('📍 STEP 4: Re-optimizing remaining stops with backend');
+      console.log('📍 STEP 2: Backend optimizer handles all route logic');
       const optimizationResult = await optimizeDriverRoute({
         driverId: driverId,
         deliveryDate: deliveryDate,
@@ -4842,18 +4772,16 @@ function Dashboard() {
         } : null,
         startedDeliveryId: deliveryId,
         clientCurrentTime: currentTime,
-        generatePolyline: true,
+        generatePolyline: false, // Disabled to prevent errors
         forceReoptimization: true
       });
 
       console.log('✅ Backend optimizer complete');
-      fetchPolylineCount();
 
-      // STEP 4b: Final UI update
+      // STEP 3: Apply backend updates to UI (single refresh)
       console.log('');
-      console.log('📍 STEP 4b: Final UI update');
+      console.log('📍 STEP 3: Applying backend updates to UI');
       
-      // Apply backend updates
       if (optimizationResult.data?.allDeliveries && Array.isArray(optimizationResult.data.allDeliveries)) {
         smartRefreshManager.clearPendingUpdatesForDriver(driverId, deliveryDate);
         
@@ -4862,23 +4790,25 @@ function Dashboard() {
         );
         const mergedDeliveries = [...otherDriverDeliveries, ...optimizationResult.data.allDeliveries];
         updateDeliveriesLocally(mergedDeliveries);
+        console.log('✅ UI updated with backend data');
       }
 
-      invalidateDeliveriesForDate(deliveryDate);
-      await refreshData();
-
-      // Scroll to next card
+      // STEP 4: Scroll to next card
+      console.log('');
+      console.log('📍 STEP 4: Scrolling to next delivery');
+      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
       setTimeout(() => {
-        const nextCard = deliveriesWithStopOrder.find((d) =>
+        const nextCard = optimizationResult.data?.allDeliveries?.find((d) =>
           d && d.isNextDelivery && !finishedStatuses.includes(d.status)
         );
         if (nextCard) {
           const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
           if (cardElement) {
             cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            console.log('✅ Centered on next delivery');
           }
         }
-      }, 500);
+      }, 300);
 
       // Re-trigger map view for Phase 2
       if (mapViewPhase === 2 && isMapViewLocked) {
@@ -4894,7 +4824,7 @@ function Dashboard() {
       }
 
       console.log('');
-      console.log('✅ [START DELIVERY] 4-Step Process Complete');
+      console.log('✅ [START DELIVERY] Complete');
       console.log('═══════════════════════════════════════════════════');
 
     } catch (error) {
