@@ -3017,12 +3017,24 @@ export default function DeliveriesPage() {
 
       <div className="hidden lg:block border-b border-slate-200 bg-white px-6 py-4 sticky top-0 z-20">
         {isDriverOverviewMode ?
-        <h1 className="text-3xl font-bold text-slate-900">Driver Overview</h1> :
+        <div className="relative">
+          {isLoading && (
+            <div className="absolute -left-8 top-1/2 -translate-y-1/2">
+              <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
+            </div>
+          )}
+          <h1 className="text-3xl font-bold text-slate-900">Driver Overview</h1>
+        </div> :
 
         <>
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
               <div>
-                <h1 className="text-3xl font-bold text-slate-900 flex items-baseline gap-3">
+                <h1 className="text-3xl font-bold text-slate-900 flex items-baseline gap-3 relative">
+                  {isLoading && (
+                    <div className="absolute -left-8 top-1/2 -translate-y-1/2">
+                      <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
+                    </div>
+                  )}
                   Route Management
                   <Badge variant="outline" className="ml-2 text-sm font-normal">
                     {selectedDate ? format(selectedDate, 'MMM d, yyyy') : 'Select a Date'}

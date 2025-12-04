@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from "react";
 import { Delivery } from "@/entities/Delivery";
 import { Patient } from "@/entities/Patient";
@@ -749,7 +748,12 @@ export default function DeliveryMetrics() {
     <div className="min-h-screen bg-slate-50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
+          <div className="relative">
+            {isLoading && (
+              <div className="absolute -left-8 top-1/2 -translate-y-1/2">
+                <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
+              </div>
+            )}
             <h1 className="text-3xl font-bold text-slate-900">Route Metrics</h1>
             <p className="text-slate-600 mt-1">
               {format(startDate, 'MMM d, yyyy')} - {format(endDate, 'MMM d, yyyy')}

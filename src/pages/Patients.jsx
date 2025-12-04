@@ -1563,7 +1563,12 @@ export default function Patients() {
           <>
                 <div className="flex flex-col gap-3 mb-4">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 relative">
+                      {isLoading && (
+                        <div className="absolute -left-8 top-1/2 -translate-y-1/2">
+                          <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
+                        </div>
+                      )}
                       <h1 className="text-2xl font-bold text-slate-900">Patient Database</h1>
                       <Badge
                     className="text-white px-2.5 py-0.5 text-sm font-semibold rounded-md"
@@ -1591,7 +1596,12 @@ export default function Patients() {
           /* Desktop Layout */
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
                 <div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 relative">
+                    {isLoading && (
+                      <div className="absolute -left-8 top-1/2 -translate-y-1/2">
+                        <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
+                      </div>
+                    )}
                     <h1 className="text-3xl font-bold text-slate-900">Patient Database</h1>
                     <Badge className="bg-primary text-white px-3 py-1 text-lg font-semibold rounded-[10px] inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent shadow hover:bg-primary/80"
 
@@ -1918,7 +1928,12 @@ export default function Patients() {
       <div className="flex-shrink-0 bg-white border-b border-slate-200 shadow-sm">
           <div className="p-4">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-              <div className="flex-1">
+              <div className="flex-1 relative">
+                {isLoading && (
+                  <div className="absolute -left-8 top-1/2 -translate-y-1/2">
+                    <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
+                  </div>
+                )}
                 <h1 className="text-3xl font-bold text-slate-900">Store Overview</h1>
                 <p className="text-slate-600 mt-1">Select a store to view and manage patients</p>
               </div>

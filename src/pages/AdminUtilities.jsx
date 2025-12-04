@@ -3436,7 +3436,13 @@ export default function AdminUtilities() {
     <div className="min-h-screen bg-slate-50 p-3">
       <div className="max-w-full mx-auto space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-slate-900">Admin Utilities</h1>
+          <div className="relative">
+            {initialLoading && (
+              <div className="absolute -left-8 top-1/2 -translate-y-1/2">
+                <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
+              </div>
+            )}
+            <h1 className="text-3xl font-bold text-slate-900">Admin Utilities</h1>
           <Button onClick={handleRefreshAllData} variant="outline" disabled={isRefreshing}>
             <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
             {isRefreshing ? 'Refreshing...' : 'Refresh All Data'}
