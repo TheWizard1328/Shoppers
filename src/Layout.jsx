@@ -1382,10 +1382,24 @@ export default function Layout({ children, currentPageName }) {
       console.log(`🎯 [Layout] Priority date for fast UI: ${priorityDateStr}`);
 
       // Load selected date first, then full 30 days
-      const deliveriesData = await loadDeliveries(deliveryFilter, forceRefresh, priorityDateStr, (priorityDeliveries, dateStr) => {
+      const deliveriesData = await loadDeliveries(deliveryFilter, forceRefresh, priorityDateStr, async (priorityDeliveries, dateStr) => {
         // Immediately update state with priority date data for fast UI
         console.log(`⚡ [Layout] Fast UI update: ${priorityDeliveries.length} deliveries for ${dateStr}`);
         setDeliveries(priorityDeliveries);
+
+        // CRITICAL: Also load patients for priority deliveries immediately
+        const priorityPatientIds = [...new Set(priorityDeliveries.filter(d => d?.patient_id).map(d => d.patient_id))];
+        if (priorityPatientIds.length > 0) {
+          console.log(`⚡ [Layout] Fast loading ${priorityPatientIds.length} patients for priority date...`);
+          try {
+            const priorityPatients = await Patient.filter({ id: { $in: priorityPatientIds } });
+            console.log(`⚡ [Layout] Fast UI update: ${priorityPatients.length} patients for ${dateStr}`);
+            setPatients(priorityPatients);
+          } catch (err) {
+            console.warn('⚠️ [Layout] Error loading priority patients:', err);
+          }
+        }
+
         // Mark data as loaded so Dashboard can render immediately
         setDataLoaded(true);
       });
