@@ -9,7 +9,9 @@ import { touchUserCache } from "./auth";
 class SmartRefreshManager {
   constructor() {
     // Master toggle - can be disabled via AppSettings
-    this.enabled = true;
+    // CRITICAL: Default to true, will be overridden by initializeFromSettings() on app startup
+    this._enabled = true;
+    this._initialized = false;
     
     this.lastFetchTimestamps = new Map();
     this.isRefreshing = false;
@@ -116,24 +118,55 @@ class SmartRefreshManager {
   }
   
   /**
+   * Getter for enabled state - logs if accessed before initialization
+   */
+  get enabled() {
+    if (!this._initialized) {
+      console.warn('⚠️ [SmartRefresh] Accessed "enabled" before initialization - using default');
+    }
+    return this._enabled;
+  }
+  
+  /**
+   * Setter for enabled state - only allow changes after initialization or from settings
+   */
+  set enabled(value) {
+    console.log(`⚙️ [SmartRefresh] Setting enabled = ${value} (initialized: ${this._initialized})`);
+    this._enabled = value;
+  }
+  
+  /**
    * Initialize enabled state from AppSettings
-   * Called once during app startup
+   * Called once during app startup - MUST be called before any refresh operations
    */
   async initializeFromSettings() {
     try {
+      console.log('⚙️ [SmartRefresh] Loading settings from AppSettings...');
       const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+      
       if (settings && settings.length > 0 && settings[0].setting_value) {
-        const enabled = settings[0].setting_value.smartRefreshEnabled !== false;
-        this.enabled = enabled;
-        console.log(`⚙️ [SmartRefresh] Initialized from settings: ${enabled ? 'ENABLED' : 'DISABLED'}`);
+        // CRITICAL: Check for explicit false, undefined means enabled
+        const savedEnabled = settings[0].setting_value.smartRefreshEnabled;
+        const enabled = savedEnabled !== false;
+        
+        console.log(`⚙️ [SmartRefresh] Found setting: smartRefreshEnabled = ${savedEnabled} (interpreted as ${enabled})`);
+        
+        this._enabled = enabled;
+        this._initialized = true;
+        
+        console.log(`✅ [SmartRefresh] Initialized from settings: ${enabled ? 'ENABLED' : 'DISABLED'}`);
         return enabled;
       }
+      
       // Default to enabled if no setting exists
-      this.enabled = true;
+      console.log('⚙️ [SmartRefresh] No settings found, defaulting to ENABLED');
+      this._enabled = true;
+      this._initialized = true;
       return true;
     } catch (error) {
       console.warn('⚠️ [SmartRefresh] Error loading settings, defaulting to enabled:', error);
-      this.enabled = true;
+      this._enabled = true;
+      this._initialized = true;
       return true;
     }
   }
