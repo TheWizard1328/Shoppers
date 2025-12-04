@@ -1,0 +1,130 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
+import { format } from 'npm:date-fns';
+
+function generateStopId() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = 'SID-';
+    for (let i = 0; i < 8; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+}
+
+Deno.serve(async (req) => {
+    try {
+        const base44 = createClientFromRequest(req);
+        const user = await base44.auth.me();
+
+        if (!user) {
+            return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const { storeId, deliveryDate, driverId, ampmDeliveries: requestedAmpm = null } = await req.json();
+
+        if (!storeId || !deliveryDate || !driverId) {
+            return Response.json({ error: 'Missing required parameters: storeId, deliveryDate, driverId' }, { status: 400 });
+        }
+
+        // Determine AM/PM based on current time if not provided
+        const now = new Date();
+        const currentHour = now.getHours();
+        const ampmDeliveries = requestedAmpm || (currentHour < 14 ? 'AM' : 'PM');
+
+        console.log(`🔍 Checking for incomplete pickup: store=${storeId}, date=${deliveryDate}, driver=${driverId}, ampm=${ampmDeliveries}`);
+
+        // 1. Check for an existing incomplete pickup for this store, date, driver, and AM/PM slot
+        const existingPickups = await base44.entities.Delivery.filter({
+            store_id: storeId,
+            delivery_date: deliveryDate,
+            driver_id: driverId,
+            ampm_deliveries: ampmDeliveries
+        }, '-created_date', 20);
+
+        // Find pickups (no patient_id) that are incomplete
+        const incompletePickup = existingPickups.find(p => 
+            !p.patient_id && 
+            p.status !== 'completed' && 
+            p.status !== 'cancelled' && 
+            p.status !== 'returned'
+        );
+
+        if (incompletePickup) {
+            console.log(`✅ Found existing incomplete pickup: ${incompletePickup.id}, PUID: ${incompletePickup.stop_id}`);
+            return Response.json({ 
+                puid: incompletePickup.stop_id,
+                pickupId: incompletePickup.id,
+                isNew: false 
+            });
+        }
+
+        // 2. Check if there are ANY in-progress stops for this driver/date (not just this store)
+        const allDriverDeliveries = await base44.entities.Delivery.filter({
+            delivery_date: deliveryDate,
+            driver_id: driverId
+        }, '-created_date', 100);
+
+        const hasInProgressStops = allDriverDeliveries.some(d => 
+            d.status === 'in_transit' || d.status === 'en_route'
+        );
+
+        if (!hasInProgressStops) {
+            console.log(`ℹ️ No in-progress stops for driver on ${deliveryDate}. No need to create new pickup.`);
+            // Return null puid - caller should use normal flow
+            return Response.json({ 
+                puid: null,
+                pickupId: null,
+                isNew: false,
+                reason: 'no_in_progress_stops'
+            });
+        }
+
+        // 3. If there are in-progress stops but no incomplete pickup for this store, create a new one
+        console.log(`⚠️ In-progress stops exist but no incomplete pickup for store ${storeId}. Creating new pickup.`);
+
+        const newStopId = generateStopId();
+
+        // Calculate pickup time: 5 minutes from now
+        const pickupTime = new Date(now.getTime() + 5 * 60 * 1000);
+        const pickupTimeStr = format(pickupTime, 'HH:mm');
+
+        // Get driver name
+        const appUsers = await base44.entities.AppUser.filter({ user_id: driverId });
+        const driverName = appUsers[0]?.user_name || 'Unknown Driver';
+
+        // Get store info for store_phone
+        const stores = await base44.entities.Store.filter({ id: storeId });
+        const store = stores[0];
+
+        const newPickupData = {
+            delivery_date: deliveryDate,
+            store_id: storeId,
+            driver_id: driverId,
+            driver_name: driverName,
+            status: 'Ready For Pickup',
+            delivery_time_start: pickupTimeStr,
+            delivery_time_end: '',
+            time_window_start: pickupTimeStr,
+            time_window_end: '',
+            ampm_deliveries: ampmDeliveries,
+            puid: newStopId,
+            stop_id: newStopId,
+            delivery_stop_id: newStopId,
+            store_phone: store?.phone || '',
+            delivery_notes: `Auto-created pickup for new ${ampmDeliveries} delivery`,
+            isNextDelivery: false
+        };
+
+        const newPickup = await base44.entities.Delivery.create(newPickupData);
+        console.log(`✅ Created new pickup: ${newPickup.id}, PUID: ${newPickup.stop_id}`);
+
+        return Response.json({ 
+            puid: newPickup.stop_id,
+            pickupId: newPickup.id,
+            isNew: true 
+        });
+
+    } catch (error) {
+        console.error('❌ Error in ensurePickupForDelivery:', error.message);
+        return Response.json({ error: 'Failed to ensure pickup exists: ' + error.message }, { status: 500 });
+    }
+});
