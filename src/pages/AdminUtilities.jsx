@@ -3588,12 +3588,27 @@ export default function AdminUtilities() {
                         onSortChange={handleDeliverySort}
                         isLoadingData={deliveriesLoading}
                         selectedYear={selectedDeliveryYear}
-                        onYearChange={setSelectedDeliveryYear}
+                        onYearChange={(year) => {
+                          setSelectedDeliveryYear(year);
+                          if (currentUser?.id) {
+                            saveSetting(currentUser.id, 'admin_utilities_year', year);
+                          }
+                        }}
                         availableYears={availableDeliveryYears}
                         selectedMonth={selectedDeliveryMonth}
-                        onMonthChange={setSelectedDeliveryMonth}
+                        onMonthChange={(month) => {
+                          setSelectedDeliveryMonth(month);
+                          if (currentUser?.id) {
+                            saveSetting(currentUser.id, 'admin_utilities_month', month);
+                          }
+                        }}
                         selectedDriver={selectedDriver}
-                        onDriverChange={setSelectedDriver}
+                        onDriverChange={(driver) => {
+                          setSelectedDriver(driver);
+                          if (currentUser?.id) {
+                            saveSetting(currentUser.id, 'admin_utilities_driver', driver);
+                          }
+                        }}
                       />
                     </div>
                   </TabsContent>
