@@ -769,12 +769,19 @@ const DeliveryDataTable = ({
         </div>
 
         <div className="mb-2 text-sm text-slate-600">
-          Showing {(deliveries || []).length} deliveries
-          {selectedYear !== 'all' && ` for ${selectedYear}`}
-          {selectedMonth !== 'all' && selectedYear !== 'all' && ` - ${monthNames[parseInt(selectedMonth) - 1]}`}
-          {selectedDriver !== 'all' && ` - Driver: ${
-            (drivers || []).find(d => d && d.user_name === selectedDriver) ? getDriverDisplayName((drivers || []).find(d => d && d.user_name === selectedDriver)) : (selectedDriver || '').split(' ')[0]
-          }`}
+          {(() => {
+            const pickups = (deliveries || []).filter(d => !d.patient_id).length;
+            const patientDeliveries = (deliveries || []).filter(d => d.patient_id).length;
+            const driverName = selectedDriver !== 'all' 
+              ? ((drivers || []).find(d => d && d.user_name === selectedDriver) 
+                ? getDriverDisplayName((drivers || []).find(d => d && d.user_name === selectedDriver)) 
+                : (selectedDriver || '').split(' ')[0])
+              : 'All Drivers';
+            const yearLabel = selectedYear !== 'all' ? selectedYear : 'All Years';
+            const monthLabel = selectedMonth !== 'all' ? monthNames[parseInt(selectedMonth) - 1] : 'All Months';
+            
+            return `Showing: Pickups: ${pickups} | Deliveries: ${patientDeliveries} for ${yearLabel} - ${monthLabel} - ${driverName}`;
+          })()}
         </div>
 
         <div className="border rounded-md overflow-hidden">
