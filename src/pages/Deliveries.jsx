@@ -256,6 +256,7 @@ export default function DeliveriesPage() {
     }
 
     console.log('🔄 [Deliveries] Starting loadData...', forceRefresh ? '(FORCE REFRESH)' : '');
+    console.log(`🔍 [Deliveries] Mode: ${isDriverOverviewMode ? 'Driver Overview' : 'Route View'}, Year filter: ${selectedOverviewYear}`);
 
     loadInProgress.current = 1; // Set to 1 to indicate a load is in progress
     lastLoadTime.current = now;
