@@ -1214,7 +1214,7 @@ export default function DeliveriesPage() {
     if (!Array.isArray(deliveries)) return [];
 
     const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-    
+
     // Separate incomplete and completed
     const incomplete = deliveries.filter((d) => d && !finishedStatuses.includes(d.status));
     const completed = deliveries.filter((d) => d && finishedStatuses.includes(d.status));
@@ -3101,27 +3101,27 @@ export default function DeliveriesPage() {
                     (d) => d.delivery_date === dateStr && d.driver_id === driverId
                   );
                   console.log(`🗑️ Deleting ${deliveriesToDelete.length} deliveries for ${dateStr}, driver ${driverId}`);
-                  
+
                   for (const delivery of deliveriesToDelete) {
                     await base44.entities.Delivery.delete(delivery.id);
                   }
-                  
+
                   // Clear all delivery caches
                   invalidate('Delivery');
-                  
+
                   // Update local state immediately
-                  setAllDeliveries(prev => prev.filter(d => 
-                    !(d.delivery_date === dateStr && d.driver_id === driverId)
+                  setAllDeliveries((prev) => prev.filter((d) =>
+                  !(d.delivery_date === dateStr && d.driver_id === driverId)
                   ));
-                  
+
                   // CRITICAL: Update context to sync with Dashboard
                   if (updateDeliveriesLocally) {
-                    const remainingDeliveries = allDeliveries.filter(d => 
-                      !(d.delivery_date === dateStr && d.driver_id === driverId)
+                    const remainingDeliveries = allDeliveries.filter((d) =>
+                    !(d.delivery_date === dateStr && d.driver_id === driverId)
                     );
                     updateDeliveriesLocally(remainingDeliveries);
                   }
-                  
+
                   console.log(`✅ Route deleted successfully`);
                 } catch (error) {
                   console.error('Error deleting route:', error);
@@ -3190,27 +3190,27 @@ export default function DeliveriesPage() {
                       (d) => d.delivery_date === dateStr && d.driver_id === driverId
                     );
                     console.log(`🗑️ Deleting ${deliveriesToDelete.length} deliveries for ${dateStr}, driver ${driverId}`);
-                    
+
                     for (const delivery of deliveriesToDelete) {
                       await base44.entities.Delivery.delete(delivery.id);
                     }
-                    
+
                     // Clear all delivery caches
                     invalidate('Delivery');
-                    
+
                     // Update local state immediately
-                    setAllDeliveries(prev => prev.filter(d => 
-                      !(d.delivery_date === dateStr && d.driver_id === driverId)
+                    setAllDeliveries((prev) => prev.filter((d) =>
+                    !(d.delivery_date === dateStr && d.driver_id === driverId)
                     ));
-                    
+
                     // CRITICAL: Update context to sync with Dashboard
                     if (updateDeliveriesLocally) {
-                      const remainingDeliveries = allDeliveries.filter(d => 
-                        !(d.delivery_date === dateStr && d.driver_id === driverId)
+                      const remainingDeliveries = allDeliveries.filter((d) =>
+                      !(d.delivery_date === dateStr && d.driver_id === driverId)
                       );
                       updateDeliveriesLocally(remainingDeliveries);
                     }
-                    
+
                     setIsMobileMenuOpen(false);
                     console.log(`✅ Route deleted successfully`);
                   } catch (error) {
@@ -3577,7 +3577,7 @@ export default function DeliveriesPage() {
 
               <AnimatePresence mode="wait">
                 {/* Actual deliveries list */}
-                <div className="grid gap-4 overflow-y-auto pb-4 auto-rows-max" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(325px, 325px))', maxHeight: 'calc(100vh - 280px)' }}>
+                <div className="poverflow-y-auto pyoverflow-y-auto px-2 gap-x-4 py-2 gap-y-2 grid overflow-y-auto auto-rows-max" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(325px, 325px))', maxHeight: 'calc(100vh - 280px)' }}>
                   {renderDeliveries(filteredAndSortedDeliveries)}
                 </div>
               </AnimatePresence>
