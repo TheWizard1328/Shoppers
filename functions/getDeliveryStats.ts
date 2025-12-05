@@ -159,9 +159,6 @@ Deno.serve(async (req) => {
         if (key === 'month') {
           rawMonthDeliveries = results[resultIdx++];
           statsCache.monthly = { data: rawMonthDeliveries, cacheDate, key: monthlyKey };
-        } else if (key === 'year') {
-          rawYearDeliveries = results[resultIdx++];
-          statsCache.yearly = { data: rawYearDeliveries, cacheDate, key: yearlyKey };
         } else if (key === 'patients') {
           const allPatients = results[resultIdx++];
           const allCities = results[resultIdx++];
