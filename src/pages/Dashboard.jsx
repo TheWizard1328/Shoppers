@@ -305,6 +305,9 @@ function Dashboard() {
 
   // Track phase before break for restoration
   const phaseBeforeBreakRef = useRef(null);
+  
+  // Store saved FAB phase from user settings (applied after data loads)
+  const savedFabPhaseRef = useRef(1);
 
   // Route optimization notification
   const [routeNotification, setRouteNotification] = useState(null);
@@ -333,18 +336,14 @@ function Dashboard() {
           setCalendarMonth(savedDate);
         }
 
-        // Apply FAB map cycle phase
+        // CRITICAL: Store FAB phase from settings but DON'T apply until deliveries are loaded
         if (settings.fab_map_cycle_phase) {
-          console.log(`🗺️ [Dashboard] Restoring FAB phase from settings: ${settings.fab_map_cycle_phase}`);
-          setMapViewPhase(settings.fab_map_cycle_phase);
-
-          // CRITICAL: For phase 2, lock the FAB immediately when settings are loaded
-          if (settings.fab_map_cycle_phase === 2) {
-            console.log(`🔒 [Settings Load] Phase 2 detected - locking FAB immediately`);
-            setIsMapViewLocked(true);
-            mapLockExpiresAtRef.current = null;
-            mapLockTimeoutRef.current = null;
-          }
+          console.log(`🗺️ [Dashboard] Found FAB phase in settings: ${settings.fab_map_cycle_phase} (will apply after data loads)`);
+          // Don't set phase yet - will be applied in initial load effect when data is ready
+          // Store in ref to access later
+          savedFabPhaseRef.current = settings.fab_map_cycle_phase;
+        } else {
+          savedFabPhaseRef.current = 1; // Default to phase 1 if no saved preference
         }
 
         // CRITICAL: Mark settings as loaded BEFORE setting driver
@@ -1683,29 +1682,28 @@ function Dashboard() {
     }
   }, [mapViewPhase, driverLocation, nextStopCoordinates, deliveriesWithStopOrder, patients, stores, isDriver, STOP_CARDS_BASE_HEIGHT, mapViewTrigger, isDispatcher, StopCardsHeight, currentUser]);
 
-  // Apply initial map view on first load - SKIP if settings already handled it
+  // Apply initial map view on first load - WAIT for deliveries to be loaded
   useEffect(() => {
-    // CRITICAL: If no deliveries, ensure FAB is set to phase 1 with temporary lock
-    // BUT don't re-center map - let the FAB phase 1 logic handle centering on closest city
-    if (isDataLoaded && deliveriesWithStopOrder.length === 0) {
-      // Skip if already applied to prevent duplicate centering
-      if (initialMapViewApplied) {
-        console.log('⏭️ [Initial Load] Already applied, skipping');
-        return;
-      }
+    // CRITICAL: Skip until deliveries are actually loaded
+    if (!isDataLoaded || !userSettingsLoaded || initialMapViewApplied) {
+      return;
+    }
 
-      console.log('🗺️ [Initial Load] No deliveries - setting FAB to phase 1 with 3s lock');
+    console.log('🗺️ [Initial Load] Data ready - applying FAB phase from settings');
+    console.log(`   Deliveries count: ${deliveriesWithStopOrder.length}`);
+    console.log(`   Saved phase: ${savedFabPhaseRef.current}`);
+
+    // CASE 1: No deliveries - set phase 1 with temporary lock
+    if (deliveriesWithStopOrder.length === 0) {
+      console.log('🗺️ [Initial Load] No deliveries - applying Phase 1 (temp lock)');
       setMapViewPhase(1);
       setIsMapViewLocked(true);
       setInitialMapViewApplied(true);
 
-      // CRITICAL: Clear any existing lock timers
       if (mapLockTimeoutRef.current) {
         clearTimeout(mapLockTimeoutRef.current);
-        mapLockTimeoutRef.current = null;
       }
-
-      // Phase 1: 3-second auto-unlock timer
+      
       const lockDuration = 3000;
       const expiresAt = Date.now() + lockDuration;
       mapLockExpiresAtRef.current = expiresAt;
@@ -1719,140 +1717,89 @@ function Dashboard() {
         }
       }, lockDuration);
 
-      // CRITICAL: Trigger FAB phase 1 logic which will center on CLOSEST city
-      // Don't manually set mapCenter here - let the mapViewPhase useEffect handle it
-      console.log('🗺️ [Initial Load] Triggering FAB phase 1 for closest city centering');
       setMapViewTrigger((prev) => prev + 1);
       return;
     }
 
-    // CRITICAL: Skip if user settings were loaded and applied phase 2 (settings take priority)
-    // For phase 2 loaded from settings, we need to trigger map view and SCROLL to next card (but NOT select it)
-    if (userSettingsLoaded && mapViewPhase === 2 && !initialMapViewApplied && isDataLoaded && deliveriesWithStopOrder.length > 0 && isDriver && driverLocation && StopCardsHeight > 0) {
-      console.log(`🗺️ [Initial Load] Phase 2 from settings - triggering map view and scrolling to next stop`);
+    // CASE 2: Has deliveries - apply saved phase
+    const phaseToApply = savedFabPhaseRef.current;
+    console.log(`🗺️ [Initial Load] Has ${deliveriesWithStopOrder.length} deliveries - applying Phase ${phaseToApply}`);
 
-      // Phase 2: Lock STAYS locked (persistent)
+    // For phase 3, require driver location
+    if (phaseToApply === 3 && (!isDriver || !driverLocation)) {
+      console.log(`⏭️ [Initial Load] Phase 3 requires driver location, falling back to Phase 1`);
+      setMapViewPhase(1);
       setIsMapViewLocked(true);
-
-      // Find the next delivery to scroll to (but NOT select)
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-      const incompleteDeliveries = deliveriesWithStopOrder.
-      filter((d) => d && !finishedStatuses.includes(d.status)).
-      sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-
-      // Trigger map repositioning FIRST
       setMapViewTrigger((prev) => prev + 1);
       setInitialMapViewApplied(true);
 
-      // THEN scroll to card (but do NOT select it - no setSelectedCardId)
+      const lockDuration = 3000;
+      const expiresAt = Date.now() + lockDuration;
+      mapLockExpiresAtRef.current = expiresAt;
+      mapLockTimeoutRef.current = window.setTimeout(() => {
+        if (mapLockExpiresAtRef.current === expiresAt) {
+          setIsMapViewLocked(false);
+          mapLockExpiresAtRef.current = null;
+          mapLockTimeoutRef.current = null;
+        }
+      }, lockDuration);
+      return;
+    }
+
+    // Apply the saved phase
+    setMapViewPhase(phaseToApply);
+    setIsMapViewLocked(true);
+    setInitialMapViewApplied(true);
+
+    // Clear existing timers
+    if (mapLockTimeoutRef.current) {
+      clearTimeout(mapLockTimeoutRef.current);
+      mapLockTimeoutRef.current = null;
+    }
+    mapLockExpiresAtRef.current = null;
+
+    // Trigger map view
+    setMapViewTrigger((prev) => prev + 1);
+
+    // Set timer based on phase
+    if (phaseToApply === 1 || phaseToApply === 3) {
+      const lockDuration = 3000;
+      const expiresAt = Date.now() + lockDuration;
+      mapLockExpiresAtRef.current = expiresAt;
+      console.log(`⏰ [Initial Load] Starting ${lockDuration}ms timer for Phase ${phaseToApply}`);
+
+      mapLockTimeoutRef.current = window.setTimeout(() => {
+        if (mapLockExpiresAtRef.current === expiresAt) {
+          console.log(`⚫ [Initial Load] Phase ${phaseToApply} auto-unlocking after ${lockDuration}ms`);
+          setIsMapViewLocked(false);
+          mapLockExpiresAtRef.current = null;
+          mapLockTimeoutRef.current = null;
+        }
+      }, lockDuration);
+    } else if (phaseToApply === 2) {
+      console.log(`🔒 [Initial Load] Phase 2 - persistent lock (no timer)`);
+      // Phase 2 stays locked - no timer
+    }
+
+    // Scroll to next card for phase 2
+    if (phaseToApply === 2) {
+      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+      const incompleteDeliveries = deliveriesWithStopOrder
+        .filter((d) => d && !finishedStatuses.includes(d.status))
+        .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+
       if (incompleteDeliveries.length > 0) {
         const nextDelivery = incompleteDeliveries[0];
-        console.log(`📍 [Initial Load Phase 2] Will scroll to (NOT select): ${nextDelivery.patient_name || 'Pickup'}`);
-
-        // Delay scroll to ensure HorizontalStopCards is rendered
         setTimeout(() => {
           const cardElement = document.getElementById(`stop-card-${nextDelivery.id}`);
           if (cardElement) {
             cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-            console.log(`📍 [Initial Load Phase 2] Scrolled to card (NOT selected): ${nextDelivery.id}`);
-          } else {
-            console.warn(`⚠️ [Initial Load Phase 2] Card not found: stop-card-${nextDelivery.id}`);
-            // Try again after more delay
-            setTimeout(() => {
-              const retryElement = document.getElementById(`stop-card-${nextDelivery.id}`);
-              if (retryElement) {
-                retryElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                console.log(`✅ [Initial Load Phase 2] Retry scroll succeeded (NOT selected): ${nextDelivery.id}`);
-              }
-            }, 500);
+            console.log(`📍 [Initial Load Phase 2] Scrolled to card: ${nextDelivery.id}`);
           }
         }, 300);
       }
-
-      return;
     }
-
-    // CRITICAL: Handle phase 1 or 3 from settings - apply 3-second timer
-    if (userSettingsLoaded && !initialMapViewApplied && isDataLoaded && deliveriesWithStopOrder.length > 0 && (mapViewPhase === 1 || mapViewPhase === 3)) {
-      // For phase 3, require driver location
-      if (mapViewPhase === 3 && (!isDriver || !driverLocation)) {
-        console.log(`⏭️ [Initial Load] Phase 3 requires driver location, skipping`);
-        return;
-      }
-
-      console.log(`🗺️ [Initial Load] Phase ${mapViewPhase} from settings - applying with 3s timer`);
-
-      // Clear any existing timeout FIRST
-      if (mapLockTimeoutRef.current) {
-        clearTimeout(mapLockTimeoutRef.current);
-        mapLockTimeoutRef.current = null;
-      }
-      mapLockExpiresAtRef.current = null;
-
-      setIsMapViewLocked(true);
-      setMapViewTrigger((prev) => prev + 1);
-      setInitialMapViewApplied(true);
-
-      // Start 3-second timer for phase 1 or 3
-      const lockDuration = 3000;
-      const expiresAt = Date.now() + lockDuration;
-      mapLockExpiresAtRef.current = expiresAt;
-      console.log(`⏰ [Initial Load] Starting ${lockDuration}ms timer for Phase ${mapViewPhase}, expiresAt: ${expiresAt}`);
-
-      mapLockTimeoutRef.current = window.setTimeout(() => {
-        console.log(`⏰ [Initial Load Timer] Fired! Checking expiry: current=${mapLockExpiresAtRef.current}, expected=${expiresAt}`);
-        if (mapLockExpiresAtRef.current === expiresAt) {
-          console.log(`⚫ [Initial Load] Phase ${mapViewPhase} auto-unlocking after ${lockDuration}ms`);
-          setIsMapViewLocked(false);
-          mapLockExpiresAtRef.current = null;
-          mapLockTimeoutRef.current = null;
-        } else {
-          console.log('⏭️ [Initial Load] Timer fired but expiry was reset - ignoring');
-        }
-      }, lockDuration);
-
-      return;
-    }
-
-    // CRITICAL: Default initial load for drivers without saved settings
-    if (!initialMapViewApplied && isDataLoaded && deliveriesWithStopOrder.length > 0 && isDriver && driverLocation && !userSettingsLoaded) {
-      // Wait for settings to load first
-      return;
-    }
-
-    if (!initialMapViewApplied && isDataLoaded && deliveriesWithStopOrder.length > 0 && isDriver && driverLocation && userSettingsLoaded && mapViewPhase === 1) {
-      console.log('🗺️ [Initial Load] Default: Applying Phase 1 (Show All Stops)');
-      console.log(`📏 [Initial Load] Stop cards height: ${StopCardsHeight}px`);
-
-      // Clear any existing timeout
-      if (mapLockTimeoutRef.current) {
-        clearTimeout(mapLockTimeoutRef.current);
-        mapLockTimeoutRef.current = null;
-      }
-      mapLockExpiresAtRef.current = null;
-
-      setIsMapViewLocked(true);
-      setMapViewTrigger((prev) => prev + 1);
-      setInitialMapViewApplied(true);
-
-      // Start 3-second timer for initial phase 1 with expiry timestamp
-      const lockDuration = 3000;
-      const expiresAt = Date.now() + lockDuration;
-      mapLockExpiresAtRef.current = expiresAt;
-      console.log(`⏰ [Initial Load] Starting ${lockDuration}ms timer for Phase 1, expires at:`, expiresAt);
-
-      mapLockTimeoutRef.current = window.setTimeout(() => {
-        if (mapLockExpiresAtRef.current === expiresAt) {
-          console.log(`⚫ [Initial Load] Phase 1 auto-unlocking after ${lockDuration}ms`);
-          setIsMapViewLocked(false);
-          mapLockExpiresAtRef.current = null;
-          mapLockTimeoutRef.current = null;
-        } else {
-          console.log('⏭️ [Initial Load] Timer fired but expiry was reset - ignoring');
-        }
-      }, lockDuration);
-    }
-  }, [initialMapViewApplied, isDataLoaded, deliveriesWithStopOrder.length, isDriver, driverLocation, userSettingsLoaded, mapViewPhase, StopCardsHeight]);
+  }, [isDataLoaded, userSettingsLoaded, deliveriesWithStopOrder.length, initialMapViewApplied, isDriver, driverLocation, StopCardsHeight]);
 
   // CRITICAL: Dedicated effect to scroll to next delivery card on initial load
   // This runs AFTER cards are rendered and handles ALL phases
