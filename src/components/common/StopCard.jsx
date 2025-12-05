@@ -745,6 +745,7 @@ export default function StopCard({
                     <DropdownMenuItem
                       key={status}
                       className="capitalize text-base"
+                      className="capitalize text-base"
                       onClick={async (e) => {
                         e.stopPropagation();
 
