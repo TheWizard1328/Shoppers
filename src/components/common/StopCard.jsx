@@ -833,13 +833,13 @@ export default function StopCard({
             <div className="flex items-start justify-between">
               <div className="mt-1 flex flex-col gap-0.5 flex-1 min-w-0">
                 {/* Phone number - first line below divider */}
-                                {!isStrippedDelivery && !shouldRedact && finalDisplayPhone &&
-                                                  <div className="flex items-center text-sm text-slate-600 pl-1">
-                                                                      <Phone className="w-3 h-3 mr-1 text-slate-500" />
-                                                                                          <span className="text-base font-medium">{formatPhoneNumber(finalDisplayPhone)}</span>
-                                                                                                            </div>
-                                                                                                                            }
-                                                                                                                                                                            
+                {!isStrippedDelivery && !shouldRedact && finalDisplayPhone &&
+                  <div className="flex items-center text-sm text-slate-600 pl-1">
+                    <Phone className="w-3 h-3 mr-1 text-slate-500" />
+                    <span className="text-base font-medium">{formatPhoneNumber(finalDisplayPhone)}</span>
+                  </div>
+                }
+                
                 {finalDisplayAddress ?
                   <>
                     {/* Main address without unit/buzzer */}
