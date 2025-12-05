@@ -8,9 +8,9 @@ const statsCache = {
 };
 
 // Cache durations
-const YEARLY_CACHE_TTL = 10 * 60 * 1000;  // 10 minutes for yearly stats
-const MONTHLY_CACHE_TTL = 5 * 60 * 1000;  // 5 minutes for monthly stats
-const ENTITY_CACHE_TTL = 10 * 60 * 1000;  // 10 minutes for entity counts
+const YEARLY_CACHE_TTL = 24 * 60 * 60 * 1000;  // 24 hours for yearly stats (updates daily)
+const MONTHLY_CACHE_TTL = 24 * 60 * 60 * 1000;  // 24 hours for monthly stats (updates daily)
+const ENTITY_CACHE_TTL = 10 * 60 * 1000;        // 10 minutes for entity counts
 
 Deno.serve(async (req) => {
   try {
