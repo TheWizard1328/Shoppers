@@ -194,6 +194,12 @@ Deno.serve(async (req) => {
             users: allAppUsers.length
           };
           statsCache.entityCounts = { data: entityCounts, cacheDate };
+        } else if (key === 'patientsOnly') {
+          const dispatcherPatients = results[resultIdx++];
+          entityCounts = {
+            patients: dispatcherPatients.length
+          };
+          // Don't cache dispatcher-specific counts (they vary by user)
         }
       }
     } else {
