@@ -21,6 +21,7 @@ import { getStoreColor, hexToRgba } from '../utils/colorGenerator';
 import { useAppData } from '../utils/AppDataContext';
 import { getUserAgentInfo } from '../utils/deviceUtils';
 import { shouldShowStoreBadges, isAppOwner } from '../utils/userRoles';
+import { sendDeliveryMessage } from '../utils/deliveryMessaging';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
 <div className="flex items-center space-x-2">
@@ -1667,6 +1668,21 @@ export default function DeliveryForm({
         const completionDateTime = new Date(`${dateStr}T${timeStr}:00`);
         dataToSave.actual_delivery_time = completionDateTime.toISOString();
       }
+      
+      // CRITICAL: Check if driver assignment changed
+      const driverChanged = delivery && delivery.driver_id !== formData.driver_id;
+      const oldDriver = driverChanged ? drivers.find(d => d?.id === delivery.driver_id) : null;
+      const newDriver = driverChanged ? drivers.find(d => d?.id === formData.driver_id) : null;
+      
+      // CRITICAL: Check if delivery date changed
+      const dateChanged = delivery && delivery.delivery_date !== formData.delivery_date;
+      
+      // CRITICAL: If date changes, keep status as in_transit and set delivery_time_start to 10:00
+      if (dateChanged) {
+        console.log('📅 [DeliveryForm] Date changed - keeping in_transit status and setting 10:00 AM start time');
+        dataToSave.status = 'in_transit';
+        dataToSave.delivery_time_start = '10:00';
+      }
 
       // Check if status changed to a completion status (completed, cancelled, failed)
       const statusChangedToCompletion = delivery &&
@@ -1674,6 +1690,21 @@ export default function DeliveryForm({
       delivery.status !== formData.status;
 
       await onSave(dataToSave);
+      
+      // Send message if driver changed (from active driver to new driver)
+      if (driverChanged && oldDriver && newDriver && currentUser && userHasRole(currentUser, 'driver')) {
+        const patientName = delivery.patient_name || selectedPatient?.full_name || 'Unknown';
+        const messageContent = `🚚 Delivery reassigned to you:\n• Patient: ${patientName}\n• Date: ${format(new Date(formData.delivery_date), 'MMM d, yyyy')}\n• From: ${getDriverDisplayName(oldDriver)}`;
+        
+        await sendDeliveryMessage({
+          senderId: currentUser.id,
+          senderName: getDriverDisplayName(currentUser),
+          receiverId: newDriver.id,
+          receiverName: getDriverDisplayName(newDriver),
+          content: messageContent
+        });
+        console.log('✉️ [DeliveryForm] Sent driver reassignment message');
+      }
       
       // CRITICAL: Always invalidate delivery cache after update to force refresh
       const { invalidate } = await import('../utils/dataManager');
