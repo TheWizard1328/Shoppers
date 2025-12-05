@@ -2,7 +2,6 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
 // In-memory cache for expensive stats (survives across requests in the same Deno isolate)
 const statsCache = {
-  yearly: { data: null, cacheDate: '', key: '' },
   monthly: { data: null, cacheDate: '', key: '' },
   entityCounts: { data: null, cacheDate: '' }
 };
