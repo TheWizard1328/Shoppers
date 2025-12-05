@@ -123,12 +123,16 @@ export default function AppSettingsPanel() {
         const loaded = { ...DEFAULT_INTERVALS, ...settings[0].setting_value };
         setIntervals(loaded);
         setSavedIntervals(loaded);
-        // Load smart refresh enabled state
+        // Load smart refresh enabled state - check for explicit false
         const enabled = settings[0].setting_value.smartRefreshEnabled !== false;
+        console.log(`⚙️ [AppSettingsPanel] Loaded smartRefreshEnabled from DB: ${settings[0].setting_value.smartRefreshEnabled} → ${enabled}`);
         setSmartRefreshEnabled(enabled);
         setSavedSmartRefreshEnabled(enabled);
-        smartRefreshManager.enabled = enabled;
+        // Sync with smartRefreshManager
+        smartRefreshManager._enabled = enabled;
+        smartRefreshManager._initialized = true;
       } else {
+        console.log('⚙️ [AppSettingsPanel] No settings found, using defaults');
         setIntervals(DEFAULT_INTERVALS);
         setSavedIntervals(DEFAULT_INTERVALS);
         setSmartRefreshEnabled(true);
