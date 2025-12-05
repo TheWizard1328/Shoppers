@@ -744,6 +744,7 @@ export default function StopCard({
                       {nextAvailableStatuses.map((status) =>
                     <DropdownMenuItem
                       key={status}
+                      className="capitalize text-base"
                       onClick={async (e) => {
                         e.stopPropagation();
 

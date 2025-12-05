@@ -1256,6 +1256,22 @@ function Dashboard() {
 
     setMapViewTrigger((prev) => prev + 1);
 
+    // CRITICAL: Scroll to next delivery card for ALL phases
+    setTimeout(() => {
+      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+      const incompleteDeliveries = deliveriesWithStopOrder
+        .filter((d) => d && !finishedStatuses.includes(d.status))
+        .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+
+      if (incompleteDeliveries.length > 0) {
+        const nextCard = incompleteDeliveries[0];
+        const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
+        if (cardElement) {
+          cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        }
+      }
+    }, 300);
+
     // Handle timer based on phase
     if (newMapViewPhase === 2) {
       console.log(`🔒 [FAB Click] Phase 2 - Persistent lock (no timer)`);
