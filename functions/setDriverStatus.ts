@@ -46,24 +46,32 @@ Deno.serve(async (req) => {
     console.log(`✅ [setDriverStatus] Status set to: ${newStatus}`);
     console.log(`📍 [setDriverStatus] Location tracking enabled: ${newStatus === 'on_duty'}`);
 
-    // When going off_duty, clear isNextDelivery flag on all incomplete deliveries for this driver
-    if (newStatus === 'off_duty') {
-      console.log(`🔄 [setDriverStatus] Clearing isNextDelivery flags for driver ${user.id}`);
+    // When going off_duty or on_break, clear isNextDelivery flag on all incomplete deliveries for this driver
+    if (newStatus === 'off_duty' || newStatus === 'on_break') {
+      console.log(`🔄 [setDriverStatus] Clearing isNextDelivery flags for driver ${user.id} (status: ${newStatus})`);
       
       const today = new Date().toISOString().split('T')[0];
-      const incompleteDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+      
+      // CRITICAL: Fetch ALL incomplete deliveries, not just those with isNextDelivery=true
+      // This ensures we catch any that might have been missed
+      const allTodayDeliveries = await base44.asServiceRole.entities.Delivery.filter({
         driver_id: user.id,
-        delivery_date: today,
-        isNextDelivery: true
+        delivery_date: today
       });
       
-      console.log(`📦 [setDriverStatus] Found ${incompleteDeliveries.length} deliveries with isNextDelivery=true`);
+      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+      const incompleteWithNextFlag = allTodayDeliveries.filter(d => 
+        !finishedStatuses.includes(d.status) && d.isNextDelivery === true
+      );
       
-      for (const delivery of incompleteDeliveries) {
+      console.log(`📦 [setDriverStatus] Found ${incompleteWithNextFlag.length} incomplete deliveries with isNextDelivery=true (of ${allTodayDeliveries.length} total)`);
+      
+      for (const delivery of incompleteWithNextFlag) {
+        console.log(`   • Clearing isNextDelivery for: ${delivery.patient_name || 'Pickup'} (ID: ${delivery.id})`);
         await base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: false });
       }
       
-      console.log(`✅ [setDriverStatus] Cleared isNextDelivery on ${incompleteDeliveries.length} deliveries`);
+      console.log(`✅ [setDriverStatus] Cleared isNextDelivery on ${incompleteWithNextFlag.length} deliveries`);
     }
 
     return Response.json({
