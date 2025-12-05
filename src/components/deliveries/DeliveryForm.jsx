@@ -673,6 +673,38 @@ export default function DeliveryForm({
                 }
               }
 
+              // CRITICAL: Filter out patients with weekly/bi-weekly recurring set for specific days
+              // that don't match the selected delivery date's day of week
+              const hasSpecificWeeklyDays = patient.recurring_weekly_mon || patient.recurring_weekly_tue || 
+                patient.recurring_weekly_wed || patient.recurring_weekly_thu || 
+                patient.recurring_weekly_fri || patient.recurring_weekly_sat || patient.recurring_weekly_sun;
+              
+              if (patient.recurring && hasSpecificWeeklyDays && 
+                  !patient.recurring_daily && !patient.recurring_weekly_x4 && 
+                  !patient.recurring_monthly && !patient.recurring_bimonthly) {
+                // This patient has weekly or bi-weekly recurring with specific days set
+                const selectedDateObj = new Date(formData.delivery_date + 'T00:00:00');
+                const dayOfWeek = selectedDateObj.getDay(); // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+                
+                const dayFieldMap = {
+                  0: 'recurring_weekly_sun',
+                  1: 'recurring_weekly_mon',
+                  2: 'recurring_weekly_tue',
+                  3: 'recurring_weekly_wed',
+                  4: 'recurring_weekly_thu',
+                  5: 'recurring_weekly_fri',
+                  6: 'recurring_weekly_sat'
+                };
+                
+                const requiredDayField = dayFieldMap[dayOfWeek];
+                if (!patient[requiredDayField]) {
+                  console.log('[DeliveryForm] Filtered out (weekly/bi-weekly wrong day):', pred.patient_name, 
+                    'Selected:', formData.delivery_date, '(day', dayOfWeek, ') but patient has:', 
+                    Object.entries(dayFieldMap).filter(([k, v]) => patient[v]).map(([k]) => k).join(','));
+                  return false;
+                }
+              }
+
               return true;
             }
           );
