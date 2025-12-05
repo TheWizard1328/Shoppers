@@ -161,11 +161,49 @@ export function buildDistanceBadge(patient, store) {
   return ` [${distance.toFixed(1)} km]`;
 }
 
+/**
+ * Get or create a store user for messaging
+ * If the store doesn't have a user yet, creates one on-the-fly
+ */
+async function getStoreUser(store) {
+  if (!store || !store.id) {
+    console.warn('[deliveryMessaging] Invalid store');
+    return null;
+  }
+  
+  try {
+    // Search for existing store user by name pattern
+    const storeUserName = `${store.name} (Store)`;
+    const existingUsers = await base44.entities.AppUser.filter({ 
+      user_name: storeUserName 
+    });
+    
+    if (existingUsers && existingUsers.length > 0) {
+      return {
+        id: existingUsers[0].user_id,
+        user_name: existingUsers[0].user_name
+      };
+    }
+    
+    // If no store user exists, return store data directly for message creation
+    // (we'll use store.id as sender, but won't create an actual AppUser)
+    console.log(`[deliveryMessaging] Using store "${store.name}" as message sender`);
+    return {
+      id: `store_${store.id}`,
+      user_name: storeUserName
+    };
+  } catch (error) {
+    console.error('[deliveryMessaging] Error getting store user:', error);
+    return null;
+  }
+}
+
 // ============ NOTIFICATION FUNCTIONS ============
 // These use the centralized rules from notificationRules.js
 
 /**
  * 1. Driver accepts all pending deliveries
+ * Message FROM store TO driver
  */
 export async function notifyDriverAcceptedAll({
   driver,
@@ -175,24 +213,26 @@ export async function notifyDriverAcceptedAll({
   if (!shouldNotify(NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ALL, 'inApp') && 
       !shouldNotify(NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ALL, 'whatsApp')) return;
 
-  const dispatchers = getDispatchersForStore(store?.id, appUsers);
+  const storeUser = await getStoreUser(store);
+  if (!storeUser) return;
+
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
   const messageData = { driverName };
 
-  for (const dispatcher of dispatchers) {
-    await sendNotification({
-      event: NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ALL,
-      messageData,
-      senderId: driver?.id,
-      senderName: driverName,
-      receiverId: dispatcher.user_id,
-      receiverName: dispatcher.user_name
-    });
-  }
+  // Message FROM store TO driver
+  await sendNotification({
+    event: NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ALL,
+    messageData,
+    senderId: storeUser.id,
+    senderName: storeUser.user_name,
+    receiverId: driver?.id,
+    receiverName: driverName
+  });
 }
 
 /**
  * 2. Driver accepts single delivery
+ * Message FROM store TO driver
  */
 export async function notifyDriverAcceptedOne({
   driver,
@@ -203,24 +243,26 @@ export async function notifyDriverAcceptedOne({
   if (!shouldNotify(NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ONE, 'inApp') && 
       !shouldNotify(NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ONE, 'whatsApp')) return;
 
-  const dispatchers = getDispatchersForStore(store?.id, appUsers);
+  const storeUser = await getStoreUser(store);
+  if (!storeUser) return;
+
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
   const messageData = { driverName, patientName };
 
-  for (const dispatcher of dispatchers) {
-    await sendNotification({
-      event: NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ONE,
-      messageData,
-      senderId: driver?.id,
-      senderName: driverName,
-      receiverId: dispatcher.user_id,
-      receiverName: dispatcher.user_name
-    });
-  }
+  // Message FROM store TO driver
+  await sendNotification({
+    event: NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ONE,
+    messageData,
+    senderId: storeUser.id,
+    senderName: storeUser.user_name,
+    receiverId: driver?.id,
+    receiverName: driverName
+  });
 }
 
 /**
  * 3. Dispatcher assigns all deliveries to driver
+ * Message FROM store TO driver
  */
 export async function notifyDispatcherAssignedAll({
   dispatcher,
@@ -232,7 +274,9 @@ export async function notifyDispatcherAssignedAll({
   if (!shouldNotify(NOTIFICATION_EVENTS.DISPATCHER_ASSIGNED_ALL, 'inApp') && 
       !shouldNotify(NOTIFICATION_EVENTS.DISPATCHER_ASSIGNED_ALL, 'whatsApp')) return;
 
-  const dispatcherName = dispatcher?.user_name || dispatcher?.full_name || 'Dispatcher';
+  const storeUser = await getStoreUser(store);
+  if (!storeUser) return;
+
   const storeName = store?.name || 'Store';
   
   let deliveryList = '';
@@ -246,11 +290,12 @@ export async function notifyDispatcherAssignedAll({
 
   const messageData = { storeName, deliveryList };
 
+  // Message FROM store TO driver
   await sendNotification({
     event: NOTIFICATION_EVENTS.DISPATCHER_ASSIGNED_ALL,
     messageData,
-    senderId: dispatcher?.id,
-    senderName: dispatcherName,
+    senderId: storeUser.id,
+    senderName: storeUser.user_name,
     receiverId: driver?.id || driver?.user_id,
     receiverName: driver?.user_name || driver?.full_name
   });
@@ -258,6 +303,7 @@ export async function notifyDispatcherAssignedAll({
 
 /**
  * 4. Driver starts delivery (moves to next)
+ * Message FROM store TO driver
  */
 export async function notifyDriverStarted({
   driver,
@@ -269,25 +315,27 @@ export async function notifyDriverStarted({
   if (!shouldNotify(NOTIFICATION_EVENTS.DRIVER_STARTED, 'inApp') && 
       !shouldNotify(NOTIFICATION_EVENTS.DRIVER_STARTED, 'whatsApp')) return;
 
-  const dispatchers = getDispatchersForStore(store?.id, appUsers);
+  const storeUser = await getStoreUser(store);
+  if (!storeUser) return;
+
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
   const eta = buildETAString(delivery);
   const messageData = { driverName, patientName, eta };
 
-  for (const dispatcher of dispatchers) {
-    await sendNotification({
-      event: NOTIFICATION_EVENTS.DRIVER_STARTED,
-      messageData,
-      senderId: driver?.id,
-      senderName: driverName,
-      receiverId: dispatcher.user_id,
-      receiverName: dispatcher.user_name
-    });
-  }
+  // Message FROM store TO driver
+  await sendNotification({
+    event: NOTIFICATION_EVENTS.DRIVER_STARTED,
+    messageData,
+    senderId: storeUser.id,
+    senderName: storeUser.user_name,
+    receiverId: driver?.id,
+    receiverName: driverName
+  });
 }
 
 /**
  * 5. Driver completes delivery
+ * Message FROM store TO driver
  */
 export async function notifyDriverCompleted({
   driver,
@@ -299,25 +347,27 @@ export async function notifyDriverCompleted({
   if (!shouldNotify(NOTIFICATION_EVENTS.DRIVER_COMPLETED, 'inApp') && 
       !shouldNotify(NOTIFICATION_EVENTS.DRIVER_COMPLETED, 'whatsApp')) return;
 
-  const dispatchers = getDispatchersForStore(store?.id, appUsers);
+  const storeUser = await getStoreUser(store);
+  if (!storeUser) return;
+
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
   const eta = buildETAString(delivery);
   const messageData = { driverName, patientName, eta };
 
-  for (const dispatcher of dispatchers) {
-    await sendNotification({
-      event: NOTIFICATION_EVENTS.DRIVER_COMPLETED,
-      messageData,
-      senderId: driver?.id,
-      senderName: driverName,
-      receiverId: dispatcher.user_id,
-      receiverName: dispatcher.user_name
-    });
-  }
+  // Message FROM store TO driver
+  await sendNotification({
+    event: NOTIFICATION_EVENTS.DRIVER_COMPLETED,
+    messageData,
+    senderId: storeUser.id,
+    senderName: storeUser.user_name,
+    receiverId: driver?.id,
+    receiverName: driverName
+  });
 }
 
 /**
  * 6. Driver marks delivery as failed
+ * Message FROM store TO driver
  */
 export async function notifyDriverFailed({
   driver,
@@ -329,25 +379,27 @@ export async function notifyDriverFailed({
   if (!shouldNotify(NOTIFICATION_EVENTS.DRIVER_FAILED, 'inApp') && 
       !shouldNotify(NOTIFICATION_EVENTS.DRIVER_FAILED, 'whatsApp')) return;
 
-  const dispatchers = getDispatchersForStore(store?.id, appUsers);
+  const storeUser = await getStoreUser(store);
+  if (!storeUser) return;
+
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
   const eta = buildETAString(delivery);
   const messageData = { driverName, patientName, eta };
 
-  for (const dispatcher of dispatchers) {
-    await sendNotification({
-      event: NOTIFICATION_EVENTS.DRIVER_FAILED,
-      messageData,
-      senderId: driver?.id,
-      senderName: driverName,
-      receiverId: dispatcher.user_id,
-      receiverName: dispatcher.user_name
-    });
-  }
+  // Message FROM store TO driver
+  await sendNotification({
+    event: NOTIFICATION_EVENTS.DRIVER_FAILED,
+    messageData,
+    senderId: storeUser.id,
+    senderName: storeUser.user_name,
+    receiverId: driver?.id,
+    receiverName: driverName
+  });
 }
 
 /**
  * 7. Driver retries delivery
+ * Message FROM store TO driver
  */
 export async function notifyDriverRetry({
   driver,
@@ -359,25 +411,27 @@ export async function notifyDriverRetry({
   if (!shouldNotify(NOTIFICATION_EVENTS.DRIVER_RETRY, 'inApp') && 
       !shouldNotify(NOTIFICATION_EVENTS.DRIVER_RETRY, 'whatsApp')) return;
 
-  const dispatchers = getDispatchersForStore(store?.id, appUsers);
+  const storeUser = await getStoreUser(store);
+  if (!storeUser) return;
+
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
   const eta = buildETAString(delivery);
   const messageData = { driverName, patientName, eta };
 
-  for (const dispatcher of dispatchers) {
-    await sendNotification({
-      event: NOTIFICATION_EVENTS.DRIVER_RETRY,
-      messageData,
-      senderId: driver?.id,
-      senderName: driverName,
-      receiverId: dispatcher.user_id,
-      receiverName: dispatcher.user_name
-    });
-  }
+  // Message FROM store TO driver
+  await sendNotification({
+    event: NOTIFICATION_EVENTS.DRIVER_RETRY,
+    messageData,
+    senderId: storeUser.id,
+    senderName: storeUser.user_name,
+    receiverId: driver?.id,
+    receiverName: driverName
+  });
 }
 
 /**
  * 8. Driver initiates return
+ * Message FROM store TO driver
  */
 export async function notifyDriverReturn({
   driver,
@@ -389,19 +443,20 @@ export async function notifyDriverReturn({
   if (!shouldNotify(NOTIFICATION_EVENTS.DRIVER_RETURN, 'inApp') && 
       !shouldNotify(NOTIFICATION_EVENTS.DRIVER_RETURN, 'whatsApp')) return;
 
-  const dispatchers = getDispatchersForStore(store?.id, appUsers);
+  const storeUser = await getStoreUser(store);
+  if (!storeUser) return;
+
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
   const eta = buildETAString(delivery);
   const messageData = { driverName, patientName, eta };
 
-  for (const dispatcher of dispatchers) {
-    await sendNotification({
-      event: NOTIFICATION_EVENTS.DRIVER_RETURN,
-      messageData,
-      senderId: driver?.id,
-      senderName: driverName,
-      receiverId: dispatcher.user_id,
-      receiverName: dispatcher.user_name
-    });
-  }
+  // Message FROM store TO driver
+  await sendNotification({
+    event: NOTIFICATION_EVENTS.DRIVER_RETURN,
+    messageData,
+    senderId: storeUser.id,
+    senderName: storeUser.user_name,
+    receiverId: driver?.id,
+    receiverName: driverName
+  });
 }
