@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
     const endOfYear = `${year}-12-31`;
     
     // Parallel fetch for efficiency - use service role for all data
-    const [monthDeliveries, yearDeliveries, allPatients, allCities, allStores, allAppUsers] = await Promise.all([
+    const [rawMonthDeliveries, rawYearDeliveries, allPatients, allCities, allStores, allAppUsers] = await Promise.all([
       base44.asServiceRole.entities.Delivery.filter({
         ...baseFilter,
         delivery_date: { $gte: startOfMonth, $lte: endOfMonthStr }
@@ -64,7 +64,10 @@ Deno.serve(async (req) => {
       base44.asServiceRole.entities.Store.list(),
       base44.asServiceRole.entities.AppUser.list()
     ]);
-    
+
+    const monthDeliveries = rawMonthDeliveries || [];
+    const yearDeliveries = rawYearDeliveries || [];
+
     // Filter today's deliveries from month data
     const todayDeliveries = monthDeliveries.filter(d => d.delivery_date === todayStr);
     
