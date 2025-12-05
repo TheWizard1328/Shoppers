@@ -95,9 +95,6 @@ Deno.serve(async (req) => {
     const endOfMonth = new Date(year, month, 0);
     const endOfMonthStr = endOfMonth.toISOString().split('T')[0];
     
-    const startOfYear = `${year}-01-01`;
-    const endOfYear = `${year}-12-31`;
-    
     const cacheDate = getCacheDateKey();
     
     // Cache keys based on filters
