@@ -2183,15 +2183,17 @@ export default function Layout({ children, currentPageName }) {
                           setIsFormOverlayOpen(true);
                         }}
                         onImportComplete={async () => {
-                          setShowPatientImport(false);
-                          setIsFormOverlayOpen(false);
-                          console.log('▶️ [Layout] Resuming smart refresh after patient import');
-                          // Background refresh - invalidate cache and fetch fresh data without full reload
-                          invalidate('Patient');
-                          const freshPatients = await getData('Patient', null, null, true);
-                          setPatients(freshPatients);
-                          console.log('✅ [Layout] Patient import complete - background refreshed', freshPatients.length, 'patients');
-                        }}
+                                                        setShowPatientImport(false);
+                                                        setIsFormOverlayOpen(false);
+                                                        console.log('▶️ [Layout] Resuming smart refresh after patient import');
+                                                        // Background refresh - invalidate cache and fetch fresh data without full reload
+                                                        invalidate('Patient');
+                                                        const freshPatients = await getData('Patient', null, null, true);
+                                                        setPatients(freshPatients);
+                                                        console.log('✅ [Layout] Patient import complete - background refreshed', freshPatients.length, 'patients');
+                                                        // Trigger stats refresh
+                                                        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+                                                      }}
                       />
                     )}
 
@@ -2240,20 +2242,22 @@ export default function Layout({ children, currentPageName }) {
                                     }
                                   }}
                                   onImportComplete={async () => {
-                                                                setShowDeliveryImport(false);
-                                                                setIsFormOverlayOpen(false);
-                                                                // Clean up global callback
-                                                                if (typeof window !== 'undefined') {
-                                                                  delete window.__routeImportStartCallback;
-                                                                }
-                                                                console.log('▶️ [Layout] Resuming smart refresh after route import');
-                                                                // Background refresh - invalidate cache and fetch fresh data without full reload
-                                                                console.log('🔄 [Layout] Route import complete - triggering full data refresh...');
-                                                                invalidate('Delivery');
-                                                                invalidate('Patient');
-                                                                await triggerFullDataLoad(true);
-                                                                console.log('✅ [Layout] Route import complete - full data refreshed');
-                                                              }}
+                                                                                                        setShowDeliveryImport(false);
+                                                                                                        setIsFormOverlayOpen(false);
+                                                                                                        // Clean up global callback
+                                                                                                        if (typeof window !== 'undefined') {
+                                                                                                          delete window.__routeImportStartCallback;
+                                                                                                        }
+                                                                                                        console.log('▶️ [Layout] Resuming smart refresh after route import');
+                                                                                                        // Background refresh - invalidate cache and fetch fresh data without full reload
+                                                                                                        console.log('🔄 [Layout] Route import complete - triggering full data refresh...');
+                                                                                                        invalidate('Delivery');
+                                                                                                        invalidate('Patient');
+                                                                                                        await triggerFullDataLoad(true);
+                                                                                                        console.log('✅ [Layout] Route import complete - full data refreshed');
+                                                                                                        // Trigger stats refresh
+                                                                                                        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+                                                                                                      }}
                         stores={stores}
                         allUsers={users}
                         currentUser={currentUser}
