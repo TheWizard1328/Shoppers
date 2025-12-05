@@ -60,12 +60,13 @@ class SmartRefreshManager {
   
   /**
    * Register a pending local update for a delivery
-   * This prevents smart refresh from overwriting it for 15 seconds (extended from 5s)
+   * This prevents smart refresh from overwriting it for 30 seconds
    * The longer window accounts for backend optimizer latency
    */
   registerPendingUpdate(deliveryId, driverId = null, deliveryDate = null) {
-    const expiresAt = Date.now() + 15000; // 15 second protection window
+    const expiresAt = Date.now() + 30000; // 30 second protection window (increased from 15s)
     this.pendingLocalUpdates.set(deliveryId, { expiresAt, driverId, deliveryDate });
+    console.log(`🔒 [SmartRefresh] Registered pending update for delivery ${deliveryId} (expires in 30s)`);
   }
   
   /**
@@ -104,7 +105,35 @@ class SmartRefreshManager {
         idsToRemove.push(id);
       }
     }
-    idsToRemove.forEach(id => this.pendingLocalUpdates.delete(id));
+    if (idsToRemove.length > 0) {
+      console.log(`🔓 [SmartRefresh] Clearing ${idsToRemove.length} pending updates for driver ${driverId} on ${deliveryDate}`);
+      idsToRemove.forEach(id => this.pendingLocalUpdates.delete(id));
+    }
+  }
+  
+  /**
+   * Clear a specific pending update by delivery ID
+   * Called when we confirm data is synchronized with backend
+   */
+  clearPendingUpdateById(deliveryId) {
+    if (this.pendingLocalUpdates.has(deliveryId)) {
+      console.log(`🔓 [SmartRefresh] Clearing pending update for delivery ${deliveryId}`);
+      this.pendingLocalUpdates.delete(deliveryId);
+    }
+  }
+  
+  /**
+   * Get count of pending updates (for debugging)
+   */
+  getPendingUpdateCount() {
+    // Clean up expired entries first
+    const now = Date.now();
+    for (const [id, entry] of this.pendingLocalUpdates.entries()) {
+      if (now > entry.expiresAt) {
+        this.pendingLocalUpdates.delete(id);
+      }
+    }
+    return this.pendingLocalUpdates.size;
   }
   
   setRateLimitCallback(callback) {
