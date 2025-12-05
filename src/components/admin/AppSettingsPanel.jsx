@@ -107,42 +107,57 @@ const IntervalSlider = ({ id, label, value, onChange, min, max, step, priority }
 
 export default function AppSettingsPanel() {
   const [intervals, setIntervals] = useState(DEFAULT_INTERVALS);
-  // Initialize from smartRefreshManager if already initialized, otherwise default to true
+  // CRITICAL: Always sync with smartRefreshManager's current state on mount
+  // The manager is the source of truth since it persists across tab switches
   const [smartRefreshEnabled, setSmartRefreshEnabled] = useState(() => {
-    if (smartRefreshManager._initialized) {
-      return smartRefreshManager._enabled;
-    }
-    return true;
+    // Always read from manager - it's already initialized by Layout
+    const currentValue = smartRefreshManager._enabled;
+    console.log(`⚙️ [AppSettingsPanel] Initial mount - reading from manager: _enabled=${currentValue}, _initialized=${smartRefreshManager._initialized}`);
+    return currentValue;
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [savedIntervals, setSavedIntervals] = useState(null);
-  const [savedSmartRefreshEnabled, setSavedSmartRefreshEnabled] = useState(true);
+  const [savedSmartRefreshEnabled, setSavedSmartRefreshEnabled] = useState(() => smartRefreshManager._enabled);
 
   // Load settings from database
   const loadSettings = useCallback(async () => {
     setIsLoading(true);
     try {
+      // CRITICAL: If smartRefreshManager is already initialized, use its values as source of truth
+      // This handles tab switching where the manager already has the correct state
+      if (smartRefreshManager._initialized) {
+        console.log(`⚙️ [AppSettingsPanel] Manager already initialized - using cached values: _enabled=${smartRefreshManager._enabled}`);
+        setSmartRefreshEnabled(smartRefreshManager._enabled);
+        setSavedSmartRefreshEnabled(smartRefreshManager._enabled);
+      }
+      
       const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
       if (settings && settings.length > 0 && settings[0].setting_value) {
         const loaded = { ...DEFAULT_INTERVALS, ...settings[0].setting_value };
         setIntervals(loaded);
         setSavedIntervals(loaded);
-        // Load smart refresh enabled state - check for explicit false
-        const enabled = settings[0].setting_value.smartRefreshEnabled !== false;
-        console.log(`⚙️ [AppSettingsPanel] Loaded smartRefreshEnabled from DB: ${settings[0].setting_value.smartRefreshEnabled} → ${enabled}`);
-        setSmartRefreshEnabled(enabled);
-        setSavedSmartRefreshEnabled(enabled);
-        // Sync with smartRefreshManager
-        smartRefreshManager._enabled = enabled;
-        smartRefreshManager._initialized = true;
+        
+        // Only update enabled state from DB if manager wasn't already initialized
+        // This prevents DB read from overwriting user's recent toggle changes
+        if (!smartRefreshManager._initialized) {
+          const enabled = settings[0].setting_value.smartRefreshEnabled !== false;
+          console.log(`⚙️ [AppSettingsPanel] Loaded smartRefreshEnabled from DB: ${settings[0].setting_value.smartRefreshEnabled} → ${enabled}`);
+          setSmartRefreshEnabled(enabled);
+          setSavedSmartRefreshEnabled(enabled);
+          // Sync with smartRefreshManager
+          smartRefreshManager._enabled = enabled;
+          smartRefreshManager._initialized = true;
+        }
       } else {
         console.log('⚙️ [AppSettingsPanel] No settings found, using defaults');
         setIntervals(DEFAULT_INTERVALS);
         setSavedIntervals(DEFAULT_INTERVALS);
-        setSmartRefreshEnabled(true);
-        setSavedSmartRefreshEnabled(true);
+        if (!smartRefreshManager._initialized) {
+          setSmartRefreshEnabled(true);
+          setSavedSmartRefreshEnabled(true);
+        }
       }
     } catch (error) {
       console.error('Failed to load app settings:', error);
