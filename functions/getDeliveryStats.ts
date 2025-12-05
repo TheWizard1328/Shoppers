@@ -70,14 +70,11 @@ Deno.serve(async (req) => {
     
     // Role-based filtering
     if (isAdmin) {
-      // Admins see all - use provided storeIds if any
+      // Admins see totals across all drivers - use provided storeIds if any
       if (storeIds && Array.isArray(storeIds) && storeIds.length > 0) {
         baseFilter.store_id = { $in: storeIds };
       }
-      // If specific driver selected, filter by driver
-      if (driverId && driverId !== 'all') {
-        baseFilter.driver_id = driverId;
-      }
+      // Admins always see totals - do NOT filter by driverId for stats
     } else if (isDispatcher && !isDriver) {
       // Dispatchers only see their assigned stores
       if (userStoreIds.length > 0) {
