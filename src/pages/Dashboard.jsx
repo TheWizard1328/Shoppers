@@ -291,7 +291,7 @@ function Dashboard() {
   const [useAIOptimization, setUseAIOptimization] = useState(true);
   const [isAIAnalyzing, setIsAIAnalyzing] = useState(false);
   const [driverRoutes, setDriverRoutes] = useState([]);
-  const [scrollToNextCardAfter, setScrollToNextCardAfter] = useState(null);
+
   const [dailyPolylineCount, setDailyPolylineCount] = useState(null);
   const [highlightedCardId, setHighlightedCardId] = useState(null);
   const [currentToNextPolyline, setCurrentToNextPolyline] = useState(null);
