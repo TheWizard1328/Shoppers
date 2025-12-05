@@ -65,9 +65,9 @@ Deno.serve(async (req) => {
       base44.asServiceRole.entities.AppUser.list()
     ]);
 
-    const monthDeliveries = rawMonthDeliveries || [];
-    const yearDeliveries = rawYearDeliveries || [];
-
+    const monthDeliveries = Array.isArray(rawMonthDeliveries) ? rawMonthDeliveries : [];
+    const yearDeliveries = Array.isArray(rawYearDeliveries) ? rawYearDeliveries : [];
+    
     // Filter today's deliveries from month data
     const todayDeliveries = monthDeliveries.filter(d => d.delivery_date === todayStr);
     
