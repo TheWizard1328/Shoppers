@@ -277,7 +277,38 @@ export default function AppSettingsPanel() {
             </div>
             <Switch
               checked={smartRefreshEnabled}
-              onCheckedChange={setSmartRefreshEnabled}
+              onCheckedChange={async (checked) => {
+                // Update local state
+                setSmartRefreshEnabled(checked);
+                
+                // CRITICAL: Immediately update smartRefreshManager
+                smartRefreshManager._enabled = checked;
+                smartRefreshManager._initialized = true;
+                console.log(`⚙️ [AppSettingsPanel] Toggle changed - immediately set _enabled=${checked}`);
+                
+                // CRITICAL: Immediately persist to database (don't wait for Save button)
+                try {
+                  const existing = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+                  const currentSettings = existing?.[0]?.setting_value || {};
+                  const updatedSettings = { ...currentSettings, smartRefreshEnabled: checked };
+                  
+                  if (existing && existing.length > 0) {
+                    await base44.entities.AppSettings.update(existing[0].id, {
+                      setting_value: updatedSettings
+                    });
+                  } else {
+                    await base44.entities.AppSettings.create({
+                      setting_key: 'refresh_intervals',
+                      setting_value: updatedSettings,
+                      description: 'Smart refresh interval settings'
+                    });
+                  }
+                  console.log(`✅ [AppSettingsPanel] Saved smartRefreshEnabled=${checked} to database`);
+                  setSavedSmartRefreshEnabled(checked);
+                } catch (error) {
+                  console.error('Failed to save smart refresh toggle:', error);
+                }
+              }}
             />
           </div>
           {!smartRefreshEnabled && (
