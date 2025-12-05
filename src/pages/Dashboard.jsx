@@ -4834,13 +4834,22 @@ function Dashboard() {
   };
 
   const handleStartDelivery = async (deliveryId) => {
-    console.log('🚀 [START] Button clicked - pausing background polling...');
+    console.log('');
+    console.log('═══════════════════════════════════════════════════');
+    console.log('🚀 [START] === BUTTON CLICKED - BEGIN PROCESS ===');
+    console.log('═══════════════════════════════════════════════════');
+    
     setIsEntityUpdating(true);
     await new Promise((resolve) => setTimeout(resolve, 100));
+    console.log('✅ [START STEP 0] Background polling paused');
 
     try {
+      // Find delivery in UI state
       const deliveryFromUI = deliveriesWithStopOrder.find((d) => d?.id === deliveryId);
-      if (!deliveryFromUI) throw new Error('Delivery not found in local state');
+      if (!deliveryFromUI) {
+        console.error('❌ [START ERROR] Delivery not found in local state');
+        throw new Error('Delivery not found in local state');
+      }
 
       const driverId = deliveryFromUI.driver_id;
       const deliveryDate = deliveryFromUI.delivery_date;
@@ -4848,25 +4857,38 @@ function Dashboard() {
       const newStatus = isPickup ? 'en_route' : 'in_transit';
       const currentTime = format(new Date(), 'HH:mm');
 
-      console.log('');
-      console.log('═══════════════════════════════════════════════════');
-      console.log('🚀 [START DELIVERY] Simplified Process');
-      console.log('═══════════════════════════════════════════════════');
-      console.log(`📦 Starting: ${deliveryFromUI.patient_name || 'Pickup'} (#${deliveryFromUI.stop_order})`);
+      console.log(`📦 [START STEP 1] Delivery identified:`);
+      console.log(`   - Name: ${deliveryFromUI.patient_name || 'Store Pickup'}`);
+      console.log(`   - Stop Order: #${deliveryFromUI.stop_order}`);
+      console.log(`   - Type: ${isPickup ? 'PICKUP' : 'DELIVERY'}`);
+      console.log(`   - Driver ID: ${driverId}`);
+      console.log(`   - Date: ${deliveryDate}`);
+      console.log(`   - New Status: ${newStatus}`);
+      console.log(`   - Current Time: ${currentTime}`);
 
-      // STEP 1: Update status and call backend optimizer
+      // STEP 2: Update database with new status
       console.log('');
-      console.log('📍 STEP 1: Updating status and calling backend optimizer');
+      console.log('📍 [START STEP 2] Updating delivery status in database...');
+      console.log(`   - Delivery ID: ${deliveryId}`);
+      console.log(`   - Status: ${newStatus}`);
+      console.log(`   - ETA: ${currentTime}`);
       
       await base44.entities.Delivery.update(deliveryId, {
         status: newStatus,
         delivery_time_eta: currentTime
       });
-      console.log(`✅ Updated status to ${newStatus}, ETA=${currentTime}`);
+      console.log(`✅ [START STEP 2] Database update successful`);
 
-      // STEP 2: Call backend optimizer (handles isNextDelivery, stop_order, ETAs)
+      // STEP 3: Call backend optimizer
       console.log('');
-      console.log('📍 STEP 2: Backend optimizer handles all route logic');
+      console.log('📍 [START STEP 3] Calling backend optimizer function...');
+      console.log(`   - Function: optimizeDriverRoute`);
+      console.log(`   - Driver ID: ${driverId}`);
+      console.log(`   - Delivery Date: ${deliveryDate}`);
+      console.log(`   - Started Delivery ID: ${deliveryId}`);
+      console.log(`   - Current Location: ${driverLocation ? `[${driverLocation.latitude}, ${driverLocation.longitude}]` : 'NONE'}`);
+      console.log(`   - Client Time: ${currentTime}`);
+      
       const optimizationResult = await optimizeDriverRoute({
         driverId: driverId,
         deliveryDate: deliveryDate,
@@ -4876,71 +4898,121 @@ function Dashboard() {
         } : null,
         startedDeliveryId: deliveryId,
         clientCurrentTime: currentTime,
-        generatePolyline: false, // Disabled to prevent errors
+        generatePolyline: false,
         forceReoptimization: true
       });
 
-      console.log('✅ Backend optimizer complete');
+      console.log('✅ [START STEP 3] Backend optimizer call complete');
+      console.log(`   - Response status: ${optimizationResult.status}`);
+      console.log(`   - Response data keys: ${Object.keys(optimizationResult.data || {}).join(', ')}`);
+      console.log(`   - allDeliveries count: ${optimizationResult.data?.allDeliveries?.length || 'N/A'}`);
+      console.log(`   - nextDelivery ID: ${optimizationResult.data?.nextDelivery?.id || 'N/A'}`);
 
-      // STEP 3: Apply backend updates to UI (immediate + full refresh)
+      // STEP 4: Apply backend updates to UI
       console.log('');
-      console.log('📍 STEP 3: Applying backend updates to UI');
+      console.log('📍 [START STEP 4] Applying backend updates to UI...');
       
-      // 3a: Immediate UI update with backend data
       if (optimizationResult.data?.allDeliveries && Array.isArray(optimizationResult.data.allDeliveries)) {
-        console.log(`🔄 Immediate UI update with ${optimizationResult.data.allDeliveries.length} deliveries from backend`);
+        console.log(`   - Received ${optimizationResult.data.allDeliveries.length} deliveries from backend`);
+        console.log(`   - Clearing pending updates for driver ${driverId} on ${deliveryDate}`);
         smartRefreshManager.clearPendingUpdatesForDriver(driverId, deliveryDate);
         
         const otherDriverDeliveries = (deliveries || []).filter((d) =>
           d && (d.driver_id !== driverId || d.delivery_date !== deliveryDate)
         );
+        console.log(`   - Keeping ${otherDriverDeliveries.length} deliveries from other drivers/dates`);
+        
         const mergedDeliveries = [...otherDriverDeliveries, ...optimizationResult.data.allDeliveries];
+        console.log(`   - Merged total: ${mergedDeliveries.length} deliveries`);
+        console.log(`   - Calling updateDeliveriesLocally...`);
+        
         updateDeliveriesLocally(mergedDeliveries);
-        console.log('✅ Immediate UI update applied');
+        console.log('✅ [START STEP 4] Immediate UI update applied');
+      } else {
+        console.warn('⚠️ [START STEP 4] No allDeliveries in backend response');
       }
       
-      // 3b: Force full data refresh to ensure consistency
-      console.log('🔄 Triggering full data refresh for consistency...');
-      invalidateDeliveriesForDate(deliveryDate);
-      await refreshData();
-      console.log('✅ Full data refresh complete');
-
-      // STEP 4: Scroll to next card
+      // STEP 5: Full data refresh
       console.log('');
-      console.log('📍 STEP 4: Scrolling to next delivery');
+      console.log('📍 [START STEP 5] Triggering full data refresh...');
+      console.log(`   - Invalidating deliveries cache for date: ${deliveryDate}`);
+      
+      invalidateDeliveriesForDate(deliveryDate);
+      console.log('   - Calling refreshData()...');
+      
+      await refreshData();
+      console.log('✅ [START STEP 5] Full data refresh complete');
+
+      // STEP 6: Scroll to next card
+      console.log('');
+      console.log('📍 [START STEP 6] Finding and scrolling to next delivery...');
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+      
       setTimeout(() => {
         const nextCard = optimizationResult.data?.allDeliveries?.find((d) =>
           d && d.isNextDelivery && !finishedStatuses.includes(d.status)
         );
+        
         if (nextCard) {
+          console.log(`   - Next card found: ${nextCard.patient_name || 'Pickup'} (ID: ${nextCard.id})`);
           const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
+          
           if (cardElement) {
             cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-            console.log('✅ Centered on next delivery');
+            console.log('✅ [START STEP 6] Scrolled to next delivery card');
+          } else {
+            console.warn('⚠️ [START STEP 6] Card element not found in DOM');
           }
+        } else {
+          console.log('ℹ️ [START STEP 6] No next card found (route may be complete)');
         }
       }, 300);
 
-      // Re-trigger map view for Phase 2
+      // STEP 7: Update map view if needed
+      console.log('');
+      console.log('📍 [START STEP 7] Checking map view update...');
+      console.log(`   - Map phase: ${mapViewPhase}`);
+      console.log(`   - Map locked: ${isMapViewLocked}`);
+      
       if (mapViewPhase === 2 && isMapViewLocked) {
+        console.log('   - Triggering map view update for Phase 2');
         setMapViewTrigger((prev) => prev + 1);
+        console.log('✅ [START STEP 7] Map view updated');
+      } else {
+        console.log('   - No map update needed');
       }
 
-      // Show route summary if complete
+      // STEP 8: Check if route is complete
+      console.log('');
+      console.log('📍 [START STEP 8] Checking if route is complete...');
+      console.log(`   - routeComplete flag: ${optimizationResult.data?.routeComplete}`);
+      
       if (optimizationResult.data?.routeComplete) {
         if (!hasShownSummaryRef.current) {
+          console.log('   - Route complete! Showing summary modal');
           setShowRouteSummary(true);
           hasShownSummaryRef.current = true;
+        } else {
+          console.log('   - Summary already shown, skipping');
         }
       }
 
       console.log('');
-      console.log('✅ [START DELIVERY] Complete');
+      console.log('✅ [START] === PROCESS COMPLETE - SUCCESS ===');
       console.log('═══════════════════════════════════════════════════');
+      console.log('');
 
     } catch (error) {
-      console.error('❌ [START] Failed:', error.message);
+      console.log('');
+      console.log('❌❌❌ [START] === ERROR OCCURRED ===');
+      console.error('Error type:', error.constructor.name);
+      console.error('Error message:', error.message);
+      console.error('Error response:', error.response);
+      console.error('Error status:', error.response?.status);
+      console.error('Full error:', error);
+      console.error('Stack trace:', error.stack);
+      console.log('═══════════════════════════════════════════════════');
+      console.log('');
 
       if (error.response?.status === 401 || error.message?.includes('Unauthorized') || error.message?.includes('session')) {
         alert('Your session has expired. The page will now reload.');
@@ -4950,8 +5022,10 @@ function Dashboard() {
 
       alert(`Failed to start delivery: ${error.message}`);
     } finally {
+      console.log('📍 [START CLEANUP] Resuming background polling...');
       setIsEntityUpdating(false);
       await new Promise((resolve) => setTimeout(resolve, 100));
+      console.log('✅ [START CLEANUP] Complete');
     }
   };
 

@@ -168,24 +168,19 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
                 const driverId = userHasRole(currentUser, 'driver') ? currentUser.id : 
                                  globalFilters.getSelectedDriverId();
 
-                console.log('📊 [QuickStats] Fetching stats...', { selectedDateStr, driverId, storeIds });
                 const response = await base44.functions.invoke('getDeliveryStats', {
                   selectedDate: selectedDateStr,
                   driverId: driverId !== 'all' ? driverId : null,
                   storeIds: storeIds.length > 0 ? storeIds : null
                 });
-                console.log('📊 [QuickStats] Response:', response);
 
-                // Handle both response.data (axios-style) and direct response
                 const data = response?.data || response;
                 if (data && data.today) {
                   setStats(data);
                 } else {
-                  console.warn('Invalid stats response:', response);
                   setHasError(true);
                 }
               } catch (error) {
-                console.error('Error fetching delivery stats:', error);
                 setHasError(true);
               } finally {
                 setIsLoading(false);
@@ -193,11 +188,7 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
             };
 
             // Listen for manual refresh requests (e.g., after imports)
-            const handleRefreshStats = () => {
-              console.log('📊 [QuickStats] Manual refresh triggered');
-              fetchStats();
-            };
-            window.addEventListener('refreshDeliveryStats', handleRefreshStats);
+            window.addEventListener('refreshDeliveryStats', fetchStats);
 
             // Delay initial fetch slightly to avoid competing with layout init
             console.log('🔄 [QuickStats] Scheduling stats fetch for date:', selectedDateStr);
@@ -207,7 +198,7 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
             return () => {
               clearTimeout(initialTimer);
               clearInterval(interval);
-              window.removeEventListener('refreshDeliveryStats', handleRefreshStats);
+              window.removeEventListener('refreshDeliveryStats', fetchStats);
             };
           }, [currentUser, selectedDateStr, storeIds]);
 
@@ -1235,13 +1226,6 @@ export default function Layout({ children, currentPageName }) {
         return;
       }
 
-      console.log('📍 [Pull-to-Refresh] Invoking optimizeDriverRoute with current location:', {
-        lat: driverAppUser.current_latitude,
-        lon: driverAppUser.current_longitude
-      });
-
-      // Invoke backend optimizer with driver's current GPS location
-      // The backend will use the 500m threshold logic to determine the polyline origin
       await base44.functions.invoke('optimizeDriverRoute', {
         driverId: driverId,
         deliveryDate: deliveryDate,
@@ -1251,10 +1235,8 @@ export default function Layout({ children, currentPageName }) {
           longitude: driverAppUser.current_longitude
         }
       });
-
-      console.log('✅ [Pull-to-Refresh] Polyline updated via optimizeDriverRoute');
     } catch (error) {
-      console.error('❌ [Pull-to-Refresh] Polyline update error:', error);
+      // Silent fail
     }
   };
 
