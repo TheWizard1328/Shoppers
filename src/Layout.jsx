@@ -1655,17 +1655,22 @@ export default function Layout({ children, currentPageName }) {
           storeIds: storeIds.length > 0 ? storeIds : null
         });
 
-        // DEBUG: Log the response structure
-        console.log('📊 [NavStats] Response:', JSON.stringify(response, null, 2));
-
         // Handle both response.data (axios-style) and direct response
         const data = response?.data || response;
         
-        if (data?.routeCounts) {
-          setRouteCounts(data.routeCounts);
+        console.log('📊 [NavStats] Parsed data:', data);
+        
+        // FIXED: Map the backend response structure correctly
+        if (data?.deliveries && data?.drivers) {
+          setRouteCounts({
+            monthly: data.deliveries.monthly,
+            yearly: data.deliveries.yearly
+          });
+          console.log('✅ [NavStats] Route counts updated:', { monthly: data.deliveries.monthly, yearly: data.deliveries.yearly });
         }
         if (data?.entityCounts) {
           setEntityCounts(data.entityCounts);
+          console.log('✅ [NavStats] Entity counts updated:', data.entityCounts);
         }
       } catch (error) {
         console.error('❌ [NavStats] Error:', error.message);
