@@ -5734,27 +5734,6 @@ function Dashboard() {
               invalidate('Delivery');
               await refreshData();
 
-              // STEP 4: Auto-center on next delivery card
-              if (options.autoCenterNext) {
-                console.log('🏗️ STEP 4: Auto-centering on next delivery');
-                setTimeout(() => {
-                  // Find the isNextDelivery card
-                  const allCards = document.querySelectorAll('[id^="stop-card-"]');
-                  for (const card of allCards) {
-                    const cardId = card.id.replace('stop-card-', '');
-                    // After refresh, check the fresh deliveries
-                    const nextDeliveryCard = deliveriesWithStopOrder.find((d) =>
-                    d && d.id === cardId && d.isNextDelivery
-                    );
-                    if (nextDeliveryCard) {
-                      card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                      console.log(`✅ Auto-centered on next delivery: ${nextDeliveryCard.patient_name || 'Pickup'}`);
-                      break;
-                    }
-                  }
-                }, 500);
-              }
-
               console.log('✅ [AI Route Planner] Route updated successfully');
             } catch (error) {
               console.error('❌ [AI Route Planner] Error:', error);
