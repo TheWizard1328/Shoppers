@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
     const startOfYear = `${year}-01-01`;
     const endOfYear = `${year}-12-31`;
     
-    const now = Date.now();
+    const cacheDate = getCacheDateKey();
     
     // Cache keys based on filters
     const yearlyKey = `${year}_${JSON.stringify(baseFilter)}`;
@@ -86,20 +86,20 @@ Deno.serve(async (req) => {
     let rawMonthDeliveries = null;
     let entityCounts = null;
     
-    // Yearly deliveries - use cache if valid
-    if (statsCache.yearly.key === yearlyKey && (now - statsCache.yearly.timestamp) < YEARLY_CACHE_TTL) {
+    // Yearly deliveries - use cache if valid (same day + same filters)
+    if (statsCache.yearly.key === yearlyKey && statsCache.yearly.cacheDate === cacheDate) {
       console.log('📊 [getDeliveryStats] Using CACHED yearly stats');
       rawYearDeliveries = statsCache.yearly.data;
     }
     
-    // Monthly deliveries - use cache if valid
-    if (statsCache.monthly.key === monthlyKey && (now - statsCache.monthly.timestamp) < MONTHLY_CACHE_TTL) {
+    // Monthly deliveries - use cache if valid (same day + same filters)
+    if (statsCache.monthly.key === monthlyKey && statsCache.monthly.cacheDate === cacheDate) {
       console.log('📊 [getDeliveryStats] Using CACHED monthly stats');
       rawMonthDeliveries = statsCache.monthly.data;
     }
     
-    // Entity counts - use cache if valid
-    if (statsCache.entityCounts.data && (now - statsCache.entityCounts.timestamp) < ENTITY_CACHE_TTL) {
+    // Entity counts - use cache if valid (same day)
+    if (statsCache.entityCounts.data && statsCache.entityCounts.cacheDate === cacheDate) {
       console.log('📊 [getDeliveryStats] Using CACHED entity counts');
       entityCounts = statsCache.entityCounts.data;
     }
