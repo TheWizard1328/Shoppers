@@ -37,6 +37,7 @@ import {
 "../utils/deliveryMessaging";
 import { triggerRouteOptimization } from "../utils/realTimeRouteOptimizer";
 import { toast } from "sonner";
+import { smartRefreshManager } from "../utils/smartRefreshManager";
 
 // Global statusConfig
 const statusConfig = {
@@ -748,6 +749,9 @@ export default function StopCard({
 
                         console.log('⏸️ [STATUS MENU] Pausing smart refresh...');
                         setIsEntityUpdating(true);
+                        
+                        // CRITICAL: Register pending update IMMEDIATELY to protect from smart refresh
+                        smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
 
                         await new Promise((resolve) => setTimeout(resolve, 100));
                         console.log('✅ [STATUS MENU] Smart refresh paused');
@@ -1497,6 +1501,9 @@ export default function StopCard({
                         setIsRetrying(true);
                         console.log('⏸️ [RETRY] Pausing smart refresh...');
                         setIsEntityUpdating(true);
+                        
+                        // CRITICAL: Register pending update IMMEDIATELY
+                        smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
 
                         await new Promise((resolve) => setTimeout(resolve, 100));
                         console.log('✅ [RETRY] Smart refresh paused');
@@ -1542,6 +1549,9 @@ export default function StopCard({
                         setIsCompleting(true);
                         console.log('⏸️ [COMPLETE] Pausing smart refresh...');
                         setIsEntityUpdating(true);
+                        
+                        // CRITICAL: Register pending update IMMEDIATELY
+                        smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
 
                         await new Promise((resolve) => setTimeout(resolve, 100));
                         console.log('✅ [COMPLETE] Smart refresh paused');
@@ -1646,6 +1656,9 @@ export default function StopCard({
                       setIsStarting(true);
                       console.log('⏸️ [START] Pausing smart refresh...');
                       setIsEntityUpdating(true);
+                      
+                      // CRITICAL: Register pending update IMMEDIATELY
+                      smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
 
                       await new Promise((resolve) => setTimeout(resolve, 100));
                       console.log('✅ [START] Smart refresh paused');
