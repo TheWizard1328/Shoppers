@@ -2155,10 +2155,36 @@ function Dashboard() {
         updateDeliveriesLocally(mergedDeliveries);
       }
       
-      // CRITICAL: Trigger map FAB to reposition after data loads
+      // CRITICAL: Lock FAB and trigger map view after data loads
       setTimeout(() => {
-        console.log('🗺️ [Dashboard] Triggering FAB map view after date change');
+        console.log('🗺️ [Dashboard] Locking FAB and triggering map view after date change');
+        
+        // Clear existing timers
+        if (mapLockTimeoutRef.current) {
+          clearTimeout(mapLockTimeoutRef.current);
+          mapLockTimeoutRef.current = null;
+        }
+        mapLockExpiresAtRef.current = null;
+        
+        // Lock FAB and trigger map view
+        setIsMapViewLocked(true);
         setMapViewTrigger(prev => prev + 1);
+        
+        // Set up timer based on current phase
+        if (mapViewPhase === 1 || mapViewPhase === 3) {
+          const lockDuration = 3000;
+          const expiresAt = Date.now() + lockDuration;
+          mapLockExpiresAtRef.current = expiresAt;
+          
+          mapLockTimeoutRef.current = window.setTimeout(() => {
+            if (mapLockExpiresAtRef.current === expiresAt) {
+              console.log(`⚫ [Date Change] Phase ${mapViewPhase} auto-unlocking after ${lockDuration}ms`);
+              setIsMapViewLocked(false);
+              mapLockExpiresAtRef.current = null;
+              mapLockTimeoutRef.current = null;
+            }
+          }, lockDuration);
+        }
       }, 300);
     } catch (error) {
       console.error('❌ [Dashboard] Instant refresh failed:', error);
@@ -2212,10 +2238,36 @@ function Dashboard() {
         updateDeliveriesLocally(mergedDeliveries);
       }
       
-      // CRITICAL: Trigger map FAB to reposition after data loads
+      // CRITICAL: Lock FAB and trigger map view after data loads
       setTimeout(() => {
-        console.log('🗺️ [Dashboard] Triggering FAB map view after driver change');
+        console.log('🗺️ [Dashboard] Locking FAB and triggering map view after driver change');
+        
+        // Clear existing timers
+        if (mapLockTimeoutRef.current) {
+          clearTimeout(mapLockTimeoutRef.current);
+          mapLockTimeoutRef.current = null;
+        }
+        mapLockExpiresAtRef.current = null;
+        
+        // Lock FAB and trigger map view
+        setIsMapViewLocked(true);
         setMapViewTrigger(prev => prev + 1);
+        
+        // Set up timer based on current phase
+        if (mapViewPhase === 1 || mapViewPhase === 3) {
+          const lockDuration = 3000;
+          const expiresAt = Date.now() + lockDuration;
+          mapLockExpiresAtRef.current = expiresAt;
+          
+          mapLockTimeoutRef.current = window.setTimeout(() => {
+            if (mapLockExpiresAtRef.current === expiresAt) {
+              console.log(`⚫ [Driver Change] Phase ${mapViewPhase} auto-unlocking after ${lockDuration}ms`);
+              setIsMapViewLocked(false);
+              mapLockExpiresAtRef.current = null;
+              mapLockTimeoutRef.current = null;
+            }
+          }, lockDuration);
+        }
       }, 300);
     } catch (error) {
       console.error('❌ [Dashboard] Instant refresh failed:', error);
