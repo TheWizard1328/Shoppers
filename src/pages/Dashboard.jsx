@@ -2154,6 +2154,12 @@ function Dashboard() {
         const mergedDeliveries = [...otherDateDeliveries, ...freshDeliveries];
         updateDeliveriesLocally(mergedDeliveries);
       }
+      
+      // CRITICAL: Trigger map FAB to reposition after data loads
+      setTimeout(() => {
+        console.log('🗺️ [Dashboard] Triggering FAB map view after date change');
+        setMapViewTrigger(prev => prev + 1);
+      }, 300);
     } catch (error) {
       console.error('❌ [Dashboard] Instant refresh failed:', error);
     } finally {
@@ -2174,35 +2180,47 @@ function Dashboard() {
     }
 
     // CRITICAL: Instant refresh when driver changes
-    if (driverId && driverId !== 'all') {
-      console.log('🔄 [Dashboard] Driver changed - triggering instant refresh for driver', driverId);
-      setIsEntityUpdating(true);
+    console.log('🔄 [Dashboard] Driver changed - triggering instant refresh');
+    setIsEntityUpdating(true);
+    
+    try {
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
       
-      try {
-        const dateStr = format(selectedDate, 'yyyy-MM-dd');
-        const freshDeliveries = await base44.entities.Delivery.filter({
+      let freshDeliveries;
+      if (driverId && driverId !== 'all') {
+        freshDeliveries = await base44.entities.Delivery.filter({
           driver_id: driverId,
           delivery_date: dateStr
         });
-        
-        console.log(`✅ [Dashboard] Instant refresh: loaded ${freshDeliveries.length} deliveries for driver on ${dateStr}`);
-        
-        // Clear pending updates for this driver
         smartRefreshManager.clearPendingUpdatesForDriver(driverId, dateStr);
-        
-        // Update context with fresh deliveries
-        if (updateDeliveriesLocally) {
-          const otherDeliveries = deliveries.filter(d => 
-            d && (d.driver_id !== driverId || d.delivery_date !== dateStr)
-          );
-          const mergedDeliveries = [...otherDeliveries, ...freshDeliveries];
-          updateDeliveriesLocally(mergedDeliveries);
-        }
-      } catch (error) {
-        console.error('❌ [Dashboard] Instant refresh failed:', error);
-      } finally {
-        setIsEntityUpdating(false);
+      } else {
+        // For "all drivers", fetch all deliveries for the date
+        freshDeliveries = await base44.entities.Delivery.filter({
+          delivery_date: dateStr
+        });
+        smartRefreshManager.clearPendingUpdates();
       }
+      
+      console.log(`✅ [Dashboard] Instant refresh: loaded ${freshDeliveries.length} deliveries for ${dateStr}`);
+      
+      // Update context with fresh deliveries
+      if (updateDeliveriesLocally) {
+        const otherDeliveries = deliveries.filter(d => 
+          d && d.delivery_date !== dateStr
+        );
+        const mergedDeliveries = [...otherDeliveries, ...freshDeliveries];
+        updateDeliveriesLocally(mergedDeliveries);
+      }
+      
+      // CRITICAL: Trigger map FAB to reposition after data loads
+      setTimeout(() => {
+        console.log('🗺️ [Dashboard] Triggering FAB map view after driver change');
+        setMapViewTrigger(prev => prev + 1);
+      }, 300);
+    } catch (error) {
+      console.error('❌ [Dashboard] Instant refresh failed:', error);
+    } finally {
+      setIsEntityUpdating(false);
     }
   };
 
