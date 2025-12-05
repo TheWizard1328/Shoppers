@@ -107,7 +107,13 @@ const IntervalSlider = ({ id, label, value, onChange, min, max, step, priority }
 
 export default function AppSettingsPanel() {
   const [intervals, setIntervals] = useState(DEFAULT_INTERVALS);
-  const [smartRefreshEnabled, setSmartRefreshEnabled] = useState(true);
+  // Initialize from smartRefreshManager if already initialized, otherwise default to true
+  const [smartRefreshEnabled, setSmartRefreshEnabled] = useState(() => {
+    if (smartRefreshManager._initialized) {
+      return smartRefreshManager._enabled;
+    }
+    return true;
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
