@@ -505,10 +505,12 @@ export default function Layout({ children, currentPageName }) {
       console.log('⚙️ [Layout] Step 2.1c: Loading app settings...');
       try {
         const smartRefreshEnabled = await smartRefreshManager.initializeFromSettings();
-        console.log(`⚙️ [Layout] Smart refresh initialized: ${smartRefreshEnabled ? 'ENABLED' : 'DISABLED'}`);
+        console.log(`⚙️ [Layout] Smart refresh initialized: ${smartRefreshEnabled ? 'ENABLED' : 'DISABLED'} (_enabled=${smartRefreshManager._enabled}, _initialized=${smartRefreshManager._initialized})`);
       } catch (appSettingsError) {
         console.warn('⚠️ [Layout] Error loading app settings:', appSettingsError);
         // Default to enabled on error
+        smartRefreshManager._enabled = true;
+        smartRefreshManager._initialized = true;
       }
 
         console.log('🔐 [Layout] Step 2.2: Checking access permissions...');
