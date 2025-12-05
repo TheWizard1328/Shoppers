@@ -1018,23 +1018,19 @@ Deno.serve(async (req) => {
     console.log('📋 Final route to save to DB:');
     console.log(`   Total stops: ${finalRoute.length} (${sortedCompleted.length} completed + ${optimizedRoute.length} incomplete)`);
     
-    const updates = [];
-    
-    // CRITICAL: Add delay between updates to prevent rate limiting
-    const DELAY_BETWEEN_UPDATES = 150; // 150ms between each update
+    // CRITICAL: Build batch update array - update ALL deliveries at once to avoid rate limits
+    const batchUpdates = [];
     
     for (let i = 0; i < finalRoute.length; i++) {
       const stop = finalRoute[i];
       if (!stop) continue;
       
       const newStopOrder = i + 1;
-      // CRITICAL: Only set isNextDelivery=true for the ONE stop that matches nextDeliveryId
-      // All other stops MUST be explicitly set to false
       const isNextStop = nextDeliveryId !== null && stop.id === nextDeliveryId;
       
       const updatePayload = {
         stop_order: newStopOrder,
-        isNextDelivery: isNextStop // Explicitly set for EVERY delivery
+        isNextDelivery: isNextStop
       };
       
       // Only update ETAs for incomplete deliveries
@@ -1042,36 +1038,38 @@ Deno.serve(async (req) => {
         updatePayload.delivery_time_eta = stop.estimated_arrival || stop.delivery_time_start;
       }
       
-      console.log(`   💾 Saving #${newStopOrder}: ${stop.patient_name || stores.find(s => s?.id === stop.store_id)?.name + ' Pickup' || 'Unknown'}`);
+      batchUpdates.push({
+        id: stop.id,
+        data: updatePayload
+      });
+      
+      console.log(`   📋 Prepared #${newStopOrder}: ${stop.patient_name || stores.find(s => s?.id === stop.store_id)?.name + ' Pickup' || 'Unknown'}`);
       console.log(`      • stop_order: ${newStopOrder}`);
       console.log(`      • isNextDelivery: ${isNextStop}`);
       console.log(`      • ETA: ${updatePayload.delivery_time_eta || 'N/A'}`);
-      
-      try {
-        await base44.asServiceRole.entities.Delivery.update(stop.id, updatePayload);
-        
-        // Add delay after each update to prevent rate limiting
-        if (i < finalRoute.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_UPDATES));
-        }
-        
-        updates.push({
-          id: stop.id,
-          stop_order: newStopOrder,
-          isNextDelivery: isNextStop,
-          eta: updatePayload.delivery_time_eta
-        });
-        
-        const stopName = stop.patient_id
-          ? patients.find(p => p?.id === stop.patient_id)?.full_name
-          : stores.find(s => s?.id === stop.store_id)?.name + ' Pickup';
-        
-        console.log(`   ✅ Saved #${newStopOrder}: ${stopName}${isNextStop ? ' ← NEXT DELIVERY' : ''}`);
-      } catch (updateError) {
-        console.error(`   ❌ Failed to save #${newStopOrder}:`, updateError.message);
-        throw updateError; // Re-throw to trigger main error handler
-      }
     }
+    
+    console.log(`\n💾 Performing batch update of ${batchUpdates.length} deliveries...`);
+    
+    // Execute all updates in parallel using Promise.all
+    try {
+      await Promise.all(
+        batchUpdates.map(({ id, data }) => 
+          base44.asServiceRole.entities.Delivery.update(id, data)
+        )
+      );
+      console.log(`✅ Batch update complete - saved ${batchUpdates.length} deliveries`);
+    } catch (batchError) {
+      console.error(`❌ Batch update failed:`, batchError.message);
+      throw batchError;
+    }
+    
+    const updates = batchUpdates.map(({ id, data }) => ({
+      id,
+      stop_order: data.stop_order,
+      isNextDelivery: data.isNextDelivery,
+      eta: data.delivery_time_eta
+    }));
     
     console.log(`✅ Database updated: ${updates.length} deliveries saved`);
     
