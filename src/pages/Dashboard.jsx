@@ -4734,7 +4734,6 @@ function Dashboard() {
       await refreshData();
 
       if (!skipAutoCenter) {
-        setScrollToNextCardAfter(deliveryId);
         hasAutoSelectedRef.current = false;
       }
 
