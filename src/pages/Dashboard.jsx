@@ -2121,7 +2121,7 @@ function Dashboard() {
     }
   }, [selectedDriverId]); // Add selectedDriverId as dependency
 
-  const handleDateChange = (date) => {
+  const handleDateChange = async (date) => {
     setSelectedDate(date);
     globalFilters.setSelectedDate(date);
     setIsCalendarOpen(false);
@@ -2133,11 +2133,35 @@ function Dashboard() {
       saveSetting(currentUser.id, 'selected_date', dateStr);
     }
 
-    // NOTE: Map repositioning is handled by the useEffect that watches deliveriesWithStopOrder
-    // This ensures the map only repositions AFTER the new date's data has loaded
+    // CRITICAL: Instant refresh when date changes
+    console.log('🔄 [Dashboard] Date changed - triggering instant refresh');
+    setIsEntityUpdating(true);
+    
+    try {
+      const dateStr = format(date, 'yyyy-MM-dd');
+      const freshDeliveries = await base44.entities.Delivery.filter({
+        delivery_date: dateStr
+      });
+      
+      console.log(`✅ [Dashboard] Instant refresh: loaded ${freshDeliveries.length} deliveries for ${dateStr}`);
+      
+      // Clear pending updates for new date
+      smartRefreshManager.clearPendingUpdates();
+      
+      // Update context with fresh deliveries
+      if (updateDeliveriesLocally) {
+        const otherDateDeliveries = deliveries.filter(d => d && d.delivery_date !== dateStr);
+        const mergedDeliveries = [...otherDateDeliveries, ...freshDeliveries];
+        updateDeliveriesLocally(mergedDeliveries);
+      }
+    } catch (error) {
+      console.error('❌ [Dashboard] Instant refresh failed:', error);
+    } finally {
+      setIsEntityUpdating(false);
+    }
   };
 
-  const handleDriverChange = (driverId) => {
+  const handleDriverChange = async (driverId) => {
     console.log('👤 [Dashboard] Driver changed to:', driverId);
     setSelectedDriverId(driverId);
     globalFilters.setSelectedDriverId(driverId);
@@ -2149,8 +2173,37 @@ function Dashboard() {
       saveSetting(currentUser.id, 'selected_driver_id', driverId);
     }
 
-    // NOTE: Map repositioning is handled by the useEffect that watches deliveriesWithStopOrder
-    // This ensures the map only repositions AFTER the new driver's data has loaded
+    // CRITICAL: Instant refresh when driver changes
+    if (driverId && driverId !== 'all') {
+      console.log('🔄 [Dashboard] Driver changed - triggering instant refresh for driver', driverId);
+      setIsEntityUpdating(true);
+      
+      try {
+        const dateStr = format(selectedDate, 'yyyy-MM-dd');
+        const freshDeliveries = await base44.entities.Delivery.filter({
+          driver_id: driverId,
+          delivery_date: dateStr
+        });
+        
+        console.log(`✅ [Dashboard] Instant refresh: loaded ${freshDeliveries.length} deliveries for driver on ${dateStr}`);
+        
+        // Clear pending updates for this driver
+        smartRefreshManager.clearPendingUpdatesForDriver(driverId, dateStr);
+        
+        // Update context with fresh deliveries
+        if (updateDeliveriesLocally) {
+          const otherDeliveries = deliveries.filter(d => 
+            d && (d.driver_id !== driverId || d.delivery_date !== dateStr)
+          );
+          const mergedDeliveries = [...otherDeliveries, ...freshDeliveries];
+          updateDeliveriesLocally(mergedDeliveries);
+        }
+      } catch (error) {
+        console.error('❌ [Dashboard] Instant refresh failed:', error);
+      } finally {
+        setIsEntityUpdating(false);
+      }
+    }
   };
 
   const handleAIToggle = () => {
