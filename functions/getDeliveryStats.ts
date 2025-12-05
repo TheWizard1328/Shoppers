@@ -65,15 +65,31 @@ Deno.serve(async (req) => {
     const month = dateObj.getMonth() + 1; // 1-12
     const todayStr = selectedDate || dateObj.toISOString().split('T')[0];
     
-    // Build filter for deliveries
+    // Build filter for deliveries based on user role
     const baseFilter = {};
-    if (storeIds && Array.isArray(storeIds) && storeIds.length > 0) {
-      baseFilter.store_id = { $in: storeIds };
-    }
     
-    // If specific driver selected, filter by driver
-    if (driverId && driverId !== 'all') {
-      baseFilter.driver_id = driverId;
+    // Role-based filtering
+    if (isAdmin) {
+      // Admins see all - use provided storeIds if any
+      if (storeIds && Array.isArray(storeIds) && storeIds.length > 0) {
+        baseFilter.store_id = { $in: storeIds };
+      }
+      // If specific driver selected, filter by driver
+      if (driverId && driverId !== 'all') {
+        baseFilter.driver_id = driverId;
+      }
+    } else if (isDispatcher && !isDriver) {
+      // Dispatchers only see their assigned stores
+      if (userStoreIds.length > 0) {
+        baseFilter.store_id = { $in: userStoreIds };
+      }
+      // If specific driver selected, filter by driver
+      if (driverId && driverId !== 'all') {
+        baseFilter.driver_id = driverId;
+      }
+    } else if (isDriver) {
+      // Drivers only see their own deliveries
+      baseFilter.driver_id = user.id;
     }
     
     console.log('📊 [getDeliveryStats] Fetching stats for:', { todayStr, year, month, storeIds: storeIds?.length || 0, driverId });
