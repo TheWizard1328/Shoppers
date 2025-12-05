@@ -317,7 +317,8 @@ Deno.serve(async (req) => {
     const yearlyTotalDriverRoutes = Object.values(yearlyDriverDeliveriesByDay)
       .reduce((sum, driversSet) => sum + driversSet.size, 0);
     
-    return Response.json({
+    // Build response based on user role
+    const response = {
       today: todayStats,
       month: monthStats,
       deliveries: {
@@ -326,9 +327,20 @@ Deno.serve(async (req) => {
       },
       drivers: {
         yearlyTotalDriverRoutes: yearlyTotalDriverRoutes
-      },
-      entityCounts: entityCounts
-    });
+      }
+    };
+    
+    // Only include entityCounts for roles that should see them
+    if (isAdmin) {
+      // Admins see all entity counts
+      response.entityCounts = entityCounts;
+    } else if (isDispatcher && !isDriver) {
+      // Dispatchers only see patient count
+      response.entityCounts = entityCounts ? { patients: entityCounts.patients } : null;
+    }
+    // Drivers don't get entityCounts at all
+    
+    return Response.json(response);
   } catch (error) {
     console.error('Error in getDeliveryStats:', error);
     return Response.json({ error: error.message }, { status: 500 });
