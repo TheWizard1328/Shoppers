@@ -142,10 +142,10 @@ Deno.serve(async (req) => {
       for (const key of fetchKeys) {
         if (key === 'month') {
           rawMonthDeliveries = results[resultIdx++];
-          statsCache.monthly = { data: rawMonthDeliveries, timestamp: now, key: monthlyKey };
+          statsCache.monthly = { data: rawMonthDeliveries, cacheDate, key: monthlyKey };
         } else if (key === 'year') {
           rawYearDeliveries = results[resultIdx++];
-          statsCache.yearly = { data: rawYearDeliveries, timestamp: now, key: yearlyKey };
+          statsCache.yearly = { data: rawYearDeliveries, cacheDate, key: yearlyKey };
         } else if (key === 'patients') {
           const allPatients = results[resultIdx++];
           const allCities = results[resultIdx++];
@@ -157,7 +157,7 @@ Deno.serve(async (req) => {
             stores: allStores.length,
             users: allAppUsers.length
           };
-          statsCache.entityCounts = { data: entityCounts, timestamp: now };
+          statsCache.entityCounts = { data: entityCounts, cacheDate };
         }
       }
     } else {
