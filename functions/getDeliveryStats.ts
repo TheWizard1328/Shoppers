@@ -2,15 +2,29 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
 // In-memory cache for expensive stats (survives across requests in the same Deno isolate)
 const statsCache = {
-  yearly: { data: null, timestamp: 0, key: '' },
-  monthly: { data: null, timestamp: 0, key: '' },
-  entityCounts: { data: null, timestamp: 0 }
+  yearly: { data: null, cacheDate: '', key: '' },
+  monthly: { data: null, cacheDate: '', key: '' },
+  entityCounts: { data: null, cacheDate: '' }
 };
 
-// Cache durations
-const YEARLY_CACHE_TTL = 24 * 60 * 60 * 1000;  // 24 hours for yearly stats (updates daily)
-const MONTHLY_CACHE_TTL = 24 * 60 * 60 * 1000;  // 24 hours for monthly stats (updates daily)
-const ENTITY_CACHE_TTL = 24 * 60 * 60 * 1000;   // 24 hours for entity counts (updates daily)
+// Daily refresh at 4 AM Mountain Time (Edmonton) = 6 AM Eastern (Ontario)
+// Both are off-peak hours for users in Alberta and Ontario
+const REFRESH_HOUR_UTC = 11; // 4 AM Mountain (UTC-7) = 11:00 UTC, 6 AM Eastern (UTC-5) = 11:00 UTC
+
+// Helper: Get today's cache date key (changes at REFRESH_HOUR_UTC)
+const getCacheDateKey = () => {
+  const now = new Date();
+  const utcHour = now.getUTCHours();
+  
+  // If before refresh hour, use yesterday's date as cache key
+  // This ensures cache invalidates at the refresh hour
+  if (utcHour < REFRESH_HOUR_UTC) {
+    const yesterday = new Date(now);
+    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+    return yesterday.toISOString().split('T')[0];
+  }
+  return now.toISOString().split('T')[0];
+};
 
 Deno.serve(async (req) => {
   try {
