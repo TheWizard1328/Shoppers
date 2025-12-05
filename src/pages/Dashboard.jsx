@@ -4506,7 +4506,6 @@ function Dashboard() {
 
       invalidate('Delivery');
       await refreshData();
-      setScrollToNextCardAfter(deliveryId);
 
       console.log('✅ [RESTART DELIVERY] Complete');
     } catch (error) {
