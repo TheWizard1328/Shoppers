@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
@@ -1063,6 +1062,19 @@ export default function StopCard({
             {isExpanded && !isStrippedDelivery &&
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
                 <div className="pt-3 space-y-3 border-t border-slate-200 mt-2">
+                  {/* Phone number - first item in expandable section */}
+                  {!shouldRedact && finalDisplayPhone &&
+                    <div className="flex items-center text-sm text-slate-600 -mt-1">
+                      <Phone className="w-4 h-4 mr-2 text-slate-500" />
+                      <a
+                        href={`tel:${finalDisplayPhone.replace(/\D/g, '')}`}
+                        className="text-base font-medium text-slate-700 hover:text-emerald-600 transition-colors"
+                        onClick={(e) => e.stopPropagation()}>
+                        {formatPhoneNumber(finalDisplayPhone)}
+                      </a>
+                    </div>
+                  }
+                  
                   {/* COD Information - Moved to expandable section */}
                   {hasCODRequired && !isPickup && !FINISHED_STATUSES.includes(delivery.status) &&
                     <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-md px-2 py-1">
