@@ -269,40 +269,10 @@ Deno.serve(async (req) => {
       returns: monthReturns
     };
 
-    // ===========================================
-    // DELIVERY TOTALS (Monthly & Yearly) - Only paid deliveries
-    // ===========================================
-    
-    const totalMonthlyDeliveries = monthDeliveries.filter(isPaidDelivery).length;
-    const totalYearlyDeliveries = yearDeliveries.filter(isPaidDelivery).length;
-
-    // ===========================================
-    // DRIVER ROUTES (Yearly) - Unique driver-days for paid deliveries
-    // ===========================================
-    
-    const yearlyDriverDeliveriesByDay = {};
-    yearDeliveries.forEach(d => {
-      if (isPaidDelivery(d) && d.driver_id && d.delivery_date) {
-        if (!yearlyDriverDeliveriesByDay[d.delivery_date]) {
-          yearlyDriverDeliveriesByDay[d.delivery_date] = new Set();
-        }
-        yearlyDriverDeliveriesByDay[d.delivery_date].add(d.driver_id);
-      }
-    });
-    const yearlyTotalDriverRoutes = Object.values(yearlyDriverDeliveriesByDay)
-      .reduce((sum, driversSet) => sum + driversSet.size, 0);
-    
     // Build response based on user role
     const response = {
       today: todayStats,
-      month: monthStats,
-      deliveries: {
-        monthly: totalMonthlyDeliveries,
-        yearly: totalYearlyDeliveries
-      },
-      drivers: {
-        yearlyTotalDriverRoutes: yearlyTotalDriverRoutes
-      }
+      month: monthStats
     };
     
     // Only include entityCounts for roles that should see them
