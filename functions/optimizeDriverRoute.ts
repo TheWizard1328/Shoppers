@@ -404,15 +404,24 @@ const optimizeStoreRoute = (stops, startLocation, startTime, driverHome, patient
 // =============================================
 
 Deno.serve(async (req) => {
+  console.log('');
+  console.log('═══════════════════════════════════');
+  console.log('🔵 [BACKEND START] optimizeDriverRoute called');
+  console.log('═══════════════════════════════════');
+  
   try {
+    console.log('📍 [STEP A] Creating SDK client from request...');
     const base44 = createClientFromRequest(req);
+    console.log('✅ [STEP A] SDK client created');
     
     // CRITICAL: Validate authentication FIRST with better error handling
+    console.log('📍 [STEP B] Checking authentication...');
     let user = null;
     try {
       user = await base44.auth.me();
+      console.log('✅ [STEP B] Auth check completed');
     } catch (authError) {
-      console.error('❌ [Auth Check] Failed:', authError.message);
+      console.error('❌ [STEP B ERROR] Auth failed:', authError.message);
       return Response.json({ 
         error: 'Authentication failed - please refresh and try again',
         details: authError.message 
@@ -420,18 +429,19 @@ Deno.serve(async (req) => {
     }
     
     if (!user) {
-      console.error('❌ [Auth Check] No user returned - session may have expired');
+      console.error('❌ [STEP B ERROR] No user returned');
       return Response.json({ 
         error: 'Session expired - please refresh the page',
         sessionExpired: true 
       }, { status: 401 });
     }
     
-    console.log(`✅ [Auth Check] User authenticated: ${user.email}`);
+    console.log(`✅ [STEP B] User authenticated: ${user.email}`);
 
-    
+    console.log('📍 [STEP C] Parsing request body...');
     // Parse request body
     const body = await req.json();
+    console.log('✅ [STEP C] Request body parsed:', Object.keys(body));
     const { 
       driverId, 
       deliveryDate, 
@@ -443,11 +453,14 @@ Deno.serve(async (req) => {
       generatePolyline = false // NEW: Generate Google Maps polyline
     } = body;
     
+    console.log('📍 [STEP D] Validating parameters...');
     if (!driverId || !deliveryDate) {
+      console.error('❌ [STEP D ERROR] Missing parameters');
       return Response.json({ 
         error: 'Missing required parameters: driverId and deliveryDate' 
       }, { status: 400 });
     }
+    console.log('✅ [STEP D] Parameters valid');
     
     console.log('');
     console.log('═══════════════════════════════════');
@@ -468,17 +481,26 @@ Deno.serve(async (req) => {
     console.log('');
     console.log('🏗️ STEP 1: Fetching data from database');
     
-    const [deliveries, patients, stores, appUsers] = await Promise.all([
-      base44.asServiceRole.entities.Delivery.filter({
-        delivery_date: deliveryDate,
-        driver_id: driverId
-      }),
-      base44.asServiceRole.entities.Patient.list(),
-      base44.asServiceRole.entities.Store.list(),
-      base44.asServiceRole.entities.AppUser.filter({ user_id: driverId })
-    ]);
+    console.log('📍 [STEP 1.1] Fetching deliveries...');
+    const deliveries = await base44.asServiceRole.entities.Delivery.filter({
+      delivery_date: deliveryDate,
+      driver_id: driverId
+    });
+    console.log(`✅ [STEP 1.1] Got ${deliveries.length} deliveries`);
     
-    console.log(`✅ Fetched ${deliveries.length} deliveries, ${patients.length} patients, ${stores.length} stores`);
+    console.log('📍 [STEP 1.2] Fetching patients...');
+    const patients = await base44.asServiceRole.entities.Patient.list();
+    console.log(`✅ [STEP 1.2] Got ${patients.length} patients`);
+    
+    console.log('📍 [STEP 1.3] Fetching stores...');
+    const stores = await base44.asServiceRole.entities.Store.list();
+    console.log(`✅ [STEP 1.3] Got ${stores.length} stores`);
+    
+    console.log('📍 [STEP 1.4] Fetching AppUser for driver...');
+    const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
+    console.log(`✅ [STEP 1.4] Got ${appUsers.length} AppUser records`);
+    
+    console.log(`✅ STEP 1 COMPLETE: Fetched all data`);
     
     const driverAppUser = appUsers[0];
     const driverHome = driverAppUser?.home_latitude && driverAppUser?.home_longitude
@@ -1071,9 +1093,16 @@ Deno.serve(async (req) => {
     });
     
   } catch (error) {
-    console.error('❌ [Backend Optimizer] Error:', error);
+    console.error('');
+    console.error('❌❌❌ [BACKEND ERROR] Fatal error in optimizeDriverRoute ❌❌❌');
+    console.error('Error type:', error.constructor.name);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    console.error('═══════════════════════════════════');
+    
     return Response.json({ 
       error: error.message,
+      errorType: error.constructor.name,
       stack: error.stack 
     }, { status: 500 });
   }
