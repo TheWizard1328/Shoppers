@@ -1,5 +1,17 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
+// In-memory cache for expensive stats (survives across requests in the same Deno isolate)
+const statsCache = {
+  yearly: { data: null, timestamp: 0, key: '' },
+  monthly: { data: null, timestamp: 0, key: '' },
+  entityCounts: { data: null, timestamp: 0 }
+};
+
+// Cache durations
+const YEARLY_CACHE_TTL = 10 * 60 * 1000;  // 10 minutes for yearly stats
+const MONTHLY_CACHE_TTL = 5 * 60 * 1000;  // 5 minutes for monthly stats
+const ENTITY_CACHE_TTL = 10 * 60 * 1000;  // 10 minutes for entity counts
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -49,21 +61,94 @@ Deno.serve(async (req) => {
     const startOfYear = `${year}-01-01`;
     const endOfYear = `${year}-12-31`;
     
-    // Parallel fetch for efficiency - use service role for all data
-    const [rawMonthDeliveries, rawYearDeliveries, allPatients, allCities, allStores, allAppUsers] = await Promise.all([
-      base44.asServiceRole.entities.Delivery.filter({
+    const now = Date.now();
+    
+    // Cache keys based on filters
+    const yearlyKey = `${year}_${JSON.stringify(baseFilter)}`;
+    const monthlyKey = `${year}_${month}_${JSON.stringify(baseFilter)}`;
+    
+    // Check caches and fetch only what's needed
+    let rawYearDeliveries = null;
+    let rawMonthDeliveries = null;
+    let entityCounts = null;
+    
+    // Yearly deliveries - use cache if valid
+    if (statsCache.yearly.key === yearlyKey && (now - statsCache.yearly.timestamp) < YEARLY_CACHE_TTL) {
+      console.log('📊 [getDeliveryStats] Using CACHED yearly stats');
+      rawYearDeliveries = statsCache.yearly.data;
+    }
+    
+    // Monthly deliveries - use cache if valid
+    if (statsCache.monthly.key === monthlyKey && (now - statsCache.monthly.timestamp) < MONTHLY_CACHE_TTL) {
+      console.log('📊 [getDeliveryStats] Using CACHED monthly stats');
+      rawMonthDeliveries = statsCache.monthly.data;
+    }
+    
+    // Entity counts - use cache if valid
+    if (statsCache.entityCounts.data && (now - statsCache.entityCounts.timestamp) < ENTITY_CACHE_TTL) {
+      console.log('📊 [getDeliveryStats] Using CACHED entity counts');
+      entityCounts = statsCache.entityCounts.data;
+    }
+    
+    // Build parallel fetch list for only uncached data
+    const fetchPromises = [];
+    const fetchKeys = [];
+    
+    // Always fetch month deliveries if not cached (needed for today's stats too)
+    if (!rawMonthDeliveries) {
+      fetchPromises.push(base44.asServiceRole.entities.Delivery.filter({
         ...baseFilter,
         delivery_date: { $gte: startOfMonth, $lte: endOfMonthStr }
-      }),
-      base44.asServiceRole.entities.Delivery.filter({
+      }));
+      fetchKeys.push('month');
+    }
+    
+    if (!rawYearDeliveries) {
+      fetchPromises.push(base44.asServiceRole.entities.Delivery.filter({
         ...baseFilter,
         delivery_date: { $gte: startOfYear, $lte: endOfYear }
-      }),
-      base44.asServiceRole.entities.Patient.list(),
-      base44.asServiceRole.entities.City.list(),
-      base44.asServiceRole.entities.Store.list(),
-      base44.asServiceRole.entities.AppUser.list()
-    ]);
+      }));
+      fetchKeys.push('year');
+    }
+    
+    if (!entityCounts) {
+      fetchPromises.push(base44.asServiceRole.entities.Patient.list());
+      fetchPromises.push(base44.asServiceRole.entities.City.list());
+      fetchPromises.push(base44.asServiceRole.entities.Store.list());
+      fetchPromises.push(base44.asServiceRole.entities.AppUser.list());
+      fetchKeys.push('patients', 'cities', 'stores', 'appUsers');
+    }
+    
+    // Fetch only what we need
+    if (fetchPromises.length > 0) {
+      console.log('📊 [getDeliveryStats] Fetching:', fetchKeys.join(', '));
+      const results = await Promise.all(fetchPromises);
+      
+      let resultIdx = 0;
+      for (const key of fetchKeys) {
+        if (key === 'month') {
+          rawMonthDeliveries = results[resultIdx++];
+          statsCache.monthly = { data: rawMonthDeliveries, timestamp: now, key: monthlyKey };
+        } else if (key === 'year') {
+          rawYearDeliveries = results[resultIdx++];
+          statsCache.yearly = { data: rawYearDeliveries, timestamp: now, key: yearlyKey };
+        } else if (key === 'patients') {
+          const allPatients = results[resultIdx++];
+          const allCities = results[resultIdx++];
+          const allStores = results[resultIdx++];
+          const allAppUsers = results[resultIdx++];
+          entityCounts = {
+            patients: allPatients.length,
+            cities: allCities.length,
+            stores: allStores.length,
+            users: allAppUsers.length
+          };
+          statsCache.entityCounts = { data: entityCounts, timestamp: now };
+        }
+      }
+    } else {
+      console.log('📊 [getDeliveryStats] All data from cache - no DB calls needed!');
+    }
 
     const monthDeliveries = Array.isArray(rawMonthDeliveries) ? rawMonthDeliveries : [];
     const yearDeliveries = Array.isArray(rawYearDeliveries) ? rawYearDeliveries : [];
@@ -71,14 +156,12 @@ Deno.serve(async (req) => {
     // Filter today's deliveries from month data
     const todayDeliveries = monthDeliveries.filter(d => d.delivery_date === todayStr);
     
-    console.log('✅ [getDeliveryStats] Fetched:', {
+    console.log('✅ [getDeliveryStats] Stats ready:', {
       today: todayDeliveries.length,
       month: monthDeliveries.length,
       year: yearDeliveries.length,
-      patients: allPatients.length,
-      cities: allCities.length,
-      stores: allStores.length,
-      appUsers: allAppUsers.length
+      entityCounts: entityCounts,
+      cached: fetchPromises.length === 0 ? 'ALL' : `fetched ${fetchKeys.join(', ')}`
     });
     
     // ===========================================
@@ -177,17 +260,6 @@ Deno.serve(async (req) => {
     });
     const yearlyTotalDriverRoutes = Object.values(yearlyDriverDeliveriesByDay)
       .reduce((sum, driversSet) => sum + driversSet.size, 0);
-    
-    // ===========================================
-    // ENTITY COUNTS for navigation panel
-    // ===========================================
-    
-    const entityCounts = {
-      patients: allPatients.length,
-      cities: allCities.length,
-      stores: allStores.length,
-      users: allAppUsers.length
-    };
     
     return Response.json({
       today: todayStats,
