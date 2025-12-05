@@ -485,27 +485,7 @@ function Dashboard() {
     return result;
   }, [filteredDeliveries]);
 
-  useEffect(() => {
-    if (scrollToNextCardAfter && deliveriesWithStopOrder.length > 0) {
-      setTimeout(() => {
-        const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-        const incompleteDeliveries = deliveriesWithStopOrder.
-        filter((d) => d && !finishedStatuses.includes(d.status)).
-        sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
-        // Find the first incomplete delivery (the next one to be delivered)
-        if (incompleteDeliveries.length > 0) {
-          const nextCard = incompleteDeliveries[0];
-          console.log(`[Auto-Center] Scrolling to next delivery: ${nextCard.patient_name || 'Pickup'}`);
-          const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
-          if (cardElement) {
-            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-          }
-        }
-        setScrollToNextCardAfter(null); // Reset the trigger
-      }, 500);
-    }
-  }, [deliveriesWithStopOrder, scrollToNextCardAfter]);
 
   const stats = useMemo(() => {
     const safeDeliveries = filteredDeliveries || [];
