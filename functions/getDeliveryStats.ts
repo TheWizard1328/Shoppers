@@ -152,12 +152,21 @@ Deno.serve(async (req) => {
       fetchKeys.push('year');
     }
     
-    if (!entityCounts) {
+    // Only fetch entity counts for admins
+    if (!entityCounts && isAdmin) {
       fetchPromises.push(base44.asServiceRole.entities.Patient.list());
       fetchPromises.push(base44.asServiceRole.entities.City.list());
       fetchPromises.push(base44.asServiceRole.entities.Store.list());
       fetchPromises.push(base44.asServiceRole.entities.AppUser.list());
       fetchKeys.push('patients', 'cities', 'stores', 'appUsers');
+    } else if (!entityCounts && isDispatcher && !isDriver) {
+      // Dispatchers only see patient count for their stores
+      if (userStoreIds.length > 0) {
+        fetchPromises.push(base44.asServiceRole.entities.Patient.filter({ store_id: { $in: userStoreIds } }));
+      } else {
+        fetchPromises.push(Promise.resolve([]));
+      }
+      fetchKeys.push('patientsOnly');
     }
     
     // Fetch only what we need
