@@ -2524,9 +2524,9 @@ export default function DeliveryMap({
 
       {/* NEW: Zoom Level Overlay */}
       {showZoomOverlay &&
-        <div className="absolute top-4 left-4 z-[100] bg-slate-900 text-white px-4 py-2 rounded-lg shadow-lg transition-opacity duration-300 pointer-events-none">
+        <div className="absolute top-4 left-4 z-[99999] bg-slate-900 text-white px-4 py-2 rounded-lg shadow-lg transition-opacity duration-300 pointer-events-none">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">Zoom Level:</span>
+            //* <span className="text-sm font-medium">Zoom Level:</span>
             <span className="text-lg font-bold">{currentZoom.toFixed(1)}</span>
           </div>
         </div>
