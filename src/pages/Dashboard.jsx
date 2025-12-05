@@ -4468,7 +4468,6 @@ function Dashboard() {
       await base44.entities.Delivery.delete(deliveryId);
       invalidate('Delivery');
       await refreshData();
-      setScrollToNextCardAfter(deliveryId);
 
       if (selectedCardId === deliveryId) {
         setSelectedCardId(null);
