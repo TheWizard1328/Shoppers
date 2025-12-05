@@ -1020,6 +1020,9 @@ Deno.serve(async (req) => {
     
     const updates = [];
     
+    // CRITICAL: Add delay between updates to prevent rate limiting
+    const DELAY_BETWEEN_UPDATES = 150; // 150ms between each update
+    
     for (let i = 0; i < finalRoute.length; i++) {
       const stop = finalRoute[i];
       if (!stop) continue;
@@ -1044,20 +1047,30 @@ Deno.serve(async (req) => {
       console.log(`      • isNextDelivery: ${isNextStop}`);
       console.log(`      • ETA: ${updatePayload.delivery_time_eta || 'N/A'}`);
       
-      await base44.asServiceRole.entities.Delivery.update(stop.id, updatePayload);
-      
-      updates.push({
-        id: stop.id,
-        stop_order: newStopOrder,
-        isNextDelivery: isNextStop,
-        eta: updatePayload.delivery_time_eta
-      });
-      
-      const stopName = stop.patient_id
-        ? patients.find(p => p?.id === stop.patient_id)?.full_name
-        : stores.find(s => s?.id === stop.store_id)?.name + ' Pickup';
-      
-      console.log(`   ✅ Saved #${newStopOrder}: ${stopName}${isNextStop ? ' ← NEXT DELIVERY' : ''}`);
+      try {
+        await base44.asServiceRole.entities.Delivery.update(stop.id, updatePayload);
+        
+        // Add delay after each update to prevent rate limiting
+        if (i < finalRoute.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_UPDATES));
+        }
+        
+        updates.push({
+          id: stop.id,
+          stop_order: newStopOrder,
+          isNextDelivery: isNextStop,
+          eta: updatePayload.delivery_time_eta
+        });
+        
+        const stopName = stop.patient_id
+          ? patients.find(p => p?.id === stop.patient_id)?.full_name
+          : stores.find(s => s?.id === stop.store_id)?.name + ' Pickup';
+        
+        console.log(`   ✅ Saved #${newStopOrder}: ${stopName}${isNextStop ? ' ← NEXT DELIVERY' : ''}`);
+      } catch (updateError) {
+        console.error(`   ❌ Failed to save #${newStopOrder}:`, updateError.message);
+        throw updateError; // Re-throw to trigger main error handler
+      }
     }
     
     console.log(`✅ Database updated: ${updates.length} deliveries saved`);
