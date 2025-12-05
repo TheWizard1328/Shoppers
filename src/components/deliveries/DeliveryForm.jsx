@@ -954,6 +954,11 @@ export default function DeliveryForm({
     console.log('📦 Store ID in staged:', staged.store_id);
     console.log('📦 AMPM in staged:', staged.ampm_deliveries);
 
+    // Hide staged panel on mobile when clicking a staged item
+    if (isMobileDevice) {
+      setShowStagedPanel(false);
+    }
+
     setEditingStagedId(staged._tempId);
 
     let formDataToSet = {
