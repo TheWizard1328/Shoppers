@@ -738,8 +738,8 @@ export default function StopCard({
                         <MoreVertical className="w-3 h-3" />
                       </button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="z-[99999]">
-                      <DropdownMenuLabel>Change Status</DropdownMenuLabel>
+                    <DropdownMenuContent align="end" className="z-[99999] text-base">
+                      <DropdownMenuLabel className="text-base font-semibold">Change Status</DropdownMenuLabel>
                       <DropdownMenuSeparator />
                       {nextAvailableStatuses.map((status) =>
                     <DropdownMenuItem
