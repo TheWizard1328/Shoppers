@@ -137,6 +137,39 @@ const addMinutesToTime = (timeString, minutes) => {
   return `${String(newHours).padStart(2, '0')}:${String(newMins).padStart(2, '0')}`;
 };
 
+// Helper function to round completion time to nearest 5-minute mark
+// For first delivery: round DOWN to nearest 5 minutes
+// For last delivery: round UP to next 5 minutes
+const roundCompletionTime = (timeISO, isFirst, isLast) => {
+  if (!timeISO) return timeISO;
+  
+  try {
+    const date = new Date(timeISO);
+    const minutes = date.getMinutes();
+    
+    if (isFirst) {
+      // Round down to nearest 5 minutes
+      const roundedMinutes = Math.floor(minutes / 5) * 5;
+      date.setMinutes(roundedMinutes);
+      date.setSeconds(0);
+      date.setMilliseconds(0);
+      console.log(`⏱️ [Round Time] First delivery - rounded DOWN: ${minutes} → ${roundedMinutes} minutes`);
+    } else if (isLast) {
+      // Round up to next 5 minutes
+      const roundedMinutes = Math.ceil(minutes / 5) * 5;
+      date.setMinutes(roundedMinutes);
+      date.setSeconds(0);
+      date.setMilliseconds(0);
+      console.log(`⏱️ [Round Time] Last delivery - rounded UP: ${minutes} → ${roundedMinutes} minutes`);
+    }
+    
+    return date.toISOString();
+  } catch (error) {
+    console.error('Error rounding completion time:', error);
+    return timeISO;
+  }
+};
+
 // Helper function to populate temporary start times for deliveries with blank time windows
 const populateTemporaryStartTimes = (deliveries, stores) => {
   const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
@@ -4514,7 +4547,7 @@ function Dashboard() {
 
       const driverId = targetDelivery.driver_id;
       const currentTime = new Date();
-      const currentTimeISO = currentTime.toISOString();
+      let currentTimeISO = currentTime.toISOString();
       const currentTimeHHMM = format(currentTime, 'HH:mm');
 
       console.log(`📦 Updating: ${targetDelivery.patient_name || 'Store Pickup'}`);
@@ -4527,8 +4560,27 @@ function Dashboard() {
 
       // CRITICAL: Cancelled pickups are treated as completed (with timestamp)
       if (['completed', 'failed', 'delivered'].includes(newStatus) || newStatus === 'cancelled' && isPickup) {
+        // CRITICAL: Check if this is first or last delivery for rounding
+        const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+        const allDriverDeliveries = deliveriesWithStopOrder.filter(d => 
+          d && d.driver_id === driverId && d.delivery_date === targetDelivery.delivery_date
+        );
+        
+        // First delivery = first one being completed (all others still incomplete)
+        const completedCount = allDriverDeliveries.filter(d => finishedStatuses.includes(d.status)).length;
+        const isFirstDelivery = completedCount === 0;
+        
+        // Last delivery = this is the last incomplete one
+        const incompleteCount = allDriverDeliveries.filter(d => !finishedStatuses.includes(d.status)).length;
+        const isLastDelivery = incompleteCount === 1; // This one will be the last after completion
+        
+        // Round the timestamp if first or last
+        if (isFirstDelivery || isLastDelivery) {
+          currentTimeISO = roundCompletionTime(currentTimeISO, isFirstDelivery, isLastDelivery);
+        }
+        
         updateData.actual_delivery_time = currentTimeISO;
-        console.log(`⏰ Setting actual_delivery_time: ${currentTimeISO} (status: ${newStatus}${isPickup && newStatus === 'cancelled' ? ', pickup cancelled = completed' : ''})`);
+        console.log(`⏰ Setting actual_delivery_time: ${currentTimeISO} (status: ${newStatus}${isPickup && newStatus === 'cancelled' ? ', pickup cancelled = completed' : ''}${isFirstDelivery ? ', FIRST - rounded DOWN' : ''}${isLastDelivery ? ', LAST - rounded UP' : ''})`);
       } else {
         updateData.actual_delivery_time = null;
       }
