@@ -4791,11 +4791,6 @@ function Dashboard() {
 
       invalidate('Delivery');
       await refreshData();
-
-      // Only trigger auto-center if not skipped (e.g., COD save should NOT auto-center)
-      if (!skipAutoCenter) {
-        setScrollToNextCardAfter(deliveryId);
-      }
     } catch (error) {
       console.error('Error updating COD payments:', error);
       alert('Failed to update COD payments. Please try again.');
