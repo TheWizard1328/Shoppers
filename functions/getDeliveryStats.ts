@@ -101,19 +101,11 @@ Deno.serve(async (req) => {
     const cacheDate = getCacheDateKey();
     
     // Cache keys based on filters
-    const yearlyKey = `${year}_${JSON.stringify(baseFilter)}`;
     const monthlyKey = `${year}_${month}_${JSON.stringify(baseFilter)}`;
     
     // Check caches and fetch only what's needed
-    let rawYearDeliveries = null;
     let rawMonthDeliveries = null;
     let entityCounts = null;
-    
-    // Yearly deliveries - use cache if valid (same day + same filters)
-    if (statsCache.yearly.key === yearlyKey && statsCache.yearly.cacheDate === cacheDate) {
-      console.log('📊 [getDeliveryStats] Using CACHED yearly stats');
-      rawYearDeliveries = statsCache.yearly.data;
-    }
     
     // Monthly deliveries - use cache if valid (same day + same filters)
     if (statsCache.monthly.key === monthlyKey && statsCache.monthly.cacheDate === cacheDate) {
