@@ -199,6 +199,17 @@ const optimizeStoreRoute = (stops, startLocation, startTime, driverHome, patient
         }
       }
       
+      // CRITICAL: For the FIRST incomplete delivery (no completed stops yet),
+      // ETA cannot be earlier than the stop's delivery_time_start
+      // This is the first stop of the day - driver hasn't started yet
+      if (optimized.length === 0) {
+        const stopStartTime = timeToMinutes(stop.delivery_time_start || stop.time_window_start || '00:00');
+        if (stopStartTime > 0 && arrivalTime < stopStartTime) {
+          console.log(`    ⏰ First stop ETA ${minutesToTime(arrivalTime)} is before delivery_time_start ${minutesToTime(stopStartTime)} - adjusting`);
+          arrivalTime = stopStartTime;
+        }
+      }
+      
       currentTime = arrivalTime;
       stop.delivery_time_eta = minutesToTime(currentTime);
       stop.estimated_arrival = minutesToTime(currentTime);
