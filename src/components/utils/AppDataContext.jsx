@@ -8,12 +8,18 @@ export const AppDataProvider = ({ children, value }) => {
   // Wrap updateDeliveriesLocally to register pending updates with driver/date context
   const wrappedUpdateDeliveriesLocally = (updates) => {
     if (value.updateDeliveriesLocally) {
-      // Register all updated delivery IDs as pending with driver/date info
-      updates.forEach(update => {
-        if (update.id && update.driver_id && update.delivery_date) {
-          smartRefreshManager.registerPendingUpdate(update.id, update.driver_id, update.delivery_date);
-        }
-      });
+      // CRITICAL: Check if updates is an array of delivery objects or just IDs
+      if (Array.isArray(updates)) {
+        // Register all updated delivery IDs as pending with driver/date info
+        updates.forEach(update => {
+          if (update && update.id) {
+            // Use driver_id and delivery_date if available, otherwise use empty strings
+            const driverId = update.driver_id || '';
+            const deliveryDate = update.delivery_date || '';
+            smartRefreshManager.registerPendingUpdate(update.id, driverId, deliveryDate);
+          }
+        });
+      }
       
       // Call the original function
       value.updateDeliveriesLocally(updates);
