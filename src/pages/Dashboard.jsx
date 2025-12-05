@@ -937,6 +937,66 @@ function Dashboard() {
           };
 
           setDriverLocation(newLocation);
+          
+          // CRITICAL: Auto-zoom when within 100m of incomplete stop (mobile + not phase 2)
+          if (isMobile && mapViewPhase !== 2 && newLocation.latitude && newLocation.longitude) {
+            const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+            const incompleteDeliveries = deliveriesWithStopOrder.filter(d => 
+              d && !finishedStatuses.includes(d.status)
+            );
+            
+            // Check each incomplete delivery for proximity
+            for (const delivery of incompleteDeliveries) {
+              let stopLat, stopLon;
+              
+              if (delivery.patient_id) {
+                const patient = patients.find(p => p && p.id === delivery.patient_id);
+                stopLat = patient?.latitude;
+                stopLon = patient?.longitude;
+              } else if (delivery.store_id) {
+                const store = stores.find(s => s && s.id === delivery.store_id);
+                stopLat = store?.latitude;
+                stopLon = store?.longitude;
+              }
+              
+              if (stopLat && stopLon) {
+                const distanceKm = calculateDistance(
+                  newLocation.latitude,
+                  newLocation.longitude,
+                  stopLat,
+                  stopLon
+                );
+                
+                // Within 100m (0.1km)
+                if (distanceKm <= 0.1) {
+                  console.log(`📍 [Proximity] Driver within 100m of ${delivery.patient_name || 'Pickup'} - auto-centering`);
+                  
+                  // Center map on the nearby marker
+                  setShouldFitBounds({
+                    bounds: [[stopLat, stopLon]],
+                    options: {
+                      paddingTopLeft: [50, 50],
+                      paddingBottomRight: [50, StopCardsHeight],
+                      maxZoom: 17
+                    }
+                  });
+                  setMapCenter(null);
+                  setMapZoom(null);
+                  
+                  // Scroll to the associated card
+                  setTimeout(() => {
+                    const cardElement = document.getElementById(`stop-card-${delivery.id}`);
+                    if (cardElement) {
+                      cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                      console.log(`✅ [Proximity] Centered card: ${delivery.id}`);
+                    }
+                  }, 300);
+                  
+                  break; // Only zoom to first nearby stop
+                }
+              }
+            }
+          }
         },
         (error) => {
           console.warn('⚠️ [Dashboard] GPS error:', error.message);
