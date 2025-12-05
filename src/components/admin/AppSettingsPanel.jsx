@@ -189,7 +189,9 @@ export default function AppSettingsPanel() {
       }
 
       // Apply to smartRefreshManager immediately
-      smartRefreshManager.enabled = smartRefreshEnabled;
+      console.log(`⚙️ [AppSettingsPanel] Saving smartRefreshEnabled = ${smartRefreshEnabled}`);
+      smartRefreshManager._enabled = smartRefreshEnabled;
+      smartRefreshManager._initialized = true;
       smartRefreshManager.intervals = {
         driverLocation: intervals.driverLocation,
         activeDeliveries: intervals.activeDeliveries,
