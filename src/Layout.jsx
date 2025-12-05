@@ -159,49 +159,57 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
   }, [selectedDateStr]);
 
   // Fetch stats from backend function (lightweight - no full data load)
-  useEffect(() => {
-    if (!currentUser) return;
+          useEffect(() => {
+            if (!currentUser) return;
 
-    const fetchStats = async () => {
-      try {
-        setHasError(false);
-        const driverId = userHasRole(currentUser, 'driver') ? currentUser.id : 
-                         globalFilters.getSelectedDriverId();
-        
-        console.log('📊 [QuickStats] Fetching stats...', { selectedDateStr, driverId, storeIds });
-        const response = await base44.functions.invoke('getDeliveryStats', {
-          selectedDate: selectedDateStr,
-          driverId: driverId !== 'all' ? driverId : null,
-          storeIds: storeIds.length > 0 ? storeIds : null
-        });
-        console.log('📊 [QuickStats] Response:', response);
-        
-        // Handle both response.data (axios-style) and direct response
-        const data = response?.data || response;
-        if (data && data.today) {
-          setStats(data);
-        } else {
-          console.warn('Invalid stats response:', response);
-          setHasError(true);
-        }
-      } catch (error) {
-        console.error('Error fetching delivery stats:', error);
-        setHasError(true);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+            const fetchStats = async () => {
+              try {
+                setHasError(false);
+                const driverId = userHasRole(currentUser, 'driver') ? currentUser.id : 
+                                 globalFilters.getSelectedDriverId();
 
-    // Delay initial fetch slightly to avoid competing with layout init
-    console.log('🔄 [QuickStats] Scheduling stats fetch for date:', selectedDateStr);
-    const initialTimer = setTimeout(fetchStats, 1000);
-    // Refresh stats every 60 seconds
-    const interval = setInterval(fetchStats, 60000);
-    return () => {
-      clearTimeout(initialTimer);
-      clearInterval(interval);
-    };
-  }, [currentUser, selectedDateStr, storeIds]);
+                console.log('📊 [QuickStats] Fetching stats...', { selectedDateStr, driverId, storeIds });
+                const response = await base44.functions.invoke('getDeliveryStats', {
+                  selectedDate: selectedDateStr,
+                  driverId: driverId !== 'all' ? driverId : null,
+                  storeIds: storeIds.length > 0 ? storeIds : null
+                });
+                console.log('📊 [QuickStats] Response:', response);
+
+                // Handle both response.data (axios-style) and direct response
+                const data = response?.data || response;
+                if (data && data.today) {
+                  setStats(data);
+                } else {
+                  console.warn('Invalid stats response:', response);
+                  setHasError(true);
+                }
+              } catch (error) {
+                console.error('Error fetching delivery stats:', error);
+                setHasError(true);
+              } finally {
+                setIsLoading(false);
+              }
+            };
+
+            // Listen for manual refresh requests (e.g., after imports)
+            const handleRefreshStats = () => {
+              console.log('📊 [QuickStats] Manual refresh triggered');
+              fetchStats();
+            };
+            window.addEventListener('refreshDeliveryStats', handleRefreshStats);
+
+            // Delay initial fetch slightly to avoid competing with layout init
+            console.log('🔄 [QuickStats] Scheduling stats fetch for date:', selectedDateStr);
+            const initialTimer = setTimeout(fetchStats, 1000);
+            // Refresh stats every 60 seconds
+            const interval = setInterval(fetchStats, 60000);
+            return () => {
+              clearTimeout(initialTimer);
+              clearInterval(interval);
+              window.removeEventListener('refreshDeliveryStats', handleRefreshStats);
+            };
+          }, [currentUser, selectedDateStr, storeIds]);
 
   const StatItem = ({ icon: Icon, label, value, colorClass }) =>
     <div className="flex items-center justify-between text-sm">
