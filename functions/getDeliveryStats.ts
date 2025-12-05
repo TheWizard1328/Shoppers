@@ -48,6 +48,17 @@ Deno.serve(async (req) => {
 
     const { selectedDate, driverId, storeIds } = body;
     
+    // Get user's AppUser record to determine roles and store assignments
+    const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id });
+    const appUser = appUsers?.[0];
+    const userRoles = appUser?.app_roles || [];
+    const isAdmin = userRoles.includes('admin');
+    const isDispatcher = userRoles.includes('dispatcher');
+    const isDriver = userRoles.includes('driver');
+    const userStoreIds = appUser?.store_ids || [];
+    
+    console.log('📊 [getDeliveryStats] User roles:', userRoles, 'Store IDs:', userStoreIds);
+    
     // Use selected date or default to today
     const dateObj = selectedDate ? new Date(selectedDate + 'T00:00:00') : new Date();
     const year = dateObj.getFullYear();
