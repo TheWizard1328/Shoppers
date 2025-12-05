@@ -3648,7 +3648,6 @@ function Dashboard() {
 
       invalidate('Delivery');
       await refreshData();
-      setScrollToNextCardAfter(deliveryId);
 
       hasAutoSelectedRef.current = false; // Reset to allow auto-selection after saving
 
