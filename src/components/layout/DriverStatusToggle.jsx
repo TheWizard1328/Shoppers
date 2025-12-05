@@ -98,7 +98,8 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
     const today = format(new Date(), 'yyyy-MM-dd');
     const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
     
-    // Check for active stops if trying to go off_duty
+    // Check if driver can go off_duty
+    // RULE: Can go off duty if NO completed stops (route hasn't started) OR all stops are finished
     if (newStatus === 'off_duty') {
       try {
         const todayDeliveries = await base44.entities.Delivery.filter({
@@ -106,12 +107,17 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
           delivery_date: today
         });
         
+        const completedStops = todayDeliveries.filter(d => finishedStatuses.includes(d.status));
         const activeStops = todayDeliveries.filter(d => !finishedStatuses.includes(d.status));
         
-        if (activeStops.length > 0) {
-          toast.error(`Cannot go off duty with ${activeStops.length} active stop${activeStops.length > 1 ? 's' : ''}`);
+        // If there ARE completed stops but also active stops, block going off duty
+        // (route is in progress - can't abandon mid-route)
+        if (completedStops.length > 0 && activeStops.length > 0) {
+          toast.error(`Cannot go off duty with ${activeStops.length} active stop${activeStops.length > 1 ? 's' : ''} (route in progress)`);
           return;
         }
+        // If NO completed stops, allow going off duty (route hasn't started yet)
+        // If all stops are completed, allow going off duty (route is done)
       } catch (error) {
         console.error('Failed to check active stops:', error);
       }
