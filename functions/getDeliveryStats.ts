@@ -132,14 +132,6 @@ Deno.serve(async (req) => {
       fetchKeys.push('month');
     }
     
-    if (!rawYearDeliveries) {
-      fetchPromises.push(base44.asServiceRole.entities.Delivery.filter({
-        ...baseFilter,
-        delivery_date: { $gte: startOfYear, $lte: endOfYear }
-      }));
-      fetchKeys.push('year');
-    }
-    
     // Only fetch entity counts for admins
     if (!entityCounts && isAdmin) {
       fetchPromises.push(base44.asServiceRole.entities.Patient.list());
