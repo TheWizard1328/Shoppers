@@ -191,7 +191,6 @@ Deno.serve(async (req) => {
     console.log('✅ [getDeliveryStats] Stats ready:', {
       today: todayDeliveries.length,
       month: monthDeliveries.length,
-      year: yearDeliveries.length,
       entityCounts: entityCounts,
       cached: fetchPromises.length === 0 ? 'ALL' : `fetched ${fetchKeys.join(', ')}`
     });
