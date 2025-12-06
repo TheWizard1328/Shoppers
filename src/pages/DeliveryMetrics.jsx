@@ -290,8 +290,11 @@ export default function DeliveryMetrics() {
     console.log('👥 Available drivers:', drivers.length);
 
     let relevantDeliveries = deliveries.filter((d) => {
-      const deliveryDate = parseISO(d.delivery_date);
-      return deliveryDate >= startDate && deliveryDate <= endDate;
+      if (!d.delivery_date) return false;
+      const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
+      const start = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+      const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59);
+      return deliveryDate >= start && deliveryDate <= end;
     });
 
     console.log('📊 Deliveries in current date range:', relevantDeliveries.length);
@@ -301,11 +304,9 @@ export default function DeliveryMetrics() {
     if (selectedDriver !== 'all') {
       const driver = drivers.find((d) => d.id === selectedDriver);
       if (driver) {
-        const driverFirstName = getDriverNameForComparison(driver);
-        console.log('🔍 Filtering for driver:', driverFirstName);
+        console.log('🔍 Filtering for driver ID:', selectedDriver, 'Name:', getDriverDisplayName(driver));
         relevantDeliveries = relevantDeliveries.filter((d) => {
-          const deliveryDriverFirstName = d.driver_name ? d.driver_name.split(' ')[0] : null;
-          return deliveryDriverFirstName === driverFirstName;
+          return d.driver_id === selectedDriver;
         });
         console.log('📊 Deliveries after driver filter:', relevantDeliveries.length);
       }
@@ -315,19 +316,17 @@ export default function DeliveryMetrics() {
 
     if (prevStartDate && prevEndDate) {
       prevRelevantDeliveries = deliveries.filter((d) => {
-        const deliveryDate = parseISO(d.delivery_date);
-        return deliveryDate >= prevStartDate && deliveryDate <= prevEndDate;
+        if (!d.delivery_date) return false;
+        const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
+        const start = new Date(prevStartDate.getFullYear(), prevStartDate.getMonth(), prevStartDate.getDate());
+        const end = new Date(prevEndDate.getFullYear(), prevEndDate.getMonth(), prevEndDate.getDate(), 23, 59, 59);
+        return deliveryDate >= start && deliveryDate <= end;
       });
 
       if (selectedDriver !== 'all') {
-        const driver = drivers.find((d) => d.id === selectedDriver);
-        if (driver) {
-          const driverFirstName = getDriverNameForComparison(driver);
-          prevRelevantDeliveries = prevRelevantDeliveries.filter((d) => {
-            const deliveryDriverFirstName = d.driver_name ? d.driver_name.split(' ')[0] : null;
-            return deliveryDriverFirstName === driverFirstName;
-          });
-        }
+        prevRelevantDeliveries = prevRelevantDeliveries.filter((d) => {
+          return d.driver_id === selectedDriver;
+        });
       }
       console.log('📊 Relevant deliveries for previous period:', prevRelevantDeliveries.length);
     }
@@ -565,7 +564,8 @@ export default function DeliveryMetrics() {
 
       const processDeliveriesForWeeklyMap = (deliveriesToProcess, isPrevious = false) => {
         deliveriesToProcess.forEach((delivery) => {
-          const deliveryDate = parseISO(delivery.delivery_date);
+          if (!delivery.delivery_date) return;
+          const deliveryDate = new Date(delivery.delivery_date + 'T00:00:00');
           const dayIndex = (deliveryDate.getDay() + 6) % 7; // Convert Sunday=0 to Monday=0
           const dayName = dayNames[dayIndex];
           const dayData = weeklyDataMap.get(dayName);
