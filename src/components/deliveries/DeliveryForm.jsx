@@ -1313,9 +1313,20 @@ export default function DeliveryForm({
       return;
     }
 
-    // CRITICAL: Split into NEW deliveries (no id) and UPDATED deliveries (have id, status changed from pending)
-    // Also filter out any deliveries that were deleted (marked with _deleted flag)
-    const validStagedDeliveries = stagedDeliveries.filter((staged) => !staged._deleted);
+    // CRITICAL: Filter out any deliveries that no longer exist in the database
+    // This prevents errors when a delivery was deleted but still in stagedDeliveries
+    const validStagedDeliveries = stagedDeliveries.filter((staged) => {
+      // If it has an id, verify it still exists in allDeliveries
+      if (staged.id) {
+        const stillExists = allDeliveries?.some((d) => d && d.id === staged.id);
+        if (!stillExists) {
+          console.log(`[AddToRoute] ⏭️ Skipping deleted delivery: ${staged.id} (${staged.patient_name})`);
+          return false;
+        }
+      }
+      return true;
+    });
+    
     const newDeliveries = validStagedDeliveries.filter((staged) => !staged.id);
     const updatedDeliveries = validStagedDeliveries.filter((staged) => staged.id && staged.status !== 'pending');
 
