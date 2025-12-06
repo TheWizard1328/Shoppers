@@ -126,12 +126,8 @@ const getDateRanges = (rangeType) => {
     case 'month':
       start = startOfMonth(now);
       end = endOfMonth(now);
-      // Calculate exact days in current month to match previous period length
-      const daysInCurrentMonth = Math.floor((end - start) / (1000 * 60 * 60 * 24)) + 1;
-      const prevMonthStart = startOfMonth(subMonths(now, 1));
-      prevStart = prevMonthStart;
-      prevEnd = new Date(prevMonthStart);
-      prevEnd.setDate(prevEnd.getDate() + daysInCurrentMonth - 1);
+      prevStart = startOfMonth(subMonths(now, 1));
+      prevEnd = endOfMonth(subMonths(now, 1));
       break;
 
     case 'lastMonth':
