@@ -1127,9 +1127,9 @@ export default function StopCard({
                           {codPayments.map((payment, index) =>
                             <div key={index} className="flex items-center gap-2 bg-white p-2 rounded border border-slate-200">
                               <Select value={payment.type} onValueChange={(value) => handleCODPaymentChange(index, 'type', value)} onOpenChange={(open) => { if (open) setShowCODCollection(true); }}>
-                                <SelectTrigger className="h-7 text-xs w-24" onClick={(e) => e.stopPropagation()}>
-                                  <SelectValue placeholder="Type" />
-                                </SelectTrigger>
+                               <SelectTrigger className="h-7 text-xs w-24" onClick={(e) => e.stopPropagation()} data-cod-select-index={index}>
+                                 <SelectValue placeholder="Type" />
+                               </SelectTrigger>
                                 <SelectContent onClick={(e) => e.stopPropagation()} className="z-[99999]">
                                   <SelectItem value="Cash">Cash</SelectItem>
                                   <SelectItem value="Debit">Debit</SelectItem>
