@@ -288,6 +288,11 @@ export default function DeliveryMetrics() {
     console.log('📅 Current period date range:', format(startDate, 'yyyy-MM-dd'), 'to', format(endDate, 'yyyy-MM-dd'));
     console.log('👤 Selected driver:', selectedDriver);
     console.log('👥 Available drivers:', drivers.length);
+    
+    // Sample some delivery dates to debug
+    if (deliveries.length > 0) {
+      console.log('📅 Sample delivery dates:', deliveries.slice(0, 5).map(d => d.delivery_date));
+    }
 
     let relevantDeliveries = deliveries.filter((d) => {
       if (!d.delivery_date) return false;
@@ -298,6 +303,13 @@ export default function DeliveryMetrics() {
     });
 
     console.log('📊 Deliveries in current date range:', relevantDeliveries.length);
+    if (relevantDeliveries.length > 0) {
+      console.log('📊 Sample relevant delivery:', {
+        date: relevantDeliveries[0].delivery_date,
+        driver_id: relevantDeliveries[0].driver_id,
+        driver_name: relevantDeliveries[0].driver_name
+      });
+    }
 
     let prevRelevantDeliveries = [];
 
@@ -305,10 +317,14 @@ export default function DeliveryMetrics() {
       const driver = drivers.find((d) => d.id === selectedDriver);
       if (driver) {
         console.log('🔍 Filtering for driver ID:', selectedDriver, 'Name:', getDriverDisplayName(driver));
+        console.log('🔍 Available driver IDs in deliveries:', [...new Set(relevantDeliveries.map(d => d.driver_id))]);
         relevantDeliveries = relevantDeliveries.filter((d) => {
           return d.driver_id === selectedDriver;
         });
         console.log('📊 Deliveries after driver filter:', relevantDeliveries.length);
+        if (relevantDeliveries.length === 0) {
+          console.warn('⚠️ No deliveries found for driver ID:', selectedDriver);
+        }
       }
     }
 
