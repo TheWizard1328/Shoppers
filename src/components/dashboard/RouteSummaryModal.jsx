@@ -29,7 +29,7 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   return R * c;
 };
 
-export default function RouteSummaryModal({ deliveries, patients, stores, onClose }) {
+export default function RouteSummaryModal({ deliveries, patients, stores, driver, onClose }) {
   const stats = useMemo(() => {
     if (!deliveries || deliveries.length === 0) return null;
 
@@ -69,8 +69,32 @@ export default function RouteSummaryModal({ deliveries, patients, stores, onClos
     const avgTimeBetweenStops = totalStops > 1 ? 
       Math.round(totalMinutes / (totalStops - 1)) : 0;
 
-    // Calculate total distance and average distance
+    // Calculate total distance including start and end
     let totalDistance = 0;
+    
+    // Add distance from driver's home to first stop
+    if (driver?.home_latitude && driver?.home_longitude && sorted.length > 0) {
+      const firstStopCoords = (() => {
+        if (firstStop.patient_id) {
+          const patient = patients.find(p => p && p.id === firstStop.patient_id);
+          return { lat: patient?.latitude, lon: patient?.longitude };
+        } else {
+          const store = stores.find(s => s && s.id === firstStop.store_id);
+          return { lat: store?.latitude, lon: store?.longitude };
+        }
+      })();
+      
+      if (firstStopCoords.lat && firstStopCoords.lon) {
+        totalDistance += calculateDistance(
+          driver.home_latitude, 
+          driver.home_longitude, 
+          firstStopCoords.lat, 
+          firstStopCoords.lon
+        );
+      }
+    }
+    
+    // Add distances between consecutive stops
     for (let i = 1; i < sorted.length; i++) {
       const prevStop = sorted[i - 1];
       const currStop = sorted[i];
@@ -101,6 +125,28 @@ export default function RouteSummaryModal({ deliveries, patients, stores, onClos
 
       if (prevLat && prevLon && currLat && currLon) {
         totalDistance += calculateDistance(prevLat, prevLon, currLat, currLon);
+      }
+    }
+    
+    // Add distance from last stop back to driver's home
+    if (driver?.home_latitude && driver?.home_longitude && sorted.length > 0) {
+      const lastStopCoords = (() => {
+        if (lastStop.patient_id) {
+          const patient = patients.find(p => p && p.id === lastStop.patient_id);
+          return { lat: patient?.latitude, lon: patient?.longitude };
+        } else {
+          const store = stores.find(s => s && s.id === lastStop.store_id);
+          return { lat: store?.latitude, lon: store?.longitude };
+        }
+      })();
+      
+      if (lastStopCoords.lat && lastStopCoords.lon) {
+        totalDistance += calculateDistance(
+          lastStopCoords.lat, 
+          lastStopCoords.lon,
+          driver.home_latitude, 
+          driver.home_longitude
+        );
       }
     }
 
