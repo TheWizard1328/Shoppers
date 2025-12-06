@@ -221,11 +221,12 @@ export default function DeliveryMetrics() {
 
     setIsLoading(true);
     try {
+      // CRITICAL: Fetch fresh data directly from API without cache
       const [deliveriesData, patientsData, storesData, appUsersData] = await Promise.all([
-      Delivery.list(),
-      Patient.list(),
-      Store.list(),
-      AppUser.list()]
+        Delivery.filter({}),  // Use filter({}) instead of list() to bypass cache
+        Patient.filter({}),
+        Store.filter({}),
+        AppUser.filter({})]
       );
 
       setPatients(patientsData || []);
