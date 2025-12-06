@@ -303,13 +303,22 @@ export default function DeliveryMetrics() {
     });
 
     console.log('📊 Deliveries in current date range:', relevantDeliveries.length);
-    if (relevantDeliveries.length > 0) {
-      console.log('📊 Sample relevant delivery:', {
-        date: relevantDeliveries[0].delivery_date,
-        driver_id: relevantDeliveries[0].driver_id,
-        driver_name: relevantDeliveries[0].driver_name
-      });
-    }
+    
+    // Debug: Show breakdown by date
+    const dateBreakdown = {};
+    relevantDeliveries.forEach(d => {
+      const date = d.delivery_date;
+      dateBreakdown[date] = (dateBreakdown[date] || 0) + 1;
+    });
+    console.log('📅 Deliveries by date:', dateBreakdown);
+    
+    // Debug: Show breakdown by driver
+    const driverBreakdown = {};
+    relevantDeliveries.forEach(d => {
+      const key = `${d.driver_id} (${d.driver_name})`;
+      driverBreakdown[key] = (driverBreakdown[key] || 0) + 1;
+    });
+    console.log('👤 Deliveries by driver:', driverBreakdown);
 
     let prevRelevantDeliveries = [];
 
