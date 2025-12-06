@@ -1601,7 +1601,7 @@ export default function Layout({ children, currentPageName }) {
     return data;
   }, [patients, currentUser, selectedStoreId]);
 
-  // Route count - only count unique dates from the CURRENT MONTH of selected date
+  // Route count - count driver-routes (each driver-date combination) in the selected month
   const totalRoutesCount = useMemo(() => {
     if (!deliveries || deliveries.length === 0) return 0;
     
@@ -1612,17 +1612,30 @@ export default function Layout({ children, currentPageName }) {
     const selectedYear = selectedDate.getFullYear();
     const selectedMonth = selectedDate.getMonth();
     
-    // Only count dates from the same month and year as the selected date
-    const datesInSelectedMonth = deliveries
-      .filter(delivery => {
-        if (!delivery || !delivery.delivery_date) return false;
-        const deliveryDate = new Date(delivery.delivery_date + 'T00:00:00');
-        return deliveryDate.getFullYear() === selectedYear && 
-               deliveryDate.getMonth() === selectedMonth;
-      })
-      .map(delivery => delivery.delivery_date);
+    // For each date in the selected month, count unique drivers
+    const dateDriverMap = new Map();
     
-    return new Set(datesInSelectedMonth).size;
+    deliveries.forEach(delivery => {
+      if (!delivery || !delivery.delivery_date || !delivery.driver_id) return;
+      
+      const deliveryDate = new Date(delivery.delivery_date + 'T00:00:00');
+      if (deliveryDate.getFullYear() !== selectedYear || 
+          deliveryDate.getMonth() !== selectedMonth) return;
+      
+      const dateKey = delivery.delivery_date;
+      if (!dateDriverMap.has(dateKey)) {
+        dateDriverMap.set(dateKey, new Set());
+      }
+      dateDriverMap.get(dateKey).add(delivery.driver_id);
+    });
+    
+    // Sum up the number of drivers across all dates
+    let totalRoutes = 0;
+    dateDriverMap.forEach(driverSet => {
+      totalRoutes += driverSet.size;
+    });
+    
+    return totalRoutes;
   }, [deliveries]);
 
   const getPatientStoreData = useCallback(() => {
