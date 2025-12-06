@@ -16,6 +16,7 @@ export default function StatsCard({ title, value, icon: Icon, trend, color, isLo
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
+      style={{ pointerEvents: 'auto', touchAction: 'manipulation' }}
     >
       <Card className={`bg-white shadow-sm hover:shadow-md transition-shadow duration-300 ${
         isLocationSharing ? 'border-2 border-emerald-500' : 'border-slate-200'

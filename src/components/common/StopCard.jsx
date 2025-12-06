@@ -630,7 +630,7 @@ export default function StopCard({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       className={`w-full cursor-pointer transition-all ${isSelected && !isStrippedDelivery ? 'ring-2 ring-blue-500' : ''}`}
-      style={{ scrollSnapAlign: 'center', position: 'relative', zIndex: 1 }}>
+      style={{ scrollSnapAlign: 'center', position: 'relative', zIndex: 1, pointerEvents: 'auto', touchAction: 'manipulation' }}>
       <Card className="rounded-xl border bg-card text-card-foreground border-blue-500 shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 min-w-[340px] max-w-[340px]"
       onClick={() => {
         // Don't trigger click/expand for stripped deliveries
@@ -737,6 +737,7 @@ export default function StopCard({
                 <DropdownMenu modal={false}>
                     <DropdownMenuTrigger asChild>
                       <button className="font-medium inline-flex items-center gap-1 rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-xs font-bold px-2 py-0.5 cursor-pointer hover:opacity-80 bg-cyan-100 text-cyan-800 relative z-[100]"
+                    style={{ pointerEvents: 'auto', touchAction: 'manipulation' }}
                     onClick={(e) => e.stopPropagation()}>
                         {statusConfig[delivery.status]?.label || delivery.status}
                         <MoreVertical className="w-3 h-3" />
@@ -1720,6 +1721,7 @@ export default function StopCard({
                           variant="ghost"
                           size="icon"
                           className={`h-8 w-8 border border-slate-300 hover:bg-slate-100 relative z-[100] ${delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'returned' ? 'rounded-l-none' : 'rounded-md'}`}
+                          style={{ pointerEvents: 'auto', touchAction: 'manipulation' }}
                           onClick={(e) => e.stopPropagation()}>
                             <MoreVertical className="w-4 h-4" />
                           </Button>
