@@ -660,32 +660,32 @@ export default function StopCard({
               }
 
               {(hasCODRequired || isFirstDelivery || delivery.oversized || delivery.fridge_item || delivery.signature_needed) &&
-                <Badge
-                  variant="secondary" className="inline-flex items-center gap-0.5 border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 font-bold text-sm px-1.5 py-0.5 bg-slate-300 text-white min-w-[25px] justify-center rounded-full">
+              <Badge
+                variant="secondary" className="inline-flex items-center gap-0.5 border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 font-bold text-sm px-1.5 py-0.5 bg-slate-300 text-white min-w-[25px] justify-center rounded-full">
                   {hasCODRequired &&
-                    <span className="relative inline-flex items-center justify-center">
+                <span className="relative inline-flex items-center justify-center">
                       $
                       {delivery.status === 'failed' &&
-                        <svg
-                          className="absolute"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="#ef4444"
-                          strokeWidth="2.5"
-                          style={{
-                            pointerEvents: 'none',
-                            width: '260%',
-                            height: '260%',
-                            left: '50%',
-                            top: '50%',
-                            transform: 'translate(-50%, -50%)'
-                          }}>
+                  <svg
+                    className="absolute"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#ef4444"
+                    strokeWidth="2.5"
+                    style={{
+                      pointerEvents: 'none',
+                      width: '260%',
+                      height: '260%',
+                      left: '50%',
+                      top: '50%',
+                      transform: 'translate(-50%, -50%)'
+                    }}>
                           <circle cx="12" cy="12" r="10" />
                           <line x1="4" y1="4" x2="20" y2="20" />
                         </svg>
-                      }
-                    </span>
                   }
+                    </span>
+                }
                   {isFirstDelivery && (hasCODRequired ? ' N' : 'N')}
                   {delivery.oversized && (hasCODRequired || isFirstDelivery ? ' O' : 'O')}
                   {delivery.fridge_item && (hasCODRequired || isFirstDelivery ? ' F' : 'F')}
@@ -1143,8 +1143,8 @@ export default function StopCard({
                             ref={(el) => codAmountInputRefs.current[index] = el}
                             type="text"
                             value={payment.amount > 0 ? payment.amount.toFixed(2) : payment.amount === 0 ? '0.00' : ''}
-                            onChange={(e) => handleCODPaymentChange(index, 'amount', e.target.value)}
-                            className="h-7 w-full pl-5 pr-2 text-xs border border-slate-300 rounded-md"
+                            onChange={(e) => handleCODPaymentChange(index, 'amount', e.target.value)} className="h-7 w-full pl-5 pr-2 text-xs bg-white border border-slate-300 rounded-md"
+
                             placeholder="0.00"
                             onClick={(e) => e.stopPropagation()}
                             onFocus={(e) => e.target.select()} />
