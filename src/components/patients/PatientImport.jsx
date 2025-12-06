@@ -1115,7 +1115,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                         {previewChanges.toUpdate.length > 0 &&
             <div className="">
                                 <h3 className="text-lg font-semibold text-blue-600 mb-2">Updates ({previewChanges.toUpdate.length})</h3>
-                                <div className="space-y-1 max-h-[280px] overflow-y-auto border rounded p-2">
+                                <div className="space-y-1 max-h-[445px] overflow-y-auto border rounded p-2">
                                     {previewChanges.toUpdate.map((item, idx) =>
                 <div key={idx} className="bg-blue-50 border border-blue-200 rounded p-1">
                                             <div className="flex items-center gap-2 flex-wrap text-sm">
