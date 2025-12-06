@@ -4375,7 +4375,7 @@ function Dashboard() {
             await base44.entities.Delivery.update(stop.id, { stop_order: i + 1 });
             const stopName = stop.patient_id ?
             patients.find((p) => p && p.id === stop.patient_id)?.full_name :
-            stores.find((s) => s && s.id === stop.store_id)?.name + ' Pickup'; // Fixed: store.id should be stop.store_id
+            stores.find((s) => s && s.id === stop.store_id)?.name + ' Pickup';
             console.log(`   ✅ Updated completed stop #${i + 1}: ${stopName}`);
           }
           console.log(`✅ Updated ${sortedCompleted.length} completed stops for ${driver.user_name}`);
