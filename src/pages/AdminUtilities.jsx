@@ -535,6 +535,8 @@ const DeliveryDataTable = ({
   });
 
   const [selectedDeliveries, setSelectedDeliveries] = useState(new Set());
+  const [editingDriverId, setEditingDriverId] = useState(null);
+  const [editingStatusId, setEditingStatusId] = useState(null);
 
   const updateColumnWidth = useCallback((columnId, width) => {
     setColumnWidths(prev => {
