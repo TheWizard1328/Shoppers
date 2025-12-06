@@ -557,9 +557,11 @@ const DeliveryDataTable = ({
     }
   };
 
+  const driversForDropdown = drivers || [];
+
   const handleDriverChange = async (delivery, newDriverId) => {
     try {
-      const driver = drivers.find(d => d && d.id === newDriverId);
+      const driver = driversForDropdown.find(d => d && d.id === newDriverId);
       const driverName = driver ? getDriverDisplayName(driver) : '';
       
       await Delivery.update(delivery.id, { 
