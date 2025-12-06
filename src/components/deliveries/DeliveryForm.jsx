@@ -189,28 +189,28 @@ export default function DeliveryForm({
   const { deviceType } = getUserAgentInfo();
   const isMobileDevice = deviceType === 'Mobile';
   const hasLoadedPending = useRef(false);
-  
+
   // Responsive layout state
   const [screenWidth, setScreenWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
   const [screenHeight, setScreenHeight] = useState(typeof window !== 'undefined' ? window.innerHeight : 768);
   const formRef = useRef(null);
-  
+
   // Desktop form width threshold (max-w-4xl = 896px + padding)
   const DESKTOP_FORM_WIDTH = 920;
-  
+
   // Rule 1: Use mobile layout if screen width < desktop form width (regardless of device type)
   const useMobileLayout = screenWidth < DESKTOP_FORM_WIDTH;
-  
+
   // Rule 2: Use fullscreen ONLY if mobile layout AND on mobile device (never fullscreen on desktop)
   const useFullscreen = useMobileLayout && isMobileDevice;
-  
+
   // Track screen dimensions
   useEffect(() => {
     const handleResize = () => {
       setScreenWidth(window.innerWidth);
       setScreenHeight(window.innerHeight);
     };
-    
+
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -576,7 +576,7 @@ export default function DeliveryForm({
         // Check if admin has a selected store context (e.g., viewing Kingsway specifically)
         const isAdmin = userHasRole(currentUser, 'admin');
         const isDispatcher = userHasRole(currentUser, 'dispatcher');
-        
+
         if (isDispatcher && !isAdmin) {
           // Pure dispatcher: use their assigned stores
           storeIdsToPredict = currentUser.store_ids || [];
@@ -616,7 +616,7 @@ export default function DeliveryForm({
 
         if (response.data && response.data.predictions) {
           console.log('[DeliveryForm] Received predictions from API:', response.data.predictions.length);
-          
+
           const stagedPatientIds = new Set(stagedDeliveries.map((d) => d.patient_id));
 
           const filteredPredictions = response.data.predictions.filter(
@@ -676,17 +676,17 @@ export default function DeliveryForm({
 
               // CRITICAL: Filter out patients with weekly/bi-weekly recurring set for specific days
               // that don't match the selected delivery date's day of week
-              const hasSpecificWeeklyDays = patient.recurring_weekly_mon || patient.recurring_weekly_tue || 
-                patient.recurring_weekly_wed || patient.recurring_weekly_thu || 
-                patient.recurring_weekly_fri || patient.recurring_weekly_sat || patient.recurring_weekly_sun;
-              
-              if (patient.recurring && hasSpecificWeeklyDays && 
-                  !patient.recurring_daily && !patient.recurring_weekly_x4 && 
-                  !patient.recurring_monthly && !patient.recurring_bimonthly) {
+              const hasSpecificWeeklyDays = patient.recurring_weekly_mon || patient.recurring_weekly_tue ||
+              patient.recurring_weekly_wed || patient.recurring_weekly_thu ||
+              patient.recurring_weekly_fri || patient.recurring_weekly_sat || patient.recurring_weekly_sun;
+
+              if (patient.recurring && hasSpecificWeeklyDays &&
+              !patient.recurring_daily && !patient.recurring_weekly_x4 &&
+              !patient.recurring_monthly && !patient.recurring_bimonthly) {
                 // This patient has weekly or bi-weekly recurring with specific days set
                 const selectedDateObj = new Date(formData.delivery_date + 'T00:00:00');
                 const dayOfWeek = selectedDateObj.getDay(); // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
-                
+
                 const dayFieldMap = {
                   0: 'recurring_weekly_sun',
                   1: 'recurring_weekly_mon',
@@ -696,12 +696,12 @@ export default function DeliveryForm({
                   5: 'recurring_weekly_fri',
                   6: 'recurring_weekly_sat'
                 };
-                
+
                 const requiredDayField = dayFieldMap[dayOfWeek];
                 if (!patient[requiredDayField]) {
-                  console.log('[DeliveryForm] Filtered out (weekly/bi-weekly wrong day):', pred.patient_name, 
-                    'Selected:', formData.delivery_date, '(day', dayOfWeek, ') but patient has:', 
-                    Object.entries(dayFieldMap).filter(([k, v]) => patient[v]).map(([k]) => k).join(','));
+                  console.log('[DeliveryForm] Filtered out (weekly/bi-weekly wrong day):', pred.patient_name,
+                  'Selected:', formData.delivery_date, '(day', dayOfWeek, ') but patient has:',
+                  Object.entries(dayFieldMap).filter(([k, v]) => patient[v]).map(([k]) => k).join(','));
                   return false;
                 }
               }
@@ -856,10 +856,10 @@ export default function DeliveryForm({
     }
 
     const timeSlot = getStoreAssignedTimeSlot(patientStore, formData.delivery_date, allDeliveries);
-    
+
     // Check if we need to create a new pickup (when in-progress stops exist but no incomplete pickup for this store)
     let puid = getPickupStopIdForDelivery(patientStore.id, formData.delivery_date, timeSlot, allDeliveries);
-    
+
     try {
       const pickupResponse = await base44.functions.invoke('ensurePickupForDelivery', {
         storeId: patientStore.id,
@@ -867,7 +867,7 @@ export default function DeliveryForm({
         driverId: autoSelectedDriverId,
         ampmDeliveries: timeSlot
       });
-      
+
       if (pickupResponse.data?.puid) {
         puid = pickupResponse.data.puid;
         console.log(`✅ [handlePatientSelect] Using PUID from ensurePickupForDelivery: ${puid} (isNew: ${pickupResponse.data.isNew})`);
@@ -1101,7 +1101,7 @@ export default function DeliveryForm({
         driverId: formData.driver_id,
         ampmDeliveries: timeSlot
       });
-      
+
       if (pickupResponse.data?.puid) {
         puid = pickupResponse.data.puid;
         console.log(`✅ [handleAddToStaging] Using PUID from ensurePickupForDelivery: ${puid} (isNew: ${pickupResponse.data.isNew})`);
@@ -1113,19 +1113,19 @@ export default function DeliveryForm({
     // Fallback to local logic if backend didn't return a PUID
     if (!puid) {
       const existingPickup = allDeliveries.find((d) =>
-        d &&
-        !d.patient_id &&
-        d.store_id === store.id &&
-        d.delivery_date === formData.delivery_date &&
-        d.driver_id === formData.driver_id &&
-        d.ampm_deliveries === timeSlot
+      d &&
+      !d.patient_id &&
+      d.store_id === store.id &&
+      d.delivery_date === formData.delivery_date &&
+      d.driver_id === formData.driver_id &&
+      d.ampm_deliveries === timeSlot
       );
 
       if (existingPickup) {
         const now = new Date();
         const isNotCompleted = existingPickup.status !== 'completed';
         const wasCompletedRecently = existingPickup.actual_delivery_time &&
-          now - new Date(existingPickup.actual_delivery_time) < 60 * 60 * 1000;
+        now - new Date(existingPickup.actual_delivery_time) < 60 * 60 * 1000;
 
         if (isNotCompleted || wasCompletedRecently) {
           puid = existingPickup.stop_id;
@@ -1243,7 +1243,7 @@ export default function DeliveryForm({
 
     setStagedDeliveries((prev) => prev.map((staged) => {
       if (staged._tempId !== editingStagedId) return staged;
-      
+
       // CRITICAL: Preserve the original 'id' field if it exists (pending delivery)
       // This ensures pending deliveries don't get re-saved as new when clicking Done
       const updatedStaged = {
@@ -1262,14 +1262,14 @@ export default function DeliveryForm({
         fridge_item: formData.fridge_item || false,
         signature_needed: formData.signature_needed || false
       };
-      
+
       console.log('📝 [DeliveryForm] Updated staged delivery:', {
         _tempId: updatedStaged._tempId,
         id: updatedStaged.id,
         patient_name: updatedStaged.patient_name,
         status: updatedStaged.status
       });
-      
+
       return updatedStaged;
     }));
 
@@ -1533,20 +1533,20 @@ export default function DeliveryForm({
       // Second, update pending deliveries that had status changes (from "pending" to "in_transit")
       if (updatedDeliveries.length > 0) {
         console.log(`[AddToRoute] 📝 Updating ${updatedDeliveries.length} pending deliveries with status changes...`);
-        
+
         // Check if any deliveries are completed for this driver/date
-        const hasCompletedDeliveries = allDeliveries?.some((d) => 
-          d && 
-          d.driver_id === formData.driver_id && 
-          d.delivery_date === formData.delivery_date && 
-          d.status === 'completed'
+        const hasCompletedDeliveries = allDeliveries?.some((d) =>
+        d &&
+        d.driver_id === formData.driver_id &&
+        d.delivery_date === formData.delivery_date &&
+        d.status === 'completed'
         );
-        
+
         for (const updated of updatedDeliveries) {
           console.log(`[AddToRoute] 🔄 Updating delivery ${updated.id}: ${updated.patient_name}`);
           console.log(`   - Old status: pending → New status: ${updated.status}`);
           console.log(`   - Tracking Number: ${updated.tracking_number}`);
-          
+
           const updateData = {
             status: updated.status,
             delivery_notes: updated.delivery_notes || '',
@@ -1556,13 +1556,13 @@ export default function DeliveryForm({
             tracking_number: updated.tracking_number || '99',
             isNextDelivery: hasCompletedDeliveries ? false : updated.isNextDelivery || false
           };
-          
+
           // Only update time windows if patient has time_window_start
           if (updated.time_window_start) {
             updateData.time_window_start = updated.time_window_start;
             updateData.time_window_end = updated.time_window_end || '';
           }
-          
+
           await base44.entities.Delivery.update(updated.id, updateData);
           console.log(`[AddToRoute] ✅ Updated pending delivery: ${updated.patient_name} → status: ${updated.status}`);
         }
@@ -1575,7 +1575,7 @@ export default function DeliveryForm({
         await onSave({ _isBatchSave: true, _stagedDeliveries: deliveriesWithTRs });
         console.log('[AddToRoute] ✅ Batch save completed successfully');
       }
-      
+
       // CRITICAL: Always trigger data refresh to show updated status changes
       if (updatedDeliveries.length > 0 && newDeliveries.length === 0) {
         console.log('[AddToRoute] 🔄 Triggering data refresh for status updates...');
@@ -1583,7 +1583,7 @@ export default function DeliveryForm({
         const { invalidate } = await import('../utils/dataManager');
         invalidate('Delivery');
       }
-      
+
       setStagedDeliveries([]);
       setProjectedDeliveries([]);
       onCancel(); // Always close after successful batch save
@@ -1673,15 +1673,15 @@ export default function DeliveryForm({
         const completionDateTime = new Date(`${dateStr}T${timeStr}:00`);
         dataToSave.actual_delivery_time = completionDateTime.toISOString();
       }
-      
+
       // CRITICAL: Check if driver assignment changed
       const driverChanged = delivery && delivery.driver_id !== formData.driver_id;
-      const oldDriver = driverChanged ? drivers.find(d => d?.id === delivery.driver_id) : null;
-      const newDriver = driverChanged ? drivers.find(d => d?.id === formData.driver_id) : null;
-      
+      const oldDriver = driverChanged ? drivers.find((d) => d?.id === delivery.driver_id) : null;
+      const newDriver = driverChanged ? drivers.find((d) => d?.id === formData.driver_id) : null;
+
       // CRITICAL: Check if delivery date changed
       const dateChanged = delivery && delivery.delivery_date !== formData.delivery_date;
-      
+
       // CRITICAL: If date changes, keep status as in_transit and set delivery_time_start to 10:00
       if (dateChanged) {
         console.log('📅 [DeliveryForm] Date changed - keeping in_transit status and setting 10:00 AM start time');
@@ -1695,12 +1695,12 @@ export default function DeliveryForm({
       delivery.status !== formData.status;
 
       await onSave(dataToSave);
-      
+
       // Send message if driver changed (from active driver to new driver)
       if (driverChanged && oldDriver && newDriver && currentUser && userHasRole(currentUser, 'driver')) {
         const patientName = delivery.patient_name || selectedPatient?.full_name || 'Unknown';
         const messageContent = `🚚 Delivery reassigned to you:\n• Patient: ${patientName}\n• Date: ${format(new Date(formData.delivery_date), 'MMM d, yyyy')}\n• From: ${getDriverDisplayName(oldDriver)}`;
-        
+
         await sendDeliveryMessage({
           senderId: currentUser.id,
           senderName: getDriverDisplayName(currentUser),
@@ -1710,7 +1710,7 @@ export default function DeliveryForm({
         });
         console.log('✉️ [DeliveryForm] Sent driver reassignment message');
       }
-      
+
       // CRITICAL: Always invalidate delivery cache after update to force refresh
       const { invalidate } = await import('../utils/dataManager');
       invalidate('Delivery');
@@ -1823,17 +1823,17 @@ export default function DeliveryForm({
       if (event.target === patientSearchInputRef.current) return;
 
       event.preventDefault();
-      
+
       // If editing an existing delivery, trigger submit (Update Delivery button)
       if (delivery && isFormValid && !isSaving) {
         handleSubmit(event);
         return;
       }
-      
+
       // New delivery flow
-      if (buttonState === 'done') handleBatchSave();
-      else if (buttonState === 'updateStaged' && isFormValid) handleUpdateStaged();
-      else if (buttonState === 'add' && isFormValid) handleAddToStaging();
+      if (buttonState === 'done') handleBatchSave();else
+      if (buttonState === 'updateStaged' && isFormValid) handleUpdateStaged();else
+      if (buttonState === 'add' && isFormValid) handleAddToStaging();
     };
 
     document.addEventListener('keydown', handleEnterKey);
@@ -2192,7 +2192,7 @@ export default function DeliveryForm({
           driverId: autoDriverId,
           ampmDeliveries: timeSlot
         });
-        
+
         if (pickupResponse.data?.puid) {
           puid = pickupResponse.data.puid;
           console.log(`✅ [confirmAddProjectedToStaged] Using PUID from ensurePickupForDelivery: ${puid} (isNew: ${pickupResponse.data.isNew})`);
@@ -2205,19 +2205,19 @@ export default function DeliveryForm({
     // Fallback to local logic if backend didn't return a PUID
     if (!puid) {
       const existingPickup = allDeliveries.find((d) =>
-        d &&
-        !d.patient_id &&
-        d.store_id === projected.store_id &&
-        d.delivery_date === formData.delivery_date &&
-        d.driver_id === autoDriverId &&
-        d.ampm_deliveries === timeSlot
+      d &&
+      !d.patient_id &&
+      d.store_id === projected.store_id &&
+      d.delivery_date === formData.delivery_date &&
+      d.driver_id === autoDriverId &&
+      d.ampm_deliveries === timeSlot
       );
 
       if (existingPickup) {
         const now = new Date();
         const isNotCompleted = existingPickup.status !== 'completed';
         const wasCompletedRecently = existingPickup.actual_delivery_time &&
-          now - new Date(existingPickup.actual_delivery_time) < 60 * 60 * 1000;
+        now - new Date(existingPickup.actual_delivery_time) < 60 * 60 * 1000;
 
         if (isNotCompleted || wasCompletedRecently) {
           puid = existingPickup.stop_id;
@@ -2346,22 +2346,22 @@ export default function DeliveryForm({
                   {(() => {
                     // Show last delivery date for selected patient OR for patient in form
                     let patientToCheck = selectedPatient;
-                    
+
                     // Also check formData.patient_id when no selectedPatient
                     if (!patientToCheck && formData.patient_id && patients) {
-                      patientToCheck = patients.find(p => p && p.id === formData.patient_id);
+                      patientToCheck = patients.find((p) => p && p.id === formData.patient_id);
                     }
-                    
+
                     if (!patientToCheck || !patientToCheck.last_delivery_date) return null;
-                    
+
                     try {
                       const date = new Date(patientToCheck.last_delivery_date + 'T00:00:00');
                       if (isNaN(date.getTime())) return null;
                       return (
                         <Badge variant="outline" className="text-xs font-normal ml-2">
                           LD: {format(date, 'MMM d, yyyy')}
-                        </Badge>
-                      );
+                        </Badge>);
+
                     } catch {
                       return null;
                     }
@@ -2855,10 +2855,10 @@ export default function DeliveryForm({
                   {/* Section 3: Store/Status/Time Windows - Only visible to dispatchers and admins */}
                   {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
                   <div className={`space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200 ${
-                    delivery && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') &&
-                    ['completed', 'failed', 'returned', 'cancelled', 'in_transit', 'en_route'].includes(formData.status)
-                      ? 'opacity-50 pointer-events-none' : ''
-                  }`}>
+                  delivery && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') &&
+                  ['completed', 'failed', 'returned', 'cancelled', 'in_transit', 'en_route'].includes(formData.status) ?
+                  'opacity-50 pointer-events-none' : ''}`
+                  }>
                     <div className="flex gap-3">
                       <div className="flex-1 space-y-1">
                         <Label className="text-sm font-semibold">{isPickupMode ? 'Pickup Store *' : 'Store *'}</Label>
@@ -3546,8 +3546,8 @@ export default function DeliveryForm({
                 <Button
                   type="button"
                   size="sm"
-                  onClick={() => handleBatchSave()}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                  onClick={() => handleBatchSave()} className="inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-8 rounded-md px-3 text-xs !text-white bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+
                   disabled={isSaving || stagedDeliveries.length === 0}>
                     {isSaving ?
                   <>
@@ -3607,8 +3607,8 @@ export default function DeliveryForm({
         </Card>
       </motion.div>
       {/* Delete Pending Confirmation Dialog */}
-      {deleteConfirmation.show && deleteConfirmation.staged && (
-        <div className="fixed inset-0 z-[10020] bg-black/60 flex items-center justify-center p-4">
+      {deleteConfirmation.show && deleteConfirmation.staged &&
+      <div className="fixed inset-0 z-[10020] bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-4">
             <h3 className="text-lg font-semibold mb-2">Delete Pending Delivery?</h3>
             <p className="text-sm text-slate-600 mb-4">
@@ -3616,56 +3616,56 @@ export default function DeliveryForm({
             </p>
             <div className="flex gap-2 justify-end">
               <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setDeleteConfirmation({ show: false, staged: null })}
-                disabled={isDeletingPending}>
+              variant="outline"
+              size="sm"
+              onClick={() => setDeleteConfirmation({ show: false, staged: null })}
+              disabled={isDeletingPending}>
                 Cancel
               </Button>
               <Button
-                variant="destructive"
-                size="sm"
-                disabled={isDeletingPending}
-                onClick={async () => {
-                  const staged = deleteConfirmation.staged;
-                  if (!staged || !staged.id) return;
-                  
-                  setIsDeletingPending(true);
-                  try {
-                    console.log('🗑️ [DeliveryForm] Deleting pending delivery:', staged.id, staged.patient_name);
-                    await base44.entities.Delivery.delete(staged.id);
-                    console.log('✅ [DeliveryForm] Pending delivery deleted successfully');
-                    
-                    // Remove from staged list completely
-                    setStagedDeliveries((prev) => prev.filter((item) => item.id !== staged.id && item._tempId !== staged._tempId));
-                    
-                    // Clear editing state if this was the one being edited
-                    if (editingStagedId === staged._tempId) {
-                      setEditingStagedId(null);
-                      handleClearForm();
-                    }
-                    
-                    // Trigger projections refresh
-                    setPredictionTrigger((prev) => prev + 1);
-                    
-                    // Invalidate cache
-                    const { invalidate } = await import('../utils/dataManager');
-                    invalidate('Delivery');
-                    
-                    setDeleteConfirmation({ show: false, staged: null });
-                  } catch (error) {
-                    console.error('❌ [DeliveryForm] Failed to delete pending delivery:', error);
-                    setError(`Failed to delete: ${error.message}`);
-                  } finally {
-                    setIsDeletingPending(false);
+              variant="destructive"
+              size="sm"
+              disabled={isDeletingPending}
+              onClick={async () => {
+                const staged = deleteConfirmation.staged;
+                if (!staged || !staged.id) return;
+
+                setIsDeletingPending(true);
+                try {
+                  console.log('🗑️ [DeliveryForm] Deleting pending delivery:', staged.id, staged.patient_name);
+                  await base44.entities.Delivery.delete(staged.id);
+                  console.log('✅ [DeliveryForm] Pending delivery deleted successfully');
+
+                  // Remove from staged list completely
+                  setStagedDeliveries((prev) => prev.filter((item) => item.id !== staged.id && item._tempId !== staged._tempId));
+
+                  // Clear editing state if this was the one being edited
+                  if (editingStagedId === staged._tempId) {
+                    setEditingStagedId(null);
+                    handleClearForm();
                   }
-                }}>
+
+                  // Trigger projections refresh
+                  setPredictionTrigger((prev) => prev + 1);
+
+                  // Invalidate cache
+                  const { invalidate } = await import('../utils/dataManager');
+                  invalidate('Delivery');
+
+                  setDeleteConfirmation({ show: false, staged: null });
+                } catch (error) {
+                  console.error('❌ [DeliveryForm] Failed to delete pending delivery:', error);
+                  setError(`Failed to delete: ${error.message}`);
+                } finally {
+                  setIsDeletingPending(false);
+                }
+              }}>
                 {isDeletingPending ? 'Deleting...' : 'Delete'}
               </Button>
             </div>
           </div>
         </div>
-      )}
+      }
     </div>);
 
 }
