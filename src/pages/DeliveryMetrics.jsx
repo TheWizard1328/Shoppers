@@ -221,9 +221,18 @@ export default function DeliveryMetrics() {
 
     setIsLoading(true);
     try {
-      // CRITICAL: Fetch fresh data directly from API without cache
-      const [deliveriesData, patientsData, storesData, appUsersData] = await Promise.all([
-        Delivery.filter({}),  // Use filter({}) instead of list() to bypass cache
+      // CRITICAL: Fetch ALL deliveries with explicit sort to get latest first
+      console.log('🔄 [DeliveryMetrics] Fetching fresh data from API...');
+      const deliveriesData = await Delivery.filter({}, '-delivery_date', 10000); // Get up to 10k deliveries, sorted by date descending
+      console.log(`✅ [DeliveryMetrics] Fetched ${deliveriesData.length} deliveries`);
+      
+      // Show latest dates
+      if (deliveriesData.length > 0) {
+        const latestDates = [...new Set(deliveriesData.slice(0, 20).map(d => d.delivery_date))].sort().reverse();
+        console.log('📅 [DeliveryMetrics] Latest dates in fetched data:', latestDates);
+      }
+
+      const [patientsData, storesData, appUsersData] = await Promise.all([
         Patient.filter({}),
         Store.filter({}),
         AppUser.filter({})]
