@@ -837,7 +837,7 @@ export default function StopCard({
 
           {!isStrippedDelivery && <div className="flex flex-col">
             <div className="flex items-start justify-between">
-              <div className="mt-1 flex flex-col gap-0.5 flex-1 min-w-0">
+              <div className="mt-1 flex flex-col justify-center gap-0.5 flex-1 min-w-0">
                 {finalDisplayAddress ?
                 <>
                     {/* Main address without unit/buzzer */}
@@ -848,10 +848,7 @@ export default function StopCard({
                     </div>
 
                     {/* Unit/Buzzer row (phone removed - now in expanded section) */}
-                    {!isStrippedDelivery && !shouldRedact &&
-                  <div className="flex items-center text-sm text-slate-600 min-h-[20px]">
-                        {/* Unit and Buzzer info */}
-                        {(() => {
+                    {!isStrippedDelivery && !shouldRedact && (() => {
                       const unitNum = !isPickup ? delivery?.unit_number || patient?.unit_number : null;
                       const fullAddress = isPickup ? store?.address || '' : patient?.address || '';
                       const buzzerMatch = fullAddress.match(/buzz(?:er)?\s*(\d+)/i);
@@ -860,13 +857,12 @@ export default function StopCard({
                       if (!unitNum && !buzzerNum) return null;
 
                       return (
-                        <>
-                              {unitNum && <span className="text-base font-medium">#{unitNum}</span>}
-                              {buzzerNum && <span className="text-sm font-medium">Buzz {buzzerNum}</span>}
-                            </>);
+                        <div className="flex items-center text-sm text-slate-600">
+                          {unitNum && <span className="text-base font-medium">#{unitNum}</span>}
+                          {buzzerNum && <span className="text-sm font-medium">Buzz {buzzerNum}</span>}
+                        </div>
+                      );
                     })()}
-                      </div>
-                  }
                   </> :
                 <div className="w-full h-[26px] flex items-center" />
                 }
