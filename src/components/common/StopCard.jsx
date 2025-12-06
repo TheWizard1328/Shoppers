@@ -630,7 +630,7 @@ export default function StopCard({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       className={`w-full cursor-pointer transition-all ${isSelected && !isStrippedDelivery ? 'ring-2 ring-blue-500' : ''}`}
-      style={{ scrollSnapAlign: 'center', position: 'relative', zIndex: 1, pointerEvents: 'auto', touchAction: 'manipulation' }}>
+      style={{ scrollSnapAlign: 'center' }}>
       <Card className="rounded-xl border bg-card text-card-foreground border-blue-500 shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 min-w-[340px] max-w-[340px]"
       onClick={() => {
         // Don't trigger click/expand for stripped deliveries
@@ -734,16 +734,15 @@ export default function StopCard({
             <div className="flex flex-col py-0.5 gap-0.5 items-center">
               <div className="flex items-center gap-1">
                 {showStatusDropdown ?
-                <DropdownMenu modal={false}>
+                <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <button className="font-medium inline-flex items-center gap-1 rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-xs font-bold px-2 py-0.5 cursor-pointer hover:opacity-80 bg-cyan-100 text-cyan-800 relative z-[100]"
-                    style={{ pointerEvents: 'auto', touchAction: 'manipulation' }}
+                      <button className="font-medium inline-flex items-center gap-1 rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-xs font-bold px-2 py-0.5 cursor-pointer hover:opacity-80 bg-cyan-100 text-cyan-800"
                     onClick={(e) => e.stopPropagation()}>
                         {statusConfig[delivery.status]?.label || delivery.status}
                         <MoreVertical className="w-3 h-3" />
                       </button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="z-[100000] text-base" onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenuContent align="end" className="z-[99999] text-base">
                       <DropdownMenuLabel className="text-base font-semibold">Change Status</DropdownMenuLabel>
                       <DropdownMenuSeparator />
                       {nextAvailableStatuses.map((status) =>
@@ -838,7 +837,7 @@ export default function StopCard({
 
           {!isStrippedDelivery && <div className="flex flex-col">
             <div className="flex items-start justify-between">
-              <div className="mt-1 flex flex-col justify-center flex-1 min-w-0 min-h-[44px]">
+              <div className="mt-1 flex flex-col gap-0.5 flex-1 min-w-0">
                 {finalDisplayAddress ?
                 <>
                     {/* Main address without unit/buzzer */}
@@ -849,7 +848,10 @@ export default function StopCard({
                     </div>
 
                     {/* Unit/Buzzer row (phone removed - now in expanded section) */}
-                    {!isStrippedDelivery && !shouldRedact && (() => {
+                    {!isStrippedDelivery && !shouldRedact &&
+                  <div className="flex items-center text-sm text-slate-600">
+                        {/* Unit and Buzzer info */}
+                        {(() => {
                       const unitNum = !isPickup ? delivery?.unit_number || patient?.unit_number : null;
                       const fullAddress = isPickup ? store?.address || '' : patient?.address || '';
                       const buzzerMatch = fullAddress.match(/buzz(?:er)?\s*(\d+)/i);
@@ -858,14 +860,15 @@ export default function StopCard({
                       if (!unitNum && !buzzerNum) return null;
 
                       return (
-                        <div className="flex items-center text-sm text-slate-600">
-                          {unitNum && <span className="text-base font-medium">#{unitNum}</span>}
-                          {buzzerNum && <span className="text-sm font-medium">Buzz {buzzerNum}</span>}
-                        </div>
-                      );
+                        <>
+                              {unitNum && <span className="text-base font-medium">#{unitNum}</span>}
+                              {buzzerNum && <span className="text-sm font-medium">Buzz {buzzerNum}</span>}
+                            </>);
                     })()}
+                      </div>
+                  }
                   </> :
-                <div className="w-full h-[26px] flex items-center" />
+                <div className="w-full h-[26px]" />
                 }
               </div>
 
@@ -1721,12 +1724,11 @@ export default function StopCard({
                           variant="ghost"
                           size="icon"
                           className={`h-8 w-8 border border-slate-300 hover:bg-slate-100 relative z-[100] ${delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'returned' ? 'rounded-l-none' : 'rounded-md'}`}
-                          style={{ pointerEvents: 'auto', touchAction: 'manipulation' }}
                           onClick={(e) => e.stopPropagation()}>
                             <MoreVertical className="w-4 h-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="z-[100000]" sideOffset={5} onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenuContent align="end" className="z-[99999]" sideOffset={5} onClick={(e) => e.stopPropagation()}>
                           {onEditDelivery && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                         <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEditDelivery(delivery);}}>
                               <Edit className="w-4 h-4 mr-2" />
