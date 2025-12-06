@@ -559,7 +559,7 @@ export default function DeliveryMetrics() {
 
     if (isWeeklyRange) {
       // For weekly ranges (and today, which is a single day, can fit in this too for XAxis consistency)
-      // Create a fixed 7-day structure (Mon-Sun)
+      // Create a fixed 7-day structure (Mon-Sun) - ALWAYS show all 7 days
       const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
       const weeklyDataMap = new Map(dayNames.map((day) => [day, { day, completed: 0, failed: 0, returned: 0, total: 0, prevCompleted: 0, prevFailed: 0, prevReturned: 0, prevTotal: 0 }]));
 
