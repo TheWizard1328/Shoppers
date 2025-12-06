@@ -39,15 +39,30 @@ Deno.serve(async (req) => {
     console.log(`[predictDeliveries] Fetching historical deliveries from ${pastDateStr} for AI analysis...`);
 
     // Fetch all patients and historical deliveries
-    let patients, historicalForML;
+    let patients, rawHistoricalForML;
     try {
-      [patients, historicalForML] = await Promise.all([
+      [patients, rawHistoricalForML] = await Promise.all([
         base44.asServiceRole.entities.Patient.list(),
         base44.asServiceRole.entities.Delivery.filter({
           delivery_date: { $gte: pastDateStr },
           status: 'completed'
         }, '-delivery_date', 5000)
       ]);
+
+      // CRITICAL: Handle case where API returns string (JSON) instead of parsed array
+      let historicalForML = [];
+      if (typeof rawHistoricalForML === 'string') {
+        try {
+          historicalForML = JSON.parse(rawHistoricalForML);
+          console.log('[predictDeliveries] Parsed historicalForML from string');
+        } catch (parseErr) {
+          console.error('[predictDeliveries] Failed to parse historicalForML string:', parseErr);
+          historicalForML = [];
+        }
+      } else {
+        historicalForML = Array.isArray(rawHistoricalForML) ? rawHistoricalForML : [];
+      }
+
       console.log('[predictDeliveries] Fetched patients:', patients?.length || 0);
       console.log('[predictDeliveries] Fetched historical deliveries:', historicalForML?.length || 0);
     } catch (patientError) {
@@ -308,7 +323,7 @@ Deno.serve(async (req) => {
       }
 
       // RULE 2: AI-Enhanced Historical Analysis - use 12-month data to detect patterns
-      if (!shouldInclude) {
+      if (!shouldInclude && Array.isArray(historicalForML)) {
         const patientDeliveries = historicalForML.filter(d => d && d.patient_id === patient.id);
 
         // FILTER RULE 1: Require at least 3 deliveries for historical pattern detection
