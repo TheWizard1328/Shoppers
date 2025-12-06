@@ -3565,8 +3565,8 @@ export default function DeliveryForm({
                 <Button
                   type="button"
                   size="sm"
-                  onClick={handleUpdateStaged}
-                  className="bg-blue-600 hover:bg-blue-700 gap-2"
+                  onClick={handleUpdateStaged} className="inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-primary-foreground shadow h-8 rounded-md px-3 text-xs !text-white bg-blue-600 hover:bg-blue-700 gap-2"
+
                   disabled={isSaving || !isFormValid}>
                       <Edit2 className="w-4 h-4" />
                       Update
