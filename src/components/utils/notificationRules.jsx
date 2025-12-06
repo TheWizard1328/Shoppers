@@ -58,8 +58,8 @@ export const notificationRules = {
     inApp: true,
     whatsApp: true,
     recipients: 'dispatchers',
-    buildMessage: ({ driverName, patientName, eta }) => 
-      `${driverName} has moved ${patientName || 'Unknown Patient'} to next delivery.${eta}`
+    buildMessage: ({ driverName, patientName }) => 
+      `${driverName} has moved ${patientName || 'Unknown Patient'} to next delivery.`
   },
 
   [NOTIFICATION_EVENTS.DRIVER_COMPLETED]: {
@@ -67,8 +67,8 @@ export const notificationRules = {
     inApp: true,
     whatsApp: true,
     recipients: 'dispatchers',
-    buildMessage: ({ driverName, patientName, eta }) => 
-      `${driverName} has completed delivery for ${patientName || 'Unknown Patient'}.${eta}`
+    buildMessage: ({ driverName, patientName }) => 
+      `${driverName} has completed delivery for ${patientName || 'Unknown Patient'}.`
   },
 
   [NOTIFICATION_EVENTS.DRIVER_FAILED]: {
@@ -76,8 +76,8 @@ export const notificationRules = {
     inApp: true,
     whatsApp: true,
     recipients: 'dispatchers',
-    buildMessage: ({ driverName, patientName, eta }) => 
-      `${driverName} failed to complete delivery for ${patientName || 'Unknown Patient'}.${eta}`
+    buildMessage: ({ driverName, patientName }) => 
+      `${driverName} failed to complete delivery for ${patientName || 'Unknown Patient'}.`
   },
 
   [NOTIFICATION_EVENTS.DRIVER_RETRY]: {
@@ -85,8 +85,8 @@ export const notificationRules = {
     inApp: true,
     whatsApp: true,
     recipients: 'dispatchers',
-    buildMessage: ({ driverName, patientName, eta }) => 
-      `${driverName} is now retrying delivery for ${patientName || 'Unknown Patient'}.${eta}`
+    buildMessage: ({ driverName, patientName }) => 
+      `${driverName} is now retrying delivery for ${patientName || 'Unknown Patient'}.`
   },
 
   [NOTIFICATION_EVENTS.DRIVER_RETURN]: {
@@ -94,8 +94,8 @@ export const notificationRules = {
     inApp: true,
     whatsApp: true,
     recipients: 'dispatchers',
-    buildMessage: ({ driverName, patientName, eta }) => 
-      `${driverName} is En Route to return delivery for ${patientName || 'Unknown Patient'}.${eta}`
+    buildMessage: ({ driverName, patientName }) => 
+      `${driverName} is En Route to return delivery for ${patientName || 'Unknown Patient'}.`
   }
 };
 
