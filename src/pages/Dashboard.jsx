@@ -5227,7 +5227,7 @@ function Dashboard() {
               if (retractClustersRef.current) {
                 retractClustersRef.current();
               }
-            }} className="bg-white px-2 py-2 rounded-2xl shadow-xl border min-w-[340px] cursor-pointer z-[700] border-slate-200">
+            }} className="bg-white px-2 py-2 rounded-2xl shadow-xl border min-w-[340px] cursor-pointer z-[700] border-slate-200" style={{ pointerEvents: 'auto', touchAction: 'manipulation', position: 'relative' }}>
 
 
             
@@ -5264,14 +5264,14 @@ function Dashboard() {
                   if (open) {
                     setCalendarMonth(selectedDate);
                   }
-                }}>
+                }} modal={true}>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="gap-2 h-8 px-3">
+                    <Button variant="outline" size="sm" className="gap-2 h-8 px-3" style={{ pointerEvents: 'auto', touchAction: 'manipulation' }}>
                       <CalendarIcon className="w-3.5 h-3.5" />
                       <span className="text-sm">{format(selectedDate, 'EEE MMM dd')}</span>
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 z-[10001]" align="end">
+                  <PopoverContent className="w-auto p-0 z-[10001]" align="end" style={{ pointerEvents: 'auto' }}>
                     <Calendar
                       mode="single"
                       selected={selectedDate}
@@ -5401,10 +5401,10 @@ function Dashboard() {
                     onValueChange={handleDriverChange}
                     disabled={isDriverDropdownDisabled}>
 
-                      <SelectTrigger className="flex h-8 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 flex-1">
+                      <SelectTrigger className="flex h-8 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 flex-1" style={{ pointerEvents: 'auto', touchAction: 'manipulation' }}>
                         <SelectValue placeholder="All Drivers" />
                       </SelectTrigger>
-                      <SelectContent className="z-[10001]">
+                      <SelectContent className="z-[10001]" style={{ pointerEvents: 'auto' }}>
                         <SelectItem value="all">All Drivers</SelectItem>
                         {driversList.map((driver) =>
                       <SelectItem key={driver.id} value={driver.id}>

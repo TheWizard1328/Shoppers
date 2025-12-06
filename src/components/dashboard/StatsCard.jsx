@@ -20,7 +20,7 @@ export default function StatsCard({ title, value, icon: Icon, trend, color, isLo
     >
       <Card className={`bg-white shadow-sm hover:shadow-md transition-shadow duration-300 ${
         isLocationSharing ? 'border-2 border-emerald-500' : 'border-slate-200'
-      }`}>
+      }`} style={{ pointerEvents: 'auto', touchAction: 'manipulation', position: 'relative', zIndex: 1 }}>
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
             <div>

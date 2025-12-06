@@ -63,7 +63,7 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
           isLocked 
             ? 'bg-blue-600 hover:bg-blue-700' 
             : 'bg-gray-400 hover:bg-gray-500'
-        }`}>
+        }`} style={{ pointerEvents: 'auto', touchAction: 'manipulation' }}>
         {/* Mode number in top-left corner */}
         <span className="absolute top-1 left-1 text-white font-bold text-[10px]">
           {currentPhase}
