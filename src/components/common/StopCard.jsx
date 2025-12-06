@@ -1122,7 +1122,7 @@ export default function StopCard({
                           </Button>
                         </div>
 
-                        <div className="space-y-2 max-h-48 overflow-y-auto bg-white">
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
                           {codPayments.map((payment, index) =>
                       <div key={index} className="flex items-center gap-2 bg-white p-2 rounded border border-slate-200">
                               <Select value={payment.type} onValueChange={(value) => handleCODPaymentChange(index, 'type', value)} onOpenChange={(open) => {if (open) setShowCODCollection(true);}}>
