@@ -650,35 +650,53 @@ export default function DeliveryMetrics() {
       previousPeriodDailyData = []; // Not needed as it's merged into currentPeriodDailyData
     } else {
       // For monthly/quarterly/yearly ranges, use date-based breakdown
+      // CRITICAL: Generate entries for ALL dates in the range, even if no data
       const dailyStats = {};
+      
+      // Initialize all dates in current period range with zero values
+      const currentDate = new Date(startDate);
+      while (currentDate <= endDate) {
+        const dateStr = format(currentDate, 'yyyy-MM-dd');
+        dailyStats[dateStr] = { date: dateStr, completed: 0, failed: 0, returned: 0, total: 0 };
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      
+      // Fill in actual delivery data
       relevantDeliveries.forEach((delivery) => {
         const date = delivery.delivery_date;
-        if (!dailyStats[date]) {
-          dailyStats[date] = { date, completed: 0, failed: 0, returned: 0, total: 0 };
+        if (dailyStats[date]) {
+          dailyStats[date].total++;
+          if (delivery.status === 'completed') dailyStats[date].completed++;
+          if (delivery.status === 'failed') dailyStats[date].failed++;
+          const patient = patients.find((p) => p.id === delivery.patient_id);
+          const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return');
+          const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
+          if (notesReturn || addressReturn) dailyStats[date].returned++;
         }
-        dailyStats[date].total++;
-        if (delivery.status === 'completed') dailyStats[date].completed++;
-        if (delivery.status === 'failed') dailyStats[date].failed++;
-        const patient = patients.find((p) => p.id === delivery.patient_id);
-        const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return');
-        const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
-        if (notesReturn || addressReturn) dailyStats[date].returned++;
       });
 
       const prevDailyStats = {};
       if (prevStartDate && prevEndDate) {
+        // Initialize all dates in previous period range with zero values
+        const prevDate = new Date(prevStartDate);
+        while (prevDate <= prevEndDate) {
+          const dateStr = format(prevDate, 'yyyy-MM-dd');
+          prevDailyStats[dateStr] = { date: dateStr, completed: 0, failed: 0, returned: 0, total: 0 };
+          prevDate.setDate(prevDate.getDate() + 1);
+        }
+        
+        // Fill in actual delivery data
         prevRelevantDeliveries.forEach((delivery) => {
           const date = delivery.delivery_date;
-          if (!prevDailyStats[date]) {
-            prevDailyStats[date] = { date, completed: 0, failed: 0, returned: 0, total: 0 };
+          if (prevDailyStats[date]) {
+            prevDailyStats[date].total++;
+            if (delivery.status === 'completed') prevDailyStats[date].completed++;
+            if (delivery.status === 'failed') prevDailyStats[date].failed++;
+            const patient = patients.find((p) => p.id === delivery.patient_id);
+            const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return');
+            const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
+            if (notesReturn || addressReturn) prevDailyStats[date].returned++;
           }
-          prevDailyStats[date].total++;
-          if (delivery.status === 'completed') prevDailyStats[date].completed++;
-          if (delivery.status === 'failed') prevDailyStats[date].failed++;
-          const patient = patients.find((p) => p.id === delivery.patient_id);
-          const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return');
-          const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
-          if (notesReturn || addressReturn) prevDailyStats[date].returned++;
         });
       }
 
