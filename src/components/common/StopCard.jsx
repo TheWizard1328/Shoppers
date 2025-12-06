@@ -643,7 +643,7 @@ export default function StopCard({
           <div className="flex items-start gap-1">
             <div className="flex flex-col py-0. gap-0.5  items-center">
               <Badge
-                variant="secondary" className="inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary hover:bg-secondary/80 font-bold text-sm px-2 py-0.5 text-white w-[40px] justify-center rounded-full"
+                variant="secondary" className="inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary hover:bg-secondary/80 font-bold text-sm px-2 py-1 text-white w-[40px] justify-center rounded-full"
                 style={{
                   backgroundColor: storeColor || '#10B981',
                   color: 'white'
@@ -653,7 +653,7 @@ export default function StopCard({
 
               {isPickup && pendingPickups && pendingPickups.length > 0 &&
               <Badge
-                variant="secondary" className="inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 font-bold text-xs px-2 py-0.5 bg-purple-500 !text-white justify-center rounded-lg">
+                variant="secondary" className="text-secondary-foreground inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 font-bold text-sm px-2 py-0.5 bg-purple-500 !text-white justify-center rounded-lg">
 
                   P: {pendingPickups.length}
                 </Badge>
@@ -736,7 +736,7 @@ export default function StopCard({
                 {showStatusDropdown ?
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <button className="font-medium inline-flex items-center gap-1 rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-xs font-bold px-2 py-0.5 cursor-pointer hover:opacity-80 bg-cyan-100 text-cyan-800"
+                      <button className="inline-flex items-center gap-1 rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-sm font-bold px-2 py-0.5 cursor-pointer hover:opacity-80 bg-cyan-100 text-cyan-800"
                     onClick={(e) => e.stopPropagation()}>
                         {statusConfig[delivery.status]?.label || delivery.status}
                         <MoreVertical className="w-3 h-3" />
@@ -817,7 +817,7 @@ export default function StopCard({
 
               {delivery.tracking_number && store?.abbreviation &&
               <Badge
-                variant="secondary" className="inline-flex items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 font-mono text-sm font-bold px-2 py-0.5"
+                variant="secondary" className="inline-flex items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 font-mono text-sm font-bold px-2 py-1"
                 style={{ backgroundColor: `${storeColor}20`, color: storeColor }}>
                   {(() => {
                   const storeAbbr = store.abbreviation.slice(0, 2).toUpperCase();
