@@ -50,11 +50,11 @@ async function sendNotification({
   receiverId,
   receiverName
 }) {
-  const content = getNotificationMessage(event, messageData);
+  const content = await getNotificationMessage(event, messageData);
   if (!content) return;
 
   // Send in-app message if enabled
-  if (shouldNotify(event, 'inApp')) {
+  if (await shouldNotify(event, 'inApp')) {
     await sendDeliveryMessage({
       senderId,
       senderName,
@@ -210,8 +210,7 @@ export async function notifyDriverAcceptedAll({
   store,
   appUsers
 }) {
-  if (!shouldNotify(NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ALL, 'inApp') && 
-      !shouldNotify(NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ALL, 'whatsApp')) return;
+  if (!(await shouldNotify(NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ALL, 'inApp'))) return;
 
   const dispatchers = getDispatchersForStore(store?.id, appUsers);
   if (!dispatchers || dispatchers.length === 0) return;
@@ -242,8 +241,7 @@ export async function notifyDriverAcceptedOne({
   store,
   appUsers
 }) {
-  if (!shouldNotify(NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ONE, 'inApp') && 
-      !shouldNotify(NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ONE, 'whatsApp')) return;
+  if (!(await shouldNotify(NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ONE, 'inApp'))) return;
 
   const dispatchers = getDispatchersForStore(store?.id, appUsers);
   if (!dispatchers || dispatchers.length === 0) return;
@@ -275,8 +273,7 @@ export async function notifyDispatcherAssignedAll({
   deliveries,
   patients
 }) {
-  if (!shouldNotify(NOTIFICATION_EVENTS.DISPATCHER_ASSIGNED_ALL, 'inApp') && 
-      !shouldNotify(NOTIFICATION_EVENTS.DISPATCHER_ASSIGNED_ALL, 'whatsApp')) return;
+  if (!(await shouldNotify(NOTIFICATION_EVENTS.DISPATCHER_ASSIGNED_ALL, 'inApp'))) return;
 
   const storeUser = await getStoreUser(store);
   if (!storeUser) return;
@@ -316,8 +313,7 @@ export async function notifyDriverStarted({
   store,
   appUsers
 }) {
-  if (!shouldNotify(NOTIFICATION_EVENTS.DRIVER_STARTED, 'inApp') && 
-      !shouldNotify(NOTIFICATION_EVENTS.DRIVER_STARTED, 'whatsApp')) return;
+  if (!(await shouldNotify(NOTIFICATION_EVENTS.DRIVER_STARTED, 'inApp'))) return;
 
   const dispatchers = getDispatchersForStore(store?.id, appUsers);
   if (!dispatchers || dispatchers.length === 0) return;
@@ -349,8 +345,7 @@ export async function notifyDriverCompleted({
   store,
   appUsers
 }) {
-  if (!shouldNotify(NOTIFICATION_EVENTS.DRIVER_COMPLETED, 'inApp') && 
-      !shouldNotify(NOTIFICATION_EVENTS.DRIVER_COMPLETED, 'whatsApp')) return;
+  if (!(await shouldNotify(NOTIFICATION_EVENTS.DRIVER_COMPLETED, 'inApp'))) return;
 
   const dispatchers = getDispatchersForStore(store?.id, appUsers);
   if (!dispatchers || dispatchers.length === 0) return;
@@ -382,8 +377,7 @@ export async function notifyDriverFailed({
   store,
   appUsers
 }) {
-  if (!shouldNotify(NOTIFICATION_EVENTS.DRIVER_FAILED, 'inApp') && 
-      !shouldNotify(NOTIFICATION_EVENTS.DRIVER_FAILED, 'whatsApp')) return;
+  if (!(await shouldNotify(NOTIFICATION_EVENTS.DRIVER_FAILED, 'inApp'))) return;
 
   const dispatchers = getDispatchersForStore(store?.id, appUsers);
   if (!dispatchers || dispatchers.length === 0) return;
@@ -415,8 +409,7 @@ export async function notifyDriverRetry({
   store,
   appUsers
 }) {
-  if (!shouldNotify(NOTIFICATION_EVENTS.DRIVER_RETRY, 'inApp') && 
-      !shouldNotify(NOTIFICATION_EVENTS.DRIVER_RETRY, 'whatsApp')) return;
+  if (!(await shouldNotify(NOTIFICATION_EVENTS.DRIVER_RETRY, 'inApp'))) return;
 
   const dispatchers = getDispatchersForStore(store?.id, appUsers);
   if (!dispatchers || dispatchers.length === 0) return;
@@ -448,8 +441,7 @@ export async function notifyDriverReturn({
   store,
   appUsers
 }) {
-  if (!shouldNotify(NOTIFICATION_EVENTS.DRIVER_RETURN, 'inApp') && 
-      !shouldNotify(NOTIFICATION_EVENTS.DRIVER_RETURN, 'whatsApp')) return;
+  if (!(await shouldNotify(NOTIFICATION_EVENTS.DRIVER_RETURN, 'inApp'))) return;
 
   const dispatchers = getDispatchersForStore(store?.id, appUsers);
   if (!dispatchers || dispatchers.length === 0) return;
