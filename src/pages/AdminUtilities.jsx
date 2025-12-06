@@ -546,6 +546,34 @@ const DeliveryDataTable = ({
     });
   }, []);
 
+  const handleStatusChange = async (delivery, newStatus) => {
+    try {
+      await Delivery.update(delivery.id, { status: newStatus });
+      setEditingStatusId(null);
+      await onSortChange(); // Trigger refresh
+    } catch (error) {
+      console.error('Failed to update status:', error);
+      alert('Failed to update status: ' + error.message);
+    }
+  };
+
+  const handleDriverChange = async (delivery, newDriverId) => {
+    try {
+      const driver = drivers.find(d => d && d.id === newDriverId);
+      const driverName = driver ? getDriverDisplayName(driver) : '';
+      
+      await Delivery.update(delivery.id, { 
+        driver_id: newDriverId,
+        driver_name: driverName
+      });
+      setEditingDriverId(null);
+      await onSortChange(); // Trigger refresh
+    } catch (error) {
+      console.error('Failed to update driver:', error);
+      alert('Failed to update driver: ' + error.message);
+    }
+  };
+
   const getSortIcon = (columnName) => {
     if (sortColumn === columnName) {
       return sortDirection === 'asc' ? <ArrowUpDown className="w-4 h-4 inline ml-1 transform rotate-180" /> : <ArrowUpDown className="w-4 h-4 inline ml-1" />;
