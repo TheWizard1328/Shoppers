@@ -1554,28 +1554,37 @@ export default function DeliveryForm({
         );
 
         for (const updated of updatedDeliveries) {
-          console.log(`[AddToRoute] 🔄 Updating delivery ${updated.id}: ${updated.patient_name}`);
-          console.log(`   - Old status: pending → New status: ${updated.status}`);
-          console.log(`   - Tracking Number: ${updated.tracking_number}`);
+          try {
+            console.log(`[AddToRoute] 🔄 Updating delivery ${updated.id}: ${updated.patient_name}`);
+            console.log(`   - Old status: pending → New status: ${updated.status}`);
+            console.log(`   - Tracking Number: ${updated.tracking_number}`);
 
-          const updateData = {
-            status: updated.status,
-            delivery_notes: updated.delivery_notes || '',
-            prescription_number: updated.prescription_number || '',
-            cod_total_amount_required: updated.cod_total_amount_required || 0,
-            delivery_instructions: updated.delivery_instructions || '',
-            tracking_number: updated.tracking_number || '99',
-            isNextDelivery: hasCompletedDeliveries ? false : updated.isNextDelivery || false
-          };
+            const updateData = {
+              status: updated.status,
+              delivery_notes: updated.delivery_notes || '',
+              prescription_number: updated.prescription_number || '',
+              cod_total_amount_required: updated.cod_total_amount_required || 0,
+              delivery_instructions: updated.delivery_instructions || '',
+              tracking_number: updated.tracking_number || '99',
+              isNextDelivery: hasCompletedDeliveries ? false : updated.isNextDelivery || false
+            };
 
-          // Only update time windows if patient has time_window_start
-          if (updated.time_window_start) {
-            updateData.time_window_start = updated.time_window_start;
-            updateData.time_window_end = updated.time_window_end || '';
+            // Only update time windows if patient has time_window_start
+            if (updated.time_window_start) {
+              updateData.time_window_start = updated.time_window_start;
+              updateData.time_window_end = updated.time_window_end || '';
+            }
+
+            await base44.entities.Delivery.update(updated.id, updateData);
+            console.log(`[AddToRoute] ✅ Updated pending delivery: ${updated.patient_name} → status: ${updated.status}`);
+          } catch (error) {
+            // Skip deliveries that were deleted
+            if (error.message?.includes('not found')) {
+              console.log(`[AddToRoute] ⏭️ Skipping deleted delivery: ${updated.id} (${updated.patient_name})`);
+              continue;
+            }
+            throw error;
           }
-
-          await base44.entities.Delivery.update(updated.id, updateData);
-          console.log(`[AddToRoute] ✅ Updated pending delivery: ${updated.patient_name} → status: ${updated.status}`);
         }
         console.log('[AddToRoute] ✅ All pending deliveries updated');
       }
