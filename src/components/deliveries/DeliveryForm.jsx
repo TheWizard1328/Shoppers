@@ -2374,7 +2374,7 @@ export default function DeliveryForm({
                     type="button"
                     variant={!isPickupMode ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setIsPickupMode(false)} className="bg-emerald-600 text-white px-3 text-xs font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-8 hover:bg-emerald-700">
+                    onClick={() => setIsPickupMode(false)} className="disabled:opacity-50 bg-emerald-600 text-white px-3 text-xs !text-white font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-8 hover:bg-emerald-700">
 
                       Add Delivery
                     </Button>
