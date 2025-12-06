@@ -289,10 +289,14 @@ export default function DeliveryMetrics() {
     console.log('👤 Selected driver:', selectedDriver);
     console.log('👥 Available drivers:', drivers.length);
     
-    // Sample some delivery dates to debug
-    if (deliveries.length > 0) {
-      console.log('📅 Sample delivery dates:', deliveries.slice(0, 5).map(d => d.delivery_date));
-    }
+    // DEBUG: Show ALL unique dates in the entire delivery dataset
+    const allDatesInDataset = [...new Set(deliveries.filter(d => d.delivery_date).map(d => d.delivery_date))].sort();
+    console.log('📅 ALL dates in dataset:', allDatesInDataset.length, 'unique dates');
+    console.log('📅 Date range in dataset:', allDatesInDataset[0], 'to', allDatesInDataset[allDatesInDataset.length - 1]);
+    
+    // Show December 2025 dates specifically
+    const dec2025Dates = allDatesInDataset.filter(d => d.startsWith('2025-12'));
+    console.log('📅 December 2025 dates available:', dec2025Dates);
 
     let relevantDeliveries = deliveries.filter((d) => {
       if (!d.delivery_date) return false;
