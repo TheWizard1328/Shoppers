@@ -280,11 +280,10 @@ export default function DeliveryMetrics() {
 
       setDrivers(sortUsers(allDrivers));
 
-      // CRITICAL FIX: Store ALL deliveries, don't filter by date here
-      // We need all deliveries to calculate previous period comparisons
+      // Store ALL fetched deliveries
       setDeliveries(deliveriesData || []);
 
-      console.log(`✅ [DeliveryMetrics] Loaded ${deliveriesData?.length || 0} total deliveries`);
+      console.log(`✅ [DeliveryMetrics] Stored ${deliveriesData?.length || 0} total deliveries in state`);
     } catch (error) {
       console.error("Error loading metrics data:", error);
     } finally {
