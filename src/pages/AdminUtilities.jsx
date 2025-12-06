@@ -33,6 +33,7 @@ import { base44 } from '@/api/base44Client';
 import AppSettingsPanel from '../components/admin/AppSettingsPanel';
 import { loadUserSettings, saveSetting } from '../components/utils/userSettingsManager';
 import DeliveryForm from '../components/deliveries/DeliveryForm';
+import MessageRulesManager from '../components/admin/MessageRulesManager';
 
 // Custom Confirmation Dialog Component
 const ConfirmationDialog = ({ open, onOpenChange, title, description, onConfirm, confirmText = "Delete", variant = "destructive" }) => {
@@ -3772,10 +3773,11 @@ export default function AdminUtilities() {
         </div>
 
         <Tabs value={activeUtilityTab} onValueChange={setActiveUtilityTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="data">Data Management</TabsTrigger>
             <TabsTrigger value="user-settings">User Settings</TabsTrigger>
             <TabsTrigger value="app-settings">App Settings</TabsTrigger>
+            <TabsTrigger value="message-rules">Message Rules</TabsTrigger>
           </TabsList>
 
           <TabsContent value="data">
@@ -3943,6 +3945,10 @@ export default function AdminUtilities() {
 
           <TabsContent value="app-settings">
             <AppSettingsPanel />
+          </TabsContent>
+
+          <TabsContent value="message-rules">
+            <MessageRulesManager />
           </TabsContent>
         </Tabs>
       </div>
