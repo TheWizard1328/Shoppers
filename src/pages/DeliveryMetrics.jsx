@@ -934,7 +934,14 @@ export default function DeliveryMetrics() {
             {showComparison && !isWeeklyRangeForChart && metrics.prevDailyData.length > 0 &&
             <Card>
                 <CardHeader>
-                  <CardTitle>Daily Delivery Performance - Previous Period</CardTitle>
+                  <CardTitle>
+                    Daily Delivery Performance - Previous Period
+                    {prevStartDate && prevEndDate && (
+                      <span className="text-sm font-normal text-slate-500 ml-2">
+                        ({format(prevStartDate, 'MMM d, yyyy')} - {format(prevEndDate, 'MMM d, yyyy')})
+                      </span>
+                    )}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
