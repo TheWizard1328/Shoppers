@@ -296,10 +296,12 @@ export default function DeliveryMetrics() {
 
     let relevantDeliveries = deliveries.filter((d) => {
       if (!d.delivery_date) return false;
-      const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
-      const start = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
-      const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59);
-      return deliveryDate >= start && deliveryDate <= end;
+      // CRITICAL: Parse dates as YYYY-MM-DD strings for comparison to avoid timezone issues
+      const deliveryDate = d.delivery_date; // e.g., '2025-12-04'
+      const startDateStr = format(startDate, 'yyyy-MM-dd');
+      const endDateStr = format(endDate, 'yyyy-MM-dd');
+      
+      return deliveryDate >= startDateStr && deliveryDate <= endDateStr;
     });
 
     console.log('📊 Deliveries in current date range:', relevantDeliveries.length);
