@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
+import { format } from 'npm:date-fns@3.6.0';
 
 Deno.serve(async (req) => {
   try {
@@ -30,11 +31,25 @@ Deno.serve(async (req) => {
 
     console.log('[predictDeliveries] Starting predictions for:', delivery_date);
 
-    // Fetch all patients
-    let patients;
+    // Fetch historical data for AI-powered prediction (last 12 months for pattern analysis)
+    const pastDate = new Date();
+    pastDate.setMonth(pastDate.getMonth() - 12);
+    const pastDateStr = format(pastDate, 'yyyy-MM-dd');
+    
+    console.log(`[predictDeliveries] Fetching historical deliveries from ${pastDateStr} for AI analysis...`);
+
+    // Fetch all patients and historical deliveries
+    let patients, historicalForML;
     try {
-      patients = await base44.asServiceRole.entities.Patient.list();
+      [patients, historicalForML] = await Promise.all([
+        base44.asServiceRole.entities.Patient.list(),
+        base44.asServiceRole.entities.Delivery.filter({
+          delivery_date: { $gte: pastDateStr },
+          status: 'completed'
+        }, '-delivery_date', 5000)
+      ]);
       console.log('[predictDeliveries] Fetched patients:', patients?.length || 0);
+      console.log('[predictDeliveries] Fetched historical deliveries:', historicalForML?.length || 0);
     } catch (patientError) {
       console.error('[predictDeliveries] Error fetching patients:', patientError);
       return Response.json({ error: 'Failed to fetch patients', details: patientError.message }, { status: 500 });
@@ -292,9 +307,9 @@ Deno.serve(async (req) => {
         }
       }
 
-      // RULE 2: Analyze historical data for patients without explicit recurring patterns
+      // RULE 2: AI-Enhanced Historical Analysis - use 12-month data to detect patterns
       if (!shouldInclude) {
-        const patientDeliveries = historicalDeliveries.filter(d => d && d.patient_id === patient.id);
+        const patientDeliveries = historicalForML.filter(d => d && d.patient_id === patient.id);
 
         // FILTER RULE 1: Require at least 3 deliveries for historical pattern detection
         if (patientDeliveries.length >= 3) {
