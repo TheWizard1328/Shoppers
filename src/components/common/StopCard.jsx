@@ -653,7 +653,7 @@ export default function StopCard({
 
               {isPickup && pendingPickups && pendingPickups.length > 0 &&
               <Badge
-                variant="secondary" className="text-secondary-foreground inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 font-bold text-sm px-2 py-0.5 bg-purple-500 !text-white justify-center rounded-lg">
+                variant="secondary" className="bg-purple-500 text-secondary-foreground mt-1 px-2 text-sm font-bold rounded-lg inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 !text-white justify-center">
 
                   P: {pendingPickups.length}
                 </Badge>
@@ -743,103 +743,103 @@ export default function StopCard({
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="z-[99999] text-base p-2 space-y-2">
-                      {nextAvailableStatuses.filter(s => !['pending', 'Ready For Pickup'].includes(s)).map((status) => {
-                        const isCompleteStatus = status === 'completed';
-                        const isFailedStatus = status === 'failed' || status === 'cancelled';
-                        
-                        if (isCompleteStatus || isFailedStatus) {
-                          return (
-                            <Button
-                              key={status}
-                              onClick={async (e) => {
-                                e.stopPropagation();
+                      {nextAvailableStatuses.filter((s) => !['pending', 'Ready For Pickup'].includes(s)).map((status) => {
+                      const isCompleteStatus = status === 'completed';
+                      const isFailedStatus = status === 'failed' || status === 'cancelled';
 
-                                console.log('⏸️ [STATUS BUTTON] Pausing smart refresh...');
-                                setIsEntityUpdating(true);
-
-                                smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
-
-                                await new Promise((resolve) => setTimeout(resolve, 100));
-                                console.log('✅ [STATUS BUTTON] Smart refresh paused');
-
-                                try {
-                                  console.log('🔄 [STATUS BUTTON] Force refreshing driver deliveries...');
-                                  await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                                  console.log('✅ [STATUS BUTTON] Fresh data loaded');
-
-                                  await onStatusUpdate(delivery.id, status, {}, false);
-
-                                  if (status === 'failed' && userHasRole(currentUser, 'driver')) {
-                                    await notifyDriverFailed({
-                                      driver: currentUser,
-                                      patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
-                                      delivery,
-                                      store,
-                                      appUsers
-                                    });
-                                  }
-                                  if (status === 'completed' && userHasRole(currentUser, 'driver')) {
-                                    await notifyDriverCompleted({
-                                      driver: currentUser,
-                                      patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
-                                      delivery,
-                                      store,
-                                      appUsers
-                                    });
-                                  }
-                                } finally {
-                                  console.log('▶️ [STATUS BUTTON] Resuming smart refresh');
-                                  setIsEntityUpdating(false);
-                                  await new Promise((resolve) => setTimeout(resolve, 100));
-                                  console.log('✅ [STATUS BUTTON] Status change cycle complete');
-                                }
-                              }}
-                              className={`w-full justify-center text-center font-semibold ${
-                                isCompleteStatus ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 
-                                isFailedStatus ? 'bg-red-600 hover:bg-red-700 text-white' : ''
-                              }`}
-                              size="sm"
-                            >
-                              {isCompleteStatus ? 'Complete' : isFailedStatus ? (isPickup ? 'Cancelled' : 'Failed') : statusConfig[status]?.label || status}
-                            </Button>
-                          );
-                        }
-                        
+                      if (isCompleteStatus || isFailedStatus) {
                         return (
-                          <DropdownMenuItem
+                          <Button
                             key={status}
-                            className="capitalize text-base"
                             onClick={async (e) => {
                               e.stopPropagation();
 
-                              console.log('⏸️ [STATUS MENU] Pausing smart refresh...');
+                              console.log('⏸️ [STATUS BUTTON] Pausing smart refresh...');
                               setIsEntityUpdating(true);
 
                               smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
 
                               await new Promise((resolve) => setTimeout(resolve, 100));
-                              console.log('✅ [STATUS MENU] Smart refresh paused');
+                              console.log('✅ [STATUS BUTTON] Smart refresh paused');
 
                               try {
-                                console.log('🔄 [STATUS MENU] Force refreshing driver deliveries...');
+                                console.log('🔄 [STATUS BUTTON] Force refreshing driver deliveries...');
                                 await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                                console.log('✅ [STATUS MENU] Fresh data loaded');
+                                console.log('✅ [STATUS BUTTON] Fresh data loaded');
 
-                                const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-                                const skipAutoCenter = !finishedStatuses.includes(status);
-                                await onStatusUpdate(delivery.id, status, {}, skipAutoCenter);
+                                await onStatusUpdate(delivery.id, status, {}, false);
+
+                                if (status === 'failed' && userHasRole(currentUser, 'driver')) {
+                                  await notifyDriverFailed({
+                                    driver: currentUser,
+                                    patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
+                                    delivery,
+                                    store,
+                                    appUsers
+                                  });
+                                }
+                                if (status === 'completed' && userHasRole(currentUser, 'driver')) {
+                                  await notifyDriverCompleted({
+                                    driver: currentUser,
+                                    patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
+                                    delivery,
+                                    store,
+                                    appUsers
+                                  });
+                                }
                               } finally {
-                                console.log('▶️ [STATUS MENU] Resuming smart refresh');
+                                console.log('▶️ [STATUS BUTTON] Resuming smart refresh');
                                 setIsEntityUpdating(false);
                                 await new Promise((resolve) => setTimeout(resolve, 100));
-                                console.log('✅ [STATUS MENU] Status change cycle complete');
+                                console.log('✅ [STATUS BUTTON] Status change cycle complete');
                               }
                             }}
-                          >
+                            className={`w-full justify-center text-center font-semibold ${
+                            isCompleteStatus ? 'bg-emerald-600 hover:bg-emerald-700 text-white' :
+                            isFailedStatus ? 'bg-red-600 hover:bg-red-700 text-white' : ''}`
+                            }
+                            size="sm">
+
+                              {isCompleteStatus ? 'Complete' : isFailedStatus ? isPickup ? 'Cancelled' : 'Failed' : statusConfig[status]?.label || status}
+                            </Button>);
+
+                      }
+
+                      return (
+                        <DropdownMenuItem
+                          key={status}
+                          className="capitalize text-base"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+
+                            console.log('⏸️ [STATUS MENU] Pausing smart refresh...');
+                            setIsEntityUpdating(true);
+
+                            smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
+
+                            await new Promise((resolve) => setTimeout(resolve, 100));
+                            console.log('✅ [STATUS MENU] Smart refresh paused');
+
+                            try {
+                              console.log('🔄 [STATUS MENU] Force refreshing driver deliveries...');
+                              await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                              console.log('✅ [STATUS MENU] Fresh data loaded');
+
+                              const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+                              const skipAutoCenter = !finishedStatuses.includes(status);
+                              await onStatusUpdate(delivery.id, status, {}, skipAutoCenter);
+                            } finally {
+                              console.log('▶️ [STATUS MENU] Resuming smart refresh');
+                              setIsEntityUpdating(false);
+                              await new Promise((resolve) => setTimeout(resolve, 100));
+                              console.log('✅ [STATUS MENU] Status change cycle complete');
+                            }
+                          }}>
+
                             {statusConfig[status]?.label || status}
-                          </DropdownMenuItem>
-                        );
-                      })}
+                          </DropdownMenuItem>);
+
+                    })}
                     </DropdownMenuContent>
                   </DropdownMenu> :
 
@@ -853,7 +853,7 @@ export default function StopCard({
 
               {delivery.tracking_number && store?.abbreviation &&
               <Badge
-                variant="secondary" className="inline-flex items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 font-mono text-sm font-bold px-2 py-0.5"
+                variant="secondary" className="bg-secondary text-secondary-foreground mt-1 px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80"
                 style={{ backgroundColor: `${storeColor}20`, color: storeColor }}>
                   {(() => {
                   const storeAbbr = store.abbreviation.slice(0, 2).toUpperCase();
