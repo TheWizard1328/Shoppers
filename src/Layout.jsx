@@ -1601,11 +1601,28 @@ export default function Layout({ children, currentPageName }) {
     return data;
   }, [patients, currentUser, selectedStoreId]);
 
-  // Route count from local deliveries (last 30 days only)
-  // Full month/year counts come from backend via getDeliveryStats
+  // Route count - only count unique dates from the CURRENT MONTH of selected date
   const totalRoutesCount = useMemo(() => {
     if (!deliveries || deliveries.length === 0) return 0;
-    return new Set(deliveries.filter(delivery => delivery && delivery.delivery_date).map((delivery) => delivery.delivery_date)).size;
+    
+    const selectedDateStr = globalFilters.getSelectedDate();
+    if (!selectedDateStr) return 0;
+    
+    const selectedDate = new Date(selectedDateStr + 'T00:00:00');
+    const selectedYear = selectedDate.getFullYear();
+    const selectedMonth = selectedDate.getMonth();
+    
+    // Only count dates from the same month and year as the selected date
+    const datesInSelectedMonth = deliveries
+      .filter(delivery => {
+        if (!delivery || !delivery.delivery_date) return false;
+        const deliveryDate = new Date(delivery.delivery_date + 'T00:00:00');
+        return deliveryDate.getFullYear() === selectedYear && 
+               deliveryDate.getMonth() === selectedMonth;
+      })
+      .map(delivery => delivery.delivery_date);
+    
+    return new Set(datesInSelectedMonth).size;
   }, [deliveries]);
 
   const getPatientStoreData = useCallback(() => {
