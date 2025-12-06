@@ -1290,6 +1290,19 @@ export default function StopCard({
 
                               console.log('✅ [Assign All Button] All pending deliveries accepted');
 
+                              // Trigger route optimization after accepting all stops
+                              try {
+                                console.log('🔄 [Assign All] Triggering route optimization...');
+                                await base44.functions.invoke('optimizeDriverRoute', {
+                                  driverId: delivery.driver_id,
+                                  deliveryDate: delivery.delivery_date,
+                                  generatePolyline: false
+                                });
+                                console.log('✅ [Assign All] Route optimized');
+                              } catch (error) {
+                                console.warn('⚠️ [Assign All] Route optimization failed:', error);
+                              }
+
                               // Send notification message
                               const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher');
                               if (isDriverAction) {
