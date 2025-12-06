@@ -1536,7 +1536,15 @@ export default function DeliveryForm({
       if (existingDeliveriesToUpdate.length > 0) {
         console.log(`[AddToRoute] 📝 Updating ${existingDeliveriesToUpdate.length} existing deliveries with corrected TR#s...`);
         for (const update of existingDeliveriesToUpdate) {
-          await base44.entities.Delivery.update(update.id, { tracking_number: update.tracking_number });
+          try {
+            await base44.entities.Delivery.update(update.id, { tracking_number: update.tracking_number });
+          } catch (error) {
+            if (error.message?.includes('not found')) {
+              console.log(`[AddToRoute] ⏭️ Skipping deleted delivery: ${update.id}`);
+              continue;
+            }
+            throw error;
+          }
         }
         console.log('[AddToRoute] ✅ Existing TR#s corrected');
       }
