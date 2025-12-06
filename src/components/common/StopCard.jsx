@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
@@ -801,7 +800,7 @@ export default function StopCard({
                               }`}
                               size="sm"
                             >
-                              {isCompleteStatus ? 'Complete' : isFailedStatus ? 'Cancelled/Failed' : statusConfig[status]?.label || status}
+                              {isCompleteStatus ? 'Complete' : isFailedStatus ? (isPickup ? 'Cancelled' : 'Failed') : statusConfig[status]?.label || status}
                             </Button>
                           );
                         }
