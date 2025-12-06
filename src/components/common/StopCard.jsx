@@ -849,7 +849,7 @@ export default function StopCard({
 
                     {/* Unit/Buzzer row (phone removed - now in expanded section) */}
                     {!isStrippedDelivery && !shouldRedact &&
-                  <div className="flex items-center text-sm text-slate-600">
+                  <div className="flex items-center text-sm text-slate-600 min-h-[20px]">
                         {/* Unit and Buzzer info */}
                         {(() => {
                       const unitNum = !isPickup ? delivery?.unit_number || patient?.unit_number : null;
@@ -868,7 +868,7 @@ export default function StopCard({
                       </div>
                   }
                   </> :
-                <div className="w-full h-[26px]" />
+                <div className="w-full h-[26px] flex items-center" />
                 }
               </div>
 
