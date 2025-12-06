@@ -85,6 +85,7 @@ import { ResizableDivider } from './components/ui/resizable-divider';
       import SmartRefreshIndicator from './components/layout/SmartRefreshIndicator';
       import { isMobileDevice } from './components/utils/deviceUtils';
       import MessageNotificationBalloon from './components/messaging/MessageNotificationBalloon';
+      import { initializeDailyCleanup } from './components/utils/messageCleaner';
 
 const createMergedUser = (authUser, appUser) => {
   // CRITICAL: Allow creating users from AppUser data alone (for non-admin users who can't fetch User.list())
@@ -631,9 +632,14 @@ export default function Layout({ children, currentPageName }) {
     };
 
     init();
-  }, []);
+    }, []);
 
-  // Fetch unread message count - only when messaging panel is closed
+    // Initialize daily message cleanup
+    useEffect(() => {
+    initializeDailyCleanup();
+    }, []);
+
+    // Fetch unread message count - only when messaging panel is closed
   // When panel is open, ConversationsList handles the count
   // OPTIMIZED: Reduced frequency significantly to prevent rate limits
   useEffect(() => {
