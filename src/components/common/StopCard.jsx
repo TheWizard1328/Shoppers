@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
@@ -523,19 +522,30 @@ export default function StopCard({
     setCodPayments(newPayments);
   };
 
-  const handleAddCODPayment = () => {
+  const handleAddCODPayment = (shouldFocusType = false) => {
     const remainingAmount = codTotalRequired - codTotalCollected;
     const newPayment = { type: 'Cash', amount: Math.max(0, remainingAmount) };
     setCodPayments([...codPayments, newPayment]);
 
-    // Focus and select the new input after render
-    setTimeout(() => {
-      const lastIndex = codPayments.length;
-      if (codAmountInputRefs.current[lastIndex]) {
-        codAmountInputRefs.current[lastIndex].focus();
-        codAmountInputRefs.current[lastIndex].select();
-      }
-    }, 50);
+    if (shouldFocusType) {
+      // Focus the payment type dropdown after render
+      setTimeout(() => {
+        const lastIndex = codPayments.length;
+        const selectTrigger = document.querySelector(`[data-cod-select-index="${lastIndex}"]`);
+        if (selectTrigger) {
+          selectTrigger.click();
+        }
+      }, 100);
+    } else {
+      // Focus and select the amount input after render
+      setTimeout(() => {
+        const lastIndex = codPayments.length;
+        if (codAmountInputRefs.current[lastIndex]) {
+          codAmountInputRefs.current[lastIndex].focus();
+          codAmountInputRefs.current[lastIndex].select();
+        }
+      }, 50);
+    }
   };
 
   const handleRemoveCODPayment = (index) => {
@@ -1069,9 +1079,9 @@ export default function StopCard({
                         <Button size="sm" variant="ghost" className="h-6 text-xs text-amber-700 hover:text-amber-900" onClick={(e) => {
                           e.stopPropagation();
                           setShowCODCollection(!showCODCollection);
-                          // Auto-add payment when opening COD collection
+                          // Auto-add payment when opening COD collection and focus dropdown
                           if (!showCODCollection && codPayments.length === 0) {
-                            handleAddCODPayment();
+                            handleAddCODPayment(true);
                           }
                         }}>
                           {codPayments.length > 0 ? 'Edit' : 'Collect'}
