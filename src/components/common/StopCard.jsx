@@ -1122,7 +1122,7 @@ export default function StopCard({
                           </Button>
                         </div>
 
-                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                        <div className="space-y-2 max-h-48 overflow-y-auto bg-white">
                           {codPayments.map((payment, index) =>
                       <div key={index} className="flex items-center gap-2 bg-white p-2 rounded border border-slate-200">
                               <Select value={payment.type} onValueChange={(value) => handleCODPaymentChange(index, 'type', value)} onOpenChange={(open) => {if (open) setShowCODCollection(true);}}>
@@ -1137,7 +1137,7 @@ export default function StopCard({
                                 </SelectContent>
                               </Select>
 
-                              <div className="relative flex-1 bg-white">
+                              <div className="relative flex-1">
                                 <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-500">$</span>
                                 <input
                             ref={(el) => codAmountInputRefs.current[index] = el}
