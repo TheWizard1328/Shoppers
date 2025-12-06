@@ -1137,8 +1137,8 @@ export default function StopCard({
                                 </SelectContent>
                               </Select>
 
-                              <div className="relative flex-1">
-                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs bg-white text-slate-500">$</span>
+                              <div className="relative flex-1 bg-white">
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-500">$</span>
                                 <input
                             ref={(el) => codAmountInputRefs.current[index] = el}
                             type="text"
