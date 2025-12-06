@@ -837,12 +837,12 @@ export default function StopCard({
           {!isStrippedDelivery && <div className="border-t border-slate-200"></div>}
 
           {!isStrippedDelivery && <div className="flex flex-col">
-            <div className="flex items-start justify-between">
+            <div className="flex items-center justify-between">
               <div className="mt-1 flex flex-col gap-0.5 flex-1 min-w-0">
                 {finalDisplayAddress ?
                   <>
                     {/* Main address without unit/buzzer */}
-                    <div className="flex items-start gap-2 text-sm text-slate-700">
+                    <div className="flex items-center gap-2 text-sm text-slate-700">
                       <span className="text-xl font-medium truncate">
                         {isPickup ? store?.address || '' : patient?.address || ''}
                       </span>
