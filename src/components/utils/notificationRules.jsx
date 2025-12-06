@@ -1,11 +1,10 @@
 /**
- * Centralized notification rules for both in-app messaging and WhatsApp
+ * Centralized notification rules for in-app messaging
  * 
  * Each rule defines:
  * - event: The trigger event name
  * - enabled: Whether this notification is active
  * - inApp: Whether to send in-app message
- * - whatsApp: Whether to send WhatsApp message
  * - recipients: Who receives the notification ('dispatchers', 'driver', 'both')
  * - messageBuilder: Function to build the message content
  */
@@ -29,7 +28,6 @@ export const notificationRules = {
   [NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ALL]: {
     enabled: true,
     inApp: true,
-    whatsApp: true,
     recipients: 'dispatchers',
     buildMessage: ({ driverName }) => 
       `${driverName} has accepted all pending deliveries.`
@@ -38,7 +36,6 @@ export const notificationRules = {
   [NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ONE]: {
     enabled: true,
     inApp: true,
-    whatsApp: true,
     recipients: 'dispatchers',
     buildMessage: ({ driverName, patientName }) => 
       `${driverName} has accepted delivery for ${patientName || 'Unknown Patient'}.`
@@ -47,7 +44,6 @@ export const notificationRules = {
   [NOTIFICATION_EVENTS.DISPATCHER_ASSIGNED_ALL]: {
     enabled: true,
     inApp: true,
-    whatsApp: true,
     recipients: 'driver',
     buildMessage: ({ storeName, deliveryList }) => 
       `${storeName} has assigned you the following deliveries:${deliveryList}`
@@ -56,7 +52,6 @@ export const notificationRules = {
   [NOTIFICATION_EVENTS.DRIVER_STARTED]: {
     enabled: true,
     inApp: true,
-    whatsApp: true,
     recipients: 'dispatchers',
     buildMessage: ({ driverName, patientName }) => 
       `${driverName} has moved ${patientName || 'Unknown Patient'} to next delivery.`
@@ -65,7 +60,6 @@ export const notificationRules = {
   [NOTIFICATION_EVENTS.DRIVER_COMPLETED]: {
     enabled: true,
     inApp: true,
-    whatsApp: true,
     recipients: 'dispatchers',
     buildMessage: ({ driverName, patientName }) => 
       `${driverName} has completed delivery for ${patientName || 'Unknown Patient'}.`
@@ -74,7 +68,6 @@ export const notificationRules = {
   [NOTIFICATION_EVENTS.DRIVER_FAILED]: {
     enabled: true,
     inApp: true,
-    whatsApp: true,
     recipients: 'dispatchers',
     buildMessage: ({ driverName, patientName }) => 
       `${driverName} failed to complete delivery for ${patientName || 'Unknown Patient'}.`
@@ -83,7 +76,6 @@ export const notificationRules = {
   [NOTIFICATION_EVENTS.DRIVER_RETRY]: {
     enabled: true,
     inApp: true,
-    whatsApp: true,
     recipients: 'dispatchers',
     buildMessage: ({ driverName, patientName }) => 
       `${driverName} is now retrying delivery for ${patientName || 'Unknown Patient'}.`
@@ -92,7 +84,6 @@ export const notificationRules = {
   [NOTIFICATION_EVENTS.DRIVER_RETURN]: {
     enabled: true,
     inApp: true,
-    whatsApp: true,
     recipients: 'dispatchers',
     buildMessage: ({ driverName, patientName }) => 
       `${driverName} is En Route to return delivery for ${patientName || 'Unknown Patient'}.`
@@ -105,7 +96,7 @@ export const notificationRules = {
 export function shouldNotify(event, channel = 'inApp') {
   const rule = notificationRules[event];
   if (!rule || !rule.enabled) return false;
-  return channel === 'inApp' ? rule.inApp : rule.whatsApp;
+  return rule.inApp;
 }
 
 /**
