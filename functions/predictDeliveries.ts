@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
     console.log(`[predictDeliveries] Fetching historical deliveries from ${pastDateStr} for AI analysis...`);
 
     // Fetch all patients and historical deliveries
-    let patients, rawHistoricalForML;
+    let patients, rawHistoricalForML, historicalForML = [];
     try {
       [patients, rawHistoricalForML] = await Promise.all([
         base44.asServiceRole.entities.Patient.list(),
@@ -50,7 +50,6 @@ Deno.serve(async (req) => {
       ]);
 
       // CRITICAL: Handle case where API returns string (JSON) instead of parsed array
-      let historicalForML = [];
       if (typeof rawHistoricalForML === 'string') {
         try {
           historicalForML = JSON.parse(rawHistoricalForML);
