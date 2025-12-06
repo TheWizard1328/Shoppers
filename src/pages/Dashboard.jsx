@@ -4329,7 +4329,6 @@ function Dashboard() {
 
       invalidate('Delivery');
       await refreshData();
-      setScrollToNextCardAfter(deliveryId);
     } finally {
       setIsOptimizing(false);
     }
@@ -4830,7 +4829,6 @@ function Dashboard() {
 
       invalidate('Delivery');
       await refreshData();
-      setScrollToNextCardAfter(deliveryId);
     } catch (error) {
       console.error('Error updating delivery notes:', error);
       alert('Failed to update notes. Please try again.');
@@ -5117,7 +5115,6 @@ function Dashboard() {
 
       invalidate('Delivery');
       await refreshData();
-      setScrollToNextCardAfter(deliveryId);
 
       console.log('✅ [AI Optimization] Route updated successfully');
     } catch (error) {
