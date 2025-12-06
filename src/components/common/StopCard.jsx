@@ -1172,7 +1172,7 @@ export default function StopCard({
                             <span className="text-slate-600"> / ${codTotalRequired.toFixed(2)}</span>
                           </div>
 
-                          <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700" onClick={(e) => {e.stopPropagation();handleSaveCODPayments();}} disabled={codPayments.length === 0}>
+                          <Button size="sm" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-primary-foreground shadow rounded-md px-3 h-7 text-xs !text-white bg-emerald-600 hover:bg-emerald-700" onClick={(e) => {e.stopPropagation();handleSaveCODPayments();}} disabled={codPayments.length === 0}>
                             <Save className="w-3 h-3 mr-1" />
                             Save
                           </Button>
