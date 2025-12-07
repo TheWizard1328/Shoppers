@@ -110,14 +110,33 @@ export default function PatientForm({
   const isInitialLoad = useRef(true);
 
   const getCityCenter = useCallback(() => {
-    if (currentUser?.city_id) {
-      const userCity = cities.find((c) => c.id === currentUser.city_id);
+    console.log('[PatientForm] getCityCenter called');
+    console.log('[PatientForm] currentUser:', currentUser);
+    console.log('[PatientForm] currentUser.city_id:', currentUser?.city_id);
+    console.log('[PatientForm] cities array:', cities);
+    
+    if (currentUser?.city_id && cities && cities.length > 0) {
+      const userCity = cities.find((c) => c && c.id === currentUser.city_id);
+      console.log('[PatientForm] Found user city:', userCity);
+      
       if (userCity?.latitude && userCity?.longitude) {
+        console.log('[PatientForm] ✅ Returning city coordinates:', {
+          latitude: userCity.latitude,
+          longitude: userCity.longitude,
+          cityName: userCity.name
+        });
         return {
           latitude: userCity.latitude,
           longitude: userCity.longitude
         };
+      } else {
+        console.warn('[PatientForm] ⚠️ City found but missing coordinates:', userCity);
       }
+    } else {
+      console.warn('[PatientForm] ⚠️ Missing data:', {
+        hasCityId: !!currentUser?.city_id,
+        citiesCount: cities?.length || 0
+      });
     }
     return null;
   }, [currentUser, cities]);
