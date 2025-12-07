@@ -324,6 +324,17 @@ const COLUMN_CONFIGS = {
     { id: 'province', label: 'Province/State', defaultVisible: true },
     { id: 'country', label: 'Country', defaultVisible: true },
     { id: 'actions', label: 'Actions', defaultVisible: true, alwaysVisible: true }
+  ],
+  userSettings: [
+    { id: 'user_name', label: 'User', defaultVisible: true, alwaysVisible: true },
+    { id: 'device_id', label: 'Device ID', defaultVisible: true },
+    { id: 'selected_driver', label: 'Selected Driver', defaultVisible: true },
+    { id: 'selected_date', label: 'Selected Date', defaultVisible: true },
+    { id: 'sidebar_width', label: 'Sidebar Width', defaultVisible: true },
+    { id: 'theme', label: 'Theme', defaultVisible: true },
+    { id: 'created', label: 'Created', defaultVisible: false },
+    { id: 'updated', label: 'Updated', defaultVisible: false },
+    { id: 'actions', label: 'Actions', defaultVisible: true, alwaysVisible: true }
   ]
 };
 
@@ -2029,6 +2040,29 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
   const [userSettings, setUserSettings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const refreshIntervalRef = useRef(null);
+  const { visibleColumns, toggleColumn, config } = useColumnVisibility('userSettings');
+  const [columnWidths, setColumnWidths] = useState(() => {
+    const saved = localStorage.getItem('admin_usersettings_column_widths');
+    return saved ? JSON.parse(saved) : {
+      user_name: 180,
+      device_id: 200,
+      selected_driver: 150,
+      selected_date: 120,
+      sidebar_width: 120,
+      theme: 100,
+      created: 160,
+      updated: 160,
+      actions: 100
+    };
+  });
+
+  const updateColumnWidth = useCallback((columnId, width) => {
+    setColumnWidths(prev => {
+      const newWidths = { ...prev, [columnId]: width };
+      localStorage.setItem('admin_usersettings_column_widths', JSON.stringify(newWidths));
+      return newWidths;
+    });
+  }, []);
 
   const loadSettings = useCallback(async () => {
     try {
@@ -2138,9 +2172,16 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Settings className="w-5 h-5" />
-          User Settings
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Settings className="w-5 h-5" />
+            User Settings
+          </div>
+          <ColumnVisibilityControl
+            config={config}
+            visibleColumns={visibleColumns}
+            onToggle={toggleColumn}
+          />
         </CardTitle>
         <CardDescription>
           View and manage per-user, per-device settings stored in the database.
@@ -2159,16 +2200,54 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
         ) : (
           <div className="border rounded-md overflow-hidden">
             <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm table-fixed">
                 <thead className="bg-slate-100 sticky top-0 z-10">
                   <tr>
-                    <th className="text-left p-3 font-semibold">User</th>
-                    <th className="text-left p-3 font-semibold">Device ID</th>
-                    <th className="text-left p-3 font-semibold">Selected Driver</th>
-                    <th className="text-left p-3 font-semibold">Selected Date</th>
-                    <th className="text-left p-3 font-semibold">Sidebar Width</th>
-                    <th className="text-left p-3 font-semibold">Theme</th>
-                    <th className="text-left p-3 font-semibold">Actions</th>
+                    {visibleColumns.includes('user_name') && (
+                      <ResizableColumnHeader width={columnWidths.user_name} onResize={(w) => updateColumnWidth('user_name', w)}>
+                        <span className="font-semibold">User</span>
+                      </ResizableColumnHeader>
+                    )}
+                    {visibleColumns.includes('device_id') && (
+                      <ResizableColumnHeader width={columnWidths.device_id} onResize={(w) => updateColumnWidth('device_id', w)}>
+                        <span className="font-semibold">Device ID</span>
+                      </ResizableColumnHeader>
+                    )}
+                    {visibleColumns.includes('selected_driver') && (
+                      <ResizableColumnHeader width={columnWidths.selected_driver} onResize={(w) => updateColumnWidth('selected_driver', w)}>
+                        <span className="font-semibold">Selected Driver</span>
+                      </ResizableColumnHeader>
+                    )}
+                    {visibleColumns.includes('selected_date') && (
+                      <ResizableColumnHeader width={columnWidths.selected_date} onResize={(w) => updateColumnWidth('selected_date', w)}>
+                        <span className="font-semibold">Selected Date</span>
+                      </ResizableColumnHeader>
+                    )}
+                    {visibleColumns.includes('sidebar_width') && (
+                      <ResizableColumnHeader width={columnWidths.sidebar_width} onResize={(w) => updateColumnWidth('sidebar_width', w)}>
+                        <span className="font-semibold">Sidebar Width</span>
+                      </ResizableColumnHeader>
+                    )}
+                    {visibleColumns.includes('theme') && (
+                      <ResizableColumnHeader width={columnWidths.theme} onResize={(w) => updateColumnWidth('theme', w)}>
+                        <span className="font-semibold">Theme</span>
+                      </ResizableColumnHeader>
+                    )}
+                    {visibleColumns.includes('created') && (
+                      <ResizableColumnHeader width={columnWidths.created} onResize={(w) => updateColumnWidth('created', w)}>
+                        <span className="font-semibold">Created</span>
+                      </ResizableColumnHeader>
+                    )}
+                    {visibleColumns.includes('updated') && (
+                      <ResizableColumnHeader width={columnWidths.updated} onResize={(w) => updateColumnWidth('updated', w)}>
+                        <span className="font-semibold">Updated</span>
+                      </ResizableColumnHeader>
+                    )}
+                    {visibleColumns.includes('actions') && (
+                      <ResizableColumnHeader width={columnWidths.actions} onResize={(w) => updateColumnWidth('actions', w)}>
+                        <span className="font-semibold">Actions</span>
+                      </ResizableColumnHeader>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -2179,25 +2258,49 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
                     
                     return (
                       <tr key={setting.id} className="border-t hover:bg-slate-50">
-                        <td className="p-3 font-medium">{getUserName(setting.user_id)}</td>
-                        <td className="p-3 font-mono text-xs text-slate-500" title={setting.device_id}>
-                          {setting.device_id ? setting.device_id.substring(0, 16) + '...' : '-'}
-                        </td>
-                        <td className="p-3">{selectedDriverName}</td>
-                        <td className="p-3">{setting.selected_date || '-'}</td>
-                        <td className="p-3">{setting.sidebar_width || 240}px</td>
-                        <td className="p-3">
-                          <Badge variant="secondary">{setting.theme_preference || 'auto'}</Badge>
-                        </td>
-                        <td className="p-3">
-                          <Button 
-                            variant="destructive" 
-                            size="sm"
-                            onClick={() => handleDeleteSetting(setting.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </td>
+                        {visibleColumns.includes('user_name') && (
+                          <td className="p-3 font-medium">{getUserName(setting.user_id)}</td>
+                        )}
+                        {visibleColumns.includes('device_id') && (
+                          <td className="p-3 font-mono text-xs text-slate-500" title={setting.device_id}>
+                            {setting.device_id ? setting.device_id.substring(0, 16) + '...' : '-'}
+                          </td>
+                        )}
+                        {visibleColumns.includes('selected_driver') && (
+                          <td className="p-3">{selectedDriverName}</td>
+                        )}
+                        {visibleColumns.includes('selected_date') && (
+                          <td className="p-3">{setting.selected_date || '-'}</td>
+                        )}
+                        {visibleColumns.includes('sidebar_width') && (
+                          <td className="p-3">{setting.sidebar_width || 240}px</td>
+                        )}
+                        {visibleColumns.includes('theme') && (
+                          <td className="p-3">
+                            <Badge variant="secondary">{setting.theme_preference || 'auto'}</Badge>
+                          </td>
+                        )}
+                        {visibleColumns.includes('created') && (
+                          <td className="p-3 text-xs text-slate-600">
+                            {setting.created ? format(new Date(setting.created), 'MMM d, yyyy h:mm a') : '-'}
+                          </td>
+                        )}
+                        {visibleColumns.includes('updated') && (
+                          <td className="p-3 text-xs text-slate-600">
+                            {setting.updated ? format(new Date(setting.updated), 'MMM d, yyyy h:mm a') : '-'}
+                          </td>
+                        )}
+                        {visibleColumns.includes('actions') && (
+                          <td className="p-3">
+                            <Button 
+                              variant="destructive" 
+                              size="sm"
+                              onClick={() => handleDeleteSetting(setting.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
