@@ -2255,10 +2255,26 @@ function Dashboard() {
       
       let autoSelectedDriver = null;
       
-      // RULE 1: Admin viewing past date → All Drivers
-      if (userHasRole(currentUser, 'admin') && isPastDate) {
-        autoSelectedDriver = 'all';
-        console.log('📋 [Date Change] Admin + past date → All Drivers');
+      // RULE 1: Admin logic
+      if (userHasRole(currentUser, 'admin')) {
+        // Get all unique drivers with deliveries on this date
+        const driversWithStops = new Set(
+          freshDeliveries.map(d => d.driver_id).filter(Boolean)
+        );
+        
+        // Check if admin has their own deliveries on this date
+        const adminHasStops = freshDeliveries.some(d => d && d.driver_id === currentUser.id);
+        
+        if (isPastDate || (driversWithStops.size > 1 && !adminHasStops)) {
+          autoSelectedDriver = 'all';
+          console.log('📋 [Date Change] Admin + (past date OR multiple drivers + no admin stops) → All Drivers');
+        } else if (driversWithStops.size === 1) {
+          autoSelectedDriver = Array.from(driversWithStops)[0];
+          console.log(`📋 [Date Change] Admin + single driver → ${autoSelectedDriver}`);
+        } else {
+          autoSelectedDriver = 'all';
+          console.log('📋 [Date Change] Admin + default → All Drivers');
+        }
       }
       // RULE 2: Dispatcher logic
       else if (userHasRole(currentUser, 'dispatcher')) {
