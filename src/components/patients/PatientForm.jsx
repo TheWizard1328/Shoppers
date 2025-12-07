@@ -571,7 +571,7 @@ export default function PatientForm({
                       id="distance"
                       type="number"
                       step="0.01"
-                      value={formData.distance_from_store !== null && formData.distance_from_store !== undefined ? formData.distance_from_store.toFixed(2) : ''}
+                      value={formData.distance_from_store !== null && formData.distance_from_store !== undefined ? formData.distance_from_store : ''}
                       onChange={(e) => setFormData((prev) => ({ ...prev, distance_from_store: e.target.value ? parseFloat(e.target.value) : null }))}
                       placeholder="km"
                       className="h-10 md:h-9 text-sm border-slate-300 bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
