@@ -336,10 +336,17 @@ export const loadFullMonthDeliveries = async (filters = {}, forceRefresh = false
 
 /**
  * Load deliveries: today first, then next 7 days, then past deliveries in background
+ * @param {string} selectedDateStr - Selected date (yyyy-MM-dd)
+ * @param {object} priorityFilters - Filters for priority loads (today + next 7 days) - should load ALL drivers
+ * @param {object} backgroundFilters - Filters for background past data - can be role-restricted
+ * @param {boolean} forceRefresh - Force bypass cache
+ * @param {function} onInitialLoadComplete - Callback for initial data (today + next 7 days)
+ * @param {function} onFullMonthLoadComplete - Callback for full month data
  */
 export const loadDeliveries = async (
   selectedDateStr,
-  filters = {},
+  priorityFilters = {},
+  backgroundFilters = {},
   forceRefresh = false,
   onInitialLoadComplete = () => {},
   onFullMonthLoadComplete = () => {}
@@ -347,12 +354,12 @@ export const loadDeliveries = async (
   const today = new Date();
   const todayStr = format(today, 'yyyy-MM-dd');
   
-  // 1. Load today's deliveries first (highest priority)
-  console.log(`🚀 [dataManager] PRIORITY 1: Loading today's deliveries (${todayStr})`);
-  const todayDeliveries = await loadDeliveriesForDate(todayStr, filters, forceRefresh);
+  // 1. Load today's deliveries first (highest priority) - ALL drivers for city
+  console.log(`🚀 [dataManager] PRIORITY 1: Loading today's deliveries (${todayStr}) - ALL drivers for city`);
+  const todayDeliveries = await loadDeliveriesForDate(todayStr, priorityFilters, forceRefresh);
   
-  // 2. Load next 7 days (priority for planning)
-  console.log(`🚀 [dataManager] PRIORITY 2: Loading next 7 days of deliveries...`);
+  // 2. Load next 7 days (priority for planning) - ALL drivers for city
+  console.log(`🚀 [dataManager] PRIORITY 2: Loading next 7 days of deliveries - ALL drivers for city...`);
   const futureDeliveries = [];
   for (let i = 1; i <= 7; i++) {
     const futureDate = new Date(today);
@@ -360,7 +367,7 @@ export const loadDeliveries = async (
     const futureDateStr = format(futureDate, 'yyyy-MM-dd');
     
     try {
-      const dayDeliveries = await loadDeliveriesForDate(futureDateStr, filters, forceRefresh);
+      const dayDeliveries = await loadDeliveriesForDate(futureDateStr, priorityFilters, forceRefresh);
       futureDeliveries.push(...dayDeliveries);
       console.log(`  ✅ Loaded ${dayDeliveries.length} deliveries for ${futureDateStr}`);
     } catch (error) {
@@ -370,20 +377,20 @@ export const loadDeliveries = async (
   
   // Combine today + next 7 days
   const initialDeliveries = [...todayDeliveries, ...futureDeliveries];
-  console.log(`✅ [dataManager] PRIORITY 1+2 Complete: ${todayDeliveries.length} today + ${futureDeliveries.length} future = ${initialDeliveries.length} total`);
+  console.log(`✅ [dataManager] PRIORITY 1+2 Complete: ${todayDeliveries.length} today + ${futureDeliveries.length} future = ${initialDeliveries.length} total (ALL drivers)`);
   
   // Call the initial callback with today + next 7 days
   onInitialLoadComplete(initialDeliveries);
   
-  // 3. Background: load past 30 days
+  // 3. Background: load past 30 days (with role-based filters)
   setTimeout(async () => {
     try {
       const last30Days = subDays(today, 30);
       const last30DaysStr = format(last30Days, 'yyyy-MM-dd');
       const yesterdayStr = format(subDays(today, 1), 'yyyy-MM-dd');
       
-      console.log(`🚀 [dataManager] BACKGROUND: Loading past deliveries (${last30DaysStr} to ${yesterdayStr})`);
-      const pastDeliveries = await getDeliveriesForDateRange(last30DaysStr, yesterdayStr, filters, forceRefresh);
+      console.log(`🚀 [dataManager] BACKGROUND: Loading past deliveries (${last30DaysStr} to ${yesterdayStr}) - role-filtered`);
+      const pastDeliveries = await getDeliveriesForDateRange(last30DaysStr, yesterdayStr, backgroundFilters, forceRefresh);
       console.log(`✅ [dataManager] BACKGROUND: Loaded ${pastDeliveries.length} past deliveries`);
       
       // Combine all: past + today + future

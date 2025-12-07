@@ -1375,22 +1375,31 @@ export default function Layout({ children, currentPageName }) {
       console.log(`✅ [Layout] Step 4: Loaded ${patientsData.length} Patients`);
       await new Promise(resolve => setTimeout(resolve, 200));
 
-      // Step 5: Deliveries - selected date first, then background full month
-      let deliveryFilter = {};
+      // Step 5: Deliveries - CRITICAL: Load ALL drivers for selected city first
+      // Build city store filter (ALWAYS used to restrict to selected city)
+      let cityStoreFilter = {};
+      const cityStoreIds = allStores.map(s => s?.id).filter(Boolean);
+      if (cityStoreIds.length > 0) {
+        cityStoreFilter.store_id = { $in: cityStoreIds };
+      }
+
+      // Build additional filters for background past data only
+      let backgroundFilter = { ...cityStoreFilter };
       if (!isAdmin) {
         if (userHasRole(currentUser, 'driver')) {
-          deliveryFilter.driver_id = currentUser.id;
+          backgroundFilter.driver_id = currentUser.id;
         }
         if (currentUser.store_ids?.length > 0) {
-          deliveryFilter.store_id = { $in: currentUser.store_ids };
+          backgroundFilter.store_id = { $in: currentUser.store_ids };
         }
       }
 
       await loadDeliveries(
         selectedDateStr,
-        deliveryFilter,
+        cityStoreFilter, // PRIORITY: ALL drivers for selected city (today + next 7 days)
+        backgroundFilter, // BACKGROUND: Role-filtered past data
         forceRefresh,
-        // Initial load callback (selected date only)
+        // Initial load callback (selected date + next 7 days for ALL drivers)
         (initialDeliveries) => {
           console.log(`⚡ [Layout] Step 5a: Initial UI update with ${initialDeliveries.length} deliveries for ${selectedDateStr}`);
           setDeliveries(initialDeliveries);
