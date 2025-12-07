@@ -79,11 +79,14 @@ export default function PatientForm({
   onSave,
   onCancel,
   currentUser,
-  cities = [],
+  cities: citiesProp = [],
   allPatients = [],
   returnPatientOnSave = false
 }) {
-  const { setIsFormOverlayOpen } = useAppData();
+  const { setIsFormOverlayOpen, cities: contextCities = [] } = useAppData();
+  
+  // CRITICAL: Use cities from context if available, otherwise fall back to prop
+  const cities = contextCities.length > 0 ? contextCities : citiesProp;
   
   // CRITICAL DEBUG: Log props on mount
   useEffect(() => {
