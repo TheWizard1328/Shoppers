@@ -444,6 +444,10 @@ export default function PatientForm({
       if (target.tagName === 'TEXTAREA') {
         return;
       }
+      // CRITICAL: Don't prevent Enter on buttons or comboboxes (Select components)
+      if (target.tagName === 'BUTTON' || target.getAttribute('role') === 'combobox') {
+        return;
+      }
 
       e.preventDefault();
       if (isFormValid) {
