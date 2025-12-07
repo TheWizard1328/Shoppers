@@ -124,20 +124,11 @@ export default function PatientForm({
   const [showWeeklyDays, setShowWeeklyDays] = useState(false);
   const isInitialLoad = useRef(true);
 
-  const getCityCenter = useCallback(() => {
-    console.log('[PatientForm] getCityCenter called');
-    console.log('[PatientForm] formData.store_id:', formData.store_id);
-    console.log('[PatientForm] stores:', stores?.length);
-
+  const cityCenter = useMemo(() => {
     // PRIORITY: If a store is assigned, ALWAYS use that store's coordinates for distance calculations
     if (formData.store_id && stores && stores.length > 0) {
       const assignedStore = stores.find((s) => s && s.id === formData.store_id);
       if (assignedStore?.latitude && assignedStore?.longitude) {
-        console.log('[PatientForm] ✅ Using ASSIGNED STORE coordinates:', {
-          latitude: assignedStore.latitude,
-          longitude: assignedStore.longitude,
-          storeName: assignedStore.name
-        });
         return {
           latitude: assignedStore.latitude,
           longitude: assignedStore.longitude
@@ -151,11 +142,6 @@ export default function PatientForm({
       if (currentUser.store_ids && currentUser.store_ids.length > 0) {
         const targetStore = stores.find((s) => s && s.id === currentUser.store_ids[0]);
         if (targetStore?.latitude && targetStore?.longitude) {
-          console.log('[PatientForm] ✅ Dispatcher fallback - using store coordinates:', {
-            latitude: targetStore.latitude,
-            longitude: targetStore.longitude,
-            storeName: targetStore.name
-          });
           return {
             latitude: targetStore.latitude,
             longitude: targetStore.longitude
@@ -168,11 +154,6 @@ export default function PatientForm({
     if (currentUser?.city_id && cities && cities.length > 0) {
       const userCity = cities.find((c) => c && c.id === currentUser.city_id);
       if (userCity?.latitude && userCity?.longitude) {
-        console.log('[PatientForm] ✅ Fallback to city coordinates:', {
-          latitude: userCity.latitude,
-          longitude: userCity.longitude,
-          cityName: userCity.name
-        });
         return {
           latitude: userCity.latitude,
           longitude: userCity.longitude
@@ -180,7 +161,6 @@ export default function PatientForm({
       }
     }
     
-    console.warn('[PatientForm] ⚠️ No coordinates available');
     return null;
   }, [currentUser, cities, stores, formData.store_id]);
 
@@ -288,19 +268,13 @@ export default function PatientForm({
   }, [setIsFormOverlayOpen]);
 
   const handleAddressSelect = (addressData) => {
-    console.log('[PatientForm] ========================================');
-    console.log('[PatientForm] handleAddressSelect received:', addressData);
-    console.log('[PatientForm] Current store_id:', formData.store_id);
-    
     // Use street_address which preserves directionals (NW, SE, etc.)
     const abbreviatedAddress = abbreviateAddress(addressData.street_address || addressData.full_address);
-    console.log('[PatientForm] Abbreviated address:', abbreviatedAddress);
 
     // Calculate distance from assigned store if store is selected
     let distanceFromStore = null;
     if (formData.store_id && stores) {
       const assignedStore = stores.find((s) => s && s.id === formData.store_id);
-      console.log('[PatientForm] Assigned store found:', assignedStore?.name);
       
       if (assignedStore?.latitude && assignedStore?.longitude && addressData.latitude && addressData.longitude) {
         // Haversine formula for distance
@@ -312,10 +286,7 @@ export default function PatientForm({
         Math.sin(dLon / 2) * Math.sin(dLon / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         distanceFromStore = R * c;
-        console.log('[PatientForm] ✅ Calculated distance:', distanceFromStore, 'km');
       }
-    } else {
-      console.log('[PatientForm] ⚠️ No store selected yet - distance will be null');
     }
 
     const newFormData = {
@@ -325,14 +296,6 @@ export default function PatientForm({
       longitude: addressData.longitude,
       distance_from_store: distanceFromStore
     };
-
-    console.log('[PatientForm] Setting formData to:', {
-      address: newFormData.address,
-      latitude: newFormData.latitude,
-      longitude: newFormData.longitude,
-      distance_from_store: newFormData.distance_from_store
-    });
-    console.log('[PatientForm] ========================================');
 
     setFormData(newFormData);
   };
@@ -715,7 +678,7 @@ export default function PatientForm({
                       value={formData.address}
                       onChange={(value) => setFormData((prev) => ({ ...prev, address: value }))}
                       onAddressSelect={handleAddressSelect}
-                      cityCenter={getCityCenter()}
+                      cityCenter={cityCenter}
                       placeholder="Start typing address..."
                       className="h-10 md:h-9 text-sm border-slate-300 bg-white" />
 
