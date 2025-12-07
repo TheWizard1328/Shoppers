@@ -38,11 +38,12 @@ Deno.serve(async (req) => {
     
     // Build request body for new API
     const requestBody = {
-      input: input
-      // Removed includedPrimaryTypes to allow all address types
+      input: input,
+      includedRegionCodes: ['CA'], // Restrict to Canada
+      languageCode: 'en'
     };
 
-    // Add location biasing if coordinates provided (prefers nearby but doesn't exclude)
+    // Add location biasing if coordinates provided (strongly prefers nearby)
     if (latitude && longitude) {
       requestBody.locationBias = {
         circle: {
@@ -50,7 +51,7 @@ Deno.serve(async (req) => {
             latitude: latitude,
             longitude: longitude
           },
-          radius: 75000.0 // 75km in meters
+          radius: 75000.0 // 75km in meters - strongly biases results
         }
       };
       console.log('[googlePlacesAutocomplete] Added location bias:', latitude, longitude, '75km radius');
