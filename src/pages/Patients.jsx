@@ -589,6 +589,7 @@ export default function Patients() {
     drivers: contextDrivers = [],
     users: contextUsers = [],
     appUsers: contextAppUsers = [],
+    cities: contextCities = [],
     isDataLoaded: contextDataLoaded
   } = useAppData();
 
@@ -652,12 +653,14 @@ export default function Patients() {
     if (contextDataLoaded) {
       console.log("🔄 [Patients] Syncing data from AppDataContext");
       console.log(`   contextUsers.length: ${contextUsers.length}, contextAppUsers.length: ${contextAppUsers.length}`);
+      console.log(`   contextCities.length: ${contextCities.length}`);
 
       // Always sync when context updates
       setAllPatients(contextPatients);
       setDeliveries(contextDeliveries);
       setStores(contextStores);
       setDrivers(contextDrivers);
+      setCities(contextCities); // CRITICAL: Get cities from Layout via context
 
       // CRITICAL FIX: Use contextUsers if available, otherwise fall back to contextAppUsers
       const finalUsers = contextUsers.length > 0 ? contextUsers : contextAppUsers;
@@ -667,7 +670,7 @@ export default function Patients() {
       // Force refresh of import stats display when data changes
       setImportStats((prev) => prev ? { ...prev, timestamp: new Date() } : null);
     }
-  }, [contextDataLoaded, contextPatients, contextDeliveries, contextStores, contextDrivers, contextUsers, contextAppUsers]);
+  }, [contextDataLoaded, contextPatients, contextDeliveries, contextStores, contextDrivers, contextUsers, contextAppUsers, contextCities]);
 
   // Fetch ALL deliveries (unfiltered by driver) for patient history calendar
   useEffect(() => {
@@ -867,15 +870,7 @@ export default function Patients() {
       if (userHasRole(fetchedUser, 'admin') || userHasRole(fetchedUser, 'dispatcher')) {
         console.log("✅ [Patients] Admin/Dispatcher access granted");
         setHasAccess(true);
-        // Fetch cities once access is granted
-        try {
-          const fetchedCities = await getData('City');
-          setCities(sortCities(fetchedCities || []));
-        } catch (error) {
-          console.error("Error fetching cities:", error);
-          // Handle error, maybe set cities to empty array
-          setCities([]);
-        }
+        // Cities will be loaded from AppDataContext - no need to fetch here
       } else {
         const isDriverOnly = userHasRole(fetchedUser, 'driver') &&
         !userHasRole(fetchedUser, 'admin') &&
