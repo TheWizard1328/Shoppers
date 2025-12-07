@@ -2245,6 +2245,68 @@ function Dashboard() {
         const mergedDeliveries = [...otherDateDeliveries, ...freshDeliveries];
         updateDeliveriesLocally(mergedDeliveries);
       }
+
+      // Auto-select driver based on role and date
+      const today = startOfDay(new Date());
+      const selected = startOfDay(date);
+      const isPastDate = selected < today;
+      
+      console.log('🎯 [Date Change] Auto-selecting driver based on role and date...');
+      
+      let autoSelectedDriver = null;
+      
+      // RULE 1: Admin viewing past date → All Drivers
+      if (userHasRole(currentUser, 'admin') && isPastDate) {
+        autoSelectedDriver = 'all';
+        console.log('📋 [Date Change] Admin + past date → All Drivers');
+      }
+      // RULE 2: Dispatcher logic
+      else if (userHasRole(currentUser, 'dispatcher')) {
+        const dispatcherStoreIds = currentUser.store_ids || [];
+        
+        // Get deliveries for dispatcher's stores on this date
+        const storeDeliveries = freshDeliveries.filter(d => 
+          d && dispatcherStoreIds.includes(d.store_id)
+        );
+        
+        // Get unique drivers with deliveries for these stores
+        const driversWithStops = new Set(
+          storeDeliveries.map(d => d.driver_id).filter(Boolean)
+        );
+        
+        if (driversWithStops.size > 1) {
+          autoSelectedDriver = 'all';
+          console.log('📋 [Date Change] Dispatcher + multiple drivers → All Drivers');
+        } else if (driversWithStops.size === 1) {
+          autoSelectedDriver = Array.from(driversWithStops)[0];
+          console.log(`📋 [Date Change] Dispatcher + single driver → ${autoSelectedDriver}`);
+        } else {
+          // No deliveries for dispatcher's stores
+          autoSelectedDriver = 'all';
+          console.log('📋 [Date Change] Dispatcher + no deliveries → All Drivers');
+        }
+      }
+      // RULE 3: Driver always selects themselves
+      else if (userHasRole(currentUser, 'driver')) {
+        autoSelectedDriver = currentUser.id;
+        console.log('📋 [Date Change] Driver → Self');
+      }
+      // RULE 4: Default to All Drivers
+      else {
+        autoSelectedDriver = 'all';
+        console.log('📋 [Date Change] Default → All Drivers');
+      }
+      
+      if (autoSelectedDriver && autoSelectedDriver !== selectedDriverId) {
+        console.log(`✅ [Date Change] Auto-selecting driver: ${autoSelectedDriver}`);
+        setSelectedDriverId(autoSelectedDriver);
+        globalFilters.setSelectedDriverId(autoSelectedDriver);
+        
+        // Save to user settings
+        if (currentUser?.id) {
+          saveSetting(currentUser.id, 'selected_driver_id', autoSelectedDriver);
+        }
+      }
       
       // CRITICAL: Lock FAB and trigger map view after data loads
       setTimeout(() => {
