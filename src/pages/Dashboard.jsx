@@ -5804,16 +5804,15 @@ function Dashboard() {
                   }
                 }
 
-                if (!isDispatcher || !currentUser.store_ids || currentUser.store_ids.length === 0) {
-                  return delivery;
-                }
-
-                // If delivery is from a store not in dispatcher's store_ids, mark as stripped
-                if (!currentUser.store_ids.includes(delivery.store_id)) {
-                  return {
-                    ...delivery,
-                    _isStripped: true
-                  };
+                // CRITICAL: For dispatchers, mark deliveries from other stores as stripped
+                // This shows them as simplified cards so dispatchers can see the full driver route
+                if (isDispatcher && currentUser.store_ids && currentUser.store_ids.length > 0) {
+                  if (!currentUser.store_ids.includes(delivery.store_id)) {
+                    return {
+                      ...delivery,
+                      _isStripped: true
+                    };
+                  }
                 }
 
                 return delivery;
