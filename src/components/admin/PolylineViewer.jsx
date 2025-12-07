@@ -335,62 +335,63 @@ export default function PolylineViewer({ users = [] }) {
                 </div>
               </div>
 
-            {/* Right: Map */}
-            <div className="flex-1 border rounded-lg overflow-hidden">
-              {selectedPolyline ? (
-                <MapContainer
-                  center={[43.6532, -79.3832]}
-                  zoom={13}
-                  style={{ height: '100%', width: '100%' }}
-                  key={selectedPolyline.id}
-                >
-                  <TileLayer
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                  />
-                  
-                  {decodedCoordinates.length > 0 && (
-                    <>
-                      <Polyline
-                        positions={decodedCoordinates}
-                        color="blue"
-                        weight={4}
-                        opacity={0.7}
-                      />
-                      
-                      {/* Origin marker */}
-                      {selectedPolyline.segment_origin_lat && selectedPolyline.segment_origin_lon && (
-                        <Marker position={[selectedPolyline.segment_origin_lat, selectedPolyline.segment_origin_lon]}>
-                          <Popup>
-                            <strong>Origin</strong>
-                            <br />
-                            {selectedPolyline.segment_origin_lat.toFixed(6)}, {selectedPolyline.segment_origin_lon.toFixed(6)}
-                          </Popup>
-                        </Marker>
-                      )}
-                      
-                      {/* Destination marker */}
-                      {selectedPolyline.segment_dest_lat && selectedPolyline.segment_dest_lon && (
-                        <Marker position={[selectedPolyline.segment_dest_lat, selectedPolyline.segment_dest_lon]}>
-                          <Popup>
-                            <strong>Destination</strong>
-                            <br />
-                            {selectedPolyline.segment_dest_lat.toFixed(6)}, {selectedPolyline.segment_dest_lon.toFixed(6)}
-                          </Popup>
-                        </Marker>
-                      )}
-                      
-                      <MapUpdater coordinates={decodedCoordinates} />
-                    </>
-                  )}
-                </MapContainer>
-              ) : (
-                <div className="h-full flex items-center justify-center bg-slate-50 text-slate-400">
-                  Select a polyline from the list to view it on the map
-                </div>
-              )}
+              {/* Right: Map */}
+              <div className="flex-1 border rounded-lg overflow-hidden">
+                {selectedPolyline ? (
+                  <MapContainer
+                    center={[43.6532, -79.3832]}
+                    zoom={13}
+                    style={{ height: '100%', width: '100%' }}
+                    key={selectedPolyline.id}
+                  >
+                    <TileLayer
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    />
+                    
+                    {decodedCoordinates.length > 0 && (
+                      <>
+                        <Polyline
+                          positions={decodedCoordinates}
+                          color="blue"
+                          weight={4}
+                          opacity={0.7}
+                        />
+                        
+                        {/* Origin marker */}
+                        {selectedPolyline.segment_origin_lat && selectedPolyline.segment_origin_lon && (
+                          <Marker position={[selectedPolyline.segment_origin_lat, selectedPolyline.segment_origin_lon]}>
+                            <Popup>
+                              <strong>Origin</strong>
+                              <br />
+                              {selectedPolyline.segment_origin_lat.toFixed(6)}, {selectedPolyline.segment_origin_lon.toFixed(6)}
+                            </Popup>
+                          </Marker>
+                        )}
+                        
+                        {/* Destination marker */}
+                        {selectedPolyline.segment_dest_lat && selectedPolyline.segment_dest_lon && (
+                          <Marker position={[selectedPolyline.segment_dest_lat, selectedPolyline.segment_dest_lon]}>
+                            <Popup>
+                              <strong>Destination</strong>
+                              <br />
+                              {selectedPolyline.segment_dest_lat.toFixed(6)}, {selectedPolyline.segment_dest_lon.toFixed(6)}
+                            </Popup>
+                          </Marker>
+                        )}
+                        
+                        <MapUpdater coordinates={decodedCoordinates} />
+                      </>
+                    )}
+                  </MapContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center bg-slate-50 text-slate-400">
+                    Select a polyline from the list to view it on the map
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          </>
         )}
       </CardContent>
     </Card>
