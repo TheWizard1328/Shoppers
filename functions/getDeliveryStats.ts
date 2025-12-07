@@ -28,7 +28,15 @@ const getCacheDateKey = () => {
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
+    
+    // CRITICAL: Wrap auth.me() in try-catch
+    let user;
+    try {
+      user = await base44.auth.me();
+    } catch (authError) {
+      console.error('❌ Auth error:', authError.message);
+      return Response.json({ error: 'Authentication failed' }, { status: 401 });
+    }
     
     if (!user) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
@@ -46,17 +54,24 @@ Deno.serve(async (req) => {
     }
 
     const { selectedDate, driverId, storeIds } = body;
+    console.log('📊 [getDeliveryStats] Request params:', { selectedDate, driverId, storeIds: storeIds?.length });
     
     // Get user's AppUser record to determine roles and store assignments
-    const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id });
-    const appUser = appUsers?.[0];
-    const userRoles = appUser?.app_roles || [];
-    const isAdmin = userRoles.includes('admin');
-    const isDispatcher = userRoles.includes('dispatcher');
-    const isDriver = userRoles.includes('driver');
-    const userStoreIds = appUser?.store_ids || [];
-    
-    console.log('📊 [getDeliveryStats] User roles:', userRoles, 'Store IDs:', userStoreIds);
+    let appUsers, appUser, userRoles, isAdmin, isDispatcher, isDriver, userStoreIds;
+    try {
+      appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id });
+      appUser = appUsers?.[0];
+      userRoles = appUser?.app_roles || [];
+      isAdmin = userRoles.includes('admin');
+      isDispatcher = userRoles.includes('dispatcher');
+      isDriver = userRoles.includes('driver');
+      userStoreIds = appUser?.store_ids || [];
+      
+      console.log('📊 [getDeliveryStats] User roles:', userRoles, 'Store IDs:', userStoreIds);
+    } catch (appUserError) {
+      console.error('❌ Error fetching AppUser:', appUserError.message);
+      return Response.json({ error: 'Failed to fetch user roles' }, { status: 500 });
+    }
     
     // Use selected date or default to today
     const dateObj = selectedDate ? new Date(selectedDate + 'T00:00:00') : new Date();
@@ -149,32 +164,44 @@ Deno.serve(async (req) => {
     // Fetch only what we need
     if (fetchPromises.length > 0) {
       console.log('📊 [getDeliveryStats] Fetching:', fetchKeys.join(', '));
-      const results = await Promise.all(fetchPromises);
+      
+      let results;
+      try {
+        results = await Promise.all(fetchPromises);
+      } catch (fetchError) {
+        console.error('❌ Error fetching data:', fetchError.message);
+        return Response.json({ error: 'Failed to fetch delivery data: ' + fetchError.message }, { status: 500 });
+      }
       
       let resultIdx = 0;
-      for (const key of fetchKeys) {
-        if (key === 'month') {
-          rawMonthDeliveries = results[resultIdx++];
-          statsCache.monthly = { data: rawMonthDeliveries, cacheDate, key: monthlyKey };
-        } else if (key === 'patients') {
-          const allPatients = results[resultIdx++];
-          const allCities = results[resultIdx++];
-          const allStores = results[resultIdx++];
-          const allAppUsers = results[resultIdx++];
-          entityCounts = {
-            patients: allPatients.length,
-            cities: allCities.length,
-            stores: allStores.length,
-            users: allAppUsers.length
-          };
-          statsCache.entityCounts = { data: entityCounts, cacheDate };
-        } else if (key === 'patientsOnly') {
-          const dispatcherPatients = results[resultIdx++];
-          entityCounts = {
-            patients: dispatcherPatients.length
-          };
-          // Don't cache dispatcher-specific counts (they vary by user)
+      try {
+        for (const key of fetchKeys) {
+          if (key === 'month') {
+            rawMonthDeliveries = results[resultIdx++];
+            statsCache.monthly = { data: rawMonthDeliveries, cacheDate, key: monthlyKey };
+          } else if (key === 'patients') {
+            const allPatients = results[resultIdx++];
+            const allCities = results[resultIdx++];
+            const allStores = results[resultIdx++];
+            const allAppUsers = results[resultIdx++];
+            entityCounts = {
+              patients: allPatients.length,
+              cities: allCities.length,
+              stores: allStores.length,
+              users: allAppUsers.length
+            };
+            statsCache.entityCounts = { data: entityCounts, cacheDate };
+          } else if (key === 'patientsOnly') {
+            const dispatcherPatients = results[resultIdx++];
+            entityCounts = {
+              patients: dispatcherPatients.length
+            };
+            // Don't cache dispatcher-specific counts (they vary by user)
+          }
         }
+      } catch (processingError) {
+        console.error('❌ Error processing results:', processingError.message);
+        return Response.json({ error: 'Failed to process stats: ' + processingError.message }, { status: 500 });
       }
     } else {
       console.log('📊 [getDeliveryStats] All data from cache - no DB calls needed!');
@@ -284,7 +311,11 @@ Deno.serve(async (req) => {
     
     return Response.json(response);
   } catch (error) {
-    console.error('Error in getDeliveryStats:', error);
-    return Response.json({ error: error.message }, { status: 500 });
+    console.error('❌❌❌ CRITICAL ERROR in getDeliveryStats:', error);
+    console.error('Stack trace:', error.stack);
+    return Response.json({ 
+      error: error.message || 'Unknown error',
+      details: error.stack?.split('\n').slice(0, 3).join(' | ')
+    }, { status: 500 });
   }
 });
