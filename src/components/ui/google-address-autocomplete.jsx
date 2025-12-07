@@ -32,35 +32,35 @@ export function GoogleAddressAutocomplete({
 
     try {
       setIsLoading(true);
-      console.log('[GoogleAddressAutocomplete] Fetching suggestions for:', searchText);
-      console.log('[GoogleAddressAutocomplete] City center coordinates:', cityCenter);
       
-      // CRITICAL: Validate that we have coordinates
+      // CRITICAL: Log everything
+      console.log('');
+      console.log('═══════════════════════════════════════════');
+      console.log('🔍 [ADDRESS SEARCH DEBUG]');
+      console.log('═══════════════════════════════════════════');
+      console.log('Search text:', searchText);
+      console.log('cityCenter prop:', cityCenter);
+      console.log('Has coordinates?:', !!(cityCenter?.latitude && cityCenter?.longitude));
+      
       if (!cityCenter?.latitude || !cityCenter?.longitude) {
-        console.error('[GoogleAddressAutocomplete] ❌ NO CITY CENTER COORDINATES PROVIDED!');
-      } else {
-        console.log('[GoogleAddressAutocomplete] ✅ Using coordinates:', cityCenter.latitude, cityCenter.longitude);
+        console.error('❌ CRITICAL: NO COORDINATES - SEARCH WILL BE UNRESTRICTED');
+        console.log('═══════════════════════════════════════════');
       }
       
-      // Prepare request payload - only include coordinates if available
+      // Prepare request payload
       const requestPayload = {
         input: searchText
       };
       
-      // Add location biasing if city center coordinates are available
       if (cityCenter?.latitude && cityCenter?.longitude) {
         requestPayload.latitude = cityCenter.latitude;
         requestPayload.longitude = cityCenter.longitude;
-        console.log('[GoogleAddressAutocomplete] ✅ Added coordinates to request:', requestPayload);
-      } else {
-        console.warn('[GoogleAddressAutocomplete] ⚠️ Searching without geographic restrictions (no coordinates)');
       }
       
-      console.log('[GoogleAddressAutocomplete] 📤 Sending request to backend:', JSON.stringify(requestPayload));
+      console.log('📤 Request payload:', JSON.stringify(requestPayload, null, 2));
       
       const response = await base44.functions.invoke('googlePlacesAutocomplete', requestPayload);
-
-      console.log('[GoogleAddressAutocomplete] 📥 Raw response:', response);
+      console.log('📥 Response:', response);
 
       const data = response?.data || response;
       console.log('[GoogleAddressAutocomplete] Parsed data:', data);
