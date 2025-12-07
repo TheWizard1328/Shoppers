@@ -234,10 +234,13 @@ export async function loadUserSettings(userId) {
     // No settings found for this user/device combo - create a new record
     console.log('ℹ️ [UserSettings] No settings found, creating new record for user/device combo');
     try {
+      const now = new Date().toISOString();
       const newSettings = await UserSettings.create({
         user_id: userId,
         device_id: deviceId,
-        ...DEFAULT_SETTINGS
+        ...DEFAULT_SETTINGS,
+        created: now,
+        updated: now
       });
       cachedSettings = { ...DEFAULT_SETTINGS, ...newSettings };
       currentUserId = userId;
@@ -326,18 +329,22 @@ export async function saveSetting(userId, key, value) {
     let updatedSettings;
 
     if (existingSettings && existingSettings.length > 0) {
-      // Update existing record
+      // Update existing record with updated timestamp
       updatedSettings = await UserSettings.update(existingSettings[0].id, {
-        [key]: value
+        [key]: value,
+        updated: new Date().toISOString()
       });
       console.log('✅ [UserSettings] Updated existing settings');
     } else {
-      // Create new record with this setting
+      // Create new record with created timestamp
+      const now = new Date().toISOString();
       updatedSettings = await UserSettings.create({
         user_id: userId,
         device_id: deviceId,
         ...DEFAULT_SETTINGS,
-        [key]: value
+        [key]: value,
+        created: now,
+        updated: now
       });
       console.log('✅ [UserSettings] Created new settings record');
     }
@@ -422,16 +429,22 @@ export async function saveSettings(userId, settings) {
     let updatedSettings;
 
     if (existingSettings && existingSettings.length > 0) {
-      // Update existing record
-      updatedSettings = await UserSettings.update(existingSettings[0].id, settings);
+      // Update existing record with updated timestamp
+      updatedSettings = await UserSettings.update(existingSettings[0].id, {
+        ...settings,
+        updated: new Date().toISOString()
+      });
       console.log('✅ [UserSettings] Updated existing settings');
     } else {
-      // Create new record with these settings
+      // Create new record with created timestamp
+      const now = new Date().toISOString();
       updatedSettings = await UserSettings.create({
         user_id: userId,
         device_id: deviceId,
         ...DEFAULT_SETTINGS,
-        ...settings
+        ...settings,
+        created: now,
+        updated: now
       });
       console.log('✅ [UserSettings] Created new settings record');
     }
