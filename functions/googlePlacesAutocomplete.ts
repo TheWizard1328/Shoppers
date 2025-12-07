@@ -43,32 +43,20 @@ Deno.serve(async (req) => {
     // Build request body for new API
     const requestBody = {
       input: input,
-      languageCode: 'en'
+      languageCode: 'en',
+      includedRegionCodes: ['CA']
     };
 
-    // Add location biasing if coordinates provided
+    // Add origin point for distance-based sorting (works with new API)
     if (latitude && longitude) {
-      // Use locationBias instead of locationRestriction for better results
-      // locationBias prefers nearby results but doesn't exclude distant ones
-      // This prevents the API from rejecting valid addresses
-      requestBody.locationBias = {
-        circle: {
-          center: {
-            latitude: latitude,
-            longitude: longitude
-          },
-          radius: 75000.0 // 75km in meters
-        }
+      requestBody.origin = {
+        latitude: latitude,
+        longitude: longitude
       };
-      // Also include region codes for additional context
-      requestBody.includedRegionCodes = ['CA'];
-      console.log('[googlePlacesAutocomplete] ✅ Added location bias:');
-      console.log('[googlePlacesAutocomplete]    Center:', latitude, longitude);
-      console.log('[googlePlacesAutocomplete]    Radius: 75km');
+      console.log('[googlePlacesAutocomplete] ✅ Added origin point for sorting:');
+      console.log('[googlePlacesAutocomplete]    Origin:', latitude, longitude);
       console.log('[googlePlacesAutocomplete]    Full requestBody:', JSON.stringify(requestBody, null, 2));
     } else {
-      // Fallback to Canada-wide if no coordinates
-      requestBody.includedRegionCodes = ['CA'];
       console.warn('[googlePlacesAutocomplete] ⚠️ NO COORDINATES PROVIDED - using Canada-wide search');
       console.log('[googlePlacesAutocomplete]    Full requestBody:', JSON.stringify(requestBody, null, 2));
     }
@@ -98,36 +86,70 @@ Deno.serve(async (req) => {
       }, { status: 500 });
     }
 
-    // Convert new API format to match old format and calculate distances
-    const predictions = (data.suggestions || []).map(suggestion => {
-      const placePrediction = suggestion.placePrediction;
-      if (!placePrediction) return null;
+    // Convert new API format and fetch coordinates for distance sorting
+    const predictions = await Promise.all(
+      (data.suggestions || []).map(async suggestion => {
+        const placePrediction = suggestion.placePrediction;
+        if (!placePrediction) return null;
 
-      // The new API uses text.text for the full formatted address
-      const description = placePrediction.text?.text || '';
-      const place_id = placePrediction.placeId || '';
+        const description = placePrediction.text?.text || '';
+        const place_id = placePrediction.placeId || '';
 
-      // Extract coordinates if available for distance sorting
-      let distance = null;
-      if (latitude && longitude && placePrediction.structuredFormat?.mainText?.text) {
-        // Try to estimate distance (we'll sort, but can't get exact distance without calling Place Details)
-        // For now, we'll use the order from Google as it already biases by location
-        distance = 0;
-      }
+        // Fetch place details to get coordinates for accurate distance calculation
+        let distance = null;
+        if (latitude && longitude) {
+          try {
+            const detailsUrl = `https://places.googleapis.com/v1/places/${place_id}`;
+            const detailsResponse = await fetch(detailsUrl, {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Goog-Api-Key': apiKey,
+                'X-Goog-FieldMask': 'location'
+              }
+            });
 
-      console.log('[googlePlacesAutocomplete] Parsed prediction:', { description, place_id, distance });
+            if (detailsResponse.ok) {
+              const detailsData = await detailsResponse.json();
+              const placeLocation = detailsData.location;
+              
+              if (placeLocation?.latitude && placeLocation?.longitude) {
+                // Calculate distance using Haversine formula
+                const R = 6371; // Earth's radius in km
+                const dLat = (placeLocation.latitude - latitude) * Math.PI / 180;
+                const dLon = (placeLocation.longitude - longitude) * Math.PI / 180;
+                const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                          Math.cos(latitude * Math.PI / 180) * Math.cos(placeLocation.latitude * Math.PI / 180) *
+                          Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                distance = R * c; // Distance in km
+              }
+            }
+          } catch (error) {
+            console.warn('[googlePlacesAutocomplete] Failed to fetch coordinates for:', place_id, error.message);
+          }
+        }
 
-      return {
-        description,
-        place_id,
-        distance
-      };
-    }).filter(p => p !== null);
+        return {
+          description,
+          place_id,
+          distance
+        };
+      })
+    );
 
-    // Results are already sorted by relevance/proximity from Google's locationRestriction
-    // No additional sorting needed - Google handles this based on the circle center
-    console.log('[googlePlacesAutocomplete] Returning', predictions.length, 'predictions (sorted by Google)');
-    return Response.json({ predictions });
+    // Filter out nulls and sort by distance (closest first)
+    const validPredictions = predictions.filter(p => p !== null);
+    validPredictions.sort((a, b) => {
+      // Predictions without distance go to the end
+      if (a.distance === null && b.distance === null) return 0;
+      if (a.distance === null) return 1;
+      if (b.distance === null) return -1;
+      return a.distance - b.distance;
+    });
+
+    console.log('[googlePlacesAutocomplete] Returning', validPredictions.length, 'predictions (sorted by distance)');
+    return Response.json({ predictions: validPredictions });
 
   } catch (error) {
     console.error('[googlePlacesAutocomplete] Caught error:', error);

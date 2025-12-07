@@ -159,6 +159,13 @@ export function GoogleAddressAutocomplete({
       <Input
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          // Prevent Enter from submitting the form when autocomplete is open
+          if (e.key === 'Enter' && open && suggestions.length > 0) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }}
         placeholder={placeholder}
         className={className}
         disabled={disabled}
@@ -172,14 +179,25 @@ export function GoogleAddressAutocomplete({
       {/* Dropdown for suggestions */}
       {open && suggestions.length > 0 && (
         <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-md shadow-lg z-50 max-h-60 overflow-auto">
-          {suggestions.map((prediction) => (
+          {suggestions.map((prediction, index) => (
             <button
               key={prediction.place_id}
-              onClick={() => handleSelectAddress(prediction)}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleSelectAddress(prediction);
+              }}
               className="w-full px-3 py-2 text-left text-sm hover:bg-slate-100 flex items-start gap-2 border-b border-slate-100 last:border-b-0"
             >
               <MapPin className="w-4 h-4 mt-0.5 text-slate-500 flex-shrink-0" />
-              <span className="flex-1">{prediction.description}</span>
+              <div className="flex-1 flex items-center justify-between gap-2">
+                <span>{prediction.description}</span>
+                {prediction.distance !== null && (
+                  <span className="text-xs text-slate-500">
+                    {prediction.distance.toFixed(1)} km
+                  </span>
+                )}
+              </div>
             </button>
           ))}
         </div>
