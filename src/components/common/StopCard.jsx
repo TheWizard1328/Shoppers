@@ -844,7 +844,11 @@ export default function StopCard({
                   </DropdownMenu> :
 
                 <Badge
-                  variant="secondary" className="border-transparent hover:bg-secondary/80 inline-flex items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-sm font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800">
+                  variant="secondary" className={`border-transparent hover:bg-secondary/80 inline-flex items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-sm font-bold px-2 py-0.5 ${
+                    delivery.status === 'failed' ? 'bg-red-100 text-red-800' :
+                    delivery.status === 'returned' ? 'bg-orange-100 text-orange-800' :
+                    'bg-emerald-100 text-emerald-800'
+                  }`}>
 
                     {statusConfig[delivery.status]?.label || delivery.status}
                   </Badge>
