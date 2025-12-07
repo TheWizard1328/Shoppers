@@ -34,11 +34,18 @@ export function GoogleAddressAutocomplete({
       setIsLoading(true);
       console.log('[GoogleAddressAutocomplete] Fetching suggestions for:', searchText, cityCenter);
       
-      const response = await base44.functions.invoke('googlePlacesAutocomplete', {
-        input: searchText,
-        latitude: cityCenter?.latitude,
-        longitude: cityCenter?.longitude
-      });
+      // Prepare request payload - only include coordinates if available
+      const requestPayload = {
+        input: searchText
+      };
+      
+      // Add location biasing if city center coordinates are available
+      if (cityCenter?.latitude && cityCenter?.longitude) {
+        requestPayload.latitude = cityCenter.latitude;
+        requestPayload.longitude = cityCenter.longitude;
+      }
+      
+      const response = await base44.functions.invoke('googlePlacesAutocomplete', requestPayload);
 
       console.log('[GoogleAddressAutocomplete] Response:', response);
 
