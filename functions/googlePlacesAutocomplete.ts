@@ -38,13 +38,13 @@ Deno.serve(async (req) => {
     
     // Build request body for new API
     const requestBody = {
-      input: input,
-      includedPrimaryTypes: ['street_address', 'premise', 'subpremise']
+      input: input
+      // Removed includedPrimaryTypes to allow all address types
     };
-    
-    // Add location restriction if coordinates provided (strictly limits results to radius)
+
+    // Add location biasing if coordinates provided (prefers nearby but doesn't exclude)
     if (latitude && longitude) {
-      requestBody.locationRestriction = {
+      requestBody.locationBias = {
         circle: {
           center: {
             latitude: latitude,
@@ -53,9 +53,9 @@ Deno.serve(async (req) => {
           radius: 75000.0 // 75km in meters
         }
       };
-      console.log('[googlePlacesAutocomplete] Added location restriction:', latitude, longitude, '75km radius');
+      console.log('[googlePlacesAutocomplete] Added location bias:', latitude, longitude, '75km radius');
     } else {
-      console.log('[googlePlacesAutocomplete] No location restriction (coordinates missing)');
+      console.log('[googlePlacesAutocomplete] No location bias (coordinates missing)');
     }
     
     console.log('[googlePlacesAutocomplete] Calling Google API (NEW)...');
