@@ -439,51 +439,23 @@ function Dashboard() {
 
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
-    // CRITICAL: For dispatchers in "all drivers" mode, show ALL deliveries for ALL drivers in the city
-    // When viewing individual driver, still show full route (dispatcher's stores + other stores)
-    if (isDispatcher && currentUser.store_ids && currentUser.store_ids.length > 0) {
-      const dispatcherStoreIds = currentUser.store_ids;
-
-      // Get all deliveries for this date
-      const dateDeliveries = deliveries.filter((d) => d && d.delivery_date === dateStr);
-
-      // CRITICAL: If viewing "all drivers", show ALL deliveries in the selected city
-      if (selectedDriverId === 'all') {
-        console.log(`📊 [Dispatcher "All Drivers" Mode] Date: ${dateStr}, Showing ALL city deliveries: ${dateDeliveries.length}`);
-        return dateDeliveries;
-      }
-
-      // CRITICAL: If viewing individual driver, show their FULL route (including other stores)
-      // Get unique driver IDs who have deliveries for dispatcher's stores
-      const relevantDriverIds = new Set(
-        dateDeliveries
-          .filter((d) => dispatcherStoreIds.includes(d.store_id))
-          .map((d) => d.driver_id)
-          .filter(Boolean)
-      );
-
-      // Return ALL deliveries for these drivers on this date (including other stores)
-      const result = dateDeliveries.filter((d) => {
-        if (!d.driver_id || !relevantDriverIds.has(d.driver_id)) return false;
-        // Filter by selected driver if not "all"
-        if (selectedDriverId && selectedDriverId !== 'all' && d.driver_id !== selectedDriverId) return false;
-        return true;
-      });
-
-      console.log(`📊 [Dispatcher Single Driver] Date: ${dateStr}, Driver: ${selectedDriverId}, Total deliveries: ${result.length}`);
-      return result;
-    }
-
-    // For other roles or single driver mode
-    return deliveries.filter((d) => {
+    // SIMPLIFIED: Show ALL deliveries for selected date, filter only by selected driver
+    // UI components (cards, map markers) will handle role-based display differences
+    const result = deliveries.filter((d) => {
       if (!d) return false;
       if (d.delivery_date !== dateStr) return false;
+      
+      // Only filter by selected driver if not "all"
       if (selectedDriverId && selectedDriverId !== 'all') {
         if (d.driver_id !== selectedDriverId) return false;
       }
+      
       return true;
     });
-  }, [deliveries, selectedDate, selectedDriverId, isDispatcher, currentUser]);
+
+    console.log(`📊 [Deliveries Filter] Date: ${dateStr}, Driver: ${selectedDriverId}, Total: ${result.length}`);
+    return result;
+  }, [deliveries, selectedDate, selectedDriverId]);
 
   const deliveriesWithStopOrder = useMemo(() => {
     if (!filteredDeliveries || !Array.isArray(filteredDeliveries) || filteredDeliveries.length === 0) return [];
