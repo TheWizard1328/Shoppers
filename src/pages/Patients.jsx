@@ -2064,22 +2064,28 @@ export default function Patients() {
 
       {/* Modals */}
       <AnimatePresence>
-        {showPatientForm &&
-        <PatientForm
-          patient={editingPatient}
-          onSave={handleSavePatient}
-          onCancel={() => {
-            setShowPatientForm(false);
-            setEditingPatient(null);
-            setPatientFormCallback(null);
-          }}
-          stores={stores}
-          cities={cities}
-          allPatients={allPatients}
-          currentUser={currentUser}
-          returnPatientOnSave={!!patientFormCallback} />
-
-        }
+        {showPatientForm && (
+        <>
+          {console.log('🔍 [Patients] Rendering PatientForm with props:', {
+            citiesCount: cities?.length,
+            currentUserCityId: currentUser?.city_id,
+            storesCount: stores?.length
+          })}
+          <PatientForm
+            patient={editingPatient}
+            onSave={handleSavePatient}
+            onCancel={() => {
+              setShowPatientForm(false);
+              setEditingPatient(null);
+              setPatientFormCallback(null);
+            }}
+            stores={stores}
+            cities={cities}
+            allPatients={allPatients}
+            currentUser={currentUser}
+            returnPatientOnSave={!!patientFormCallback} />
+        </>
+        )}
       </AnimatePresence>
 
       <AnimatePresence>
