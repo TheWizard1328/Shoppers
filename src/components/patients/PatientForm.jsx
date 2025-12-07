@@ -84,6 +84,15 @@ export default function PatientForm({
   returnPatientOnSave = false
 }) {
   const { setIsFormOverlayOpen } = useAppData();
+  
+  // CRITICAL DEBUG: Log props on mount
+  useEffect(() => {
+    console.log('🔍 [PatientForm] Component mounted with props:');
+    console.log('   cities:', cities);
+    console.log('   cities.length:', cities?.length);
+    console.log('   currentUser:', currentUser);
+    console.log('   currentUser.city_id:', currentUser?.city_id);
+  }, []);
 
   const [formData, setFormData] = useState({
     patient_id: "",
