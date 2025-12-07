@@ -32,18 +32,26 @@ export function GoogleAddressAutocomplete({
 
     try {
       setIsLoading(true);
+      console.log('[GoogleAddressAutocomplete] Fetching suggestions for:', searchText, cityCenter);
+      
       const response = await base44.functions.invoke('googlePlacesAutocomplete', {
         input: searchText,
         latitude: cityCenter?.latitude,
-        longitude: cityCenter?.longitude,
-        radius: 75000 // 75km in meters
+        longitude: cityCenter?.longitude
       });
+
+      console.log('[GoogleAddressAutocomplete] Response:', response);
 
       const data = response?.data || response;
       
-      if (data?.predictions) {
+      if (data?.predictions && data.predictions.length > 0) {
+        console.log('[GoogleAddressAutocomplete] Got predictions:', data.predictions.length);
         setSuggestions(data.predictions);
         setOpen(true);
+      } else {
+        console.log('[GoogleAddressAutocomplete] No predictions found');
+        setSuggestions([]);
+        setOpen(false);
       }
     } catch (error) {
       console.error('Error fetching address suggestions:', error);
@@ -56,36 +64,47 @@ export function GoogleAddressAutocomplete({
   // Handle address selection and fetch full details
   const handleSelectAddress = async (prediction) => {
     try {
+      console.log('[GoogleAddressAutocomplete] Fetching details for:', prediction.place_id);
+      
       // Get detailed place information
       const response = await base44.functions.invoke('googlePlaceDetails', {
-        placeId: prediction.place_id
+        place_id: prediction.place_id
       });
+
+      console.log('[GoogleAddressAutocomplete] Place details response:', response);
 
       const data = response?.data || response;
       
-      if (data?.result) {
-        const place = data.result;
-        
-        // Extract address components
-        const addressData = {
-          full_address: place.formatted_address,
-          latitude: place.geometry?.location?.lat,
-          longitude: place.geometry?.location?.lng,
-          place_id: place.place_id
-        };
+      // The backend returns formatted_address, not result.formatted_address
+      const addressData = {
+        full_address: data.formatted_address || prediction.description,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        place_id: prediction.place_id
+      };
 
-        // Call the parent handler with full address data
-        if (onAddressSelect) {
-          onAddressSelect(addressData);
-        }
-        
-        // Update the input value
-        onChange(place.formatted_address);
+      console.log('[GoogleAddressAutocomplete] Address data:', addressData);
+
+      // Call the parent handler with full address data
+      if (onAddressSelect) {
+        onAddressSelect(addressData);
       }
+      
+      // Update the input value
+      onChange(data.formatted_address || prediction.description);
     } catch (error) {
-      console.error('Error fetching place details:', error);
+      console.error('[GoogleAddressAutocomplete] Error fetching place details:', error);
+      // Fallback to using the prediction description
+      onChange(prediction.description);
+      if (onAddressSelect) {
+        onAddressSelect({
+          full_address: prediction.description,
+          place_id: prediction.place_id
+        });
+      }
     } finally {
       setOpen(false);
+      setSuggestions([]);
     }
   };
 
@@ -151,11 +170,8 @@ export function GoogleAddressAutocomplete({
                     className="cursor-pointer"
                   >
                     <MapPin className="w-4 h-4 mr-2 text-slate-500" />
-                    <div className="flex-1">
-                      <div className="text-sm">{prediction.structured_formatting?.main_text}</div>
-                      <div className="text-xs text-slate-500">
-                        {prediction.structured_formatting?.secondary_text}
-                      </div>
+                    <div className="flex-1 text-sm">
+                      {prediction.description}
                     </div>
                   </CommandItem>
                 ))}
