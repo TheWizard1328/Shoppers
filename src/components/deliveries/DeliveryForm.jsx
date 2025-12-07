@@ -1858,6 +1858,8 @@ export default function DeliveryForm({
   useEffect(() => {
     const handleEnterKey = (event) => {
       if (event.key !== 'Enter') return;
+      // CRITICAL: Don't handle Enter if PatientForm is open
+      if (isPatientFormOpen) return;
       if (event.target.tagName === 'TEXTAREA') return;
       if (event.target.getAttribute('role') === 'combobox') return;
       if (event.target === patientSearchInputRef.current) return;
@@ -1880,7 +1882,7 @@ export default function DeliveryForm({
 
     document.addEventListener('keydown', handleEnterKey);
     return () => document.removeEventListener('keydown', handleEnterKey);
-  }, [buttonState, isFormValid, handleAddToStaging, handleUpdateStaged, handleBatchSave, delivery, isSaving, handleSubmit]);
+  }, [buttonState, isFormValid, handleAddToStaging, handleUpdateStaged, handleBatchSave, delivery, isSaving, handleSubmit, isPatientFormOpen]);
 
   useEffect(() => {
     const handleEscapeKey = (event) => {
