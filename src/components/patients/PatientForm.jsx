@@ -532,68 +532,10 @@ export default function PatientForm({
 
           <CardContent className="px-2 py-2 overflow-y-auto flex-1">
             <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="space-y-2">
-              {/* AppOwner Only: GPS & Distance Section */}
-              {isAppOwner(currentUser) && (
-                <div className="bg-amber-50 border-2 border-amber-300 px-2 py-2 rounded-[10px] space-y-2">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Label className="text-xs font-semibold text-amber-900 uppercase">App Owner Controls</Label>
-                  </div>
-                  <div className="grid grid-cols-12 gap-2">
-                    <div className="col-span-3 space-y-1">
-                      <Label htmlFor="patient_id_appowner" className="text-sm font-medium">PID</Label>
-                      <Input
-                        id="patient_id_appowner"
-                        value={formData.patient_id}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, patient_id: e.target.value.trim() }))}
-                        placeholder="5-char"
-                        className="h-10 md:h-9 text-sm border-slate-300 bg-white"
-                        maxLength={5}
-                      />
-                    </div>
-                    <div className="col-span-3 space-y-1">
-                      <Label htmlFor="latitude" className="text-sm font-medium">Latitude</Label>
-                      <Input
-                        id="latitude"
-                        type="number"
-                        step="any"
-                        value={formData.latitude || ''}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, latitude: e.target.value ? parseFloat(e.target.value) : null }))}
-                        placeholder="GPS Lat"
-                        className="h-10 md:h-9 text-sm border-slate-300 bg-white"
-                      />
-                    </div>
-                    <div className="col-span-3 space-y-1">
-                      <Label htmlFor="longitude" className="text-sm font-medium">Longitude</Label>
-                      <Input
-                        id="longitude"
-                        type="number"
-                        step="any"
-                        value={formData.longitude || ''}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, longitude: e.target.value ? parseFloat(e.target.value) : null }))}
-                        placeholder="GPS Lon"
-                        className="h-10 md:h-9 text-sm border-slate-300 bg-white"
-                      />
-                    </div>
-                    <div className="col-span-3 space-y-1">
-                      <Label htmlFor="distance" className="text-sm font-medium">Distance (km)</Label>
-                      <Input
-                        id="distance"
-                        type="number"
-                        step="0.01"
-                        value={formData.distance_from_store || ''}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, distance_from_store: e.target.value ? parseFloat(e.target.value) : null }))}
-                        placeholder="km"
-                        className="h-10 md:h-9 text-sm border-slate-300 bg-white"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* Container 1: Store/ID/Status and Time Windows */}
               <div className="bg-slate-100 px-2 py-2 rounded-[10px] space-y-2">
                 <div className="grid grid-cols-12 gap-2">
-                  <div className="col-span-4 space-y-1">
+                  <div className="col-span-3 space-y-1">
                     <Label htmlFor="store_id" className="text-sm font-medium">Assigned Store *</Label>
                     <Select
                       value={formData.store_id}
@@ -612,24 +554,64 @@ export default function PatientForm({
                     </Select>
                   </div>
 
-                  {!isAppOwner(currentUser) && (
-                    <div className="col-span-4 space-y-1">
-                      <Label htmlFor="patient_id" className="text-sm font-medium">Patient ID (PID) *</Label>
-                      <Input
-                        id="patient_id"
-                        value={formData.patient_id}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, patient_id: e.target.value.trim() }))}
-                        placeholder="5-char ID"
-                        className={`h-10 md:h-9 text-sm border-slate-300 bg-white ${pidBackgroundColor}`}
-                        maxLength={5} />
-                      {formData.patient_id && !validateId(formData.patient_id, 5) &&
-                        <p className="text-xs text-red-600">Must be 5 chars</p>
-                      }
-                    </div>
-                  )}
-                  {isAppOwner(currentUser) && <div className="col-span-4"></div>}
+                  <div className={`col-span-2 space-y-1 ${isAppOwner(currentUser) ? 'bg-amber-50 px-2 py-1 rounded border border-amber-300' : ''}`}>
+                    <Label htmlFor="patient_id" className={`text-sm font-medium ${isAppOwner(currentUser) ? 'text-amber-900' : ''}`}>Patient ID (PID) *</Label>
+                    <Input
+                      id="patient_id"
+                      value={formData.patient_id}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, patient_id: e.target.value.trim() }))}
+                      placeholder="5-char"
+                      className={`h-10 md:h-9 text-sm border-slate-300 bg-white ${isAppOwner(currentUser) ? '' : pidBackgroundColor}`}
+                      maxLength={5}
+                      disabled={!isAppOwner(currentUser)}
+                    />
+                    {!isAppOwner(currentUser) && formData.patient_id && !validateId(formData.patient_id, 5) &&
+                      <p className="text-xs text-red-600">Must be 5 chars</p>
+                    }
+                  </div>
 
-                  <div className="col-span-4 space-y-1">
+                  {isAppOwner(currentUser) && (
+                    <>
+                      <div className="col-span-2 space-y-1 bg-amber-50 px-2 py-1 rounded border border-amber-300">
+                        <Label htmlFor="latitude" className="text-sm font-medium text-amber-900">Latitude</Label>
+                        <Input
+                          id="latitude"
+                          type="number"
+                          step="any"
+                          value={formData.latitude || ''}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, latitude: e.target.value ? parseFloat(e.target.value) : null }))}
+                          placeholder="GPS Lat"
+                          className="h-10 md:h-9 text-sm border-slate-300 bg-white"
+                        />
+                      </div>
+                      <div className="col-span-2 space-y-1 bg-amber-50 px-2 py-1 rounded border border-amber-300">
+                        <Label htmlFor="longitude" className="text-sm font-medium text-amber-900">Longitude</Label>
+                        <Input
+                          id="longitude"
+                          type="number"
+                          step="any"
+                          value={formData.longitude || ''}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, longitude: e.target.value ? parseFloat(e.target.value) : null }))}
+                          placeholder="GPS Lon"
+                          className="h-10 md:h-9 text-sm border-slate-300 bg-white"
+                        />
+                      </div>
+                      <div className="col-span-1 space-y-1 bg-amber-50 px-2 py-1 rounded border border-amber-300">
+                        <Label htmlFor="distance" className="text-sm font-medium text-amber-900">Dist</Label>
+                        <Input
+                          id="distance"
+                          type="number"
+                          step="0.01"
+                          value={formData.distance_from_store || ''}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, distance_from_store: e.target.value ? parseFloat(e.target.value) : null }))}
+                          placeholder="km"
+                          className="h-10 md:h-9 text-sm border-slate-300 bg-white"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <div className="col-span-2 space-y-1">
                     <Label htmlFor="status" className="text-sm font-medium">Status</Label>
                     <Select
                       value={formData.status}
