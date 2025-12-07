@@ -575,7 +575,7 @@ export default function PatientForm({
 
                     </div>
                     <div className="col-span-3 space-y-1">
-                      <Label htmlFor="distance" className="text-sm font-medium">Distance (km)</Label>
+                      <Label htmlFor="distance" className="peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-sm font-medium">Dist (km)</Label>
                       <Input
                       id="distance"
                       type="number"
