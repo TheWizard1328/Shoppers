@@ -1110,6 +1110,9 @@ function Dashboard() {
 
           // CRITICAL: Generate polyline on fresh load if none exists
           try {
+            // Get the driver whose route we're viewing for their home location
+            const viewedDriver = users.find(u => u && u.id === driverIdToFetch);
+            
             await optimizeDriverRoute({
               driverId: driverIdToFetch,
               deliveryDate: deliveryDate,
@@ -1119,7 +1122,11 @@ function Dashboard() {
               } : null,
               clientCurrentTime: format(new Date(), 'HH:mm'),
               generatePolyline: true,
-              forceReoptimization: true // Force re-optimization to generate polyline
+              forceReoptimization: true, // Force re-optimization to generate polyline
+              driverHome: viewedDriver?.home_latitude && viewedDriver?.home_longitude ? {
+                lat: viewedDriver.home_latitude,
+                lon: viewedDriver.home_longitude
+              } : null
             });
 
             console.log('✅ [Polyline Display] Backend optimizer called to generate polyline');
