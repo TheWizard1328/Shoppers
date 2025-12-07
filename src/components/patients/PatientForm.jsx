@@ -539,18 +539,17 @@ export default function PatientForm({
                     <Label className="text-xs font-semibold text-amber-900 uppercase">App Owner Controls</Label>
                   </div>
                   <div className="grid grid-cols-12 gap-2">
-                    <div className="col-span-3 space-y-1">
+                    <div className="col-span-2 space-y-1">
                       <Label htmlFor="patient_id_appowner" className="text-sm font-medium">PID</Label>
                       <Input
                       id="patient_id_appowner"
                       value={formData.patient_id}
                       onChange={(e) => setFormData((prev) => ({ ...prev, patient_id: e.target.value.trim() }))}
-                      placeholder="5-char" className="bg-white px-3 py-1 text-sm rounded-md flex w-full border shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-10 md:h-9 border-slate-300"
-
+                      placeholder="5-char"
+                      className="h-10 md:h-9 text-sm border-slate-300 bg-white"
                       maxLength={5} />
-
                     </div>
-                    <div className="col-span-3 space-y-1">
+                    <div className="col-span-4 space-y-1">
                       <Label htmlFor="latitude" className="text-sm font-medium">Latitude</Label>
                       <Input
                       id="latitude"
@@ -559,10 +558,9 @@ export default function PatientForm({
                       value={formData.latitude || ''}
                       onChange={(e) => setFormData((prev) => ({ ...prev, latitude: e.target.value ? parseFloat(e.target.value) : null }))}
                       placeholder="GPS Lat"
-                      className="h-10 md:h-9 text-sm border-slate-300 bg-white" />
-
+                      className="h-10 md:h-9 text-sm border-slate-300 bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                     </div>
-                    <div className="col-span-3 space-y-1">
+                    <div className="col-span-4 space-y-1">
                       <Label htmlFor="longitude" className="text-sm font-medium">Longitude</Label>
                       <Input
                       id="longitude"
@@ -570,12 +568,11 @@ export default function PatientForm({
                       step="any"
                       value={formData.longitude || ''}
                       onChange={(e) => setFormData((prev) => ({ ...prev, longitude: e.target.value ? parseFloat(e.target.value) : null }))}
-                      placeholder="GPS Lon" className="bg-white px-1 py-1 text-sm rounded-md flex w-full border shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-10 md:h-9 border-slate-300" />
-
-
+                      placeholder="GPS Lon"
+                      className="h-10 md:h-9 text-sm border-slate-300 bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                     </div>
-                    <div className="col-span-3 space-y-1">
-                      <Label htmlFor="distance" className="peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-sm font-medium">Dist (km)</Label>
+                    <div className="col-span-2 space-y-1">
+                      <Label htmlFor="distance" className="text-sm font-medium">Dist (km)</Label>
                       <Input
                       id="distance"
                       type="number"
@@ -583,8 +580,7 @@ export default function PatientForm({
                       value={formData.distance_from_store || ''}
                       onChange={(e) => setFormData((prev) => ({ ...prev, distance_from_store: e.target.value ? parseFloat(e.target.value) : null }))}
                       placeholder="km"
-                      className="h-10 md:h-9 text-sm border-slate-300 bg-white" />
-
+                      className="h-10 md:h-9 text-sm border-slate-300 bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                     </div>
                   </div>
                 </div>
