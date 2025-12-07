@@ -1113,10 +1113,13 @@ function Dashboard() {
             // Get the driver whose route we're viewing for their home location
             const viewedDriver = users.find(u => u && u.id === driverIdToFetch);
             
+            // CRITICAL: Only pass currentLocation if viewing OWN route, not when impersonating
+            const isViewingOwnRoute = driverIdToFetch === currentUser?.id;
+            
             await optimizeDriverRoute({
               driverId: driverIdToFetch,
               deliveryDate: deliveryDate,
-              currentLocation: driverLocation ? {
+              currentLocation: isViewingOwnRoute && driverLocation ? {
                 lat: driverLocation.latitude,
                 lon: driverLocation.longitude
               } : null,
