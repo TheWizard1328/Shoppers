@@ -382,16 +382,16 @@ export const loadDeliveries = async (
   // Call the initial callback with today + next 7 days
   onInitialLoadComplete(initialDeliveries);
   
-  // 3. Background: load past 30 days (with role-based filters)
+  // 3. Background: load past 30 days (ALL drivers in city, no role filtering)
   setTimeout(async () => {
     try {
       const last30Days = subDays(today, 30);
       const last30DaysStr = format(last30Days, 'yyyy-MM-dd');
       const yesterdayStr = format(subDays(today, 1), 'yyyy-MM-dd');
       
-      console.log(`🚀 [dataManager] BACKGROUND: Loading past deliveries (${last30DaysStr} to ${yesterdayStr}) - role-filtered`);
+      console.log(`🚀 [dataManager] BACKGROUND: Loading past 30 days (${last30DaysStr} to ${yesterdayStr}) - ALL drivers in city`);
       const pastDeliveries = await getDeliveriesForDateRange(last30DaysStr, yesterdayStr, backgroundFilters, forceRefresh);
-      console.log(`✅ [dataManager] BACKGROUND: Loaded ${pastDeliveries.length} past deliveries`);
+      console.log(`✅ [dataManager] BACKGROUND: Loaded ${pastDeliveries.length} past deliveries (all drivers)`);
       
       // Combine all: past + today + future
       const allDeliveries = [...pastDeliveries, ...initialDeliveries];
