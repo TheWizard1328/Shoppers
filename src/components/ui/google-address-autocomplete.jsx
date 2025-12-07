@@ -47,14 +47,17 @@ export function GoogleAddressAutocomplete({
       
       const response = await base44.functions.invoke('googlePlacesAutocomplete', requestPayload);
 
-      console.log('[GoogleAddressAutocomplete] Response:', response);
+      console.log('[GoogleAddressAutocomplete] Raw response:', response);
 
       const data = response?.data || response;
-      
+      console.log('[GoogleAddressAutocomplete] Parsed data:', data);
+      console.log('[GoogleAddressAutocomplete] Predictions array:', data?.predictions);
+
       if (data?.predictions && data.predictions.length > 0) {
-        console.log('[GoogleAddressAutocomplete] Got predictions:', data.predictions.length);
+        console.log('[GoogleAddressAutocomplete] Got predictions:', data.predictions.length, data.predictions);
         setSuggestions(data.predictions);
         setOpen(true);
+        console.log('[GoogleAddressAutocomplete] State updated - open:', true, 'suggestions:', data.predictions);
       } else {
         console.log('[GoogleAddressAutocomplete] No predictions found');
         setSuggestions([]);
