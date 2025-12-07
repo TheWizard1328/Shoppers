@@ -439,14 +439,21 @@ function Dashboard() {
 
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
-    // CRITICAL: For dispatchers, show ALL deliveries for drivers who have stops in dispatcher's stores
-    // This includes deliveries from other stores (marked as stripped for cards, simple circles for map)
+    // CRITICAL: For dispatchers in "all drivers" mode, show ALL deliveries for ALL drivers in the city
+    // When viewing individual driver, still show full route (dispatcher's stores + other stores)
     if (isDispatcher && currentUser.store_ids && currentUser.store_ids.length > 0) {
       const dispatcherStoreIds = currentUser.store_ids;
 
       // Get all deliveries for this date
       const dateDeliveries = deliveries.filter((d) => d && d.delivery_date === dateStr);
 
+      // CRITICAL: If viewing "all drivers", show ALL deliveries in the selected city
+      if (selectedDriverId === 'all') {
+        console.log(`📊 [Dispatcher "All Drivers" Mode] Date: ${dateStr}, Showing ALL city deliveries: ${dateDeliveries.length}`);
+        return dateDeliveries;
+      }
+
+      // CRITICAL: If viewing individual driver, show their FULL route (including other stores)
       // Get unique driver IDs who have deliveries for dispatcher's stores
       const relevantDriverIds = new Set(
         dateDeliveries
@@ -463,7 +470,7 @@ function Dashboard() {
         return true;
       });
 
-      console.log(`📊 [Dispatcher Filter] Date: ${dateStr}, Drivers: ${relevantDriverIds.size}, Total deliveries: ${result.length}`);
+      console.log(`📊 [Dispatcher Single Driver] Date: ${dateStr}, Driver: ${selectedDriverId}, Total deliveries: ${result.length}`);
       return result;
     }
 
