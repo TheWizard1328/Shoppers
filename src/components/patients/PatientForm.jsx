@@ -288,7 +288,9 @@ export default function PatientForm({
   }, [setIsFormOverlayOpen]);
 
   const handleAddressSelect = (addressData) => {
+    console.log('[PatientForm] ========================================');
     console.log('[PatientForm] handleAddressSelect received:', addressData);
+    console.log('[PatientForm] Current store_id:', formData.store_id);
     
     // Use street_address which preserves directionals (NW, SE, etc.)
     const abbreviatedAddress = abbreviateAddress(addressData.street_address || addressData.full_address);
@@ -298,7 +300,7 @@ export default function PatientForm({
     let distanceFromStore = null;
     if (formData.store_id && stores) {
       const assignedStore = stores.find((s) => s && s.id === formData.store_id);
-      console.log('[PatientForm] Assigned store:', assignedStore);
+      console.log('[PatientForm] Assigned store found:', assignedStore?.name);
       
       if (assignedStore?.latitude && assignedStore?.longitude && addressData.latitude && addressData.longitude) {
         // Haversine formula for distance
@@ -310,24 +312,29 @@ export default function PatientForm({
         Math.sin(dLon / 2) * Math.sin(dLon / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         distanceFromStore = R * c;
-        console.log('[PatientForm] Calculated distance:', distanceFromStore, 'km');
+        console.log('[PatientForm] ✅ Calculated distance:', distanceFromStore, 'km');
       }
+    } else {
+      console.log('[PatientForm] ⚠️ No store selected yet - distance will be null');
     }
 
-    console.log('[PatientForm] Updating formData with:', {
+    const newFormData = {
+      ...formData,
       address: abbreviatedAddress,
       latitude: addressData.latitude,
       longitude: addressData.longitude,
       distance_from_store: distanceFromStore
-    });
+    };
 
-    setFormData((prev) => ({
-      ...prev,
-      address: abbreviatedAddress,
-      latitude: addressData.latitude || null,
-      longitude: addressData.longitude || null,
-      distance_from_store: distanceFromStore
-    }));
+    console.log('[PatientForm] Setting formData to:', {
+      address: newFormData.address,
+      latitude: newFormData.latitude,
+      longitude: newFormData.longitude,
+      distance_from_store: newFormData.distance_from_store
+    });
+    console.log('[PatientForm] ========================================');
+
+    setFormData(newFormData);
   };
 
   const handleWeeklyDayToggle = (day) => {
@@ -569,7 +576,7 @@ export default function PatientForm({
                       id="latitude"
                       type="number"
                       step="any"
-                      value={formData.latitude || ''}
+                      value={formData.latitude !== null && formData.latitude !== undefined ? formData.latitude : ''}
                       onChange={(e) => setFormData((prev) => ({ ...prev, latitude: e.target.value ? parseFloat(e.target.value) : null }))}
                       placeholder="GPS Lat"
                       className="h-10 md:h-9 text-sm border-slate-300 bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
@@ -580,7 +587,7 @@ export default function PatientForm({
                       id="longitude"
                       type="number"
                       step="any"
-                      value={formData.longitude || ''}
+                      value={formData.longitude !== null && formData.longitude !== undefined ? formData.longitude : ''}
                       onChange={(e) => setFormData((prev) => ({ ...prev, longitude: e.target.value ? parseFloat(e.target.value) : null }))}
                       placeholder="GPS Lon"
                       className="h-10 md:h-9 text-sm border-slate-300 bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
@@ -591,7 +598,7 @@ export default function PatientForm({
                       id="distance"
                       type="number"
                       step="0.01"
-                      value={formData.distance_from_store || ''}
+                      value={formData.distance_from_store !== null && formData.distance_from_store !== undefined ? formData.distance_from_store.toFixed(2) : ''}
                       onChange={(e) => setFormData((prev) => ({ ...prev, distance_from_store: e.target.value ? parseFloat(e.target.value) : null }))}
                       placeholder="km"
                       className="h-10 md:h-9 text-sm border-slate-300 bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
