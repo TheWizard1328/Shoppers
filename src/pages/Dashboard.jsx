@@ -2265,13 +2265,17 @@ function Dashboard() {
         // Check if admin has their own deliveries on this date
         const adminHasStops = freshDeliveries.some(d => d && d.driver_id === currentUser.id);
         
-        if (isPastDate || (driversWithStops.size > 1 && !adminHasStops)) {
-          autoSelectedDriver = 'all';
-          console.log('📋 [Date Change] Admin + (past date OR multiple drivers + no admin stops) → All Drivers');
-        } else if (driversWithStops.size === 1) {
+        // CRITICAL: Always check driver count FIRST
+        if (driversWithStops.size === 1) {
+          // Only one driver has stops → always select that driver
           autoSelectedDriver = Array.from(driversWithStops)[0];
           console.log(`📋 [Date Change] Admin + single driver → ${autoSelectedDriver}`);
+        } else if (driversWithStops.size > 1 && (isPastDate || !adminHasStops)) {
+          // Multiple drivers + (past date OR admin has no stops) → All Drivers
+          autoSelectedDriver = 'all';
+          console.log('📋 [Date Change] Admin + multiple drivers + (past date OR no admin stops) → All Drivers');
         } else {
+          // Default to All Drivers
           autoSelectedDriver = 'all';
           console.log('📋 [Date Change] Admin + default → All Drivers');
         }
