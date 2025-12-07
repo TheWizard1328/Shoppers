@@ -1440,17 +1440,22 @@ function Dashboard() {
           }
         }
 
-        // Add driver's home location if visible on map (for single driver mode)
+        // Add viewed user's home location if visible on map (for single driver mode)
+        // CRITICAL: For impersonation, use selectedDriverId to get the viewed user's home
         // Only include home location when viewing TODAY (irrelevant for past/future dates)
-        if (currentUser?.home_latitude && currentUser?.home_longitude && !isAllDriversMode && isViewingToday) {
+        const viewedUser = selectedDriverId && selectedDriverId !== 'all' ? 
+          users.find(u => u && u.id === selectedDriverId) : 
+          currentUser;
+        
+        if (viewedUser?.home_latitude && viewedUser?.home_longitude && !isAllDriversMode && isViewingToday) {
           // Check if route has active stops (home should be visible)
           const hasActiveStops = deliveriesWithStopOrder.some((d) =>
           d && !['completed', 'failed', 'cancelled', 'returned'].includes(d.status)
           );
           // Home location visibility follows same rules as driver marker
           if (hasActiveStops && isCurrentDriverMarkerVisible) {
-            allCoordinates.push([currentUser.home_latitude, currentUser.home_longitude]);
-            console.log('🏠 [FAB Click] Including driver home location in bounds');
+            allCoordinates.push([viewedUser.home_latitude, viewedUser.home_longitude]);
+            console.log(`🏠 [FAB Click] Including ${viewedUser.user_name || 'driver'} home location in bounds`);
           }
         }
 
@@ -1660,18 +1665,23 @@ function Dashboard() {
           [nextStopCoordinates.lat, nextStopCoordinates.lon]];
 
 
-          // CRITICAL: Only include driver's home location if home IS the next stop
-          // (i.e., the next stop coordinates match the driver's home coordinates)
-          if (currentUser?.home_latitude && currentUser?.home_longitude) {
+          // CRITICAL: Only include viewed user's home location if home IS the next stop
+          // (i.e., the next stop coordinates match the viewed user's home coordinates)
+          // For impersonation, use selectedDriverId to get the viewed user's home
+          const viewedUserPhase2 = selectedDriverId && selectedDriverId !== 'all' ? 
+            users.find(u => u && u.id === selectedDriverId) : 
+            currentUser;
+          
+          if (viewedUserPhase2?.home_latitude && viewedUserPhase2?.home_longitude) {
             const isHomeNextStop =
-            Math.abs(nextStopCoordinates.lat - currentUser.home_latitude) < 0.0001 &&
-            Math.abs(nextStopCoordinates.lon - currentUser.home_longitude) < 0.0001;
+            Math.abs(nextStopCoordinates.lat - viewedUserPhase2.home_latitude) < 0.0001 &&
+            Math.abs(nextStopCoordinates.lon - viewedUserPhase2.home_longitude) < 0.0001;
 
             if (isHomeNextStop) {
-              console.log('🏠 [FAB Click] Phase 2 - Home IS the next stop, including in bounds');
+              console.log(`🏠 [FAB Click] Phase 2 - ${viewedUserPhase2.user_name || 'Driver'} home IS the next stop, including in bounds`);
               // Home is already included via nextStopCoordinates, no need to add again
             } else {
-              console.log('🏠 [FAB Click] Phase 2 - Home is NOT the next stop, excluding from bounds');
+              console.log(`🏠 [FAB Click] Phase 2 - ${viewedUserPhase2.user_name || 'Driver'} home is NOT the next stop, excluding from bounds`);
             }
           }
 
@@ -1938,17 +1948,22 @@ function Dashboard() {
         [nextStopCoordinates.lat, nextStopCoordinates.lon]];
 
 
-        // CRITICAL: Only include driver's home location if home IS the next stop
-        if (currentUser?.home_latitude && currentUser?.home_longitude) {
+        // CRITICAL: Only include viewed user's home location if home IS the next stop
+        // For impersonation, use selectedDriverId to get the viewed user's home
+        const viewedUserSmartRefresh = selectedDriverId && selectedDriverId !== 'all' ? 
+          users.find(u => u && u.id === selectedDriverId) : 
+          currentUser;
+        
+        if (viewedUserSmartRefresh?.home_latitude && viewedUserSmartRefresh?.home_longitude) {
           const isHomeNextStop =
-          Math.abs(nextStopCoordinates.lat - currentUser.home_latitude) < 0.0001 &&
-          Math.abs(nextStopCoordinates.lon - currentUser.home_longitude) < 0.0001;
+          Math.abs(nextStopCoordinates.lat - viewedUserSmartRefresh.home_latitude) < 0.0001 &&
+          Math.abs(nextStopCoordinates.lon - viewedUserSmartRefresh.home_longitude) < 0.0001;
 
           if (isHomeNextStop) {
-            console.log('🏠 [Smart Refresh] Phase 2 - Home IS the next stop');
+            console.log(`🏠 [Smart Refresh] Phase 2 - ${viewedUserSmartRefresh.user_name || 'Driver'} home IS the next stop`);
             // Home is already included via nextStopCoordinates
           } else {
-            console.log('🏠 [Smart Refresh] Phase 2 - Home is NOT the next stop, excluding from bounds');
+            console.log(`🏠 [Smart Refresh] Phase 2 - ${viewedUserSmartRefresh.user_name || 'Driver'} home is NOT the next stop, excluding from bounds`);
           }
         }
 
