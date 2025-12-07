@@ -439,29 +439,32 @@ function Dashboard() {
 
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
-    // CRITICAL: For dispatchers in "All Drivers" mode, only show deliveries from drivers who have deliveries for dispatcher's stores
-    if (isDispatcher && selectedDriverId === 'all' && currentUser.store_ids && currentUser.store_ids.length > 0) {
+    // CRITICAL: For dispatchers, show ALL deliveries for drivers who have stops in dispatcher's stores
+    // This includes deliveries from other stores (marked as stripped for cards, simple circles for map)
+    if (isDispatcher && currentUser.store_ids && currentUser.store_ids.length > 0) {
       const dispatcherStoreIds = currentUser.store_ids;
 
-      // Get deliveries for dispatcher's stores on this date
-      const storeDeliveries = deliveries.filter((d) =>
-      d &&
-      d.delivery_date === dateStr &&
-      dispatcherStoreIds.includes(d.store_id)
-      );
+      // Get all deliveries for this date
+      const dateDeliveries = deliveries.filter((d) => d && d.delivery_date === dateStr);
 
-      // Get unique driver IDs who have deliveries for these stores
+      // Get unique driver IDs who have deliveries for dispatcher's stores
       const relevantDriverIds = new Set(
-        storeDeliveries.map((d) => d.driver_id).filter(Boolean)
+        dateDeliveries
+          .filter((d) => dispatcherStoreIds.includes(d.store_id))
+          .map((d) => d.driver_id)
+          .filter(Boolean)
       );
 
       // Return ALL deliveries for these drivers on this date (including other stores)
-      return deliveries.filter((d) => {
-        if (!d) return false;
-        if (d.delivery_date !== dateStr) return false;
+      const result = dateDeliveries.filter((d) => {
         if (!d.driver_id || !relevantDriverIds.has(d.driver_id)) return false;
+        // Filter by selected driver if not "all"
+        if (selectedDriverId && selectedDriverId !== 'all' && d.driver_id !== selectedDriverId) return false;
         return true;
       });
+
+      console.log(`📊 [Dispatcher Filter] Date: ${dateStr}, Drivers: ${relevantDriverIds.size}, Total deliveries: ${result.length}`);
+      return result;
     }
 
     // For other roles or single driver mode

@@ -1375,7 +1375,7 @@ export default function Layout({ children, currentPageName }) {
       console.log(`✅ [Layout] Step 4: Loaded ${patientsData.length} Patients`);
       await new Promise(resolve => setTimeout(resolve, 200));
 
-      // Step 5: Deliveries - CRITICAL: Load ALL drivers for selected city first
+      // Step 5: Deliveries - CRITICAL: Load ALL drivers for selected city
       // Build city store filter (ALWAYS used to restrict to selected city)
       let cityStoreFilter = {};
       const cityStoreIds = allStores.map(s => s?.id).filter(Boolean);
@@ -1383,16 +1383,9 @@ export default function Layout({ children, currentPageName }) {
         cityStoreFilter.store_id = { $in: cityStoreIds };
       }
 
-      // Build additional filters for background past data only
+      // CRITICAL: For past 30 days data, load ALL drivers in city (no role filtering)
+      // This allows dispatchers to see historical data for all drivers
       let backgroundFilter = { ...cityStoreFilter };
-      if (!isAdmin) {
-        if (userHasRole(currentUser, 'driver')) {
-          backgroundFilter.driver_id = currentUser.id;
-        }
-        if (currentUser.store_ids?.length > 0) {
-          backgroundFilter.store_id = { $in: currentUser.store_ids };
-        }
-      }
 
       await loadDeliveries(
         selectedDateStr,
