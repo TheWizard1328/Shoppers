@@ -12,7 +12,7 @@ import { generatePatientId, validateId, formatId } from '@/components/utils/idGe
 import { PhoneInput } from "@/components/ui/phone-input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { sortStores } from "@/components/utils/sorting";
-import { userHasRole } from '@/components/utils/userRoles';
+import { userHasRole, isAppOwner } from '@/components/utils/userRoles';
 import { useAppData } from '@/components/utils/AppDataContext';
 import { GoogleAddressAutocomplete } from "@/components/ui/google-address-autocomplete";
 
