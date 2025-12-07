@@ -288,12 +288,18 @@ export default function PatientForm({
   }, [setIsFormOverlayOpen]);
 
   const handleAddressSelect = (addressData) => {
+    console.log('[PatientForm] handleAddressSelect received:', addressData);
+    
+    // Use street_address which preserves directionals (NW, SE, etc.)
     const abbreviatedAddress = abbreviateAddress(addressData.street_address || addressData.full_address);
+    console.log('[PatientForm] Abbreviated address:', abbreviatedAddress);
 
     // Calculate distance from assigned store if store is selected
     let distanceFromStore = null;
     if (formData.store_id && stores) {
       const assignedStore = stores.find((s) => s && s.id === formData.store_id);
+      console.log('[PatientForm] Assigned store:', assignedStore);
+      
       if (assignedStore?.latitude && assignedStore?.longitude && addressData.latitude && addressData.longitude) {
         // Haversine formula for distance
         const R = 6371; // Earth's radius in km
@@ -304,8 +310,16 @@ export default function PatientForm({
         Math.sin(dLon / 2) * Math.sin(dLon / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         distanceFromStore = R * c;
+        console.log('[PatientForm] Calculated distance:', distanceFromStore, 'km');
       }
     }
+
+    console.log('[PatientForm] Updating formData with:', {
+      address: abbreviatedAddress,
+      latitude: addressData.latitude,
+      longitude: addressData.longitude,
+      distance_from_store: distanceFromStore
+    });
 
     setFormData((prev) => ({
       ...prev,

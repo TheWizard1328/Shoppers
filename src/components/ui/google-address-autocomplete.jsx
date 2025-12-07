@@ -108,6 +108,10 @@ export function GoogleAddressAutocomplete({
       const fullAddress = data.formatted_address || prediction.description;
       const streetAddress = fullAddress.split(',')[0]?.trim() || fullAddress;
       
+      console.log('[GoogleAddressAutocomplete] Full address:', fullAddress);
+      console.log('[GoogleAddressAutocomplete] Street address:', streetAddress);
+      console.log('[GoogleAddressAutocomplete] GPS Coords:', { lat: data.latitude, lon: data.longitude });
+      
       const addressData = {
         full_address: fullAddress,
         street_address: streetAddress,
@@ -116,14 +120,14 @@ export function GoogleAddressAutocomplete({
         place_id: prediction.place_id
       };
 
-      console.log('[GoogleAddressAutocomplete] Address data:', addressData);
+      console.log('[GoogleAddressAutocomplete] Address data being sent to parent:', addressData);
 
       // Call the parent handler with full address data
       if (onAddressSelect) {
         onAddressSelect(addressData);
       }
       
-      // Update the input value with street address only
+      // Update the input value with street address only (preserves directionals like NW, SE)
       onChange(streetAddress);
       
       // Clear the flag after a short delay
