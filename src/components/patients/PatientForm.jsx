@@ -126,44 +126,49 @@ export default function PatientForm({
 
   const getCityCenter = useCallback(() => {
     console.log('[PatientForm] getCityCenter called');
-    console.log('[PatientForm] currentUser:', currentUser);
-    console.log('[PatientForm] currentUser.city_id:', currentUser?.city_id);
-    console.log('[PatientForm] cities array:', cities);
+    console.log('[PatientForm] formData.store_id:', formData.store_id);
+    console.log('[PatientForm] stores:', stores?.length);
 
-    // For dispatchers, use store location (prioritize single store, or selected store)
-    const isDispatcher = currentUser && userHasRole(currentUser, 'dispatcher');
-    const isDriver = currentUser && userHasRole(currentUser, 'driver');
-
-    if (isDispatcher && !userHasRole(currentUser, 'admin') && stores && stores.length > 0) {
-      // Use selected store if available, otherwise use first dispatcher store
-      let targetStore = null;
-      if (formData.store_id) {
-        targetStore = stores.find((s) => s && s.id === formData.store_id);
-      }
-      if (!targetStore && currentUser.store_ids && currentUser.store_ids.length > 0) {
-        targetStore = stores.find((s) => s && s.id === currentUser.store_ids[0]);
-      }
-
-      if (targetStore?.latitude && targetStore?.longitude) {
-        console.log('[PatientForm] ✅ Dispatcher - using store coordinates:', {
-          latitude: targetStore.latitude,
-          longitude: targetStore.longitude,
-          storeName: targetStore.name
+    // PRIORITY: If a store is assigned, ALWAYS use that store's coordinates for distance calculations
+    if (formData.store_id && stores && stores.length > 0) {
+      const assignedStore = stores.find((s) => s && s.id === formData.store_id);
+      if (assignedStore?.latitude && assignedStore?.longitude) {
+        console.log('[PatientForm] ✅ Using ASSIGNED STORE coordinates:', {
+          latitude: assignedStore.latitude,
+          longitude: assignedStore.longitude,
+          storeName: assignedStore.name
         });
         return {
-          latitude: targetStore.latitude,
-          longitude: targetStore.longitude
+          latitude: assignedStore.latitude,
+          longitude: assignedStore.longitude
         };
       }
     }
 
-    // For drivers and admins, use city center
+    // Fallback: For dispatchers without assigned store, use first dispatcher store
+    const isDispatcher = currentUser && userHasRole(currentUser, 'dispatcher');
+    if (isDispatcher && !userHasRole(currentUser, 'admin') && stores && stores.length > 0) {
+      if (currentUser.store_ids && currentUser.store_ids.length > 0) {
+        const targetStore = stores.find((s) => s && s.id === currentUser.store_ids[0]);
+        if (targetStore?.latitude && targetStore?.longitude) {
+          console.log('[PatientForm] ✅ Dispatcher fallback - using store coordinates:', {
+            latitude: targetStore.latitude,
+            longitude: targetStore.longitude,
+            storeName: targetStore.name
+          });
+          return {
+            latitude: targetStore.latitude,
+            longitude: targetStore.longitude
+          };
+        }
+      }
+    }
+
+    // Final fallback: Use city center
     if (currentUser?.city_id && cities && cities.length > 0) {
       const userCity = cities.find((c) => c && c.id === currentUser.city_id);
-      console.log('[PatientForm] Found user city:', userCity);
-
       if (userCity?.latitude && userCity?.longitude) {
-        console.log('[PatientForm] ✅ Returning city coordinates:', {
+        console.log('[PatientForm] ✅ Fallback to city coordinates:', {
           latitude: userCity.latitude,
           longitude: userCity.longitude,
           cityName: userCity.name
@@ -172,15 +177,10 @@ export default function PatientForm({
           latitude: userCity.latitude,
           longitude: userCity.longitude
         };
-      } else {
-        console.warn('[PatientForm] ⚠️ City found but missing coordinates:', userCity);
       }
-    } else {
-      console.warn('[PatientForm] ⚠️ Missing data:', {
-        hasCityId: !!currentUser?.city_id,
-        citiesCount: cities?.length || 0
-      });
     }
+    
+    console.warn('[PatientForm] ⚠️ No coordinates available');
     return null;
   }, [currentUser, cities, stores, formData.store_id]);
 
