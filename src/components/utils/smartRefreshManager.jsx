@@ -841,13 +841,16 @@ class SmartRefreshManager {
       
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
       
-      // CRITICAL: Fetch ALL deliveries for the date, not just active ones
-      // This ensures we catch status changes (e.g., pending -> in_transit, in_transit -> completed)
-      const activeFilter = {
-        delivery_date: dateStr
-      };
+      // CRITICAL: Fetch ALL drivers for selected city (not just selected driver)
+      // Build city-only filter (remove driver_id to get all drivers)
+      const cityOnlyFilter = { delivery_date: dateStr };
       
-      const fetchedDeliveries = await base44.entities.Delivery.filter(activeFilter);
+      // Copy store filter but exclude driver filter
+      if (filters.deliveryFilter && filters.deliveryFilter.store_id) {
+        cityOnlyFilter.store_id = filters.deliveryFilter.store_id;
+      }
+      
+      const fetchedDeliveries = await base44.entities.Delivery.filter(cityOnlyFilter);
       
       if (!fetchedDeliveries || fetchedDeliveries.length === 0) {
         return null;
