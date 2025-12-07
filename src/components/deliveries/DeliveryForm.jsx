@@ -170,6 +170,7 @@ export default function DeliveryForm({
   const [highlightedPatientIndex, setHighlightedPatientIndex] = useState(-1);
   const patientSearchInputRef = useRef(null);
   const codAmountInputRef = useRef(null);
+  const addPatientButtonRef = useRef(null);
   const [stagedDeliveries, setStagedDeliveries] = useState([]);
   const [projectedDeliveries, setProjectedDeliveries] = useState([]);
   const [isLoadingPredictions, setIsLoadingPredictions] = useState(false);
@@ -1630,6 +1631,9 @@ export default function DeliveryForm({
       e.preventDefault();
       if (filteredPatients.length > 0) {
         setHighlightedPatientIndex((prev) => prev < filteredPatients.length - 1 ? prev + 1 : prev);
+      } else if (filteredPatients.length === 0 && addPatientButtonRef.current) {
+        // Focus the Add New Patient button when no results
+        addPatientButtonRef.current.focus();
       }
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
@@ -1653,10 +1657,15 @@ export default function DeliveryForm({
           setHighlightedPatientIndex(-1);
         }
       } else if (filteredPatients.length === 0 && onCreatePatient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher'))) {
-        onCreatePatient((newPatient) => {
-          handlePatientSelect(newPatient);
-          setPatientSearch('');
-        });
+        // Auto-click the Add New Patient button
+        if (addPatientButtonRef.current) {
+          addPatientButtonRef.current.click();
+        } else {
+          onCreatePatient((newPatient) => {
+            handlePatientSelect(newPatient);
+            setPatientSearch('');
+          });
+        }
       } else if (!hasFormData) {
         if (buttonState === 'done') handleBatchSave();else
         if (buttonState === 'updateStaged' && isFormValid) handleUpdateStaged();else
@@ -2523,6 +2532,7 @@ export default function DeliveryForm({
                             No patients found
                             {onCreatePatient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
                       <Button
+                        ref={addPatientButtonRef}
                         type="button"
                         variant="outline"
                         size="sm"
@@ -2530,16 +2540,7 @@ export default function DeliveryForm({
                         onClick={() => onCreatePatient((newPatient) => {
                           handlePatientSelect(newPatient);
                           setPatientSearch('');
-                        })}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            onCreatePatient((newPatient) => {
-                              handlePatientSelect(newPatient);
-                              setPatientSearch('');
-                            });
-                          }
-                        }}>
+                        })}>
                                 <Plus className="w-4 h-4" />
                                 Add New Patient
                               </Button>
