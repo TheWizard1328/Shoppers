@@ -187,6 +187,7 @@ export default function DeliveryForm({
   const [showStagedPanel, setShowStagedPanel] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState({ show: false, staged: null });
   const [isDeletingPending, setIsDeletingPending] = useState(false);
+  const [isPatientFormOpen, setIsPatientFormOpen] = useState(false);
   const { deviceType } = getUserAgentInfo();
   const isMobileDevice = deviceType === 'Mobile';
   const hasLoadedPending = useRef(false);
@@ -1661,7 +1662,9 @@ export default function DeliveryForm({
         if (addPatientButtonRef.current) {
           addPatientButtonRef.current.click();
         } else {
+          setIsPatientFormOpen(true);
           onCreatePatient((newPatient) => {
+            setIsPatientFormOpen(false);
             handlePatientSelect(newPatient);
             setPatientSearch('');
           });
@@ -2539,10 +2542,14 @@ export default function DeliveryForm({
                         variant="outline"
                         size="sm"
                         className="w-full mt-3 gap-2"
-                        onClick={() => onCreatePatient((newPatient) => {
-                          handlePatientSelect(newPatient);
-                          setPatientSearch('');
-                        })}>
+                        onClick={() => {
+                          setIsPatientFormOpen(true);
+                          onCreatePatient((newPatient) => {
+                            setIsPatientFormOpen(false);
+                            handlePatientSelect(newPatient);
+                            setPatientSearch('');
+                          });
+                        }}>
                                 <Plus className="w-4 h-4" />
                                 Add New Patient
                               </Button>
@@ -3579,7 +3586,7 @@ export default function DeliveryForm({
                   size="sm"
                   onClick={() => handleBatchSave()} className="inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-8 rounded-md px-3 text-xs !text-white bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
 
-                  disabled={isSaving || stagedDeliveries.length === 0}>
+                  disabled={isSaving || stagedDeliveries.length === 0 || isPatientFormOpen}>
                     {isSaving ?
                   <>
                         <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
