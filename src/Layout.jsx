@@ -1362,17 +1362,10 @@ export default function Layout({ children, currentPageName }) {
       console.log(`✅ [Layout] Step 3: Loaded ${allStores.length} Stores`);
       await new Promise(resolve => setTimeout(resolve, 200));
 
-      // Step 4: Patients (with role-based filter)
-      let patientFilter = {};
-      if (!isAdmin) {
-        const userStoreIds = currentUser.store_ids || [];
-        if (userStoreIds.length > 0) {
-          patientFilter = { store_id: { $in: userStoreIds } };
-        }
-      }
-      const patientsData = await getData('Patient', null, patientFilter, forceRefresh);
+      // Step 4: Patients (NO FILTER - dispatchers need all patient coords for map markers)
+      const patientsData = await getData('Patient', null, null, forceRefresh);
       setPatients(patientsData);
-      console.log(`✅ [Layout] Step 4: Loaded ${patientsData.length} Patients`);
+      console.log(`✅ [Layout] Step 4: Loaded ${patientsData.length} Patients (all - needed for map coordinates)`);
       await new Promise(resolve => setTimeout(resolve, 200));
 
       // Step 5: Deliveries - CRITICAL: Load ALL drivers for selected city
