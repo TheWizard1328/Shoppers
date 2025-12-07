@@ -108,7 +108,7 @@ export default function AppUserForm({ appUser, authUsers, stores, cities, onSave
             <X className="w-4 h-4" />
           </Button>
         </CardHeader>
-        <CardContent className="p-2 px-3 py-3">
+        <CardContent className="p-2 px-3 py-3 z-[10003]">
           <form onSubmit={handleSubmit} className="space-y-1">
             {/* User Email Selection */}
             <div>
