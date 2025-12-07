@@ -35,9 +35,9 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
   const handleColorSave = async (newColor) => {
     try {
-      const updatedStore = { ...editableStore, color: newColor };
-      setEditableStore(updatedStore);
-      await onSave(updatedStore);
+      // Only update the color field, don't pass the entire store object
+      await onSave({ ...store, color: newColor });
+      setEditableStore({ ...store, color: newColor });
       setEditingColor(false);
     } catch (error) {
       console.error("Error saving store color:", error);
