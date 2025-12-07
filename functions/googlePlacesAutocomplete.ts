@@ -42,20 +42,20 @@ Deno.serve(async (req) => {
       includedPrimaryTypes: ['street_address', 'premise', 'subpremise']
     };
     
-    // Add location biasing if coordinates provided
+    // Add location restriction if coordinates provided (strictly limits results to radius)
     if (latitude && longitude) {
-      requestBody.locationBias = {
+      requestBody.locationRestriction = {
         circle: {
           center: {
             latitude: latitude,
             longitude: longitude
           },
-          radius: 150000.0 // 150km in meters
+          radius: 75000.0 // 75km in meters
         }
       };
-      console.log('[googlePlacesAutocomplete] Added location biasing:', latitude, longitude);
+      console.log('[googlePlacesAutocomplete] Added location restriction:', latitude, longitude, '75km radius');
     } else {
-      console.log('[googlePlacesAutocomplete] No location biasing (coordinates missing)');
+      console.log('[googlePlacesAutocomplete] No location restriction (coordinates missing)');
     }
     
     console.log('[googlePlacesAutocomplete] Calling Google API (NEW)...');
