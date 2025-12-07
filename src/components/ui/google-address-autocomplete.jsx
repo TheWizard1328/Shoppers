@@ -22,6 +22,7 @@ export function GoogleAddressAutocomplete({
   const [suggestions, setSuggestions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const debounceTimer = useRef(null);
+  const justSelected = useRef(false);
 
   // Fetch suggestions from Google Places Autocomplete
   const fetchSuggestions = async (searchText) => {
@@ -87,6 +88,9 @@ export function GoogleAddressAutocomplete({
   // Handle address selection and fetch full details
   const handleSelectAddress = async (prediction) => {
     try {
+      // Set flag to prevent search after selection
+      justSelected.current = true;
+      
       console.log('[GoogleAddressAutocomplete] Fetching details for:', prediction.place_id);
       
       // Get detailed place information
@@ -98,7 +102,7 @@ export function GoogleAddressAutocomplete({
 
       const data = response?.data || response;
       
-      // Extract only street address (remove city, province, country)
+      // Extract only street address (remove city, province, postal code, country)
       const fullAddress = data.formatted_address || prediction.description;
       const streetAddress = fullAddress.split(',')[0]?.trim() || fullAddress;
       
@@ -119,6 +123,11 @@ export function GoogleAddressAutocomplete({
       
       // Update the input value with street address only
       onChange(streetAddress);
+      
+      // Clear the flag after a short delay
+      setTimeout(() => {
+        justSelected.current = false;
+      }, 300);
     } catch (error) {
       console.error('[GoogleAddressAutocomplete] Error fetching place details:', error);
       // Fallback to using the prediction description
@@ -131,6 +140,10 @@ export function GoogleAddressAutocomplete({
           place_id: prediction.place_id
         });
       }
+      
+      setTimeout(() => {
+        justSelected.current = false;
+      }, 300);
     } finally {
       setOpen(false);
       setSuggestions([]);
@@ -139,6 +152,12 @@ export function GoogleAddressAutocomplete({
 
   // Debounced search on input change
   useEffect(() => {
+    // Skip search if we just selected an address
+    if (justSelected.current) {
+      console.log('[GoogleAddressAutocomplete] Skipping search - just selected an address');
+      return;
+    }
+    
     if (debounceTimer.current) {
       clearTimeout(debounceTimer.current);
     }
@@ -158,7 +177,7 @@ export function GoogleAddressAutocomplete({
         clearTimeout(debounceTimer.current);
       }
     };
-  }, [value, cityCenter]);
+  }, [value]);
 
   return (
     <div className="relative">
