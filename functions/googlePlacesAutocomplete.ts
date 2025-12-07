@@ -46,18 +46,23 @@ Deno.serve(async (req) => {
       languageCode: 'en'
     };
 
-    // Add strict location restriction if coordinates provided (ONLY returns results within radius)
+    // Add location biasing if coordinates provided
     if (latitude && longitude) {
-      requestBody.locationRestriction = {
+      // Use locationBias instead of locationRestriction for better results
+      // locationBias prefers nearby results but doesn't exclude distant ones
+      // This prevents the API from rejecting valid addresses
+      requestBody.locationBias = {
         circle: {
           center: {
             latitude: latitude,
             longitude: longitude
           },
-          radius: 75000.0 // 75km in meters - STRICT limit
+          radius: 75000.0 // 75km in meters
         }
       };
-      console.log('[googlePlacesAutocomplete] ✅ Added STRICT location restriction:');
+      // Also include region codes for additional context
+      requestBody.includedRegionCodes = ['CA'];
+      console.log('[googlePlacesAutocomplete] ✅ Added location bias:');
       console.log('[googlePlacesAutocomplete]    Center:', latitude, longitude);
       console.log('[googlePlacesAutocomplete]    Radius: 75km');
       console.log('[googlePlacesAutocomplete]    Full requestBody:', JSON.stringify(requestBody, null, 2));
