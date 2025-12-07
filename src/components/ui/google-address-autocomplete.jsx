@@ -142,54 +142,35 @@ export function GoogleAddressAutocomplete({
   }, [value, cityCenter]);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <div className="relative">
-          <Input
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={placeholder}
-            className={className}
-            disabled={disabled}
-          />
-          {isLoading && (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2">
-              <div className="w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin"></div>
-            </div>
-          )}
+    <div className="relative">
+      <Input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={className}
+        disabled={disabled}
+      />
+      {isLoading && (
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 z-10">
+          <div className="w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin"></div>
         </div>
-      </PopoverTrigger>
-      <PopoverContent 
-        className="w-[--radix-popover-trigger-width] p-0" 
-        align="start"
-        onOpenAutoFocus={(e) => e.preventDefault()}
-      >
-        <Command>
-          <CommandList>
-            {suggestions.length === 0 ? (
-              <CommandEmpty>
-                {isLoading ? 'Searching...' : 'No addresses found'}
-              </CommandEmpty>
-            ) : (
-              <CommandGroup>
-                {suggestions.map((prediction) => (
-                  <CommandItem
-                    key={prediction.place_id}
-                    value={prediction.description}
-                    onSelect={() => handleSelectAddress(prediction)}
-                    className="cursor-pointer"
-                  >
-                    <MapPin className="w-4 h-4 mr-2 text-slate-500" />
-                    <div className="flex-1 text-sm">
-                      {prediction.description}
-                    </div>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            )}
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+      )}
+      
+      {/* Dropdown for suggestions */}
+      {open && suggestions.length > 0 && (
+        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-md shadow-lg z-50 max-h-60 overflow-auto">
+          {suggestions.map((prediction) => (
+            <button
+              key={prediction.place_id}
+              onClick={() => handleSelectAddress(prediction)}
+              className="w-full px-3 py-2 text-left text-sm hover:bg-slate-100 flex items-start gap-2 border-b border-slate-100 last:border-b-0"
+            >
+              <MapPin className="w-4 h-4 mt-0.5 text-slate-500 flex-shrink-0" />
+              <span className="flex-1">{prediction.description}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
