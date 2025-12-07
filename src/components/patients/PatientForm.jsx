@@ -6,15 +6,15 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X, Save, UserPlus, MapPin } from "lucide-react";
+import { X, Save, UserPlus } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { generatePatientId, validateId, formatId } from '@/components/utils/idGenerator';
 import { PhoneInput } from "@/components/ui/phone-input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { sortStores } from "@/components/utils/sorting";
 import { userHasRole } from '@/components/utils/userRoles';
-import { base44 } from "@/api/base44Client";
 import { useAppData } from '@/components/utils/AppDataContext';
+import { GoogleAddressAutocomplete } from "@/components/ui/google-address-autocomplete";
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
   <div className="flex items-center space-x-2">
@@ -109,52 +109,7 @@ export default function PatientForm({
   const [showWeeklyDays, setShowWeeklyDays] = useState(false);
   const isInitialLoad = useRef(true);
 
-  const [addressSuggestions, setAddressSuggestions] = useState([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
-  const [deviceLocation, setDeviceLocation] = useState(null);
-  const addressInputRef = useRef(null);
-  const suggestionsRef = useRef(null);
-  const hasUserTypedAddress = useRef(false);
-
-  useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setDeviceLocation({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude
-          });
-        },
-        (error) => {
-          console.log('Geolocation not available:', error);
-        }
-      );
-    }
-  }, []);
-
-  const getSearchLocation = useCallback(() => {
-    if (deviceLocation) {
-      return deviceLocation;
-    }
-
-    if (currentUser?.home_latitude && currentUser?.home_longitude) {
-      return {
-        latitude: currentUser.home_latitude,
-        longitude: currentUser.home_longitude
-      };
-    }
-
-    if (formData.store_id) {
-      const selectedStore = stores.find((s) => s.id === formData.store_id);
-      if (selectedStore?.latitude && selectedStore?.longitude) {
-        return {
-          latitude: selectedStore.latitude,
-          longitude: selectedStore.longitude
-        };
-      }
-    }
-
+  const getCityCenter = useCallback(() => {
     if (currentUser?.city_id) {
       const userCity = cities.find((c) => c.id === currentUser.city_id);
       if (userCity?.latitude && userCity?.longitude) {
@@ -164,9 +119,8 @@ export default function PatientForm({
         };
       }
     }
-
     return null;
-  }, [deviceLocation, currentUser, formData.store_id, stores, cities]);
+  }, [currentUser, cities]);
 
   useEffect(() => {
     if (!patient && !formData.patient_id) {
@@ -236,9 +190,8 @@ export default function PatientForm({
       setIsRecurring(hasRecurring);
       setFrequency(initialFrequency);
       setWeeklyDays(initialWeeklyDays);
-      setShowWeeklyDays(false); // Don't show popup on form load
+      setShowWeeklyDays(false);
       
-      // Mark initial load complete after state is set
       setTimeout(() => {
         isInitialLoad.current = false;
       }, 0);
@@ -259,64 +212,6 @@ export default function PatientForm({
   }, [onCancel]);
 
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (
-        suggestionsRef.current &&
-        !suggestionsRef.current.contains(event.target) &&
-        addressInputRef.current &&
-        !addressInputRef.current.contains(event.target)) {
-        setShowSuggestions(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
-
-  useEffect(() => {
-    const fetchAddressSuggestions = async (input) => {
-      if (input.length < 3) {
-        setAddressSuggestions([]);
-        setShowSuggestions(false);
-        return;
-      }
-
-      setIsLoadingSuggestions(true);
-      try {
-        const location = getSearchLocation();
-        const params = { input };
-
-        if (location) {
-          params.latitude = location.latitude;
-          params.longitude = location.longitude;
-        }
-
-        const response = await base44.functions.invoke('googlePlacesAutocomplete', params);
-        if (response.data && response.data.predictions) {
-          setAddressSuggestions(response.data.predictions);
-          setShowSuggestions(response.data.predictions.length > 0);
-        }
-      } catch (error) {
-        console.error('Error fetching address suggestions:', error);
-        setAddressSuggestions([]);
-        setShowSuggestions(false);
-      } finally {
-        setIsLoadingSuggestions(false);
-      }
-    };
-
-    const timeoutId = setTimeout(() => {
-      if (formData.address && hasUserTypedAddress.current) {
-        fetchAddressSuggestions(formData.address);
-      }
-    }, 300);
-
-    return () => clearTimeout(timeoutId);
-  }, [formData.address, getSearchLocation]);
-
-  useEffect(() => {
     if (setIsFormOverlayOpen) {
       setIsFormOverlayOpen(true);
     }
@@ -327,51 +222,12 @@ export default function PatientForm({
     };
   }, [setIsFormOverlayOpen]);
 
-  const handleAddressSelect = async (suggestion) => {
-    hasUserTypedAddress.current = false;
-    try {
-      const response = await base44.functions.invoke('googlePlaceDetails', {
-        place_id: suggestion.place_id
-      });
-
-      if (response.data) {
-        const { address } = response.data;
-        const abbreviatedAddress = abbreviateAddress(address || suggestion.description);
-
-        setFormData((prev) => ({
-          ...prev,
-          address: abbreviatedAddress
-        }));
-      }
-    } catch (error) {
-      console.error('Error fetching place details:', error);
-      const abbreviatedAddress = abbreviateAddress(suggestion.description);
-      setFormData((prev) => ({
-        ...prev,
-        address: abbreviatedAddress
-      }));
-    }
-
-    setShowSuggestions(false);
-    setAddressSuggestions([]);
-  };
-
-  const handleAddressChange = (e) => {
-    const value = e.target.value;
-    hasUserTypedAddress.current = true;
-    setFormData((prev) => ({ ...prev, address: value }));
-  };
-
-  const handleAddressBlur = () => {
-    if (formData.address) {
-      const abbreviatedAddress = abbreviateAddress(formData.address);
-      if (abbreviatedAddress !== formData.address) {
-        setFormData((prev) => ({
-          ...prev,
-          address: abbreviatedAddress
-        }));
-      }
-    }
+  const handleAddressSelect = (addressData) => {
+    const abbreviatedAddress = abbreviateAddress(addressData.full_address);
+    setFormData((prev) => ({
+      ...prev,
+      address: abbreviatedAddress
+    }));
   };
 
   const handleWeeklyDayToggle = (day) => {
@@ -408,7 +264,6 @@ export default function PatientForm({
   };
 
   useEffect(() => {
-    // Don't clear weeklyDays during initial patient data load
     if (isInitialLoad.current) {
       return;
     }
@@ -666,47 +521,16 @@ export default function PatientForm({
                 </div>
 
                 <div className="grid grid-cols-12 gap-2">
-                  <div className="col-span-8 space-y-1 relative">
+                  <div className="col-span-8 space-y-1">
                     <Label htmlFor="address" className="text-sm font-medium">Address *</Label>
-                    <div className="relative">
-                      <Input
-                        ref={addressInputRef}
-                        id="address"
-                        value={formData.address}
-                        onChange={handleAddressChange}
-                        onBlur={handleAddressBlur}
-                        onFocus={() => {
-                          if (addressSuggestions.length > 0) {
-                            setShowSuggestions(true);
-                          }
-                        }}
-                        required
-                        placeholder="Start typing address..."
-                        className="h-10 md:h-9 text-sm border-slate-300 bg-white pr-8" />
-                      <MapPin className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    </div>
-
-                    {showSuggestions && (addressSuggestions.length > 0 || isLoadingSuggestions) &&
-                      <div
-                        ref={suggestionsRef}
-                        className="absolute z-[100000] w-full mt-1 bg-white border border-slate-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                        {isLoadingSuggestions ?
-                          <div className="p-3 text-sm text-slate-500">Loading suggestions...</div> :
-
-                          addressSuggestions.map((suggestion, index) =>
-                            <div
-                              key={index}
-                              onClick={() => handleAddressSelect(suggestion)}
-                              className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-b-0 text-sm">
-                              <div className="flex items-start gap-2">
-                                <MapPin className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
-                                <span className="text-slate-700">{suggestion.description}</span>
-                              </div>
-                            </div>
-                          )
-                        }
-                      </div>
-                    }
+                    <GoogleAddressAutocomplete
+                      value={formData.address}
+                      onChange={(value) => setFormData((prev) => ({ ...prev, address: value }))}
+                      onAddressSelect={handleAddressSelect}
+                      cityCenter={getCityCenter()}
+                      placeholder="Start typing address..."
+                      className="h-10 md:h-9 text-sm border-slate-300 bg-white"
+                    />
                   </div>
 
                   <div className="col-span-4 space-y-1">
