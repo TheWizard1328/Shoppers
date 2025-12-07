@@ -23,6 +23,8 @@ export function GoogleAddressAutocomplete({
   const [isLoading, setIsLoading] = useState(false);
   const debounceTimer = useRef(null);
   const justSelected = useRef(false);
+  const initialValue = useRef(value);
+  const hasUserTyped = useRef(false);
 
   // Fetch suggestions from Google Places Autocomplete
   const fetchSuggestions = async (searchText) => {
@@ -158,19 +160,25 @@ export function GoogleAddressAutocomplete({
       return;
     }
     
+    // Skip search if this is the initial value (form opened with pre-populated address)
+    if (value === initialValue.current && !hasUserTyped.current) {
+      console.log('[GoogleAddressAutocomplete] Skipping search - initial value, user has not typed yet');
+      return;
+    }
+    
     if (debounceTimer.current) {
       clearTimeout(debounceTimer.current);
     }
 
-    // Debounce by 400ms (slight pause)
+    // Debounce by 1500ms (wait for user to finish typing)
     debounceTimer.current = setTimeout(() => {
-      if (value && value.length >= 3) {
+      if (value && value.length >= 3 && hasUserTyped.current) {
         fetchSuggestions(value);
       } else {
         setSuggestions([]);
         setOpen(false);
       }
-    }, 400);
+    }, 1500);
 
     return () => {
       if (debounceTimer.current) {
@@ -183,7 +191,10 @@ export function GoogleAddressAutocomplete({
     <div className="relative">
       <Input
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          hasUserTyped.current = true;
+          onChange(e.target.value);
+        }}
         onKeyDown={(e) => {
           // Prevent Enter from submitting the form when autocomplete is open
           if (e.key === 'Enter' && open && suggestions.length > 0) {

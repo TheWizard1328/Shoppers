@@ -108,6 +108,9 @@ export default function PatientForm({
     time_window_start: "",
     time_window_end: "",
     status: "active",
+    latitude: null,
+    longitude: null,
+    distance_from_store: null,
     mailbox_ok: false,
     call_upon_arrival: false,
     ring_bell: false,
@@ -239,6 +242,9 @@ export default function PatientForm({
         time_window_start: patient.time_window_start || "",
         time_window_end: patient.time_window_end || "",
         status: patient.status || "active",
+        latitude: patient.latitude || null,
+        longitude: patient.longitude || null,
+        distance_from_store: patient.distance_from_store || null,
         mailbox_ok: patient.mailbox_ok || false,
         call_upon_arrival: patient.call_upon_arrival || false,
         ring_bell: patient.ring_bell || false,
@@ -282,10 +288,31 @@ export default function PatientForm({
   }, [setIsFormOverlayOpen]);
 
   const handleAddressSelect = (addressData) => {
-    const abbreviatedAddress = abbreviateAddress(addressData.full_address);
+    const abbreviatedAddress = abbreviateAddress(addressData.street_address || addressData.full_address);
+    
+    // Calculate distance from assigned store if store is selected
+    let distanceFromStore = null;
+    if (formData.store_id && stores) {
+      const assignedStore = stores.find(s => s && s.id === formData.store_id);
+      if (assignedStore?.latitude && assignedStore?.longitude && addressData.latitude && addressData.longitude) {
+        // Haversine formula for distance
+        const R = 6371; // Earth's radius in km
+        const dLat = (addressData.latitude - assignedStore.latitude) * Math.PI / 180;
+        const dLon = (addressData.longitude - assignedStore.longitude) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                  Math.cos(assignedStore.latitude * Math.PI / 180) * Math.cos(addressData.latitude * Math.PI / 180) *
+                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        distanceFromStore = R * c;
+      }
+    }
+    
     setFormData((prev) => ({
       ...prev,
-      address: abbreviatedAddress
+      address: abbreviatedAddress,
+      latitude: addressData.latitude || null,
+      longitude: addressData.longitude || null,
+      distance_from_store: distanceFromStore
     }));
   };
 
@@ -337,6 +364,21 @@ export default function PatientForm({
     e.preventDefault();
 
     let dataToSave = { ...formData };
+    
+    // Recalculate distance from store before saving (in case store changed)
+    if (dataToSave.store_id && dataToSave.latitude && dataToSave.longitude && stores) {
+      const assignedStore = stores.find(s => s && s.id === dataToSave.store_id);
+      if (assignedStore?.latitude && assignedStore?.longitude) {
+        const R = 6371;
+        const dLat = (dataToSave.latitude - assignedStore.latitude) * Math.PI / 180;
+        const dLon = (dataToSave.longitude - assignedStore.longitude) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                  Math.cos(assignedStore.latitude * Math.PI / 180) * Math.cos(dataToSave.latitude * Math.PI / 180) *
+                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        dataToSave.distance_from_store = R * c;
+      }
+    }
 
     dataToSave.recurring_daily = false;
     dataToSave.recurring_biweekly = false;
@@ -401,6 +443,16 @@ export default function PatientForm({
   };
 
   const isFormValid = formData.full_name && formData.address && formData.store_id;
+  const storeSelectRef = useRef(null);
+  
+  // Auto-focus store dropdown if no store selected on new patient
+  useEffect(() => {
+    if (!patient && !formData.store_id && storeSelectRef.current) {
+      setTimeout(() => {
+        storeSelectRef.current?.click();
+      }, 200);
+    }
+  }, [patient, formData.store_id]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -480,6 +532,64 @@ export default function PatientForm({
 
           <CardContent className="px-2 py-2 overflow-y-auto flex-1">
             <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="space-y-2">
+              {/* AppOwner Only: GPS & Distance Section */}
+              {isAppOwner(currentUser) && (
+                <div className="bg-amber-50 border-2 border-amber-300 px-2 py-2 rounded-[10px] space-y-2">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Label className="text-xs font-semibold text-amber-900 uppercase">App Owner Controls</Label>
+                  </div>
+                  <div className="grid grid-cols-12 gap-2">
+                    <div className="col-span-3 space-y-1">
+                      <Label htmlFor="patient_id_appowner" className="text-sm font-medium">PID</Label>
+                      <Input
+                        id="patient_id_appowner"
+                        value={formData.patient_id}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, patient_id: e.target.value.trim() }))}
+                        placeholder="5-char"
+                        className="h-10 md:h-9 text-sm border-slate-300 bg-white"
+                        maxLength={5}
+                      />
+                    </div>
+                    <div className="col-span-3 space-y-1">
+                      <Label htmlFor="latitude" className="text-sm font-medium">Latitude</Label>
+                      <Input
+                        id="latitude"
+                        type="number"
+                        step="any"
+                        value={formData.latitude || ''}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, latitude: e.target.value ? parseFloat(e.target.value) : null }))}
+                        placeholder="GPS Lat"
+                        className="h-10 md:h-9 text-sm border-slate-300 bg-white"
+                      />
+                    </div>
+                    <div className="col-span-3 space-y-1">
+                      <Label htmlFor="longitude" className="text-sm font-medium">Longitude</Label>
+                      <Input
+                        id="longitude"
+                        type="number"
+                        step="any"
+                        value={formData.longitude || ''}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, longitude: e.target.value ? parseFloat(e.target.value) : null }))}
+                        placeholder="GPS Lon"
+                        className="h-10 md:h-9 text-sm border-slate-300 bg-white"
+                      />
+                    </div>
+                    <div className="col-span-3 space-y-1">
+                      <Label htmlFor="distance" className="text-sm font-medium">Distance (km)</Label>
+                      <Input
+                        id="distance"
+                        type="number"
+                        step="0.01"
+                        value={formData.distance_from_store || ''}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, distance_from_store: e.target.value ? parseFloat(e.target.value) : null }))}
+                        placeholder="km"
+                        className="h-10 md:h-9 text-sm border-slate-300 bg-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Container 1: Store/ID/Status and Time Windows */}
               <div className="bg-slate-100 px-2 py-2 rounded-[10px] space-y-2">
                 <div className="grid grid-cols-12 gap-2">
@@ -489,7 +599,7 @@ export default function PatientForm({
                       value={formData.store_id}
                       onValueChange={(value) => setFormData((prev) => ({ ...prev, store_id: value }))}
                       disabled={isStoreDisabled}>
-                      <SelectTrigger className="h-10 md:h-9 text-sm border-slate-300 bg-white">
+                      <SelectTrigger ref={storeSelectRef} className="h-10 md:h-9 text-sm border-slate-300 bg-white">
                         <SelectValue placeholder="Select store..." />
                       </SelectTrigger>
                       <SelectContent className="max-h-[300px] overflow-y-auto z-[99999]">
@@ -502,19 +612,22 @@ export default function PatientForm({
                     </Select>
                   </div>
 
-                  <div className="col-span-4 space-y-1">
-                    <Label htmlFor="patient_id" className="text-sm font-medium">Patient ID (PID) *</Label>
-                    <Input
-                      id="patient_id"
-                      value={formData.patient_id}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, patient_id: e.target.value.trim() }))}
-                      placeholder="5-char ID"
-                      className={`h-10 md:h-9 text-sm border-slate-300 bg-white ${pidBackgroundColor}`}
-                      maxLength={5} />
-                    {formData.patient_id && !validateId(formData.patient_id, 5) &&
-                      <p className="text-xs text-red-600">Must be 5 chars</p>
-                    }
-                  </div>
+                  {!isAppOwner(currentUser) && (
+                    <div className="col-span-4 space-y-1">
+                      <Label htmlFor="patient_id" className="text-sm font-medium">Patient ID (PID) *</Label>
+                      <Input
+                        id="patient_id"
+                        value={formData.patient_id}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, patient_id: e.target.value.trim() }))}
+                        placeholder="5-char ID"
+                        className={`h-10 md:h-9 text-sm border-slate-300 bg-white ${pidBackgroundColor}`}
+                        maxLength={5} />
+                      {formData.patient_id && !validateId(formData.patient_id, 5) &&
+                        <p className="text-xs text-red-600">Must be 5 chars</p>
+                      }
+                    </div>
+                  )}
+                  {isAppOwner(currentUser) && <div className="col-span-4"></div>}
 
                   <div className="col-span-4 space-y-1">
                     <Label htmlFor="status" className="text-sm font-medium">Status</Label>
