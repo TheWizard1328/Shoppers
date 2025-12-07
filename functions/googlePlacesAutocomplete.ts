@@ -39,24 +39,25 @@ Deno.serve(async (req) => {
     // Build request body for new API
     const requestBody = {
       input: input,
-      includedRegionCodes: ['CA'], // Restrict to Canada
       languageCode: 'en'
     };
 
-    // Add location biasing if coordinates provided (strongly prefers nearby)
+    // Add strict location restriction if coordinates provided (ONLY returns results within radius)
     if (latitude && longitude) {
-      requestBody.locationBias = {
+      requestBody.locationRestriction = {
         circle: {
           center: {
             latitude: latitude,
             longitude: longitude
           },
-          radius: 75000.0 // 75km in meters - strongly biases results
+          radius: 75000.0 // 75km in meters - STRICT limit
         }
       };
-      console.log('[googlePlacesAutocomplete] Added location bias:', latitude, longitude, '75km radius');
+      console.log('[googlePlacesAutocomplete] Added STRICT location restriction:', latitude, longitude, '75km radius');
     } else {
-      console.log('[googlePlacesAutocomplete] No location bias (coordinates missing)');
+      // Fallback to Canada-wide if no coordinates
+      requestBody.includedRegionCodes = ['CA'];
+      console.log('[googlePlacesAutocomplete] No coordinates - using Canada-wide search');
     }
     
     console.log('[googlePlacesAutocomplete] Calling Google API (NEW)...');
