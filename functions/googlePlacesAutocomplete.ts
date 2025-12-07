@@ -33,27 +33,49 @@ Deno.serve(async (req) => {
     
     console.log('[googlePlacesAutocomplete] API key exists, length:', apiKey.length);
 
-    // Build URL with location biasing if coordinates provided
-    let url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&types=address&key=${apiKey}`;
+    // Use the NEW Google Places API
+    const url = 'https://places.googleapis.com/v1/places:autocomplete';
     
-    // Add location and radius (150km = 150000 meters) to bias results
+    // Build request body for new API
+    const requestBody = {
+      input: input,
+      includedPrimaryTypes: ['street_address', 'premise', 'subpremise']
+    };
+    
+    // Add location biasing if coordinates provided
     if (latitude && longitude) {
-      url += `&location=${latitude},${longitude}&radius=150000&strictbounds=true`;
+      requestBody.locationBias = {
+        circle: {
+          center: {
+            latitude: latitude,
+            longitude: longitude
+          },
+          radius: 150000.0 // 150km in meters
+        }
+      };
       console.log('[googlePlacesAutocomplete] Added location biasing:', latitude, longitude);
     } else {
       console.log('[googlePlacesAutocomplete] No location biasing (coordinates missing)');
     }
     
-    console.log('[googlePlacesAutocomplete] Calling Google API...');
-    const response = await fetch(url);
+    console.log('[googlePlacesAutocomplete] Calling Google API (NEW)...');
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey
+      },
+      body: JSON.stringify(requestBody)
+    });
+    
     console.log('[googlePlacesAutocomplete] Google API HTTP status:', response.status);
     
     const data = await response.json();
-    console.log('[googlePlacesAutocomplete] Google API response status:', data.status);
     console.log('[googlePlacesAutocomplete] Google API full response:', JSON.stringify(data));
 
-    if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
-      const errorMsg = data.error_message || data.status || 'Places API error';
+    // New API returns suggestions array instead of predictions
+    if (!response.ok) {
+      const errorMsg = data.error?.message || 'Places API error';
       console.error('[googlePlacesAutocomplete] Google Places API error:', errorMsg);
       return Response.json({ 
         error: errorMsg,
@@ -61,11 +83,14 @@ Deno.serve(async (req) => {
       }, { status: 500 });
     }
 
-    // Return simplified predictions
-    const predictions = (data.predictions || []).map(p => ({
-      description: p.description,
-      place_id: p.place_id
-    }));
+    // Convert new API format to match old format
+    const predictions = (data.suggestions || []).map(suggestion => {
+      const placePrediction = suggestion.placePrediction;
+      return {
+        description: placePrediction?.text?.text || placePrediction?.structuredFormat?.mainText?.text || '',
+        place_id: placePrediction?.placeId || ''
+      };
+    });
 
     console.log('[googlePlacesAutocomplete] Returning', predictions.length, 'predictions');
     return Response.json({ predictions });
