@@ -590,10 +590,10 @@ export default function PatientForm({
                 </div>
               )}
 
-              {/* Container 1: Store/ID/Status and Time Windows */}
+              {/* Container 1: Store/Status/Time Windows */}
               <div className="bg-slate-100 px-2 py-2 rounded-[10px] space-y-2">
                 <div className="grid grid-cols-12 gap-2">
-                  <div className="col-span-4 space-y-1">
+                  <div className="col-span-3 space-y-1">
                     <Label htmlFor="store_id" className="text-sm font-medium">Assigned Store *</Label>
                     <Select
                       value={formData.store_id}
@@ -612,24 +612,7 @@ export default function PatientForm({
                     </Select>
                   </div>
 
-                  {!isAppOwner(currentUser) && (
-                    <div className="col-span-4 space-y-1">
-                      <Label htmlFor="patient_id" className="text-sm font-medium">Patient ID (PID) *</Label>
-                      <Input
-                        id="patient_id"
-                        value={formData.patient_id}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, patient_id: e.target.value.trim() }))}
-                        placeholder="5-char ID"
-                        className={`h-10 md:h-9 text-sm border-slate-300 bg-white ${pidBackgroundColor}`}
-                        maxLength={5} />
-                      {formData.patient_id && !validateId(formData.patient_id, 5) &&
-                        <p className="text-xs text-red-600">Must be 5 chars</p>
-                      }
-                    </div>
-                  )}
-                  {isAppOwner(currentUser) && <div className="col-span-4"></div>}
-
-                  <div className="col-span-4 space-y-1">
+                  <div className="col-span-3 space-y-1">
                     <Label htmlFor="status" className="text-sm font-medium">Status</Label>
                     <Select
                       value={formData.status}
@@ -643,10 +626,8 @@ export default function PatientForm({
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
 
-                <div className="grid grid-cols-12 gap-2">
-                  <div className="col-span-6 space-y-1">
+                  <div className="col-span-3 space-y-1">
                     <Label htmlFor="time_window_start" className="text-sm font-medium">Deliver After</Label>
                     <Input
                       id="time_window_start"
@@ -656,7 +637,7 @@ export default function PatientForm({
                       className="h-10 md:h-9 text-sm border-slate-300 bg-white" />
                   </div>
 
-                  <div className="col-span-6 space-y-1">
+                  <div className="col-span-3 space-y-1">
                     <Label htmlFor="time_window_end" className="text-sm font-medium">Deliver Before</Label>
                     <Input
                       id="time_window_end"
@@ -666,6 +647,24 @@ export default function PatientForm({
                       className="h-10 md:h-9 text-sm border-slate-300 bg-white" />
                   </div>
                 </div>
+
+                {!isAppOwner(currentUser) && (
+                  <div className="grid grid-cols-12 gap-2">
+                    <div className="col-span-12 space-y-1">
+                      <Label htmlFor="patient_id" className="text-sm font-medium">Patient ID (PID) *</Label>
+                      <Input
+                        id="patient_id"
+                        value={formData.patient_id}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, patient_id: e.target.value.trim() }))}
+                        placeholder="5-char ID"
+                        className={`h-10 md:h-9 text-sm border-slate-300 bg-white ${pidBackgroundColor}`}
+                        maxLength={5} />
+                      {formData.patient_id && !validateId(formData.patient_id, 5) &&
+                        <p className="text-xs text-red-600">Must be 5 chars</p>
+                      }
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Container 2: Name/Phone and Address/Unit */}
