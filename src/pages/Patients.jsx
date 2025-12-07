@@ -1233,12 +1233,11 @@ export default function Patients() {
       // is primarily intended for CSV imports where raw address strings might contain units.
 
       if (isEditing) {
-        const { patient_id, ...dataToUpdate } = patientData;
-        await Patient.update(editingPatient.id, dataToUpdate);
+        await Patient.update(editingPatient.id, patientData);
         // Create the updated patient object for immediate UI update
         savedPatient = {
           ...editingPatient,
-          ...dataToUpdate,
+          ...patientData,
           updated_date: new Date().toISOString() // Ensure updated_date is current
         };
       } else {
