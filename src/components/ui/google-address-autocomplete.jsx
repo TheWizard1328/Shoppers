@@ -56,9 +56,11 @@ export function GoogleAddressAutocomplete({
         console.warn('[GoogleAddressAutocomplete] ⚠️ Searching without geographic restrictions (no coordinates)');
       }
       
+      console.log('[GoogleAddressAutocomplete] 📤 Sending request to backend:', JSON.stringify(requestPayload));
+      
       const response = await base44.functions.invoke('googlePlacesAutocomplete', requestPayload);
 
-      console.log('[GoogleAddressAutocomplete] Raw response:', response);
+      console.log('[GoogleAddressAutocomplete] 📥 Raw response:', response);
 
       const data = response?.data || response;
       console.log('[GoogleAddressAutocomplete] Parsed data:', data);
