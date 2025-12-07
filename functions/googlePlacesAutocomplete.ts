@@ -32,8 +32,16 @@ Deno.serve(async (req) => {
     const response = await fetch(url);
     const data = await response.json();
 
+    console.log('Google API response status:', data.status);
+    console.log('Google API full response:', JSON.stringify(data));
+
     if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
-      return Response.json({ error: data.error_message || 'Places API error' }, { status: 500 });
+      const errorMsg = data.error_message || data.status || 'Places API error';
+      console.error('Google Places API error:', errorMsg);
+      return Response.json({ 
+        error: errorMsg,
+        details: data 
+      }, { status: 500 });
     }
 
     // Return simplified predictions
