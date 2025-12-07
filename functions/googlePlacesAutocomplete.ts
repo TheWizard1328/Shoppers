@@ -16,8 +16,12 @@ Deno.serve(async (req) => {
     console.log('[googlePlacesAutocomplete] User authenticated:', user.email);
 
     const body = await req.json();
+    console.log('[googlePlacesAutocomplete] ===== REQUEST DETAILS =====');
     console.log('[googlePlacesAutocomplete] Request body:', JSON.stringify(body));
-    
+    console.log('[googlePlacesAutocomplete] Input:', body.input);
+    console.log('[googlePlacesAutocomplete] Latitude:', body.latitude);
+    console.log('[googlePlacesAutocomplete] Longitude:', body.longitude);
+
     const { input, latitude, longitude } = body;
     
     if (!input || input.trim().length < 3) {
@@ -53,11 +57,15 @@ Deno.serve(async (req) => {
           radius: 75000.0 // 75km in meters - STRICT limit
         }
       };
-      console.log('[googlePlacesAutocomplete] Added STRICT location restriction:', latitude, longitude, '75km radius');
+      console.log('[googlePlacesAutocomplete] ✅ Added STRICT location restriction:');
+      console.log('[googlePlacesAutocomplete]    Center:', latitude, longitude);
+      console.log('[googlePlacesAutocomplete]    Radius: 75km');
+      console.log('[googlePlacesAutocomplete]    Full requestBody:', JSON.stringify(requestBody, null, 2));
     } else {
       // Fallback to Canada-wide if no coordinates
       requestBody.includedRegionCodes = ['CA'];
-      console.log('[googlePlacesAutocomplete] No coordinates - using Canada-wide search');
+      console.warn('[googlePlacesAutocomplete] ⚠️ NO COORDINATES PROVIDED - using Canada-wide search');
+      console.log('[googlePlacesAutocomplete]    Full requestBody:', JSON.stringify(requestBody, null, 2));
     }
     
     console.log('[googlePlacesAutocomplete] Calling Google API (NEW)...');

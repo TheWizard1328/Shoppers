@@ -32,7 +32,15 @@ export function GoogleAddressAutocomplete({
 
     try {
       setIsLoading(true);
-      console.log('[GoogleAddressAutocomplete] Fetching suggestions for:', searchText, cityCenter);
+      console.log('[GoogleAddressAutocomplete] Fetching suggestions for:', searchText);
+      console.log('[GoogleAddressAutocomplete] City center coordinates:', cityCenter);
+      
+      // CRITICAL: Validate that we have coordinates
+      if (!cityCenter?.latitude || !cityCenter?.longitude) {
+        console.error('[GoogleAddressAutocomplete] ❌ NO CITY CENTER COORDINATES PROVIDED!');
+      } else {
+        console.log('[GoogleAddressAutocomplete] ✅ Using coordinates:', cityCenter.latitude, cityCenter.longitude);
+      }
       
       // Prepare request payload - only include coordinates if available
       const requestPayload = {
@@ -43,6 +51,9 @@ export function GoogleAddressAutocomplete({
       if (cityCenter?.latitude && cityCenter?.longitude) {
         requestPayload.latitude = cityCenter.latitude;
         requestPayload.longitude = cityCenter.longitude;
+        console.log('[GoogleAddressAutocomplete] ✅ Added coordinates to request:', requestPayload);
+      } else {
+        console.warn('[GoogleAddressAutocomplete] ⚠️ Searching without geographic restrictions (no coordinates)');
       }
       
       const response = await base44.functions.invoke('googlePlacesAutocomplete', requestPayload);
