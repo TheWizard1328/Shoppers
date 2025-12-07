@@ -335,7 +335,7 @@ export const loadFullMonthDeliveries = async (filters = {}, forceRefresh = false
 };
 
 /**
- * Load deliveries: selected date first, then full month in background
+ * Load deliveries: today first, then next 7 days, then past deliveries in background
  */
 export const loadDeliveries = async (
   selectedDateStr,
@@ -344,16 +344,55 @@ export const loadDeliveries = async (
   onInitialLoadComplete = () => {},
   onFullMonthLoadComplete = () => {}
 ) => {
-  // 1. Load selected date deliveries first (for immediate UI)
-  const initialDeliveries = await loadDeliveriesForDate(selectedDateStr, filters, forceRefresh);
+  const today = new Date();
+  const todayStr = format(today, 'yyyy-MM-dd');
+  
+  // 1. Load today's deliveries first (highest priority)
+  console.log(`🚀 [dataManager] PRIORITY 1: Loading today's deliveries (${todayStr})`);
+  const todayDeliveries = await loadDeliveriesForDate(todayStr, filters, forceRefresh);
+  
+  // 2. Load next 7 days (priority for planning)
+  console.log(`🚀 [dataManager] PRIORITY 2: Loading next 7 days of deliveries...`);
+  const futureDeliveries = [];
+  for (let i = 1; i <= 7; i++) {
+    const futureDate = new Date(today);
+    futureDate.setDate(today.getDate() + i);
+    const futureDateStr = format(futureDate, 'yyyy-MM-dd');
+    
+    try {
+      const dayDeliveries = await loadDeliveriesForDate(futureDateStr, filters, forceRefresh);
+      futureDeliveries.push(...dayDeliveries);
+      console.log(`  ✅ Loaded ${dayDeliveries.length} deliveries for ${futureDateStr}`);
+    } catch (error) {
+      console.error(`  ❌ Error loading ${futureDateStr}:`, error);
+    }
+  }
+  
+  // Combine today + next 7 days
+  const initialDeliveries = [...todayDeliveries, ...futureDeliveries];
+  console.log(`✅ [dataManager] PRIORITY 1+2 Complete: ${todayDeliveries.length} today + ${futureDeliveries.length} future = ${initialDeliveries.length} total`);
+  
+  // Call the initial callback with today + next 7 days
   onInitialLoadComplete(initialDeliveries);
   
-  // 2. Background: load full month's deliveries
-  loadFullMonthDeliveries(filters, forceRefresh).then(fullMonthDeliveries => {
-    onFullMonthLoadComplete(fullMonthDeliveries);
-  }).catch(error => {
-    console.error('❌ [dataManager] Error loading full month deliveries in background:', error);
-  });
+  // 3. Background: load past 30 days
+  setTimeout(async () => {
+    try {
+      const last30Days = subDays(today, 30);
+      const last30DaysStr = format(last30Days, 'yyyy-MM-dd');
+      const yesterdayStr = format(subDays(today, 1), 'yyyy-MM-dd');
+      
+      console.log(`🚀 [dataManager] BACKGROUND: Loading past deliveries (${last30DaysStr} to ${yesterdayStr})`);
+      const pastDeliveries = await getDeliveriesForDateRange(last30DaysStr, yesterdayStr, filters, forceRefresh);
+      console.log(`✅ [dataManager] BACKGROUND: Loaded ${pastDeliveries.length} past deliveries`);
+      
+      // Combine all: past + today + future
+      const allDeliveries = [...pastDeliveries, ...initialDeliveries];
+      onFullMonthLoadComplete(allDeliveries);
+    } catch (error) {
+      console.error('❌ [dataManager] Error loading past deliveries in background:', error);
+    }
+  }, 500); // Start background load after 500ms
 
   return initialDeliveries;
 };
