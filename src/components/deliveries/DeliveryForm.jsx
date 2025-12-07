@@ -3576,7 +3576,7 @@ export default function DeliveryForm({
                   variant="outline"
                   size="sm"
                   onClick={delivery ? handleCancelClick : cancelButtonState === 'clear' ? handleClearForm : handleCancelClick}
-                  disabled={isSaving}>
+                  disabled={isSaving || isPatientFormOpen}>
                   {delivery ? 'Cancel' : cancelButtonState === 'clear' ? 'Clear' : 'Cancel'}
                 </Button>
 
@@ -3605,7 +3605,7 @@ export default function DeliveryForm({
                   size="sm"
                   onClick={handleUpdateStaged} className="inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-primary-foreground shadow h-8 rounded-md px-3 text-xs !text-white bg-blue-600 hover:bg-blue-700 gap-2"
 
-                  disabled={isSaving || !isFormValid}>
+                  disabled={isSaving || !isFormValid || isPatientFormOpen}>
                       <Edit2 className="w-4 h-4" />
                       Update
                     </Button> :
@@ -3615,7 +3615,7 @@ export default function DeliveryForm({
                   size="sm"
                   onClick={handleAddToStaging}
                   className="bg-blue-600 hover:bg-blue-700 gap-2"
-                  disabled={isSaving || !isFormValid}>
+                  disabled={isSaving || !isFormValid || isPatientFormOpen}>
                         <Plus className="w-4 h-4" />
                         Add
                       </Button> :
@@ -3625,7 +3625,7 @@ export default function DeliveryForm({
                   size="sm"
                   onClick={handleSubmit}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
-                  disabled={isSaving || !isFormValid}>
+                  disabled={isSaving || !isFormValid || isPatientFormOpen}>
                         {isSaving ?
                   <>
                             <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
