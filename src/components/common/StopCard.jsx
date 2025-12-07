@@ -845,10 +845,10 @@ export default function StopCard({
 
                 <Badge
                   variant="secondary" className={`border-transparent hover:bg-secondary/80 inline-flex items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-sm font-bold px-2 py-0.5 ${
-                    delivery.status === 'failed' ? 'bg-red-500 text-red-800' :
-                    delivery.status === 'returned' ? 'bg-orange-500 text-orange-800' :
-                    'bg-emerald-500 !text-white'
-                  }`}>
+                  delivery.status === 'failed' ? 'bg-red-500 text-red-800' :
+                  delivery.status === 'returned' ? 'bg-orange-500 text-orange-800' :
+                  'bg-emerald-500 !text-white'}`
+                  }>
 
                     {statusConfig[delivery.status]?.label || delivery.status}
                   </Badge>
@@ -1540,8 +1540,8 @@ export default function StopCard({
                     {delivery.status === 'failed' && !isPickup &&
                   <Button
                     onClick={handleReturnClick}
-                    size="sm"
-                    className="bg-orange-600 hover:bg-orange-700 text-white h-8"
+                    size="sm" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow rounded-md px-3 text-xs bg-orange-600 hover:bg-orange-700 !text-white h-8"
+
                     disabled={isPreparingReturn || hasFutureReturn}>
                         {isPreparingReturn ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Undo2 className="w-3 h-3 mr-1" />}
                         Return
