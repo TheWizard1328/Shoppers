@@ -1858,6 +1858,8 @@ export default function DeliveryForm({
       if (event.target.tagName === 'TEXTAREA') return;
       if (event.target.getAttribute('role') === 'combobox') return;
       if (event.target === patientSearchInputRef.current) return;
+      // CRITICAL: Don't prevent Enter on buttons - let them execute their onClick handlers
+      if (event.target.tagName === 'BUTTON') return;
 
       event.preventDefault();
 
