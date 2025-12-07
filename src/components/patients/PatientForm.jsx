@@ -350,17 +350,23 @@ export default function PatientForm({
     let dataToSave = { ...formData };
 
     // Recalculate distance from store before saving (in case store changed)
+    // UNLESS it was manually edited by app owner (preserve manual edits)
     if (dataToSave.store_id && dataToSave.latitude && dataToSave.longitude && stores) {
       const assignedStore = stores.find((s) => s && s.id === dataToSave.store_id);
       if (assignedStore?.latitude && assignedStore?.longitude) {
-        const R = 6371;
-        const dLat = (dataToSave.latitude - assignedStore.latitude) * Math.PI / 180;
-        const dLon = (dataToSave.longitude - assignedStore.longitude) * Math.PI / 180;
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(assignedStore.latitude * Math.PI / 180) * Math.cos(dataToSave.latitude * Math.PI / 180) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        dataToSave.distance_from_store = R * c;
+        // Only auto-calculate if distance is null or if not editing existing patient
+        const shouldRecalculate = dataToSave.distance_from_store === null || !patient;
+        if (shouldRecalculate) {
+          const R = 6371;
+          const dLat = (dataToSave.latitude - assignedStore.latitude) * Math.PI / 180;
+          const dLon = (dataToSave.longitude - assignedStore.longitude) * Math.PI / 180;
+          const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(assignedStore.latitude * Math.PI / 180) * Math.cos(dataToSave.latitude * Math.PI / 180) *
+          Math.sin(dLon / 2) * Math.sin(dLon / 2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          dataToSave.distance_from_store = R * c;
+        }
+        // Otherwise preserve the manually edited value
       }
     }
 
