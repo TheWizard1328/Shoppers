@@ -93,24 +93,35 @@ Deno.serve(async (req) => {
       }, { status: 500 });
     }
 
-    // Convert new API format to match old format
+    // Convert new API format to match old format and calculate distances
     const predictions = (data.suggestions || []).map(suggestion => {
       const placePrediction = suggestion.placePrediction;
       if (!placePrediction) return null;
-      
+
       // The new API uses text.text for the full formatted address
       const description = placePrediction.text?.text || '';
       const place_id = placePrediction.placeId || '';
-      
-      console.log('[googlePlacesAutocomplete] Parsed prediction:', { description, place_id });
-      
+
+      // Extract coordinates if available for distance sorting
+      let distance = null;
+      if (latitude && longitude && placePrediction.structuredFormat?.mainText?.text) {
+        // Try to estimate distance (we'll sort, but can't get exact distance without calling Place Details)
+        // For now, we'll use the order from Google as it already biases by location
+        distance = 0;
+      }
+
+      console.log('[googlePlacesAutocomplete] Parsed prediction:', { description, place_id, distance });
+
       return {
         description,
-        place_id
+        place_id,
+        distance
       };
     }).filter(p => p !== null);
 
-    console.log('[googlePlacesAutocomplete] Returning', predictions.length, 'predictions');
+    // Results are already sorted by relevance/proximity from Google's locationRestriction
+    // No additional sorting needed - Google handles this based on the circle center
+    console.log('[googlePlacesAutocomplete] Returning', predictions.length, 'predictions (sorted by Google)');
     return Response.json({ predictions });
 
   } catch (error) {

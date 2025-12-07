@@ -124,6 +124,34 @@ export default function PatientForm({
     console.log('[PatientForm] currentUser.city_id:', currentUser?.city_id);
     console.log('[PatientForm] cities array:', cities);
     
+    // For dispatchers, use store location (prioritize single store, or selected store)
+    const isDispatcher = currentUser && userHasRole(currentUser, 'dispatcher');
+    const isDriver = currentUser && userHasRole(currentUser, 'driver');
+    
+    if (isDispatcher && !userHasRole(currentUser, 'admin') && stores && stores.length > 0) {
+      // Use selected store if available, otherwise use first dispatcher store
+      let targetStore = null;
+      if (formData.store_id) {
+        targetStore = stores.find(s => s && s.id === formData.store_id);
+      }
+      if (!targetStore && currentUser.store_ids && currentUser.store_ids.length > 0) {
+        targetStore = stores.find(s => s && s.id === currentUser.store_ids[0]);
+      }
+      
+      if (targetStore?.latitude && targetStore?.longitude) {
+        console.log('[PatientForm] ✅ Dispatcher - using store coordinates:', {
+          latitude: targetStore.latitude,
+          longitude: targetStore.longitude,
+          storeName: targetStore.name
+        });
+        return {
+          latitude: targetStore.latitude,
+          longitude: targetStore.longitude
+        };
+      }
+    }
+    
+    // For drivers and admins, use city center
     if (currentUser?.city_id && cities && cities.length > 0) {
       const userCity = cities.find((c) => c && c.id === currentUser.city_id);
       console.log('[PatientForm] Found user city:', userCity);
@@ -148,7 +176,7 @@ export default function PatientForm({
       });
     }
     return null;
-  }, [currentUser, cities]);
+  }, [currentUser, cities, stores, formData.store_id]);
 
   useEffect(() => {
     if (!patient && !formData.patient_id) {
