@@ -601,15 +601,32 @@ function Dashboard() {
   const isDriverDropdownDisabled = useMemo(() => {
     if (!currentUser) return false;
 
-    // Enable for admins and dispatchers
+    // Always enable for admins and dispatchers
     if (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) {
       return false;
     }
 
-    // Disable only for pure drivers (driver role but not admin or dispatcher)
-    const isPureDriver = userHasRole(currentUser, 'driver');
-    return isPureDriver;
-  }, [currentUser]);
+    // For drivers: only enable if another driver shares a store with them on the selected date
+    if (userHasRole(currentUser, 'driver')) {
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      const todayDeliveries = deliveries?.filter(d => d && d.delivery_date === dateStr) || [];
+      
+      // Get stores this driver has deliveries from
+      const myStores = new Set(
+        todayDeliveries.filter(d => d.driver_id === currentUser.id).map(d => d.store_id)
+      );
+      
+      // Check if any other driver has deliveries from the same stores
+      const hasSharedStore = todayDeliveries.some(d => 
+        d.driver_id !== currentUser.id && myStores.has(d.store_id)
+      );
+      
+      // Enable dropdown if there's a shared store, disable otherwise
+      return !hasSharedStore;
+    }
+
+    return false;
+  }, [currentUser, selectedDate, deliveries]);
 
   const tooltipValues = useMemo(() => ({
     total: "Total Scheduled Deliveries",
