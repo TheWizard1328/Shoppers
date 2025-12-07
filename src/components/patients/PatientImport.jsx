@@ -1059,7 +1059,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
   if (showPreview) {
     return (
       <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[9999] overflow-hidden">
-                <Card className="rounded-xl border bg-card text-card-foreground shadow w-full max-w-4xl h-[85vh] flex flex-col">
+                <Card className="rounded-xl border bg-card text-card-foreground shadow w-full max-w-4xl h-[77vh] flex flex-col">
                     <CardHeader className="flex flex-col space-y-1.5 p-3 border-b flex-shrink-0">
                         <div className="flex items-center justify-between">
                             <CardTitle>Import Preview</CardTitle>
