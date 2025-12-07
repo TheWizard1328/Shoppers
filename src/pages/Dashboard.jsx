@@ -368,9 +368,37 @@ function Dashboard() {
           }
         }
 
-        // Fall back to saved setting or 'all' if not a mobile driver with active route
+        // Fall back to saved setting or smart default based on driver assignments
         if (!driverToSelect) {
-          driverToSelect = settings.selected_driver_id || 'all';
+          // CRITICAL: Check if there are deliveries from multiple stores with different drivers on the same date
+          const todayStr = format(new Date(), 'yyyy-MM-dd');
+          const todayDeliveries = deliveries?.filter(d => d && d.delivery_date === todayStr) || [];
+          
+          if (todayDeliveries.length > 0) {
+            // Get unique driver IDs for today
+            const driverIds = new Set(todayDeliveries.map(d => d.driver_id).filter(Boolean));
+            
+            // Get unique store IDs for today
+            const storeIds = new Set(todayDeliveries.map(d => d.store_id).filter(Boolean));
+            
+            // Only use "All Drivers" if there are multiple drivers AND multiple stores
+            if (driverIds.size > 1 && storeIds.size > 1) {
+              driverToSelect = 'all';
+              console.log(`👥 [Dashboard] Multiple drivers (${driverIds.size}) across multiple stores (${storeIds.size}) - selecting "All Drivers"`);
+            } else if (driverIds.size === 1) {
+              // Single driver - select them
+              driverToSelect = Array.from(driverIds)[0];
+              console.log(`👤 [Dashboard] Single driver detected - selecting ${driverToSelect}`);
+            } else {
+              // Use saved setting or fall back to 'all'
+              driverToSelect = settings.selected_driver_id || 'all';
+              console.log(`👤 [Dashboard] No clear driver selection - using saved/default: ${driverToSelect}`);
+            }
+          } else {
+            // No deliveries today - use saved setting or 'all'
+            driverToSelect = settings.selected_driver_id || 'all';
+            console.log(`👤 [Dashboard] No deliveries today - using saved/default: ${driverToSelect}`);
+          }
         }
         console.log(`👤 [Dashboard] PHASE 1 Complete: Setting driver to: ${driverToSelect}`);
         setSelectedDriverId(driverToSelect);
