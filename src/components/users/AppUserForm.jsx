@@ -121,7 +121,7 @@ export default function AppUserForm({ appUser, authUsers, stores, cities, onSave
                 <SelectTrigger id="user_id" className="border-slate-300">
                   <SelectValue placeholder="Select user by email..." />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-[10003]">
                   {authUsers.map((user) =>
                   <SelectItem key={user.id} value={user.id}>
                       {user.email} - {user.full_name}
@@ -170,7 +170,7 @@ export default function AppUserForm({ appUser, authUsers, stores, cities, onSave
                   <SelectTrigger className="h-9">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-[10003]">
                     <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="inactive">Inactive</SelectItem>
                   </SelectContent>
