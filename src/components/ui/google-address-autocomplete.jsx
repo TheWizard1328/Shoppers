@@ -98,9 +98,13 @@ export function GoogleAddressAutocomplete({
 
       const data = response?.data || response;
       
-      // The backend returns formatted_address, not result.formatted_address
+      // Extract only street address (remove city, province, country)
+      const fullAddress = data.formatted_address || prediction.description;
+      const streetAddress = fullAddress.split(',')[0]?.trim() || fullAddress;
+      
       const addressData = {
-        full_address: data.formatted_address || prediction.description,
+        full_address: fullAddress,
+        street_address: streetAddress,
         latitude: data.latitude,
         longitude: data.longitude,
         place_id: prediction.place_id
@@ -113,15 +117,17 @@ export function GoogleAddressAutocomplete({
         onAddressSelect(addressData);
       }
       
-      // Update the input value
-      onChange(data.formatted_address || prediction.description);
+      // Update the input value with street address only
+      onChange(streetAddress);
     } catch (error) {
       console.error('[GoogleAddressAutocomplete] Error fetching place details:', error);
       // Fallback to using the prediction description
-      onChange(prediction.description);
+      const streetAddress = prediction.description.split(',')[0]?.trim() || prediction.description;
+      onChange(streetAddress);
       if (onAddressSelect) {
         onAddressSelect({
           full_address: prediction.description,
+          street_address: streetAddress,
           place_id: prediction.place_id
         });
       }
