@@ -86,11 +86,19 @@ Deno.serve(async (req) => {
     // Convert new API format to match old format
     const predictions = (data.suggestions || []).map(suggestion => {
       const placePrediction = suggestion.placePrediction;
+      if (!placePrediction) return null;
+      
+      // The new API uses text.text for the full formatted address
+      const description = placePrediction.text?.text || '';
+      const place_id = placePrediction.placeId || '';
+      
+      console.log('[googlePlacesAutocomplete] Parsed prediction:', { description, place_id });
+      
       return {
-        description: placePrediction?.text?.text || placePrediction?.structuredFormat?.mainText?.text || '',
-        place_id: placePrediction?.placeId || ''
+        description,
+        place_id
       };
-    });
+    }).filter(p => p !== null);
 
     console.log('[googlePlacesAutocomplete] Returning', predictions.length, 'predictions');
     return Response.json({ predictions });
