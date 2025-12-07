@@ -17,7 +17,7 @@ import { useAppData } from '@/components/utils/AppDataContext';
 import { GoogleAddressAutocomplete } from "@/components/ui/google-address-autocomplete";
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
-  <div className="flex items-center space-x-2">
+<div className="flex items-center space-x-2">
     <Checkbox id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} />
     <Label htmlFor={id} className="text-sm font-normal no-underline leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
       {label}
@@ -27,9 +27,9 @@ const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
 const capitalizeName = (name) => {
   if (!name) return '';
   return name.
-    split(' ').
-    map((word) => word.charAt(0).toUpperCase() + word.slice(1)).
-    join(' ');
+  split(' ').
+  map((word) => word.charAt(0).toUpperCase() + word.slice(1)).
+  join(' ');
 };
 
 const abbreviateAddress = (address) => {
@@ -84,10 +84,10 @@ export default function PatientForm({
   returnPatientOnSave = false
 }) {
   const { setIsFormOverlayOpen, cities: contextCities = [] } = useAppData();
-  
+
   // CRITICAL: Use cities from context if available, otherwise fall back to prop
   const cities = contextCities.length > 0 ? contextCities : citiesProp;
-  
+
   // CRITICAL DEBUG: Log props on mount
   useEffect(() => {
     console.log('🔍 [PatientForm] Component mounted with props:');
@@ -129,21 +129,21 @@ export default function PatientForm({
     console.log('[PatientForm] currentUser:', currentUser);
     console.log('[PatientForm] currentUser.city_id:', currentUser?.city_id);
     console.log('[PatientForm] cities array:', cities);
-    
+
     // For dispatchers, use store location (prioritize single store, or selected store)
     const isDispatcher = currentUser && userHasRole(currentUser, 'dispatcher');
     const isDriver = currentUser && userHasRole(currentUser, 'driver');
-    
+
     if (isDispatcher && !userHasRole(currentUser, 'admin') && stores && stores.length > 0) {
       // Use selected store if available, otherwise use first dispatcher store
       let targetStore = null;
       if (formData.store_id) {
-        targetStore = stores.find(s => s && s.id === formData.store_id);
+        targetStore = stores.find((s) => s && s.id === formData.store_id);
       }
       if (!targetStore && currentUser.store_ids && currentUser.store_ids.length > 0) {
-        targetStore = stores.find(s => s && s.id === currentUser.store_ids[0]);
+        targetStore = stores.find((s) => s && s.id === currentUser.store_ids[0]);
       }
-      
+
       if (targetStore?.latitude && targetStore?.longitude) {
         console.log('[PatientForm] ✅ Dispatcher - using store coordinates:', {
           latitude: targetStore.latitude,
@@ -156,12 +156,12 @@ export default function PatientForm({
         };
       }
     }
-    
+
     // For drivers and admins, use city center
     if (currentUser?.city_id && cities && cities.length > 0) {
       const userCity = cities.find((c) => c && c.id === currentUser.city_id);
       console.log('[PatientForm] Found user city:', userCity);
-      
+
       if (userCity?.latitude && userCity?.longitude) {
         console.log('[PatientForm] ✅ Returning city coordinates:', {
           latitude: userCity.latitude,
@@ -256,7 +256,7 @@ export default function PatientForm({
       setFrequency(initialFrequency);
       setWeeklyDays(initialWeeklyDays);
       setShowWeeklyDays(false);
-      
+
       setTimeout(() => {
         isInitialLoad.current = false;
       }, 0);
@@ -289,24 +289,24 @@ export default function PatientForm({
 
   const handleAddressSelect = (addressData) => {
     const abbreviatedAddress = abbreviateAddress(addressData.street_address || addressData.full_address);
-    
+
     // Calculate distance from assigned store if store is selected
     let distanceFromStore = null;
     if (formData.store_id && stores) {
-      const assignedStore = stores.find(s => s && s.id === formData.store_id);
+      const assignedStore = stores.find((s) => s && s.id === formData.store_id);
       if (assignedStore?.latitude && assignedStore?.longitude && addressData.latitude && addressData.longitude) {
         // Haversine formula for distance
         const R = 6371; // Earth's radius in km
         const dLat = (addressData.latitude - assignedStore.latitude) * Math.PI / 180;
         const dLon = (addressData.longitude - assignedStore.longitude) * Math.PI / 180;
         const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                  Math.cos(assignedStore.latitude * Math.PI / 180) * Math.cos(addressData.latitude * Math.PI / 180) *
-                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        Math.cos(assignedStore.latitude * Math.PI / 180) * Math.cos(addressData.latitude * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         distanceFromStore = R * c;
       }
     }
-    
+
     setFormData((prev) => ({
       ...prev,
       address: abbreviatedAddress,
@@ -353,7 +353,7 @@ export default function PatientForm({
     if (isInitialLoad.current) {
       return;
     }
-    
+
     if (frequency !== 'weekly' && frequency !== 'bi-weekly') {
       setShowWeeklyDays(false);
       setWeeklyDays([]);
@@ -364,17 +364,17 @@ export default function PatientForm({
     e.preventDefault();
 
     let dataToSave = { ...formData };
-    
+
     // Recalculate distance from store before saving (in case store changed)
     if (dataToSave.store_id && dataToSave.latitude && dataToSave.longitude && stores) {
-      const assignedStore = stores.find(s => s && s.id === dataToSave.store_id);
+      const assignedStore = stores.find((s) => s && s.id === dataToSave.store_id);
       if (assignedStore?.latitude && assignedStore?.longitude) {
         const R = 6371;
         const dLat = (dataToSave.latitude - assignedStore.latitude) * Math.PI / 180;
         const dLon = (dataToSave.longitude - assignedStore.longitude) * Math.PI / 180;
         const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                  Math.cos(assignedStore.latitude * Math.PI / 180) * Math.cos(dataToSave.latitude * Math.PI / 180) *
-                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        Math.cos(assignedStore.latitude * Math.PI / 180) * Math.cos(dataToSave.latitude * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         dataToSave.distance_from_store = R * c;
       }
@@ -444,7 +444,7 @@ export default function PatientForm({
 
   const isFormValid = formData.full_name && formData.address && formData.store_id;
   const storeSelectRef = useRef(null);
-  
+
   // Auto-focus store dropdown if no store selected on new patient
   useEffect(() => {
     if (!patient && !formData.store_id && storeSelectRef.current) {
@@ -533,8 +533,8 @@ export default function PatientForm({
           <CardContent className="px-2 py-2 overflow-y-auto flex-1">
             <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="space-y-2">
               {/* AppOwner Only: GPS & Distance Section */}
-              {isAppOwner(currentUser) && (
-                <div className="bg-amber-50 border-2 border-amber-300 px-2 py-2 rounded-[10px] space-y-2">
+              {isAppOwner(currentUser) &&
+              <div className="bg-amber-50 border-2 border-amber-300 px-2 py-2 rounded-[10px] space-y-2">
                   <div className="flex items-center gap-2 mb-1">
                     <Label className="text-xs font-semibold text-amber-900 uppercase">App Owner Controls</Label>
                   </div>
@@ -542,53 +542,53 @@ export default function PatientForm({
                     <div className="col-span-3 space-y-1">
                       <Label htmlFor="patient_id_appowner" className="text-sm font-medium">PID</Label>
                       <Input
-                        id="patient_id_appowner"
-                        value={formData.patient_id}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, patient_id: e.target.value.trim() }))}
-                        placeholder="5-char"
-                        className="h-10 md:h-9 text-sm border-slate-300 bg-white"
-                        maxLength={5}
-                      />
+                      id="patient_id_appowner"
+                      value={formData.patient_id}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, patient_id: e.target.value.trim() }))}
+                      placeholder="5-char" className="bg-white px-3 py-1 text-sm rounded-md flex w-full border shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-10 md:h-9 border-slate-300"
+
+                      maxLength={5} />
+
                     </div>
                     <div className="col-span-3 space-y-1">
                       <Label htmlFor="latitude" className="text-sm font-medium">Latitude</Label>
                       <Input
-                        id="latitude"
-                        type="number"
-                        step="any"
-                        value={formData.latitude || ''}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, latitude: e.target.value ? parseFloat(e.target.value) : null }))}
-                        placeholder="GPS Lat"
-                        className="h-10 md:h-9 text-sm border-slate-300 bg-white"
-                      />
+                      id="latitude"
+                      type="number"
+                      step="any"
+                      value={formData.latitude || ''}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, latitude: e.target.value ? parseFloat(e.target.value) : null }))}
+                      placeholder="GPS Lat"
+                      className="h-10 md:h-9 text-sm border-slate-300 bg-white" />
+
                     </div>
                     <div className="col-span-3 space-y-1">
                       <Label htmlFor="longitude" className="text-sm font-medium">Longitude</Label>
                       <Input
-                        id="longitude"
-                        type="number"
-                        step="any"
-                        value={formData.longitude || ''}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, longitude: e.target.value ? parseFloat(e.target.value) : null }))}
-                        placeholder="GPS Lon"
-                        className="h-10 md:h-9 text-sm border-slate-300 bg-white"
-                      />
+                      id="longitude"
+                      type="number"
+                      step="any"
+                      value={formData.longitude || ''}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, longitude: e.target.value ? parseFloat(e.target.value) : null }))}
+                      placeholder="GPS Lon" className="bg-white px-1 py-1 text-sm rounded-md flex w-full border shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm h-10 md:h-9 border-slate-300" />
+
+
                     </div>
                     <div className="col-span-3 space-y-1">
                       <Label htmlFor="distance" className="text-sm font-medium">Distance (km)</Label>
                       <Input
-                        id="distance"
-                        type="number"
-                        step="0.01"
-                        value={formData.distance_from_store || ''}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, distance_from_store: e.target.value ? parseFloat(e.target.value) : null }))}
-                        placeholder="km"
-                        className="h-10 md:h-9 text-sm border-slate-300 bg-white"
-                      />
+                      id="distance"
+                      type="number"
+                      step="0.01"
+                      value={formData.distance_from_store || ''}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, distance_from_store: e.target.value ? parseFloat(e.target.value) : null }))}
+                      placeholder="km"
+                      className="h-10 md:h-9 text-sm border-slate-300 bg-white" />
+
                     </div>
                   </div>
                 </div>
-              )}
+              }
 
               {/* Container 1: Store/Status/Time Windows */}
               <div className="bg-slate-100 px-2 py-2 rounded-[10px] space-y-2">
@@ -604,7 +604,7 @@ export default function PatientForm({
                       </SelectTrigger>
                       <SelectContent className="max-h-[300px] overflow-y-auto z-[99999]">
                         {availableStores.map((store) =>
-                          <SelectItem key={store.id} value={store.id}>
+                        <SelectItem key={store.id} value={store.id}>
                             {store.name}
                           </SelectItem>
                         )}
@@ -648,23 +648,23 @@ export default function PatientForm({
                   </div>
                 </div>
 
-                {!isAppOwner(currentUser) && (
-                  <div className="grid grid-cols-12 gap-2">
+                {!isAppOwner(currentUser) &&
+                <div className="grid grid-cols-12 gap-2">
                     <div className="col-span-12 space-y-1">
                       <Label htmlFor="patient_id" className="text-sm font-medium">Patient ID (PID) *</Label>
                       <Input
-                        id="patient_id"
-                        value={formData.patient_id}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, patient_id: e.target.value.trim() }))}
-                        placeholder="5-char ID"
-                        className={`h-10 md:h-9 text-sm border-slate-300 bg-white ${pidBackgroundColor}`}
-                        maxLength={5} />
+                      id="patient_id"
+                      value={formData.patient_id}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, patient_id: e.target.value.trim() }))}
+                      placeholder="5-char ID"
+                      className={`h-10 md:h-9 text-sm border-slate-300 bg-white ${pidBackgroundColor}`}
+                      maxLength={5} />
                       {formData.patient_id && !validateId(formData.patient_id, 5) &&
-                        <p className="text-xs text-red-600">Must be 5 chars</p>
-                      }
+                    <p className="text-xs text-red-600">Must be 5 chars</p>
+                    }
                     </div>
                   </div>
-                )}
+                }
               </div>
 
               {/* Container 2: Name/Phone and Address/Unit */}
@@ -700,8 +700,8 @@ export default function PatientForm({
                       onAddressSelect={handleAddressSelect}
                       cityCenter={getCityCenter()}
                       placeholder="Start typing address..."
-                      className="h-10 md:h-9 text-sm border-slate-300 bg-white"
-                    />
+                      className="h-10 md:h-9 text-sm border-slate-300 bg-white" />
+
                   </div>
 
                   <div className="col-span-4 space-y-1">
@@ -736,28 +736,28 @@ export default function PatientForm({
 
                   <div className="space-y-3">
                     <CheckboxField
-                    id="mailbox_ok"
-                    label="Mailbox OK"
-                    checked={formData.mailbox_ok}
-                    onChange={(checked) => setFormData((prev) => ({ ...prev, mailbox_ok: checked }))} />
+                      id="mailbox_ok"
+                      label="Mailbox OK"
+                      checked={formData.mailbox_ok}
+                      onChange={(checked) => setFormData((prev) => ({ ...prev, mailbox_ok: checked }))} />
 
                   <CheckboxField
-                    id="ring_bell"
-                    label="Ring Bell"
-                    checked={formData.ring_bell}
-                    onChange={(checked) => setFormData((prev) => ({ ...prev, ring_bell: checked }))} />
+                      id="ring_bell"
+                      label="Ring Bell"
+                      checked={formData.ring_bell}
+                      onChange={(checked) => setFormData((prev) => ({ ...prev, ring_bell: checked }))} />
 
                   <CheckboxField
-                    id="back_door"
-                    label="Back Door"
-                    checked={formData.back_door}
-                    onChange={(checked) => setFormData((prev) => ({ ...prev, back_door: checked }))} />
+                      id="back_door"
+                      label="Back Door"
+                      checked={formData.back_door}
+                      onChange={(checked) => setFormData((prev) => ({ ...prev, back_door: checked }))} />
 
                   <CheckboxField
-                    id="call_upon_arrival"
-                    label="Call Upon Arrival"
-                    checked={formData.call_upon_arrival}
-                    onChange={(checked) => setFormData((prev) => ({ ...prev, call_upon_arrival: checked }))} />
+                      id="call_upon_arrival"
+                      label="Call Upon Arrival"
+                      checked={formData.call_upon_arrival}
+                      onChange={(checked) => setFormData((prev) => ({ ...prev, call_upon_arrival: checked }))} />
 
                     <CheckboxField
                       id="dont_ring_bell"
@@ -858,27 +858,27 @@ export default function PatientForm({
                   </RadioGroup>
 
                   {showWeeklyDays && isRecurring && (frequency === 'weekly' || frequency === 'bi-weekly') &&
-                    <div className="absolute left-0 top-[-120px] w-full bg-white border-2 border-emerald-400 rounded-lg p-4 shadow-xl z-20">
+                  <div className="absolute left-0 top-[-120px] w-full bg-white border-2 border-emerald-400 rounded-lg p-4 shadow-xl z-20">
                       <p className="text-sm font-semibold text-slate-700 mb-3">Select Days:</p>
                       <div className="space-y-2">
                         {['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map((day) =>
-                          <div key={day} className="flex items-center space-x-2">
+                      <div key={day} className="flex items-center space-x-2">
                             <Checkbox
-                              id={`day-${day}`}
-                              checked={weeklyDays.includes(day)}
-                              onCheckedChange={() => handleWeeklyDayToggle(day)} />
+                          id={`day-${day}`}
+                          checked={weeklyDays.includes(day)}
+                          onCheckedChange={() => handleWeeklyDayToggle(day)} />
 
                             <Label htmlFor={`day-${day}`} className="text-sm capitalize cursor-pointer">
                               {day.charAt(0).toUpperCase() + day.slice(1)}
                             </Label>
                           </div>
-                        )}
+                      )}
                       </div>
                       <Button
-                        type="button"
-                        onClick={handleWeeklyDaysDone}
-                        size="sm"
-                        className="w-full mt-3 bg-emerald-600 hover:bg-emerald-700 text-white">
+                      type="button"
+                      onClick={handleWeeklyDaysDone}
+                      size="sm"
+                      className="w-full mt-3 bg-emerald-600 hover:bg-emerald-700 text-white">
 
                         Done
                       </Button>
