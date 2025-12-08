@@ -2964,6 +2964,7 @@ export default function DeliveriesPage() {
                   {(provided, snapshot) =>
               <div
                 ref={provided.innerRef}
+                {...provided.draggableProps}
                 style={{
                   ...provided.draggableProps.style,
                   opacity: snapshot.isDragging ? 0.8 : 1
