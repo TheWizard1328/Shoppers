@@ -262,14 +262,20 @@ const optimizeStoreRoute = (stops, startLocation, startTime, driverHome, patient
                           patientName.toLowerCase().includes('interstore');
       
       // RULE 1 & 3: STRICT pickup-before-delivery constraint
-      // Pickups MUST ALWAYS come before their associated deliveries - NO EXCEPTIONS
-      if (!isPickup && !isInterStore && stop.puid) {
-        const pickupInRemaining = remaining.find(s => s && !s.patient_id && s.stop_id === stop.puid);
-        
-        if (pickupInRemaining && !completedPickupStopIds.has(stop.puid)) {
-          // Pickup must be completed first - skip this delivery
-          console.log(`    ⏭️ Skipping ${patientName} - waiting for pickup ${stop.puid} to be completed first`);
-          continue;
+      // EXCEPTION: InterStore transfers can be optimized before their pickup store
+      if (!isPickup && stop.puid) {
+        if (isInterStore) {
+          // InterStore transfer - exempt from pickup-before-delivery rule
+          console.log(`    ✅ InterStore delivery ${patientName} - can be done before pickup ${stop.puid}`);
+        } else {
+          // Regular delivery - MUST wait for pickup to be completed first
+          const pickupInRemaining = remaining.find(s => s && !s.patient_id && s.stop_id === stop.puid);
+          
+          if (pickupInRemaining && !completedPickupStopIds.has(stop.puid)) {
+            // Pickup must be completed first - skip this delivery
+            console.log(`    ⏭️ Skipping ${patientName} - waiting for pickup ${stop.puid} to be completed first`);
+            continue;
+          }
         }
       }
       
