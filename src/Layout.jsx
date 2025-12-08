@@ -1612,7 +1612,7 @@ export default function Layout({ children, currentPageName }) {
 
   // Route count - count driver-routes (each driver-date combination) in the selected month
   const totalRoutesCount = useMemo(() => {
-    if (!deliveries || deliveries.length === 0) return 0;
+    if (!deliveries || deliveries.length === 0 || !currentUser) return 0;
     
     const selectedDateStr = globalFilters.getSelectedDate();
     if (!selectedDateStr) return 0;
@@ -1621,10 +1621,22 @@ export default function Layout({ children, currentPageName }) {
     const selectedYear = selectedDate.getFullYear();
     const selectedMonth = selectedDate.getMonth();
     
+    // CRITICAL: Filter deliveries based on user role
+    let relevantDeliveries = deliveries;
+    
+    if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
+      // Dispatchers: only count routes for their assigned stores
+      const dispatcherStoreIds = new Set(currentUser.store_ids || []);
+      relevantDeliveries = deliveries.filter(d => d && dispatcherStoreIds.has(d.store_id));
+    } else if (userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) {
+      // Drivers: only count their own routes
+      relevantDeliveries = deliveries.filter(d => d && d.driver_id === currentUser.id);
+    }
+    
     // For each date in the selected month, count unique drivers
     const dateDriverMap = new Map();
     
-    deliveries.forEach(delivery => {
+    relevantDeliveries.forEach(delivery => {
       if (!delivery || !delivery.delivery_date || !delivery.driver_id) return;
       
       const deliveryDate = new Date(delivery.delivery_date + 'T00:00:00');
@@ -1645,7 +1657,7 @@ export default function Layout({ children, currentPageName }) {
     });
     
     return totalRoutes;
-  }, [deliveries]);
+  }, [deliveries, currentUser]);
 
   const getPatientStoreData = useCallback(() => {
     if (!stores.length || !filteredPatients.length) return [];
