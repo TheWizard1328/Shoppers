@@ -1201,16 +1201,19 @@ function Dashboard() {
             // CRITICAL: Only pass currentLocation if viewing OWN route, not when impersonating
             const isViewingOwnRoute = driverIdToFetch === currentUser?.id;
 
+            // CRITICAL: Only pass currentLocation if viewing OWN route (not impersonating)
+            const shouldUseDeviceGPS = driverIdToFetch === currentUser?.id && !currentUser?._isImpersonating;
+            
             await optimizeDriverRoute({
               driverId: driverIdToFetch,
               deliveryDate: deliveryDate,
-              currentLocation: isViewingOwnRoute && driverLocation ? {
+              currentLocation: shouldUseDeviceGPS && driverLocation ? {
                 lat: driverLocation.latitude,
                 lon: driverLocation.longitude
               } : null,
               clientCurrentTime: format(new Date(), 'HH:mm'),
               generatePolyline: true,
-              forceReoptimization: true, // Force re-optimization to generate polyline
+              forceReoptimization: true,
               driverHome: viewedDriver?.home_latitude && viewedDriver?.home_longitude ? {
                 lat: viewedDriver.home_latitude,
                 lon: viewedDriver.home_longitude
@@ -4835,15 +4838,18 @@ function Dashboard() {
 
         // Call backend optimizer for today's route
         try {
+          // CRITICAL: Only use device GPS for own route
+          const shouldUseDeviceGPS = targetDelivery.driver_id === currentUser?.id && !currentUser?._isImpersonating;
+
           await optimizeDriverRoute({
             driverId: targetDelivery.driver_id,
             deliveryDate: currentDate,
-            currentLocation: driverLocation ? {
+            currentLocation: shouldUseDeviceGPS && driverLocation ? {
               lat: driverLocation.latitude,
               lon: driverLocation.longitude
             } : null,
-            clientCurrentTime: format(new Date(), 'HH:mm'), // Send device's current time
-            forceReoptimization: true // Force re-optimization to include new delivery
+            clientCurrentTime: format(new Date(), 'HH:mm'),
+            forceReoptimization: true
           });
           console.log('✅ [RETRY DELIVERY] Backend optimizer called for today');
         } catch (optError) {
@@ -4932,11 +4938,14 @@ function Dashboard() {
       console.log('');
       console.log('🏗️ STEP 3: Calling backend optimizer for route update');
 
+      // CRITICAL: Only use device GPS for own route
+      const shouldUseDeviceGPS = targetDelivery.driver_id === currentUser?.id && !currentUser?._isImpersonating;
+      
       try {
         const optimizationResult = await optimizeDriverRoute({
           driverId: targetDelivery.driver_id,
           deliveryDate: deliveryDate,
-          currentLocation: driverLocation ? {
+          currentLocation: shouldUseDeviceGPS && driverLocation ? {
             lat: driverLocation.latitude,
             lon: driverLocation.longitude
           } : null,
@@ -5070,16 +5079,19 @@ function Dashboard() {
       console.log('✅ [CREATE RETURN] Return delivery created for today');
 
       // Call backend optimizer for today's route
+      // CRITICAL: Only use device GPS for own route
+      const shouldUseDeviceGPS = originalDelivery.driver_id === currentUser?.id && !currentUser?._isImpersonating;
+      
       try {
         await optimizeDriverRoute({
           driverId: originalDelivery.driver_id,
           deliveryDate: currentDate,
-          currentLocation: driverLocation ? {
+          currentLocation: shouldUseDeviceGPS && driverLocation ? {
             lat: driverLocation.latitude,
             lon: driverLocation.longitude
           } : null,
-          clientCurrentTime: format(new Date(), 'HH:mm'), // Send device's current time
-          forceReoptimization: true // Force re-optimization to include new delivery
+          clientCurrentTime: format(new Date(), 'HH:mm'),
+          forceReoptimization: true
         });
         console.log('✅ [CREATE RETURN] Backend optimizer called for today');
       } catch (optError) {
@@ -5155,10 +5167,13 @@ function Dashboard() {
       console.log(`   - Current Location: ${driverLocation ? `[${driverLocation.latitude}, ${driverLocation.longitude}]` : 'NONE'}`);
       console.log(`   - Client Time: ${currentTime}`);
 
+      // CRITICAL: Only use device GPS for own route
+      const shouldUseDeviceGPS = driverId === currentUser?.id && !currentUser?._isImpersonating;
+      
       const optimizationResult = await optimizeDriverRoute({
         driverId: driverId,
         deliveryDate: deliveryDate,
-        currentLocation: driverLocation ? {
+        currentLocation: shouldUseDeviceGPS && driverLocation ? {
           lat: driverLocation.latitude,
           lon: driverLocation.longitude
         } : null,
@@ -6028,15 +6043,18 @@ function Dashboard() {
                 // Get the driver ID from first update
                 const firstDelivery = deliveries.find((d) => d && d.id === updates[0]?.id);
                 if (firstDelivery?.driver_id) {
+                  // CRITICAL: Only use device GPS for own route
+                  const shouldUseDeviceGPS = firstDelivery.driver_id === currentUser?.id && !currentUser?._isImpersonating;
+                  
                   try {
                     await optimizeDriverRoute({
                       driverId: firstDelivery.driver_id,
                       deliveryDate: format(selectedDate, 'yyyy-MM-dd'),
-                      currentLocation: driverLocation ? {
+                      currentLocation: shouldUseDeviceGPS && driverLocation ? {
                         lat: driverLocation.latitude,
                         lon: driverLocation.longitude
                       } : null,
-                      clientCurrentTime: format(new Date(), 'HH:mm'), // Send device's current time
+                      clientCurrentTime: format(new Date(), 'HH:mm'),
                       forceReoptimization: true
                     });
                     console.log('✅ ETAs recalculated via backend optimizer');
