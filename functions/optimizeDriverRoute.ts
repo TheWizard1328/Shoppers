@@ -970,17 +970,24 @@ Deno.serve(async (req) => {
     
     // =============================================
     // STEP 6: Determine which stop should be marked as isNextDelivery
-    // CRITICAL: Only set isNextDelivery if route is IN PROGRESS (has completed stops)
+    // CRITICAL: Only set isNextDelivery if route is IN PROGRESS (has completed stops) AND driver is online
     // =============================================
     console.log('');
     console.log('🏗️ STEP 6: Determining next delivery (first incomplete stop)');
     
     // The first incomplete stop (first in optimizedRoute) is the next delivery
-    // BUT only if route is in progress (has completed stops)
+    // BUT only if route is in progress (has completed stops) AND driver is on_duty
     let nextDeliveryId = null;
+    
+    // Check if driver is online (on_duty or on_break)
+    const driverStatus = driverAppUser?.driver_status || 'off_duty';
+    const isDriverOnline = driverStatus === 'on_duty' || driverStatus === 'on_break';
     
     if (!isRouteInProgress) {
       console.log(`   ⏭️ Route NOT in progress - skipping isNextDelivery assignment`);
+      console.log(`   📋 All stops will have isNextDelivery = false`);
+    } else if (!isDriverOnline) {
+      console.log(`   ⏭️ Driver is ${driverStatus} (offline) - skipping isNextDelivery assignment`);
       console.log(`   📋 All stops will have isNextDelivery = false`);
     } else if (optimizedRoute.length > 0) {
       // Find the FIRST incomplete stop in the optimized route
@@ -993,7 +1000,7 @@ Deno.serve(async (req) => {
         const nextName = firstIncomplete.patient_id 
           ? patients.find(p => p?.id === firstIncomplete.patient_id)?.full_name || 'Unknown'
           : stores.find(s => s?.id === firstIncomplete.store_id)?.name + ' Pickup' || 'Pickup';
-        console.log(`   ✅ Next delivery: ${nextName} (ID: ${nextDeliveryId})`);
+        console.log(`   ✅ Next delivery: ${nextName} (ID: ${nextDeliveryId}) - Driver is ${driverStatus}`);
       } else {
         console.log(`   ⚠️ No incomplete stops found in optimized route`);
       }
