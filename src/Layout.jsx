@@ -169,10 +169,23 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
                 const driverId = userHasRole(currentUser, 'driver') ? currentUser.id : 
                                  globalFilters.getSelectedDriverId();
 
+                // CRITICAL: Filter storeIds based on user role
+                let filteredStoreIds = [];
+
+                if (userHasRole(currentUser, 'admin')) {
+                  filteredStoreIds = storeIds;
+                } else if (userHasRole(currentUser, 'dispatcher')) {
+                  filteredStoreIds = (currentUser.store_ids || []).filter(Boolean);
+                } else if (userHasRole(currentUser, 'driver')) {
+                  filteredStoreIds = storeIds; // Will be filtered by driverId parameter
+                }
+
                 const response = await base44.functions.invoke('getDeliveryStats', {
                   selectedDate: selectedDateStr,
-                  driverId: driverId !== 'all' ? driverId : null,
-                  storeIds: storeIds.length > 0 ? storeIds : null
+                  driverId: userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') 
+                    ? currentUser.id 
+                    : (driverId !== 'all' ? driverId : null),
+                  storeIds: filteredStoreIds.length > 0 ? filteredStoreIds : null
                 });
 
                 const data = response?.data || response;
