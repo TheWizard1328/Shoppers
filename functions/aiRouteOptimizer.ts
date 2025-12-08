@@ -363,9 +363,15 @@ Provide:
     
     console.log(`   🔗 Linked deliveries: ${deliveriesOnly.length - unlinkedDeliveries.length}, Unlinked: ${unlinkedDeliveries.length}`);
     
-    // First: Add any in_transit deliveries (they must be completed first)
+    // First: Add any in_transit deliveries ONLY if their pickup is completed
     const inTransit = remaining.filter(d => d.status === 'in_transit');
     for (const delivery of inTransit) {
+      // CRITICAL: Check if this delivery requires a pickup
+      if (delivery.puid && !completedPickupStopIds.has(delivery.puid)) {
+        console.log(`   ⚠️ Skipping in_transit delivery ${delivery.patientName} - pickup not completed yet (PUID: ${delivery.puid})`);
+        continue; // Don't add it yet - will be added after its pickup
+      }
+      
       const idx = remaining.findIndex(d => d.id === delivery.id);
       if (idx !== -1) remaining.splice(idx, 1);
       
@@ -389,10 +395,24 @@ Provide:
       if (pickupIdx !== -1) pickups.splice(pickupIdx, 1);
       const deliveryIdx = unlinkedDeliveries.findIndex(d => d.id === delivery.id);
       if (deliveryIdx !== -1) unlinkedDeliveries.splice(deliveryIdx, 1);
+      
+      console.log(`   ✅ Added in_transit delivery: ${delivery.patientName} (pickup already done)`);
     }
     
-    // Track completed pickup stop_ids
+    // Track completed pickup stop_ids (from database - already done)
     const completedPickupStopIds = new Set();
+    
+    // Add already completed pickups to the set (status = completed)
+    const alreadyCompletedPickups = deliveries.filter(d => 
+      !d.patient_id && finishedStatuses.includes(d.status)
+    );
+    for (const completedPickup of alreadyCompletedPickups) {
+      if (completedPickup.stop_id) {
+        completedPickupStopIds.add(completedPickup.stop_id);
+      }
+    }
+    
+    console.log(`   ✅ Already completed pickups: ${completedPickupStopIds.size}`);
     
     // Process pickups in time-window order
     // Between each pickup, do deliveries that are:
