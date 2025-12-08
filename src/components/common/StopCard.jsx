@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
@@ -132,7 +131,6 @@ export default function StopCard({
   const [isCompleting, setIsCompleting] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
   const [isPreparingReturn, setIsPreparingReturn] = useState(false);
-  codAmountInputRefs.current = []; // Clear refs on re-render to avoid stale references
   const codAmountInputRefs = useRef([]);
   const { setIsEntityUpdating, forceRefreshDriverDeliveries } = useAppData();
 
