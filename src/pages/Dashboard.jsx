@@ -439,9 +439,8 @@ function Dashboard() {
 
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
-    // SIMPLIFIED: Show ALL deliveries for selected date, filter only by selected driver
-    // UI components (cards, map markers) will handle role-based display differences
-    const result = deliveries.filter((d) => {
+    // Filter by date and driver
+    let result = deliveries.filter((d) => {
       if (!d) return false;
       if (d.delivery_date !== dateStr) return false;
       
@@ -453,9 +452,26 @@ function Dashboard() {
       return true;
     });
 
-    console.log(`📊 [Deliveries Filter] Date: ${dateStr}, Driver: ${selectedDriverId}, Total: ${result.length}`);
+    // DISPATCHER: When viewing "All Drivers", only show deliveries for drivers who have stops in dispatcher's stores
+    if (isDispatcher && selectedDriverId === 'all') {
+      const dispatcherStoreIds = currentUser?.store_ids || [];
+      
+      // Get drivers who have deliveries in dispatcher's stores
+      const driversWithStoreDeliveries = new Set(
+        result.filter(d => d && dispatcherStoreIds.includes(d.store_id))
+          .map(d => d.driver_id)
+          .filter(Boolean)
+      );
+
+      // Filter to only show deliveries from those drivers
+      result = result.filter(d => d && driversWithStoreDeliveries.has(d.driver_id));
+      console.log(`📊 [Deliveries Filter] Dispatcher "All Drivers" - showing ${result.length} deliveries from ${driversWithStoreDeliveries.size} drivers with stops in assigned stores`);
+    } else {
+      console.log(`📊 [Deliveries Filter] Date: ${dateStr}, Driver: ${selectedDriverId}, Total: ${result.length}`);
+    }
+
     return result;
-  }, [deliveries, selectedDate, selectedDriverId]);
+  }, [deliveries, selectedDate, selectedDriverId, isDispatcher, currentUser]);
 
   const deliveriesWithStopOrder = useMemo(() => {
     if (!filteredDeliveries || !Array.isArray(filteredDeliveries) || filteredDeliveries.length === 0) return [];
@@ -554,7 +570,7 @@ function Dashboard() {
     return allFinished;
   }, [selectedDate, filteredDeliveries]);
 
-  // Admins get ALL drivers without filtering
+  // Filter drivers based on role and deliveries
   const driversList = useMemo(() => {
     console.log('🔍 [Dashboard driversList] Computing driver list...');
     console.log('  - drivers array length:', drivers?.length || 0);
@@ -568,10 +584,34 @@ function Dashboard() {
       return [];
     }
 
-    // ALL USERS: Get all drivers (Layout loads ALL drivers with no geographic filtering)
+    // ADMIN: Get all drivers
+    if (userHasRole(currentUser, 'admin')) {
+      console.log(`✅ [Dashboard driversList] Admin - returning all ${drivers.length} drivers`);
+      return drivers;
+    }
+
+    // DISPATCHER: Only show drivers with deliveries in dispatcher's stores
+    if (userHasRole(currentUser, 'dispatcher')) {
+      const dispatcherStoreIds = currentUser.store_ids || [];
+      console.log('  - Dispatcher store IDs:', dispatcherStoreIds);
+
+      // Get unique driver IDs that have deliveries for dispatcher's stores
+      const driversWithStoreDeliveries = new Set(
+        deliveries
+          ?.filter(d => d && dispatcherStoreIds.includes(d.store_id))
+          .map(d => d.driver_id)
+          .filter(Boolean)
+      );
+
+      const filteredDrivers = drivers.filter(d => d && driversWithStoreDeliveries.has(d.id));
+      console.log(`✅ [Dashboard driversList] Dispatcher - returning ${filteredDrivers.length} drivers with deliveries in assigned stores`);
+      return filteredDrivers;
+    }
+
+    // OTHER ROLES: Return all drivers
     console.log(`✅ [Dashboard driversList] Returning all ${drivers.length} drivers`);
     return drivers;
-  }, [drivers, currentUser]);
+  }, [drivers, currentUser, deliveries]);
 
   const shouldShowLocationToggle = useMemo(() =>
   isMobile && isDriver && !userHasRole(currentUser, 'dispatcher'),
