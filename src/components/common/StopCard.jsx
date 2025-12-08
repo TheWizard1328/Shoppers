@@ -646,11 +646,11 @@ export default function StopCard({
           {/* HEADER SECTION - Always Visible */}
           <div className="flex items-start gap-1">
             {/* Drag Handle */}
-            {showDragHandle && dragHandleProps && (
-              <div {...dragHandleProps} className="flex items-center justify-center cursor-grab active:cursor-grabbing pt-1 mr-1">
+            {showDragHandle && dragHandleProps &&
+            <div {...dragHandleProps} className="flex items-center justify-center cursor-grab active:cursor-grabbing pt-1 mr-1">
                 <GripVertical className="w-5 h-5 text-slate-400 hover:text-slate-600" />
               </div>
-            )}
+            }
             
             <div className="flex flex-col py-0. gap-0.5  items-center">
               <Badge
@@ -1285,7 +1285,7 @@ export default function StopCard({
 
                   {/* Show pending pickup list for pickups that are en_route (equivalent to in_transit for deliveries) */}
                   {isPickup && delivery.status === 'en_route' && pendingPickups && pendingPickups.length > 0 &&
-                <div className="pt-2 border-t border-slate-200">
+                <div className="pt-2 border-t border-slate-200 max-h-[190px]">
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="text-xs font-bold text-slate-700 flex items-center gap-2">
                           <Package className="w-3.5 h-3.5" />
@@ -1338,16 +1338,16 @@ export default function StopCard({
 
                         for (let i = 0; i < sortedPending.length; i++) {
                           const pendingDelivery = sortedPending[i];
-                          
+
                           // Calculate ETA for this stop (pickup ETA + buffer for each stop)
                           const minutesFromPickup = (i + 1) * extraTimeBuffer;
                           const newETA = addMinutesToTime(pickupETA, minutesFromPickup);
-                          
+
                           console.log(`  Accepting: ${pendingDelivery.patient_name} → status: in_transit, ETA: ${newETA}`);
 
                           // Update status with optimized ETA, skip auto-center
-                          await onStatusUpdate(pendingDelivery.id, 'in_transit', { 
-                            delivery_time_eta: newETA 
+                          await onStatusUpdate(pendingDelivery.id, 'in_transit', {
+                            delivery_time_eta: newETA
                           }, true);
                         }
 
