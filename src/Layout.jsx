@@ -1673,17 +1673,37 @@ export default function Layout({ children, currentPageName }) {
 
     const fetchStats = async () => {
       try {
-        const storeIds = stores.map(s => s?.id).filter(Boolean);
+        // CRITICAL: Filter storeIds based on user role
+        let filteredStoreIds = [];
+
+        if (userHasRole(currentUser, 'admin')) {
+          // Admins see all stores in selected city
+          filteredStoreIds = stores.map(s => s?.id).filter(Boolean);
+        } else if (userHasRole(currentUser, 'dispatcher')) {
+          // Dispatchers see only their assigned stores
+          filteredStoreIds = (currentUser.store_ids || []).filter(Boolean);
+        } else if (userHasRole(currentUser, 'driver')) {
+          // Drivers see stores where they have deliveries
+          const driverStoreIds = new Set(
+            deliveries
+              .filter(d => d && d.driver_id === currentUser.id)
+              .map(d => d.store_id)
+              .filter(Boolean)
+          );
+          filteredStoreIds = Array.from(driverStoreIds);
+        }
+
         const response = await base44.functions.invoke('getDeliveryStats', {
           selectedDate: globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd'),
-          storeIds: storeIds.length > 0 ? storeIds : null
+          driverId: userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') ? currentUser.id : null,
+          storeIds: filteredStoreIds.length > 0 ? filteredStoreIds : null
         });
 
         // Handle both response.data (axios-style) and direct response
         const data = response?.data || response;
-        
+
         console.log('📊 [NavStats] Parsed data:', data);
-        
+
         // FIXED: Map the backend response structure correctly
         if (data?.deliveries && data?.drivers) {
           setRouteCounts({
@@ -1708,7 +1728,7 @@ export default function Layout({ children, currentPageName }) {
       clearTimeout(timer);
       clearInterval(interval);
     };
-  }, [currentUser, dataLoaded, stores]);
+  }, [currentUser, dataLoaded, stores, deliveries]);
 
   const statsCardPositioning = useMemo(() => {
     const ratio = screenWidth / cardWidth;
