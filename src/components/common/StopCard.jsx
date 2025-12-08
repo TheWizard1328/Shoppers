@@ -37,6 +37,7 @@ import {
 import { triggerRouteOptimization } from "../utils/realTimeRouteOptimizer";
 import { toast } from "sonner";
 import { smartRefreshManager } from "../utils/smartRefreshManager";
+import FailureReasonDialog from "../deliveries/FailureReasonDialog";
 
 // Global statusConfig
 const statusConfig = {
@@ -131,6 +132,8 @@ export default function StopCard({
   const [isCompleting, setIsCompleting] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
   const [isPreparingReturn, setIsPreparingReturn] = useState(false);
+  const [showFailureReasonDialog, setShowFailureReasonDialog] = useState(false);
+  const [pendingFailureStatus, setPendingFailureStatus] = useState(null);
   const codAmountInputRefs = useRef([]);
   const { setIsEntityUpdating, forceRefreshDriverDeliveries } = useAppData();
 
@@ -765,6 +768,13 @@ export default function StopCard({
                             onClick={async (e) => {
                               e.stopPropagation();
 
+                              // Show failure reason dialog for failed/cancelled
+                              if (isFailedStatus) {
+                                setPendingFailureStatus(status);
+                                setShowFailureReasonDialog(true);
+                                return;
+                              }
+
                               console.log('⏸️ [STATUS BUTTON] Pausing smart refresh...');
                               setIsEntityUpdating(true);
 
@@ -780,15 +790,6 @@ export default function StopCard({
 
                                 await onStatusUpdate(delivery.id, status, {}, false);
 
-                                if (status === 'failed' && userHasRole(currentUser, 'driver')) {
-                                  await notifyDriverFailed({
-                                    driver: currentUser,
-                                    patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
-                                    delivery,
-                                    store,
-                                    appUsers
-                                  });
-                                }
                                 if (status === 'completed' && userHasRole(currentUser, 'driver')) {
                                   await notifyDriverCompleted({
                                     driver: currentUser,
@@ -1027,6 +1028,75 @@ export default function StopCard({
               </motion.div>
             }
           </AnimatePresence>
+
+          {/* Failure Reason Dialog */}
+          <FailureReasonDialog
+            isOpen={showFailureReasonDialog}
+            onClose={() => {
+              setShowFailureReasonDialog(false);
+              setPendingFailureStatus(null);
+            }}
+            onConfirm={async (reason) => {
+              setShowFailureReasonDialog(false);
+              const status = pendingFailureStatus;
+              setPendingFailureStatus(null);
+
+              console.log('⏸️ [FAILURE] Pausing smart refresh...');
+              setIsEntityUpdating(true);
+
+              smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
+
+              await new Promise((resolve) => setTimeout(resolve, 100));
+              console.log('✅ [FAILURE] Smart refresh paused');
+
+              try {
+                console.log('🔄 [FAILURE] Force refreshing driver deliveries...');
+                await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                console.log('✅ [FAILURE] Fresh data loaded');
+
+                // Add reason to delivery notes
+                const existingNotes = delivery.delivery_notes || '';
+                const updatedNotes = existingNotes 
+                  ? `${existingNotes}\n[${status.toUpperCase()}] ${reason}`
+                  : `[${status.toUpperCase()}] ${reason}`;
+
+                await onStatusUpdate(delivery.id, status, { delivery_notes: updatedNotes }, false);
+
+                // Trigger fullRouteOptimizer to recalculate ETAs
+                console.log('🔄 [FAILURE] Triggering route optimization...');
+                await base44.functions.invoke('fullRouteOptimizer', {
+                  driverId: delivery.driver_id,
+                  deliveryDate: delivery.delivery_date
+                });
+                console.log('✅ [FAILURE] Route optimized');
+
+                // Notify dispatchers
+                if (userHasRole(currentUser, 'driver')) {
+                  await notifyDriverFailed({
+                    driver: currentUser,
+                    patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
+                    delivery: { ...delivery, delivery_notes: updatedNotes },
+                    store,
+                    appUsers,
+                    failureReason: reason
+                  });
+                }
+
+                toast.error(`${isPickup ? 'Pickup' : 'Delivery'} marked as ${status}`, {
+                  description: `Dispatch has been notified. Reason: ${reason}`
+                });
+
+              } finally {
+                console.log('▶️ [FAILURE] Resuming smart refresh');
+                setIsEntityUpdating(false);
+                await new Promise((resolve) => setTimeout(resolve, 100));
+                console.log('✅ [FAILURE] Failure marking cycle complete');
+              }
+            }}
+            deliveryName={displayName}
+            isPickup={isPickup}
+            statusType={pendingFailureStatus}
+          />
 
           {/* Return Confirmation Dialog */}
           <AnimatePresence>
