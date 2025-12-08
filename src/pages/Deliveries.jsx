@@ -2557,10 +2557,6 @@ export default function DeliveriesPage() {
 
     console.log('🎯 [Drag] Starting reorder...', { from: result.source.index, to: result.destination.index });
 
-    // Block context sync for 10 seconds
-    skipContextSyncUntil.current = Date.now() + 10000;
-    console.log('🔒 [Drag] Blocked context sync for 10 seconds');
-
     // Pause smart refresh
     if (setIsEntityUpdating) {
       setIsEntityUpdating(true);
@@ -2571,29 +2567,14 @@ export default function DeliveriesPage() {
     const [reorderedItem] = reorderedDeliveries.splice(result.source.index, 1);
     reorderedDeliveries.splice(result.destination.index, 0, reorderedItem);
 
-    // IMMEDIATE: Apply optimistic update to local state
-    const optimisticUpdates = reorderedDeliveries.map((d, i) => ({
-      ...d,
-      stop_order: i + 1,
-      stopOrder: i + 1
-    }));
-    setAllDeliveries(prev => {
-      const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      const others = prev.filter(d => d.delivery_date !== dateStr || d.driver_id !== activeDriver.id);
-      return [...others, ...optimisticUpdates];
-    });
-    console.log('✅ [Drag] Applied optimistic local update');
-
     try {
-      // Update database
-      const updatePromises = reorderedDeliveries.map((delivery, index) => {
-        return Delivery.update(delivery.id, { stop_order: index + 1 });
-      });
-
-      await Promise.all(updatePromises);
+      // Update database with new stop orders
+      await Promise.all(reorderedDeliveries.map((delivery, index) => 
+        Delivery.update(delivery.id, { stop_order: index + 1 })
+      ));
       console.log('✅ [Drag] Database updated');
 
-      // Trigger route optimization for ETAs
+      // Recalculate ETAs
       if (activeDriver && selectedDate) {
         await base44.functions.invoke('optimizeDriverRoute', {
           driverId: activeDriver.id,
@@ -2603,22 +2584,42 @@ export default function DeliveriesPage() {
         console.log('✅ [Drag] ETAs recalculated');
       }
 
+      // Wait for database propagation
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      // Fetch fresh data with updated stop_order and ETAs
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      const freshDeliveries = await Delivery.filter({
+        delivery_date: dateStr,
+        driver_id: activeDriver.id
+      }, '-stop_order');
+      
+      console.log(`✅ [Drag] Fetched ${freshDeliveries.length} fresh deliveries with ETAs`);
+      
+      // Update local state
+      setAllDeliveries(prev => {
+        const others = prev.filter(d => d.delivery_date !== dateStr || d.driver_id !== activeDriver.id);
+        return [...others, ...freshDeliveries];
+      });
+      
+      // CRITICAL: Update context so changes persist on refresh
+      if (updateDeliveriesLocally) {
+        updateDeliveriesLocally(freshDeliveries);
+        console.log('✅ [Drag] Context updated');
+      }
+
     } catch (error) {
       console.error("❌ [Drag] Error:", error);
       alert("Failed to reorder. Please try again.");
-      skipContextSyncUntil.current = 0;
-      setIsEntityUpdating(false);
-      await loadData(true);
     } finally {
-      // Resume smart refresh after delay
       setTimeout(() => {
         if (setIsEntityUpdating) {
           setIsEntityUpdating(false);
-          console.log('▶️ [Drag] Smart refresh resumed');
+          console.log('▶️ [Drag] Resumed smart refresh');
         }
-      }, 6000);
+      }, 3000);
     }
-  }, [filteredAndSortedDeliveries, activeDriver, selectedDate, setIsEntityUpdating, loadData]);
+  }, [filteredAndSortedDeliveries, activeDriver, selectedDate, setIsEntityUpdating, updateDeliveriesLocally]);
 
   const driverCards = useMemo(() => {
     if (!isDriverOverviewMode) {
