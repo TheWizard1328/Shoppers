@@ -113,7 +113,9 @@ export default function StopCard({
   onStartDelivery,
   allStopsPending = false,
   onDriverStatusChange,
-  appUsers = []
+  appUsers = [],
+  showDragHandle = false,
+  dragHandleProps
 }) {
   // CRITICAL: Use delivery.isNextDelivery from the entity, not the prop
   const isNextDelivery = delivery?.isNextDelivery || false;
