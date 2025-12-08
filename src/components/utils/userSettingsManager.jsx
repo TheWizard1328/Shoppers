@@ -214,10 +214,11 @@ export async function loadUserSettings(userId) {
   try {
     console.log(`🔍 [UserSettings] Loading settings for user: ${userId}, device: ${deviceId}`);
     
+    // CRITICAL: Limit to 10 records to prevent fetching too many duplicates
     const settings = await UserSettings.filter({
       user_id: userId,
       device_id: deviceId
-    });
+    }, '-created_date', 10);
 
     if (settings && settings.length > 0) {
       // CRITICAL: If multiple records exist, delete duplicates and keep the first one
@@ -245,7 +246,22 @@ export async function loadUserSettings(userId) {
     }
 
     // No settings found for this user/device combo - create a new record
-    console.log('ℹ️ [UserSettings] No settings found, creating new record for user/device combo');
+    // CRITICAL: Double-check again to prevent race condition from concurrent calls
+    console.log('ℹ️ [UserSettings] No settings found, double-checking before creating...');
+    
+    const doubleCheck = await UserSettings.filter({
+      user_id: userId,
+      device_id: deviceId
+    }, '-created_date', 1);
+    
+    if (doubleCheck && doubleCheck.length > 0) {
+      console.log('✅ [UserSettings] Found record in double-check (race condition avoided)');
+      cachedSettings = { ...DEFAULT_SETTINGS, ...doubleCheck[0] };
+      currentUserId = userId;
+      saveToLocalCache(userId, cachedSettings);
+      return cachedSettings;
+    }
+    
     try {
       const now = new Date().toISOString();
       const newSettings = await UserSettings.create({
@@ -261,9 +277,25 @@ export async function loadUserSettings(userId) {
       // Cache for offline use
       saveToLocalCache(userId, cachedSettings);
       
-      console.log('✅ [UserSettings] Created new settings record:', cachedSettings);
+      console.log('✅ [UserSettings] Created new settings record');
       return cachedSettings;
     } catch (createError) {
+      // CRITICAL: If creation fails due to conflict, try fetching one more time
+      if (createError.message?.includes('duplicate') || createError.message?.includes('conflict')) {
+        console.warn('⚠️ [UserSettings] Creation conflict - fetching again');
+        const finalCheck = await UserSettings.filter({
+          user_id: userId,
+          device_id: deviceId
+        }, '-created_date', 1);
+        
+        if (finalCheck && finalCheck.length > 0) {
+          cachedSettings = { ...DEFAULT_SETTINGS, ...finalCheck[0] };
+          currentUserId = userId;
+          saveToLocalCache(userId, cachedSettings);
+          return cachedSettings;
+        }
+      }
+      
       console.error('❌ [UserSettings] Error creating new settings record:', createError);
       cachedSettings = { ...DEFAULT_SETTINGS };
       currentUserId = userId;

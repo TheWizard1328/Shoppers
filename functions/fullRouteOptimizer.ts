@@ -400,18 +400,51 @@ Deno.serve(async (req) => {
     console.log('');
     console.log('💾 Updating database...');
     
-    // Update database with new stop_order and ETAs
-    for (let i = 0; i < optimizedRoute.length; i++) {
-      const delivery = optimizedRoute[i];
+    // CRITICAL: Fetch ALL deliveries for this driver/date to include completed stops
+    const allDriverDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+      driver_id: driverId,
+      delivery_date: deliveryDate
+    });
+    
+    // Separate completed and incomplete
+    const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+    const completedStops = allDriverDeliveries.filter(d => d && finishedStatuses.includes(d.status));
+    
+    // Sort completed by actual_delivery_time
+    completedStops.sort((a, b) => new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time));
+    
+    console.log(`   Completed stops: ${completedStops.length}`);
+    console.log(`   Optimized incomplete: ${optimizedRoute.length}`);
+    
+    // Build final sequential route: completed first, then optimized
+    const finalRoute = [...completedStops, ...optimizedRoute];
+    
+    console.log('   Final sequential order:');
+    finalRoute.forEach((d, i) => {
+      const name = d.patient_name || stores.find(s => s?.id === d.store_id)?.name + ' Pickup' || 'Unknown';
+      console.log(`   ${i + 1}. ${name} - ${finishedStatuses.includes(d.status) ? 'DONE' : `ETA: ${d.calculatedETA}`}`);
+    });
+    
+    // Batch update all deliveries with sequential stop_order
+    for (let i = 0; i < finalRoute.length; i++) {
+      const delivery = finalRoute[i];
+      const newStopOrder = i + 1;
+      const isNext = i === completedStops.length; // Next is first incomplete after completed
       
-      await base44.asServiceRole.entities.Delivery.update(delivery.id, {
-        stop_order: i + 1,
-        isNextDelivery: i === 0,
-        delivery_time_eta: delivery.calculatedETA
-      });
+      const updatePayload = {
+        stop_order: newStopOrder,
+        isNextDelivery: isNext
+      };
+      
+      // Only update ETA for incomplete deliveries
+      if (!finishedStatuses.includes(delivery.status) && delivery.calculatedETA) {
+        updatePayload.delivery_time_eta = delivery.calculatedETA;
+      }
+      
+      await base44.asServiceRole.entities.Delivery.update(delivery.id, updatePayload);
     }
     
-    console.log(`✅ Updated ${optimizedRoute.length} deliveries`);
+    console.log(`✅ Updated ${finalRoute.length} deliveries (${completedStops.length} completed + ${optimizedRoute.length} optimized)`);
     
     // Generate polyline for first leg (if Google Maps API available)
     let polyline = null;
