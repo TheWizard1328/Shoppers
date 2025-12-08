@@ -193,6 +193,7 @@ export default function DeliveriesPage() {
   const initialLoadDone = useRef(false);
   const yearAutoSelectDone = useRef(false); // NEW: Track if year has been auto-selected
   const yearManuallySelected = useRef(false); // NEW: Track if user manually changed year
+  const skipContextSyncUntil = useRef(0); // Timestamp to skip context sync until (for drag operations)
 
   const checkAccess = useCallback(async () => {
     try {
@@ -516,37 +517,25 @@ export default function DeliveriesPage() {
     };
   }, []);
 
-  // Sync context data to local state for real-time updates (SMART MERGE)
+  // Sync context data to local state for real-time updates
   useEffect(() => {
     if (!contextDataLoaded || !initialLoadDone.current || !dataLoaded) {
       return;
     }
     
-    // SMART MERGE: Update only changed deliveries without replacing entire array
+    // CRITICAL: Skip sync if we're in a drag operation window
+    if (Date.now() < skipContextSyncUntil.current) {
+      console.log('⏸️ [Deliveries] Skipping context sync - drag operation in progress');
+      return;
+    }
+    
+    // Sync deliveries from context (only if we have data)
     if (contextDeliveries.length > 0) {
-      setAllDeliveries(prev => {
-        const contextMap = new Map(contextDeliveries.map(d => [d.id, d]));
-        
-        // Merge: update existing deliveries from context, keep local-only ones
-        return prev.map(localDelivery => {
-          const contextVersion = contextMap.get(localDelivery.id);
-          if (contextVersion) {
-            // CRITICAL: Use updated_date to determine which is fresher
-            const localTime = localDelivery.updated_date ? new Date(localDelivery.updated_date).getTime() : 0;
-            const contextTime = contextVersion.updated_date ? new Date(contextVersion.updated_date).getTime() : 0;
-            
-            // Use context version if it's newer or same age
-            if (contextTime >= localTime) {
-              return contextVersion;
-            }
-          }
-          return localDelivery;
-        });
-      });
+      setAllDeliveries(contextDeliveries);
     }
 
     // Sync other entities
-    if (contextPatients.length > 0 && contextPatients.length >= allPatients.length) {
+    if (contextPatients.length > 0) {
       setAllPatients(contextPatients);
     }
     
@@ -558,10 +547,10 @@ export default function DeliveriesPage() {
       setCities(contextCities);
     }
     
-    if (contextUsers.length > 0 && contextUsers.length >= allUsers.length) {
+    if (contextUsers.length > 0) {
       setAllUsers(contextUsers);
     }
-  }, [contextDataLoaded, contextDeliveries, contextPatients, contextStores, contextCities, contextUsers, dataLoaded, allDeliveries.length, allPatients.length, allUsers.length]);
+  }, [contextDataLoaded, contextDeliveries, contextPatients, contextStores, contextCities, contextUsers, dataLoaded]);
 
   // REMOVED: Force smart refresh on Driver Overview load
   // This was causing data to disappear because it reset refresh timers
@@ -2568,84 +2557,68 @@ export default function DeliveriesPage() {
 
     console.log('🎯 [Drag] Starting reorder...', { from: result.source.index, to: result.destination.index });
 
-    // Pause smart refresh to prevent race conditions
+    // Block context sync for 10 seconds
+    skipContextSyncUntil.current = Date.now() + 10000;
+    console.log('🔒 [Drag] Blocked context sync for 10 seconds');
+
+    // Pause smart refresh
     if (setIsEntityUpdating) {
       setIsEntityUpdating(true);
       console.log('⏸️ [Drag] Paused smart refresh');
     }
 
-    // Use a copy of the already filtered and sorted deliveries
     const reorderedDeliveries = Array.from(filteredAndSortedDeliveries);
     const [reorderedItem] = reorderedDeliveries.splice(result.source.index, 1);
     reorderedDeliveries.splice(result.destination.index, 0, reorderedItem);
 
+    // IMMEDIATE: Apply optimistic update to local state
+    const optimisticUpdates = reorderedDeliveries.map((d, i) => ({
+      ...d,
+      stop_order: i + 1,
+      stopOrder: i + 1
+    }));
+    setAllDeliveries(prev => {
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      const others = prev.filter(d => d.delivery_date !== dateStr || d.driver_id !== activeDriver.id);
+      return [...others, ...optimisticUpdates];
+    });
+    console.log('✅ [Drag] Applied optimistic local update');
+
     try {
-      // Update database with new stop orders
+      // Update database
       const updatePromises = reorderedDeliveries.map((delivery, index) => {
-        const newStopOrder = index + 1;
-        return Delivery.update(delivery.id, { stop_order: newStopOrder });
+        return Delivery.update(delivery.id, { stop_order: index + 1 });
       });
 
       await Promise.all(updatePromises);
-      console.log('✅ [Drag] Database updated with new stop orders');
+      console.log('✅ [Drag] Database updated');
 
-      // CRITICAL: Clear ALL delivery caches globally
-      await invalidate('Delivery');
-      
-      // Force reset smart refresh timers to fetch fresh data immediately
-      if (typeof window !== 'undefined' && window.smartRefreshManager) {
-        window.smartRefreshManager.lastRefreshTimes.todayDeliveries = 0;
-        console.log('🔄 [Drag] Reset smart refresh timers');
-      }
-
-      // Call optimize route to recalculate ETAs
+      // Trigger route optimization for ETAs
       if (activeDriver && selectedDate) {
-        console.log('🔄 [Drag] Triggering route optimization for ETA updates...');
         await base44.functions.invoke('optimizeDriverRoute', {
           driverId: activeDriver.id,
           deliveryDate: format(selectedDate, 'yyyy-MM-dd'),
           skipReordering: true
         });
-        console.log('✅ [Drag] Route optimization complete');
-      }
-
-      // Wait a moment for database propagation
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // CRITICAL: Only fetch deliveries for selected date/driver - not all 5000
-      const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      const freshDeliveries = await getData('Delivery', '-stop_order', { 
-        delivery_date: dateStr,
-        driver_id: activeDriver.id 
-      }, true);
-      console.log(`✅ [Drag] Fetched ${freshDeliveries.length} fresh deliveries for ${dateStr}`);
-      
-      // Update only the deliveries for this date/driver in local state
-      setAllDeliveries(prev => {
-        const others = prev.filter(d => d.delivery_date !== dateStr || d.driver_id !== activeDriver.id);
-        return [...others, ...freshDeliveries];
-      });
-      
-      // CRITICAL: Pass ONLY the 7 fresh deliveries to context - it will handle the merge
-      if (updateDeliveriesLocally) {
-        updateDeliveriesLocally(freshDeliveries);
-        console.log(`✅ [Drag] Sent ${freshDeliveries.length} updated deliveries to context`);
+        console.log('✅ [Drag] ETAs recalculated');
       }
 
     } catch (error) {
-      console.error("❌ [Drag] Error reordering deliveries:", error);
-      alert("Failed to reorder deliveries. Please try again.");
+      console.error("❌ [Drag] Error:", error);
+      alert("Failed to reorder. Please try again.");
+      skipContextSyncUntil.current = 0;
+      setIsEntityUpdating(false);
       await loadData(true);
     } finally {
-      // Resume smart refresh after longer delay
-      if (setIsEntityUpdating) {
-        setTimeout(() => {
+      // Resume smart refresh after delay
+      setTimeout(() => {
+        if (setIsEntityUpdating) {
           setIsEntityUpdating(false);
-          console.log('▶️ [Drag] Resumed smart refresh');
-        }, 5000);
-      }
+          console.log('▶️ [Drag] Smart refresh resumed');
+        }
+      }, 6000);
     }
-  }, [filteredAndSortedDeliveries, activeDriver, selectedDate, setIsEntityUpdating, updateDeliveriesLocally, loadData]);
+  }, [filteredAndSortedDeliveries, activeDriver, selectedDate, setIsEntityUpdating, loadData]);
 
   const driverCards = useMemo(() => {
     if (!isDriverOverviewMode) {
