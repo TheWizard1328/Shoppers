@@ -825,7 +825,7 @@ class SmartRefreshManager {
   /**
    * Fast delivery status refresh - polls for status changes on active deliveries
    */
-  async refreshActiveDeliveryStatuses(currentDeliveries, selectedDate) {
+  async refreshActiveDeliveryStatuses(currentDeliveries, selectedDate, filters = {}) {
     try {
       // Check if disabled - silently skip automatic polling
       if (!this._enabled) {

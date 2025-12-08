@@ -936,7 +936,7 @@ export default function Layout({ children, currentPageName }) {
         // FAST: Active delivery statuses (30s) - for real-time map markers
         console.log('');
         console.log('📦 [2/3] Active Delivery Statuses Refresh...');
-        const activeDeliveryUpdates = await smartRefreshManager.refreshActiveDeliveryStatuses(deliveries, selectedDate);
+        const activeDeliveryUpdates = await smartRefreshManager.refreshActiveDeliveryStatuses(deliveries, selectedDate, filters);
         if (activeDeliveryUpdates?.hasChanges) {
           console.log('   ✅ Updating deliveries state with active status changes');
           setDeliveries(activeDeliveryUpdates.deliveries);
