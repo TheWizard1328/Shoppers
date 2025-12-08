@@ -26,12 +26,11 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       setRecentUpdates(smartRefreshActivity.updatedEntities);
       setCurrentDisplayIndex(0);
       
-      // Clear after showing all entities (1s each)
-      const totalDuration = smartRefreshActivity.updatedEntities.length * 1000;
+      // Clear after 3 seconds (regardless of number of entities)
       const timer = setTimeout(() => {
         setRecentUpdates([]);
         setCurrentDisplayIndex(0);
-      }, totalDuration);
+      }, 3000);
       
       return () => clearTimeout(timer);
     }
