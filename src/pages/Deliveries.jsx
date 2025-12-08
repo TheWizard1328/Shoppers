@@ -516,44 +516,48 @@ export default function DeliveriesPage() {
     };
   }, []);
 
-  // Sync context data to local state for real-time updates
-  // CRITICAL: Only sync AFTER initial load is done and context has meaningful data
-  // This prevents context empty arrays from overwriting freshly loaded data
+  // Sync context data to local state for real-time updates (SMART MERGE)
   useEffect(() => {
-    // CRITICAL: Don't sync from context until our own initial load is done
-    // This prevents Layout's empty context from overwriting our freshly loaded data
     if (!contextDataLoaded || !initialLoadDone.current || !dataLoaded) {
-      console.log(`⏸️ [Deliveries] Skipping context sync - waiting for initial load (contextDataLoaded: ${contextDataLoaded}, initialLoadDone: ${initialLoadDone.current}, dataLoaded: ${dataLoaded})`);
       return;
     }
     
-    // CRITICAL: Don't sync if context data is empty but local data exists
-    // This prevents data from disappearing during refresh cycles
-    
-    // Sync deliveries if context has MORE data than local (avoid overwriting with less data)
-    if (contextDeliveries.length > 0 && contextDeliveries.length >= allDeliveries.length) {
-      console.log(`🔄 [Deliveries] Syncing ${contextDeliveries.length} deliveries from context (local had ${allDeliveries.length})`);
-      setAllDeliveries(contextDeliveries);
-    } else if (contextDeliveries.length > 0 && contextDeliveries.length < allDeliveries.length) {
-      console.log(`⚠️ [Deliveries] NOT syncing context deliveries - context has LESS data (${contextDeliveries.length}) than local (${allDeliveries.length})`);
+    // SMART MERGE: Update only changed deliveries without replacing entire array
+    if (contextDeliveries.length > 0) {
+      setAllDeliveries(prev => {
+        const contextMap = new Map(contextDeliveries.map(d => [d.id, d]));
+        
+        // Merge: update existing deliveries from context, keep local-only ones
+        return prev.map(localDelivery => {
+          const contextVersion = contextMap.get(localDelivery.id);
+          if (contextVersion) {
+            // CRITICAL: Use updated_date to determine which is fresher
+            const localTime = localDelivery.updated_date ? new Date(localDelivery.updated_date).getTime() : 0;
+            const contextTime = contextVersion.updated_date ? new Date(contextVersion.updated_date).getTime() : 0;
+            
+            // Use context version if it's newer or same age
+            if (contextTime >= localTime) {
+              return contextVersion;
+            }
+          }
+          return localDelivery;
+        });
+      });
     }
 
-    // Sync patients if context has data
+    // Sync other entities
     if (contextPatients.length > 0 && contextPatients.length >= allPatients.length) {
       setAllPatients(contextPatients);
     }
     
-    // Sync stores if context has data
     if (contextStores.length > 0) {
       setStores(contextStores);
     }
     
-    // Sync cities if context has data
     if (contextCities.length > 0) {
       setCities(contextCities);
     }
     
-    // Sync users if context has data
     if (contextUsers.length > 0 && contextUsers.length >= allUsers.length) {
       setAllUsers(contextUsers);
     }
