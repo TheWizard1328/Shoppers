@@ -1393,7 +1393,7 @@ export default function StopCard({
                           </Button>
                     }
                       </div>
-                      <div className="space-y-1.5 max-h-64 overflow-y-auto custom-scrollbar max-h-[155px]"
+                      <div className="space-y-1.5 max-h-64 overflow-y-auto custom-scrollbar max-h-[150px]"
 
                   onWheel={(e) => {
                     const el = e.currentTarget;
