@@ -2608,16 +2608,28 @@ export default function DeliveriesPage() {
       // Wait a moment for database propagation
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      // Fetch fresh data with force refresh
-      const freshDeliveries = await getData('Delivery', '-delivery_date', null, true);
-      console.log(`✅ [Drag] Fetched ${freshDeliveries.length} fresh deliveries with updated stop orders`);
+      // CRITICAL: Only fetch deliveries for selected date/driver - not all 5000
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      const freshDeliveries = await getData('Delivery', '-stop_order', { 
+        delivery_date: dateStr,
+        driver_id: activeDriver.id 
+      }, true);
+      console.log(`✅ [Drag] Fetched ${freshDeliveries.length} fresh deliveries for ${dateStr}`);
       
-      setAllDeliveries(freshDeliveries || []);
+      // Update only the deliveries for this date/driver in local state
+      setAllDeliveries(prev => {
+        const others = prev.filter(d => d.delivery_date !== dateStr || d.driver_id !== activeDriver.id);
+        return [...others, ...freshDeliveries];
+      });
       
-      // CRITICAL: Update context to sync with Layout and prevent revert
+      // CRITICAL: Update context with merged data
       if (updateDeliveriesLocally) {
-        updateDeliveriesLocally(freshDeliveries);
-        console.log('✅ [Drag] Updated context with fresh deliveries');
+        const contextOthers = (contextDeliveries || []).filter(d => 
+          d.delivery_date !== dateStr || d.driver_id !== activeDriver.id
+        );
+        const mergedForContext = [...contextOthers, ...freshDeliveries];
+        updateDeliveriesLocally(mergedForContext);
+        console.log('✅ [Drag] Updated context with merged deliveries');
       }
 
     } catch (error) {
