@@ -2484,7 +2484,14 @@ export default function DeliveryForm({
   }, [formData, stores, patients, allDrivers, currentUser]);
 
   const sortedStagedDeliveries = useMemo(() => {
-    return [...stagedDeliveries].sort((a, b) => {
+    let filtered = [...stagedDeliveries];
+    
+    // Filter by driver if a specific driver is selected
+    if (formData.driver_id && formData.driver_id !== '') {
+      filtered = filtered.filter(d => d.driver_id === formData.driver_id);
+    }
+    
+    return filtered.sort((a, b) => {
       // First: Sort new staged (no id) to top, pending (with id) below
       const aIsPending = !!a.id;
       const bIsPending = !!b.id;
@@ -2518,7 +2525,7 @@ export default function DeliveryForm({
 
       return 0;
     });
-  }, [stagedDeliveries, stores]);
+  }, [stagedDeliveries, stores, formData.driver_id]);
 
 
   return (
@@ -3675,7 +3682,13 @@ export default function DeliveryForm({
 
                     })}
 
-                      {projectedDeliveries.map((projected) => {
+                      {projectedDeliveries.filter(proj => {
+                        // Filter by driver if a specific driver is selected
+                        if (formData.driver_id && formData.driver_id !== '') {
+                          return proj.driver_id === formData.driver_id;
+                        }
+                        return true;
+                      }).map((projected) => {
                       const projectedStore = stores?.find((s) => s && s.id === projected.store_id);
                       const storeColor = projectedStore ? getStoreColor(projectedStore) : '#64748b';
 
