@@ -1279,6 +1279,11 @@ export default function DeliveryMap({
   const driverHomeMarkers = useMemo(() => {
     if (!showRoutes || !currentUser || !isViewingCurrentDate) return [];
 
+    // CRITICAL: Dispatchers should not see home locations
+    if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
+      return [];
+    }
+
     // Check if current user is app owner (Base44 platform admin)
     const isCurrentUserDriver = userHasRole(currentUser, 'driver');
     const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
@@ -1334,6 +1339,7 @@ export default function DeliveryMap({
     
     // For live route polylines (origin lines, pre-routes), only show on current date
     const showLivePolylines = isViewingCurrentDate;
+    const isDispatcherNonAdmin = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
 
     console.log('🗺️ Building driver routes...');
     console.log('📍 Pickup markers:', pickupMarkers.length);
@@ -1473,10 +1479,10 @@ export default function DeliveryMap({
         if (allStops.length > 0) {
           const lastStop = allStops[allStops.length - 1];
           lastStopCoordinates = [lastStop.latitude, lastStop.longitude];
-          // NEW: Only show home route if route is NOT completed
-          shouldShowHomeRoute = !isRouteCompleted;
+          // NEW: Only show home route if route is NOT completed AND user is not a dispatcher
+          shouldShowHomeRoute = !isRouteCompleted && !isDispatcherNonAdmin;
           console.log(`  📍 Last stop: ${lastStop.type === 'pickup' ? lastStop.store : lastStop.patient} at [${lastStop.latitude?.toFixed(4)}, ${lastStop.longitude?.toFixed(4)}]`);
-          console.log(`  🏠 Show home route: ${shouldShowHomeRoute}`);
+          console.log(`  🏠 Show home route: ${shouldShowHomeRoute} (dispatcher blocked: ${isDispatcherNonAdmin})`);
         }
 
         // NEW: Determine starting point for visualization (routeHasActuallyStarted defined above)
@@ -1519,8 +1525,8 @@ export default function DeliveryMap({
             startToFirstStopCoordinates = [startPoint, firstStopCoordinates];
             console.log(`  ✅ Will draw BLUE DASHED origin line from start to first incomplete stop`);
           }
-        } else if (!isRouteStarted && firstStopCoordinates && route.driver) {
-          // Route hasn't started - use home or current location
+        } else if (!isRouteStarted && firstStopCoordinates && route.driver && !isDispatcherNonAdmin) {
+          // Route hasn't started - use home or current location (NOT for dispatchers)
           let startPoint = null;
 
           // Priority 1: Use current driver location if this is the current user and available
