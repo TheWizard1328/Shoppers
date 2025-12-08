@@ -1,3 +1,4 @@
+
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, Circle } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -340,8 +341,8 @@ const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, nu
   // Keep size consistent - no enlargement on highlight
   const size = isActive ? baseSize * 1.15 : baseSize;
   
-  // SWAPPED: Border is now status color, inner is driver color, text is always white
-  const numberColor = '#FFFFFF';
+  const finishedStatuses = ['completed', 'delivered', 'failed', 'cancelled', 'returned'];
+  const numberColor = isNextInLine ? '#FFFFFF' : (finishedStatuses.includes(status) ? 'black' : getContrastColor(statusColor));
 
   return L.divIcon({
     html: `
@@ -352,9 +353,9 @@ const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, nu
         cursor: pointer;
       ">
         <svg width="${size}" height="${size * 1.4}" viewBox="0 0 24 34" xmlns="http://www.w3.org/2000/svg">
-          <!-- Pin shape with STATUS COLOR (swapped) - rounder, more compact -->
+          <!-- Pin shape with STORE COLOR - rounder, more compact -->
           <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 22 12 22s12-13 12-22C24 5.373 18.627 0 12 0z" 
-                fill="${statusColor}" 
+                fill="${storeColor}" 
                 stroke="#FFFFFF" 
                 stroke-width="1.2"
                 style="filter: drop-shadow(0 2px 3px rgba(0,0,0,0.3));" />
@@ -368,14 +369,14 @@ const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, nu
                     opacity="1" />
           ` : ''}
           
-          <!-- Inner DRIVER COLOR circle (swapped) - larger -->
+          <!-- Inner STATUS circle - larger -->
           <circle cx="12" cy="12" r="8" 
-                  fill="${storeColor}" 
-                  stroke="${statusColor}" 
+                  fill="${statusColor}" 
+                  stroke="${storeColor}" 
                   stroke-width="1.2" />
           
           ${showNumber ? `
-            <!-- Stop number with white text -->
+            <!-- Stop number with contrasting color -->
             <text x="12" y="15.5" 
                   font-family="Arial, sans-serif" 
                   font-size="9.5" 
