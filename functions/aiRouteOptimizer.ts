@@ -424,14 +424,15 @@ Provide:
       const nextPickup = pickups[pickupIdx + 1];
       
       // CRITICAL FIX: Only do deliveries from ALREADY COMPLETED pickups (not the current one we're about to do)
-      // Get deliveries that are already picked up (from previous pickups)
+      // Get deliveries that are already picked up (from previous pickups IN THE optimizedRoute)
       const availableDeliveries = [];
       
-      // Add deliveries from completed pickups ONLY
+      // Add deliveries from completed pickups ONLY (must be in optimizedRoute already)
       for (const [pickupId, linkedDeliveries] of deliveriesByPickup.entries()) {
         const pickup = pickups.find(p => p.id === pickupId);
-        // CRITICAL: Only include deliveries from pickups that are ALREADY in completedPickupStopIds
-        if (pickup && completedPickupStopIds.has(pickup.stop_id)) {
+        // CRITICAL: Pickup must be ALREADY in the optimizedRoute (we've already processed it)
+        const pickupAlreadyInRoute = optimizedRoute.some(r => r.id === pickupId);
+        if (pickup && pickupAlreadyInRoute) {
           availableDeliveries.push(...linkedDeliveries.filter(d => 
             !optimizedRoute.some(o => o.id === d.id)
           ));
@@ -442,7 +443,7 @@ Provide:
       const flexibleDeliveries = unlinkedDeliveries.filter(d => {
         if (optimizedRoute.some(o => o.id === d.id)) return false;
         
-        // Must have NO PUID (truly unlinked)
+        // CRITICAL: Must have NO PUID (truly unlinked)
         if (d.puid) return false;
         
         // Check if delivery has a flexible window (no window or 4+ hours)
