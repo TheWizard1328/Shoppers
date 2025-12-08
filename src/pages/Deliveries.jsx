@@ -2613,6 +2613,13 @@ export default function DeliveriesPage() {
       // Fetch fresh data to get updated ETAs
       const freshDeliveries = await Delivery.list('-created_date');
       setAllDeliveries(freshDeliveries || []);
+      
+      // CRITICAL: Update context to sync with Layout and prevent revert
+      if (updateDeliveriesLocally) {
+        updateDeliveriesLocally(freshDeliveries);
+        console.log('✅ [Drag] Updated context with fresh deliveries');
+      }
+      
       console.log('✅ [Drag] Fetched fresh deliveries with updated ETAs');
 
     } catch (error) {
@@ -2621,12 +2628,12 @@ export default function DeliveriesPage() {
       // Revert optimistic update on error
       await loadData(true);
     } finally {
-      // Resume smart refresh
+      // Resume smart refresh after a longer delay to ensure data settles
       if (setIsEntityUpdating) {
         setTimeout(() => {
           setIsEntityUpdating(false);
           console.log('▶️ [Drag] Resumed smart refresh');
-        }, 1000);
+        }, 3000);
       }
     }
   }, [filteredAndSortedDeliveries, allDeliveries, activeDriver, selectedDate, setIsEntityUpdating, loadData]);
