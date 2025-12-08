@@ -2622,14 +2622,10 @@ export default function DeliveriesPage() {
         return [...others, ...freshDeliveries];
       });
       
-      // CRITICAL: Update context with merged data
+      // CRITICAL: Pass ONLY the 7 fresh deliveries to context - it will handle the merge
       if (updateDeliveriesLocally) {
-        const contextOthers = (contextDeliveries || []).filter(d => 
-          d.delivery_date !== dateStr || d.driver_id !== activeDriver.id
-        );
-        const mergedForContext = [...contextOthers, ...freshDeliveries];
-        updateDeliveriesLocally(mergedForContext);
-        console.log('✅ [Drag] Updated context with merged deliveries');
+        updateDeliveriesLocally(freshDeliveries);
+        console.log(`✅ [Drag] Sent ${freshDeliveries.length} updated deliveries to context`);
       }
 
     } catch (error) {
