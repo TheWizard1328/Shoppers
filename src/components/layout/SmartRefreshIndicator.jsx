@@ -56,8 +56,8 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     return unsubscribe;
   }, []);
 
-  // Only show for app owners
-  if (!currentUser || !isAppOwner(currentUser)) {
+  // Show for all users (removed app owner restriction)
+  if (!currentUser) {
     return null;
   }
 
