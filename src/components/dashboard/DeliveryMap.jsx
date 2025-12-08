@@ -1,4 +1,3 @@
-
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, Circle } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -66,8 +65,8 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
     'returned': '#F97316' // Orange
   };
 
-  const color = statusColors[status] || '#94A3B8';
-  const textColor = getContrastColor(color);
+  const statusColor = statusColors[status] || '#94A3B8';
+  const driverColor = borderColor; // This is the driver/pin color passed in
 
   // CRITICAL: Match exact sizing from regular markers
   let baseSize = 24 * 0.75;
@@ -94,7 +93,7 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
       <div class="simple-circle-marker" style="
         width: ${baseSize}px;
         height: ${baseSize}px;
-        background-color: ${color};
+        background-color: ${driverColor};
         border-radius: 50%;
         display: flex;
         align-items: center;
@@ -102,9 +101,9 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
         padding-top: 1px;
         font-size: ${fontSize}px;
         font-weight: bold;
-        color: ${textColor};
+        color: white;
         box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-        border: 2px solid ${borderColor};
+        border: 2px solid ${statusColor};
       ">
         ${number || ''}
       </div>
@@ -850,10 +849,8 @@ export default function DeliveryMap({
       // FIXED: Find driver by ID only, don't require user_name in find condition
       const driver = safeUsers.find((u) => u && typeof u === 'object' && u.id === pickup.driver_id);
 
-      // CRITICAL: For dispatchers, show simple circles for pickups from other stores
-      const isCurrentUserDispatcher = userHasRole(currentUser, 'dispatcher');
-      const isPickupInDispatcherStore = isCurrentUserDispatcher && currentUser?.store_ids && store && currentUser.store_ids.includes(store.id);
-      const useSimpleCircle = isCurrentUserDispatcher && !isPickupInDispatcherStore;
+      // CRITICAL: Pickups should NEVER use simple circles - they always show full store pickup markers
+      const useSimpleCircle = false;
 
       // Store pickups ALWAYS use store colors (both modes)
       const pinColor = getStoreColor(store);
