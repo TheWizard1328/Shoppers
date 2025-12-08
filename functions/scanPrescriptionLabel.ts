@@ -11,19 +11,25 @@ Deno.serve(async (req) => {
 
     const formData = await req.formData();
     const imageFile = formData.get('image');
+    const selectedCityId = formData.get('selectedCityId');
 
     if (!imageFile) {
       return Response.json({ error: 'No image provided' }, { status: 400 });
     }
 
+    console.log('📸 [scanPrescriptionLabel] Image received, size:', imageFile.size, 'type:', imageFile.type);
+
     // Upload the image first
+    console.log('📤 [scanPrescriptionLabel] Uploading image...');
     const uploadResult = await base44.integrations.Core.UploadFile({
       file: imageFile
     });
+    console.log('✅ [scanPrescriptionLabel] Image uploaded:', uploadResult.file_url);
 
     const fileUrl = uploadResult.file_url;
 
     // Extract data using OCR
+    console.log('🔍 [scanPrescriptionLabel] Extracting data from image...');
     const extractionResult = await base44.integrations.Core.ExtractDataFromUploadedFile({
       file_url: fileUrl,
       json_schema: {
@@ -38,7 +44,10 @@ Deno.serve(async (req) => {
       }
     });
 
+    console.log('📊 [scanPrescriptionLabel] Extraction result:', extractionResult);
+
     if (extractionResult.status !== 'success' || !extractionResult.output) {
+      console.error('❌ [scanPrescriptionLabel] Extraction failed:', extractionResult);
       return Response.json({ 
         error: 'Failed to extract data from image',
         details: extractionResult.details 
@@ -46,29 +55,34 @@ Deno.serve(async (req) => {
     }
 
     const extractedData = extractionResult.output;
+    console.log('✅ [scanPrescriptionLabel] Extracted data:', extractedData);
 
     // Now search for matching patients
     // Get user's role and store access
+    console.log('👤 [scanPrescriptionLabel] Fetching user roles...');
     const appUsers = await base44.entities.AppUser.filter({ user_id: user.id });
     const appUser = appUsers[0];
 
     if (!appUser) {
+      console.error('❌ [scanPrescriptionLabel] AppUser not found for user:', user.id);
       return Response.json({ error: 'User not found' }, { status: 404 });
     }
 
     const isAdmin = appUser.app_roles?.includes('admin');
     const isDispatcher = appUser.app_roles?.includes('dispatcher');
     const isDriver = appUser.app_roles?.includes('driver');
+    console.log('✅ [scanPrescriptionLabel] User roles:', { isAdmin, isDispatcher, isDriver });
 
     // Build patient filter based on role
     let patientFilter = {};
 
     if (isAdmin) {
       // Get all stores in the selected city (from request)
-      const selectedCityId = formData.get('selectedCityId');
       if (selectedCityId) {
+        console.log('🏙️ [scanPrescriptionLabel] Admin mode - filtering by city:', selectedCityId);
         const stores = await base44.asServiceRole.entities.Store.filter({ city_id: selectedCityId });
         const storeIds = stores.map(s => s.id);
+        console.log('🏪 [scanPrescriptionLabel] Found stores in city:', storeIds.length);
         if (storeIds.length > 0) {
           patientFilter.store_id = { $in: storeIds };
         }
@@ -76,13 +90,16 @@ Deno.serve(async (req) => {
     } else if (isDispatcher || isDriver) {
       // Filter to user's assigned stores
       const storeIds = appUser.store_ids || [];
+      console.log('🏪 [scanPrescriptionLabel] Dispatcher/Driver mode - filtering by stores:', storeIds);
       if (storeIds.length > 0) {
         patientFilter.store_id = { $in: storeIds };
       }
     }
 
     // Get all patients matching the filter
+    console.log('🔍 [scanPrescriptionLabel] Fetching patients with filter:', patientFilter);
     const allPatients = await base44.entities.Patient.filter(patientFilter);
+    console.log('✅ [scanPrescriptionLabel] Found', allPatients.length, 'patients to search');
 
     // Fuzzy matching function
     const calculateMatch = (patient, extracted) => {
@@ -145,11 +162,20 @@ Deno.serve(async (req) => {
     };
 
     // Calculate match scores for all patients
+    console.log('🧮 [scanPrescriptionLabel] Calculating match scores...');
     const patientsWithScores = allPatients.map(patient => ({
       patient,
       score: calculateMatch(patient, extractedData)
     })).filter(item => item.score >= 60) // Only keep matches above 60%
       .sort((a, b) => b.score - a.score);
+
+    console.log('✅ [scanPrescriptionLabel] Found', patientsWithScores.length, 'matches above 60%');
+    if (patientsWithScores.length > 0) {
+      console.log('   Top matches:', patientsWithScores.slice(0, 3).map(m => ({
+        name: m.patient.full_name,
+        score: Math.round(m.score)
+      })));
+    }
 
     return Response.json({
       extractedData,
