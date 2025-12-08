@@ -220,6 +220,19 @@ export async function loadUserSettings(userId) {
     });
 
     if (settings && settings.length > 0) {
+      // CRITICAL: If multiple records exist, delete duplicates and keep the first one
+      if (settings.length > 1) {
+        console.warn(`⚠️ [UserSettings] Found ${settings.length} duplicate records, cleaning up...`);
+        for (let i = 1; i < settings.length; i++) {
+          try {
+            await UserSettings.delete(settings[i].id);
+            console.log(`   Deleted duplicate record: ${settings[i].id}`);
+          } catch (deleteError) {
+            console.warn('   Failed to delete duplicate:', deleteError.message);
+          }
+        }
+      }
+      
       // Merge with defaults to ensure all fields exist
       cachedSettings = { ...DEFAULT_SETTINGS, ...settings[0] };
       currentUserId = userId;
@@ -227,7 +240,7 @@ export async function loadUserSettings(userId) {
       // Cache for offline use
       saveToLocalCache(userId, cachedSettings);
       
-      console.log('✅ [UserSettings] Loaded existing settings:', cachedSettings);
+      console.log('✅ [UserSettings] Loaded existing settings');
       return cachedSettings;
     }
 
@@ -329,6 +342,18 @@ export async function saveSetting(userId, key, value) {
     let updatedSettings;
 
     if (existingSettings && existingSettings.length > 0) {
+      // CRITICAL: If multiple records exist, delete duplicates and keep the first one
+      if (existingSettings.length > 1) {
+        console.warn(`⚠️ [UserSettings] Found ${existingSettings.length} duplicate records during save, cleaning up...`);
+        for (let i = 1; i < existingSettings.length; i++) {
+          try {
+            await UserSettings.delete(existingSettings[i].id);
+          } catch (deleteError) {
+            console.warn('   Failed to delete duplicate:', deleteError.message);
+          }
+        }
+      }
+      
       // Update existing record with updated timestamp
       updatedSettings = await UserSettings.update(existingSettings[0].id, {
         [key]: value,
@@ -429,6 +454,18 @@ export async function saveSettings(userId, settings) {
     let updatedSettings;
 
     if (existingSettings && existingSettings.length > 0) {
+      // CRITICAL: If multiple records exist, delete duplicates and keep the first one
+      if (existingSettings.length > 1) {
+        console.warn(`⚠️ [UserSettings] Found ${existingSettings.length} duplicate records during bulk save, cleaning up...`);
+        for (let i = 1; i < existingSettings.length; i++) {
+          try {
+            await UserSettings.delete(existingSettings[i].id);
+          } catch (deleteError) {
+            console.warn('   Failed to delete duplicate:', deleteError.message);
+          }
+        }
+      }
+      
       // Update existing record with updated timestamp
       updatedSettings = await UserSettings.update(existingSettings[0].id, {
         ...settings,

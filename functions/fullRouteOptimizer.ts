@@ -120,18 +120,39 @@ Deno.serve(async (req) => {
       });
     }
     
-    // Fetch stores for pickup time windows
+    // Fetch stores and patients for coordinates
     const storeIds = [...new Set(allDeliveries.map(d => d.store_id).filter(Boolean))];
-    const stores = await base44.asServiceRole.entities.Store.filter({
-      id: { $in: storeIds }
-    });
-    const storeMap = new Map(stores.map(s => [s.id, s]));
+    const patientIds = [...new Set(allDeliveries.filter(d => d.patient_id).map(d => d.patient_id))];
     
-    console.log(`🏪 Fetched ${stores.length} stores`);
+    const [stores, patients] = await Promise.all([
+      base44.asServiceRole.entities.Store.filter({ id: { $in: storeIds } }),
+      patientIds.length > 0 ? base44.asServiceRole.entities.Patient.filter({ id: { $in: patientIds } }) : Promise.resolve([])
+    ]);
+    
+    const storeMap = new Map(stores.map(s => [s.id, s]));
+    const patientMap = new Map(patients.map(p => [p.id, p]));
+    
+    console.log(`🏪 Fetched ${stores.length} stores, ${patients.length} patients`);
+    
+    // Enrich deliveries with coordinates from patients/stores
+    const enrichedDeliveries = allDeliveries.map(d => {
+      if (d.patient_id) {
+        const patient = patientMap.get(d.patient_id);
+        if (patient?.latitude && patient?.longitude) {
+          return { ...d, latitude: patient.latitude, longitude: patient.longitude };
+        }
+      } else {
+        const store = storeMap.get(d.store_id);
+        if (store?.latitude && store?.longitude) {
+          return { ...d, latitude: store.latitude, longitude: store.longitude };
+        }
+      }
+      return d;
+    });
     
     // Separate pickups from deliveries
-    const pickups = allDeliveries.filter(d => !d.patient_id);
-    const deliveries = allDeliveries.filter(d => d.patient_id);
+    const pickups = enrichedDeliveries.filter(d => !d.patient_id);
+    const deliveries = enrichedDeliveries.filter(d => d.patient_id);
     
     console.log(`   Pickups: ${pickups.length}`);
     console.log(`   Deliveries: ${deliveries.length}`);
