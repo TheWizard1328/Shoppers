@@ -387,23 +387,19 @@ export async function notifyDriverFailed({
   const reasonText = failureReason ? `\nReason: ${failureReason}` : '';
   const trackingNum = delivery?.tracking_number ? ` [TR#${delivery.tracking_number}]` : '';
   
-  const messageData = { 
-    driverName, 
-    patientName,
-    customMessage: `🚨 FAILED: ${driverName} marked ${patientName} as failed${
-      store ? ` (${store.name})` : ''
-    }${trackingNum}${reasonText}`
-  };
+  // Build custom message with reason
+  const customContent = `🚨 FAILED: ${driverName} marked ${patientName} as failed${
+    store ? ` (${store.name})` : ''
+  }${trackingNum}${reasonText}`;
 
-  // Send to each dispatcher
+  // Send to each dispatcher - directly as message content
   for (const dispatcher of dispatchers) {
-    await sendNotification({
-      event: NOTIFICATION_EVENTS.DRIVER_FAILED,
-      messageData,
+    await sendDeliveryMessage({
       senderId: driver?.id,
       senderName: driverName,
       receiverId: dispatcher.user_id,
-      receiverName: dispatcher.user_name
+      receiverName: dispatcher.user_name,
+      content: customContent
     });
   }
 }
