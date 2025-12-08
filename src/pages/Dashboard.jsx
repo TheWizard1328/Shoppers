@@ -5427,7 +5427,7 @@ function Dashboard() {
             <div className="flex items-center justify-between mb-2">
               <div className="pr-1 flex items-center gap-2">
                 <h2 className="text-slate-900 pl-2 text-lg font-bold">Dashboard</h2>
-                {currentUser && isAppOwner(currentUser) &&
+                {currentUser &&
                 <SmartRefreshIndicator
                   inline={true}
                   onManualRefresh={async () => {
