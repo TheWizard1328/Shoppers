@@ -139,7 +139,8 @@ export default function DeliveriesPage() {
     users: contextUsers = [],
     cities: contextCities = [],
     isDataLoaded: contextDataLoaded,
-    updateDeliveriesLocally
+    updateDeliveriesLocally,
+    setIsEntityUpdating
   } = useAppData();
 
   // Replaced monolithic 'data' state with individual states
@@ -2561,33 +2562,74 @@ export default function DeliveriesPage() {
   const handleDragEnd = useCallback(async (result) => {
     if (!result.destination) return;
 
+    console.log('🎯 [Drag] Starting reorder...', { from: result.source.index, to: result.destination.index });
+
+    // Pause smart refresh to prevent race conditions
+    if (setIsEntityUpdating) {
+      setIsEntityUpdating(true);
+      console.log('⏸️ [Drag] Paused smart refresh');
+    }
+
     // Use a copy of the already filtered and sorted deliveries
     const reorderedDeliveries = Array.from(filteredAndSortedDeliveries);
     const [reorderedItem] = reorderedDeliveries.splice(result.source.index, 1);
     reorderedDeliveries.splice(result.destination.index, 0, reorderedItem);
 
+    // IMMEDIATE: Apply optimistic update to local state
+    const updatedAllDeliveries = allDeliveries.map(d => {
+      const foundIndex = reorderedDeliveries.findIndex(rd => rd.id === d.id);
+      if (foundIndex !== -1) {
+        return { ...d, stop_order: foundIndex + 1 };
+      }
+      return d;
+    });
+    setAllDeliveries(updatedAllDeliveries);
+    console.log('✅ [Drag] Applied optimistic update to local state');
+
     try {
+      // Update database with new stop orders
       const updatePromises = reorderedDeliveries.map((delivery, index) => {
         const newStopOrder = index + 1;
-        // Only update if the stop order has actually changed or if it was null/undefined
-        if (delivery.stopOrder !== newStopOrder) {
-          // Note: using delivery.id here, not delivery.stopOrder (which is a transient UI prop)
-          return Delivery.update(delivery.id, { stop_order: newStopOrder });
-        }
-        return null;
-      }).filter(Boolean); // Filter out nulls
+        return Delivery.update(delivery.id, { stop_order: newStopOrder });
+      });
 
-      if (updatePromises.length > 0) {
-        await Promise.all(updatePromises);
-        await invalidate('Delivery');
-        // Force a full reload to reflect the updated stop_orders and potentially re-sort
-        await loadData(true);
+      await Promise.all(updatePromises);
+      console.log('✅ [Drag] Database updated with new stop orders');
+
+      // Invalidate cache
+      await invalidate('Delivery');
+
+      // Call optimize route to recalculate ETAs
+      if (activeDriver && selectedDate) {
+        console.log('🔄 [Drag] Triggering route optimization for ETA updates...');
+        await base44.functions.invoke('optimizeDriverRoute', {
+          driverId: activeDriver.id,
+          deliveryDate: format(selectedDate, 'yyyy-MM-dd'),
+          skipReordering: true // Just recalculate ETAs, don't change order
+        });
+        console.log('✅ [Drag] Route optimization complete');
       }
+
+      // Fetch fresh data to get updated ETAs
+      const freshDeliveries = await Delivery.list('-created_date');
+      setAllDeliveries(freshDeliveries || []);
+      console.log('✅ [Drag] Fetched fresh deliveries with updated ETAs');
+
     } catch (error) {
-      console.error("Error reordering deliveries:", error);
+      console.error("❌ [Drag] Error reordering deliveries:", error);
       alert("Failed to reorder deliveries. Please try again.");
+      // Revert optimistic update on error
+      await loadData(true);
+    } finally {
+      // Resume smart refresh
+      if (setIsEntityUpdating) {
+        setTimeout(() => {
+          setIsEntityUpdating(false);
+          console.log('▶️ [Drag] Resumed smart refresh');
+        }, 1000);
+      }
     }
-  }, [filteredAndSortedDeliveries, loadData]); // Depend on loadData to ensure full refresh
+  }, [filteredAndSortedDeliveries, allDeliveries, activeDriver, selectedDate, setIsEntityUpdating, loadData]);
 
   const driverCards = useMemo(() => {
     if (!isDriverOverviewMode) {
