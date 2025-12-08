@@ -631,7 +631,9 @@ export default function StopCard({
       exit={{ opacity: 0, y: -20 }}
       className={`w-full cursor-pointer transition-all ${isSelected && !isStrippedDelivery ? 'ring-2 ring-blue-500' : ''}`}
       style={{ scrollSnapAlign: 'center' }}>
-      <Card className="rounded-xl border bg-card text-card-foreground border-blue-500 shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 min-w-[340px] max-w-[340px]"
+      <Card className={`rounded-xl border bg-card text-card-foreground shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 min-w-[340px] max-w-[340px] ${
+        isNextDelivery ? 'border-emerald-500 border-2' : 'border-blue-500'
+      }`}
       onClick={() => {
         // Don't trigger click/expand for stripped deliveries
         if (!isStrippedDelivery) {
