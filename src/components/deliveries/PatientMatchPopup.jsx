@@ -3,10 +3,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Phone, MapPin, Percent } from 'lucide-react';
+import { Phone, MapPin, Percent, Building2 } from 'lucide-react';
 import { formatPhoneNumber } from '../utils/phoneFormatter';
 
-export default function PatientMatchPopup({ isOpen, onClose, matches, onSelectPatient, extractedData }) {
+export default function PatientMatchPopup({ isOpen, onClose, matches, onSelectPatient, extractedData, stores }) {
   if (!matches || matches.length === 0) return null;
 
   return (
@@ -49,17 +49,29 @@ export default function PatientMatchPopup({ isOpen, onClose, matches, onSelectPa
                     <p className="text-sm text-slate-500">ID: {match.patient.patient_id}</p>
                   )}
                 </div>
-                <Badge 
-                  variant="secondary" 
-                  className={`flex items-center gap-1 ${
-                    match.matchScore >= 90 ? 'bg-green-100 text-green-800' :
-                    match.matchScore >= 75 ? 'bg-blue-100 text-blue-800' :
-                    'bg-yellow-100 text-yellow-800'
-                  }`}
-                >
-                  <Percent className="w-3 h-3" />
-                  {match.matchScore}% Match
-                </Badge>
+                <div className="flex flex-col gap-1.5 items-end">
+                  <Badge 
+                    variant="secondary" 
+                    className={`flex items-center gap-1 ${
+                      match.matchScore >= 90 ? 'bg-green-100 text-green-800' :
+                      match.matchScore >= 75 ? 'bg-blue-100 text-blue-800' :
+                      'bg-yellow-100 text-yellow-800'
+                    }`}
+                  >
+                    <Percent className="w-3 h-3" />
+                    {match.matchScore}% Match
+                  </Badge>
+                  {stores && match.patient.store_id && (() => {
+                    const patientStore = stores.find(s => s && s.id === match.patient.store_id);
+                    if (!patientStore) return null;
+                    return (
+                      <Badge variant="outline" className="flex items-center gap-1 text-xs">
+                        <Building2 className="w-3 h-3" />
+                        {patientStore.name}
+                      </Badge>
+                    );
+                  })()}
+                </div>
               </div>
 
               <div className="space-y-2 text-sm">

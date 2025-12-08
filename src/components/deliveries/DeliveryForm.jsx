@@ -3831,6 +3831,7 @@ export default function DeliveryForm({
           matches={scanMatches}
           onSelectPatient={handleSelectMatchedPatient}
           extractedData={extractedData}
+          stores={stores}
         />
       )}
       
