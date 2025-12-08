@@ -5157,10 +5157,10 @@ function Dashboard() {
       });
       console.log(`✅ [START STEP 2] Database update successful`);
 
-      // STEP 3: Call backend optimizer
+      // STEP 3: Call NEW fullRouteOptimizer backend function
       console.log('');
-      console.log('📍 [START STEP 3] Calling backend optimizer function...');
-      console.log(`   - Function: optimizeDriverRoute`);
+      console.log('📍 [START STEP 3] Calling NEW fullRouteOptimizer function...');
+      console.log(`   - Function: fullRouteOptimizer`);
       console.log(`   - Driver ID: ${driverId}`);
       console.log(`   - Delivery Date: ${deliveryDate}`);
       console.log(`   - Started Delivery ID: ${deliveryId}`);
@@ -5170,48 +5170,42 @@ function Dashboard() {
       // CRITICAL: Only use device GPS for own route
       const shouldUseDeviceGPS = driverId === currentUser?.id && !currentUser?._isImpersonating;
       
-      const optimizationResult = await optimizeDriverRoute({
+      const optimizationResult = await base44.functions.invoke('fullRouteOptimizer', {
         driverId: driverId,
         deliveryDate: deliveryDate,
         currentLocation: shouldUseDeviceGPS && driverLocation ? {
-          lat: driverLocation.latitude,
-          lon: driverLocation.longitude
-        } : null,
-        startedDeliveryId: deliveryId,
-        clientCurrentTime: currentTime,
-        generatePolyline: false,
-        forceReoptimization: true
+          latitude: driverLocation.latitude,
+          longitude: driverLocation.longitude
+        } : null
       });
 
       console.log('✅ [START STEP 3] Backend optimizer call complete');
-      console.log(`   - Response status: ${optimizationResult.status}`);
-      console.log(`   - Response data keys: ${Object.keys(optimizationResult.data || {}).join(', ')}`);
-      console.log(`   - allDeliveries count: ${optimizationResult.data?.allDeliveries?.length || 'N/A'}`);
-      console.log(`   - nextDelivery ID: ${optimizationResult.data?.nextDelivery?.id || 'N/A'}`);
+      console.log(`   - Response:`, optimizationResult);
 
-      // STEP 4: Apply backend updates to UI
+      // STEP 4: Fetch fresh deliveries after optimization
       console.log('');
-      console.log('📍 [START STEP 4] Applying backend updates to UI...');
+      console.log('📍 [START STEP 4] Fetching fresh deliveries from database...');
 
-      if (optimizationResult.data?.allDeliveries && Array.isArray(optimizationResult.data.allDeliveries)) {
-        console.log(`   - Received ${optimizationResult.data.allDeliveries.length} deliveries from backend`);
-        console.log(`   - Clearing pending updates for driver ${driverId} on ${deliveryDate}`);
-        smartRefreshManager.clearPendingUpdatesForDriver(driverId, deliveryDate);
+      const freshDeliveries = await base44.entities.Delivery.filter({
+        driver_id: driverId,
+        delivery_date: deliveryDate
+      });
+      
+      console.log(`   - Fetched ${freshDeliveries.length} fresh deliveries from database`);
+      console.log(`   - Clearing pending updates for driver ${driverId} on ${deliveryDate}`);
+      smartRefreshManager.clearPendingUpdatesForDriver(driverId, deliveryDate);
 
-        const otherDriverDeliveries = (deliveries || []).filter((d) =>
+      const otherDriverDeliveries = (deliveries || []).filter((d) =>
         d && (d.driver_id !== driverId || d.delivery_date !== deliveryDate)
-        );
-        console.log(`   - Keeping ${otherDriverDeliveries.length} deliveries from other drivers/dates`);
+      );
+      console.log(`   - Keeping ${otherDriverDeliveries.length} deliveries from other drivers/dates`);
 
-        const mergedDeliveries = [...otherDriverDeliveries, ...optimizationResult.data.allDeliveries];
-        console.log(`   - Merged total: ${mergedDeliveries.length} deliveries`);
-        console.log(`   - Calling updateDeliveriesLocally...`);
+      const mergedDeliveries = [...otherDriverDeliveries, ...freshDeliveries];
+      console.log(`   - Merged total: ${mergedDeliveries.length} deliveries`);
+      console.log(`   - Calling updateDeliveriesLocally...`);
 
-        updateDeliveriesLocally(mergedDeliveries);
-        console.log('✅ [START STEP 4] Immediate UI update applied');
-      } else {
-        console.warn('⚠️ [START STEP 4] No allDeliveries in backend response');
-      }
+      updateDeliveriesLocally(mergedDeliveries);
+      console.log('✅ [START STEP 4] Immediate UI update applied');
 
       // STEP 5: Full data refresh
       console.log('');
@@ -5230,8 +5224,8 @@ function Dashboard() {
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
 
       setTimeout(() => {
-        const nextCard = optimizationResult.data?.allDeliveries?.find((d) =>
-        d && d.isNextDelivery && !finishedStatuses.includes(d.status)
+        const nextCard = freshDeliveries?.find((d) =>
+          d && d.isNextDelivery && !finishedStatuses.includes(d.status)
         );
 
         if (nextCard) {
@@ -5266,9 +5260,13 @@ function Dashboard() {
       // STEP 8: Check if route is complete
       console.log('');
       console.log('📍 [START STEP 8] Checking if route is complete...');
-      console.log(`   - routeComplete flag: ${optimizationResult.data?.routeComplete}`);
+      
+      const routeComplete = freshDeliveries.every(d => 
+        finishedStatuses.includes(d.status)
+      );
+      console.log(`   - routeComplete: ${routeComplete}`);
 
-      if (optimizationResult.data?.routeComplete) {
+      if (routeComplete) {
         if (!hasShownSummaryRef.current) {
           console.log('   - Route complete! Showing summary modal');
           setShowRouteSummary(true);
