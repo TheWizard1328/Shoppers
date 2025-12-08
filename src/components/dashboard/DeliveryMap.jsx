@@ -1,3 +1,4 @@
+
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, Circle } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -44,9 +45,9 @@ const DRIVER_COLORS = [
 // CRITICAL: Memoized icon cache to prevent re-creation on every render
 const simpleCircleIconCache = new Map();
 
-const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false) => {
+const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, borderColor = 'white') => {
   // Create cache key based on all parameters that affect the icon
-  const cacheKey = `${status}_${number}_${zoomLevel}_${isMobile}`;
+  const cacheKey = `${status}_${number}_${zoomLevel}_${isMobile}_${borderColor}`;
   
   // Return cached icon if it exists
   if (simpleCircleIconCache.has(cacheKey)) {
@@ -98,11 +99,12 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false) => 
         display: flex;
         align-items: center;
         justify-content: center;
+        padding-top: 1px;
         font-size: ${fontSize}px;
         font-weight: bold;
         color: ${textColor};
         box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-        border: 2px solid white;
+        border: 2px solid ${borderColor};
       ">
         ${number || ''}
       </div>
@@ -848,8 +850,10 @@ export default function DeliveryMap({
       // FIXED: Find driver by ID only, don't require user_name in find condition
       const driver = safeUsers.find((u) => u && typeof u === 'object' && u.id === pickup.driver_id);
 
-      // CRITICAL: Pickups should NEVER use simple circles - they always show full store pickup markers
-      const useSimpleCircle = false;
+      // CRITICAL: For dispatchers, show simple circles for pickups from other stores
+      const isCurrentUserDispatcher = userHasRole(currentUser, 'dispatcher');
+      const isPickupInDispatcherStore = isCurrentUserDispatcher && currentUser?.store_ids && store && currentUser.store_ids.includes(store.id);
+      const useSimpleCircle = isCurrentUserDispatcher && !isPickupInDispatcherStore;
 
       // Store pickups ALWAYS use store colors (both modes)
       const pinColor = getStoreColor(store);
@@ -2208,7 +2212,7 @@ export default function DeliveryMap({
             <Marker
               key={`pickup-${pickup.id}`}
               position={markerPosition}
-              icon={pickup.useSimpleCircle ? createSimpleCircleIcon(pickup.status, pickup.status === 'pending' ? null : pickup.number, currentZoom, isMobile) : createStoreIcon(
+              icon={pickup.useSimpleCircle ? createSimpleCircleIcon(pickup.status, pickup.status === 'pending' ? null : pickup.number, currentZoom, isMobile, pickup.pinColor) : createStoreIcon(
                 pickup.status, 
                 pickup.pinColor, 
                 isFanned, 
@@ -2281,10 +2285,8 @@ export default function DeliveryMap({
           const isNext = delivery.isNextInLine;
 
           if (isFinished) {
-            // Rule 2: Finished markers are at the bottom.
             dynamicZIndex = 100 + (500 - (delivery.number || 500));
           } else {
-            // Rule 1: Reverse stop order for active markers.
             dynamicZIndex = 1000 + (500 - (delivery.number || 500));
           }
           
@@ -2364,7 +2366,7 @@ export default function DeliveryMap({
             <Marker
               key={`delivery-${delivery.id}`}
               position={markerPosition}
-              icon={delivery.useSimpleCircle ? createSimpleCircleIcon(delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, isMobile) : createDeliveryIcon(
+              icon={delivery.useSimpleCircle ? createSimpleCircleIcon(delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, isMobile, delivery.pinColor) : createDeliveryIcon(
                 delivery.status,
                 delivery.pinColor,
                 isFanned,
