@@ -66,33 +66,24 @@ export const triggerRouteOptimization = async ({
   try {
     lastOptimizationTime = now;
     
-    const response = await base44.functions.invoke('aiRouteOptimizer', {
+    const response = await base44.functions.invoke('fullRouteOptimizer', {
       driverId,
       deliveryDate: deliveryDate || format(new Date(), 'yyyy-MM-dd'),
-      currentLocation,
-      trigger,
-      completedDeliveryId,
-      enableAIAnalysis: true
+      currentLocation
     });
     
-    if (response?.success) {
+    if (response?.success || response?.data?.success) {
+      const data = response?.data || response;
       console.log('✅ [RouteOptimizer] Optimization complete:', {
-        stops: response.updates?.length || 0,
-        traffic: response.trafficConditions,
-        polyline: response.polylineGenerated
+        stops: data.optimizedRoute?.length || 0
       });
-      
-      // Show notification if callback provided
-      if (onNotification && response.notification) {
-        onNotification(response.notification);
-      }
       
       // Call success callback
       if (onSuccess) {
-        onSuccess(response);
+        onSuccess(data);
       }
       
-      return response;
+      return data;
     } else {
       console.warn('⚠️ [RouteOptimizer] Optimization returned no success:', response);
       return null;
