@@ -964,32 +964,26 @@ export default function DeliveryForm({
     setError(null);
 
     try {
+      console.log('📸 [DeliveryForm] Starting camera scan...', { fileName: file.name, fileSize: file.size, fileType: file.type });
+      
       // Get current selected city for admin filtering
       const { globalFilters } = await import('../utils/globalFilters');
       const selectedCityId = globalFilters.getSelectedCityId();
+      console.log('🏙️ [DeliveryForm] Selected city:', selectedCityId);
       
-      // Create FormData for the function call
+      // Create FormData with the image and city ID
       const formData = new FormData();
       formData.append('image', file);
       if (selectedCityId) {
         formData.append('selectedCityId', selectedCityId);
       }
 
-      // Call the backend function with FormData
-      const response = await fetch(`/api/functions/scanPrescriptionLabel`, {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'Authorization': `Bearer ${await base44.auth.getAccessToken()}`
-        }
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || `HTTP ${response.status}`);
-      }
-
-      const result = await response.json();
+      console.log('📤 [DeliveryForm] Calling scanPrescriptionLabel function...');
+      // Use the SDK's function invoke method with FormData
+      const response = await base44.functions.invoke('scanPrescriptionLabel', formData);
+      console.log('✅ [DeliveryForm] Response received:', response);
+      
+      const result = response?.data || response;
 
       if (result.error) {
         throw new Error(result.error);
