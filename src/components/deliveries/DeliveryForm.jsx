@@ -956,6 +956,46 @@ export default function DeliveryForm({
     setSelectedPatientIds(new Set());
   }, [selectedPatientIds, filteredPatients, handlePatientSelect]);
 
+  const compressImage = useCallback((file, maxWidth = 1200, quality = 0.7) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob((blob) => {
+            if (blob) {
+              const compressedFile = new File([blob], file.name, {
+                type: 'image/jpeg',
+                lastModified: Date.now()
+              });
+              resolve(compressedFile);
+            } else {
+              reject(new Error('Failed to compress image'));
+            }
+          }, 'image/jpeg', quality);
+        };
+        img.onerror = () => reject(new Error('Failed to load image'));
+        img.src = e.target.result;
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsDataURL(file);
+    });
+  }, []);
+
   const handleCameraScan = useCallback(async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -966,14 +1006,23 @@ export default function DeliveryForm({
     try {
       console.log('📸 [DeliveryForm] Starting camera scan...', { fileName: file.name, fileSize: file.size, fileType: file.type });
       
+      // Compress image first
+      console.log('🗜️ [DeliveryForm] Compressing image...');
+      const compressedFile = await compressImage(file);
+      console.log('✅ [DeliveryForm] Image compressed:', { 
+        originalSize: file.size, 
+        compressedSize: compressedFile.size,
+        reduction: `${((1 - compressedFile.size / file.size) * 100).toFixed(1)}%`
+      });
+      
       // Get current selected city for admin filtering
       const { globalFilters } = await import('../utils/globalFilters');
       const selectedCityId = globalFilters.getSelectedCityId();
       console.log('🏙️ [DeliveryForm] Selected city:', selectedCityId);
       
-      // First, upload the image
-      console.log('📤 [DeliveryForm] Uploading image...');
-      const uploadResult = await base44.integrations.Core.UploadFile({ file });
+      // Upload the compressed image
+      console.log('📤 [DeliveryForm] Uploading compressed image...');
+      const uploadResult = await base44.integrations.Core.UploadFile({ file: compressedFile });
       console.log('✅ [DeliveryForm] Image uploaded:', uploadResult.file_url);
 
       // Now call the backend function with the file URL
