@@ -91,8 +91,43 @@ Deno.serve(async (req) => {
     const allPatients = await base44.entities.Patient.filter(patientFilter);
     console.log('✅ [scanPrescriptionLabel] Found', allPatients.length, 'patients to search');
 
+    // Normalize address for exact matching (ignore street type variations)
+    const normalizeAddress = (address) => {
+      return address
+        .toLowerCase()
+        .trim()
+        .replace(/\b(avenue|ave|street|st|road|rd|drive|dr|boulevard|blvd|lane|ln)\b/gi, '')
+        .replace(/\b(nw|ne|sw|se|north|south|east|west)\b/gi, '')
+        .replace(/[,\-\.]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    };
+
+    // Check for exact match
+    const isExactMatch = (patient, extracted) => {
+      const patientName = (patient.full_name || '').toLowerCase().trim();
+      const extractedName = (extracted.patient_name || '').toLowerCase().trim();
+      const nameMatch = patientName === extractedName;
+
+      const patientPhone = (patient.phone || '').replace(/\D/g, '');
+      const extractedPhone = (extracted.phone_number || '').replace(/\D/g, '');
+      const phoneMatch = patientPhone && extractedPhone && patientPhone === extractedPhone;
+
+      const patientAddressNorm = normalizeAddress(patient.address || '');
+      const extractedAddressNorm = normalizeAddress(extracted.street_address || '');
+      const addressMatch = patientAddressNorm && extractedAddressNorm && patientAddressNorm === extractedAddressNorm;
+
+      // Exact match requires name + (address OR phone)
+      return nameMatch && (addressMatch || phoneMatch);
+    };
+
     // Fuzzy matching function
     const calculateMatch = (patient, extracted) => {
+      // Check for exact match first
+      if (isExactMatch(patient, extracted)) {
+        return 100;
+      }
+
       let score = 0;
       let maxScore = 0;
 
@@ -113,15 +148,18 @@ Deno.serve(async (req) => {
         score += (matchedWords.length / nameWords.length) * 40;
       }
 
-      // Address matching (weight: 35%)
+      // Address matching (weight: 35%) - use normalized addresses
       maxScore += 35;
-      const patientAddress = (patient.address || '').toLowerCase().trim();
-      const extractedAddress = (extracted.street_address || '').toLowerCase().trim();
-      if (patientAddress.includes(extractedAddress) || extractedAddress.includes(patientAddress)) {
+      const patientAddressNorm = normalizeAddress(patient.address || '');
+      const extractedAddressNorm = normalizeAddress(extracted.street_address || '');
+      
+      if (patientAddressNorm === extractedAddressNorm) {
         score += 35;
+      } else if (patientAddressNorm.includes(extractedAddressNorm) || extractedAddressNorm.includes(patientAddressNorm)) {
+        score += 28;
       } else {
-        const addressWords = extractedAddress.split(/\s+/).filter(w => w.length > 2);
-        const patientAddressWords = patientAddress.split(/\s+/);
+        const addressWords = extractedAddressNorm.split(/\s+/).filter(w => w.length > 2);
+        const patientAddressWords = patientAddressNorm.split(/\s+/);
         const matchedWords = addressWords.filter(word => 
           patientAddressWords.some(pw => pw.includes(word) || word.includes(pw))
         );
@@ -138,14 +176,6 @@ Deno.serve(async (req) => {
         score += 25;
       } else if (patientPhone.includes(extractedPhone) || extractedPhone.includes(patientPhone)) {
         score += 15;
-      }
-
-      // City/State/Zip bonus (weight: +10% if matches)
-      if (extracted.city_state_zip) {
-        const cityStateZip = extracted.city_state_zip.toLowerCase();
-        if (patientAddress.includes(cityStateZip) || cityStateZip.includes(patientAddress)) {
-          score += 10;
-        }
       }
 
       return (score / maxScore) * 100;
@@ -167,9 +197,19 @@ Deno.serve(async (req) => {
       })));
     }
 
+    // Separate exact matches (100%) from partial matches
+    const exactMatches = patientsWithScores.filter(item => item.score === 100);
+    const partialMatches = patientsWithScores.filter(item => item.score < 100);
+
+    console.log(`📊 [scanPrescriptionLabel] Exact matches: ${exactMatches.length}, Partial matches: ${partialMatches.length}`);
+
     return Response.json({
       extractedData,
-      matches: patientsWithScores.map(item => ({
+      exactMatches: exactMatches.map(item => ({
+        patient: item.patient,
+        matchScore: 100
+      })),
+      matches: partialMatches.map(item => ({
         patient: item.patient,
         matchScore: Math.round(item.score)
       }))

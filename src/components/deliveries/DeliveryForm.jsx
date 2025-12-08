@@ -992,12 +992,24 @@ export default function DeliveryForm({
 
       setExtractedData(result.extractedData);
 
-      if (result.matches && result.matches.length > 0) {
-        // Multiple or single matches found - show popup
+      // Check for exact matches first
+      if (result.exactMatches && result.exactMatches.length === 1) {
+        // Single exact match - auto-select it
+        console.log('✅ [DeliveryForm] Single exact match found - auto-selecting patient');
+        await handlePatientSelect(result.exactMatches[0].patient);
+      } else if (result.exactMatches && result.exactMatches.length > 1) {
+        // Multiple exact matches - show popup with exact matches only
+        console.log('⚠️ [DeliveryForm] Multiple exact matches found - showing selection popup');
+        setScanMatches(result.exactMatches);
+        setShowMatchPopup(true);
+      } else if (result.matches && result.matches.length > 0) {
+        // No exact matches, but partial matches found - show popup
+        console.log('📋 [DeliveryForm] Partial matches found - showing selection popup');
         setScanMatches(result.matches);
         setShowMatchPopup(true);
       } else {
-        // No matches - open new patient form with pre-filled data
+        // No matches at all - open new patient form with pre-filled data
+        console.log('➕ [DeliveryForm] No matches found - opening new patient form');
         if (onCreatePatient) {
           const newPatientData = {
             full_name: result.extractedData.patient_name,
