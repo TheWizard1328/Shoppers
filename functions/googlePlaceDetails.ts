@@ -21,31 +21,36 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'API key not configured' }, { status: 500 });
     }
 
-    // Call Google Places Details API to get full address components
-    const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(place_id)}&fields=address_components,formatted_address,geometry&key=${apiKey}`;
+    // Call Google Places API (New) v1 to get full address details
+    const url = `https://places.googleapis.com/v1/places/${place_id}?fields=addressComponents,formattedAddress,location&key=${apiKey}`;
     
-    const response = await fetch(url);
-    const data = await response.json();
-
-    if (data.status !== 'OK') {
-      return Response.json({ error: data.error_message || 'Places Details API error' }, { status: 500 });
+    const response = await fetch(url, {
+      headers: {
+        'X-Goog-FieldMask': 'addressComponents,formattedAddress,location'
+      }
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Google Places API error:', errorText);
+      return Response.json({ error: 'Places API error: ' + errorText }, { status: 500 });
     }
+    
+    const result = await response.json();
+    const addressComponents = result.addressComponents || [];
 
-    const result = data.result;
-    const addressComponents = result.address_components || [];
-
-    // Extract relevant components
+    // Extract relevant components (New API uses longText instead of long_name)
     let streetNumber = '';
     let route = '';
     let subpremise = '';
 
     addressComponents.forEach(component => {
-      if (component.types.includes('street_number')) {
-        streetNumber = component.long_name;
-      } else if (component.types.includes('route')) {
-        route = component.long_name;
-      } else if (component.types.includes('subpremise')) {
-        subpremise = component.long_name;
+      if (component.types?.includes('street_number')) {
+        streetNumber = component.longText || component.shortText || '';
+      } else if (component.types?.includes('route')) {
+        route = component.longText || component.shortText || '';
+      } else if (component.types?.includes('subpremise')) {
+        subpremise = component.longText || component.shortText || '';
       }
     });
 
@@ -55,9 +60,9 @@ Deno.serve(async (req) => {
     return Response.json({
       address,
       unit,
-      formatted_address: result.formatted_address,
-      latitude: result.geometry?.location?.lat,
-      longitude: result.geometry?.location?.lng
+      formatted_address: result.formattedAddress,
+      latitude: result.location?.latitude,
+      longitude: result.location?.longitude
     });
 
   } catch (error) {

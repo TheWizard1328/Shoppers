@@ -1481,16 +1481,7 @@ export default function Layout({ children, currentPageName }) {
       console.log('💾 [Layout] Updating Layout state (users, drivers, stores, appUsers)...');
       setUsers(mergedUsers);
       setDrivers(activeDrivers);
-
-      // CRITICAL: Filter stores for dispatchers to only their assigned stores
-      let filteredStores = allStores;
-      if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
-        const dispatcherStoreIds = currentUser.store_ids || [];
-        filteredStores = allStores.filter(store => dispatcherStoreIds.includes(store.id));
-        console.log(`📊 [Layout] Filtered stores for dispatcher: ${filteredStores.length} of ${allStores.length} stores`);
-      }
-
-      setStores(filteredStores);
+      setStores(allStores);
       setAppUsers(allAppUsers);
 
       console.log("✅ [Layout] === PHASE 3: ALL DATA LOAD COMPLETE ===")
