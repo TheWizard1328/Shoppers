@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
-import { X, Save, Package, Search, Clock, Plus, Trash2, CheckCircle, Edit2 } from "lucide-react";
+import { X, Save, Package, Search, Clock, Plus, Trash2, CheckCircle, Edit2, Camera } from "lucide-react";
+import PatientMatchPopup from './PatientMatchPopup';
 import { sortUsers } from "../utils/sorting";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -191,6 +192,11 @@ export default function DeliveryForm({
   const { deviceType } = getUserAgentInfo();
   const isMobileDevice = deviceType === 'Mobile';
   const hasLoadedPending = useRef(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanMatches, setScanMatches] = useState([]);
+  const [showMatchPopup, setShowMatchPopup] = useState(false);
+  const [extractedData, setExtractedData] = useState(null);
+  const cameraInputRef = useRef(null);
 
   // Responsive layout state
   const [screenWidth, setScreenWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
@@ -949,6 +955,76 @@ export default function DeliveryForm({
 
     setSelectedPatientIds(new Set());
   }, [selectedPatientIds, filteredPatients, handlePatientSelect]);
+
+  const handleCameraScan = useCallback(async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsScanning(true);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      
+      // Get current selected city for admin filtering
+      const { globalFilters } = await import('../utils/globalFilters');
+      const selectedCityId = globalFilters.getSelectedCityId();
+      if (selectedCityId) {
+        formData.append('selectedCityId', selectedCityId);
+      }
+
+      const response = await base44.functions.invoke('scanPrescriptionLabel', formData);
+      const result = response?.data || response;
+
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      setExtractedData(result.extractedData);
+
+      if (result.matches && result.matches.length > 0) {
+        // Multiple or single matches found - show popup
+        setScanMatches(result.matches);
+        setShowMatchPopup(true);
+      } else {
+        // No matches - open new patient form with pre-filled data
+        if (onCreatePatient) {
+          const newPatientData = {
+            full_name: result.extractedData.patient_name,
+            address: result.extractedData.street_address,
+            phone: result.extractedData.phone_number,
+            _isNew: true
+          };
+          
+          setIsPatientFormOpen(true);
+          onCreatePatient((createdPatient) => {
+            setIsPatientFormOpen(false);
+            handlePatientSelect({
+              ...createdPatient,
+              ...newPatientData
+            });
+          }, newPatientData);
+        }
+      }
+    } catch (error) {
+      console.error('Error scanning prescription:', error);
+      setError(`Scan failed: ${error.message}`);
+    } finally {
+      setIsScanning(false);
+      // Reset file input
+      if (cameraInputRef.current) {
+        cameraInputRef.current.value = '';
+      }
+    }
+  }, [onCreatePatient, handlePatientSelect]);
+
+  const handleSelectMatchedPatient = useCallback(async (patient) => {
+    setShowMatchPopup(false);
+    setScanMatches([]);
+    setExtractedData(null);
+    await handlePatientSelect(patient);
+  }, [handlePatientSelect]);
 
   const handleStagedDeliveryClick = useCallback((staged) => {
     console.log('📦 [DeliveryForm] Clicking staged item:', staged);
@@ -2480,32 +2556,58 @@ export default function DeliveryForm({
                         </div>
                     }
                     </div>
-                    <div className="relative">
-                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 z-10" />
-                      <Input
-                      ref={patientSearchInputRef}
-                      type="text"
-                      placeholder="Search by name, address, phone..."
-                      value={patientSearch}
-                      onChange={(e) => {
-                        setPatientSearch(e.target.value);
-                        setHighlightedPatientIndex(-1);
-                      }}
-                      onKeyDown={handleSearchKeyDown}
-                      className="pl-10 h-9"
-                      disabled={isSaving} />
+                    <div className="relative flex gap-2">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 z-10" />
+                        <Input
+                        ref={patientSearchInputRef}
+                        type="text"
+                        placeholder="Search by name, address, phone..."
+                        value={patientSearch}
+                        onChange={(e) => {
+                          setPatientSearch(e.target.value);
+                          setHighlightedPatientIndex(-1);
+                        }}
+                        onKeyDown={handleSearchKeyDown}
+                        className="pl-10 h-9"
+                        disabled={isSaving} />
 
-                      {patientSearch &&
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPatientSearch('');
-                        setHighlightedPatientIndex(-1);
-                      }}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 z-10">
-                          <X className="w-4 h-4" />
-                        </button>
-                    }
+                        {patientSearch &&
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPatientSearch('');
+                          setHighlightedPatientIndex(-1);
+                        }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 z-10">
+                            <X className="w-4 h-4" />
+                          </button>
+                      }
+                      </div>
+                      
+                      <input
+                        ref={cameraInputRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={handleCameraScan}
+                        className="hidden"
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-9 w-9 p-0 flex-shrink-0"
+                        onClick={() => cameraInputRef.current?.click()}
+                        disabled={isSaving || isScanning}
+                        title="Scan prescription label"
+                      >
+                        {isScanning ? (
+                          <div className="animate-spin w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full" />
+                        ) : (
+                          <Camera className="w-4 h-4" />
+                        )}
+                      </Button>
                     </div>
 
                     {patientSearch && !formData.patient_id &&
@@ -3646,6 +3748,20 @@ export default function DeliveryForm({
           </CardFooter>
         </Card>
       </motion.div>
+      
+      {/* Patient Match Popup */}
+      <PatientMatchPopup
+        isOpen={showMatchPopup}
+        onClose={() => {
+          setShowMatchPopup(false);
+          setScanMatches([]);
+          setExtractedData(null);
+        }}
+        matches={scanMatches}
+        onSelectPatient={handleSelectMatchedPatient}
+        extractedData={extractedData}
+      />
+      
       {/* Delete Pending Confirmation Dialog */}
       {deleteConfirmation.show && deleteConfirmation.staged &&
       <div className="fixed inset-0 z-[10020] bg-black/60 flex items-center justify-center p-4">
