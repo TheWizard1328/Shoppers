@@ -136,15 +136,30 @@ const optimizeStoreRoute = (stops, startLocation, startTime, driverHome, patient
   let currentTime = startTime !== null ? startTime : 600; // Default 10:00
   
   // =============================================
-  // PHASE 1: Process in_transit deliveries FIRST
-  // These are already started - complete before optimization
+  // PHASE 1: Process in_transit AND pending deliveries for accurate ETA calculation
+  // Including pending deliveries ensures time windows are factored into the route
   // =============================================
-  const inTransitDeliveries = remaining.filter(s => s && s.status === 'in_transit' && s.patient_id);
+  const activeDeliveries = remaining.filter(s => s && (s.status === 'in_transit' || s.status === 'pending') && s.patient_id);
   
-  if (inTransitDeliveries.length > 0) {
-    console.log(`  🚀 PHASE 1: Processing ${inTransitDeliveries.length} in_transit deliveries FIRST`);
+  if (activeDeliveries.length > 0) {
+    console.log(`  🚀 PHASE 1: Processing ${activeDeliveries.length} active deliveries (in_transit + pending)`);
     
-    for (const delivery of inTransitDeliveries) {
+    // Sort active deliveries by stop_order or time window to maintain proper sequence
+    activeDeliveries.sort((a, b) => {
+      // Prioritize in_transit over pending
+      if (a.status === 'in_transit' && b.status !== 'in_transit') return -1;
+      if (a.status !== 'in_transit' && b.status === 'in_transit') return 1;
+      
+      // Then by stop_order or time window
+      if ((a.stop_order || 0) !== (b.stop_order || 0)) {
+        return (a.stop_order || 0) - (b.stop_order || 0);
+      }
+      const aTime = timeToMinutes(a.time_window_start || a.delivery_time_start || '23:59');
+      const bTime = timeToMinutes(b.time_window_start || b.delivery_time_start || '23:59');
+      return aTime - bTime;
+    });
+    
+    for (const delivery of activeDeliveries) {
       const idx = remaining.findIndex(s => s && s.id === delivery.id);
       if (idx !== -1) remaining.splice(idx, 1);
       
@@ -160,7 +175,8 @@ const optimizeStoreRoute = (stops, startLocation, startTime, driverHome, patient
       optimized.push(delivery);
       
       const patientName = patients?.find(p => p?.id === delivery.patient_id)?.full_name || 'Unknown';
-      console.log(`    ✅ In-transit: ${patientName} - ETA: ${delivery.estimated_arrival}`);
+      const statusLabel = delivery.status === 'in_transit' ? 'in-transit' : 'pending';
+      console.log(`    ✅ ${statusLabel}: ${patientName} - ETA: ${delivery.estimated_arrival}`);
     }
   }
   
@@ -245,22 +261,15 @@ const optimizeStoreRoute = (stops, startLocation, startTime, driverHome, patient
       const isInterStore = deliveryNotes.toLowerCase().includes('interstore') || 
                           patientName.toLowerCase().includes('interstore');
       
-      // RULE 1 & 3: Check pickup-before-delivery constraint (with smart interleaving)
+      // RULE 1 & 3: STRICT pickup-before-delivery constraint
+      // Pickups MUST ALWAYS come before their associated deliveries - NO EXCEPTIONS
       if (!isPickup && !isInterStore && stop.puid) {
-        // Only enforce pickup-before-delivery if pickup is from the SAME store group
         const pickupInRemaining = remaining.find(s => s && !s.patient_id && s.stop_id === stop.puid);
         
         if (pickupInRemaining && !completedPickupStopIds.has(stop.puid)) {
-          // Check if this delivery's time window FORCES it before the pickup
-          const deliveryTW = timeToMinutes(stop.time_window_start || stop.delivery_time_start || '23:59');
-          const pickupTW = timeToMinutes(pickupInRemaining.delivery_time_start || pickupInRemaining.time_window_start || '00:00');
-          
-          if (deliveryTW < pickupTW) {
-            console.log(`    ⚠️ ${patientName} TW (${minutesToTime(deliveryTW)}) before pickup TW (${minutesToTime(pickupTW)}) - allowing delivery first`);
-          } else {
-            // Normal case - skip delivery, pickup must be done first
-            continue;
-          }
+          // Pickup must be completed first - skip this delivery
+          console.log(`    ⏭️ Skipping ${patientName} - waiting for pickup ${stop.puid} to be completed first`);
+          continue;
         }
       }
       
