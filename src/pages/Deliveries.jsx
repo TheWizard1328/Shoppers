@@ -2959,7 +2959,7 @@ export default function DeliveriesPage() {
               key={delivery.id}
               draggableId={delivery.id}
               index={index}
-              isDragDisabled={!canCreateDeliveries}>
+              isDragDisabled={false}>
 
                   {(provided, snapshot) =>
               <div
@@ -3022,8 +3022,8 @@ export default function DeliveriesPage() {
                   drivers={effectiveDrivers || []}
                   stores={stores || []}
                   appUsers={contextUsers || []}
-                  dragHandleProps={canCreateDeliveries ? provided.dragHandleProps : null}
-                  showDragHandle={false} />
+                  dragHandleProps={provided.dragHandleProps}
+                  showDragHandle={true} />
 
                     </div>
               }
