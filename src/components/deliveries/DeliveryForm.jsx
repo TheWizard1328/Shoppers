@@ -964,18 +964,32 @@ export default function DeliveryForm({
     setError(null);
 
     try {
-      const formData = new FormData();
-      formData.append('image', file);
-      
       // Get current selected city for admin filtering
       const { globalFilters } = await import('../utils/globalFilters');
       const selectedCityId = globalFilters.getSelectedCityId();
+      
+      // Create FormData for the function call
+      const formData = new FormData();
+      formData.append('image', file);
       if (selectedCityId) {
         formData.append('selectedCityId', selectedCityId);
       }
 
-      const response = await base44.functions.invoke('scanPrescriptionLabel', formData);
-      const result = response?.data || response;
+      // Call the backend function with FormData
+      const response = await fetch(`/api/functions/scanPrescriptionLabel`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Authorization': `Bearer ${await base44.auth.getAccessToken()}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
 
       if (result.error) {
         throw new Error(result.error);
