@@ -9,24 +9,14 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const formData = await req.formData();
-    const imageFile = formData.get('image');
-    const selectedCityId = formData.get('selectedCityId');
+    const body = await req.json();
+    const { fileUrl, selectedCityId } = body;
 
-    if (!imageFile) {
-      return Response.json({ error: 'No image provided' }, { status: 400 });
+    if (!fileUrl) {
+      return Response.json({ error: 'No image URL provided' }, { status: 400 });
     }
 
-    console.log('📸 [scanPrescriptionLabel] Image received, size:', imageFile.size, 'type:', imageFile.type);
-
-    // Upload the image first
-    console.log('📤 [scanPrescriptionLabel] Uploading image...');
-    const uploadResult = await base44.integrations.Core.UploadFile({
-      file: imageFile
-    });
-    console.log('✅ [scanPrescriptionLabel] Image uploaded:', uploadResult.file_url);
-
-    const fileUrl = uploadResult.file_url;
+    console.log('📸 [scanPrescriptionLabel] Processing image:', fileUrl);
 
     // Extract data using OCR
     console.log('🔍 [scanPrescriptionLabel] Extracting data from image...');

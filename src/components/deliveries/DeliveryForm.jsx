@@ -971,16 +971,17 @@ export default function DeliveryForm({
       const selectedCityId = globalFilters.getSelectedCityId();
       console.log('🏙️ [DeliveryForm] Selected city:', selectedCityId);
       
-      // Create FormData with the image and city ID
-      const formData = new FormData();
-      formData.append('image', file);
-      if (selectedCityId) {
-        formData.append('selectedCityId', selectedCityId);
-      }
+      // First, upload the image
+      console.log('📤 [DeliveryForm] Uploading image...');
+      const uploadResult = await base44.integrations.Core.UploadFile({ file });
+      console.log('✅ [DeliveryForm] Image uploaded:', uploadResult.file_url);
 
+      // Now call the backend function with the file URL
       console.log('📤 [DeliveryForm] Calling scanPrescriptionLabel function...');
-      // Use the SDK's function invoke method with FormData
-      const response = await base44.functions.invoke('scanPrescriptionLabel', formData);
+      const response = await base44.functions.invoke('scanPrescriptionLabel', {
+        fileUrl: uploadResult.file_url,
+        selectedCityId: selectedCityId
+      });
       console.log('✅ [DeliveryForm] Response received:', response);
       
       const result = response?.data || response;
