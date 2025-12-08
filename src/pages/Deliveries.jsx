@@ -2952,7 +2952,8 @@ export default function DeliveriesPage() {
           <div
             {...provided.droppableProps}
             ref={provided.innerRef}
-            className="contents">
+            className="pyoverflow-y-auto py-2 gap-x-6 gap-y-2 grid overflow-y-auto auto-rows-max"
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(325px, 325px))', maxHeight: 'calc(100vh - 280px)' }}>
 
               {deliveriesToRender.map((delivery, index) =>
             <Draggable
