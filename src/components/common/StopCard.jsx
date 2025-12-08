@@ -1285,7 +1285,7 @@ export default function StopCard({
 
                   {/* Show pending pickup list for pickups that are en_route (equivalent to in_transit for deliveries) */}
                   {isPickup && delivery.status === 'en_route' && pendingPickups && pendingPickups.length > 0 &&
-                <div className="pt-2 border-t border-slate-200 max-h-[190px]">
+                <div className="pt-2 border-t border-slate-200">
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="text-xs font-bold text-slate-700 flex items-center gap-2">
                           <Package className="w-3.5 h-3.5" />
@@ -1393,7 +1393,7 @@ export default function StopCard({
                           </Button>
                     }
                       </div>
-                      <div className="space-y-1.5 max-h-64 overflow-y-auto custom-scrollbar max-h-[150px]"
+                      <div className="space-y-1.5 max-h-64 overflow-y-auto custom-scrollbar max-h-[155px]"
 
                   onWheel={(e) => {
                     const el = e.currentTarget;
