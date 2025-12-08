@@ -11,7 +11,7 @@ export default function PatientMatchPopup({ isOpen, onClose, matches, onSelectPa
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto z-[10020]">
         <DialogHeader>
           <DialogTitle>Select Patient</DialogTitle>
           <DialogDescription>
