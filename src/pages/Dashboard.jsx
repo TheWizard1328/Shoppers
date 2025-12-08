@@ -5427,6 +5427,27 @@ function Dashboard() {
             <div className="flex items-center justify-between mb-2">
               <div className="pr-1 flex items-center gap-2">
                 <h2 className="text-slate-900 pl-2 text-lg font-bold">Dashboard</h2>
+                {currentUser &&
+                <SmartRefreshIndicator
+                  inline={true}
+                  onManualRefresh={async () => {
+                    console.log('🔄 [Dashboard] Manual historical refresh triggered from stats card');
+
+                    // CRITICAL: Invalidate ALL caches to force fresh data fetch
+                    invalidate('Delivery');
+                    invalidate('Patient');
+                    invalidate('AppUser');
+                    invalidate('Store');
+                    invalidate('User');
+                    invalidate('City');
+
+                    // Trigger full data refresh (force=true skips cache)
+                    await refreshData(true);
+
+                    console.log('✅ [Dashboard] Historical data refreshed');
+                  }} />
+
+                }
               </div>
 
               <div className="flex items-center gap-3">
