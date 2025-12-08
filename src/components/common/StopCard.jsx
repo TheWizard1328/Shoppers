@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
@@ -131,6 +132,7 @@ export default function StopCard({
   const [isCompleting, setIsCompleting] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
   const [isPreparingReturn, setIsPreparingReturn] = useState(false);
+  codAmountInputRefs.current = []; // Clear refs on re-render to avoid stale references
   const codAmountInputRefs = useRef([]);
   const { setIsEntityUpdating, forceRefreshDriverDeliveries } = useAppData();
 
@@ -645,6 +647,13 @@ export default function StopCard({
         <CardContent className="mt-1 mb-1 px-3 py-0 flex flex-col">
           {/* HEADER SECTION - Always Visible */}
           <div className="flex items-start gap-1">
+            {/* Drag Handle */}
+            {showDragHandle && dragHandleProps && (
+              <div {...dragHandleProps} className="flex items-center justify-center cursor-grab active:cursor-grabbing pt-1 mr-1">
+                <GripVertical className="w-5 h-5 text-slate-400 hover:text-slate-600" />
+              </div>
+            )}
+            
             <div className="flex flex-col py-0. gap-0.5  items-center">
               <Badge
                 variant="secondary" className="inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary hover:bg-secondary/80 font-bold text-sm px-2 py-0.5 text-white w-[40px] justify-center rounded-full"
@@ -1560,7 +1569,7 @@ export default function StopCard({
                     size="sm" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow rounded-md px-3 text-xs bg-orange-600 hover:bg-orange-700 !text-white h-8"
 
                     disabled={isPreparingReturn || hasFutureReturn}>
-                        {isPreparingReturn ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Undo2 className="w-3 h-3 mr-1" />}
+                        {isPreparingReturn ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Undo2 className="w-3 h-3 mr-1 !text-white" />}
                         Return
                       </Button>
                   }
