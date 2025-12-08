@@ -1298,38 +1298,51 @@ export default function StopCard({
                           return;
                         }
 
-                        // Get pickup's TR# as the base
-                        const pickupTR = parseInt(delivery.tracking_number, 10);
-                        const baseTR = isNaN(pickupTR) ? 0 : pickupTR;
-                        console.log('  Pickup TR#:', delivery.tracking_number, '→ baseTR:', baseTR);
-
-                        // Filter to ALL pending deliveries (including those with TR# already assigned)
+                        // Filter to ALL pending deliveries
                         const allPendingDeliveries = pendingPickups.filter((p) => p.status === 'pending');
                         console.log('  All pending deliveries:', allPendingDeliveries.length);
 
-                        // Sort by existing TR# to maintain order (new stops will be placed after pickup in sequence)
+                        // Sort by existing TR# to maintain order
                         const sortedPending = [...allPendingDeliveries].sort((a, b) => {
                           const trA = parseInt(a.tracking_number, 10) || 999;
                           const trB = parseInt(b.tracking_number, 10) || 999;
                           return trA - trB;
                         });
 
-                        // CRITICAL: Get the pickup's stop_order to determine placement
-                        const pickupStopOrder = delivery.stop_order || 0;
-                        console.log('  Pickup stop_order:', pickupStopOrder);
+                        // CRITICAL: Get the pickup's current ETA as the base time
+                        const pickupETA = delivery.delivery_time_eta || delivery.delivery_time_start || delivery.time_window_start;
+                        console.log('  Pickup ETA:', pickupETA);
 
-                        // Update ALL pending deliveries to 'in_transit' status with sequential stop_order AFTER pickup
+                        // Helper to add minutes to time
+                        const addMinutesToTime = (timeStr, minutes) => {
+                          if (!timeStr) return null;
+                          const [hours, mins] = timeStr.split(':').map(Number);
+                          const totalMinutes = hours * 60 + mins + minutes;
+                          const newHours = Math.floor(totalMinutes / 60) % 24;
+                          const newMins = totalMinutes % 60;
+                          return `${String(newHours).padStart(2, '0')}:${String(newMins).padStart(2, '0')}`;
+                        };
+
+                        // Update ALL pending deliveries to 'in_transit' status with optimized ETAs
+                        let currentETA = pickupETA;
+                        const extraTimeBuffer = 5; // 5 minutes buffer between stops
+
                         for (let i = 0; i < sortedPending.length; i++) {
                           const pendingDelivery = sortedPending[i];
-                          const existingTR = pendingDelivery.tracking_number || '99';
-                          const newStopOrder = pickupStopOrder + i + 1;
-                          console.log(`  Accepting: ${pendingDelivery.patient_name} (TR#${existingTR}) → status: in_transit, stop_order: ${newStopOrder}`);
+                          
+                          // Calculate ETA for this stop (pickup ETA + buffer for each stop)
+                          const minutesFromPickup = (i + 1) * extraTimeBuffer;
+                          const newETA = addMinutesToTime(pickupETA, minutesFromPickup);
+                          
+                          console.log(`  Accepting: ${pendingDelivery.patient_name} → status: in_transit, ETA: ${newETA}`);
 
-                          // Update status AND stop_order to place after pickup, skip auto-center
-                          await onStatusUpdate(pendingDelivery.id, 'in_transit', { stop_order: newStopOrder }, true);
+                          // Update status with optimized ETA, skip auto-center
+                          await onStatusUpdate(pendingDelivery.id, 'in_transit', { 
+                            delivery_time_eta: newETA 
+                          }, true);
                         }
 
-                        console.log('✅ [Assign All Button] All pending deliveries accepted');
+                        console.log('✅ [Assign All Button] All pending deliveries accepted with optimized ETAs');
 
                         // Trigger route optimization after accepting all stops
                         try {
