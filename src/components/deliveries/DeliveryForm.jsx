@@ -3758,18 +3758,20 @@ export default function DeliveryForm({
         </Card>
       </motion.div>
       
-      {/* Patient Match Popup */}
-      <PatientMatchPopup
-        isOpen={showMatchPopup}
-        onClose={() => {
-          setShowMatchPopup(false);
-          setScanMatches([]);
-          setExtractedData(null);
-        }}
-        matches={scanMatches}
-        onSelectPatient={handleSelectMatchedPatient}
-        extractedData={extractedData}
-      />
+      {/* Patient Match Popup - CRITICAL: Must be OUTSIDE the form card and at higher z-index */}
+      {showMatchPopup && (
+        <PatientMatchPopup
+          isOpen={showMatchPopup}
+          onClose={() => {
+            setShowMatchPopup(false);
+            setScanMatches([]);
+            setExtractedData(null);
+          }}
+          matches={scanMatches}
+          onSelectPatient={handleSelectMatchedPatient}
+          extractedData={extractedData}
+        />
+      )}
       
       {/* Delete Pending Confirmation Dialog */}
       {deleteConfirmation.show && deleteConfirmation.staged &&
