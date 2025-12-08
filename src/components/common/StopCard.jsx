@@ -1393,31 +1393,31 @@ export default function StopCard({
                           </Button>
                     }
                       </div>
-                      <div
-                    className="space-y-1.5 max-h-64 overflow-y-auto custom-scrollbar"
-                    onWheel={(e) => {
-                      const el = e.currentTarget;
-                      // If the list isn't scrollable, don't interfere with the event.
-                      if (el.scrollHeight <= el.clientHeight) {
-                        return;
-                      }
+                      <div className="space-y-1.5 max-h-64 overflow-y-auto custom-scrollbar max-h-[150px]"
 
-                      // Scrolling up
-                      if (e.deltaY < 0) {
-                        // If we're not at the very top, stop the event from bubbling up.
-                        if (el.scrollTop > 0) {
-                          e.stopPropagation();
-                        }
+                  onWheel={(e) => {
+                    const el = e.currentTarget;
+                    // If the list isn't scrollable, don't interfere with the event.
+                    if (el.scrollHeight <= el.clientHeight) {
+                      return;
+                    }
+
+                    // Scrolling up
+                    if (e.deltaY < 0) {
+                      // If we're not at the very top, stop the event from bubbling up.
+                      if (el.scrollTop > 0) {
+                        e.stopPropagation();
                       }
-                      // Scrolling down
-                      else if (e.deltaY > 0) {
-                        // If we're not at the very bottom, stop the event from bubbling up.
-                        // A 1px buffer is for potential floating point rounding errors.
-                        if (el.scrollTop < el.scrollHeight - el.clientHeight - 1) {
-                          e.stopPropagation();
-                        }
+                    }
+                    // Scrolling down
+                    else if (e.deltaY > 0) {
+                      // If we're not at the very bottom, stop the event from bubbling up.
+                      // A 1px buffer is for potential floating point rounding errors.
+                      if (el.scrollTop < el.scrollHeight - el.clientHeight - 1) {
+                        e.stopPropagation();
                       }
-                    }}>
+                    }
+                  }}>
 
                         {[...pendingPickups].sort((a, b) => {
                       const trA = parseInt(a.tracking_number || '999', 10);
