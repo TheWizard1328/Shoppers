@@ -15,6 +15,7 @@ import { sortStores } from "@/components/utils/sorting";
 import { userHasRole, isAppOwner } from '@/components/utils/userRoles';
 import { useAppData } from '@/components/utils/AppDataContext';
 import { GoogleAddressAutocomplete } from "@/components/ui/google-address-autocomplete";
+import { createPatientLocal, updatePatientLocal } from '../utils/offlineMutations';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
 <div className="flex items-center space-x-2">
@@ -425,11 +426,21 @@ export default function PatientForm({
     dataToSave.dont_ring_bell = !!dataToSave.dont_ring_bell;
     dataToSave.back_door = !!dataToSave.back_door;
 
-    if (returnPatientOnSave && !patient) {
-      onSave(dataToSave, true);
+    // Use local-first saves
+    if (patient) {
+      await updatePatientLocal(patient.id, dataToSave);
     } else {
-      onSave(dataToSave);
+      const savedPatient = await createPatientLocal(dataToSave);
+      if (returnPatientOnSave) {
+        onSave(savedPatient, true);
+        return;
+      }
     }
+    
+    // Invalidate cache for UI refresh
+    const { invalidate } = await import('../utils/dataManager');
+    invalidate('Patient');
+    onCancel();
   };
 
   const isFormValid = formData.full_name && formData.address && formData.store_id;

@@ -4591,10 +4591,10 @@ function Dashboard() {
           for (let i = 0; i < sortedCompleted.length; i++) {
             const stop = sortedCompleted[i];
             if (!stop) continue; // Defensive check
-            await base44.entities.Delivery.update(stop.id, { stop_order: i + 1 });
+            await updateDeliveryLocal(stop.id, { stop_order: i + 1 });
             const stopName = stop.patient_id ?
             patients.find((p) => p && p.id === stop.patient_id)?.full_name :
-            stores.find((s) => s && s.id === stop.store_id)?.name + ' Pickup';
+            stores.find ((s) => s && s.id === stop.store_id)?.name + ' Pickup';
             console.log(`   ✅ Updated completed stop #${i + 1}: ${stopName}`);
           }
           console.log(`✅ Updated ${sortedCompleted.length} completed stops for ${driver.user_name}`);
@@ -4673,7 +4673,7 @@ function Dashboard() {
           }
         }
 
-        await base44.entities.Delivery.update(stop.id, updatePayload);
+        await updateDeliveryLocal(stop.id, updatePayload);
 
         const stopName = stop.patient_id ?
         patients.find((p) => p.id === stop.patient_id)?.full_name :
@@ -4769,7 +4769,7 @@ function Dashboard() {
 
       // IMPORTANT: Restart sets status to in_transit/en_route (active) on the SAME delivery
       // It does NOT duplicate or change date - that's handled by Retry button for failed deliveries
-      await base44.entities.Delivery.update(deliveryId, {
+      await updateDeliveryLocal(deliveryId, {
         status: newStatus,
         actual_delivery_time: null,
         delivery_notes: ''
@@ -4857,8 +4857,8 @@ function Dashboard() {
         };
 
         // Create the duplicate delivery for today
-        await base44.entities.Delivery.create(retryDeliveryData);
-        console.log('✅ [RETRY DELIVERY] Duplicate delivery created for today');
+        await createDeliveryLocal(retryDeliveryData);
+        console.log('✅ [RETRY DELIVERY] Duplicate delivery created locally for today');
 
         console.log('✅ [RETRY DELIVERY] Duplicate created, skipping route optimization');
 
@@ -4998,7 +4998,7 @@ function Dashboard() {
 
   const handleNotesUpdate = async (deliveryId, notes) => {
     try {
-      await base44.entities.Delivery.update(deliveryId, {
+      await updateDeliveryLocal(deliveryId, {
         delivery_notes: notes
       });
 
@@ -5012,7 +5012,7 @@ function Dashboard() {
 
   const handleCODUpdate = async (deliveryId, codPayments, skipAutoCenter = false) => {
     try {
-      await base44.entities.Delivery.update(deliveryId, {
+      await updateDeliveryLocal(deliveryId, {
         cod_payments: codPayments
       });
 
@@ -5049,8 +5049,8 @@ function Dashboard() {
       };
 
       // Create the return delivery for today
-      await base44.entities.Delivery.create(returnDeliveryData);
-      console.log('✅ [CREATE RETURN] Return delivery created for today');
+      await createDeliveryLocal(returnDeliveryData);
+      console.log('✅ [CREATE RETURN] Return delivery created locally for today');
 
       console.log('✅ [CREATE RETURN] Return created, skipping route optimization');
 
@@ -5107,11 +5107,11 @@ function Dashboard() {
       console.log(`   - Status: ${newStatus}`);
       console.log(`   - ETA: ${currentTime}`);
 
-      await base44.entities.Delivery.update(deliveryId, {
+      await updateDeliveryLocal(deliveryId, {
         status: newStatus,
         delivery_time_eta: currentTime
       });
-      console.log(`✅ [START STEP 2] Database update successful`);
+      console.log(`✅ [START STEP 2] Local update successful`);
 
       console.log('');
       console.log('📍 [START STEP 3] Skipping route optimization (disabled)');
@@ -5248,7 +5248,7 @@ function Dashboard() {
       console.log('🤖 [AI Optimization] Accepting AI route suggestions:', updates);
 
       for (const update of updates) {
-        await base44.entities.Delivery.update(update.id, {
+        await updateDeliveryLocal(update.id, {
           stop_order: update.stop_order
         });
       }
