@@ -67,9 +67,10 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
     try {
       // CRITICAL: Wait for rate limit before making API call
       await waitForRateLimit();
-      
+
       if (attempt > 0) {
-        const delay = Math.min(2000 * Math.pow(2, attempt - 1), 10000);
+        // Exponential backoff: 1s, 2s, 4s
+        const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
         console.log(`⏳ [dataManager] Retry attempt ${attempt + 1}/${retries} for ${entityName} after ${delay}ms delay`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
@@ -142,8 +143,9 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
         }
 
         if (error.response?.status === 429 || error.message?.includes('429')) {
-          const backoffDelay = 5000 * (attempt + 1);
-          console.warn(`⏰ [dataManager] Rate limited, waiting ${backoffDelay}ms`);
+          // Exponential backoff for rate limits: 2s, 4s, 8s
+          const backoffDelay = Math.min(2000 * Math.pow(2, attempt), 10000);
+          console.warn(`⏰ [dataManager] Rate limited (429), waiting ${backoffDelay}ms before retry`);
           await new Promise(resolve => setTimeout(resolve, backoffDelay));
           if (attempt < retries - 1) continue;
         }
