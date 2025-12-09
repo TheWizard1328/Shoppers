@@ -81,6 +81,7 @@ import { useUser } from '../components/utils/UserContext';
 import { isMobileDevice } from "../components/utils/deviceUtils";
 import { useAppData } from '../components/utils/AppDataContext';
 import { smartRefreshManager } from '../components/utils/smartRefreshManager';
+import { updateDeliveryLocal, deleteDeliveryLocal, createDeliveryLocal } from '../components/utils/offlineMutations';
 //import { parseAddress } from '../components/utils/addressParser';
 
 // Utility function to add minutes to a time string
@@ -1964,10 +1965,11 @@ export default function DeliveriesPage() {
         console.log('🗑️ [Deliveries] Cleared timestamp - moving from finished to active');
       }
 
-      await Delivery.update(deliveryId, updateData);
+      await updateDeliveryLocal(deliveryId, updateData);
 
       if (newStatus === 'completed' && delivery.patient_id) {
-        await Patient.update(delivery.patient_id, {
+        const { updatePatientLocal } = await import('../components/utils/offlineMutations');
+        await updatePatientLocal(delivery.patient_id, {
           last_delivery_date: delivery.delivery_date
         });
         await invalidate('Patient');
@@ -1991,7 +1993,7 @@ export default function DeliveriesPage() {
         );
 
         const updatePromises = relatedDeliveries.map((d) =>
-        Delivery.update(d.id, { status: 'in_transit' })
+        updateDeliveryLocal(d.id, { status: 'in_transit' })
         );
         await Promise.all(updatePromises);
         console.log(`✅ [Deliveries] Updated ${relatedDeliveries.length} deliveries to in_transit after pickup`);
@@ -2007,7 +2009,7 @@ export default function DeliveriesPage() {
 
   const handleNotesUpdate = useCallback(async (deliveryId, newNotes) => {
     try {
-      await Delivery.update(deliveryId, { delivery_notes: newNotes });
+      await updateDeliveryLocal(deliveryId, { delivery_notes: newNotes });
       await invalidate('Delivery');
       // Directly update the state after invalidation
       const freshDeliveries = await Delivery.list('-created_date');
@@ -2020,7 +2022,7 @@ export default function DeliveriesPage() {
 
   const handleCODUpdate = useCallback(async (deliveryId, requiresCod) => {
     try {
-      await Delivery.update(deliveryId, { requires_cod: requiresCod });
+      await updateDeliveryLocal(deliveryId, { requires_cod: requiresCod });
       await invalidate('Delivery');
       // Directly update the state after invalidation
       const freshDeliveries = await Delivery.list('-created_date');
@@ -2034,7 +2036,7 @@ export default function DeliveriesPage() {
   const handleRestartDelivery = useCallback(async (deliveryId) => {
     if (!confirm('Are you sure you want to retry this delivery? It will be marked as pending.')) return;
     try {
-      await Delivery.update(deliveryId, { status: 'pending', actual_delivery_time: null });
+      await updateDeliveryLocal(deliveryId, { status: 'pending', actual_delivery_time: null });
       await invalidate('Delivery');
       // Directly update the state after invalidation
       const freshDeliveries = await Delivery.list('-created_date');
@@ -2053,7 +2055,7 @@ export default function DeliveriesPage() {
         status: 'returned',
         actual_delivery_time: now.toISOString() // Mark as finished with timestamp
       };
-      await Delivery.update(deliveryId, updateData);
+      await updateDeliveryLocal(deliveryId, updateData);
       await invalidate('Delivery');
       // Directly update the state after invalidation
       const freshDeliveries = await Delivery.list('-created_date');
@@ -2066,7 +2068,7 @@ export default function DeliveriesPage() {
 
   const handleDeleteDelivery = useCallback(async (deliveryId) => {
     try {
-      await Delivery.delete(deliveryId);
+      await deleteDeliveryLocal(deliveryId);
       await invalidate('Delivery');
       const freshDeliveries = await Delivery.list('-created_date');
       setAllDeliveries(freshDeliveries || []);
@@ -2570,7 +2572,7 @@ export default function DeliveriesPage() {
     try {
       // Update database with new stop orders
       await Promise.all(reorderedDeliveries.map((delivery, index) => 
-        Delivery.update(delivery.id, { stop_order: index + 1 })
+        updateDeliveryLocal(delivery.id, { stop_order: index + 1 })
       ));
       console.log('✅ [Drag] Database updated');
 
@@ -3030,7 +3032,7 @@ export default function DeliveriesPage() {
                   onCreateReturn={async ({ originalDelivery, returnPatient, store }) => {
                     try {
                       const currentDate = format(new Date(), 'yyyy-MM-dd');
-                      await base44.entities.Delivery.create({
+                      await createDeliveryLocal({
                         patient_id: returnPatient.id,
                         store_id: originalDelivery.store_id,
                         driver_id: originalDelivery.driver_id,
@@ -3364,7 +3366,7 @@ export default function DeliveriesPage() {
                     console.log(`🗑️ Deleting ${deliveriesToDelete.length} deliveries for ${dateStr}, driver ${driverId}`);
 
                     for (const delivery of deliveriesToDelete) {
-                      await base44.entities.Delivery.delete(delivery.id);
+                      await deleteDeliveryLocal(delivery.id);
                     }
 
                     // Clear all delivery caches

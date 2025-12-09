@@ -1387,7 +1387,7 @@ export default function Patients() {
 
       for (const patient of filteredPatients) {
         try {
-          await Patient.delete(patient.id);
+          await deletePatientLocal(patient.id);
           deletedCount++;
 
           if (deletedCount < filteredPatients.length) {
