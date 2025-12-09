@@ -866,7 +866,11 @@ export default function RouteImport({
         console.log(`📝 Row ${lineNumber}: Cleaned notes after removing "First Delivery": "${cleanedNotes}"`);
       }
 
-      if (notesLower.includes('failed')) {
+      // CRITICAL: For pickups with 'failed' in notes, set status to 'cancelled'
+      if (isPickup && notesLower.includes('failed')) {
+        newDeliveryData.status = statusMap['Cancelled'];
+        console.log(`⚠️ Row ${lineNumber}: Pickup with FAILED in notes - setting status to "cancelled"`);
+      } else if (notesLower.includes('failed')) {
         newDeliveryData.status = statusMap['Failed'];
       } else if (notesLower.includes('cancel')) {
         newDeliveryData.status = statusMap['Cancelled'];
