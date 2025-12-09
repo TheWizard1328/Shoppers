@@ -1020,17 +1020,6 @@ function Dashboard() {
 
       watchId = navigator.geolocation.watchPosition(
         (position) => {
-          // Check if route is complete - stop updating location if no incomplete stops
-          const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-          const hasIncompleteStops = filteredDeliveries.some(d => 
-            d && !finishedStatuses.includes(d.status)
-          );
-          
-          if (!hasIncompleteStops) {
-            console.log('⏭️ [Dashboard] Route complete - not updating driver location');
-            return;
-          }
-
           const newLocation = {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
@@ -1125,7 +1114,7 @@ function Dashboard() {
         navigator.geolocation.clearWatch(watchId);
       }
     };
-  }, [isDriver, currentUser]);
+  }, [isDriver, currentUser, isMobile]);
 
   // Track other drivers' locations via poller (for all-drivers mode)
   useEffect(() => {
@@ -2141,7 +2130,7 @@ function Dashboard() {
       clearTimeout(initialTimer);
       clearInterval(interval);
     };
-  }, [isDataLoaded, currentUser, selectedDriverId, selectedDate, filteredDeliveries]);
+  }, [isDataLoaded, currentUser, selectedDriverId, selectedDate]);
 
   useEffect(() => {
     // CRITICAL: Skip auto-center if initial FAB phase has been applied
