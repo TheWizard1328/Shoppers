@@ -45,12 +45,15 @@ export default function CitiesPage() {
         try {
             if (editingCity) {
                 await City.update(editingCity.id, cityData);
+                // Update local state immediately
+                setAllCities(prev => sortCities(prev.map(c => c.id === editingCity.id ? { ...c, ...cityData, updated_date: new Date().toISOString() } : c)));
             } else {
-                await City.create(cityData);
+                const newCity = await City.create(cityData);
+                // Add to local state immediately
+                setAllCities(prev => sortCities([...prev, newCity]));
             }
             setShowForm(false); // Using new state name
             setEditingCity(null);
-            loadCities();
         } catch (error) {
             console.error('Failed to save city:', error);
         }
@@ -60,8 +63,9 @@ export default function CitiesPage() {
         if (!deletingCity) return;
         try {
             await City.delete(deletingCity.id);
+            // Update local state immediately
+            setAllCities(prev => prev.filter(c => c.id !== deletingCity.id));
             setDeletingCity(null);
-            loadCities();
         } catch (error) {
             console.error('Failed to delete city:', error);
         }

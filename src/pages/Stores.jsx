@@ -122,17 +122,20 @@ export default function StoresPage() {
     try {
       if (editingStore) {
         await base44.entities.Store.update(editingStore.id, storeData);
+        // Update local state immediately
+        setStores(prev => prev.map(s => s.id === editingStore.id ? { ...s, ...storeData, updated_date: new Date().toISOString() } : s));
       } else {
-        await base44.entities.Store.create(storeData);
+        const newStore = await base44.entities.Store.create(storeData);
+        // Add to local state immediately
+        setStores(prev => [...prev, newStore]);
       }
 
       // Close form first to prevent re-render issues
       setShowForm(false);
       setEditingStore(null);
 
-      // Then reload data
+      // Then invalidate cache for background sync
       invalidate('Store');
-      await loadData();
     } catch (error) {
       console.error("Error saving store:", error);
       throw error;
@@ -146,8 +149,9 @@ export default function StoresPage() {
 
     try {
       await base44.entities.Store.delete(storeId);
+      // Update local state immediately
+      setStores(prev => prev.filter(s => s.id !== storeId));
       invalidate('Store');
-      await loadData();
     } catch (error) {
       console.error("Error deleting store:", error);
       alert("Failed to delete store. Please try again.");

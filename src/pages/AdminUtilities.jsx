@@ -146,7 +146,8 @@ const RouteImport = ({ onImportComplete, onCancel, stores, drivers, allUsers, cu
           );
           
           if (exactMatch) {
-            await Delivery.update(exactMatch.id, { ampm_deliveries: ampm });
+            const { updateDeliveryLocal } = await import('../components/utils/offlineMutations');
+            await updateDeliveryLocal(exactMatch.id, { ampm_deliveries: ampm });
             exactMatched++;
             console.log(`✅ EXACT MATCH: Updated delivery ${identifier} with AM/PM: ${ampm}`);
             continue;
@@ -186,7 +187,8 @@ const RouteImport = ({ onImportComplete, onCancel, stores, drivers, allUsers, cu
             }
             
             if (fuzzyResult && (fuzzyResult.tier === 'strong' || fuzzyResult.tier === 'moderate')) {
-              await Delivery.update(fuzzyResult.match.id, { ampm_deliveries: ampm });
+              const { updateDeliveryLocal } = await import('../components/utils/offlineMutations');
+              await updateDeliveryLocal(fuzzyResult.match.id, { ampm_deliveries: ampm });
               fuzzyMatched++;
               console.log(`✅ FUZZY MATCH (${fuzzyResult.tier.toUpperCase()}, score: ${fuzzyResult.score}): Updated delivery ${fuzzyResult.match.id} with AM/PM: ${ampm}`);
               continue;
@@ -560,7 +562,8 @@ const DeliveryDataTable = ({
 
   const handleStatusChange = async (delivery, newStatus) => {
     try {
-      await Delivery.update(delivery.id, { status: newStatus });
+      const { updateDeliveryLocal } = await import('../components/utils/offlineMutations');
+      await updateDeliveryLocal(delivery.id, { status: newStatus });
       setEditingStatusId(null);
       await onSortChange(); // Trigger refresh
     } catch (error) {
@@ -573,10 +576,11 @@ const DeliveryDataTable = ({
 
   const handleDriverChange = async (delivery, newDriverId) => {
     try {
+      const { updateDeliveryLocal } = await import('../components/utils/offlineMutations');
       const driver = driversForDropdown.find(d => d && d.id === newDriverId);
       const driverName = driver ? getDriverDisplayName(driver) : '';
       
-      await Delivery.update(delivery.id, { 
+      await updateDeliveryLocal(delivery.id, { 
         driver_id: newDriverId,
         driver_name: driverName
       });
@@ -3145,8 +3149,9 @@ export default function AdminUtilities() {
 
         const label = patient.full_name || patient.id;
 
+        const { deletePatientLocal } = await import('../components/utils/offlineMutations');
         try {
-          await Patient.delete(patient.id);
+          await deletePatientLocal(patient.id);
           successCount++;
         } catch (error) {
           console.error(`Failed to delete patient ${patient.id}:`, error);
@@ -3197,8 +3202,9 @@ export default function AdminUtilities() {
 
           await new Promise((resolve) => setTimeout(resolve, retryDelay));
 
+          const { deletePatientLocal } = await import('../components/utils/offlineMutations');
           try {
-            await Patient.delete(p.id);
+            await deletePatientLocal(p.id);
             setBulkDelete(prev => ({
               ...prev,
               processed: prev.processed + 1,
@@ -3360,8 +3366,9 @@ export default function AdminUtilities() {
 
         const label = delivery.tracking_number || delivery.id;
 
+        const { deleteDeliveryLocal } = await import('../components/utils/offlineMutations');
         try {
-          await Delivery.delete(delivery.id);
+          await deleteDeliveryLocal(delivery.id);
           successCount++;
         } catch (error) {
           console.error(`Failed to delete delivery ${delivery.id}:`, error);
@@ -3412,8 +3419,9 @@ export default function AdminUtilities() {
 
           await new Promise((resolve) => setTimeout(resolve, retryDelay));
 
+          const { deleteDeliveryLocal } = await import('../components/utils/offlineMutations');
           try {
-            await Delivery.delete(d.id);
+            await deleteDeliveryLocal(d.id);
             setBulkDelete(prev => ({
               ...prev,
               processed: prev.processed + 1,
@@ -3723,8 +3731,9 @@ export default function AdminUtilities() {
                 }
               }
 
+              const { updateDeliveryLocal } = await import('../components/utils/offlineMutations');
               if (puidToSet) {
-                await Delivery.update(delivery.id, { puid: puidToSet });
+                await updateDeliveryLocal(delivery.id, { puid: puidToSet });
                 updated++;
               } else {
                 skipped++;
@@ -3754,7 +3763,8 @@ export default function AdminUtilities() {
 
   const handleStatusChange = useCallback(async (delivery, newStatus) => {
     try {
-      await Delivery.update(delivery.id, { status: newStatus });
+      const { updateDeliveryLocal } = await import('../components/utils/offlineMutations');
+      await updateDeliveryLocal(delivery.id, { status: newStatus });
       setEditingStatusId(null);
       await refetchDeliveries();
     } catch (error) {
@@ -3765,10 +3775,11 @@ export default function AdminUtilities() {
 
   const handleDriverChange = useCallback(async (delivery, newDriverId) => {
     try {
+      const { updateDeliveryLocal } = await import('../components/utils/offlineMutations');
       const driver = driversForDropdown.find(d => d && d.id === newDriverId);
       const driverName = driver ? getDriverDisplayName(driver) : '';
       
-      await Delivery.update(delivery.id, { 
+      await updateDeliveryLocal(delivery.id, { 
         driver_id: newDriverId,
         driver_name: driverName
       });
@@ -3833,7 +3844,16 @@ export default function AdminUtilities() {
       onConfirm: async () => {
         try {
           console.log(`Deleting ${entityType}:`, entity.id);
-          await EntityClass.delete(entity.id);
+          // Use local-first delete for Patient and Delivery entities
+          if (entityType === 'patients') {
+            const { deletePatientLocal } = await import('../components/utils/offlineMutations');
+            await deletePatientLocal(entity.id);
+          } else if (entityType === 'deliveries') {
+            const { deleteDeliveryLocal } = await import('../components/utils/offlineMutations');
+            await deleteDeliveryLocal(entity.id);
+          } else {
+            await EntityClass.delete(entity.id);
+          }
           console.log(`✅ Successfully deleted ${entityName}`);
 
           await invalidate(EntityClass.name);
@@ -4116,7 +4136,8 @@ export default function AdminUtilities() {
           allDeliveries={allDeliveries || []}
           onSave={async (updatedData) => {
             try {
-              await base44.entities.Delivery.update(editingDelivery.id, updatedData);
+              const { updateDeliveryLocal } = await import('../components/utils/offlineMutations');
+              await updateDeliveryLocal(editingDelivery.id, updatedData);
               setEditingDelivery(null);
               await refetchDeliveries();
               await refreshData();

@@ -1148,20 +1148,20 @@ export default function Patients() {
   }, [filteredPatients, deliveries, getDistanceFromStore]);
 
 
-  const handleSaveDelivery = useCallback((deliveryData) => {
+  const handleSaveDelivery = useCallback(async (deliveryData) => {
+    const { createDeliveryLocal } = await import('../components/utils/offlineMutations');
     const trackingNumber = `DLV${Date.now()}`;
-    return Delivery.create({ ...deliveryData, tracking_number: trackingNumber }).
-    then(() => {
+    try {
+      await createDeliveryLocal({ ...deliveryData, tracking_number: trackingNumber });
       invalidate('Delivery'); // Invalidate Delivery cache
       invalidate('Patient'); // Invalidate Patient cache as last_delivery_date might change
       setShowDeliveryForm(false);
       setPatientForNewDelivery(null);
-    }).
-    catch((error) => {
+    } catch (error) {
       console.error("Error creating delivery:", error);
       alert("Failed to schedule delivery.");
       throw error;
-    });
+    }
   }, []);
 
   const handleAddToRoute = useCallback((patient) => {
@@ -1224,6 +1224,7 @@ export default function Patients() {
 
   const handleSavePatient = useCallback(async (patientData, shouldReturnPatient = false) => {
     try {
+      const { createPatientLocal, updatePatientLocal } = await import('../components/utils/offlineMutations');
       const isEditing = !!editingPatient;
       let savedPatient;
 
@@ -1233,7 +1234,7 @@ export default function Patients() {
       // is primarily intended for CSV imports where raw address strings might contain units.
 
       if (isEditing) {
-        await Patient.update(editingPatient.id, patientData);
+        await updatePatientLocal(editingPatient.id, patientData);
         // Create the updated patient object for immediate UI update
         savedPatient = {
           ...editingPatient,
@@ -1241,7 +1242,7 @@ export default function Patients() {
           updated_date: new Date().toISOString() // Ensure updated_date is current
         };
       } else {
-        savedPatient = await Patient.create(patientData);
+        savedPatient = await createPatientLocal(patientData);
       }
 
       // Update local state immediately without full reload - this refreshes only affected cards
@@ -1292,7 +1293,8 @@ export default function Patients() {
     }
 
     try {
-      await Patient.delete(patient.id);
+      const { deletePatientLocal } = await import('../components/utils/offlineMutations');
+      await deletePatientLocal(patient.id);
       invalidate('Patient'); // Invalidate only Patient cache for AppDataContext
       // Remove the patient from the local state immediately
       setAllPatients((prev) => prev.filter((p) => p.id !== patient.id));
@@ -1385,6 +1387,7 @@ export default function Patients() {
       let deletedCount = 0;
       let errorCount = 0;
 
+      const { deletePatientLocal } = await import('../components/utils/offlineMutations');
       for (const patient of filteredPatients) {
         try {
           await deletePatientLocal(patient.id);
@@ -1426,8 +1429,9 @@ export default function Patients() {
       return;
     }
     try {
+      const { updatePatientLocal } = await import('../components/utils/offlineMutations');
       const newStatus = isActive ? 'active' : 'inactive';
-      await Patient.update(patient.id, { status: newStatus });
+      await updatePatientLocal(patient.id, { status: newStatus });
       invalidate('Patient'); // Invalidate only Patient cache for AppDataContext
       // Update the local state immediately
       setAllPatients((prev) => prev.map((p) => p.id === patient.id ? { ...p, status: newStatus } : p));

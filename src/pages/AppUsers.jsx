@@ -57,10 +57,13 @@ export default function AppUsers() {
     try {
       if (editingAppUser) {
         await AppUser.update(editingAppUser.id, appUserData);
+        // Update local state immediately
+        setAppUsers(prev => prev.map(u => u.id === editingAppUser.id ? { ...u, ...appUserData, updated_date: new Date().toISOString() } : u));
       } else {
-        await AppUser.create(appUserData);
+        const newAppUser = await AppUser.create(appUserData);
+        // Add to local state immediately
+        setAppUsers(prev => [...prev, newAppUser]);
       }
-      await loadData();
       setShowForm(false);
       setEditingAppUser(null);
     } catch (error) {
@@ -73,7 +76,8 @@ export default function AppUsers() {
     if (window.confirm('Are you sure you want to delete this user? This will not delete their login credentials.')) {
       try {
         await AppUser.delete(id);
-        await loadData();
+        // Update local state immediately
+        setAppUsers(prev => prev.filter(u => u.id !== id));
       } catch (error) {
         console.error('Error deleting app user:', error);
         alert('Failed to delete user.');
