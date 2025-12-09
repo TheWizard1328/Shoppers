@@ -1006,6 +1006,8 @@ function Dashboard() {
         return;
       }
 
+      console.log('📍 [Dashboard] Starting GPS watch for driver location...');
+
       watchId = navigator.geolocation.watchPosition(
         (position) => {
           // Check if route is complete - stop updating location if no incomplete stops
@@ -1026,6 +1028,12 @@ function Dashboard() {
             accuracy: position.coords.accuracy,
             source: 'device_gps' // Always from device for drivers
           };
+
+          console.log('📍 [Dashboard] GPS location updated:', {
+            lat: newLocation.latitude,
+            lon: newLocation.longitude,
+            accuracy: newLocation.accuracy
+          });
 
           setDriverLocation(newLocation);
 
