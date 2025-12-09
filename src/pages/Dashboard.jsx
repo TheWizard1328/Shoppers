@@ -2127,10 +2127,10 @@ function Dashboard() {
     };
 
     // Run after initial delay to avoid competing with data load
-    const initialTimer = setTimeout(runETAOptimizer, 30000);
+    const initialTimer = setTimeout(runETAOptimizer, 60000);
     
-    // Then run every 3 minutes to reduce API calls
-    const interval = setInterval(runETAOptimizer, 180000);
+    // Then run every 5 minutes to reduce API calls
+    const interval = setInterval(runETAOptimizer, 300000);
 
     return () => {
       clearTimeout(initialTimer);

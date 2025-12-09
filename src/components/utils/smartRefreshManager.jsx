@@ -24,13 +24,13 @@ class SmartRefreshManager {
     // Real-time refresh intervals (milliseconds) - Optimized for collaboration
     // PRIORITY: Today's data is critical, historical/future data is background
     this.intervals = {
-      driverLocation: 60000,     // 60s - driver GPS locations (reduced to avoid rate limits)
-      activeDeliveries: 90000,   // 90s - today's active delivery statuses (reduced)
-      todayDeliveries: 120000,   // 2min - today's delivery changes only (reduced)
-      appUsers: 180000,          // 3min - driver status, assignments (reduced)
-      todayPatients: 600000,     // 10min - patients on today's routes only
-      patients: 3600000,         // 60min - all other patients (very low priority)
-      stores: 7200000            // 2hr - store data almost never changes
+      driverLocation: 120000,    // 2min - driver GPS locations (heavily reduced for rate limits)
+      activeDeliveries: 180000,  // 3min - today's active delivery statuses
+      todayDeliveries: 240000,   // 4min - today's delivery changes only
+      appUsers: 300000,          // 5min - driver status, assignments
+      todayPatients: 900000,     // 15min - patients on today's routes only
+      patients: 7200000,         // 2hr - all other patients (very low priority)
+      stores: 14400000           // 4hr - store data almost never changes
     };
     
     // Track last refresh time for each entity type
@@ -48,7 +48,7 @@ class SmartRefreshManager {
     
     // Rate limit protection - Balanced for collaboration and API limits
     this.lastApiCallTime = 0;
-    this.minTimeBetweenCalls = 5000; // 5 seconds minimum between any API call (increased to reduce rate limits)
+    this.minTimeBetweenCalls = 8000; // 8 seconds minimum between any API call (increased to reduce rate limits)
     
     // Rate limit error callback
     this.rateLimitCallback = null;
