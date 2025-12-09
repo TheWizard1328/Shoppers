@@ -33,7 +33,6 @@ import { determineAMPMFromTime } from '@/components/utils/ampmUtils';
 import AIDriverAssistant from "@/components/dashboard/AIDriverAssistant";
 import AIAssistantFAB from "@/components/dashboard/AIAssistantFAB";
 import MapViewCycleFAB from "@/components/dashboard/MapViewCycleFAB";
-import AIRoutePlanner from "@/components/dashboard/AIRoutePlanner";
 import { getOrGenerateRoutePolyline, getStoredRouteCoordinates } from "@/components/utils/routePolylineManager";
 import { Input } from "@/components/ui/input";
 import { driverLocationPoller } from "@/components/utils/driverLocationPoller";
@@ -285,9 +284,7 @@ function Dashboard() {
 
   const mapLockTimeoutRef = useRef(null);
   const mapLockExpiresAtRef = useRef(null); // Timestamp when lock should expire
-  const [showAIRoutePlanner, setShowAIRoutePlanner] = useState(false);
   const [useAIOptimization, setUseAIOptimization] = useState(true);
-  const [isAIAnalyzing, setIsAIAnalyzing] = useState(false);
   const [driverRoutes, setDriverRoutes] = useState([]);
 
   const [dailyPolylineCount, setDailyPolylineCount] = useState(null);
@@ -5384,22 +5381,6 @@ function Dashboard() {
                   </PopoverContent>
                 </Popover>
 
-                {(isAppOwner(currentUser) || isDriver) &&
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowAIRoutePlanner(true)}
-                  disabled={
-                  isOptimizing ||
-                  isAIAnalyzing ||
-                  filteredDeliveries.length === 0
-                  }
-                  className="h-8 w-8 p-0"
-                  title="AI Route Planner">
-                    <Sparkles className={`w-3.5 h-3.5 text-purple-600 ${isAIAnalyzing ? 'animate-spin' : ''}`} />
-                  </Button>
-                }
-
                 <Button
                   onClick={() => {
                     setEditingDelivery(null);
@@ -5860,48 +5841,6 @@ function Dashboard() {
         }} />
 
       }
-
-      <AnimatePresence>
-        {showAIRoutePlanner &&
-        <AIRoutePlanner
-          deliveries={deliveries}
-          patients={patients}
-          stores={stores}
-          drivers={drivers}
-          currentUser={currentUser}
-          selectedDate={selectedDate}
-          selectedDriverId={selectedDriverId}
-          onAnalyzingChange={setIsAIAnalyzing}
-          onApplyOptimization={async (updates, options = {}) => {
-            try {
-              console.log('🤖 [AI Route Planner] Applying route optimization:', updates);
-
-              // STEP 1: Update stop orders
-              console.log('🏗️ STEP 1: Updating stop orders');
-              for (const update of updates) {
-                await base44.entities.Delivery.update(update.id, {
-                  stop_order: update.stop_order
-                });
-              }
-              console.log(`✅ Updated ${updates.length} stop orders`);
-
-              // ETAs recalculation skipped (route optimization disabled)
-              console.log('⏭️ Skipping ETA recalculation (route optimization disabled)');
-
-              // STEP 3: Refresh data
-              console.log('🏗️ STEP 3: Refreshing data');
-              invalidate('Delivery');
-              await refreshData();
-
-              console.log('✅ [AI Route Planner] Route updated successfully');
-            } catch (error) {
-              console.error('❌ [AI Route Planner] Error:', error);
-              throw error;
-            }
-          }}
-          onClose={() => setShowAIRoutePlanner(false)} />
-        }
-      </AnimatePresence>
     </div>);
 
 }
