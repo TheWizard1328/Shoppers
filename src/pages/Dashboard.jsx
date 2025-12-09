@@ -33,7 +33,6 @@ import { determineAMPMFromTime } from '@/components/utils/ampmUtils';
 import AIDriverAssistant from "@/components/dashboard/AIDriverAssistant";
 import AIAssistantFAB from "@/components/dashboard/AIAssistantFAB";
 import MapViewCycleFAB from "@/components/dashboard/MapViewCycleFAB";
-import AIRouteOptimizer from "@/components/dashboard/AIRouteOptimizer";
 import AIRoutePlanner from "@/components/dashboard/AIRoutePlanner";
 import { getOrGenerateRoutePolyline, getStoredRouteCoordinates } from "@/components/utils/routePolylineManager";
 import { Input } from "@/components/ui/input";
@@ -41,7 +40,6 @@ import { driverLocationPoller } from "@/components/utils/driverLocationPoller";
 import { getAvailableDrivers } from "@/components/utils/driverSelectors";
 import RouteSummaryModal from "@/components/dashboard/RouteSummaryModal";
 import { isMobileDevice } from "@/components/utils/deviceUtils";
-import { optimizeDriverRoute } from "@/functions/optimizeDriverRoute";
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
 import { reorderStops } from "@/components/utils/stopReorderer";
 import { loadUserSettings, saveSetting, getSetting } from "@/components/utils/userSettingsManager";
@@ -1191,52 +1189,8 @@ function Dashboard() {
           console.log('✅ [Polyline Display] Polyline loaded:', coordinates.length, 'points');
           setCurrentToNextPolyline(coordinates);
         } else {
-          console.log('📍 [Polyline Display] No polyline in database - generating via backend...');
-
-          // CRITICAL: Generate polyline on fresh load if none exists
-          try {
-            // Get the driver whose route we're viewing for their home location
-            const viewedDriver = users.find((u) => u && u.id === driverIdToFetch);
-
-            // CRITICAL: Only pass currentLocation if viewing OWN route, not when impersonating
-            const isViewingOwnRoute = driverIdToFetch === currentUser?.id;
-
-            // CRITICAL: Only pass currentLocation if viewing OWN route (not impersonating)
-            const shouldUseDeviceGPS = driverIdToFetch === currentUser?.id && !currentUser?._isImpersonating;
-            
-            await optimizeDriverRoute({
-              driverId: driverIdToFetch,
-              deliveryDate: deliveryDate,
-              currentLocation: shouldUseDeviceGPS && driverLocation ? {
-                lat: driverLocation.latitude,
-                lon: driverLocation.longitude
-              } : null,
-              clientCurrentTime: format(new Date(), 'HH:mm'),
-              generatePolyline: true,
-              forceReoptimization: true,
-              driverHome: viewedDriver?.home_latitude && viewedDriver?.home_longitude ? {
-                lat: viewedDriver.home_latitude,
-                lon: viewedDriver.home_longitude
-              } : null
-            });
-
-            console.log('✅ [Polyline Display] Backend optimizer called to generate polyline');
-
-            // Fetch again after generation
-            setTimeout(async () => {
-              const newCoords = await getStoredRouteCoordinates(
-                driverIdToFetch,
-                deliveryDate,
-                'to_next_stop'
-              );
-              if (newCoords && newCoords.length > 0) {
-                console.log('✅ [Polyline Display] New polyline fetched after generation:', newCoords.length, 'points');
-                setCurrentToNextPolyline(newCoords);
-              }
-            }, 1000);
-          } catch (genError) {
-            console.error('❌ [Polyline Display] Error generating polyline:', genError);
-          }
+          console.log('📍 [Polyline Display] No polyline in database');
+          setCurrentToNextPolyline(null);
         }
       } catch (error) {
         console.error('❌ [Polyline Display] Error fetching polyline:', error);
@@ -4836,25 +4790,7 @@ function Dashboard() {
         await base44.entities.Delivery.create(retryDeliveryData);
         console.log('✅ [RETRY DELIVERY] Duplicate delivery created for today');
 
-        // Call backend optimizer for today's route
-        try {
-          // CRITICAL: Only use device GPS for own route
-          const shouldUseDeviceGPS = targetDelivery.driver_id === currentUser?.id && !currentUser?._isImpersonating;
-
-          await optimizeDriverRoute({
-            driverId: targetDelivery.driver_id,
-            deliveryDate: currentDate,
-            currentLocation: shouldUseDeviceGPS && driverLocation ? {
-              lat: driverLocation.latitude,
-              lon: driverLocation.longitude
-            } : null,
-            clientCurrentTime: format(new Date(), 'HH:mm'),
-            forceReoptimization: true
-          });
-          console.log('✅ [RETRY DELIVERY] Backend optimizer called for today');
-        } catch (optError) {
-          console.warn('⚠️ [RETRY DELIVERY] Backend optimizer failed:', optError.message);
-        }
+        console.log('✅ [RETRY DELIVERY] Duplicate created, skipping route optimization');
 
         // Invalidate caches for both the original date and today
         invalidateDeliveriesForDate(targetDelivery.delivery_date);
@@ -4933,55 +4869,23 @@ function Dashboard() {
         console.warn('⚠️ [STATUS UPDATE] Reordering failed:', reorderError.message);
       }
 
-      // CRITICAL: Call backend optimizer for ALL status changes (not just finished ones)
-      // This ensures ETAs are recalculated and isNextDelivery is set correctly
       console.log('');
-      console.log('🏗️ STEP 3: Calling backend optimizer for route update');
-
-      // CRITICAL: Only use device GPS for own route
-      const shouldUseDeviceGPS = targetDelivery.driver_id === currentUser?.id && !currentUser?._isImpersonating;
+      console.log('🏗️ STEP 3: Skipping route optimization (disabled)');
       
-      try {
-        const optimizationResult = await optimizeDriverRoute({
-          driverId: targetDelivery.driver_id,
-          deliveryDate: deliveryDate,
-          currentLocation: shouldUseDeviceGPS && driverLocation ? {
-            lat: driverLocation.latitude,
-            lon: driverLocation.longitude
-          } : null,
-          completedDeliveryId: ['completed', 'failed', 'cancelled', 'returned'].includes(newStatus) ? deliveryId : null,
-          clientCurrentTime: format(new Date(), 'HH:mm'),
-          generatePolyline: true,
-          forceReoptimization: true
-        });
-
-        console.log('✅ [STATUS UPDATE] Backend optimizer complete:', optimizationResult.data);
-        fetchPolylineCount();
-
-        // CRITICAL: Apply ALL deliveries from backend immediately to UI
-        if (optimizationResult.data?.allDeliveries && Array.isArray(optimizationResult.data.allDeliveries)) {
-          console.log('🔄 [STATUS UPDATE] Syncing', optimizationResult.data.allDeliveries.length, 'deliveries from backend');
-
-          // CRITICAL: Clear pending updates for this driver/route (authoritative server data)
-          smartRefreshManager.clearPendingUpdatesForDriver(targetDelivery.driver_id, deliveryDate);
-
-          // Merge with other drivers' deliveries
-          const otherDriverDeliveries = (deliveries || []).filter((d) =>
-          d && (d.driver_id !== targetDelivery.driver_id || d.delivery_date !== deliveryDate)
-          );
-          const mergedDeliveries = [...otherDriverDeliveries, ...optimizationResult.data.allDeliveries];
-          updateDeliveriesLocally(mergedDeliveries);
+      // Check if route is complete
+      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+      const allDriverDeliveries = deliveriesWithStopOrder.filter((d) =>
+        d && d.driver_id === driverId && d.delivery_date === targetDelivery.delivery_date
+      );
+      const routeComplete = allDriverDeliveries.length > 0 && 
+        allDriverDeliveries.every(d => finishedStatuses.includes(d.status));
+      
+      if (routeComplete && newStatus === 'completed') {
+        console.log('✅ Route complete - showing summary');
+        if (!hasShownSummaryRef.current) {
+          setShowRouteSummary(true);
+          hasShownSummaryRef.current = true;
         }
-
-        if (optimizationResult.data?.routeComplete && newStatus === 'completed') {
-          console.log('✅ Route complete - showing summary');
-          if (!hasShownSummaryRef.current) {
-            setShowRouteSummary(true);
-            hasShownSummaryRef.current = true;
-          }
-        }
-      } catch (backendError) {
-        console.warn('⚠️ [STATUS UPDATE] Backend optimization failed:', backendError.message);
       }
 
       // CRITICAL: Force full data refresh to sync UI
@@ -5078,25 +4982,7 @@ function Dashboard() {
       await base44.entities.Delivery.create(returnDeliveryData);
       console.log('✅ [CREATE RETURN] Return delivery created for today');
 
-      // Call backend optimizer for today's route
-      // CRITICAL: Only use device GPS for own route
-      const shouldUseDeviceGPS = originalDelivery.driver_id === currentUser?.id && !currentUser?._isImpersonating;
-      
-      try {
-        await optimizeDriverRoute({
-          driverId: originalDelivery.driver_id,
-          deliveryDate: currentDate,
-          currentLocation: shouldUseDeviceGPS && driverLocation ? {
-            lat: driverLocation.latitude,
-            lon: driverLocation.longitude
-          } : null,
-          clientCurrentTime: format(new Date(), 'HH:mm'),
-          forceReoptimization: true
-        });
-        console.log('✅ [CREATE RETURN] Backend optimizer called for today');
-      } catch (optError) {
-        console.warn('⚠️ [CREATE RETURN] Backend optimizer failed:', optError.message);
-      }
+      console.log('✅ [CREATE RETURN] Return created, skipping route optimization');
 
       // Invalidate caches for both dates
       invalidateDeliveriesForDate(originalDelivery.delivery_date);
@@ -5157,30 +5043,9 @@ function Dashboard() {
       });
       console.log(`✅ [START STEP 2] Database update successful`);
 
-      // STEP 3: Call NEW fullRouteOptimizer backend function
       console.log('');
-      console.log('📍 [START STEP 3] Calling NEW fullRouteOptimizer function...');
-      console.log(`   - Function: fullRouteOptimizer`);
-      console.log(`   - Driver ID: ${driverId}`);
-      console.log(`   - Delivery Date: ${deliveryDate}`);
-      console.log(`   - Started Delivery ID: ${deliveryId}`);
-      console.log(`   - Current Location: ${driverLocation ? `[${driverLocation.latitude}, ${driverLocation.longitude}]` : 'NONE'}`);
-      console.log(`   - Client Time: ${currentTime}`);
-
-      // CRITICAL: Only use device GPS for own route
-      const shouldUseDeviceGPS = driverId === currentUser?.id && !currentUser?._isImpersonating;
-      
-      const optimizationResult = await base44.functions.invoke('fullRouteOptimizer', {
-        driverId: driverId,
-        deliveryDate: deliveryDate,
-        currentLocation: shouldUseDeviceGPS && driverLocation ? {
-          latitude: driverLocation.latitude,
-          longitude: driverLocation.longitude
-        } : null
-      });
-
-      console.log('✅ [START STEP 3] Backend optimizer call complete');
-      console.log(`   - Response:`, optimizationResult);
+      console.log('📍 [START STEP 3] Skipping route optimization (disabled)');
+      console.log('✅ [START STEP 3] Status update only');
 
       // STEP 4: Fetch fresh deliveries after optimization
       console.log('');
@@ -5667,20 +5532,6 @@ function Dashboard() {
                       </div>
                     </>
                 }
-
-                  {userHasRole(currentUser, 'driver') && isExpanded && isMobile && stats.inTransit > 0 &&
-                <div className="mt-3 pt-3 border-t border-slate-200">
-                      <AIRouteOptimizer
-                    deliveries={filteredDeliveries}
-                    currentDriverLocation={driverLocation}
-                    stores={stores}
-                    patients={patients}
-                    onAcceptOptimization={handleAcceptAIOptimization}
-                    currentUser={currentUser}
-                    isVisible={isExpanded} />
-
-                    </div>
-                }
                 </motion.div>
               }
             </AnimatePresence>
@@ -6034,33 +5885,8 @@ function Dashboard() {
               }
               console.log(`✅ Updated ${updates.length} stop orders`);
 
-              // STEP 2: Recalculate ETAs if requested
-              if (options.recalculateETAs) {
-                console.log('🏗️ STEP 2: Recalculating ETAs');
-
-                // Get the driver ID from first update
-                const firstDelivery = deliveries.find((d) => d && d.id === updates[0]?.id);
-                if (firstDelivery?.driver_id) {
-                  // CRITICAL: Only use device GPS for own route
-                  const shouldUseDeviceGPS = firstDelivery.driver_id === currentUser?.id && !currentUser?._isImpersonating;
-                  
-                  try {
-                    await optimizeDriverRoute({
-                      driverId: firstDelivery.driver_id,
-                      deliveryDate: format(selectedDate, 'yyyy-MM-dd'),
-                      currentLocation: shouldUseDeviceGPS && driverLocation ? {
-                        lat: driverLocation.latitude,
-                        lon: driverLocation.longitude
-                      } : null,
-                      clientCurrentTime: format(new Date(), 'HH:mm'),
-                      forceReoptimization: true
-                    });
-                    console.log('✅ ETAs recalculated via backend optimizer');
-                  } catch (etaError) {
-                    console.warn('⚠️ Backend ETA calculation failed:', etaError.message);
-                  }
-                }
-              }
+              // ETAs recalculation skipped (route optimization disabled)
+              console.log('⏭️ Skipping ETA recalculation (route optimization disabled)');
 
               // STEP 3: Refresh data
               console.log('🏗️ STEP 3: Refreshing data');
