@@ -31,7 +31,6 @@ import { optimizeRoute, calculateRouteStats } from '@/components/utils/routeOpti
 import { flushSync } from "react-dom";
 import { determineAMPMFromTime } from '@/components/utils/ampmUtils';
 import AIDriverAssistant from "@/components/dashboard/AIDriverAssistant";
-import AIAssistantFAB from "@/components/dashboard/AIAssistantFAB";
 import MapViewCycleFAB from "@/components/dashboard/MapViewCycleFAB";
 import { getOrGenerateRoutePolyline, getStoredRouteCoordinates } from "@/components/utils/routePolylineManager";
 import { Input } from "@/components/ui/input";
