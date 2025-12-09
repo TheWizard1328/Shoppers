@@ -5777,14 +5777,6 @@ function Dashboard() {
         }
       </AnimatePresence>
 
-      {!showAIAssistant && isAIEnabled && userHasRole(currentUser, 'driver') &&
-      <AIAssistantFAB
-        onClick={() => setShowAIAssistant(true)}
-        hasUnreadAlerts={hasUnreadAIAlerts}
-        hasVisibleCards={deliveriesWithStopOrder.length > 0} />
-
-      }
-
       {(isDriver || isDispatcher) &&
       <MapViewCycleFAB
         onClick={handleMapViewCycle}
