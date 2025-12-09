@@ -4911,9 +4911,9 @@ function Dashboard() {
       }
 
       console.log('');
-      console.log('🏗️ STEP 1: Updating delivery status');
-      await base44.entities.Delivery.update(deliveryId, updateData);
-      console.log('✅ Delivery status updated');
+      console.log('🏗️ STEP 1: Updating delivery status (local-first)');
+      await updateDeliveryLocal(deliveryId, updateData);
+      console.log('✅ Delivery status updated locally');
 
       // STEP 1.5: Update patient's last_delivery_date if completed or failed
       if (['completed', 'failed'].includes(newStatus) && targetDelivery.patient_id) {
