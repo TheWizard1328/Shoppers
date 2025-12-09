@@ -87,9 +87,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Fallback to last completed stop (Rule 1b)
+    // Fallback to last finished stop (Rule 1b) - completed, failed, cancelled, or returned
     if (!startLat) {
-      const completedDeliveries = deliveries
+      const finishedDeliveries = deliveries
         .filter(d => ['completed', 'failed', 'cancelled', 'returned'].includes(d.status))
         .sort((a, b) => {
           if (!a.actual_delivery_time) return 1;
@@ -97,23 +97,23 @@ Deno.serve(async (req) => {
           return new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time);
         });
 
-      if (completedDeliveries.length > 0) {
-        const lastCompleted = completedDeliveries[0];
-        if (lastCompleted.patient_id) {
-          const patient = patientMap.get(lastCompleted.patient_id);
+      if (finishedDeliveries.length > 0) {
+        const lastFinished = finishedDeliveries[0];
+        if (lastFinished.patient_id) {
+          const patient = patientMap.get(lastFinished.patient_id);
           if (patient?.latitude && patient?.longitude) {
             startLat = patient.latitude;
             startLon = patient.longitude;
-            startTime = lastCompleted.actual_delivery_time ? new Date(lastCompleted.actual_delivery_time) : now;
-            console.log('[ETA Updates] Using last completed stop location');
+            startTime = lastFinished.actual_delivery_time ? new Date(lastFinished.actual_delivery_time) : now;
+            console.log(`[ETA Updates] Using last finished stop location (${lastFinished.status})`);
           }
         } else {
-          const store = storeMap.get(lastCompleted.store_id);
+          const store = storeMap.get(lastFinished.store_id);
           if (store?.latitude && store?.longitude) {
             startLat = store.latitude;
             startLon = store.longitude;
-            startTime = lastCompleted.actual_delivery_time ? new Date(lastCompleted.actual_delivery_time) : now;
-            console.log('[ETA Updates] Using last completed pickup location');
+            startTime = lastFinished.actual_delivery_time ? new Date(lastFinished.actual_delivery_time) : now;
+            console.log(`[ETA Updates] Using last finished pickup location (${lastFinished.status})`);
           }
         }
       }
@@ -181,7 +181,7 @@ Deno.serve(async (req) => {
 
     if (directionsData.status !== 'OK') {
       console.error('[ETA Updates] Google Directions API error:', directionsData.status);
-      return Response.json({ error: 'Failed to calculate route' }, { status: 500 });
+      return Response.json({ error: 'Failed to calculate route: ' + directionsData.status }, { status: 500 });
     }
 
     // Calculate ETAs for each stop (Rule 3a/b)
