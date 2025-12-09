@@ -1260,33 +1260,36 @@ export default function Layout({ children, currentPageName }) {
 
     if (pullDistance >= pullThreshold) {
       setIsRefreshing(true);
+      setPullDistance(0);
 
       // CRITICAL: Trigger data reload instead of full page reload
-      console.log('🔄 [Pull-to-Refresh] Triggering data refresh...');
-      try {
-        const selectedDateStr = globalFilters.getSelectedDate();
-        const selectedDriverId = globalFilters.getSelectedDriverId();
+      console.log('🔄 [Pull-to-Refresh] Refreshing data...');
+      
+      setTimeout(async () => {
+        try {
+          const selectedDateStr = globalFilters.getSelectedDate();
+          const selectedDriverId = globalFilters.getSelectedDriverId();
 
-        // Update polyline if we have a valid driver selected
-        if (selectedDriverId && selectedDriverId !== 'all') {
-          await updatePolylineOnRefresh(selectedDriverId, selectedDateStr);
+          // Update polyline if we have a valid driver selected
+          if (selectedDriverId && selectedDriverId !== 'all') {
+            await updatePolylineOnRefresh(selectedDriverId, selectedDateStr);
+          }
+          
+          // Clear all caches and reload data
+          invalidate('Delivery');
+          invalidate('Patient');
+          invalidate('AppUser');
+          
+          // Trigger full data load - UI refreshes when selected date completes
+          await triggerFullDataLoad(true);
+          
+          console.log('✅ [Pull-to-Refresh] Data refresh complete');
+        } catch (error) {
+          console.error('❌ [Pull-to-Refresh] Data refresh failed:', error);
+        } finally {
+          setIsRefreshing(false);
         }
-
-        // Clear all caches and reload data
-        invalidate('Delivery');
-        invalidate('Patient');
-        invalidate('AppUser');
-
-        // Trigger full data load with force refresh
-        await triggerFullDataLoad(true);
-
-        console.log('✅ [Pull-to-Refresh] Data refresh complete');
-      } catch (error) {
-        console.error('❌ [Pull-to-Refresh] Data refresh failed:', error);
-      } finally {
-        setIsRefreshing(false);
-        setPullDistance(0);
-      }
+      }, 100);
     } else {
       setPullDistance(0);
     }
