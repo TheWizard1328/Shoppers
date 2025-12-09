@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Database, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { subscribeSyncStatus, getSyncStats, forceSyncAll } from '@/components/utils/offlineSync';
+import { subscribeSyncStatus, getSyncStats, forceSyncAll, processPendingMutations } from '@/components/utils/offlineSync';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function OfflineSyncIndicator() {
@@ -97,6 +97,12 @@ export default function OfflineSyncIndicator() {
                         <span className="text-slate-600">Deliveries:</span>
                         <span className="font-medium">{stats.deliveries.count}</span>
                       </div>
+                      {stats.pendingMutations > 0 && (
+                        <div className="flex justify-between text-orange-600">
+                          <span>Pending Sync:</span>
+                          <span className="font-medium">{stats.pendingMutations}</span>
+                        </div>
+                      )}
                     </div>
                     
                     {syncStatus.entity && syncStatus.status === 'syncing' && (
@@ -116,16 +122,42 @@ export default function OfflineSyncIndicator() {
                   </>
                 )}
 
-                <Button
-                  onClick={handleForceSync}
-                  disabled={isSyncing}
-                  size="sm"
-                  variant="outline"
-                  className="w-full text-xs"
-                >
-                  <RefreshCw className={`w-3 h-3 mr-1 ${isSyncing ? 'animate-spin' : ''}`} />
-                  {isSyncing ? 'Syncing...' : 'Force Sync'}
-                </Button>
+                <div className="space-y-1">
+                  {stats?.pendingMutations > 0 && (
+                    <Button
+                      onClick={async () => {
+                        setIsSyncing(true);
+                        try {
+                          await processPendingMutations();
+                          const newStats = await getSyncStats();
+                          setStats(newStats);
+                        } catch (error) {
+                          console.error('Failed to process mutations:', error);
+                        } finally {
+                          setIsSyncing(false);
+                        }
+                      }}
+                      disabled={isSyncing}
+                      size="sm"
+                      variant="outline"
+                      className="w-full text-xs"
+                    >
+                      <RefreshCw className={`w-3 h-3 mr-1 ${isSyncing ? 'animate-spin' : ''}`} />
+                      Sync Changes
+                    </Button>
+                  )}
+                  
+                  <Button
+                    onClick={handleForceSync}
+                    disabled={isSyncing}
+                    size="sm"
+                    variant="outline"
+                    className="w-full text-xs"
+                  >
+                    <RefreshCw className={`w-3 h-3 mr-1 ${isSyncing ? 'animate-spin' : ''}`} />
+                    {isSyncing ? 'Syncing...' : 'Force Sync'}
+                  </Button>
+                </div>
               </div>
             </motion.div>
           )}

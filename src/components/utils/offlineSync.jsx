@@ -162,6 +162,10 @@ export const performInitialSync = async () => {
   try {
     console.log('🚀 [OfflineSync] Starting initial sync check...');
 
+    // FIRST: Process any pending mutations from previous session
+    await processPendingMutations();
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
     // Check if sync is needed
     const [needsPatientSync, needsDeliverySync] = await Promise.all([
       offlineDB.needsInitialSync('Patient'),
@@ -242,8 +246,125 @@ export const forceSyncAll = async () => {
 };
 
 /**
+ * Process pending mutations (push local changes to server)
+ */
+export const processPendingMutations = async () => {
+  const pendingMutations = await offlineDB.getPendingMutations();
+  
+  if (pendingMutations.length === 0) {
+    console.log('✅ [OfflineSync] No pending mutations to process');
+    return { success: true, processed: 0 };
+  }
+
+  console.log(`🔄 [OfflineSync] Processing ${pendingMutations.length} pending mutations...`);
+  notifySyncStatus({ status: 'syncing_mutations', count: pendingMutations.length });
+
+  let successCount = 0;
+  let failCount = 0;
+
+  for (const mutation of pendingMutations) {
+    try {
+      const Entity = mutation.entity === 'Patient' ? 
+        (await import('@/entities/Patient')).Patient : 
+        (await import('@/entities/Delivery')).Delivery;
+
+      let serverRecord = null;
+
+      switch (mutation.operation) {
+        case 'create':
+          // Create on server
+          serverRecord = await Entity.create(mutation.payload);
+          
+          // Update local record with real server ID
+          const storeName = mutation.entity === 'Patient' ? 
+            offlineDB.STORES.PATIENTS : offlineDB.STORES.DELIVERIES;
+          
+          // Remove temp record
+          const allRecords = await offlineDB.getAll(storeName);
+          const tempRecord = allRecords.find(r => r.id === mutation.recordId);
+          
+          if (tempRecord && serverRecord) {
+            // Save server record with real ID
+            const finalRecord = {
+              ...tempRecord,
+              ...serverRecord,
+              _isPending: false
+            };
+            await offlineDB.bulkSave(storeName, [finalRecord]);
+          }
+          
+          console.log(`✅ [OfflineSync] Created ${mutation.entity} on server: ${serverRecord.id}`);
+          break;
+
+        case 'update':
+          // Skip if temp ID (should be created first)
+          if (mutation.recordId.startsWith('temp_')) {
+            console.log(`⏭️ [OfflineSync] Skipping update for temp ID: ${mutation.recordId}`);
+            continue;
+          }
+          
+          serverRecord = await Entity.update(mutation.recordId, mutation.payload);
+          console.log(`✅ [OfflineSync] Updated ${mutation.entity} on server: ${mutation.recordId}`);
+          break;
+
+        case 'delete':
+          // Skip if temp ID
+          if (mutation.recordId.startsWith('temp_')) {
+            console.log(`⏭️ [OfflineSync] Skipping delete for temp ID: ${mutation.recordId}`);
+            continue;
+          }
+          
+          await Entity.delete(mutation.recordId);
+          
+          // Remove from local DB
+          const deleteStoreName = mutation.entity === 'Patient' ? 
+            offlineDB.STORES.PATIENTS : offlineDB.STORES.DELIVERIES;
+          const allDeleteRecords = await offlineDB.getAll(deleteStoreName);
+          const remainingRecords = allDeleteRecords.filter(r => r.id !== mutation.recordId);
+          await offlineDB.clearStore(deleteStoreName);
+          await offlineDB.bulkSave(deleteStoreName, remainingRecords);
+          
+          console.log(`✅ [OfflineSync] Deleted ${mutation.entity} on server: ${mutation.recordId}`);
+          break;
+      }
+
+      // Remove from pending queue
+      await offlineDB.removePendingMutation(mutation.mutationId);
+      successCount++;
+
+    } catch (error) {
+      console.error(`❌ [OfflineSync] Failed to sync ${mutation.operation} for ${mutation.entity}:`, error);
+      
+      // Increment retry count
+      const newRetryCount = (mutation.retryCount || 0) + 1;
+      if (newRetryCount < 5) {
+        await offlineDB.updateMutationRetryCount(mutation.mutationId, newRetryCount);
+      } else {
+        console.error(`❌ [OfflineSync] Mutation ${mutation.mutationId} failed after 5 retries`);
+      }
+      
+      failCount++;
+    }
+
+    // Small delay between mutations to avoid rate limits
+    await new Promise(resolve => setTimeout(resolve, 200));
+  }
+
+  console.log(`✅ [OfflineSync] Mutation sync complete: ${successCount} succeeded, ${failCount} failed`);
+  notifySyncStatus({ status: 'mutations_synced', successCount, failCount });
+
+  return { success: true, processed: successCount, failed: failCount };
+};
+
+/**
  * Get sync statistics
  */
 export const getSyncStats = async () => {
-  return await offlineDB.getStats();
+  const stats = await offlineDB.getStats();
+  const pendingMutations = await offlineDB.getPendingMutations();
+  
+  return {
+    ...stats,
+    pendingMutations: pendingMutations.length
+  };
 };

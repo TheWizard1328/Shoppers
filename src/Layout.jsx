@@ -86,7 +86,7 @@ import { ResizableDivider } from './components/ui/resizable-divider';
       import { isMobileDevice } from './components/utils/deviceUtils';
       import MessageNotificationBalloon from './components/messaging/MessageNotificationBalloon';
       import { initializeDailyCleanup } from './components/utils/messageCleaner';
-import { performInitialSync } from './components/utils/offlineSync';
+import { performInitialSync, processPendingMutations } from './components/utils/offlineSync';
 import OfflineSyncIndicator from './components/layout/OfflineSyncIndicator';
 
 const createMergedUser = (authUser, appUser) => {
@@ -669,7 +669,17 @@ export default function Layout({ children, currentPageName }) {
         });
       }, 5000);
 
-      return () => clearTimeout(syncTimer);
+      // Process pending mutations every 30 seconds
+      const mutationSyncInterval = setInterval(() => {
+        processPendingMutations().catch(error => {
+          console.error('❌ [Layout] Mutation sync failed:', error);
+        });
+      }, 30000);
+
+      return () => {
+        clearTimeout(syncTimer);
+        clearInterval(mutationSyncInterval);
+      };
     }, [currentUser]);
 
     // Fetch unread message count - only when messaging panel is closed
