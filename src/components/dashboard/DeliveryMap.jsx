@@ -1250,11 +1250,13 @@ export default function DeliveryMap({
       return null;
     }
 
-    // CRITICAL: Only show on mobile devices
-    if (!isMobile) {
-      console.log('⏭️ [DeliveryMap] Skipping blue dot - not on mobile device');
-      return null;
-    }
+    // CRITICAL: Always show blue dot on mobile devices (currentDriverLocation is only passed on mobile)
+    console.log('✅ [DeliveryMap] Blue dot enabled for mobile device:', {
+      isMobile,
+      hasLocation: !!currentDriverLocation,
+      lat: currentDriverLocation?.latitude,
+      lon: currentDriverLocation?.longitude
+    });
 
     console.log('🗺️ [DeliveryMap] Processing currentDriverLocation:', currentDriverLocation);
 
