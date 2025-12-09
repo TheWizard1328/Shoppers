@@ -688,10 +688,20 @@ export default function Layout({ children, currentPageName }) {
         }
       });
 
+      // Listen for offline sync completion to refresh UI
+      const handleSyncComplete = () => {
+        console.log('🔄 [Layout] Offline sync complete - refreshing data...');
+        invalidate('Patient');
+        invalidate('Delivery');
+        triggerFullDataLoad(true);
+      };
+      window.addEventListener('offlineSyncComplete', handleSyncComplete);
+
       return () => {
         clearTimeout(syncTimer);
         clearInterval(mutationSyncInterval);
         unsubscribeMutations();
+        window.removeEventListener('offlineSyncComplete', handleSyncComplete);
       };
     }, [currentUser]);
 
@@ -1251,23 +1261,32 @@ export default function Layout({ children, currentPageName }) {
     if (pullDistance >= pullThreshold) {
       setIsRefreshing(true);
 
-      // CRITICAL: Trigger polyline update BEFORE reload
-      console.log('🔄 [Pull-to-Refresh] Triggering polyline update...');
+      // CRITICAL: Trigger data reload instead of full page reload
+      console.log('🔄 [Pull-to-Refresh] Triggering data refresh...');
       try {
         const selectedDateStr = globalFilters.getSelectedDate();
         const selectedDriverId = globalFilters.getSelectedDriverId();
 
-        // Only update polyline if we have a valid driver selected
+        // Update polyline if we have a valid driver selected
         if (selectedDriverId && selectedDriverId !== 'all') {
           await updatePolylineOnRefresh(selectedDriverId, selectedDateStr);
         }
-      } catch (error) {
-        console.error('❌ [Pull-to-Refresh] Polyline update failed:', error);
-      }
 
-      setTimeout(() => {
-        window.location.reload();
-      }, 300);
+        // Clear all caches and reload data
+        invalidate('Delivery');
+        invalidate('Patient');
+        invalidate('AppUser');
+
+        // Trigger full data load with force refresh
+        await triggerFullDataLoad(true);
+
+        console.log('✅ [Pull-to-Refresh] Data refresh complete');
+      } catch (error) {
+        console.error('❌ [Pull-to-Refresh] Data refresh failed:', error);
+      } finally {
+        setIsRefreshing(false);
+        setPullDistance(0);
+      }
     } else {
       setPullDistance(0);
     }
