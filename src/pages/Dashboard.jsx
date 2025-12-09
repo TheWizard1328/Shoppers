@@ -214,6 +214,7 @@ function Dashboard() {
     drivers,
     users,
     cities,
+    appUsers,
     isDataLoaded,
     refreshData,
     updateDeliveriesLocally,
@@ -5339,34 +5340,89 @@ function Dashboard() {
                 <SmartRefreshIndicator
                   inline={true}
                   onManualRefresh={async () => {
-                    console.log('🔄 [Dashboard] Manual refresh triggered from stats card');
+                    console.clear();
+                    console.log('');
+                    console.log('═══════════════════════════════════════════════════');
+                    console.log('🔄 [MANUAL REFRESH] === REFRESH CYCLE START ===');
+                    console.log('═══════════════════════════════════════════════════');
+                    console.log('');
 
                     // Run ETA optimizer for current driver if applicable
                     if (selectedDriverId && selectedDriverId !== 'all') {
-                      console.log('🔄 [Dashboard] Running ETA optimizer...');
+                      console.log('🔄 [MANUAL REFRESH] Running ETA optimizer...');
                       try {
                         await base44.functions.invoke('etaOptimizer', {
                           driverId: selectedDriverId,
                           deliveryDate: format(selectedDate, 'yyyy-MM-dd')
                         });
-                        console.log('✅ [Dashboard] ETA optimizer completed');
+                        console.log('✅ [MANUAL REFRESH] ETA optimizer completed');
                       } catch (etaError) {
-                        console.warn('⚠️ [Dashboard] ETA optimizer failed:', etaError);
+                        console.warn('⚠️ [MANUAL REFRESH] ETA optimizer failed:', etaError);
                       }
                     }
 
-                    // CRITICAL: Invalidate ALL caches to force fresh data fetch
-                    invalidate('Delivery');
-                    invalidate('Patient');
-                    invalidate('AppUser');
-                    invalidate('Store');
-                    invalidate('User');
-                    invalidate('City');
+                    // Trigger smart refresh cycle (incremental updates)
+                    console.log('🔄 [MANUAL REFRESH] Starting smart refresh cycle...');
+                    
+                    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+                    const currentData = {
+                      deliveries,
+                      patients,
+                      appUsers,
+                      stores
+                    };
 
-                    // Trigger full data refresh (force=true skips cache)
-                    await refreshData(true);
+                    const filters = {
+                      selectedDate,
+                      deliveryFilter: {},
+                      patientFilter: {},
+                      activeDriverIds: drivers.map(d => d?.id).filter(Boolean)
+                    };
 
-                    console.log('✅ [Dashboard] Historical data refreshed');
+                    const cityStoreIds = stores.map(s => s?.id).filter(Boolean);
+                    if (cityStoreIds.length > 0) {
+                      filters.deliveryFilter.store_id = { $in: cityStoreIds };
+                      filters.patientFilter.store_id = { $in: cityStoreIds };
+                    }
+
+                    if (selectedDriverId && selectedDriverId !== 'all') {
+                      filters.deliveryFilter.driver_id = selectedDriverId;
+                    }
+
+                    // Force all entity intervals to refresh immediately
+                    smartRefreshManager.lastRefreshTimes = {
+                      driverLocation: 0,
+                      activeDeliveries: 0,
+                      todayDeliveries: 0,
+                      appUsers: 0,
+                      patients: 0,
+                      stores: 0
+                    };
+
+                    const updates = await smartRefreshManager.performSmartRefresh(currentData, filters, false);
+                    
+                    if (updates && updateDeliveriesLocally) {
+                      console.log('✅ [MANUAL REFRESH] Applying updates to local state');
+                      
+                      if (updates.deliveries) {
+                        setDeliveries(updates.deliveries);
+                      }
+                      if (updates.patients) {
+                        setPatients(updates.patients);
+                      }
+                      if (updates.appUsers) {
+                        setAppUsers(updates.appUsers);
+                      }
+                      if (updates.stores) {
+                        setStores(updates.stores);
+                      }
+                    }
+
+                    console.log('');
+                    console.log('═══════════════════════════════════════════════════');
+                    console.log('✅ [MANUAL REFRESH] === REFRESH CYCLE COMPLETE ===');
+                    console.log('═══════════════════════════════════════════════════');
+                    console.log('');
                   }} />
 
                 }

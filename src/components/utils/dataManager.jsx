@@ -390,8 +390,30 @@ export const loadDeliveries = async (
       const yesterdayStr = format(subDays(today, 1), 'yyyy-MM-dd');
       
       console.log(`🚀 [dataManager] BACKGROUND: Loading past 30 days (${last30DaysStr} to ${yesterdayStr}) - ALL drivers in city`);
-      const pastDeliveries = await getDeliveriesForDateRange(last30DaysStr, yesterdayStr, backgroundFilters, forceRefresh);
-      console.log(`✅ [dataManager] BACKGROUND: Loaded ${pastDeliveries.length} past deliveries (all drivers)`);
+      console.log(`⏱️ [dataManager] Loading with 500ms pause between dates to prevent rate limits`);
+      
+      const pastDeliveries = [];
+      
+      // Load each date individually with 500ms pause between them
+      for (let i = 29; i >= 1; i--) {
+        const date = subDays(today, i);
+        const dateStr = format(date, 'yyyy-MM-dd');
+        
+        try {
+          const dayDeliveries = await loadDeliveriesForDate(dateStr, backgroundFilters, forceRefresh);
+          pastDeliveries.push(...dayDeliveries);
+          console.log(`  ✅ [dataManager] Loaded ${dayDeliveries.length} deliveries for ${dateStr} (${i} days ago)`);
+          
+          // Pause 500ms before next date
+          if (i > 1) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        } catch (dateError) {
+          console.error(`  ❌ [dataManager] Error loading ${dateStr}:`, dateError);
+        }
+      }
+      
+      console.log(`✅ [dataManager] BACKGROUND: Loaded ${pastDeliveries.length} past deliveries (all drivers) across 30 days`);
       
       // Combine all: past + today + future
       const allDeliveries = [...pastDeliveries, ...initialDeliveries];
