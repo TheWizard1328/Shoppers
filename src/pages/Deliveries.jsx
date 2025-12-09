@@ -1997,10 +1997,15 @@ export default function DeliveriesPage() {
         );
         await Promise.all(updatePromises);
         console.log(`✅ [Deliveries] Updated ${relatedDeliveries.length} deliveries to in_transit after pickup`);
+        
+        // Update local state immediately
+        setAllDeliveries(prev => 
+          prev.map(d => {
+            const updated = relatedDeliveries.find(rd => rd.id === d.id);
+            return updated ? { ...d, status: 'in_transit', updated_date: new Date().toISOString() } : d;
+          })
+        );
       }
-
-      const freshDeliveries = await Delivery.list('-created_date');
-      setAllDeliveries(freshDeliveries || []);
 
     } catch (error) {
       console.error('Error updating delivery status:', error);
@@ -2010,10 +2015,11 @@ export default function DeliveriesPage() {
   const handleNotesUpdate = useCallback(async (deliveryId, newNotes) => {
     try {
       await updateDeliveryLocal(deliveryId, { delivery_notes: newNotes });
-      await invalidate('Delivery');
-      // Directly update the state after invalidation
-      const freshDeliveries = await Delivery.list('-created_date');
-      setAllDeliveries(freshDeliveries || []);
+      // Update local state immediately
+      setAllDeliveries(prev => 
+        prev.map(d => d.id === deliveryId ? { ...d, delivery_notes: newNotes, updated_date: new Date().toISOString() } : d)
+      );
+      invalidate('Delivery');
     } catch (error) {
       console.error("Error updating delivery notes:", error);
       alert("Failed to update delivery notes.");
@@ -2023,10 +2029,11 @@ export default function DeliveriesPage() {
   const handleCODUpdate = useCallback(async (deliveryId, requiresCod) => {
     try {
       await updateDeliveryLocal(deliveryId, { requires_cod: requiresCod });
-      await invalidate('Delivery');
-      // Directly update the state after invalidation
-      const freshDeliveries = await Delivery.list('-created_date');
-      setAllDeliveries(freshDeliveries || []);
+      // Update local state immediately
+      setAllDeliveries(prev => 
+        prev.map(d => d.id === deliveryId ? { ...d, requires_cod: requiresCod, updated_date: new Date().toISOString() } : d)
+      );
+      invalidate('Delivery');
     } catch (error) {
       console.error("Error updating COD status:", error);
       alert("Failed to update COD status.");
@@ -2037,10 +2044,11 @@ export default function DeliveriesPage() {
     if (!confirm('Are you sure you want to retry this delivery? It will be marked as pending.')) return;
     try {
       await updateDeliveryLocal(deliveryId, { status: 'pending', actual_delivery_time: null });
-      await invalidate('Delivery');
-      // Directly update the state after invalidation
-      const freshDeliveries = await Delivery.list('-created_date');
-      setAllDeliveries(freshDeliveries || []);
+      // Update local state immediately
+      setAllDeliveries(prev => 
+        prev.map(d => d.id === deliveryId ? { ...d, status: 'pending', actual_delivery_time: null, updated_date: new Date().toISOString() } : d)
+      );
+      invalidate('Delivery');
     } catch (error) {
       console.error("Error retrying delivery:", error);
       alert("Failed to retry delivery.");
@@ -2056,10 +2064,11 @@ export default function DeliveriesPage() {
         actual_delivery_time: now.toISOString() // Mark as finished with timestamp
       };
       await updateDeliveryLocal(deliveryId, updateData);
-      await invalidate('Delivery');
-      // Directly update the state after invalidation
-      const freshDeliveries = await Delivery.list('-created_date');
-      setAllDeliveries(freshDeliveries || []);
+      // Update local state immediately
+      setAllDeliveries(prev => 
+        prev.map(d => d.id === deliveryId ? { ...d, ...updateData, updated_date: new Date().toISOString() } : d)
+      );
+      invalidate('Delivery');
     } catch (error) {
       console.error("Error returning delivery:", error);
       alert("Failed to mark delivery for return.");
@@ -2069,9 +2078,9 @@ export default function DeliveriesPage() {
   const handleDeleteDelivery = useCallback(async (deliveryId) => {
     try {
       await deleteDeliveryLocal(deliveryId);
-      await invalidate('Delivery');
-      const freshDeliveries = await Delivery.list('-created_date');
-      setAllDeliveries(freshDeliveries || []);
+      // Update local state immediately
+      setAllDeliveries(prev => prev.filter(d => d.id !== deliveryId));
+      invalidate('Delivery');
     } catch (error) {
       console.error("Error deleting delivery:", error);
       alert("Failed to delete delivery.");
