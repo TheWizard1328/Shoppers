@@ -18,19 +18,19 @@ class SmartRefreshManager {
     this.refreshCallbacks = new Set();
     this.refreshQueue = [];
     this.lastRefreshTime = 0;
-    this.minRefreshInterval = 30000; // 30 seconds minimum between full refreshes
+    this.minRefreshInterval = 90000; // 90 seconds minimum between full refreshes (increased to reduce rate limits)
     this.lastFullRefreshTime = 0; // Track full refresh separately
     
     // Real-time refresh intervals (milliseconds) - Optimized for collaboration
     // PRIORITY: Today's data is critical, historical/future data is background
     this.intervals = {
-      driverLocation: 20000,     // 20s - driver GPS locations (HIGH PRIORITY)
-      activeDeliveries: 30000,   // 30s - today's active delivery statuses (HIGH PRIORITY)
-      todayDeliveries: 30000,    // 30s - today's delivery changes only (HIGH PRIORITY - for real-time collaboration)
-      appUsers: 60000,           // 60s - driver status, assignments (HIGH PRIORITY)
-      todayPatients: 300000,     // 5min - patients on today's routes only (MEDIUM)
-      patients: 1800000,         // 30min - all other patients (LOW PRIORITY - background)
-      stores: 3600000            // 60min - store data almost never changes (VERY LOW)
+      driverLocation: 60000,     // 60s - driver GPS locations (reduced to avoid rate limits)
+      activeDeliveries: 90000,   // 90s - today's active delivery statuses (reduced)
+      todayDeliveries: 120000,   // 2min - today's delivery changes only (reduced)
+      appUsers: 180000,          // 3min - driver status, assignments (reduced)
+      todayPatients: 600000,     // 10min - patients on today's routes only
+      patients: 3600000,         // 60min - all other patients (very low priority)
+      stores: 7200000            // 2hr - store data almost never changes
     };
     
     // Track last refresh time for each entity type
@@ -48,7 +48,7 @@ class SmartRefreshManager {
     
     // Rate limit protection - Balanced for collaboration and API limits
     this.lastApiCallTime = 0;
-    this.minTimeBetweenCalls = 3000; // 3 seconds minimum between any API call
+    this.minTimeBetweenCalls = 5000; // 5 seconds minimum between any API call (increased to reduce rate limits)
     
     // Rate limit error callback
     this.rateLimitCallback = null;
