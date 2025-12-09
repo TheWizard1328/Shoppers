@@ -3,10 +3,31 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
+    
+    // CRITICAL: Check authentication first
+    let isAuthenticated = false;
+    try {
+      isAuthenticated = await base44.auth.isAuthenticated();
+    } catch (authCheckError) {
+      console.error('❌ Auth check error:', authCheckError.message);
+      return Response.json({ error: 'Authentication check failed' }, { status: 401 });
+    }
+    
+    if (!isAuthenticated) {
+      console.error('❌ User not authenticated');
+      return Response.json({ error: 'Unauthorized - not authenticated' }, { status: 401 });
+    }
+    
+    let user;
+    try {
+      user = await base44.auth.me();
+    } catch (authError) {
+      console.error('❌ Auth error:', authError.message);
+      return Response.json({ error: 'Authentication failed' }, { status: 401 });
+    }
 
     if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+      return Response.json({ error: 'Unauthorized - no user' }, { status: 401 });
     }
 
     const { driverId, deliveryDate, currentStopId } = await req.json();
