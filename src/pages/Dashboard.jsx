@@ -17,6 +17,11 @@ import { getDriverColor } from "@/components/dashboard/DeliveryMap";
 import HorizontalStopCards from "@/components/dashboard/HorizontalStopCards";
 import DeliveryForm from "@/components/deliveries/DeliveryForm";
 import PatientForm from "@/components/patients/PatientForm";
+import { 
+  createDeliveryLocal,
+  updateDeliveryLocal,
+  batchCreateDeliveriesLocal
+} from "@/components/utils/offlineMutations";
 import RouteOptimizationSettings, { getRouteOptimizationSettings } from "@/components/dashboard/RouteOptimizationSettings";
 import { sortUsers } from "@/components/utils/sorting";
 import { AnimatePresence, motion } from "framer-motion";
@@ -3234,16 +3239,16 @@ function Dashboard() {
             deliveriesToCreate.forEach((d, idx) => {
               console.log(`[AddToRoute]     ${idx + 1}. ${d.patient_name || 'Pickup'} - Stop#${d.stop_order}, TR#${d.tracking_number}`);
             });
-            await base44.entities.Delivery.bulkCreate(deliveriesToCreate);
-            console.log(`[AddToRoute]   ✅ Created ${deliveriesToCreate.length} new deliveries`);
+            await batchCreateDeliveriesLocal(deliveriesToCreate);
+            console.log(`[AddToRoute]   ✅ Created ${deliveriesToCreate.length} new deliveries locally`);
           }
 
           if (deliveriesToUpdate.length > 0) {
             for (const { id, updates } of deliveriesToUpdate) {
               if (!id || !updates) continue;
-              await base44.entities.Delivery.update(id, updates);
+              await updateDeliveryLocal(id, updates);
             }
-            console.log(`[AddToRoute]   ✅ Updated ${deliveriesToUpdate.length} existing deliveries`);
+            console.log(`[AddToRoute]   ✅ Updated ${deliveriesToUpdate.length} existing deliveries locally`);
           }
 
           console.log('');
