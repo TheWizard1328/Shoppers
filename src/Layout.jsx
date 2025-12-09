@@ -86,6 +86,8 @@ import { ResizableDivider } from './components/ui/resizable-divider';
       import { isMobileDevice } from './components/utils/deviceUtils';
       import MessageNotificationBalloon from './components/messaging/MessageNotificationBalloon';
       import { initializeDailyCleanup } from './components/utils/messageCleaner';
+import { performInitialSync } from './components/utils/offlineSync';
+import OfflineSyncIndicator from './components/layout/OfflineSyncIndicator';
 
 const createMergedUser = (authUser, appUser) => {
   // CRITICAL: Allow creating users from AppUser data alone (for non-admin users who can't fetch User.list())
@@ -653,6 +655,22 @@ export default function Layout({ children, currentPageName }) {
     useEffect(() => {
     initializeDailyCleanup();
     }, []);
+
+    // Initialize offline database sync
+    useEffect(() => {
+      if (!currentUser) return;
+
+      console.log('🚀 [Layout] Initializing offline database sync...');
+
+      // Start background sync after 5 seconds to avoid blocking initial load
+      const syncTimer = setTimeout(() => {
+        performInitialSync().catch(error => {
+          console.error('❌ [Layout] Initial offline sync failed:', error);
+        });
+      }, 5000);
+
+      return () => clearTimeout(syncTimer);
+    }, [currentUser]);
 
     // Fetch unread message count - only when messaging panel is closed
   // When panel is open, ConversationsList handles the count
@@ -2291,6 +2309,9 @@ export default function Layout({ children, currentPageName }) {
                       }}
                     />
                   )}
+
+                  {/* Offline Sync Indicator */}
+                  {currentUser && <OfflineSyncIndicator />}
 
                   {showDeliveryImport && (
                                             <RouteImport

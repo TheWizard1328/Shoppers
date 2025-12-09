@@ -5,6 +5,7 @@ import { User } from '@/entities/User';
 import { City } from '@/entities/City';
 import { AppUser } from '@/entities/AppUser';
 import { format, subDays } from 'date-fns';
+import { offlineDB } from './offlineDatabase';
 
 const entities = {
   Patient,
@@ -45,6 +46,23 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
   const limit = !isQueryObject && typeof queryOrLimit === 'number' ? queryOrLimit : null;
   
   const cacheKey = `${entityName}_${sortKey || 'default'}_${JSON.stringify(query) || 'noquery'}_${limit || 'all'}`;
+  
+  // OFFLINE-FIRST: Try IndexedDB for Patient and Delivery entities
+  if (!forceRefresh && (entityName === 'Patient' || entityName === 'Delivery')) {
+    try {
+      const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : offlineDB.STORES.DELIVERIES;
+      let offlineData = await offlineDB.getAll(storeName);
+      
+      if (offlineData && offlineData.length > 0) {
+        console.log(`📱 [dataManager] Using offline ${entityName} data (${offlineData.length} records)`);
+        cache.set(cacheKey, offlineData);
+        cacheTimestamps.set(cacheKey, Date.now());
+        return offlineData;
+      }
+    } catch (offlineError) {
+      console.warn(`⚠️ [dataManager] Offline ${entityName} fetch failed, falling back to network:`, offlineError);
+    }
+  }
   
   if (!forceRefresh && cache.has(cacheKey)) {
     const timestamp = cacheTimestamps.get(cacheKey);
@@ -109,7 +127,15 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
 
       cache.set(cacheKey, data);
       cacheTimestamps.set(cacheKey, Date.now());
-      
+
+      // BACKGROUND: Save to IndexedDB for offline access
+      if (entityName === 'Patient' || entityName === 'Delivery') {
+        const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : offlineDB.STORES.DELIVERIES;
+        offlineDB.bulkSave(storeName, data).catch(err => {
+          console.warn(`⚠️ [dataManager] Failed to save ${entityName} to IndexedDB:`, err);
+        });
+      }
+
       console.log(`✅ [dataManager] Fetched ${data?.length || 0} ${entityName} records for key: ${cacheKey}`);
       return data;
       
@@ -277,7 +303,32 @@ export const getDeliveriesForDateRange = async (startDate, endDate, filters = {}
 export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh = false) => {
   const cacheKey = `Delivery_date_${dateStr}_${JSON.stringify(filters)}`;
   
-  // Check cache first
+  // OFFLINE-FIRST: Try IndexedDB first
+  if (!forceRefresh) {
+    try {
+      let offlineData = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateStr);
+      
+      // Apply additional filters locally
+      if (filters.store_id) {
+        const storeIds = filters.store_id.$in || [filters.store_id];
+        offlineData = offlineData.filter(d => storeIds.includes(d.store_id));
+      }
+      if (filters.driver_id) {
+        offlineData = offlineData.filter(d => d.driver_id === filters.driver_id);
+      }
+      
+      if (offlineData && offlineData.length > 0) {
+        console.log(`📱 [dataManager] Using offline deliveries for ${dateStr} (${offlineData.length} records)`);
+        deliveryRangeCache.set(cacheKey, offlineData);
+        deliveryRangeCacheTimestamps.set(cacheKey, Date.now());
+        return offlineData;
+      }
+    } catch (offlineError) {
+      console.warn(`⚠️ [dataManager] Offline delivery fetch failed, falling back to network:`, offlineError);
+    }
+  }
+  
+  // Check cache next
   if (!forceRefresh) {
     const cachedData = deliveryRangeCache.get(cacheKey);
     const cachedTimestamp = deliveryRangeCacheTimestamps.get(cacheKey);
@@ -304,7 +355,12 @@ export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh 
     // Cache the result
     deliveryRangeCache.set(cacheKey, deliveries);
     deliveryRangeCacheTimestamps.set(cacheKey, Date.now());
-    
+
+    // BACKGROUND: Save to IndexedDB
+    offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries).catch(err => {
+      console.warn('⚠️ [dataManager] Failed to save deliveries to IndexedDB:', err);
+    });
+
     console.log(`✅ [dataManager] PRIORITY: Loaded ${deliveries.length} deliveries for ${dateStr}`);
     return deliveries;
   } catch (error) {
