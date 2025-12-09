@@ -2091,47 +2091,65 @@ export default function DeliveryMap({
         })()}
 
         {/* MOVED: Current Driver's Live Location - BLUE DOT - RENDER FIRST for lower priority */}
-        {currentDriverMarker &&
-          <Marker
-            key="current-driver-location"
-            position={[currentDriverMarker.latitude, currentDriverMarker.longitude]}
-            icon={createLiveLocationDot()}
-            zIndexOffset={-1000}
-            eventHandlers={{
-              click: () => onMarkerClick && onMarkerClick(currentDriverMarker, 'driver'),
-              mouseover: (e) => {
-                e.target.openPopup();
-              },
-              mouseout: (e) => {
-                e.target.closePopup();
-              }
-            }}>
-
-            <Popup
-              autoPan={false}
-              closeButton={false}
-              offset={[0, -10]}
-              className="custom-popup">
-
-              <div className="min-w-[150px]">
-                <div className="flex items-center gap-1.5">
-                  <Navigation className="w-3.5 h-3.5 text-blue-600" />
-                  <h3 className="font-semibold text-xs">Your Location</h3>
-                </div>
-                <div className="text-[10px] text-blue-600 mt-1 font-medium flex items-center gap-1">
-                  <Activity className="w-3 h-3 animate-pulse" />
-                  Live GPS
-                </div>
-                {currentDriverMarker.timestamp &&
-                  <div className="flex items-center gap-1 mt-1 text-[11px] text-gray-600">
-                    <Clock className="w-3 h-3" />
-                    Updated: {format(new Date(currentDriverMarker.timestamp), 'HH:mm:ss')}
-                  </div>
+        {(() => {
+          console.log('🔵 [DeliveryMap RENDER] Blue dot render check:', {
+            hasCurrentDriverMarker: !!currentDriverMarker,
+            markerData: currentDriverMarker ? {
+              lat: currentDriverMarker.latitude,
+              lon: currentDriverMarker.longitude,
+              hasDriver: !!currentDriverMarker.driver
+            } : null
+          });
+          
+          if (!currentDriverMarker) {
+            console.log('⏭️ [DeliveryMap RENDER] Blue dot NOT rendered - currentDriverMarker is null');
+            return null;
+          }
+          
+          console.log('✅ [DeliveryMap RENDER] RENDERING BLUE DOT at:', [currentDriverMarker.latitude, currentDriverMarker.longitude]);
+          
+          return (
+            <Marker
+              key="current-driver-location"
+              position={[currentDriverMarker.latitude, currentDriverMarker.longitude]}
+              icon={createLiveLocationDot()}
+              zIndexOffset={-1000}
+              eventHandlers={{
+                click: () => onMarkerClick && onMarkerClick(currentDriverMarker, 'driver'),
+                mouseover: (e) => {
+                  e.target.openPopup();
+                },
+                mouseout: (e) => {
+                  e.target.closePopup();
                 }
-              </div>
-            </Popup>
-          </Marker>
-        }
+              }}>
+
+              <Popup
+                autoPan={false}
+                closeButton={false}
+                offset={[0, -10]}
+                className="custom-popup">
+
+                <div className="min-w-[150px]">
+                  <div className="flex items-center gap-1.5">
+                    <Navigation className="w-3.5 h-3.5 text-blue-600" />
+                    <h3 className="font-semibold text-xs">Your Location</h3>
+                  </div>
+                  <div className="text-[10px] text-blue-600 mt-1 font-medium flex items-center gap-1">
+                    <Activity className="w-3 h-3 animate-pulse" />
+                    Live GPS
+                  </div>
+                  {currentDriverMarker.timestamp &&
+                    <div className="flex items-center gap-1 mt-1 text-[11px] text-gray-600">
+                      <Clock className="w-3 h-3" />
+                      Updated: {format(new Date(currentDriverMarker.timestamp), 'HH:mm:ss')}
+                    </div>
+                  }
+                </div>
+              </Popup>
+            </Marker>
+          );
+        })()}
 
         {/* Store Pickup Markers - NOW WITH FANNING AND HIGHLIGHT HALOS */}
         {pickupMarkers.map((pickup, index) => {

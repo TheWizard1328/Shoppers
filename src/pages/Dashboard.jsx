@@ -255,6 +255,16 @@ function Dashboard() {
   });
   const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [driverLocation, setDriverLocation] = useState(null);
+  
+  // Debug: Log driverLocation changes
+  useEffect(() => {
+    console.log('📍 [Dashboard driverLocation STATE CHANGED]:', driverLocation ? {
+      lat: driverLocation.latitude,
+      lon: driverLocation.longitude,
+      timestamp: driverLocation.timestamp,
+      source: driverLocation.source
+    } : 'NULL');
+  }, [driverLocation]);
   const [hasUnreadAIAlerts, setHasUnreadAIAlerts] = useState(false);
   const [showPatientForm, setShowPatientForm] = useState(false);
   const [editingPatient, setEditingPatient] = useState(null);
