@@ -993,11 +993,11 @@ export default function Layout({ children, currentPageName }) {
 
       // CRITICAL: Don't run initial refresh immediately - wait for data to be fully loaded
       // The normal interval will handle the first refresh after data is stable
-      console.log('🚀 [Layout] Smart refresh started - first refresh in 45s (not immediate)');
+      console.log('🚀 [Layout] Smart refresh started - first refresh in 90s (not immediate)');
 
-      // Single unified interval - 20 seconds for responsive real-time updates
+      // Single unified interval - 60 seconds to avoid rate limits
       // Individual entity intervals are managed by smartRefreshManager
-      refreshIntervalRef.current = setInterval(performUnifiedRefresh, 20000);
+      refreshIntervalRef.current = setInterval(performUnifiedRefresh, 60000);
     }, 500);
 
     return () => {

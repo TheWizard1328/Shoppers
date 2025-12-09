@@ -2120,11 +2120,11 @@ function Dashboard() {
       }
     };
 
-    // Run immediately on mount
-    const initialTimer = setTimeout(runETAOptimizer, 5000);
+    // Run after initial delay to avoid competing with data load
+    const initialTimer = setTimeout(runETAOptimizer, 30000);
     
-    // Then run every 60 seconds
-    const interval = setInterval(runETAOptimizer, 60000);
+    // Then run every 3 minutes to reduce API calls
+    const interval = setInterval(runETAOptimizer, 180000);
 
     return () => {
       clearTimeout(initialTimer);
