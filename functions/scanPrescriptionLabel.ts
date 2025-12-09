@@ -10,42 +10,51 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { fileUrl, selectedCityId } = body;
+    const { base64Image, selectedCityId } = body;
 
-    if (!fileUrl) {
-      return Response.json({ error: 'No image URL provided' }, { status: 400 });
+    if (!base64Image) {
+      return Response.json({ error: 'No image data provided' }, { status: 400 });
     }
 
-    console.log('📸 [scanPrescriptionLabel] Processing image:', fileUrl);
+    console.log('📸 [scanPrescriptionLabel] Processing base64 image (first 50 chars):', base64Image.substring(0, 50) + '...');
 
-    // Extract data using OCR
-    console.log('🔍 [scanPrescriptionLabel] Extracting data from image...');
-    const extractionResult = await base44.integrations.Core.ExtractDataFromUploadedFile({
-      file_url: fileUrl,
-      json_schema: {
+    // Extract data using Vision LLM
+    console.log('🔍 [scanPrescriptionLabel] Extracting data from image using Vision LLM...');
+    const extractionResult = await base44.integrations.Core.InvokeLLM({
+      prompt: "From the image of the prescription label, extract the patient's full name, street address, city, state, zip code, and phone number. If a piece of information is not present or clearly readable, return it as null. Focus only on information directly related to the patient's delivery address and contact.",
+      response_json_schema: {
         type: "object",
         properties: {
           patient_name: { type: "string" },
           street_address: { type: "string" },
-          city_state_zip: { type: "string" },
+          city: { type: "string" },
+          state: { type: "string" },
+          zip_code: { type: "string" },
           phone_number: { type: "string" }
-        },
-        required: ["patient_name", "street_address", "phone_number"]
-      }
+        }
+      },
+      file_urls: [base64Image]
     });
 
-    console.log('📊 [scanPrescriptionLabel] Extraction result:', extractionResult);
+    console.log('📊 [scanPrescriptionLabel] LLM extraction result:', extractionResult);
 
-    if (extractionResult.status !== 'success' || !extractionResult.output) {
-      console.error('❌ [scanPrescriptionLabel] Extraction failed:', extractionResult);
+    // Check if the LLM returned usable data
+    if (!extractionResult || !extractionResult.patient_name) {
+      console.error('❌ [scanPrescriptionLabel] LLM extraction failed or no patient name extracted');
       return Response.json({ 
-        error: 'Failed to extract data from image',
-        details: extractionResult.details 
+        error: 'Failed to extract data from image. Please ensure the label is clear and readable.',
+        details: 'No relevant data found'
       }, { status: 400 });
     }
 
-    const extractedData = extractionResult.output;
-    console.log('✅ [scanPrescriptionLabel] Extracted data:', extractedData);
+    // Construct extractedData from LLM response
+    const extractedData = {
+      patient_name: extractionResult.patient_name,
+      street_address: extractionResult.street_address,
+      city_state_zip: [extractionResult.city, extractionResult.state, extractionResult.zip_code].filter(Boolean).join(', '),
+      phone_number: extractionResult.phone_number
+    };
+    console.log('✅ [scanPrescriptionLabel] Extracted data from LLM:', extractedData);
 
     // Now search for matching patients
     // Get user's role and store access
