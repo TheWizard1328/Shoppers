@@ -423,10 +423,22 @@ export const loadDeliveries = async (
   
   // 1. Load selected date's deliveries FIRST (highest priority) - ALL drivers for city
   console.log(`🚀 [dataManager] PRIORITY 1: Loading selected date deliveries (${selectedDateStr}) - ALL drivers for city`);
+  
+  // OFFLINE-FIRST: Try to load from IndexedDB immediately for instant UI
+  try {
+    const offlineDeliveries = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr);
+    if (offlineDeliveries && offlineDeliveries.length > 0 && !forceRefresh) {
+      console.log(`⚡ [dataManager] INSTANT: ${offlineDeliveries.length} deliveries from offline DB`);
+      onInitialLoadComplete(offlineDeliveries);
+    }
+  } catch (err) {
+    console.warn('⚠️ [dataManager] Offline load failed, fetching from network');
+  }
+  
   const selectedDateDeliveries = await loadDeliveriesForDate(selectedDateStr, priorityFilters, forceRefresh);
   console.log(`✅ [dataManager] PRIORITY 1 Complete: ${selectedDateDeliveries.length} deliveries for selected date`);
   
-  // CRITICAL: Immediately refresh UI with selected date data
+  // CRITICAL: Immediately refresh UI with fresh data from server
   console.log(`⚡ [dataManager] Calling onInitialLoadComplete to refresh UI NOW`);
   onInitialLoadComplete(selectedDateDeliveries);
   
