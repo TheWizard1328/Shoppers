@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
     const storeMap = new Map(stores.map(s => [s.id, s]));
 
     // Determine starting location and time (Rule 1a/b)
-    let startLat, startLon, startTime;
+    let startLat, startLon, startTimeHours, startTimeMinutes;
     const now = new Date();
 
     // Try current GPS location first (Rule 1a)
@@ -82,8 +82,9 @@ Deno.serve(async (req) => {
       if (locationAge < 10) {
         startLat = driverAppUser.current_latitude;
         startLon = driverAppUser.current_longitude;
-        startTime = now;
-        console.log('[ETA Updates] Using current GPS location');
+        startTimeHours = now.getHours();
+        startTimeMinutes = now.getMinutes();
+        console.log(`[ETA Updates] Using current GPS location at ${startTimeHours}:${String(startTimeMinutes).padStart(2, '0')}`);
       }
     }
 
@@ -104,16 +105,20 @@ Deno.serve(async (req) => {
           if (patient?.latitude && patient?.longitude) {
             startLat = patient.latitude;
             startLon = patient.longitude;
-            startTime = lastFinished.actual_delivery_time ? new Date(lastFinished.actual_delivery_time) : now;
-            console.log(`[ETA Updates] Using last finished stop location (${lastFinished.status})`);
+            const completionTime = lastFinished.actual_delivery_time ? new Date(lastFinished.actual_delivery_time) : now;
+            startTimeHours = completionTime.getHours();
+            startTimeMinutes = completionTime.getMinutes();
+            console.log(`[ETA Updates] Using last finished stop location (${lastFinished.status}) at ${startTimeHours}:${String(startTimeMinutes).padStart(2, '0')}`);
           }
         } else {
           const store = storeMap.get(lastFinished.store_id);
           if (store?.latitude && store?.longitude) {
             startLat = store.latitude;
             startLon = store.longitude;
-            startTime = lastFinished.actual_delivery_time ? new Date(lastFinished.actual_delivery_time) : now;
-            console.log(`[ETA Updates] Using last finished pickup location (${lastFinished.status})`);
+            const completionTime = lastFinished.actual_delivery_time ? new Date(lastFinished.actual_delivery_time) : now;
+            startTimeHours = completionTime.getHours();
+            startTimeMinutes = completionTime.getMinutes();
+            console.log(`[ETA Updates] Using last finished pickup location (${lastFinished.status}) at ${startTimeHours}:${String(startTimeMinutes).padStart(2, '0')}`);
           }
         }
       }
@@ -123,12 +128,13 @@ Deno.serve(async (req) => {
     if (!startLat && driverAppUser?.home_latitude && driverAppUser?.home_longitude) {
       startLat = driverAppUser.home_latitude;
       startLon = driverAppUser.home_longitude;
-      startTime = now;
-      console.log('[ETA Updates] Using home location');
+      startTimeHours = now.getHours();
+      startTimeMinutes = now.getMinutes();
+      console.log(`[ETA Updates] Using home location at ${startTimeHours}:${String(startTimeMinutes).padStart(2, '0')}`);
     }
 
-    if (!startLat || !startLon) {
-      return Response.json({ error: 'Could not determine starting location' }, { status: 400 });
+    if (!startLat || !startLon || startTimeHours === undefined || startTimeMinutes === undefined) {
+      return Response.json({ error: 'Could not determine starting location or time' }, { status: 400 });
     }
 
     // Get incomplete deliveries (Rule 2b)
@@ -188,22 +194,21 @@ Deno.serve(async (req) => {
     const route = directionsData.routes[0];
     const legs = route.legs;
     
-    // CRITICAL: Parse delivery date + current time to get actual date-time for ETA calculation
+    // CRITICAL: Build proper date-time by combining delivery date + start time
     const deliveryDateObj = new Date(deliveryDate + 'T00:00:00');
-    const currentHours = startTime.getHours();
-    const currentMinutes = startTime.getMinutes();
     
-    // Set cumulative time to delivery date + start time (not just the time object)
+    // Set cumulative time to delivery date + start time
     let cumulativeTime = new Date(deliveryDateObj);
-    cumulativeTime.setHours(currentHours);
-    cumulativeTime.setMinutes(currentMinutes);
+    cumulativeTime.setHours(startTimeHours);
+    cumulativeTime.setMinutes(startTimeMinutes);
     cumulativeTime.setSeconds(0);
     cumulativeTime.setMilliseconds(0);
     
     console.log('[ETA Updates] Starting ETA calculation:');
     console.log(`  - Delivery date: ${deliveryDate}`);
-    console.log(`  - Start time: ${startTime.toISOString()}`);
+    console.log(`  - Start time: ${startTimeHours}:${String(startTimeMinutes).padStart(2, '0')}`);
     console.log(`  - Cumulative time initialized: ${cumulativeTime.toISOString()}`);
+    console.log(`  - Number of legs: ${legs.length}`);
     
     const updatedDeliveries = [];
 
@@ -248,7 +253,7 @@ Deno.serve(async (req) => {
       success: true,
       updatedDeliveries,
       startLocation: { lat: startLat, lon: startLon },
-      startTime: startTime.toISOString()
+      startTime: `${String(startTimeHours).padStart(2, '0')}:${String(startTimeMinutes).padStart(2, '0')}`
     });
 
   } catch (error) {

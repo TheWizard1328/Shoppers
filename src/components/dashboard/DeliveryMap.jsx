@@ -1224,7 +1224,15 @@ export default function DeliveryMap({
 
   // UPDATED: Process current driver's live location for display - ONLY SHOW ON MOBILE, TODAY'S DATE
   const currentDriverMarker = useMemo(() => {
+    console.log('🔍 [DeliveryMap currentDriverMarker] Computing blue dot visibility...', {
+      hasCurrentDriverLocation: !!currentDriverLocation,
+      hasCurrentUser: !!currentUser,
+      selectedDate,
+      isMobile
+    });
+
     if (!currentDriverLocation || !currentUser) {
+      console.log('⏭️ [DeliveryMap] No blue dot - missing currentDriverLocation or currentUser');
       return null;
     }
 
@@ -1243,32 +1251,26 @@ export default function DeliveryMap({
     
     // Dispatchers never see blue dot
     if (isCurrentUserDispatcher && !isCurrentUserDriver) {
+      console.log('⏭️ [DeliveryMap] No blue dot - user is dispatcher without driver role');
       return null;
     }
     
     if (!isCurrentUserDriver) {
+      console.log('⏭️ [DeliveryMap] No blue dot - user is not a driver');
       return null;
     }
-
-    // CRITICAL: Always show blue dot on mobile devices (currentDriverLocation is only passed on mobile)
-    console.log('✅ [DeliveryMap] Blue dot enabled for mobile device:', {
-      isMobile,
-      hasLocation: !!currentDriverLocation,
-      lat: currentDriverLocation?.latitude,
-      lon: currentDriverLocation?.longitude
-    });
-
-    console.log('🗺️ [DeliveryMap] Processing currentDriverLocation:', currentDriverLocation);
 
     if (!currentDriverLocation.latitude || !currentDriverLocation.longitude) {
       console.warn('⚠️ [DeliveryMap] currentDriverLocation missing coordinates');
       return null;
     }
 
-    // Show the driver's own location (blue dot) on mobile only
-    console.log('✅ [DeliveryMap] Created current driver blue dot marker (mobile):', {
+    // Show the driver's own location (blue dot) on mobile
+    console.log('✅ [DeliveryMap] RENDERING BLUE DOT - currentDriverMarker created:', {
       lat: currentDriverLocation.latitude,
-      lon: currentDriverLocation.longitude
+      lon: currentDriverLocation.longitude,
+      isMobile,
+      timestamp: currentDriverLocation.timestamp
     });
 
     return {
