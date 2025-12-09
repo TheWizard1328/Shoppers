@@ -62,7 +62,14 @@ export const createPatientLocal = async (patientData) => {
     });
 
     console.log('✅ [OfflineMutations] Patient created locally:', tempId);
-    notifyMutation({ type: 'create', entity: 'Patient', data: localPatient });
+    
+    // CRITICAL: Notify listeners IMMEDIATELY for instant UI update
+    notifyMutation({ 
+      type: 'create', 
+      entity: 'Patient', 
+      id: tempId,
+      data: localPatient 
+    });
     
     return localPatient;
   } catch (error) {
@@ -105,7 +112,14 @@ export const updatePatientLocal = async (patientId, updates) => {
     });
 
     console.log('✅ [OfflineMutations] Patient updated locally:', patientId);
-    notifyMutation({ type: 'update', entity: 'Patient', data: updatedPatient });
+    
+    // CRITICAL: Notify listeners IMMEDIATELY for instant UI update
+    notifyMutation({ 
+      type: 'update', 
+      entity: 'Patient', 
+      id: patientId,
+      data: updatedPatient 
+    });
     
     return updatedPatient;
   } catch (error) {
@@ -140,7 +154,14 @@ export const deletePatientLocal = async (patientId) => {
     });
 
     console.log('✅ [OfflineMutations] Patient deleted locally:', patientId);
-    notifyMutation({ type: 'delete', entity: 'Patient', id: patientId });
+    
+    // CRITICAL: Notify listeners IMMEDIATELY for instant UI update
+    notifyMutation({ 
+      type: 'delete', 
+      entity: 'Patient', 
+      id: patientId,
+      data: null 
+    });
     
     return true;
   } catch (error) {
@@ -178,7 +199,14 @@ export const createDeliveryLocal = async (deliveryData) => {
     });
 
     console.log('✅ [OfflineMutations] Delivery created locally:', tempId);
-    notifyMutation({ type: 'create', entity: 'Delivery', data: localDelivery });
+    
+    // CRITICAL: Notify listeners IMMEDIATELY for instant UI update
+    notifyMutation({ 
+      type: 'create', 
+      entity: 'Delivery', 
+      id: tempId,
+      data: localDelivery 
+    });
     
     return localDelivery;
   } catch (error) {
@@ -221,7 +249,14 @@ export const updateDeliveryLocal = async (deliveryId, updates) => {
     });
 
     console.log('✅ [OfflineMutations] Delivery updated locally:', deliveryId);
-    notifyMutation({ type: 'update', entity: 'Delivery', data: updatedDelivery });
+    
+    // CRITICAL: Notify listeners IMMEDIATELY for instant UI update
+    notifyMutation({ 
+      type: 'update', 
+      entity: 'Delivery', 
+      id: deliveryId,
+      data: updatedDelivery 
+    });
     
     return updatedDelivery;
   } catch (error) {
@@ -256,7 +291,14 @@ export const deleteDeliveryLocal = async (deliveryId) => {
     });
 
     console.log('✅ [OfflineMutations] Delivery deleted locally:', deliveryId);
-    notifyMutation({ type: 'delete', entity: 'Delivery', id: deliveryId });
+    
+    // CRITICAL: Notify listeners IMMEDIATELY for instant UI update
+    notifyMutation({ 
+      type: 'delete', 
+      entity: 'Delivery', 
+      id: deliveryId,
+      data: null 
+    });
     
     return true;
   } catch (error) {
@@ -294,7 +336,16 @@ export const batchCreateDeliveriesLocal = async (deliveriesData) => {
     }
 
     console.log('✅ [OfflineMutations] Batch deliveries created locally');
-    notifyMutation({ type: 'batch_create', entity: 'Delivery', data: localDeliveries });
+    
+    // CRITICAL: Notify listeners for each delivery for instant UI update
+    localDeliveries.forEach(delivery => {
+      notifyMutation({ 
+        type: 'create', 
+        entity: 'Delivery', 
+        id: delivery.id,
+        data: delivery 
+      });
+    });
     
     return localDeliveries;
   } catch (error) {

@@ -634,16 +634,30 @@ class SmartRefreshManager {
       
 
       
-      // Merge updates into full patient list
+      // BIDIRECTIONAL: Merge updates into full patient list (keep local if newer)
       const mergedPatients = currentPatients.map(p => {
-        const updated = updatedPatients.find(u => u.id === p.id);
-        return updated || p;
+        const serverVersion = updatedPatients.find(u => u.id === p.id);
+        
+        if (serverVersion) {
+          // Compare timestamps
+          const localTime = new Date(p.updated_date || 0).getTime();
+          const serverTime = new Date(serverVersion.updated_date || 0).getTime();
+          
+          if (serverTime > localTime) {
+            return serverVersion; // Server is newer
+          } else {
+            console.log(`   📱 Keeping local patient: ${p.full_name} (local: ${p.updated_date}, server: ${serverVersion.updated_date})`);
+            return p; // Local is newer or equal
+          }
+        }
+        return p;
       });
       
-      // Add any new patients
+      // Add any new patients from server
       updatedPatients.forEach(up => {
         if (!mergedPatients.find(p => p.id === up.id)) {
           mergedPatients.push(up);
+          console.log(`   🆕 New patient from server: ${up.full_name}`);
         }
       });
       
@@ -876,15 +890,12 @@ class SmartRefreshManager {
         
         const fetchedVersion = fetchedDeliveries.find(fd => fd.id === d.id);
         if (fetchedVersion) {
-          // Check for ANY changes, not just status
-          if (d.status !== fetchedVersion.status ||
-              d.delivery_time_eta !== fetchedVersion.delivery_time_eta ||
-              d.isNextDelivery !== fetchedVersion.isNextDelivery ||
-              d.stop_order !== fetchedVersion.stop_order ||
-              d.driver_id !== fetchedVersion.driver_id ||
-              d.driver_name !== fetchedVersion.driver_name ||
-              d.delivery_notes !== fetchedVersion.delivery_notes ||
-              d.actual_delivery_time !== fetchedVersion.actual_delivery_time) {
+          // BIDIRECTIONAL: Compare timestamps - only use server data if newer
+          const localTime = new Date(d.updated_date || 0).getTime();
+          const serverTime = new Date(fetchedVersion.updated_date || 0).getTime();
+          
+          if (serverTime > localTime) {
+            // Server is newer - use server data
             hasChanges = true;
             changedDeliveries.push({
               name: fetchedVersion.patient_name || 'Pickup',
@@ -893,17 +904,21 @@ class SmartRefreshManager {
               oldDriver: d.driver_name,
               newDriver: fetchedVersion.driver_name
             });
-            
-            // Backend is source of truth for isNextDelivery - use fetched version directly
             return fetchedVersion;
+          } else {
+            // Local is newer or equal - keep local data
+            console.log(`   📱 Keeping local data for ${d.patient_name || 'delivery'} (local: ${d.updated_date}, server: ${fetchedVersion.updated_date})`);
+            return d;
           }
         }
         return d;
       });
       
-      // Add any new deliveries that weren't in current list
+      // Add any new deliveries from server that weren't in current list
       fetchedDeliveries.forEach(fd => {
-        if (!updatedCurrentDateDeliveries.find(d => d?.id === fd.id) && !this.hasPendingUpdate(fd.id)) {
+        const existsInCurrent = updatedCurrentDateDeliveries.find(d => d?.id === fd.id);
+        
+        if (!existsInCurrent && !this.hasPendingUpdate(fd.id)) {
           hasChanges = true;
           changedDeliveries.push({
             name: fd.patient_name || 'Pickup',
@@ -911,6 +926,7 @@ class SmartRefreshManager {
             status: fd.status
           });
           updatedCurrentDateDeliveries.push(fd);
+          console.log(`   🆕 New delivery from server: ${fd.patient_name || 'Pickup'}`);
         }
       });
       
