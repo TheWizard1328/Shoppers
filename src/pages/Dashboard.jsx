@@ -301,6 +301,7 @@ function Dashboard() {
   const mapLockExpiresAtRef = useRef(null); // Timestamp when lock should expire
   const [useAIOptimization, setUseAIOptimization] = useState(true);
   const [driverRoutes, setDriverRoutes] = useState([]);
+  const proximityLockedMarkersRef = useRef(new Set()); // Track which markers have been proximity-locked
 
   const [dailyPolylineCount, setDailyPolylineCount] = useState(null);
   const [highlightedCardId, setHighlightedCardId] = useState(null);
@@ -833,6 +834,11 @@ function Dashboard() {
 
     console.log('🔓 [Map Interaction] Unlocking FAB immediately');
     setIsMapViewLocked(false);
+    
+    // CRITICAL: Clear proximity lock when user manually interacts with map
+    // This allows proximity zoom to trigger again when driver re-enters 100m range
+    console.log('🔓 [Map Interaction] Clearing proximity locks');
+    proximityLockedMarkersRef.current.clear();
   }, []);
 
   // NOTE: Removed auto-fit bounds effect that was causing map to re-center unexpectedly
@@ -1041,15 +1047,21 @@ function Dashboard() {
 
           setDriverLocation(newLocation);
 
-          // CRITICAL: Auto-zoom when within 100m of incomplete stop (mobile + not phase 2)
+          // CRITICAL: Auto-zoom when within 100m of in_transit/en_route stop (mobile + not phase 2)
+          // ONE-TIME lock per marker - won't re-zoom if user manually moves map
           if (isMobile && mapViewPhase !== 2 && newLocation.latitude && newLocation.longitude) {
-            const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-            const incompleteDeliveries = deliveriesWithStopOrder.filter((d) =>
-            d && !finishedStatuses.includes(d.status)
+            const activeStatuses = ['in_transit', 'en_route'];
+            const activeDeliveries = deliveriesWithStopOrder.filter((d) =>
+              d && activeStatuses.includes(d.status)
             );
 
-            // Check each incomplete delivery for proximity
-            for (const delivery of incompleteDeliveries) {
+            // Check each active delivery for proximity
+            for (const delivery of activeDeliveries) {
+              // Skip if already proximity-locked to this marker
+              if (proximityLockedMarkersRef.current.has(delivery.id)) {
+                continue;
+              }
+
               let stopLat, stopLon;
 
               if (delivery.patient_id) {
@@ -1072,7 +1084,10 @@ function Dashboard() {
 
                 // Within 100m (0.1km)
                 if (distanceKm <= 0.1) {
-                  console.log(`📍 [Proximity] Driver within 100m of ${delivery.patient_name || 'Pickup'} - auto-centering`);
+                  console.log(`📍 [Proximity] Driver within 100m of ${delivery.patient_name || 'Pickup'} - ONE-TIME auto-center`);
+
+                  // Mark this marker as locked (won't auto-zoom again)
+                  proximityLockedMarkersRef.current.add(delivery.id);
 
                   // Center map on the nearby marker
                   setShouldFitBounds({
