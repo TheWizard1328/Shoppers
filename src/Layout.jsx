@@ -166,25 +166,26 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
             const fetchStats = async () => {
               try {
                 setHasError(false);
-                const driverId = userHasRole(currentUser, 'driver') ? currentUser.id : 
-                                 globalFilters.getSelectedDriverId();
+                const selectedDriverId = globalFilters.getSelectedDriverId();
 
-                // CRITICAL: Filter storeIds based on user role
+                // CRITICAL: Pass selected driver ID directly - backend handles filtering
+                // When 'all' is selected → driverId=null (show all drivers)
+                // When specific driver selected → driverId=that driver (show only that driver)
+                const driverId = selectedDriverId === 'all' ? null : selectedDriverId;
+
+                // Store filtering based on user role
                 let filteredStoreIds = [];
-
                 if (userHasRole(currentUser, 'admin')) {
                   filteredStoreIds = storeIds;
                 } else if (userHasRole(currentUser, 'dispatcher')) {
                   filteredStoreIds = (currentUser.store_ids || []).filter(Boolean);
                 } else if (userHasRole(currentUser, 'driver')) {
-                  filteredStoreIds = storeIds; // Will be filtered by driverId parameter
+                  filteredStoreIds = storeIds;
                 }
 
                 const response = await base44.functions.invoke('getDeliveryStats', {
                   selectedDate: selectedDateStr,
-                  driverId: userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') 
-                    ? currentUser.id 
-                    : (driverId !== 'all' ? driverId : null),
+                  driverId: driverId,
                   storeIds: filteredStoreIds.length > 0 ? filteredStoreIds : null
                 });
 
