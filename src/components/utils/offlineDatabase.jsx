@@ -68,10 +68,11 @@ const openDatabase = () => {
         console.log('✅ [OfflineDB] Created Sync Status store');
       }
 
-      // Create Pending Mutations store (tracks local changes to sync)
+      // Create Pending Mutations store (queues local changes for backend sync)
       if (!db.objectStoreNames.contains(STORES.PENDING_MUTATIONS)) {
         const mutationStore = db.createObjectStore(STORES.PENDING_MUTATIONS, { keyPath: 'mutationId', autoIncrement: true });
         mutationStore.createIndex('entity', 'entity', { unique: false });
+        mutationStore.createIndex('recordId', 'recordId', { unique: false });
         mutationStore.createIndex('timestamp', 'timestamp', { unique: false });
         console.log('✅ [OfflineDB] Created Pending Mutations store');
       }
@@ -310,31 +311,30 @@ const getStats = async () => {
 /**
  * Add a pending mutation to the queue
  */
-const addPendingMutation = async (entity, operation, recordId, payload) => {
+const addPendingMutation = async (mutation) => {
   try {
     const db = await openDatabase();
     const transaction = db.transaction([STORES.PENDING_MUTATIONS], 'readwrite');
     const store = transaction.objectStore(STORES.PENDING_MUTATIONS);
 
-    const mutation = {
-      entity,
-      operation, // 'create', 'update', 'delete'
-      recordId,
-      payload,
+    const mutationRecord = {
+      ...mutation,
       timestamp: Date.now(),
-      retryCount: 0
+      createdAt: new Date().toISOString(),
+      retryCount: 0,
+      status: 'pending'
     };
 
     return new Promise((resolve, reject) => {
-      const request = store.add(mutation);
+      const request = store.add(mutationRecord);
       request.onsuccess = () => {
-        console.log(`✅ [OfflineDB] Added pending ${operation} for ${entity}:${recordId}`);
-        resolve(request.result); // Returns mutationId
+        console.log(`✅ [OfflineDB] Added pending ${mutation.operation} for ${mutation.entity}:${mutation.recordId}`);
+        resolve(request.result);
       };
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
-    console.error(`❌ [OfflineDB] Failed to add pending mutation:`, error);
+    console.error('❌ [OfflineDB] Failed to add pending mutation:', error);
     throw error;
   }
 };
@@ -360,7 +360,7 @@ const getPendingMutations = async () => {
 };
 
 /**
- * Remove a pending mutation (after successful sync)
+ * Remove a pending mutation after successful sync
  */
 const removePendingMutation = async (mutationId) => {
   try {
@@ -377,37 +377,37 @@ const removePendingMutation = async (mutationId) => {
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
-    console.error(`❌ [OfflineDB] Failed to remove pending mutation:`, error);
+    console.error('❌ [OfflineDB] Failed to remove pending mutation:', error);
   }
 };
 
 /**
  * Update retry count for a pending mutation
  */
-const updateMutationRetryCount = async (mutationId, retryCount) => {
+const updateMutationRetry = async (mutationId, retryCount) => {
   try {
     const db = await openDatabase();
     const transaction = db.transaction([STORES.PENDING_MUTATIONS], 'readwrite');
     const store = transaction.objectStore(STORES.PENDING_MUTATIONS);
 
-    const mutation = await new Promise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       const getRequest = store.get(mutationId);
-      getRequest.onsuccess = () => resolve(getRequest.result);
+      getRequest.onsuccess = () => {
+        const mutation = getRequest.result;
+        if (mutation) {
+          mutation.retryCount = retryCount;
+          mutation.lastRetryAt = new Date().toISOString();
+          const updateRequest = store.put(mutation);
+          updateRequest.onsuccess = () => resolve();
+          updateRequest.onerror = () => reject(updateRequest.error);
+        } else {
+          resolve();
+        }
+      };
       getRequest.onerror = () => reject(getRequest.error);
     });
-
-    if (mutation) {
-      mutation.retryCount = retryCount;
-      mutation.lastRetryTime = Date.now();
-      
-      await new Promise((resolve, reject) => {
-        const putRequest = store.put(mutation);
-        putRequest.onsuccess = () => resolve();
-        putRequest.onerror = () => reject(putRequest.error);
-      });
-    }
   } catch (error) {
-    console.error(`❌ [OfflineDB] Failed to update retry count:`, error);
+    console.error('❌ [OfflineDB] Failed to update mutation retry:', error);
   }
 };
 
@@ -426,5 +426,5 @@ export const offlineDB = {
   addPendingMutation,
   getPendingMutations,
   removePendingMutation,
-  updateMutationRetryCount
+  updateMutationRetry
 };

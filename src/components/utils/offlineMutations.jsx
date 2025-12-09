@@ -1,17 +1,17 @@
 /**
- * Offline-First Mutation Wrapper
- * Intercepts all Patient and Delivery mutations to write locally first,
- * then queues them for background sync to the server
+ * Offline Mutations Manager
+ * Handles local-first writes for Patient and Delivery entities
  */
 
 import { offlineDB } from './offlineDatabase';
-import { base44 } from '@/api/base44Client';
+import { Patient } from '@/entities/Patient';
+import { Delivery } from '@/entities/Delivery';
 
-// Listeners for local UI updates
+// Listeners for UI updates
 let mutationListeners = [];
 
 /**
- * Subscribe to local mutations for immediate UI updates
+ * Subscribe to mutation events
  */
 export const subscribeMutations = (callback) => {
   mutationListeners.push(callback);
@@ -21,12 +21,12 @@ export const subscribeMutations = (callback) => {
 };
 
 /**
- * Notify all listeners of a local mutation
+ * Notify all listeners of a mutation
  */
-const notifyMutation = (entity, operation, record) => {
+const notifyMutation = (mutation) => {
   mutationListeners.forEach(callback => {
     try {
-      callback({ entity, operation, record });
+      callback(mutation);
     } catch (error) {
       console.error('Error in mutation listener:', error);
     }
@@ -34,142 +34,271 @@ const notifyMutation = (entity, operation, record) => {
 };
 
 /**
- * Generate temporary client-side ID for new records
+ * Create a new Patient (local-first)
  */
-const generateTempId = () => {
-  return `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-};
-
-/**
- * Create a Patient or Delivery (local-first)
- */
-export const createRecord = async (entityName, data) => {
-  console.log(`📝 [OfflineMutations] Creating ${entityName} locally...`);
-  
+export const createPatientLocal = async (patientData) => {
   try {
-    // Add temporary ID and timestamps
-    const tempId = generateTempId();
-    const now = new Date().toISOString();
-    const record = {
-      ...data,
+    console.log('📝 [OfflineMutations] Creating patient locally...');
+    
+    // Generate temporary ID if not provided
+    const tempId = patientData.id || `temp_patient_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const localPatient = {
+      ...patientData,
       id: tempId,
-      created_date: now,
-      updated_date: now,
-      _isPending: true // Mark as pending sync
-    };
-
-    // Save to local IndexedDB immediately
-    const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : offlineDB.STORES.DELIVERIES;
-    await offlineDB.bulkSave(storeName, [record]);
-
-    // Queue for background sync
-    await offlineDB.addPendingMutation(entityName, 'create', tempId, data);
-
-    // Notify UI to update immediately
-    notifyMutation(entityName, 'create', record);
-
-    console.log(`✅ [OfflineMutations] ${entityName} created locally with temp ID: ${tempId}`);
-    return record;
-  } catch (error) {
-    console.error(`❌ [OfflineMutations] Failed to create ${entityName} locally:`, error);
-    throw error;
-  }
-};
-
-/**
- * Update a Patient or Delivery (local-first)
- */
-export const updateRecord = async (entityName, recordId, updates) => {
-  console.log(`📝 [OfflineMutations] Updating ${entityName} ${recordId} locally...`);
-  
-  try {
-    const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : offlineDB.STORES.DELIVERIES;
-    
-    // Get existing record from IndexedDB
-    const allRecords = await offlineDB.getAll(storeName);
-    const existingRecord = allRecords.find(r => r.id === recordId);
-    
-    if (!existingRecord) {
-      throw new Error(`Record ${recordId} not found in local database`);
-    }
-
-    // Apply updates locally
-    const updatedRecord = {
-      ...existingRecord,
-      ...updates,
+      created_date: new Date().toISOString(),
       updated_date: new Date().toISOString(),
-      _isPending: true // Mark as pending sync
+      _isLocal: true // Mark as locally created
     };
 
-    // Save to local IndexedDB immediately
-    await offlineDB.bulkSave(storeName, [updatedRecord]);
+    // Save to local IndexedDB
+    await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [localPatient]);
 
-    // Queue for background sync
-    await offlineDB.addPendingMutation(entityName, 'update', recordId, updates);
+    // Queue for backend sync
+    await offlineDB.addPendingMutation({
+      operation: 'create',
+      entity: 'Patient',
+      recordId: tempId,
+      payload: patientData
+    });
 
-    // Notify UI to update immediately
-    notifyMutation(entityName, 'update', updatedRecord);
-
-    console.log(`✅ [OfflineMutations] ${entityName} ${recordId} updated locally`);
-    return updatedRecord;
+    console.log('✅ [OfflineMutations] Patient created locally:', tempId);
+    notifyMutation({ type: 'create', entity: 'Patient', data: localPatient });
+    
+    return localPatient;
   } catch (error) {
-    console.error(`❌ [OfflineMutations] Failed to update ${entityName} locally:`, error);
+    console.error('❌ [OfflineMutations] Failed to create patient locally:', error);
     throw error;
   }
 };
 
 /**
- * Delete a Patient or Delivery (local-first)
+ * Update a Patient (local-first)
  */
-export const deleteRecord = async (entityName, recordId) => {
-  console.log(`📝 [OfflineMutations] Deleting ${entityName} ${recordId} locally...`);
-  
+export const updatePatientLocal = async (patientId, updates) => {
   try {
-    const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : offlineDB.STORES.DELIVERIES;
+    console.log('📝 [OfflineMutations] Updating patient locally:', patientId);
     
-    // Get record before deletion for notification
-    const allRecords = await offlineDB.getAll(storeName);
-    const record = allRecords.find(r => r.id === recordId);
+    // Get current patient from IndexedDB
+    const patients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+    const existingPatient = patients.find(p => p.id === patientId);
     
-    // Mark as deleted locally (soft delete - keep for sync)
-    if (record) {
-      const deletedRecord = {
-        ...record,
-        _isDeleted: true,
-        _isPending: true,
-        updated_date: new Date().toISOString()
-      };
-      await offlineDB.bulkSave(storeName, [deletedRecord]);
+    if (!existingPatient) {
+      throw new Error(`Patient ${patientId} not found in local database`);
     }
 
-    // Queue for background sync
-    await offlineDB.addPendingMutation(entityName, 'delete', recordId, null);
+    // Apply updates
+    const updatedPatient = {
+      ...existingPatient,
+      ...updates,
+      updated_date: new Date().toISOString()
+    };
 
-    // Notify UI to update immediately
-    notifyMutation(entityName, 'delete', record);
+    // Save to local IndexedDB
+    await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [updatedPatient]);
 
-    console.log(`✅ [OfflineMutations] ${entityName} ${recordId} marked as deleted locally`);
-    return { success: true };
+    // Queue for backend sync
+    await offlineDB.addPendingMutation({
+      operation: 'update',
+      entity: 'Patient',
+      recordId: patientId,
+      payload: updates
+    });
+
+    console.log('✅ [OfflineMutations] Patient updated locally:', patientId);
+    notifyMutation({ type: 'update', entity: 'Patient', data: updatedPatient });
+    
+    return updatedPatient;
   } catch (error) {
-    console.error(`❌ [OfflineMutations] Failed to delete ${entityName} locally:`, error);
+    console.error('❌ [OfflineMutations] Failed to update patient locally:', error);
     throw error;
   }
 };
 
 /**
- * Direct backend sync (bypasses local-first for admin operations)
+ * Delete a Patient (local-first)
  */
-export const syncCreateToBackend = async (entityName, data) => {
-  const Entity = entityName === 'Patient' ? base44.entities.Patient : base44.entities.Delivery;
-  return await Entity.create(data);
+export const deletePatientLocal = async (patientId) => {
+  try {
+    console.log('📝 [OfflineMutations] Deleting patient locally:', patientId);
+    
+    // Queue for backend sync BEFORE removing from local DB
+    await offlineDB.addPendingMutation({
+      operation: 'delete',
+      entity: 'Patient',
+      recordId: patientId
+    });
+
+    // Remove from local IndexedDB
+    const db = await offlineDB.openDatabase();
+    const transaction = db.transaction([offlineDB.STORES.PATIENTS], 'readwrite');
+    const store = transaction.objectStore(offlineDB.STORES.PATIENTS);
+    
+    await new Promise((resolve, reject) => {
+      const request = store.delete(patientId);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+
+    console.log('✅ [OfflineMutations] Patient deleted locally:', patientId);
+    notifyMutation({ type: 'delete', entity: 'Patient', id: patientId });
+    
+    return true;
+  } catch (error) {
+    console.error('❌ [OfflineMutations] Failed to delete patient locally:', error);
+    throw error;
+  }
 };
 
-export const syncUpdateToBackend = async (entityName, recordId, updates) => {
-  const Entity = entityName === 'Patient' ? base44.entities.Patient : base44.entities.Delivery;
-  return await Entity.update(recordId, updates);
+/**
+ * Create a new Delivery (local-first)
+ */
+export const createDeliveryLocal = async (deliveryData) => {
+  try {
+    console.log('📝 [OfflineMutations] Creating delivery locally...');
+    
+    // Generate temporary ID if not provided
+    const tempId = deliveryData.id || `temp_delivery_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const localDelivery = {
+      ...deliveryData,
+      id: tempId,
+      created_date: new Date().toISOString(),
+      updated_date: new Date().toISOString(),
+      _isLocal: true // Mark as locally created
+    };
+
+    // Save to local IndexedDB
+    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [localDelivery]);
+
+    // Queue for backend sync
+    await offlineDB.addPendingMutation({
+      operation: 'create',
+      entity: 'Delivery',
+      recordId: tempId,
+      payload: deliveryData
+    });
+
+    console.log('✅ [OfflineMutations] Delivery created locally:', tempId);
+    notifyMutation({ type: 'create', entity: 'Delivery', data: localDelivery });
+    
+    return localDelivery;
+  } catch (error) {
+    console.error('❌ [OfflineMutations] Failed to create delivery locally:', error);
+    throw error;
+  }
 };
 
-export const syncDeleteToBackend = async (entityName, recordId) => {
-  const Entity = entityName === 'Patient' ? base44.entities.Patient : base44.entities.Delivery;
-  return await Entity.delete(recordId);
+/**
+ * Update a Delivery (local-first)
+ */
+export const updateDeliveryLocal = async (deliveryId, updates) => {
+  try {
+    console.log('📝 [OfflineMutations] Updating delivery locally:', deliveryId);
+    
+    // Get current delivery from IndexedDB
+    const deliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+    const existingDelivery = deliveries.find(d => d.id === deliveryId);
+    
+    if (!existingDelivery) {
+      throw new Error(`Delivery ${deliveryId} not found in local database`);
+    }
+
+    // Apply updates
+    const updatedDelivery = {
+      ...existingDelivery,
+      ...updates,
+      updated_date: new Date().toISOString()
+    };
+
+    // Save to local IndexedDB
+    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
+
+    // Queue for backend sync
+    await offlineDB.addPendingMutation({
+      operation: 'update',
+      entity: 'Delivery',
+      recordId: deliveryId,
+      payload: updates
+    });
+
+    console.log('✅ [OfflineMutations] Delivery updated locally:', deliveryId);
+    notifyMutation({ type: 'update', entity: 'Delivery', data: updatedDelivery });
+    
+    return updatedDelivery;
+  } catch (error) {
+    console.error('❌ [OfflineMutations] Failed to update delivery locally:', error);
+    throw error;
+  }
+};
+
+/**
+ * Delete a Delivery (local-first)
+ */
+export const deleteDeliveryLocal = async (deliveryId) => {
+  try {
+    console.log('📝 [OfflineMutations] Deleting delivery locally:', deliveryId);
+    
+    // Queue for backend sync BEFORE removing from local DB
+    await offlineDB.addPendingMutation({
+      operation: 'delete',
+      entity: 'Delivery',
+      recordId: deliveryId
+    });
+
+    // Remove from local IndexedDB
+    const db = await offlineDB.openDatabase();
+    const transaction = db.transaction([offlineDB.STORES.DELIVERIES], 'readwrite');
+    const store = transaction.objectStore(offlineDB.STORES.DELIVERIES);
+    
+    await new Promise((resolve, reject) => {
+      const request = store.delete(deliveryId);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+
+    console.log('✅ [OfflineMutations] Delivery deleted locally:', deliveryId);
+    notifyMutation({ type: 'delete', entity: 'Delivery', id: deliveryId });
+    
+    return true;
+  } catch (error) {
+    console.error('❌ [OfflineMutations] Failed to delete delivery locally:', error);
+    throw error;
+  }
+};
+
+/**
+ * Batch create multiple deliveries (local-first)
+ */
+export const batchCreateDeliveriesLocal = async (deliveriesData) => {
+  try {
+    console.log('📝 [OfflineMutations] Batch creating deliveries locally:', deliveriesData.length);
+    
+    const localDeliveries = deliveriesData.map(d => ({
+      ...d,
+      id: d.id || `temp_delivery_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      created_date: new Date().toISOString(),
+      updated_date: new Date().toISOString(),
+      _isLocal: true
+    }));
+
+    // Save all to local IndexedDB
+    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, localDeliveries);
+
+    // Queue all for backend sync
+    for (const delivery of localDeliveries) {
+      await offlineDB.addPendingMutation({
+        operation: 'create',
+        entity: 'Delivery',
+        recordId: delivery.id,
+        payload: delivery
+      });
+    }
+
+    console.log('✅ [OfflineMutations] Batch deliveries created locally');
+    notifyMutation({ type: 'batch_create', entity: 'Delivery', data: localDeliveries });
+    
+    return localDeliveries;
+  } catch (error) {
+    console.error('❌ [OfflineMutations] Failed to batch create deliveries locally:', error);
+    throw error;
+  }
 };

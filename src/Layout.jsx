@@ -88,6 +88,7 @@ import { ResizableDivider } from './components/ui/resizable-divider';
       import { initializeDailyCleanup } from './components/utils/messageCleaner';
 import { performInitialSync, processPendingMutations } from './components/utils/offlineSync';
 import OfflineSyncIndicator from './components/layout/OfflineSyncIndicator';
+import { subscribeMutations } from './components/utils/offlineMutations';
 
 const createMergedUser = (authUser, appUser) => {
   // CRITICAL: Allow creating users from AppUser data alone (for non-admin users who can't fetch User.list())
@@ -669,16 +670,28 @@ export default function Layout({ children, currentPageName }) {
         });
       }, 5000);
 
-      // Process pending mutations every 30 seconds
+      // Set up periodic mutation processing (every 30 seconds)
       const mutationSyncInterval = setInterval(() => {
         processPendingMutations().catch(error => {
-          console.error('❌ [Layout] Mutation sync failed:', error);
+          console.error('❌ [Layout] Mutation processing failed:', error);
         });
       }, 30000);
+
+      // Subscribe to local mutations and refresh UI
+      const unsubscribeMutations = subscribeMutations((mutation) => {
+        console.log('🔄 [Layout] Local mutation detected:', mutation);
+        // Force UI refresh by invalidating cache
+        if (mutation.entity === 'Patient') {
+          invalidate('Patient');
+        } else if (mutation.entity === 'Delivery') {
+          invalidate('Delivery');
+        }
+      });
 
       return () => {
         clearTimeout(syncTimer);
         clearInterval(mutationSyncInterval);
+        unsubscribeMutations();
       };
     }, [currentUser]);
 

@@ -6,6 +6,16 @@ import { City } from '@/entities/City';
 import { AppUser } from '@/entities/AppUser';
 import { format, subDays } from 'date-fns';
 import { offlineDB } from './offlineDatabase';
+import { 
+  createPatientLocal, 
+  updatePatientLocal, 
+  deletePatientLocal,
+  createDeliveryLocal,
+  updateDeliveryLocal,
+  deleteDeliveryLocal,
+  batchCreateDeliveriesLocal,
+  subscribeMutations
+} from './offlineMutations';
 
 const entities = {
   Patient,
@@ -537,4 +547,23 @@ export const invalidateDeliveriesForDate = (dateString) => {
   }
   
   console.log(`🗑️ [dataManager] Invalidated ${keysDeleted} cache entries for date: ${dateString}`);
+};
+
+/**
+ * Local-first write operations - exported for use in forms
+ */
+export const localWrites = {
+  // Patient operations
+  createPatient: createPatientLocal,
+  updatePatient: updatePatientLocal,
+  deletePatient: deletePatientLocal,
+  
+  // Delivery operations
+  createDelivery: createDeliveryLocal,
+  updateDelivery: updateDeliveryLocal,
+  deleteDelivery: deleteDeliveryLocal,
+  batchCreateDeliveries: batchCreateDeliveriesLocal,
+  
+  // Subscribe to mutation events for UI updates
+  subscribeMutations
 };
