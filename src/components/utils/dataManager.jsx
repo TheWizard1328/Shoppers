@@ -354,49 +354,58 @@ export const loadDeliveries = async (
   onFullMonthLoadComplete = () => {}
 ) => {
   const today = new Date();
-  const todayStr = format(today, 'yyyy-MM-dd');
   
-  // 1. Load today's deliveries first (highest priority) - ALL drivers for city
-  console.log(`🚀 [dataManager] PRIORITY 1: Loading today's deliveries (${todayStr}) - ALL drivers for city`);
-  const todayDeliveries = await loadDeliveriesForDate(todayStr, priorityFilters, forceRefresh);
+  // 1. Load selected date's deliveries FIRST (highest priority) - ALL drivers for city
+  console.log(`🚀 [dataManager] PRIORITY 1: Loading selected date deliveries (${selectedDateStr}) - ALL drivers for city`);
+  const selectedDateDeliveries = await loadDeliveriesForDate(selectedDateStr, priorityFilters, forceRefresh);
+  console.log(`✅ [dataManager] PRIORITY 1 Complete: ${selectedDateDeliveries.length} deliveries for selected date`);
   
-  // 2. Load next 7 days (priority for planning) - ALL drivers for city
-  console.log(`🚀 [dataManager] PRIORITY 2: Loading next 7 days of deliveries - ALL drivers for city...`);
-  const futureDeliveries = [];
-  for (let i = 1; i <= 7; i++) {
-    const futureDate = new Date(today);
-    futureDate.setDate(today.getDate() + i);
-    const futureDateStr = format(futureDate, 'yyyy-MM-dd');
-    
-    try {
-      const dayDeliveries = await loadDeliveriesForDate(futureDateStr, priorityFilters, forceRefresh);
-      futureDeliveries.push(...dayDeliveries);
-      console.log(`  ✅ Loaded ${dayDeliveries.length} deliveries for ${futureDateStr}`);
-    } catch (error) {
-      console.error(`  ❌ Error loading ${futureDateStr}:`, error);
-    }
-  }
+  // CRITICAL: Immediately refresh UI with selected date data
+  console.log(`⚡ [dataManager] Calling onInitialLoadComplete to refresh UI NOW`);
+  onInitialLoadComplete(selectedDateDeliveries);
   
-  // Combine today + next 7 days
-  const initialDeliveries = [...todayDeliveries, ...futureDeliveries];
-  console.log(`✅ [dataManager] PRIORITY 1+2 Complete: ${todayDeliveries.length} today + ${futureDeliveries.length} future = ${initialDeliveries.length} total (ALL drivers)`);
-  
-  // Call the initial callback with today + next 7 days
-  onInitialLoadComplete(initialDeliveries);
-  
-  // 3. Background: load past 30 days (ALL drivers in city, no role filtering)
+  // BACKGROUND: Load future + past data after UI is ready
   setTimeout(async () => {
     try {
-      const last30Days = subDays(today, 30);
-      const last30DaysStr = format(last30Days, 'yyyy-MM-dd');
-      const yesterdayStr = format(subDays(today, 1), 'yyyy-MM-dd');
+      // Wait 1 second before starting background loads
+      console.log(`⏱️ [dataManager] Waiting 1 second before background loads...`);
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      console.log(`🚀 [dataManager] BACKGROUND: Loading past 30 days (${last30DaysStr} to ${yesterdayStr}) - ALL drivers in city`);
-      console.log(`⏱️ [dataManager] Loading with 500ms pause between dates to prevent rate limits`);
+      // Load next 7 days with 500ms pause between dates
+      console.log(`🚀 [dataManager] BACKGROUND: Loading next 7 days - ALL drivers...`);
+      const futureDeliveries = [];
+      for (let i = 1; i <= 7; i++) {
+        const futureDate = new Date(today);
+        futureDate.setDate(today.getDate() + i);
+        const futureDateStr = format(futureDate, 'yyyy-MM-dd');
+        
+        try {
+          const dayDeliveries = await loadDeliveriesForDate(futureDateStr, priorityFilters, forceRefresh);
+          futureDeliveries.push(...dayDeliveries);
+          console.log(`  ✅ Loaded ${dayDeliveries.length} deliveries for ${futureDateStr}`);
+          
+          if (i < 7) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        } catch (error) {
+          console.error(`  ❌ Error loading ${futureDateStr}:`, error);
+          if (error.response?.status === 429 || error.message?.includes('429')) {
+            console.warn(`⏰ Rate limit - waiting 3s before continuing...`);
+            await new Promise(resolve => setTimeout(resolve, 3000));
+          }
+        }
+      }
+      console.log(`✅ [dataManager] BACKGROUND: Loaded ${futureDeliveries.length} future deliveries`);
+      
+      // Wait 1 second before loading past data
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Load past 30 days with 500ms pause between dates
+      const last30Days = subDays(today, 30);
+      const yesterdayStr = format(subDays(today, 1), 'yyyy-MM-dd');
+      console.log(`🚀 [dataManager] BACKGROUND: Loading past 30 days (${format(last30Days, 'yyyy-MM-dd')} to ${yesterdayStr})`);
       
       const pastDeliveries = [];
-      
-      // Load each date individually with 500ms pause between them
       for (let i = 29; i >= 1; i--) {
         const date = subDays(today, i);
         const dateStr = format(date, 'yyyy-MM-dd');
@@ -404,28 +413,31 @@ export const loadDeliveries = async (
         try {
           const dayDeliveries = await loadDeliveriesForDate(dateStr, backgroundFilters, forceRefresh);
           pastDeliveries.push(...dayDeliveries);
-          console.log(`  ✅ [dataManager] Loaded ${dayDeliveries.length} deliveries for ${dateStr} (${i} days ago)`);
+          console.log(`  ✅ Loaded ${dayDeliveries.length} deliveries for ${dateStr} (${i} days ago)`);
           
-          // Pause 500ms before next date
           if (i > 1) {
             await new Promise(resolve => setTimeout(resolve, 500));
           }
         } catch (dateError) {
-          console.error(`  ❌ [dataManager] Error loading ${dateStr}:`, dateError);
+          console.error(`  ❌ Error loading ${dateStr}:`, dateError);
+          if (dateError.response?.status === 429 || dateError.message?.includes('429')) {
+            console.warn(`⏰ Rate limit - waiting 3s before continuing...`);
+            await new Promise(resolve => setTimeout(resolve, 3000));
+          }
         }
       }
+      console.log(`✅ [dataManager] BACKGROUND: Loaded ${pastDeliveries.length} past deliveries`);
       
-      console.log(`✅ [dataManager] BACKGROUND: Loaded ${pastDeliveries.length} past deliveries (all drivers) across 30 days`);
-      
-      // Combine all: past + today + future
-      const allDeliveries = [...pastDeliveries, ...initialDeliveries];
+      // Combine all: past + selected + future
+      const allDeliveries = [...pastDeliveries, ...selectedDateDeliveries, ...futureDeliveries];
       onFullMonthLoadComplete(allDeliveries);
+      console.log(`✅ [dataManager] BACKGROUND COMPLETE: Total ${allDeliveries.length} deliveries loaded`);
     } catch (error) {
-      console.error('❌ [dataManager] Error loading past deliveries in background:', error);
+      console.error('❌ [dataManager] Error in background load:', error);
     }
-  }, 500); // Start background load after 500ms
+  }, 0);
 
-  return initialDeliveries;
+  return selectedDateDeliveries;
 };
 
 /**
