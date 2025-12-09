@@ -2067,6 +2067,40 @@ function Dashboard() {
     };
   }, []);
 
+  // Periodic ETA optimizer - runs every 60 seconds for current driver
+  useEffect(() => {
+    if (!isDataLoaded || !currentUser || !selectedDriverId || selectedDriverId === 'all') {
+      return;
+    }
+
+    const runETAOptimizer = async () => {
+      try {
+        const dateStr = format(selectedDate, 'yyyy-MM-dd');
+        console.log('⏰ [Dashboard] Running periodic ETA optimizer...');
+        
+        await base44.functions.invoke('etaOptimizer', {
+          driverId: selectedDriverId,
+          deliveryDate: dateStr
+        });
+        
+        console.log('✅ [Dashboard] Periodic ETA optimizer completed');
+      } catch (error) {
+        console.warn('⚠️ [Dashboard] Periodic ETA optimizer failed:', error);
+      }
+    };
+
+    // Run immediately on mount
+    const initialTimer = setTimeout(runETAOptimizer, 5000);
+    
+    // Then run every 60 seconds
+    const interval = setInterval(runETAOptimizer, 60000);
+
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(interval);
+    };
+  }, [isDataLoaded, currentUser, selectedDriverId, selectedDate]);
+
   useEffect(() => {
     // CRITICAL: Skip auto-center if initial FAB phase has been applied
     if (initialMapViewApplied) {
@@ -5305,7 +5339,21 @@ function Dashboard() {
                 <SmartRefreshIndicator
                   inline={true}
                   onManualRefresh={async () => {
-                    console.log('🔄 [Dashboard] Manual historical refresh triggered from stats card');
+                    console.log('🔄 [Dashboard] Manual refresh triggered from stats card');
+
+                    // Run ETA optimizer for current driver if applicable
+                    if (selectedDriverId && selectedDriverId !== 'all') {
+                      console.log('🔄 [Dashboard] Running ETA optimizer...');
+                      try {
+                        await base44.functions.invoke('etaOptimizer', {
+                          driverId: selectedDriverId,
+                          deliveryDate: format(selectedDate, 'yyyy-MM-dd')
+                        });
+                        console.log('✅ [Dashboard] ETA optimizer completed');
+                      } catch (etaError) {
+                        console.warn('⚠️ [Dashboard] ETA optimizer failed:', etaError);
+                      }
+                    }
 
                     // CRITICAL: Invalidate ALL caches to force fresh data fetch
                     invalidate('Delivery');
