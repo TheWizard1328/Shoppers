@@ -2096,6 +2096,12 @@ function Dashboard() {
       try {
         const dateStr = format(selectedDate, 'yyyy-MM-dd');
         
+        // CRITICAL: Don't run optimizer if no deliveries loaded yet
+        if (!filteredDeliveries || filteredDeliveries.length === 0) {
+          console.log('⏭️ [Dashboard] No deliveries loaded yet - skipping ETA optimizer');
+          return;
+        }
+        
         // Check if route is complete - stop running optimizer if no incomplete stops
         const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
         const hasIncompleteStops = filteredDeliveries.some(d => 
@@ -2130,7 +2136,7 @@ function Dashboard() {
       clearTimeout(initialTimer);
       clearInterval(interval);
     };
-  }, [isDataLoaded, currentUser, selectedDriverId, selectedDate]);
+  }, [isDataLoaded, currentUser, selectedDriverId, selectedDate, filteredDeliveries]);
 
   useEffect(() => {
     // CRITICAL: Skip auto-center if initial FAB phase has been applied

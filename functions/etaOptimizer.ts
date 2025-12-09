@@ -43,8 +43,11 @@ Deno.serve(async (req) => {
     const { driverId, deliveryDate, currentStopId } = body;
 
     if (!driverId || !deliveryDate) {
+      console.error('[ETA Updates] Missing required parameters:', { driverId, deliveryDate });
       return Response.json({ error: 'Missing required parameters' }, { status: 400 });
     }
+
+    console.log('[ETA Updates] Starting ETA calculation for:', { driverId, deliveryDate });
 
     // Get driver's AppUser record for current location
     const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
@@ -55,6 +58,13 @@ Deno.serve(async (req) => {
       driver_id: driverId,
       delivery_date: deliveryDate
     }, 'stop_order');
+
+    console.log('[ETA Updates] Found deliveries:', deliveries?.length || 0);
+
+    if (!deliveries || deliveries.length === 0) {
+      console.log('[ETA Updates] No deliveries found for driver/date');
+      return Response.json({ message: 'No deliveries found', updatedDeliveries: [] });
+    }
 
     // Get all patients for address lookups
     const patientIds = deliveries.filter(d => d.patient_id).map(d => d.patient_id);
