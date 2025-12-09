@@ -677,14 +677,28 @@ export default function Layout({ children, currentPageName }) {
         });
       }, 30000);
 
-      // Subscribe to local mutations and refresh UI
-      const unsubscribeMutations = subscribeMutations((mutation) => {
+      // Subscribe to local mutations and refresh UI IMMEDIATELY
+      const unsubscribeMutations = subscribeMutations(async (mutation) => {
         console.log('🔄 [Layout] Local mutation detected:', mutation);
-        // Force UI refresh by invalidating cache
+
+        // CRITICAL: Update UI state immediately from local database
         if (mutation.entity === 'Patient') {
-          invalidate('Patient');
+          try {
+            const freshPatients = await getData('Patient', null, null, false); // Read from IndexedDB cache
+            setPatients(freshPatients);
+            console.log('✅ [Layout] Patients state updated immediately from local mutation');
+          } catch (error) {
+            console.error('❌ [Layout] Error updating patients from local mutation:', error);
+          }
         } else if (mutation.entity === 'Delivery') {
-          invalidate('Delivery');
+          try {
+            const selectedDateStr = globalFilters.getSelectedDate();
+            const freshDeliveries = await getData('Delivery', null, null, false); // Read from IndexedDB cache
+            setDeliveries(freshDeliveries);
+            console.log('✅ [Layout] Deliveries state updated immediately from local mutation');
+          } catch (error) {
+            console.error('❌ [Layout] Error updating deliveries from local mutation:', error);
+          }
         }
       });
 
