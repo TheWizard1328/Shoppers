@@ -3342,7 +3342,7 @@ function Dashboard() {
 
       if (isEditing && !driverWasChanged) {
         console.log('✏️ EDIT MODE: Updating existing delivery (no driver change) - reordering incomplete stops only');
-        await base44.entities.Delivery.update(editingDelivery.id, deliveryData);
+        await updateDeliveryLocal(editingDelivery.id, deliveryData);
 
         // Fetch fresh deliveries for this driver and date
         const freshDeliveries = await base44.entities.Delivery.filter({
@@ -3378,7 +3378,7 @@ function Dashboard() {
           const stop = sortedIncomplete[i];
           if (!stop) continue;
 
-          await base44.entities.Delivery.update(stop.id, {
+          await updateDeliveryLocal(stop.id, {
             stop_order: startingStopOrder + i + 1
           });
         }
@@ -4495,7 +4495,7 @@ function Dashboard() {
               }
             }
 
-            await base44.entities.Delivery.update(stop.id, updatePayload);
+            await updateDeliveryLocal(stop.id, updatePayload);
             totalUpdated++;
 
             const stopName = stop.patient_id ?
