@@ -4753,9 +4753,16 @@ function Dashboard() {
 
   const handleDeleteDelivery = async (deliveryId) => {
     try {
-      await base44.entities.Delivery.delete(deliveryId);
+      const { deleteDeliveryLocal } = await import('../components/utils/offlineMutations');
+      await deleteDeliveryLocal(deliveryId);
+
+      // Update local state immediately
+      if (updateDeliveriesLocally) {
+        const updatedDeliveries = deliveries.filter(d => d.id !== deliveryId);
+        updateDeliveriesLocally(updatedDeliveries);
+      }
+
       invalidate('Delivery');
-      await refreshData();
 
       if (selectedCardId === deliveryId) {
         setSelectedCardId(null);
