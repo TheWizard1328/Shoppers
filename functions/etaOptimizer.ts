@@ -30,7 +30,17 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized - no user' }, { status: 401 });
     }
 
-    const { driverId, deliveryDate, currentStopId } = await req.json();
+    let body = {};
+    try {
+      const text = await req.text();
+      if (text) {
+        body = JSON.parse(text);
+      }
+    } catch (parseError) {
+      console.warn('Failed to parse request body:', parseError);
+    }
+
+    const { driverId, deliveryDate, currentStopId } = body;
 
     if (!driverId || !deliveryDate) {
       return Response.json({ error: 'Missing required parameters' }, { status: 400 });
