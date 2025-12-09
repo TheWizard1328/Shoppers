@@ -88,6 +88,9 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       } else if (refreshData) {
         await refreshData(true);
       }
+      
+      // Notify that refresh is complete for UI updates
+      window.dispatchEvent(new CustomEvent('manualRefreshComplete'));
     } catch (error) {
       console.error('❌ [SmartRefreshIndicator] Manual refresh failed:', error);
     } finally {
