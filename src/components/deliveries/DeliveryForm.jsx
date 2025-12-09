@@ -23,6 +23,14 @@ import { useAppData } from '../utils/AppDataContext';
 import { getUserAgentInfo } from '../utils/deviceUtils';
 import { shouldShowStoreBadges, isAppOwner } from '../utils/userRoles';
 import { sendDeliveryMessage } from '../utils/deliveryMessaging';
+import { 
+  createPatientLocal, 
+  updatePatientLocal, 
+  createDeliveryLocal,
+  updateDeliveryLocal,
+  deleteDeliveryLocal,
+  batchCreateDeliveriesLocal
+} from '../utils/offlineMutations';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
   <div className="flex items-center space-x-2">
@@ -834,7 +842,7 @@ export default function DeliveryForm({
 
     if (!patient._isNew) {
       try {
-        await base44.entities.Patient.update(patient.id, {
+        await updatePatientLocal(patient.id, {
           full_name: updatedFormData.patient_name,
           phone: updatedFormData.patient_phone,
           unit_number: updatedFormData.unit_number,
@@ -1355,7 +1363,7 @@ export default function DeliveryForm({
 
     if (formData.patient_id) {
       try {
-        await base44.entities.Patient.update(formData.patient_id, {
+        await updatePatientLocal(formData.patient_id, {
           full_name: formData.patient_name,
           phone: formData.patient_phone,
           unit_number: formData.unit_number,
@@ -1507,7 +1515,7 @@ export default function DeliveryForm({
 
     if (formData.patient_id) {
       try {
-        await base44.entities.Patient.update(formData.patient_id, {
+        await updatePatientLocal(formData.patient_id, {
           full_name: formData.patient_name,
           phone: formData.patient_phone,
           unit_number: formData.unit_number,
@@ -1834,12 +1842,12 @@ export default function DeliveryForm({
     setError(null);
 
     try {
-      // First, update existing deliveries with corrected TR#s
+      // First, update existing deliveries with corrected TR#s (local-first)
       if (existingDeliveriesToUpdate.length > 0) {
-        console.log(`[AddToRoute] 📝 Updating ${existingDeliveriesToUpdate.length} existing deliveries with corrected TR#s...`);
+        console.log(`[AddToRoute] 📝 Updating ${existingDeliveriesToUpdate.length} existing deliveries with corrected TR#s (local)...`);
         for (const update of existingDeliveriesToUpdate) {
           try {
-            await base44.entities.Delivery.update(update.id, { tracking_number: update.tracking_number });
+            await updateDeliveryLocal(update.id, { tracking_number: update.tracking_number });
           } catch (error) {
             if (error.message?.includes('not found')) {
               console.log(`[AddToRoute] ⏭️ Skipping deleted delivery: ${update.id}`);
@@ -1848,12 +1856,12 @@ export default function DeliveryForm({
             throw error;
           }
         }
-        console.log('[AddToRoute] ✅ Existing TR#s corrected');
+        console.log('[AddToRoute] ✅ Existing TR#s corrected locally');
       }
 
-      // Second, update pending deliveries that had status changes (from "pending" to "in_transit")
+      // Second, update pending deliveries that had status changes (local-first)
       if (updatedDeliveries.length > 0) {
-        console.log(`[AddToRoute] 📝 Updating ${updatedDeliveries.length} pending deliveries with status changes...`);
+        console.log(`[AddToRoute] 📝 Updating ${updatedDeliveries.length} pending deliveries with status changes (local)...`);
 
         // Check if any deliveries are completed for this driver/date
         const hasCompletedDeliveries = allDeliveries?.some((d) =>
@@ -1885,8 +1893,8 @@ export default function DeliveryForm({
               updateData.time_window_end = updated.time_window_end || '';
             }
 
-            await base44.entities.Delivery.update(updated.id, updateData);
-            console.log(`[AddToRoute] ✅ Updated pending delivery: ${updated.patient_name} → status: ${updated.status}`);
+            await updateDeliveryLocal(updated.id, updateData);
+            console.log(`[AddToRoute] ✅ Updated pending delivery locally: ${updated.patient_name} → status: ${updated.status}`);
           } catch (error) {
             // Skip deliveries that were deleted
             if (error.message?.includes('not found')) {
@@ -1896,7 +1904,7 @@ export default function DeliveryForm({
             throw error;
           }
         }
-        console.log('[AddToRoute] ✅ All pending deliveries updated');
+        console.log('[AddToRoute] ✅ All pending deliveries updated locally');
       }
 
       // Then save new deliveries OR trigger data refresh
@@ -4084,9 +4092,9 @@ export default function DeliveryForm({
 
                   setIsDeletingPending(true);
                   try {
-                    console.log('🗑️ [DeliveryForm] Deleting pending delivery:', staged.id, staged.patient_name);
-                    await base44.entities.Delivery.delete(staged.id);
-                    console.log('✅ [DeliveryForm] Pending delivery deleted successfully');
+                    console.log('🗑️ [DeliveryForm] Deleting pending delivery locally:', staged.id, staged.patient_name);
+                    await deleteDeliveryLocal(staged.id);
+                    console.log('✅ [DeliveryForm] Pending delivery deleted locally');
 
                     // Remove from staged list completely
                     setStagedDeliveries((prev) => prev.filter((item) => item.id !== staged.id && item._tempId !== staged._tempId));
