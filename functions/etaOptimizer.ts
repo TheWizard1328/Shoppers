@@ -9,12 +9,12 @@ Deno.serve(async (req) => {
     try {
       isAuthenticated = await base44.auth.isAuthenticated();
     } catch (authCheckError) {
-      console.error('❌ Auth check error:', authCheckError.message);
+      console.error('❌ [ETA Updates] Auth check error:', authCheckError.message);
       return Response.json({ error: 'Authentication check failed' }, { status: 401 });
     }
     
     if (!isAuthenticated) {
-      console.error('❌ User not authenticated');
+      console.error('❌ [ETA Updates] User not authenticated');
       return Response.json({ error: 'Unauthorized - not authenticated' }, { status: 401 });
     }
     
@@ -22,7 +22,7 @@ Deno.serve(async (req) => {
     try {
       user = await base44.auth.me();
     } catch (authError) {
-      console.error('❌ Auth error:', authError.message);
+      console.error('❌[ETA Updates]  Auth error:', authError.message);
       return Response.json({ error: 'Authentication failed' }, { status: 401 });
     }
 
@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
         body = JSON.parse(text);
       }
     } catch (parseError) {
-      console.warn('Failed to parse request body:', parseError);
+      console.warn('[ETA Updates] Failed to parse request body:', parseError);
     }
 
     const { driverId, deliveryDate, currentStopId } = body;
@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
         startLat = driverAppUser.current_latitude;
         startLon = driverAppUser.current_longitude;
         startTime = now;
-        console.log('Using current GPS location');
+        console.log('[ETA Updates] Using current GPS location');
       }
     }
 
@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
             startLat = patient.latitude;
             startLon = patient.longitude;
             startTime = lastCompleted.actual_delivery_time ? new Date(lastCompleted.actual_delivery_time) : now;
-            console.log('Using last completed stop location');
+            console.log('[ETA Updates] Using last completed stop location');
           }
         } else {
           const store = storeMap.get(lastCompleted.store_id);
@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
             startLat = store.latitude;
             startLon = store.longitude;
             startTime = lastCompleted.actual_delivery_time ? new Date(lastCompleted.actual_delivery_time) : now;
-            console.log('Using last completed pickup location');
+            console.log('[ETA Updates] Using last completed pickup location');
           }
         }
       }
@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
       startLat = driverAppUser.home_latitude;
       startLon = driverAppUser.home_longitude;
       startTime = now;
-      console.log('Using home location');
+      console.log('[ETA Updates] Using home location');
     }
 
     if (!startLat || !startLon) {
@@ -180,7 +180,7 @@ Deno.serve(async (req) => {
     const directionsData = await directionsResponse.json();
 
     if (directionsData.status !== 'OK') {
-      console.error('Google Directions API error:', directionsData.status);
+      console.error('[ETA Updates] Google Directions API error:', directionsData.status);
       return Response.json({ error: 'Failed to calculate route' }, { status: 500 });
     }
 
@@ -220,7 +220,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    console.log(`✅ Updated ETAs for ${updatedDeliveries.length} deliveries`);
+    console.log(`✅ [ETA Updates] Updated ETAs for ${updatedDeliveries.length} deliveries`);
 
     return Response.json({
       success: true,
@@ -230,7 +230,7 @@ Deno.serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('Error in etaOptimizer:', error);
+    console.error('[ETA Updates] Error in etaOptimizer:', error);
     return Response.json({ error: error.message }, { status: 500 });
   }
 });
