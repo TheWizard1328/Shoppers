@@ -188,7 +188,23 @@ Deno.serve(async (req) => {
     const route = directionsData.routes[0];
     const legs = route.legs;
     
-    let cumulativeTime = startTime;
+    // CRITICAL: Parse delivery date + current time to get actual date-time for ETA calculation
+    const deliveryDateObj = new Date(deliveryDate + 'T00:00:00');
+    const currentHours = startTime.getHours();
+    const currentMinutes = startTime.getMinutes();
+    
+    // Set cumulative time to delivery date + start time (not just the time object)
+    let cumulativeTime = new Date(deliveryDateObj);
+    cumulativeTime.setHours(currentHours);
+    cumulativeTime.setMinutes(currentMinutes);
+    cumulativeTime.setSeconds(0);
+    cumulativeTime.setMilliseconds(0);
+    
+    console.log('[ETA Updates] Starting ETA calculation:');
+    console.log(`  - Delivery date: ${deliveryDate}`);
+    console.log(`  - Start time: ${startTime.toISOString()}`);
+    console.log(`  - Cumulative time initialized: ${cumulativeTime.toISOString()}`);
+    
     const updatedDeliveries = [];
 
     for (let i = 0; i < waypoints.length; i++) {
@@ -199,13 +215,19 @@ Deno.serve(async (req) => {
       const travelMinutes = Math.ceil(leg.duration.value / 60);
       cumulativeTime = new Date(cumulativeTime.getTime() + travelMinutes * 60000);
       
+      console.log(`  - Stop ${i + 1}: +${travelMinutes} min travel → ${cumulativeTime.toISOString()}`);
+      
       // Add extra time at stop
       cumulativeTime = new Date(cumulativeTime.getTime() + (waypoint.extraTime || 5) * 60000);
+      
+      console.log(`  - Stop ${i + 1}: +${waypoint.extraTime || 5} min service → ${cumulativeTime.toISOString()}`);
       
       // Format ETA as HH:mm
       const etaHours = String(cumulativeTime.getHours()).padStart(2, '0');
       const etaMinutes = String(cumulativeTime.getMinutes()).padStart(2, '0');
       const eta = `${etaHours}:${etaMinutes}`;
+      
+      console.log(`  - Stop ${i + 1}: Final ETA = ${eta}`);
       
       updatedDeliveries.push({
         id: waypoint.deliveryId,
