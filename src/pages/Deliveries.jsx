@@ -1975,11 +1975,13 @@ export default function DeliveriesPage() {
         await invalidate('Patient');
       }
 
-      // CRITICAL: Invalidate all delivery caches to force Dashboard to refresh
-      invalidate('Delivery');
+      // CRITICAL: Update local state immediately
+      setAllDeliveries(prev => 
+        prev.map(d => d.id === deliveryId ? { ...d, ...updateData, updated_date: new Date().toISOString() } : d)
+      );
 
-      // Force a background refresh of context data
-      await loadData(true);
+      // Invalidate cache for background sync
+      invalidate('Delivery');
 
       // Handle pickup completion logic
       const isPickup = delivery.patient_id === null;
