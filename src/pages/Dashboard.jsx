@@ -1008,6 +1008,17 @@ function Dashboard() {
 
       watchId = navigator.geolocation.watchPosition(
         (position) => {
+          // Check if route is complete - stop updating location if no incomplete stops
+          const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+          const hasIncompleteStops = filteredDeliveries.some(d => 
+            d && !finishedStatuses.includes(d.status)
+          );
+          
+          if (!hasIncompleteStops) {
+            console.log('⏭️ [Dashboard] Route complete - not updating driver location');
+            return;
+          }
+
           const newLocation = {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
@@ -2077,6 +2088,18 @@ function Dashboard() {
     const runETAOptimizer = async () => {
       try {
         const dateStr = format(selectedDate, 'yyyy-MM-dd');
+        
+        // Check if route is complete - stop running optimizer if no incomplete stops
+        const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+        const hasIncompleteStops = filteredDeliveries.some(d => 
+          d && !finishedStatuses.includes(d.status)
+        );
+        
+        if (!hasIncompleteStops) {
+          console.log('⏭️ [Dashboard] Route complete - skipping ETA optimizer');
+          return;
+        }
+        
         console.log('⏰ [Dashboard] Running periodic ETA optimizer...');
         
         await base44.functions.invoke('etaOptimizer', {
@@ -2100,7 +2123,7 @@ function Dashboard() {
       clearTimeout(initialTimer);
       clearInterval(interval);
     };
-  }, [isDataLoaded, currentUser, selectedDriverId, selectedDate]);
+  }, [isDataLoaded, currentUser, selectedDriverId, selectedDate, filteredDeliveries]);
 
   useEffect(() => {
     // CRITICAL: Skip auto-center if initial FAB phase has been applied
