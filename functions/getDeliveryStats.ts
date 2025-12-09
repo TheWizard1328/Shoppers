@@ -29,7 +29,21 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     
-    // CRITICAL: Wrap auth.me() in try-catch
+    // CRITICAL: Check if user is authenticated first
+    let isAuthenticated = false;
+    try {
+      isAuthenticated = await base44.auth.isAuthenticated();
+    } catch (authCheckError) {
+      console.error('❌ Auth check error:', authCheckError.message);
+      return Response.json({ error: 'Authentication check failed' }, { status: 401 });
+    }
+    
+    if (!isAuthenticated) {
+      console.error('❌ User not authenticated');
+      return Response.json({ error: 'Unauthorized - not authenticated' }, { status: 401 });
+    }
+    
+    // Now fetch user details
     let user;
     try {
       user = await base44.auth.me();
@@ -39,7 +53,7 @@ Deno.serve(async (req) => {
     }
     
     if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+      return Response.json({ error: 'Unauthorized - no user' }, { status: 401 });
     }
 
     // Parse request body for filters
