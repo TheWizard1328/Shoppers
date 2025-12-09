@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
@@ -38,6 +39,7 @@ import { triggerRouteOptimization } from "../utils/realTimeRouteOptimizer";
 import { toast } from "sonner";
 import { smartRefreshManager } from "../utils/smartRefreshManager";
 import FailureReasonDialog from "../deliveries/FailureReasonDialog";
+import { updateDeliveryLocal } from '../utils/offlineMutations';
 
 // Global statusConfig
 const statusConfig = {
@@ -1369,14 +1371,7 @@ export default function StopCard({
 
                       onClick={async (e) => {
                         e.stopPropagation();
-                        console.log('🟢 [Assign All Button] Clicked!');
-                        console.log('  onStatusUpdate exists:', !!onStatusUpdate);
-                        console.log('  pendingPickups count:', pendingPickups?.length || 0);
-
-                        if (!onStatusUpdate) {
-                          console.error('❌ [Assign All Button] No onStatusUpdate handler!');
-                          return;
-                        }
+                        console.log('🟢 [Assign All Button] Clicked - using local-first mutations');
 
                         // Filter to ALL pending deliveries
                         const allPendingDeliveries = pendingPickups.filter((p) => p.status === 'pending');
@@ -1404,7 +1399,6 @@ export default function StopCard({
                         };
 
                         // Update ALL pending deliveries to 'in_transit' status with optimized ETAs
-                        let currentETA = pickupETA;
                         const extraTimeBuffer = 5; // 5 minutes buffer between stops
 
                         for (let i = 0; i < sortedPending.length; i++) {
@@ -1414,15 +1408,16 @@ export default function StopCard({
                           const minutesFromPickup = (i + 1) * extraTimeBuffer;
                           const newETA = addMinutesToTime(pickupETA, minutesFromPickup);
 
-                          console.log(`  Accepting: ${pendingDelivery.patient_name} → status: in_transit, ETA: ${newETA}`);
+                          console.log(`  Accepting: ${pendingDelivery.patient_name} → in_transit, ETA: ${newETA} (local)`);
 
-                          // Update status with optimized ETA, skip auto-center
-                          await onStatusUpdate(pendingDelivery.id, 'in_transit', {
+                          // Update status with optimized ETA using local-first mutation
+                          await updateDeliveryLocal(pendingDelivery.id, {
+                            status: 'in_transit',
                             delivery_time_eta: newETA
-                          }, true);
+                          });
                         }
 
-                        console.log('✅ [Assign All Button] All pending deliveries accepted with optimized ETAs');
+                        console.log('✅ [Assign All Button] All pending deliveries accepted locally');
 
                         // Trigger route optimization after accepting all stops
                         try {
