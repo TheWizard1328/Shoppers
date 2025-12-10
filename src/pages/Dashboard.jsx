@@ -1048,7 +1048,7 @@ function Dashboard() {
           setDriverLocation(newLocation);
 
           // CRITICAL: Auto-zoom when within 100m of in_transit/en_route stop (mobile + not phase 2)
-          // ONE-TIME lock per marker - won't re-zoom if user manually moves map
+          // Only trigger if card is NOT already centered on screen
           if (isMobile && mapViewPhase !== 2 && newLocation.latitude && newLocation.longitude) {
             const activeStatuses = ['in_transit', 'en_route'];
             const activeDeliveries = deliveriesWithStopOrder.filter((d) =>
@@ -1084,7 +1084,32 @@ function Dashboard() {
 
                 // Within 100m (0.1km)
                 if (distanceKm <= 0.1) {
-                  console.log(`📍 [Proximity] Driver within 100m of ${delivery.patient_name || 'Pickup'} - ONE-TIME auto-center`);
+                  // Check if card is currently centered on screen
+                  const cardElement = document.getElementById(`stop-card-${delivery.id}`);
+                  let isCardCentered = false;
+
+                  if (cardElement && stopCardsContainerRef.current) {
+                    const container = stopCardsContainerRef.current.querySelector('.overflow-x-auto');
+                    if (container) {
+                      const containerRect = container.getBoundingClientRect();
+                      const cardRect = cardElement.getBoundingClientRect();
+                      
+                      const containerCenter = containerRect.left + containerRect.width / 2;
+                      const cardCenter = cardRect.left + cardRect.width / 2;
+                      const distanceFromCenter = Math.abs(cardCenter - containerCenter);
+                      
+                      // Consider centered if within 50px of center
+                      isCardCentered = distanceFromCenter < 50;
+                      console.log(`📍 [Proximity] Card centering check: ${distanceFromCenter.toFixed(0)}px from center (${isCardCentered ? 'CENTERED' : 'NOT CENTERED'})`);
+                    }
+                  }
+
+                  if (isCardCentered) {
+                    console.log(`⏭️ [Proximity] Driver within 100m of ${delivery.patient_name || 'Pickup'} but card already centered - ignoring snap`);
+                    continue;
+                  }
+
+                  console.log(`📍 [Proximity] Driver within 100m of ${delivery.patient_name || 'Pickup'} and card NOT centered - ONE-TIME auto-center`);
 
                   // Mark this marker as locked (won't auto-zoom again)
                   proximityLockedMarkersRef.current.add(delivery.id);
