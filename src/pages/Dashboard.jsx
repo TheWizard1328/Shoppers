@@ -3292,8 +3292,7 @@ function Dashboard() {
               fridge_item: stop.fridge_item || false,
               oversized: stop.oversized || false,
               extra_time: stop.extra_time || 5,
-              first_delivery: stop.first_delivery || false,
-              isNextDelivery: false // CRITICAL: Always false when creating new routes
+              first_delivery: stop.first_delivery || false
             };
 
             if (stop.isNew) {
@@ -3311,8 +3310,7 @@ function Dashboard() {
                   delivery_time_eta: payload.delivery_time_eta,
                   time_window_start: payload.time_window_start,
                   time_window_end: payload.time_window_end,
-                  ampm_deliveries: payload.ampm_deliveries,
-                  isNextDelivery: false // CRITICAL: Always false when creating new routes
+                  ampm_deliveries: payload.ampm_deliveries
                 }
               });
             }
@@ -3972,8 +3970,7 @@ function Dashboard() {
           fridge_item: stop.fridge_item || false,
           oversized: stop.oversized || false,
           extra_time: stop.extra_time || 5,
-          first_delivery: stop.first_delivery || false,
-          isNextDelivery: false // CRITICAL: Always false for single delivery adds
+          first_delivery: stop.first_delivery || false
         };
 
         if (stop.isNew) {
@@ -3989,8 +3986,7 @@ function Dashboard() {
             delivery_time_eta: payload.delivery_time_eta,
             time_window_start: payload.time_window_start,
             time_window_end: payload.time_window_end,
-            ampm_deliveries: payload.ampm_deliveries,
-            isNextDelivery: false // CRITICAL: Always false for single delivery adds
+            ampm_deliveries: payload.ampm_deliveries
           };
 
           // Only include tracking_number if stop doesn't have one yet (new stop)
