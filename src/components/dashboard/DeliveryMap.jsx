@@ -1361,45 +1361,60 @@ export default function DeliveryMap({
     // Use shared finished statuses
     const activeStatuses = ['in_transit']; // NEW
 
-    // Group deliveries by driver
+    // Group deliveries by driver - CRITICAL: Include ALL deliveries, not just ones with coordinates
     const routesByDriver = {};
 
+    // FIXED: Process ALL deliveries first to ensure drivers show in legend even without coordinates
+    safeDeliveries.forEach((delivery) => {
+      if (!delivery) return;
+      const driverId = delivery.driver_id || 'unassigned';
+      if (!routesByDriver[driverId]) {
+        const driverForRoute = safeUsers.find((u) => u && typeof u === 'object' && u.id === driverId);
+
+        // Determine route color based on mode
+        const routeColor = isSingleDriverMode ?
+          (safeStores.find(s => s && s.id === delivery.store_id) ? getStoreColor(safeStores.find(s => s && s.id === delivery.store_id)) : '#6B7280')
+          : driverForRoute && typeof driverForRoute === 'object' ? getDriverColor(driverForRoute) : '#607D8B';
+
+        const driverDisplayName = driverForRoute ? (driverForRoute.user_name || driverForRoute.full_name || 'Unknown') : 'Unassigned';
+
+        console.log(`🗺️ Creating route for driver ${driverId}:`, {
+          found: !!driverForRoute,
+          displayName: driverDisplayName,
+          user_name: driverForRoute?.user_name,
+          full_name: driverForRoute?.full_name
+        });
+
+        routesByDriver[driverId] = {
+          driverId,
+          driverName: driverDisplayName,
+          driver: driverForRoute,
+          color: routeColor,
+          stops: [],
+          sortOrder: driverForRoute?.sort_order ?? Infinity
+        };
+      }
+      // Add to stops count (even without coordinates - for legend count)
+      routesByDriver[driverId].stops.push(delivery);
+    });
+
+    // Now add coordinate data from deliveryMarkers
     deliveryMarkers.forEach((delivery) => {
-    if (!delivery) return;
-    const driverId = delivery.driver_id || 'unassigned';
-    if (!routesByDriver[driverId]) {
-      // FIXED: Find driver by ID only, don't require user_name in find condition
-      const driverForRoute = safeUsers.find((u) => u && typeof u === 'object' && u.id === driverId);
-
-      // Determine route color based on mode
-      const routeColor = isSingleDriverMode ?
-        delivery.pinColor // Single driver: use store color from marker
-        : driverForRoute && typeof driverForRoute === 'object' ? getDriverColor(driverForRoute) : '#607D8B';
-
-      // FIXED: Use driver object's user_name for display, with proper fallbacks
-      const driverDisplayName = driverForRoute ? (driverForRoute.user_name || driverForRoute.full_name || 'Unknown') : 'Unassigned';
-
-      console.log(`🗺️ Creating route for driver ${driverId}:`, {
-        found: !!driverForRoute,
-        displayName: driverDisplayName,
-        user_name: driverForRoute?.user_name,
-        full_name: driverForRoute?.full_name
-      });
-
-      routesByDriver[driverId] = {
-        driverId,
-        driverName: driverDisplayName,
-        driver: driverForRoute, // Store driver object
-        color: routeColor,
-        stops: [],
-        sortOrder: driverForRoute?.sort_order ?? Infinity
-      };
-    }
-    routesByDriver[driverId].stops.push(delivery);
+      if (!delivery) return;
+      const driverId = delivery.driver_id || 'unassigned';
+      if (routesByDriver[driverId]) {
+        // Mark that this driver has at least one stop with coordinates
+        if (!routesByDriver[driverId]._hasCoordinates) {
+          routesByDriver[driverId]._hasCoordinates = true;
+        }
+      }
     });
 
     // Sort stops by stop_order and create route lines
     const routes = Object.values(routesByDriver).map((route) => {
+    // CRITICAL: Count ALL stops for this driver (even without coordinates) for legend
+    const totalDriverStops = safeDeliveries.filter(d => d && d.driver_id === route.driverId).length;
+    
     // Find ALL pickup locations for this driver
     const driverPickups = pickupMarkers.filter((p) => p.driver_id === route.driverId);
 
@@ -1594,19 +1609,21 @@ export default function DeliveryMap({
         isCompleted: isRouteCompleted,
         isRouteStarted, // NEW: Track if route has started
         pickupCount: driverPickups.length,
-        totalStops: route.stops.length + driverPickups.length,
+        totalStops: totalDriverStops, // FIXED: Use total count including deliveries without coordinates
         // NEW: Zoom-based styling
         routeWeight,
         routeOpacity,
         showWaypoints
       };
-    }).filter((route) => route.coordinates.length >= 2 || route.startToFirstStopCoordinates);
-
+    });
+    
+    // CRITICAL: Don't filter out drivers without coordinates - keep them for the legend
     const sortedRoutes = routes.sort((a, b) => a.sortOrder - b.sortOrder);
-    console.log(`✅ Generated ${sortedRoutes.length} routes`);
+
+    console.log(`✅ Generated ${sortedRoutes.length} routes (including drivers without coordinates for legend)`);
 
     return sortedRoutes;
-  }, [deliveryMarkers, pickupMarkers, showRoutes, isSingleDriverMode, safeUsers, currentZoom, currentUser, currentDriverLocation, isViewingCurrentDate]);
+  }, [deliveryMarkers, pickupMarkers, showRoutes, isSingleDriverMode, safeUsers, currentZoom, currentUser, currentDriverLocation, isViewingCurrentDate, safeDeliveries, safeStores]);
   
   // Pass driver routes to parent component
   useEffect(() => {
