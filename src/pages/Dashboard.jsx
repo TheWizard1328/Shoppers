@@ -5165,26 +5165,26 @@ function Dashboard() {
       await Promise.all(resetPromises);
       console.log(`✅ [START STEP 2] Reset ${resetPromises.length} isNextDelivery flags`);
 
-      // 3. Update started delivery status (NOT isNextDelivery)
-      console.log('\n📍 [START STEP 3] Updating started delivery status...');
+      // 3. Update started delivery status AND mark as isNextDelivery
+      console.log('\n📍 [START STEP 3] Updating started delivery status and marking as next...');
       await updateDeliveryLocal(deliveryId, {
         status: newStatus,
-        delivery_time_eta: currentTime
+        delivery_time_eta: currentTime,
+        isNextDelivery: true
       });
-      console.log(`✅ [START STEP 3a] Started delivery updated locally`);
+      console.log(`✅ [START STEP 3] Started delivery marked as next and ETA set to ${currentTime}`);
 
-      // 3b. Find and mark the NEXT incomplete delivery as isNextDelivery
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-      const incompleteAfterStarted = allDriverDeliveriesForDate
-        .filter(d => d && d.id !== deliveryId && !finishedStatuses.includes(d.status))
-        .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-
-      if (incompleteAfterStarted.length > 0) {
-        const nextDelivery = incompleteAfterStarted[0];
-        await updateDeliveryLocal(nextDelivery.id, { isNextDelivery: true });
-        console.log(`✅ [START STEP 3b] Next delivery marked: ${nextDelivery.patient_name || 'Pickup'}`);
-      } else {
-        console.log('ℹ️ [START STEP 3b] No next delivery (route ending)');
+      console.log('');
+      console.log('📍 [START STEP 4] Running ETA optimizer to update subsequent deliveries...');
+      
+      try {
+        await base44.functions.invoke('etaOptimizer', {
+          driverId: driverId,
+          deliveryDate: deliveryDate
+        });
+        console.log('✅ [START STEP 4] ETA optimizer completed - subsequent ETAs recalculated');
+      } catch (etaError) {
+        console.warn('⚠️ [START STEP 4] ETA optimizer failed:', etaError);
       }
 
       console.log('');
