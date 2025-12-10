@@ -80,6 +80,7 @@ import { ResizableDivider } from './components/ui/resizable-divider';
       import PatientImport from './components/patients/PatientImport';
       import RouteImport from './components/deliveries/RouteImport';
       import DriverStatusToggle from './components/layout/DriverStatusToggle';
+import LocationTrackingToggle from './components/layout/LocationTrackingToggle';
       import { loadUserSettings, saveSetting, clearSettingsCache } from './components/utils/userSettingsManager';
       import MessagingPanel from './components/messaging/MessagingPanel';
       import SmartRefreshIndicator from './components/layout/SmartRefreshIndicator';
@@ -2631,6 +2632,22 @@ export default function Layout({ children, currentPageName }) {
                 <div className="border-t border-slate-100 p-4 flex-shrink-0 bg-white">
                     {currentUser ?
                     <div>
+                      {/* Location Sharing Toggle - Desktop Sidebar Only */}
+                      {!isMobile && currentUser && userHasRole(currentUser, 'driver') && (
+                        <div className="mb-3">
+                          <LocationTrackingToggle 
+                            user={currentUser}
+                            onUserUpdate={async (updatedUser) => {
+                              clearUserCache();
+                              const refreshedUser = await getEffectiveUser();
+                              if (refreshedUser) {
+                                setCurrentUser(refreshedUser);
+                              }
+                            }}
+                          />
+                        </div>
+                      )}
+
                       <div className={`flex items-center gap-3 mb-3 p-3 rounded-lg ${
                         impersonatingUser ? 'bg-yellow-50 border-2 border-yellow-300' : ''}`
                       }>
@@ -2916,9 +2933,9 @@ export default function Layout({ children, currentPageName }) {
                     )}
                   </div>
 
-                  {/* Driver Status Toggle - Centered in Mobile Header - Only on mobile */}
+                  {/* Driver Status Toggle + Location Sharing - Centered in Mobile Header - Only on mobile */}
                   {isMobile && currentUser && userHasRole(currentUser, 'driver') && (
-                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1">
                       <DriverStatusToggle 
                         currentUser={currentUser}
                         onStatusChange={async (newStatus) => {
