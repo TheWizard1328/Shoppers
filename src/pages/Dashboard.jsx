@@ -5330,20 +5330,21 @@ function Dashboard() {
       await Promise.all(resetPromises);
       console.log(`✅ [START STEP 2] Reset ${resetPromises.length} isNextDelivery flags`);
 
-      // STEP 3: Update started delivery status, new stop_order, AND mark as isNextDelivery
+      // STEP 3: Update started delivery status, new stop_order, AND mark as isNextDelivery - DATABASE UPDATE
       console.log('');
-      console.log('📍 [START STEP 3] Updating started delivery status, stop_order, and marking as next...');
-      await updateDeliveryLocal(deliveryId, {
+      console.log('📍 [START STEP 3] Updating started delivery in DATABASE with new stop_order...');
+      await base44.entities.Delivery.update(deliveryId, {
         status: newStatus,
         stop_order: newStopOrder,
         delivery_time_eta: currentTime,
         isNextDelivery: true
       });
-      console.log(`✅ [START STEP 3] Started delivery reordered to stop #${newStopOrder}, marked as next, and ETA set to ${currentTime}`);
+      console.log(`✅ [START STEP 3] Started delivery reordered to stop #${newStopOrder} in DATABASE`);
 
       console.log('');
-      console.log('📍 [START STEP 4] Running full ETA recalculation for all stops after reordering...');
-      console.log(`   - This will update ETAs for ALL stops based on new stop_order sequence`);
+      console.log('📍 [START STEP 4] Running full ETA recalculation after reordering...');
+      console.log(`   - Started stop now at position #${newStopOrder}`);
+      console.log(`   - All stops will get updated ETAs based on new sequence`);
       
       try {
         await base44.functions.invoke('etaOptimizer', {
