@@ -1877,9 +1877,9 @@ export default function DeliveryForm({
         console.log('[AddToRoute] ✅ Existing TR#s corrected locally');
       }
 
-      // Second, update pending deliveries that had status changes (local-first)
+      // Second, update pending deliveries that had status changes
       if (updatedDeliveries.length > 0) {
-        console.log(`[AddToRoute] 📝 Updating ${updatedDeliveries.length} pending deliveries with status changes (local)...`);
+        console.log(`[AddToRoute] 📝 Updating ${updatedDeliveries.length} pending deliveries with status changes...`);
 
         // Check if any deliveries are completed for this driver/date
         const hasCompletedDeliveries = allDeliveries?.some((d) =>
@@ -1911,18 +1911,20 @@ export default function DeliveryForm({
               updateData.time_window_end = updated.time_window_end || '';
             }
 
-            await updateDeliveryLocal(updated.id, updateData);
-            console.log(`[AddToRoute] ✅ Updated pending delivery locally: ${updated.patient_name} → status: ${updated.status}`);
+            // CRITICAL: Use backend-only update (deliveries may not be in IndexedDB yet)
+            const { base44 } = await import('@/api/base44Client');
+            await base44.entities.Delivery.update(updated.id, updateData);
+            console.log(`[AddToRoute] ✅ Updated pending delivery: ${updated.patient_name} → status: ${updated.status}`);
           } catch (error) {
             // Skip deliveries that were deleted
-            if (error.message?.includes('not found')) {
+            if (error.message?.includes('not found') || error.response?.status === 404) {
               console.log(`[AddToRoute] ⏭️ Skipping deleted delivery: ${updated.id} (${updated.patient_name})`);
               continue;
             }
             throw error;
           }
         }
-        console.log('[AddToRoute] ✅ All pending deliveries updated locally');
+        console.log('[AddToRoute] ✅ All pending deliveries updated');
       }
 
       // Then save new deliveries OR trigger data refresh
