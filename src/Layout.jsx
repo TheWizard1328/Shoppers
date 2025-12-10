@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, Fragment, useMemo, useCallback, useRef } from "react";
 import "./components/utils/globalErrorHandler";
 import { Link, useLocation } from "react-router-dom";
@@ -91,7 +90,8 @@ import { performInitialSync, processPendingMutations } from './components/utils/
 import OfflineSyncIndicator from './components/layout/OfflineSyncIndicator';
 import { subscribeMutations } from './components/utils/offlineMutations';
 
-const APP_VERSION = 'v1.0.0';
+// App version will be loaded from AppSettings
+const DEFAULT_APP_VERSION = 'v1.0.0';
 
 const createMergedUser = (authUser, appUser) => {
   // CRITICAL: Allow creating users from AppUser data alone (for non-admin users who can't fetch User.list())
@@ -471,6 +471,7 @@ export default function Layout({ children, currentPageName }) {
       const [showMessaging, setShowMessaging] = useState(false);
       const [unreadMessageCount, setUnreadMessageCount] = useState(0);
       const [initialConversation, setInitialConversation] = useState(null);
+      const [appVersion, setAppVersion] = useState(DEFAULT_APP_VERSION);
 
   useEffect(() => {
     const init = async () => {
@@ -514,11 +515,18 @@ export default function Layout({ children, currentPageName }) {
         setUserSettingsLoaded(true);
       }
 
-      // Load app-wide settings (smart refresh toggle)
+      // Load app-wide settings (smart refresh toggle and version)
       console.log('⚙️ [Layout] Step 2.1c: Loading app settings...');
       try {
         const smartRefreshEnabled = await smartRefreshManager.initializeFromSettings();
         console.log(`⚙️ [Layout] Smart refresh initialized: ${smartRefreshEnabled ? 'ENABLED' : 'DISABLED'} (_enabled=${smartRefreshManager._enabled}, _initialized=${smartRefreshManager._initialized})`);
+
+        // Load app version
+        const versionSettings = await base44.entities.AppSettings.filter({ setting_key: 'app_version' });
+        if (versionSettings && versionSettings.length > 0 && versionSettings[0].setting_value) {
+          const version = versionSettings[0].setting_value;
+          setAppVersion(`v${version.major}.${version.minor}.${version.build}`);
+        }
       } catch (appSettingsError) {
         console.warn('⚠️ [Layout] Error loading app settings:', appSettingsError);
         // Default to enabled on error
@@ -2433,7 +2441,7 @@ export default function Layout({ children, currentPageName }) {
                       <div>
                         <h2 className="font-bold text-lg text-slate-900">RxDeliver</h2>
                         <p className="text-xs text-slate-500">Pharmacy Logistics</p>
-                        <p className="text-xs text-slate-500">{APP_VERSION}</p>
+                        <p className="text-xs text-slate-500">{appVersion}</p>
                       </div>
                     </div>
 
