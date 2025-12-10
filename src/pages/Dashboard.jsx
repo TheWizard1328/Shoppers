@@ -558,7 +558,7 @@ function Dashboard() {
 
     const total = safeDeliveries.length;
     const inTransit = safeDeliveries.filter((d) => d && (d.status === 'in_transit' || d.status === 'en_route')).length;
-    const completed = safeDeliveries.filter((d) => d && ['completed', 'delivered'].includes(d.status)).length;
+    const completed = safeDeliveries.filter((d) => d && d.status === 'completed').length;
     const returned = safeDeliveries.filter(isReturn).length;
     const failed = safeDeliveries.filter((d) => d && d.status === 'failed' && !isReturn(d)).length;
 
