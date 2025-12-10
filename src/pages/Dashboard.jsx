@@ -1073,19 +1073,14 @@ function Dashboard() {
             const timeSinceLastSnap = now - lastProximitySnapTimeRef.current;
             const snapCooldown = 60000; // 60 seconds
 
-            if (timeSinceLastSnap < snapCooldown) {
-              const remainingSeconds = Math.ceil((snapCooldown - timeSinceLastSnap) / 1000);
-              console.log(`⏸️ [Proximity] Snap cooldown active - ${remainingSeconds}s remaining`);
-              continue; // Skip all proximity checks during cooldown
-            }
+            if (timeSinceLastSnap >= snapCooldown) {
+              const activeStatuses = ['in_transit', 'en_route'];
+              const activeDeliveries = deliveriesWithStopOrder.filter((d) =>
+                d && activeStatuses.includes(d.status)
+              );
 
-            const activeStatuses = ['in_transit', 'en_route'];
-            const activeDeliveries = deliveriesWithStopOrder.filter((d) =>
-              d && activeStatuses.includes(d.status)
-            );
-
-            // Check each active delivery for proximity
-            for (const delivery of activeDeliveries) {
+              // Check each active delivery for proximity
+              for (const delivery of activeDeliveries) {
 
               let stopLat, stopLon;
 
@@ -1163,6 +1158,9 @@ function Dashboard() {
                   break; // Only zoom to first nearby stop
                 }
               }
+            } else {
+              const remainingSeconds = Math.ceil((snapCooldown - timeSinceLastSnap) / 1000);
+              console.log(`⏸️ [Proximity] Snap cooldown active - ${remainingSeconds}s remaining`);
             }
           }
         },
