@@ -5140,16 +5140,11 @@ function Dashboard() {
         console.log('⏭️ [STATUS UPDATE] Skipping ETA updates (not mobile driver or not completion/failure)');
       }
 
-      // CRITICAL: Reorder stops based on completion time and ETAs
+      // CRITICAL: Recalculate stop orders after status change
       console.log('');
-      console.log('🏗️ STEP 2: Reordering stops after status change');
+      console.log('🏗️ STEP 2: Recalculating stop orders to match card order');
 
-      try {
-        await reorderStops(targetDelivery.driver_id, deliveryDate, deliveries);
-        console.log('✅ [STATUS UPDATE] Stops reordered');
-      } catch (reorderError) {
-        console.warn('⚠️ [STATUS UPDATE] Reordering failed:', reorderError.message);
-      }
+      await recalculateStopOrders(targetDelivery.driver_id, deliveryDate);
 
       console.log('');
       console.log('🏗️ STEP 3: Skipping route optimization (disabled)');
