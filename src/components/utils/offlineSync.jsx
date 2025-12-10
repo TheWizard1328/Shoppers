@@ -90,43 +90,126 @@ const syncPatients = async () => {
 };
 
 /**
- * Sync Deliveries to IndexedDB (last 60 days + next 30 days)
+ * Sync Deliveries to IndexedDB - OPTIMIZED with prioritized dates and early exit
+ * 1. Sync selected date first
+ * 2. Sync current date if different
+ * 3. Incrementally sync remaining dates (7 future + 30 past)
+ * 4. Exit early if no changes detected for 10 consecutive days
  */
-const syncDeliveries = async () => {
-  console.log('🔄 [OfflineSync] Starting Delivery sync...');
+const syncDeliveries = async (selectedDate = null) => {
+  console.log('🔄 [OfflineSync] Starting OPTIMIZED Delivery sync...');
   notifySyncStatus({ entity: 'Delivery', status: 'syncing', progress: 0 });
 
   try {
     const today = new Date();
-    const startDate = format(subDays(today, 60), 'yyyy-MM-dd'); // Last 60 days
-    const endDate = format(subDays(today, -30), 'yyyy-MM-dd'); // Next 30 days
-
-    console.log(`📥 [OfflineSync] Fetching deliveries from ${startDate} to ${endDate}`);
-
-    // Fetch deliveries in date range
-    const deliveries = await Delivery.filter({
-      delivery_date: {
-        $gte: startDate,
-        $lte: endDate
-      }
-    }, '-updated_date');
-
-    console.log(`📥 [OfflineSync] Fetched ${deliveries.length} deliveries from backend`);
-
-    // Save to IndexedDB in batches
-    const batches = [];
-    for (let i = 0; i < deliveries.length; i += BATCH_SIZE) {
-      batches.push(deliveries.slice(i, i + BATCH_SIZE));
-    }
+    const todayStr = format(today, 'yyyy-MM-dd');
+    const selectedDateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : todayStr;
 
     let totalSaved = 0;
+    const allDeliveries = [];
+    let consecutiveDaysWithoutChanges = 0;
+
+    // STEP 1: Sync selected date FIRST (highest priority)
+    console.log(`📥 [OfflineSync] PRIORITY 1: Syncing selected date ${selectedDateStr}...`);
+    const selectedDateDeliveries = await Delivery.filter({ delivery_date: selectedDateStr });
+    
+    if (selectedDateDeliveries.length > 0) {
+      allDeliveries.push(...selectedDateDeliveries);
+      console.log(`✅ [OfflineSync] Selected date: ${selectedDateDeliveries.length} deliveries`);
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
+    // STEP 2: Sync current date if different (second priority)
+    if (selectedDateStr !== todayStr) {
+      console.log(`📥 [OfflineSync] PRIORITY 2: Syncing current date ${todayStr}...`);
+      const todayDeliveries = await Delivery.filter({ delivery_date: todayStr });
+      
+      if (todayDeliveries.length > 0) {
+        allDeliveries.push(...todayDeliveries);
+        console.log(`✅ [OfflineSync] Current date: ${todayDeliveries.length} deliveries`);
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+
+    // STEP 3: Incrementally sync remaining dates with early exit
+    console.log(`📥 [OfflineSync] STEP 3: Syncing remaining dates (7 future + 30 past)...`);
+    
+    // Build date list: 7 days forward, then 30 days back
+    const datesToSync = [];
+    
+    // Future dates (1 to 7 days ahead, skipping today and selected date)
+    for (let i = 1; i <= 7; i++) {
+      const futureDate = new Date(today);
+      futureDate.setDate(today.getDate() + i);
+      const futureDateStr = format(futureDate, 'yyyy-MM-dd');
+      if (futureDateStr !== selectedDateStr) {
+        datesToSync.push(futureDateStr);
+      }
+    }
+    
+    // Past dates (1 to 30 days ago, skipping today and selected date)
+    for (let i = 1; i <= 30; i++) {
+      const pastDate = new Date(today);
+      pastDate.setDate(today.getDate() - i);
+      const pastDateStr = format(pastDate, 'yyyy-MM-dd');
+      if (pastDateStr !== selectedDateStr) {
+        datesToSync.push(pastDateStr);
+      }
+    }
+
+    console.log(`📅 [OfflineSync] Will check ${datesToSync.length} dates (exit early if 10 days without changes)`);
+
+    // Fetch incrementally with early exit
+    for (let i = 0; i < datesToSync.length; i++) {
+      const dateStr = datesToSync[i];
+      
+      // Get existing local data for this date
+      const localDeliveriesForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
+      
+      // Fetch from backend
+      const backendDeliveriesForDate = await Delivery.filter({ delivery_date: dateStr });
+      
+      // Check if there are any changes (additions, deletions, or updates)
+      const hasChanges = checkForChanges(localDeliveriesForDate, backendDeliveriesForDate);
+      
+      if (hasChanges) {
+        console.log(`✅ [OfflineSync] ${dateStr}: ${backendDeliveriesForDate.length} deliveries (CHANGES DETECTED)`);
+        allDeliveries.push(...backendDeliveriesForDate);
+        consecutiveDaysWithoutChanges = 0; // Reset counter
+      } else {
+        console.log(`⏭️ [OfflineSync] ${dateStr}: ${backendDeliveriesForDate.length} deliveries (no changes)`);
+        consecutiveDaysWithoutChanges++;
+        
+        // Keep existing local data
+        allDeliveries.push(...localDeliveriesForDate);
+      }
+      
+      // EARLY EXIT: Stop if 10 consecutive days without changes
+      if (consecutiveDaysWithoutChanges >= 10) {
+        console.log(`🛑 [OfflineSync] EARLY EXIT: No changes detected for 10 consecutive days`);
+        console.log(`   Checked ${i + 1} of ${datesToSync.length} dates (saved ${datesToSync.length - i - 1} API calls)`);
+        break;
+      }
+      
+      // Progress notification
+      const progress = Math.round(((i + 1) / datesToSync.length) * 100);
+      notifySyncStatus({ entity: 'Delivery', status: 'syncing', progress, count: allDeliveries.length });
+      
+      // Rate limit protection
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
+    // Save to IndexedDB in batches
+    console.log(`💾 [OfflineSync] Saving ${allDeliveries.length} total deliveries to IndexedDB...`);
+    const batches = [];
+    for (let i = 0; i < allDeliveries.length; i += BATCH_SIZE) {
+      batches.push(allDeliveries.slice(i, i + BATCH_SIZE));
+    }
+
     for (let i = 0; i < batches.length; i++) {
       const batch = batches[i];
       const result = await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, batch);
       totalSaved += result.count;
-      
-      const progress = Math.round(((i + 1) / batches.length) * 100);
-      notifySyncStatus({ entity: 'Delivery', status: 'syncing', progress, count: totalSaved });
       
       if (i < batches.length - 1) {
         await new Promise(resolve => setTimeout(resolve, SYNC_DELAY_BETWEEN_BATCHES));
@@ -151,9 +234,49 @@ const syncDeliveries = async () => {
 };
 
 /**
- * Perform initial sync if needed
+ * Check if there are changes between local and backend data
  */
-export const performInitialSync = async () => {
+const checkForChanges = (localRecords, backendRecords) => {
+  if (localRecords.length !== backendRecords.length) {
+    return true; // Different count = changes
+  }
+  
+  const localIds = new Set(localRecords.map(r => r.id));
+  const backendIds = new Set(backendRecords.map(r => r.id));
+  
+  // Check for additions or deletions
+  if (localIds.size !== backendIds.size) {
+    return true;
+  }
+  
+  for (const id of backendIds) {
+    if (!localIds.has(id)) {
+      return true; // New record
+    }
+  }
+  
+  // Check for updates (compare updated_date)
+  for (const backendRecord of backendRecords) {
+    const localRecord = localRecords.find(r => r.id === backendRecord.id);
+    if (!localRecord) {
+      return true;
+    }
+    
+    const backendTime = new Date(backendRecord.updated_date || backendRecord.created_date).getTime();
+    const localTime = new Date(localRecord.updated_date || localRecord.created_date).getTime();
+    
+    if (backendTime !== localTime) {
+      return true; // Record was updated
+    }
+  }
+  
+  return false; // No changes
+};
+
+/**
+ * Perform initial sync if needed - OPTIMIZED with priority dates
+ */
+export const performInitialSync = async (selectedDate = null) => {
   if (syncInProgress) {
     console.log('⏸️ [OfflineSync] Sync already in progress, skipping');
     return;
@@ -163,7 +286,7 @@ export const performInitialSync = async () => {
   notifySyncStatus({ status: 'starting' });
 
   try {
-    console.log('🚀 [OfflineSync] Starting initial sync check...');
+    console.log('🚀 [OfflineSync] Starting OPTIMIZED initial sync check...');
 
     // FIRST: Process pending mutations (push local changes to backend)
     console.log('📤 [OfflineSync] Processing pending mutations first...');
@@ -188,10 +311,10 @@ export const performInitialSync = async () => {
       console.log('✅ [OfflineSync] Patient data is up to date');
     }
 
-    // Sync deliveries if needed
+    // Sync deliveries if needed - pass selected date for priority sync
     if (needsDeliverySync) {
       console.log('📋 [OfflineSync] Delivery sync needed');
-      results.deliveries = await syncDeliveries();
+      results.deliveries = await syncDeliveries(selectedDate);
     } else {
       console.log('✅ [OfflineSync] Delivery data is up to date');
     }
@@ -340,18 +463,59 @@ export const performBidirectionalSync = async () => {
     // STEP 2: Pull backend changes and compare with local database
     console.log('📥 [OfflineSync] Step 2/2: Pulling backend changes and comparing...');
     
-    // Fetch from backend
-    const [backendPatients, backendDeliveries] = await Promise.all([
-      Patient.list(),
-      (async () => {
-        const today = new Date();
-        const startDate = format(subDays(today, 60), 'yyyy-MM-dd');
-        const endDate = format(subDays(today, -30), 'yyyy-MM-dd');
-        return Delivery.filter({
-          delivery_date: { $gte: startDate, $lte: endDate }
-        }, '-updated_date');
-      })()
-    ]);
+    // Fetch patients from backend
+    const backendPatients = await Patient.list();
+    
+    // Fetch deliveries using optimized incremental approach
+    const backendDeliveries = [];
+    const today = new Date();
+    const todayStr = format(today, 'yyyy-MM-dd');
+    
+    // Priority dates first
+    const priorityDates = [todayStr];
+    for (const dateStr of priorityDates) {
+      const dateDeliveries = await Delivery.filter({ delivery_date: dateStr });
+      backendDeliveries.push(...dateDeliveries);
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    
+    // Then scan backwards/forwards with early exit
+    let consecutiveDaysWithoutChanges = 0;
+    const datesToCheck = [];
+    
+    for (let i = 1; i <= 7; i++) {
+      const futureDate = new Date(today);
+      futureDate.setDate(today.getDate() + i);
+      datesToCheck.push(format(futureDate, 'yyyy-MM-dd'));
+    }
+    
+    for (let i = 1; i <= 30; i++) {
+      const pastDate = new Date(today);
+      pastDate.setDate(today.getDate() - i);
+      datesToCheck.push(format(pastDate, 'yyyy-MM-dd'));
+    }
+    
+    for (const dateStr of datesToCheck) {
+      const localForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
+      const backendForDate = await Delivery.filter({ delivery_date: dateStr });
+      
+      const hasChanges = checkForChanges(localForDate, backendForDate);
+      
+      if (hasChanges) {
+        backendDeliveries.push(...backendForDate);
+        consecutiveDaysWithoutChanges = 0;
+      } else {
+        backendDeliveries.push(...localForDate);
+        consecutiveDaysWithoutChanges++;
+      }
+      
+      if (consecutiveDaysWithoutChanges >= 10) {
+        console.log(`🛑 [OfflineSync] Early exit after 10 days without changes`);
+        break;
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
 
     console.log(`📥 Fetched ${backendPatients.length} patients and ${backendDeliveries.length} deliveries from backend`);
 

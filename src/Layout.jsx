@@ -686,7 +686,10 @@ export default function Layout({ children, currentPageName }) {
 
       // Start background sync after 5 seconds to avoid blocking initial load
       const syncTimer = setTimeout(() => {
-        performInitialSync().catch(error => {
+        const selectedDateStr = globalFilters.getSelectedDate();
+        const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
+
+        performInitialSync(selectedDate).catch(error => {
           console.error('❌ [Layout] Initial offline sync failed:', error);
         });
       }, 5000);
