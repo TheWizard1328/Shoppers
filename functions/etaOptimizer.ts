@@ -53,6 +53,12 @@ Deno.serve(async (req) => {
     const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
     const driverAppUser = appUsers?.[0];
 
+    // CRITICAL: Skip ETA updates if driver is off duty
+    if (driverAppUser?.driver_status === 'off_duty') {
+      console.log('[ETA Updates] Skipping - driver is off duty');
+      return Response.json({ message: 'Driver is off duty - skipping ETA updates', updatedDeliveries: [] });
+    }
+
     // Get all deliveries for this driver/date
     const deliveries = await base44.asServiceRole.entities.Delivery.filter({
       driver_id: driverId,
@@ -64,6 +70,13 @@ Deno.serve(async (req) => {
     if (!deliveries || deliveries.length === 0) {
       console.log('[ETA Updates] No deliveries found for driver/date');
       return Response.json({ message: 'No deliveries found', updatedDeliveries: [] });
+    }
+
+    // CRITICAL: Skip ETA updates if no delivery is marked as next (isNextDelivery = true)
+    const hasNextDelivery = deliveries.some(d => d.isNextDelivery === true);
+    if (!hasNextDelivery) {
+      console.log('[ETA Updates] Skipping - no delivery marked as isNextDelivery');
+      return Response.json({ message: 'No next delivery flagged - skipping ETA updates', updatedDeliveries: [] });
     }
 
     // Get all patients for address lookups
