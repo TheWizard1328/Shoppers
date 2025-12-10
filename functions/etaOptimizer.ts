@@ -212,6 +212,34 @@ Deno.serve(async (req) => {
 
     // Call Google Directions API
     const GOOGLE_MAPS_API_KEY = Deno.env.get('GOOGLE_MAPS_API_KEY');
+
+    // Increment polyline generation count before API call
+    const todayStr = deliveryDate; // Already in YYYY-MM-DD format
+    let driverPolyline = await base44.asServiceRole.entities.DriverRoutePolyline.filter({ 
+      driver_id: driverId, 
+      delivery_date: todayStr 
+    });
+
+    if (driverPolyline.length === 0) {
+      driverPolyline = [await base44.asServiceRole.entities.DriverRoutePolyline.create({
+        driver_id: driverId,
+        delivery_date: todayStr,
+        daily_generation_count: 0
+      })];
+    }
+    
+    // Ensure daily_generation_count is a number before incrementing
+    const currentCount = typeof driverPolyline[0].daily_generation_count === 'number' 
+      ? driverPolyline[0].daily_generation_count 
+      : 0;
+    
+    await base44.asServiceRole.entities.DriverRoutePolyline.update(driverPolyline[0].id, {
+      daily_generation_count: currentCount + 1,
+      last_generated_at: new Date().toISOString()
+    });
+    
+    console.log(`[ETA Updates] Google Maps API count incremented to ${currentCount + 1} for ${todayStr}`);
+
     const origin = `${startLat},${startLon}`;
     const destination = `${waypoints[waypoints.length - 1].lat},${waypoints[waypoints.length - 1].lon}`;
     const waypointsParam = waypoints.slice(0, -1).map(w => `${w.lat},${w.lon}`).join('|');
