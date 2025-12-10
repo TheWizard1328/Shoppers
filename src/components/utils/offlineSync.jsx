@@ -268,25 +268,31 @@ export const processPendingMutations = async () => {
 
   for (const mutation of mutations) {
     try {
+      // Skip updates to temporary IDs if the corresponding create hasn't been processed yet
+      if (mutation.operation === 'update' && mutation.recordId.startsWith('temp_')) {
+        const hasUnprocessedCreate = mutations.some(
+          m => m.entity === mutation.entity && 
+               m.operation === 'create' && 
+               m.payload?.id === mutation.recordId &&
+               m.mutationId !== mutation.mutationId
+        );
+        
+        if (hasUnprocessedCreate) {
+          console.warn(`⏸️ [OfflineSync] Skipping update for temp ID ${mutation.recordId} - waiting for create`);
+          continue;
+        }
+      }
+
       console.log(`📤 [OfflineSync] Syncing ${mutation.operation} ${mutation.entity}:${mutation.recordId}`);
       
       // Execute the mutation on the backend
-      if (mutation.entity === 'Patient') {
-        if (mutation.operation === 'create') {
-          await Patient.create(mutation.payload);
-        } else if (mutation.operation === 'update') {
-          await Patient.update(mutation.recordId, mutation.payload);
-        } else if (mutation.operation === 'delete') {
-          await Patient.delete(mutation.recordId);
-        }
-      } else if (mutation.entity === 'Delivery') {
-        if (mutation.operation === 'create') {
-          await Delivery.create(mutation.payload);
-        } else if (mutation.operation === 'update') {
-          await Delivery.update(mutation.recordId, mutation.payload);
-        } else if (mutation.operation === 'delete') {
-          await Delivery.delete(mutation.recordId);
-        }
+      const Entity = mutation.entity === 'Patient' ? Patient : Delivery;
+      if (mutation.operation === 'create') {
+        await Entity.create(mutation.payload);
+      } else if (mutation.operation === 'update') {
+        await Entity.update(mutation.recordId, mutation.payload);
+      } else if (mutation.operation === 'delete') {
+        await Entity.delete(mutation.recordId);
       }
 
       // Remove from pending queue on success
