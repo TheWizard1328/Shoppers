@@ -3030,11 +3030,8 @@ function Dashboard() {
           console.log(`[AddToRoute]   - Processed ${stopsToProcess.length} delivery time windows`);
 
           console.log('');
-          console.log('[AddToRoute] STEP 9: Sorting stops (no optimization - simple sort by store, time, and distance)');
+          console.log('[AddToRoute] STEP 9: Sorting stops (pickups BEFORE pending deliveries)');
 
-          // Sort stops:
-          // 1. Completed deliveries first (by actual_delivery_time)
-          // 2. Then incomplete stops grouped by store, sorted by delivery_time_start and distance from store
           const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
           const completedStops = stopsToProcess.filter((s) => s && finishedStatuses.includes(s.status));
           const incompleteStops = stopsToProcess.filter((s) => s && !finishedStatuses.includes(s.status));
@@ -3046,11 +3043,16 @@ function Dashboard() {
             return new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time);
           });
 
-          // Sort incomplete: first by delivery_time_start, then by distance from store
+          // CRITICAL: Sort incomplete stops - pickups BEFORE their pending deliveries
           incompleteStops.sort((a, b) => {
             if (!a || !b) return 0;
 
-            // Sort by delivery_time_start first
+            const isAPickup = !a.patient_id;
+            const isBPickup = !b.patient_id;
+            const isAPending = a.status === 'pending';
+            const isBPending = b.status === 'pending';
+
+            // First, sort by time
             const timeA = a.delivery_time_start || a.delivery_time_eta || '99:99';
             const timeB = b.delivery_time_start || b.delivery_time_eta || '99:99';
 
@@ -3058,13 +3060,21 @@ function Dashboard() {
               return timeA.localeCompare(timeB);
             }
 
-            // If times equal, sort by distance from store (for same-store deliveries)
+            // CRITICAL: Same time - pickups ALWAYS before pending deliveries from same store
             if (a.store_id === b.store_id) {
-              const storeForSort = stores.find((s) => s && s.id === a.store_id);
-              if (storeForSort?.latitude && storeForSort?.longitude && a.latitude && a.longitude && b.latitude && b.longitude) {
-                const distA = calculateDistance(storeForSort.latitude, storeForSort.longitude, a.latitude, a.longitude);
-                const distB = calculateDistance(storeForSort.latitude, storeForSort.longitude, b.latitude, b.longitude);
-                return distA - distB;
+              // If A is pickup and B is pending delivery → A comes first
+              if (isAPickup && isBPending && !isBPickup) return -1;
+              // If B is pickup and A is pending delivery → B comes first
+              if (isBPickup && isAPending && !isAPickup) return 1;
+              
+              // If both are deliveries from same store, sort by distance
+              if (!isAPickup && !isBPickup) {
+                const storeForSort = stores.find((s) => s && s.id === a.store_id);
+                if (storeForSort?.latitude && storeForSort?.longitude && a.latitude && a.longitude && b.latitude && b.longitude) {
+                  const distA = calculateDistance(storeForSort.latitude, storeForSort.longitude, a.latitude, a.longitude);
+                  const distB = calculateDistance(storeForSort.latitude, storeForSort.longitude, b.latitude, b.longitude);
+                  return distA - distB;
+                }
               }
             }
 
@@ -3072,7 +3082,7 @@ function Dashboard() {
           });
 
           const optimizedRoute = [...completedStops, ...incompleteStops];
-          console.log(`[AddToRoute]   ✅ Stops sorted (${optimizedRoute.length} total)`);
+          console.log(`[AddToRoute]   ✅ Stops sorted (${optimizedRoute.length} total) - pickups before pending deliveries`);
 
           console.log('');
           console.log('[AddToRoute] STEP 10: Finalizing delivery time windows');
@@ -3317,6 +3327,19 @@ function Dashboard() {
               await updateDeliveryLocal(id, updates);
             }
             console.log(`[AddToRoute]   ✅ Updated ${deliveriesToUpdate.length} existing deliveries locally`);
+          }
+
+          console.log('');
+          console.log('[AddToRoute] STEP 12: Triggering ETA recalculation with driver location...');
+          try {
+            await base44.functions.invoke('etaOptimizer', {
+              driverId: driverId,
+              deliveryDate: deliveryDate,
+              triggerFullRecalculation: true
+            });
+            console.log('✅ [AddToRoute] ETA recalculation completed with driver location');
+          } catch (etaError) {
+            console.warn('⚠️ [AddToRoute] ETA recalculation failed:', etaError);
           }
 
           console.log('');
