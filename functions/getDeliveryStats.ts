@@ -250,8 +250,15 @@ Deno.serve(async (req) => {
       return false;
     };
     
-    // Helper: Check if delivery is completed (ONLY 'completed', NOT failed/returned)
-    const isCompleted = (d) => d && d.status === 'completed';
+    // Helper: Check if delivery is completed (ONLY 'completed', explicitly EXCLUDE failed/cancelled/returned)
+    const isCompleted = (d) => {
+      if (!d) return false;
+      // CRITICAL: ONLY count 'completed' status
+      if (d.status !== 'completed') return false;
+      // CRITICAL: Explicitly exclude failed, cancelled, and returned (defense in depth)
+      if (['failed', 'cancelled', 'returned'].includes(d.status)) return false;
+      return true;
+    };
     
     // Helper: Check if delivery is in progress (active stop)
     const isInProgress = (d) => d && ['in_transit', 'en_route', 'pending', 'Ready For Pickup'].includes(d.status);

@@ -558,7 +558,12 @@ function Dashboard() {
 
     const total = safeDeliveries.length;
     const inTransit = safeDeliveries.filter((d) => d && (d.status === 'in_transit' || d.status === 'en_route')).length;
-    const completed = safeDeliveries.filter((d) => d && d.status === 'completed').length;
+    // CRITICAL: Only count 'completed' status, explicitly exclude failed/cancelled/returned
+    const completed = safeDeliveries.filter((d) => {
+      if (!d || d.status !== 'completed') return false;
+      if (['failed', 'cancelled', 'returned'].includes(d.status)) return false;
+      return true;
+    }).length;
     const returned = safeDeliveries.filter(isReturn).length;
     const failed = safeDeliveries.filter((d) => {
       if (!d) return false;
