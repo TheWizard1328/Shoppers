@@ -5330,16 +5330,16 @@ function Dashboard() {
       await Promise.all(resetPromises);
       console.log(`✅ [START STEP 2] Reset ${resetPromises.length} isNextDelivery flags`);
 
-      // STEP 3: Update started delivery status, new stop_order, AND mark as isNextDelivery - DATABASE UPDATE
+      // STEP 3: Update started delivery status, new stop_order, AND mark as isNextDelivery - LOCAL FIRST
       console.log('');
-      console.log('📍 [START STEP 3] Updating started delivery in DATABASE with new stop_order...');
-      await base44.entities.Delivery.update(deliveryId, {
+      console.log('📍 [START STEP 3] Updating started delivery LOCALLY with new stop_order...');
+      await updateDeliveryLocal(deliveryId, {
         status: newStatus,
         stop_order: newStopOrder,
         delivery_time_eta: currentTime,
         isNextDelivery: true
       });
-      console.log(`✅ [START STEP 3] Started delivery reordered to stop #${newStopOrder} in DATABASE`);
+      console.log(`✅ [START STEP 3] Started delivery reordered to stop #${newStopOrder} LOCALLY`);
 
       console.log('');
       console.log('📍 [START STEP 4] Running full ETA recalculation after reordering...');
