@@ -1717,8 +1717,8 @@ export default function StopCard({
                           await new Promise((resolve) => setTimeout(resolve, 100));
                           console.log('✅ [RETRY] Retry cycle complete');
 
-                          // CRITICAL: Reactivate FAB after action
-                          fabControlEvents.reactivateFAB();
+                          // CRITICAL: Reactivate FAB after action (skip card scroll - FAB handles it)
+                          fabControlEvents.reactivateFAB(true);
                         }
                       }}
                       size="sm"
@@ -1838,8 +1838,8 @@ export default function StopCard({
                           await new Promise((resolve) => setTimeout(resolve, 100));
                           console.log('✅ [COMPLETE] Complete cycle finished');
 
-                          // CRITICAL: Reactivate FAB after action
-                          fabControlEvents.reactivateFAB();
+                          // CRITICAL: Reactivate FAB after action (skip card scroll - FAB handles it)
+                          fabControlEvents.reactivateFAB(true);
                         }
                       }}
                       size="sm"
