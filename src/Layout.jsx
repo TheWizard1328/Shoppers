@@ -273,7 +273,7 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
               value={`${stats.today.failed} / ${stats.today.returns}`}
               colorClass="text-red-600" />
           }
-          //<StatItem icon={MapPin} label="Polylines" value={stats.today.polylineCount || 0} colorClass="text-blue-600" />
+          {/* <StatItem icon={MapPin} label="Polylines" value={stats.today.polylineCount || 0} colorClass="text-blue-600" /> */}
         </div>
       </div>
 
