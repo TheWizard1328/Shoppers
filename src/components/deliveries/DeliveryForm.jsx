@@ -1921,7 +1921,9 @@ export default function DeliveryForm({
               console.log(`[AddToRoute] ⏭️ Skipping deleted delivery: ${updated.id} (${updated.patient_name})`);
               continue;
             }
-            throw error;
+            // Replace delivery ID with patient name in error message
+            const errorMessage = error.message?.replace(updated.id, updated.patient_name || 'Unknown Patient') || error.message;
+            throw new Error(errorMessage);
           }
         }
         console.log('[AddToRoute] ✅ All pending deliveries updated');
