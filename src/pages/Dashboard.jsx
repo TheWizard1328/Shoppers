@@ -2944,6 +2944,20 @@ function Dashboard() {
           console.log(`[AddToRoute]   - Existing stops: ${stopsToProcess.filter((s) => !s.isNew).length}`);
           console.log(`[AddToRoute]   - New stops: ${stopsToProcess.filter((s) => s.isNew).length}`);
 
+          // CRITICAL: Trigger full ETA recalculation when adding deliveries (ALL users)
+          console.log('');
+          console.log('[AddToRoute] STEP 6.5: Triggering full ETA recalculation...');
+          try {
+            await base44.functions.invoke('etaOptimizer', {
+              driverId: driverId,
+              deliveryDate: deliveryDate,
+              triggerFullRecalculation: true
+            });
+            console.log('✅ [AddToRoute] Full ETA recalculation completed');
+          } catch (etaError) {
+            console.warn('⚠️ [AddToRoute] ETA recalculation failed:', etaError);
+          }
+
           console.log('');
           console.log('[AddToRoute] STEP 7: Assigning stop IDs and PUIDs');
 
@@ -4796,6 +4810,12 @@ function Dashboard() {
   const handleDeleteDelivery = async (deliveryId) => {
     try {
       const { deleteDeliveryLocal } = await import('../components/utils/offlineMutations');
+      
+      // Get delivery info before deleting for ETA update
+      const targetDelivery = deliveriesWithStopOrder.find(d => d && d.id === deliveryId);
+      const driverId = targetDelivery?.driver_id;
+      const deliveryDate = targetDelivery?.delivery_date;
+      
       await deleteDeliveryLocal(deliveryId);
 
       // Update local state immediately
@@ -4808,6 +4828,21 @@ function Dashboard() {
 
       if (selectedCardId === deliveryId) {
         setSelectedCardId(null);
+      }
+
+      // CRITICAL: Trigger full ETA recalculation when deleting deliveries (ALL users)
+      if (driverId && deliveryDate) {
+        console.log('🗑️ [DELETE] Triggering full ETA recalculation after deletion...');
+        try {
+          await base44.functions.invoke('etaOptimizer', {
+            driverId: driverId,
+            deliveryDate: deliveryDate,
+            triggerFullRecalculation: true
+          });
+          console.log('✅ [DELETE] Full ETA recalculation completed');
+        } catch (etaError) {
+          console.warn('⚠️ [DELETE] ETA recalculation failed:', etaError);
+        }
       }
     } catch (error) {
       console.error('Error deleting delivery:', error);
@@ -4990,6 +5025,25 @@ function Dashboard() {
         } catch (error) {
           console.error('❌ Failed to update patient last_delivery_date:', error);
         }
+      }
+
+      // CRITICAL: Update ETAs for mobile drivers only when completing/failing stops
+      const shouldUpdateETAs = isMobile && isDriver && ['completed', 'failed', 'cancelled'].includes(newStatus);
+      
+      if (shouldUpdateETAs) {
+        console.log('📱 [STATUS UPDATE - Mobile Driver] Triggering ETA updates for subsequent stops...');
+        try {
+          await base44.functions.invoke('etaOptimizer', {
+            driverId: targetDelivery.driver_id,
+            deliveryDate: deliveryDate,
+            triggerFullRecalculation: false
+          });
+          console.log('✅ [STATUS UPDATE] ETAs updated for subsequent stops');
+        } catch (etaError) {
+          console.warn('⚠️ [STATUS UPDATE] ETA update failed:', etaError);
+        }
+      } else {
+        console.log('⏭️ [STATUS UPDATE] Skipping ETA updates (not mobile driver or not completion/failure)');
       }
 
       // CRITICAL: Reorder stops based on completion time and ETAs
@@ -5194,18 +5248,17 @@ function Dashboard() {
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
 
       console.log('');
-      console.log('📍 [START STEP 4] Running ETA optimizer to update subsequent deliveries...');
+      console.log('📍 [START STEP 4] Running ETA optimizer to update subsequent deliveries (ALL users)...');
       
       try {
         await base44.functions.invoke('etaOptimizer', {
           driverId: driverId,
           deliveryDate: deliveryDate,
-          startFromDeliveryId: deliveryId,
-          baselineETA: currentTime
+          triggerFullRecalculation: true
         });
-        console.log('✅ [START STEP 4] ETA optimizer completed - subsequent ETAs recalculated from started delivery');
+        console.log('✅ [START STEP 4] Full ETA recalculation completed');
       } catch (etaError) {
-        console.warn('⚠️ [START STEP 4] ETA optimizer failed:', etaError);
+        console.warn('⚠️ [START STEP 4] ETA recalculation failed:', etaError);
       }
 
       console.log('');
