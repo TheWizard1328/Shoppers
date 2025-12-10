@@ -91,9 +91,14 @@ Deno.serve(async (req) => {
     const stores = await base44.asServiceRole.entities.Store.filter({ id: { $in: storeIds } });
     const storeMap = new Map(stores.map(s => [s.id, s]));
 
-    // Determine starting location - ALWAYS use CURRENT TIME regardless of location source
+    // Determine starting location and time - ALWAYS use LOCAL TIME
     let startLat, startLon;
+    let startTimeMinutes; // Minutes since midnight in local time
+    
     const now = new Date();
+    const currentLocalHours = now.getHours();
+    const currentLocalMinutes = now.getMinutes();
+    const currentTotalMinutes = currentLocalHours * 60 + currentLocalMinutes;
 
     // Try current GPS location first (Rule 1a)
     if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
@@ -105,6 +110,7 @@ Deno.serve(async (req) => {
       if (locationAge < 10) {
         startLat = driverAppUser.current_latitude;
         startLon = driverAppUser.current_longitude;
+        startTimeMinutes = currentTotalMinutes;
         console.log(`[ETA Updates] Using current GPS location (${locationAge.toFixed(1)} min old)`);
       }
     }
@@ -126,6 +132,7 @@ Deno.serve(async (req) => {
           if (patient?.latitude && patient?.longitude) {
             startLat = patient.latitude;
             startLon = patient.longitude;
+            startTimeMinutes = currentTotalMinutes;
             console.log(`[ETA Updates] Using last finished stop location (${lastFinished.status})`);
           }
         } else {
@@ -133,6 +140,7 @@ Deno.serve(async (req) => {
           if (store?.latitude && store?.longitude) {
             startLat = store.latitude;
             startLon = store.longitude;
+            startTimeMinutes = currentTotalMinutes;
             console.log(`[ETA Updates] Using last finished pickup location (${lastFinished.status})`);
           }
         }
@@ -143,6 +151,7 @@ Deno.serve(async (req) => {
     if (!startLat && driverAppUser?.home_latitude && driverAppUser?.home_longitude) {
       startLat = driverAppUser.home_latitude;
       startLon = driverAppUser.home_longitude;
+      startTimeMinutes = currentTotalMinutes;
       console.log(`[ETA Updates] Using home location`);
     }
 
@@ -150,7 +159,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Could not determine starting location' }, { status: 400 });
     }
     
-    console.log(`[ETA Updates] Starting from current time: ${now.toISOString()}`);
+    console.log(`[ETA Updates] Starting from local time: ${String(currentLocalHours).padStart(2, '0')}:${String(currentLocalMinutes).padStart(2, '0')}`);
     console.log(`[ETA Updates] Location: ${startLat}, ${startLon}`);
 
     // Get incomplete deliveries (Rule 2b) - exclude pending/staged deliveries
@@ -254,18 +263,16 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Failed to calculate route: ' + directionsData.status }, { status: 500 });
     }
 
-    // Calculate ETAs for each stop (Rule 3a/b)
+    // Calculate ETAs for each stop - CRITICAL: Use simple minute arithmetic
     const route = directionsData.routes[0];
     const legs = route.legs;
     
-    // CRITICAL: Use LOCAL time only (no timezone conversion)
-    const now = new Date();
-    let currentHours = now.getHours();
-    let currentMinutes = now.getMinutes();
+    // Start with current local time in minutes since midnight
+    let cumulativeMinutes = startTimeMinutes;
     
     console.log('[ETA Updates] Starting ETA calculation:');
-    console.log(`  - Current local time: ${String(currentHours).padStart(2, '0')}:${String(currentMinutes).padStart(2, '0')}`);
-    console.log(`  - Number of legs: ${legs.length}`);
+    console.log(`  - Starting time (minutes since midnight): ${cumulativeMinutes} (${String(Math.floor(cumulativeMinutes/60)).padStart(2, '0')}:${String(cumulativeMinutes%60).padStart(2, '0')})`);
+    console.log(`  - Number of stops: ${waypoints.length}`);
     
     const updatedDeliveries = [];
 
@@ -279,38 +286,33 @@ Deno.serve(async (req) => {
       if (waypoint.isPickup && !hasDeliveriesBefore && waypoint.scheduledStartTime) {
         // For first pickup, use MAX of current time or scheduled time
         const [schedHours, schedMinutes] = waypoint.scheduledStartTime.split(':').map(Number);
-        const currentTotalMinutes = currentHours * 60 + currentMinutes;
         const scheduledTotalMinutes = schedHours * 60 + schedMinutes;
         
         // Use whichever is later
-        if (scheduledTotalMinutes > currentTotalMinutes) {
-          currentHours = schedHours;
-          currentMinutes = schedMinutes;
-          console.log(`  - Stop ${i + 1}: Store pickup - using scheduled time ${waypoint.scheduledStartTime}`);
+        if (scheduledTotalMinutes > cumulativeMinutes) {
+          cumulativeMinutes = scheduledTotalMinutes;
+          console.log(`  - Stop ${i + 1}: First pickup - using scheduled time ${waypoint.scheduledStartTime}`);
         } else {
-          console.log(`  - Stop ${i + 1}: Store pickup - scheduled time is past, using current time`);
+          console.log(`  - Stop ${i + 1}: First pickup - scheduled time ${waypoint.scheduledStartTime} is past, staying at current`);
         }
       } else {
-        // Add travel time
+        // Add travel time from previous stop
         const travelMinutes = Math.ceil(leg.duration.value / 60);
-        const totalMinutes = currentHours * 60 + currentMinutes + travelMinutes;
-        currentHours = Math.floor(totalMinutes / 60) % 24;
-        currentMinutes = totalMinutes % 60;
-        
-        console.log(`  - Stop ${i + 1}: +${travelMinutes} min travel → ${String(currentHours).padStart(2, '0')}:${String(currentMinutes).padStart(2, '0')}`);
+        cumulativeMinutes += travelMinutes;
+        console.log(`  - Stop ${i + 1}: +${travelMinutes} min travel (${Math.floor(leg.duration.value / 60).toFixed(1)} min from Google)`);
       }
       
-      // Add extra time at stop
-      const totalMinutes = currentHours * 60 + currentMinutes + (waypoint.extraTime || 5);
-      currentHours = Math.floor(totalMinutes / 60) % 24;
-      currentMinutes = totalMinutes % 60;
+      // CRITICAL: ETA is arrival time BEFORE service time
+      // Convert to HH:mm format
+      const arrivalHours = Math.floor(cumulativeMinutes / 60) % 24;
+      const arrivalMinutes = cumulativeMinutes % 60;
+      const eta = `${String(arrivalHours).padStart(2, '0')}:${String(arrivalMinutes).padStart(2, '0')}`;
       
-      console.log(`  - Stop ${i + 1}: +${waypoint.extraTime || 5} min service → ${String(currentHours).padStart(2, '0')}:${String(currentMinutes).padStart(2, '0')}`);
+      console.log(`  - Stop ${i + 1}: Arrival ETA = ${eta}`);
       
-      // Format ETA as HH:mm
-      const eta = `${String(currentHours).padStart(2, '0')}:${String(currentMinutes).padStart(2, '0')}`;
-      
-      console.log(`  - Stop ${i + 1}: Final ETA = ${eta}`);
+      // NOW add service time for next leg calculation
+      cumulativeMinutes += (waypoint.extraTime || 5);
+      console.log(`  - Stop ${i + 1}: +${waypoint.extraTime || 5} min service time`);
       
       updatedDeliveries.push({
         id: waypoint.deliveryId,
@@ -327,11 +329,14 @@ Deno.serve(async (req) => {
 
     console.log(`✅ [ETA Updates] Updated ETAs for ${updatedDeliveries.length} deliveries`);
 
+    const startHours = Math.floor(startTimeMinutes / 60);
+    const startMins = startTimeMinutes % 60;
+
     return Response.json({
       success: true,
       updatedDeliveries,
       startLocation: { lat: startLat, lon: startLon },
-      startTime: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+      startTime: `${String(startHours).padStart(2, '0')}:${String(startMins).padStart(2, '0')}`
     });
 
   } catch (error) {
