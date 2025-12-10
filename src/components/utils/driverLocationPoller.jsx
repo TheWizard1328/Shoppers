@@ -37,10 +37,18 @@ class DriverLocationPoller {
   /**
    * Process incoming location data from parent component
    * Filters drivers based on sharing settings and user permissions
+   * @param {Object} currentUser - Current authenticated user
    * @param {Array} deliveries - Array of delivery objects
-   * @param {Array} users - Array of user objects with location data
+   * @param {Array} drivers - Array of driver objects
+   * @param {Array} stores - Array of store objects
+   * @param {Array} appUsers - Array of AppUser objects with location data
+   * @param {Date} selectedDate - Currently selected date
    */
-  processLocationData(deliveries, users) {
+  processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate) {
+    // Update internal current user reference
+    this.currentUser = currentUser;
+    
+    const users = appUsers;
     if (!Array.isArray(users) || users.length === 0) {
       return;
     }
