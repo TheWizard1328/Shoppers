@@ -518,14 +518,24 @@ export default function Layout({ children, currentPageName }) {
       // Load app-wide settings (smart refresh toggle and version)
       console.log('⚙️ [Layout] Step 2.1c: Loading app settings...');
       try {
-        const smartRefreshEnabled = await smartRefreshManager.initializeFromSettings();
-        console.log(`⚙️ [Layout] Smart refresh initialized: ${smartRefreshEnabled ? 'ENABLED' : 'DISABLED'} (_enabled=${smartRefreshManager._enabled}, _initialized=${smartRefreshManager._initialized})`);
+        const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
 
-        // Load app version
-        const versionSettings = await base44.entities.AppSettings.filter({ setting_key: 'app_version' });
-        if (versionSettings && versionSettings.length > 0 && versionSettings[0].setting_value) {
-          const version = versionSettings[0].setting_value;
-          setAppVersion(`v${version.major}.${version.minor}.${version.build}`);
+        if (settings && settings.length > 0 && settings[0].setting_value) {
+          // Initialize smart refresh
+          const smartRefreshEnabled = settings[0].setting_value.smartRefreshEnabled !== false;
+          smartRefreshManager._enabled = smartRefreshEnabled;
+          smartRefreshManager._initialized = true;
+          console.log(`⚙️ [Layout] Smart refresh initialized: ${smartRefreshEnabled ? 'ENABLED' : 'DISABLED'}`);
+
+          // Load app version
+          if (settings[0].setting_value.appVersion) {
+            const version = settings[0].setting_value.appVersion;
+            setAppVersion(`v${version.major}.${version.minor}.${version.build}`);
+          }
+        } else {
+          // Default to enabled on error
+          smartRefreshManager._enabled = true;
+          smartRefreshManager._initialized = true;
         }
       } catch (appSettingsError) {
         console.warn('⚠️ [Layout] Error loading app settings:', appSettingsError);

@@ -136,33 +136,17 @@ export default function AppSettingsPanel() {
         setSavedSmartRefreshEnabled(smartRefreshManager._enabled);
       }
       
-      // Load version settings
-      const versionSettings = await base44.entities.AppSettings.filter({ setting_key: 'app_version' });
-      if (versionSettings && versionSettings.length > 0 && versionSettings[0].setting_value) {
-        const version = versionSettings[0].setting_value;
-        setAppVersion(version);
-        setSavedAppVersion(version);
-      } else {
-        // Create default version if it doesn't exist
-        const defaultVersion = { major: 1, minor: 0, build: 0 };
-        try {
-          await base44.entities.AppSettings.create({
-            setting_key: 'app_version',
-            setting_value: defaultVersion,
-            description: 'Application version number'
-          });
-          setAppVersion(defaultVersion);
-          setSavedAppVersion(defaultVersion);
-        } catch (error) {
-          console.error('Failed to create default version:', error);
-        }
-      }
-
       const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
       if (settings && settings.length > 0 && settings[0].setting_value) {
         const loaded = { ...DEFAULT_INTERVALS, ...settings[0].setting_value };
         setIntervals(loaded);
         setSavedIntervals(loaded);
+        
+        // Load version from settings
+        if (settings[0].setting_value.appVersion) {
+          setAppVersion(settings[0].setting_value.appVersion);
+          setSavedAppVersion(settings[0].setting_value.appVersion);
+        }
         
         // Only update enabled state from DB if manager wasn't already initialized
         // This prevents DB read from overwriting user's recent toggle changes
@@ -233,10 +217,11 @@ export default function AppSettingsPanel() {
     try {
       const settingsToSave = {
         ...intervals,
-        smartRefreshEnabled: smartRefreshEnabled
+        smartRefreshEnabled: smartRefreshEnabled,
+        appVersion: appVersion
       };
 
-      // Save refresh intervals
+      // Save all settings together
       const existing = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
       
       if (existing && existing.length > 0) {
@@ -249,21 +234,6 @@ export default function AppSettingsPanel() {
           setting_key: 'refresh_intervals',
           setting_value: settingsToSave,
           description: 'Smart refresh interval settings (in milliseconds)'
-        });
-      }
-
-      // Save version
-      const versionExisting = await base44.entities.AppSettings.filter({ setting_key: 'app_version' });
-      if (versionExisting && versionExisting.length > 0) {
-        await base44.entities.AppSettings.update(versionExisting[0].id, {
-          setting_value: appVersion,
-          description: 'Application version number'
-        });
-      } else {
-        await base44.entities.AppSettings.create({
-          setting_key: 'app_version',
-          setting_value: appVersion,
-          description: 'Application version number'
         });
       }
 
@@ -317,71 +287,73 @@ export default function AppSettingsPanel() {
 
   return (
     <div className="space-y-6">
-      {/* Version Management Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="w-5 h-5" />
-            App Version
-          </CardTitle>
-          <CardDescription>
-            Manage application version number (Major.Minor.Build format)
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-3 gap-4 mb-4">
-            <div>
-              <Label htmlFor="major" className="text-sm font-medium">Major</Label>
-              <Input
-                id="major"
-                type="number"
-                min="0"
-                value={appVersion.major}
-                onChange={(e) => setAppVersion(prev => ({ ...prev, major: parseInt(e.target.value) || 0 }))}
-                className="mt-1"
-              />
+      {/* Version Management and Smart Refresh Toggle - Side by Side */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Version Management Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="w-5 h-5" />
+              App Version
+            </CardTitle>
+            <CardDescription>
+              Manage application version number (Major.Minor.Build format)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              <div>
+                <Label htmlFor="major" className="text-sm font-medium">Major</Label>
+                <Input
+                  id="major"
+                  type="number"
+                  min="0"
+                  value={appVersion.major}
+                  onChange={(e) => setAppVersion(prev => ({ ...prev, major: parseInt(e.target.value) || 0 }))}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="minor" className="text-sm font-medium">Minor</Label>
+                <Input
+                  id="minor"
+                  type="number"
+                  min="0"
+                  value={appVersion.minor}
+                  onChange={(e) => setAppVersion(prev => ({ ...prev, minor: parseInt(e.target.value) || 0 }))}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="build" className="text-sm font-medium">Build</Label>
+                <Input
+                  id="build"
+                  type="number"
+                  min="0"
+                  value={appVersion.build}
+                  onChange={(e) => setAppVersion(prev => ({ ...prev, build: parseInt(e.target.value) || 0 }))}
+                  className="mt-1"
+                />
+              </div>
             </div>
-            <div>
-              <Label htmlFor="minor" className="text-sm font-medium">Minor</Label>
-              <Input
-                id="minor"
-                type="number"
-                min="0"
-                value={appVersion.minor}
-                onChange={(e) => setAppVersion(prev => ({ ...prev, minor: parseInt(e.target.value) || 0 }))}
-                className="mt-1"
-              />
+            <div className="flex items-center justify-between">
+              <div className="text-2xl font-mono font-bold text-slate-900">
+                v{appVersion.major}.{appVersion.minor}.{appVersion.build}
+              </div>
+              <Button 
+                variant="outline" 
+                onClick={handleIncrementBuild}
+                className="gap-2"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Increment Build
+              </Button>
             </div>
-            <div>
-              <Label htmlFor="build" className="text-sm font-medium">Build</Label>
-              <Input
-                id="build"
-                type="number"
-                min="0"
-                value={appVersion.build}
-                onChange={(e) => setAppVersion(prev => ({ ...prev, build: parseInt(e.target.value) || 0 }))}
-                className="mt-1"
-              />
-            </div>
-          </div>
-          <div className="flex items-center justify-between">
-            <div className="text-2xl font-mono font-bold text-slate-900">
-              v{appVersion.major}.{appVersion.minor}.{appVersion.build}
-            </div>
-            <Button 
-              variant="outline" 
-              onClick={handleIncrementBuild}
-              className="gap-2"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Increment Build
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      {/* Master Toggle Card */}
-      <Card className={!smartRefreshEnabled ? 'border-red-300 bg-red-50' : ''}>
+        {/* Master Toggle Card */}
+        <Card className={!smartRefreshEnabled ? 'border-red-300 bg-red-50' : ''}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Power className={`w-5 h-5 ${smartRefreshEnabled ? 'text-emerald-500' : 'text-red-500'}`} />
@@ -444,6 +416,7 @@ export default function AppSettingsPanel() {
           )}
         </CardContent>
       </Card>
+      </div>
 
       <Card className={!smartRefreshEnabled ? 'opacity-50 pointer-events-none' : ''}>
         <CardHeader>
