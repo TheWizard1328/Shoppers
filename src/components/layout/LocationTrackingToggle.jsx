@@ -186,6 +186,14 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         await base44.entities.AppUser.update(appUserId, {
           location_tracking_enabled: true
         });
+        
+        // CRITICAL: Update localUser immediately so UI reflects new state
+        const updatedUser = {
+          ...localUser,
+          location_tracking_enabled: true
+        };
+        setLocalUser(updatedUser);
+        
         setPermissionStatus('Location sharing enabled!');
         console.log('✅ [LocationSharing] Sharing enabled');
       } else {
@@ -194,16 +202,27 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         await base44.entities.AppUser.update(appUserId, {
           location_tracking_enabled: false
         });
+        
+        // CRITICAL: Update localUser immediately so UI reflects new state
+        const updatedUser = {
+          ...localUser,
+          location_tracking_enabled: false
+        };
+        setLocalUser(updatedUser);
+        
         setPermissionStatus('Location sharing disabled');
         console.log('✅ [LocationSharing] Sharing disabled (tracking continues)');
       }
       
+      // Refresh user state in background
       await refreshUserState();
       setTimeout(() => setPermissionStatus(''), 3000);
       
     } catch (error) {
       console.error('❌ [LocationSharing] Failed to toggle:', error);
       setPermissionStatus(`Error: ${error.message}`);
+      
+      // Revert optimistic update on error
       await refreshUserState();
       setTimeout(() => setPermissionStatus(''), 4000);
     } finally {
