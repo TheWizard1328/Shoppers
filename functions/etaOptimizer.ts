@@ -91,8 +91,8 @@ Deno.serve(async (req) => {
     const stores = await base44.asServiceRole.entities.Store.filter({ id: { $in: storeIds } });
     const storeMap = new Map(stores.map(s => [s.id, s]));
 
-    // Determine starting location and time (Rule 1a/b)
-    let startLat, startLon, startTimeHours, startTimeMinutes;
+    // Determine starting location - ALWAYS use CURRENT TIME regardless of location source
+    let startLat, startLon;
     const now = new Date();
 
     // Try current GPS location first (Rule 1a)
@@ -105,13 +105,11 @@ Deno.serve(async (req) => {
       if (locationAge < 10) {
         startLat = driverAppUser.current_latitude;
         startLon = driverAppUser.current_longitude;
-        startTimeHours = now.getHours();
-        startTimeMinutes = now.getMinutes();
-        console.log(`[ETA Updates] Using current GPS location at ${startTimeHours}:${String(startTimeMinutes).padStart(2, '0')}`);
+        console.log(`[ETA Updates] Using current GPS location (${locationAge.toFixed(1)} min old)`);
       }
     }
 
-    // Fallback to last finished stop (Rule 1b) - completed, failed, cancelled, or returned
+    // Fallback to last finished stop location (Rule 1b)
     if (!startLat) {
       const finishedDeliveries = deliveries
         .filter(d => ['completed', 'failed', 'cancelled', 'returned'].includes(d.status))
@@ -128,20 +126,14 @@ Deno.serve(async (req) => {
           if (patient?.latitude && patient?.longitude) {
             startLat = patient.latitude;
             startLon = patient.longitude;
-            const completionTime = lastFinished.actual_delivery_time ? new Date(lastFinished.actual_delivery_time) : now;
-            startTimeHours = completionTime.getHours();
-            startTimeMinutes = completionTime.getMinutes();
-            console.log(`[ETA Updates] Using last finished stop location (${lastFinished.status}) at ${startTimeHours}:${String(startTimeMinutes).padStart(2, '0')}`);
+            console.log(`[ETA Updates] Using last finished stop location (${lastFinished.status})`);
           }
         } else {
           const store = storeMap.get(lastFinished.store_id);
           if (store?.latitude && store?.longitude) {
             startLat = store.latitude;
             startLon = store.longitude;
-            const completionTime = lastFinished.actual_delivery_time ? new Date(lastFinished.actual_delivery_time) : now;
-            startTimeHours = completionTime.getHours();
-            startTimeMinutes = completionTime.getMinutes();
-            console.log(`[ETA Updates] Using last finished pickup location (${lastFinished.status}) at ${startTimeHours}:${String(startTimeMinutes).padStart(2, '0')}`);
+            console.log(`[ETA Updates] Using last finished pickup location (${lastFinished.status})`);
           }
         }
       }
@@ -151,14 +143,15 @@ Deno.serve(async (req) => {
     if (!startLat && driverAppUser?.home_latitude && driverAppUser?.home_longitude) {
       startLat = driverAppUser.home_latitude;
       startLon = driverAppUser.home_longitude;
-      startTimeHours = now.getHours();
-      startTimeMinutes = now.getMinutes();
-      console.log(`[ETA Updates] Using home location at ${startTimeHours}:${String(startTimeMinutes).padStart(2, '0')}`);
+      console.log(`[ETA Updates] Using home location`);
     }
 
-    if (!startLat || !startLon || startTimeHours === undefined || startTimeMinutes === undefined) {
-      return Response.json({ error: 'Could not determine starting location or time' }, { status: 400 });
+    if (!startLat || !startLon) {
+      return Response.json({ error: 'Could not determine starting location' }, { status: 400 });
     }
+    
+    console.log(`[ETA Updates] Starting from current time: ${now.toISOString()}`);
+    console.log(`[ETA Updates] Location: ${startLat}, ${startLon}`);
 
     // Get incomplete deliveries (Rule 2b) - exclude pending/staged deliveries
     let incompleteDeliveries = deliveries.filter(d => 
