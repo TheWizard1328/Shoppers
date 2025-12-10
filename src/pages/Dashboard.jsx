@@ -5129,19 +5129,41 @@ function Dashboard() {
       console.log(`   - Status: ${newStatus}`);
       console.log(`   - ETA: ${currentTime}`);
 
+      // 2. Reset all isNextDelivery flags to false
+      console.log('\n📍 [START STEP 2] Resetting all isNextDelivery flags...');
+      const allDriverDeliveriesForDate = deliveriesWithStopOrder.filter(d =>
+        d && d.driver_id === driverId && d.delivery_date === deliveryDate
+      );
+      const resetPromises = allDriverDeliveriesForDate
+        .filter(d => d.isNextDelivery)
+        .map(d => updateDeliveryLocal(d.id, { isNextDelivery: false }));
+      await Promise.all(resetPromises);
+      console.log(`✅ [START STEP 2] Reset ${resetPromises.length} isNextDelivery flags`);
+
+      // 3. Update started delivery status (NOT isNextDelivery)
+      console.log('\n📍 [START STEP 3] Updating started delivery status...');
       await updateDeliveryLocal(deliveryId, {
         status: newStatus,
         delivery_time_eta: currentTime
       });
-      console.log(`✅ [START STEP 2] Local update successful`);
+      console.log(`✅ [START STEP 3a] Started delivery updated locally`);
+
+      // 3b. Find and mark the NEXT incomplete delivery as isNextDelivery
+      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+      const incompleteAfterStarted = allDriverDeliveriesForDate
+        .filter(d => d && d.id !== deliveryId && !finishedStatuses.includes(d.status))
+        .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+
+      if (incompleteAfterStarted.length > 0) {
+        const nextDelivery = incompleteAfterStarted[0];
+        await updateDeliveryLocal(nextDelivery.id, { isNextDelivery: true });
+        console.log(`✅ [START STEP 3b] Next delivery marked: ${nextDelivery.patient_name || 'Pickup'}`);
+      } else {
+        console.log('ℹ️ [START STEP 3b] No next delivery (route ending)');
+      }
 
       console.log('');
-      console.log('📍 [START STEP 3] Skipping route optimization (disabled)');
-      console.log('✅ [START STEP 3] Status update only');
-
-      // STEP 4: Fetch fresh deliveries after optimization
-      console.log('');
-      console.log('📍 [START STEP 4] Fetching fresh deliveries from database...');
+      console.log('📍 [START STEP 5] Fetching fresh deliveries from database...');
 
       const freshDeliveries = await base44.entities.Delivery.filter({
         driver_id: driverId,
@@ -5162,22 +5184,22 @@ function Dashboard() {
       console.log(`   - Calling updateDeliveriesLocally...`);
 
       updateDeliveriesLocally(mergedDeliveries);
-      console.log('✅ [START STEP 4] Immediate UI update applied');
+      console.log('✅ [START STEP 5] Immediate UI update applied');
 
-      // STEP 5: Full data refresh
+      // 6. Full data refresh
       console.log('');
-      console.log('📍 [START STEP 5] Triggering full data refresh...');
+      console.log('📍 [START STEP 6] Triggering full data refresh...');
       console.log(`   - Invalidating deliveries cache for date: ${deliveryDate}`);
 
       invalidateDeliveriesForDate(deliveryDate);
       console.log('   - Calling refreshData()...');
 
       await refreshData();
-      console.log('✅ [START STEP 5] Full data refresh complete');
+      console.log('✅ [START STEP 6] Full data refresh complete');
 
-      // STEP 6: Scroll to next card
+      // 7. Scroll to next card
       console.log('');
-      console.log('📍 [START STEP 6] Finding and scrolling to next delivery...');
+      console.log('📍 [START STEP 7] Finding and scrolling to next delivery...');
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
 
       setTimeout(() => {
@@ -5200,21 +5222,21 @@ function Dashboard() {
         }
       }, 300);
 
-      // STEP 7: Update map view if needed
+      // 8. Activate mapCycleFAB phase
       console.log('');
-      console.log('📍 [START STEP 7] Checking map view update...');
+      console.log('📍 [START STEP 8] Checking map view update...');
       console.log(`   - Map phase: ${mapViewPhase}`);
       console.log(`   - Map locked: ${isMapViewLocked}`);
 
       if (mapViewPhase === 2 && isMapViewLocked) {
         console.log('   - Triggering map view update for Phase 2');
         setMapViewTrigger((prev) => prev + 1);
-        console.log('✅ [START STEP 7] Map view updated');
+        console.log('✅ [START STEP 8] Map view updated');
       } else {
         console.log('   - No map update needed');
       }
 
-      // STEP 8: Check if route is complete
+      // Check if route is complete
       console.log('');
       console.log('📍 [START STEP 8] Checking if route is complete...');
       
