@@ -243,8 +243,8 @@ Deno.serve(async (req) => {
     // Helper: Check if delivery is failed
     const isFailed = (d) => d && d.status === 'failed';
     
-    // Helper: Check if delivery is completed
-    const isCompleted = (d) => d && ['completed', 'delivered'].includes(d.status);
+    // Helper: Check if delivery is completed (ONLY 'completed', NOT failed/returned)
+    const isCompleted = (d) => d && d.status === 'completed';
     
     // Helper: Check if delivery is in progress (active stop)
     const isInProgress = (d) => d && ['in_transit', 'en_route', 'pending', 'Ready For Pickup'].includes(d.status);
