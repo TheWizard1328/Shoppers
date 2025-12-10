@@ -5855,7 +5855,7 @@ function Dashboard() {
             stores={stores}
             users={drivers}
             currentUser={currentUser}
-            driverLocations={isAllDriversMode ? allDriverLocations : []}
+            driverLocations={allDriverLocations}
             currentDriverLocation={driverLocation}
             currentToNextPolyline={currentToNextPolyline}
             center={mapCenter}
