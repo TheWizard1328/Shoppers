@@ -4861,6 +4861,50 @@ function Dashboard() {
     }
   };
 
+  const recalculateStopOrders = async (driverId, deliveryDate) => {
+    console.log('🔢 [RECALC STOP ORDER] Recalculating stop orders to match card order...');
+    
+    const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+    const driverDeliveries = deliveries.filter(d => 
+      d && d.driver_id === driverId && d.delivery_date === deliveryDate
+    );
+    
+    // Sort by visual card order (completed first by time, then incomplete by stop_order)
+    const sortedDeliveries = [...driverDeliveries].sort((a, b) => {
+      const isACompleted = finishedStatuses.includes(a.status);
+      const isBCompleted = finishedStatuses.includes(b.status);
+      
+      if (isACompleted && !isBCompleted) return -1;
+      if (!isACompleted && isBCompleted) return 1;
+      
+      if (isACompleted) {
+        const timeA = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : 0;
+        const timeB = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : 0;
+        return timeA - timeB;
+      }
+      
+      return (a.stop_order || 999) - (b.stop_order || 999);
+    });
+    
+    // Reassign stop_order to ALL deliveries (both completed and incomplete)
+    const updates = [];
+    for (let i = 0; i < sortedDeliveries.length; i++) {
+      const delivery = sortedDeliveries[i];
+      const newStopOrder = i + 1;
+      
+      if (delivery.stop_order !== newStopOrder) {
+        updates.push({ id: delivery.id, stop_order: newStopOrder });
+        await updateDeliveryLocal(delivery.id, { stop_order: newStopOrder });
+      }
+    }
+    
+    if (updates.length > 0) {
+      console.log(`✅ [RECALC STOP ORDER] Updated ${updates.length} stop orders`);
+    } else {
+      console.log('ℹ️ [RECALC STOP ORDER] No updates needed');
+    }
+  };
+
   const handleRestartDelivery = async (deliveryId) => {
     try {
       console.log('🔄 [RESTART DELIVERY] Starting restart process');
@@ -4871,8 +4915,11 @@ function Dashboard() {
         throw new Error('Delivery not found');
       }
 
+      const driverId = originalDelivery.driver_id;
+      const deliveryDate = originalDelivery.delivery_date;
+
       console.log(`📦 Original delivery: ${originalDelivery.patient_name || 'Store Pickup'}`);
-      console.log(`📅 Original date: ${originalDelivery.delivery_date}`);
+      console.log(`📅 Original date: ${deliveryDate}`);
 
       const isPickup = !originalDelivery.patient_id;
       const newStatus = isPickup ? 'en_route' : 'in_transit';
@@ -4886,6 +4933,9 @@ function Dashboard() {
       });
 
       console.log(`✅ [RESTART DELIVERY] Status set to ${newStatus}`);
+
+      // Recalculate stop orders
+      await recalculateStopOrders(driverId, deliveryDate);
 
       invalidate('Delivery');
       await refreshData();
