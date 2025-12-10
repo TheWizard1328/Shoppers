@@ -5346,11 +5346,15 @@ function Dashboard() {
       console.log(`   - Started stop now at position #${newStopOrder}`);
       console.log(`   - All stops will get updated ETAs based on new sequence`);
       
+      // Refresh data BEFORE ETA optimizer to ensure it sees the updated stop_order
+      console.log('🔄 [START STEP 4] Refreshing deliveries before ETA calculation...');
+      invalidateDeliveriesForDate(deliveryDate);
+      await refreshData();
+      
       try {
         await base44.functions.invoke('etaOptimizer', {
           driverId: driverId,
-          deliveryDate: deliveryDate,
-          triggerFullRecalculation: true
+          deliveryDate: deliveryDate
         });
         console.log('✅ [START STEP 4] Full ETA recalculation completed - all stop ETAs updated');
       } catch (etaError) {
