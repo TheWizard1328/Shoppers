@@ -2935,12 +2935,22 @@ export default function Layout({ children, currentPageName }) {
 
                   {/* Driver Status Toggle + Location Sharing - Centered in Mobile Header - Only on mobile */}
                   {isMobile && currentUser && userHasRole(currentUser, 'driver') && (
-                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1">
+                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-1">
                       <DriverStatusToggle 
                         currentUser={currentUser}
                         onStatusChange={async (newStatus) => {
                           console.log('Driver status changed to:', newStatus);
                           // Refresh user data to sync location tracking toggle
+                          clearUserCache();
+                          const refreshedUser = await getEffectiveUser();
+                          if (refreshedUser) {
+                            setCurrentUser(refreshedUser);
+                          }
+                        }}
+                      />
+                      <LocationTrackingToggle 
+                        user={currentUser}
+                        onUserUpdate={async (updatedUser) => {
                           clearUserCache();
                           const refreshedUser = await getEffectiveUser();
                           if (refreshedUser) {
