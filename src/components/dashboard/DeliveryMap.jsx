@@ -1121,23 +1121,23 @@ export default function DeliveryMap({
     return selectedDate === today;
   }, [selectedDate]);
 
-  // Process driver locations - Show current user's location as green/orange dot on non-mobile devices
-  // Show other drivers' locations based on location_tracking_enabled
+  // Process driver locations - Desktop shows shared locations, Mobile shows blue dot
   const driverLocationMarkers = useMemo(() => {
     // Only show driver markers when viewing current date
     if (!isViewingCurrentDate) {
-      console.log('🗺️ [DeliveryMap] Not viewing current date - hiding driver markers');
       return [];
     }
 
-    console.log('🗺️ [DeliveryMap] Processing driver locations:', safeDriverLocations.length);
+    // CRITICAL: On mobile, don't show shared location markers (blue dot handles current driver)
+    if (isMobile) {
+      console.log('🗺️ [DeliveryMap] Mobile device - hiding shared location markers (blue dot shown separately)');
+      return [];
+    }
+
+    console.log('🗺️ [DeliveryMap] Desktop - processing shared driver locations:', safeDriverLocations.length);
 
     const isAdmin = currentUser && userHasRole(currentUser, 'admin');
     const currentUserCityId = currentUser?.city_id;
-    const currentUserId = currentUser?.id;
-
-    // Active delivery statuses for dispatcher filtering
-    const activeDeliveryStatuses = ['pending', 'Ready For Pickup', 'in_transit', 'en_route'];
 
     return safeDriverLocations.map((location) => {
       if (!location || !location.latitude || !location.longitude) {
@@ -1148,76 +1148,46 @@ export default function DeliveryMap({
       const driver = safeUsers.find((u) => u && typeof u === 'object' && u.id === driverId);
       
       if (!driver) {
-        console.log('  ⏭️ Skipping location: driver not found');
         return null;
       }
 
-      // RULE 1: Current user's own location (green/orange dot for on_duty/on_break)
-      const isCurrentUserLocation = driverId === currentUserId;
-      
-      if (isCurrentUserLocation) {
-        // Skip if off_duty
-        if (location.driver_status === 'off_duty') {
-          console.log('  ⏭️ Skipping current user location: off_duty');
-          return null;
-        }
-        
-        // CRITICAL: Show green/orange dot on BOTH mobile AND desktop for current user
-        // Desktop: shows green/orange dot
-        // Mobile: blue dot is shown separately via currentDriverMarker, this is for other devices
-        const dotColor = location.driver_status === 'on_duty' ? '#10B981' : '#F97316';
-        console.log(`  ✅ Current user location (${location.driver_status}): ${dotColor} dot (always shown)`);
-        
-        return {
-          ...location,
-          driver,
-          driverColor: dotColor,
-          driverName: driver.user_name || driver.full_name || 'You',
-          driverInitial: (driver.user_name || driver.full_name || 'Y').charAt(0).toUpperCase(),
-          isSelf: true,
-          driver_status: location.driver_status
-        };
+      // CRITICAL: Must be on_duty to show shared location
+      if (location.driver_status !== 'on_duty') {
+        console.log(`  ⏭️ Skipping ${driver.user_name || driver.full_name}: not on_duty`);
+        return null;
       }
 
-      // RULE 2: Other drivers - require location_tracking_enabled=true (sharing ON)
+      // CRITICAL: Must have location tracking enabled
       if (location.location_tracking_enabled !== true) {
         console.log(`  ⏭️ Skipping ${driver.user_name || driver.full_name}: location sharing disabled`);
         return null;
       }
 
-      // RULE 3: Must be on_duty (other drivers with on_break don't show to others)
-      if (location.driver_status !== 'on_duty') {
-        console.log(`  ⏭️ Skipping ${driver.user_name || driver.full_name}: status is ${location.driver_status}`);
-        return null;
-      }
-
-      // RULE 4: Permission filtering for other drivers
+      // Permission filtering
       if (!isAdmin && currentUserCityId !== driver.city_id) {
-        console.log(`  ⏭️ Skipping ${driver.user_name || driver.full_name}: different city`);
         return null;
       }
 
-      // RULE 5: Dispatcher filtering - only show drivers with active deliveries for dispatcher's stores
+      // Dispatcher filtering - only show drivers with deliveries for dispatcher's stores
       if (currentUser && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
         const dispatcherStoreIds = new Set(currentUser.store_ids || []);
-        const hasActiveDeliveryInDispatcherStore = safeDeliveries.some(delivery =>
+        const hasDeliveryInDispatcherStore = safeDeliveries.some(delivery =>
           delivery &&
           delivery.driver_id === driver.id &&
-          dispatcherStoreIds.has(delivery.store_id) &&
-          activeDeliveryStatuses.includes(delivery.status)
+          dispatcherStoreIds.has(delivery.store_id)
         );
 
-        if (!hasActiveDeliveryInDispatcherStore) {
-          console.log(`  ⏭️ Skipping ${driver.user_name || driver.full_name}: no active deliveries in dispatcher's stores`);
+        if (!hasDeliveryInDispatcherStore) {
           return null;
         }
       }
 
       const driverColor = getDriverColor(driver);
       const driverName = driver.user_name || driver.full_name || 'Unknown Driver';
-      const driverInitial = driverName ? driverName.charAt(0).toUpperCase() : 'D';
+      const driverInitial = driverName.charAt(0).toUpperCase();
+      const isCurrentUser = driverId === currentUser?.id;
 
-      console.log(`  ✅ ${driverName}: Live GPS marker created (Location sharing enabled, On Duty)`);
+      console.log(`  ✅ ${driverName}: Shared location marker (on_duty, tracking enabled)${isCurrentUser ? ' [SELF]' : ''}`);
 
       return {
         ...location,
@@ -1225,7 +1195,7 @@ export default function DeliveryMap({
         driverColor,
         driverName,
         driverInitial,
-        isSelf: false,
+        isSelf: isCurrentUser,
         driver_status: location.driver_status
       };
     }).filter(Boolean);
@@ -1233,15 +1203,12 @@ export default function DeliveryMap({
 
   // UPDATED: Process current driver's live location for display - ONLY SHOW ON MOBILE, TODAY'S DATE
   const currentDriverMarker = useMemo(() => {
-    console.log('🔍 [DeliveryMap currentDriverMarker] Computing blue dot visibility...', {
-      hasCurrentDriverLocation: !!currentDriverLocation,
-      hasCurrentUser: !!currentUser,
-      selectedDate,
-      isMobile
-    });
+    // CRITICAL: Only show blue dot on mobile devices
+    if (!isMobile) {
+      return null;
+    }
 
     if (!currentDriverLocation || !currentUser) {
-      console.log('⏭️ [DeliveryMap] No blue dot - missing currentDriverLocation or currentUser');
       return null;
     }
 
@@ -1250,7 +1217,6 @@ export default function DeliveryMap({
     const isToday = !selectedDate || selectedDate === today;
     
     if (!isToday) {
-      console.log('⏭️ [DeliveryMap] Skipping blue dot - not viewing today:', { selectedDate, today });
       return null;
     }
 
@@ -1260,25 +1226,20 @@ export default function DeliveryMap({
     
     // Dispatchers never see blue dot
     if (isCurrentUserDispatcher && !isCurrentUserDriver) {
-      console.log('⏭️ [DeliveryMap] No blue dot - user is dispatcher without driver role');
       return null;
     }
     
     if (!isCurrentUserDriver) {
-      console.log('⏭️ [DeliveryMap] No blue dot - user is not a driver');
       return null;
     }
 
     if (!currentDriverLocation.latitude || !currentDriverLocation.longitude) {
-      console.warn('⚠️ [DeliveryMap] currentDriverLocation missing coordinates');
       return null;
     }
 
-    // Show the driver's own location (blue dot) on mobile
-    console.log('✅ [DeliveryMap] RENDERING BLUE DOT - currentDriverMarker created:', {
+    console.log('✅ [DeliveryMap] RENDERING BLUE DOT (mobile only):', {
       lat: currentDriverLocation.latitude,
       lon: currentDriverLocation.longitude,
-      isMobile,
       timestamp: currentDriverLocation.timestamp
     });
 
