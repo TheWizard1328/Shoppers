@@ -169,7 +169,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
         console.log('🛑 Location tracking stopped (off duty/on break)');
         
         // If going on break, save current FAB phase and notify Dashboard
-            // Note: Backend already cleared isNextDelivery flags in setDriverStatus
+            // Backend cleared isNextDelivery flags in setDriverStatus
             if (newStatus === 'on_break') {
               try {
                 // Load user settings to get current FAB phase
@@ -181,8 +181,13 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
                 // Notify Dashboard to unlock FAB and zoom to phase 1
                 fabControlEvents.notifyBreakStart(currentPhase);
 
-                // No need to clear isNextDelivery here - backend already did it
-                console.log('ℹ️ [DriverStatusToggle] Backend already cleared isNextDelivery flags');
+                console.log('✅ [DriverStatusToggle] Backend cleared isNextDelivery flags');
+                
+                // CRITICAL: Force refresh deliveries to show updated UI
+                if (appDataContext?.refreshData) {
+                  console.log('🔄 [DriverStatusToggle] Forcing delivery refresh after break start...');
+                  await appDataContext.refreshData(true);
+                }
               } catch (error) {
                 console.error('Failed to save phase:', error);
               }
@@ -211,20 +216,13 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
           });
           console.log('✅ Location tracking started');
           
-          // Set next stop in line when going on duty
-          const todayDeliveries = await base44.entities.Delivery.filter({
-            driver_id: currentUser?.id,
-            delivery_date: today
-          });
+          // Backend already set isNextDelivery flag and triggered ETA recalculation
+          console.log('✅ [DriverStatusToggle] Backend set isNextDelivery flag and recalculated ETAs');
           
-          const incompleteDeliveries = todayDeliveries
-            .filter(d => !finishedStatuses.includes(d.status))
-            .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-          
-          if (incompleteDeliveries.length > 0) {
-            const nextStop = incompleteDeliveries[0];
-            await base44.entities.Delivery.update(nextStop.id, { isNextDelivery: true });
-            console.log(`✅ Set isNextDelivery=true for next stop: ${nextStop.patient_name || 'Pickup'}`);
+          // CRITICAL: Force refresh deliveries to show updated isNextDelivery and ETAs
+          if (appDataContext?.refreshData) {
+            console.log('🔄 [DriverStatusToggle] Forcing delivery refresh after going on duty...');
+            await appDataContext.refreshData(true);
           }
           
           // Trigger AI-powered route optimization when going on duty
