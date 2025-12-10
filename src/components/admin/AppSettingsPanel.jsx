@@ -142,6 +142,20 @@ export default function AppSettingsPanel() {
         const version = versionSettings[0].setting_value;
         setAppVersion(version);
         setSavedAppVersion(version);
+      } else {
+        // Create default version if it doesn't exist
+        const defaultVersion = { major: 1, minor: 0, build: 0 };
+        try {
+          await base44.entities.AppSettings.create({
+            setting_key: 'app_version',
+            setting_value: defaultVersion,
+            description: 'Application version number'
+          });
+          setAppVersion(defaultVersion);
+          setSavedAppVersion(defaultVersion);
+        } catch (error) {
+          console.error('Failed to create default version:', error);
+        }
       }
 
       const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
