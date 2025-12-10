@@ -5456,9 +5456,9 @@ function Dashboard() {
       console.log('');
       console.log('📍 [START STEP 8] Checking if route is complete...');
       
-      const routeComplete = freshDeliveries.every(d => 
-        finishedStatuses.includes(d.status)
-      );
+      const routeComplete = updatedDeliveries
+        .filter(d => d.driver_id === driverId && d.delivery_date === deliveryDate)
+        .every(d => finishedStatuses.includes(d.status));
       console.log(`   - routeComplete: ${routeComplete}`);
 
       if (routeComplete) {
