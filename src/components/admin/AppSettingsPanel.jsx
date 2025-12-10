@@ -120,6 +120,7 @@ export default function AppSettingsPanel() {
   const [hasChanges, setHasChanges] = useState(false);
   const [savedIntervals, setSavedIntervals] = useState(null);
   const [savedSmartRefreshEnabled, setSavedSmartRefreshEnabled] = useState(() => smartRefreshManager._enabled);
+  const [lastRefreshTimes, setLastRefreshTimes] = useState({});
 
   // Load settings from database
   const loadSettings = useCallback(async () => {
@@ -171,6 +172,21 @@ export default function AppSettingsPanel() {
   useEffect(() => {
     loadSettings();
   }, [loadSettings]);
+
+  // Poll smartRefreshManager.lastRefreshTimes to keep "Current Refresh Status" live
+  useEffect(() => {
+    const updateRefreshTimes = () => {
+      setLastRefreshTimes({ ...smartRefreshManager.lastRefreshTimes });
+    };
+
+    // Update immediately on mount
+    updateRefreshTimes();
+
+    // Poll every 2 seconds to keep the display live
+    const interval = setInterval(updateRefreshTimes, 2000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Check for changes
   useEffect(() => {
@@ -518,8 +534,8 @@ export default function AppSettingsPanel() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {Object.keys(smartRefreshManager.lastRefreshTimes || {}).map(key => {
-              const lastTime = smartRefreshManager.lastRefreshTimes[key];
+            {Object.keys(lastRefreshTimes).map(key => {
+              const lastTime = lastRefreshTimes[key];
               const timeSince = lastTime ? Math.round((Date.now() - lastTime) / 1000) : null;
               
               return (
