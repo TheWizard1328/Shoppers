@@ -5200,7 +5200,6 @@ function Dashboard() {
       // 7. Scroll to next card
       console.log('');
       console.log('📍 [START STEP 7] Finding and scrolling to next delivery...');
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
 
       setTimeout(() => {
         const nextCard = freshDeliveries?.find((d) =>
