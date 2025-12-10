@@ -263,16 +263,19 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Failed to calculate route: ' + directionsData.status }, { status: 500 });
     }
 
-    // Calculate ETAs for each stop - CRITICAL: Use simple minute arithmetic
+    // Calculate ETAs for each stop - CRITICAL: Use simple minute arithmetic from current local time
     const route = directionsData.routes[0];
     const legs = route.legs;
     
     // Start with current local time in minutes since midnight
     let cumulativeMinutes = startTimeMinutes;
     
+    console.log('');
+    console.log('[ETA Updates] ═══════════════════════════════════════');
     console.log('[ETA Updates] Starting ETA calculation:');
-    console.log(`  - Starting time (minutes since midnight): ${cumulativeMinutes} (${String(Math.floor(cumulativeMinutes/60)).padStart(2, '0')}:${String(cumulativeMinutes%60).padStart(2, '0')})`);
-    console.log(`  - Number of stops: ${waypoints.length}`);
+    console.log(`[ETA Updates]   Starting time: ${String(Math.floor(cumulativeMinutes/60)).padStart(2, '0')}:${String(cumulativeMinutes%60).padStart(2, '0')} (${cumulativeMinutes} minutes since midnight)`);
+    console.log(`[ETA Updates]   Number of stops: ${waypoints.length}`);
+    console.log('[ETA Updates] ═══════════════════════════════════════');
     
     const updatedDeliveries = [];
 
@@ -280,45 +283,51 @@ Deno.serve(async (req) => {
       const leg = legs[i];
       const waypoint = waypoints[i];
       
-      // Check if this is a store pickup with no deliveries before it
-      const hasDeliveriesBefore = i > 0 && waypoints.slice(0, i).some(w => !w.isPickup);
+      console.log('');
+      console.log(`[ETA Updates] ─── Stop ${i + 1} ───`);
+      console.log(`[ETA Updates]   Type: ${waypoint.isPickup ? 'PICKUP' : 'DELIVERY'}`);
+      console.log(`[ETA Updates]   Current time: ${String(Math.floor(cumulativeMinutes/60)).padStart(2, '0')}:${String(cumulativeMinutes%60).padStart(2, '0')}`);
       
-      if (waypoint.isPickup && !hasDeliveriesBefore && waypoint.scheduledStartTime) {
-        // For first pickup, use MAX of current time or scheduled time
+      // For FIRST stop only, check if pickup has scheduled time in future
+      if (i === 0 && waypoint.isPickup && waypoint.scheduledStartTime) {
         const [schedHours, schedMinutes] = waypoint.scheduledStartTime.split(':').map(Number);
         const scheduledTotalMinutes = schedHours * 60 + schedMinutes;
         
-        // Use whichever is later
         if (scheduledTotalMinutes > cumulativeMinutes) {
+          const waitMinutes = scheduledTotalMinutes - cumulativeMinutes;
+          console.log(`[ETA Updates]   First pickup scheduled for ${waypoint.scheduledStartTime} (${waitMinutes} min wait)`);
           cumulativeMinutes = scheduledTotalMinutes;
-          console.log(`  - Stop ${i + 1}: First pickup - using scheduled time ${waypoint.scheduledStartTime}`);
         } else {
-          console.log(`  - Stop ${i + 1}: First pickup - scheduled time ${waypoint.scheduledStartTime} is past, staying at current`);
+          console.log(`[ETA Updates]   First pickup scheduled time ${waypoint.scheduledStartTime} already passed`);
         }
       } else {
         // Add travel time from previous stop
-        const travelMinutes = Math.ceil(leg.duration.value / 60);
+        const travelSeconds = leg.duration.value;
+        const travelMinutes = Math.ceil(travelSeconds / 60);
+        console.log(`[ETA Updates]   Google travel time: ${travelSeconds}s = ${travelMinutes} minutes`);
         cumulativeMinutes += travelMinutes;
-        console.log(`  - Stop ${i + 1}: +${travelMinutes} min travel (${Math.floor(leg.duration.value / 60).toFixed(1)} min from Google)`);
       }
       
-      // CRITICAL: ETA is arrival time BEFORE service time
-      // Convert to HH:mm format
+      // ETA is the arrival time (before adding service time)
       const arrivalHours = Math.floor(cumulativeMinutes / 60) % 24;
       const arrivalMinutes = cumulativeMinutes % 60;
       const eta = `${String(arrivalHours).padStart(2, '0')}:${String(arrivalMinutes).padStart(2, '0')}`;
       
-      console.log(`  - Stop ${i + 1}: Arrival ETA = ${eta}`);
+      console.log(`[ETA Updates]   ✅ Arrival ETA: ${eta}`);
       
-      // NOW add service time for next leg calculation
-      cumulativeMinutes += (waypoint.extraTime || 5);
-      console.log(`  - Stop ${i + 1}: +${waypoint.extraTime || 5} min service time`);
+      // Add service time for next leg
+      const serviceTime = waypoint.extraTime || 5;
+      cumulativeMinutes += serviceTime;
+      console.log(`[ETA Updates]   Service time: +${serviceTime} min → ${String(Math.floor(cumulativeMinutes/60)).padStart(2, '0')}:${String(cumulativeMinutes%60).padStart(2, '0')}`);
       
       updatedDeliveries.push({
         id: waypoint.deliveryId,
         delivery_time_eta: eta
       });
     }
+    
+    console.log('');
+    console.log('[ETA Updates] ═══════════════════════════════════════');
 
     // Update deliveries in database (Rule 5)
     for (const update of updatedDeliveries) {
