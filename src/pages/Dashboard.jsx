@@ -5342,7 +5342,8 @@ function Dashboard() {
       console.log(`✅ [START STEP 3] Started delivery reordered to stop #${newStopOrder}, marked as next, and ETA set to ${currentTime}`);
 
       console.log('');
-      console.log('📍 [START STEP 4] Running ETA optimizer to update subsequent deliveries (ALL users)...');
+      console.log('📍 [START STEP 4] Running full ETA recalculation for all stops after reordering...');
+      console.log(`   - This will update ETAs for ALL stops based on new stop_order sequence`);
       
       try {
         await base44.functions.invoke('etaOptimizer', {
@@ -5350,7 +5351,7 @@ function Dashboard() {
           deliveryDate: deliveryDate,
           triggerFullRecalculation: true
         });
-        console.log('✅ [START STEP 4] Full ETA recalculation completed');
+        console.log('✅ [START STEP 4] Full ETA recalculation completed - all stop ETAs updated');
       } catch (etaError) {
         console.warn('⚠️ [START STEP 4] ETA recalculation failed:', etaError);
       }
