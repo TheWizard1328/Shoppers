@@ -314,6 +314,18 @@ Deno.serve(async (req) => {
       
       console.log(`  - Stop ${i + 1}: +${waypoint.extraTime || 5} min service → ${cumulativeTime.toISOString()}`);
       
+      // CRITICAL: Check if calculated ETA is in the past - update to current time if so
+      // This ensures ETAs are always realistic (never show past times for future stops)
+      if (i === 0) {
+        // For the NEXT stop (first incomplete), compare with current time
+        const currentDateTime = new Date();
+        if (cumulativeTime < currentDateTime) {
+          console.log(`  - Stop ${i + 1}: Calculated ETA is in the past (${cumulativeTime.toISOString()})`);
+          console.log(`  - Stop ${i + 1}: Updating to current time (${currentDateTime.toISOString()})`);
+          cumulativeTime = currentDateTime;
+        }
+      }
+      
       // Format ETA as HH:mm
       const etaHours = String(cumulativeTime.getHours()).padStart(2, '0');
       const etaMinutes = String(cumulativeTime.getMinutes()).padStart(2, '0');
