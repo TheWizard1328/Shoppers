@@ -207,12 +207,14 @@ const ZOOM_LEVELS = {
   FULL_DETAIL: 13 // At or above this, show full detail
 };
 
+// Shared finished statuses array
+const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
+
 // Helper for checking if user is an app owner (platform admin role)
 // MODIFIED: Create icons with zoom-aware sizing - REMOVED duplicateCount badge
 const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, number = null, zoomLevel = 12, duplicateCount = 0, isMobile = false, isHighlighted = false, isNextDelivery = false, hasIncompleteStops = true) => {
   // CRITICAL: Failed/cancelled/completed takes precedence over next delivery blue
-  const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-  const isFinished = finishedStatuses.includes(status);
+  const isFinished = FINISHED_STATUSES.includes(status);
   const shouldShowNextBlue = isNextDelivery && !isFinished && hasIncompleteStops;
   
   const innerColor = shouldShowNextBlue ? '#3B82F6' : getInnerSymbolColor(status, true);
@@ -240,8 +242,7 @@ const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, numbe
   // REMOVED: Don't enlarge markers when highlighted
   let size = isActive ? baseSize * 1.15 : baseSize;
   
-  const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-  const numberColor = finishedStatuses.includes(status) ? 'black' : getContrastColor(storeColor);
+  const numberColor = FINISHED_STATUSES.includes(status) ? 'black' : getContrastColor(storeColor);
 
   return L.divIcon({
     html: `
@@ -320,8 +321,7 @@ const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, numbe
 // Helper function to create delivery pin markers with circle - REMOVED duplicateCount badge
 const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, number = null, isFirstTime = false, duplicateCount = 0, zoomLevel = 12, isMobile = false, isNextInLine = false, isHighlighted = false, hasIncompleteStops = true) => {
   // CRITICAL: Failed/cancelled/completed takes precedence over next delivery blue
-  const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-  const isFinished = finishedStatuses.includes(status);
+  const isFinished = FINISHED_STATUSES.includes(status);
   const shouldShowNextBlue = isNextInLine && !isFinished && hasIncompleteStops;
   
   const statusColor = shouldShowNextBlue ? '#3B82F6' : getInnerSymbolColor(status, false);
@@ -350,8 +350,7 @@ const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, nu
   // Keep size consistent - no enlargement on highlight
   const size = isActive ? baseSize * 1.15 : baseSize;
   
-  const finishedStatuses = ['completed', 'delivered', 'failed', 'cancelled', 'returned'];
-  const numberColor = isNextInLine ? '#FFFFFF' : (finishedStatuses.includes(status) ? 'black' : getContrastColor(statusColor));
+  const numberColor = shouldShowNextBlue ? '#FFFFFF' : (FINISHED_STATUSES.includes(status) ? 'black' : getContrastColor(statusColor));
 
   return L.divIcon({
     html: `
@@ -723,42 +722,41 @@ export default function DeliveryMap({
 
   // Separate pickups from patient deliveries
   const { pickups, patientDeliveries } = useMemo(() => {
-    const pickups = safeDeliveries.filter((d) => d && !d.patient_id && d.store_id);
-    const patientDeliveries = safeDeliveries.filter((d) => d && d.patient_id);
-    return { pickups, patientDeliveries };
+  const pickups = safeDeliveries.filter((d) => d && !d.patient_id && d.store_id);
+  const patientDeliveries = safeDeliveries.filter((d) => d && d.patient_id);
+  return { pickups, patientDeliveries };
   }, [safeDeliveries]);
 
   // NEW: Fetch Google route polyline for display
   useEffect(() => {
-    const fetchGoogleRoute = async () => {
-      // Only fetch if:
-      // 1. We have deliveries to display
-      // 2. We're in single driver mode
-      // 3. showRoutes is enabled
-      if (!safeDeliveries.length || !isSingleDriverMode || !showRoutes) {
-        setGoogleRouteCoordinates(null);
-        return;
-      }
+  const fetchGoogleRoute = async () => {
+  // Only fetch if:
+  // 1. We have deliveries to display
+  // 2. We're in single driver mode
+  // 3. showRoutes is enabled
+  if (!safeDeliveries.length || !isSingleDriverMode || !showRoutes) {
+    setGoogleRouteCoordinates(null);
+    return;
+  }
 
-      // Get the driver ID from deliveries
-      const driverId = safeDeliveries[0]?.driver_id;
-      if (!driverId) {
-        setGoogleRouteCoordinates(null);
-        return;
-      }
+  // Get the driver ID from deliveries
+  const driverId = safeDeliveries[0]?.driver_id;
+  if (!driverId) {
+    setGoogleRouteCoordinates(null);
+    return;
+  }
 
-      // Get delivery date
-      const deliveryDate = safeDeliveries[0]?.delivery_date;
-      if (!deliveryDate) {
-        setGoogleRouteCoordinates(null);
-        return;
-      }
+  // Get delivery date
+  const deliveryDate = safeDeliveries[0]?.delivery_date;
+  if (!deliveryDate) {
+    setGoogleRouteCoordinates(null);
+    return;
+  }
 
-      // Check if route has started (has in-transit or completed stops)
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-      const hasStarted = safeDeliveries.some((d) =>
-        ['in_transit', ...finishedStatuses].includes(d.status)
-      );
+  // Check if route has started (has in-transit or completed stops)
+  const hasStarted = safeDeliveries.some((d) =>
+    ['in_transit', ...FINISHED_STATUSES].includes(d.status)
+  );
 
       // CRITICAL: For routes that have started, ALWAYS clear the pre-route polyline
       // We only show currentToNextPolyline (blue dotted line) for active routes
@@ -800,11 +798,8 @@ export default function DeliveryMap({
 
   // Get coordinates for deliveries and pickups - Use backend isNextDelivery flag
   const { deliveryMarkers, groupedDeliveryMarkers, pickupMarkers, groupedPickupMarkers, hasIncompleteStops } = useMemo(() => {
-    // Define finished statuses (can be local if not used elsewhere in this useMemo)
-    const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-    
     // Check if route has any incomplete stops
-    const hasIncompleteStops = safeDeliveries.some(d => d && !finishedStatuses.includes(d.status));
+    const hasIncompleteStops = safeDeliveries.some(d => d && !FINISHED_STATUSES.includes(d.status));
 
     // Process delivery markers
     const deliveryMarkersRaw = patientDeliveries.map((delivery) => {
@@ -1363,63 +1358,62 @@ export default function DeliveryMap({
     console.log('📍 Pickup markers:', pickupMarkers.length);
     console.log('📦 Delivery markers:', deliveryMarkers.length);
 
-    // Define finished statuses
-    const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+    // Use shared finished statuses
     const activeStatuses = ['in_transit']; // NEW
 
     // Group deliveries by driver
     const routesByDriver = {};
 
     deliveryMarkers.forEach((delivery) => {
-      if (!delivery) return;
-      const driverId = delivery.driver_id || 'unassigned';
-      if (!routesByDriver[driverId]) {
-        // FIXED: Find driver by ID only, don't require user_name in find condition
-        const driverForRoute = safeUsers.find((u) => u && typeof u === 'object' && u.id === driverId);
+    if (!delivery) return;
+    const driverId = delivery.driver_id || 'unassigned';
+    if (!routesByDriver[driverId]) {
+      // FIXED: Find driver by ID only, don't require user_name in find condition
+      const driverForRoute = safeUsers.find((u) => u && typeof u === 'object' && u.id === driverId);
 
-        // Determine route color based on mode
-        const routeColor = isSingleDriverMode ?
-          delivery.pinColor // Single driver: use store color from marker
-          : driverForRoute && typeof driverForRoute === 'object' ? getDriverColor(driverForRoute) : '#607D8B';
+      // Determine route color based on mode
+      const routeColor = isSingleDriverMode ?
+        delivery.pinColor // Single driver: use store color from marker
+        : driverForRoute && typeof driverForRoute === 'object' ? getDriverColor(driverForRoute) : '#607D8B';
 
-        // FIXED: Use driver object's user_name for display, with proper fallbacks
-        const driverDisplayName = driverForRoute ? (driverForRoute.user_name || driverForRoute.full_name || 'Unknown') : 'Unassigned';
+      // FIXED: Use driver object's user_name for display, with proper fallbacks
+      const driverDisplayName = driverForRoute ? (driverForRoute.user_name || driverForRoute.full_name || 'Unknown') : 'Unassigned';
 
-        console.log(`🗺️ Creating route for driver ${driverId}:`, {
-          found: !!driverForRoute,
-          displayName: driverDisplayName,
-          user_name: driverForRoute?.user_name,
-          full_name: driverForRoute?.full_name
-        });
+      console.log(`🗺️ Creating route for driver ${driverId}:`, {
+        found: !!driverForRoute,
+        displayName: driverDisplayName,
+        user_name: driverForRoute?.user_name,
+        full_name: driverForRoute?.full_name
+      });
 
-        routesByDriver[driverId] = {
-          driverId,
-          driverName: driverDisplayName,
-          driver: driverForRoute, // Store driver object
-          color: routeColor,
-          stops: [],
-          sortOrder: driverForRoute?.sort_order ?? Infinity
-        };
-      }
-      routesByDriver[driverId].stops.push(delivery);
+      routesByDriver[driverId] = {
+        driverId,
+        driverName: driverDisplayName,
+        driver: driverForRoute, // Store driver object
+        color: routeColor,
+        stops: [],
+        sortOrder: driverForRoute?.sort_order ?? Infinity
+      };
+    }
+    routesByDriver[driverId].stops.push(delivery);
     });
 
     // Sort stops by stop_order and create route lines
     const routes = Object.values(routesByDriver).map((route) => {
-      // Find ALL pickup locations for this driver
-      const driverPickups = pickupMarkers.filter((p) => p.driver_id === route.driverId);
+    // Find ALL pickup locations for this driver
+    const driverPickups = pickupMarkers.filter((p) => p.driver_id === route.driverId);
 
-      // Check if all stops (deliveries + pickups) are finished
-      const allDeliveriesFinished = route.stops.every((d) => finishedStatuses.includes(d.status));
-      const allPickupsFinished = driverPickups.every((p) => finishedStatuses.includes(p.status));
-      const isRouteCompleted = allDeliveriesFinished && allPickupsFinished;
+    // Check if all stops (deliveries + pickups) are finished
+    const allDeliveriesFinished = route.stops.every((d) => FINISHED_STATUSES.includes(d.status));
+    const allPickupsFinished = driverPickups.every((p) => FINISHED_STATUSES.includes(p.status));
+    const isRouteCompleted = allDeliveriesFinished && allPickupsFinished;
 
-      // NEW: Check if route has started (has any in_transit or completed stops)
-      const hasActiveStops = route.stops.some((delivery) => delivery && activeStatuses.includes(delivery.status)) ||
-        driverPickups.some((p) => p && activeStatuses.includes(p.status));
-      const hasCompletedStops = route.stops.some((d) => finishedStatuses.includes(d.status)) ||
-        driverPickups.some((p) => p && finishedStatuses.includes(p.status));
-      const isRouteStarted = hasActiveStops || hasCompletedStops;
+    // NEW: Check if route has started (has any in_transit or completed stops)
+    const hasActiveStops = route.stops.some((delivery) => delivery && activeStatuses.includes(delivery.status)) ||
+      driverPickups.some((p) => p && activeStatuses.includes(p.status));
+    const hasCompletedStops = route.stops.some((d) => FINISHED_STATUSES.includes(d.status)) ||
+      driverPickups.some((p) => p && FINISHED_STATUSES.includes(p.status));
+    const isRouteStarted = hasActiveStops || hasCompletedStops;
 
       console.log(`🚗 Route for ${route.driverName}:`, {
         driverId: route.driverId,
@@ -1437,8 +1431,8 @@ export default function DeliveryMap({
 
       if (!isRouteCompleted) {
         // Route is in-progress: only show unfinished stops (excluding pending)
-        deliveriesToRoute = route.stops.filter((delivery) => delivery && !finishedStatuses.includes(delivery.status) && delivery.status !== 'pending');
-        pickupsToRoute = driverPickups.filter((p) => p && !finishedStatuses.includes(p.status) && p.status !== 'pending');
+        deliveriesToRoute = route.stops.filter((delivery) => delivery && !FINISHED_STATUSES.includes(delivery.status) && delivery.status !== 'pending');
+        pickupsToRoute = driverPickups.filter((p) => p && !FINISHED_STATUSES.includes(p.status) && p.status !== 'pending');
         console.log(`  🔄 In-progress route: showing ${deliveriesToRoute.length} unfinished deliveries and ${pickupsToRoute.length} unfinished pickups (excluding pending)`);
       } else {
         console.log(`  ✅ Completed route: showing all ${deliveriesToRoute.length} deliveries and ${pickupsToRoute.length} pickups in stop order`);
@@ -1528,7 +1522,7 @@ export default function DeliveryMap({
           // Priority 3: Use last completed stop location (fallback only if no GPS)
           if (!startPoint && hasCompletedStops) {
             const completedStopsForDriver = [...route.stops, ...driverPickups]
-              .filter((s) => s && finishedStatuses.includes(s.status) && s.actual_delivery_time)
+              .filter((s) => s && FINISHED_STATUSES.includes(s.status) && s.actual_delivery_time)
               .sort((a, b) => new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time));
 
             if (completedStopsForDriver.length > 0) {
@@ -2176,8 +2170,7 @@ export default function DeliveryMap({
           let markerPosition = [pickup.latitude, pickup.longitude];
           let dynamicZIndex;
           
-          const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-          const isFinished = finishedStatuses.includes(pickup.status);
+          const isFinished = FINISHED_STATUSES.includes(pickup.status);
 
           if (isFinished) {
             // Rule 2: Finished markers are at the bottom.
@@ -2205,9 +2198,8 @@ export default function DeliveryMap({
             );
             
             // Calculate z-index: incomplete stops first, then by stop_order
-            const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-            const isFinished = finishedStatuses.includes(pickup.status);
-            const incompleteMarkers = allMarkersAtLocation.filter(p => !finishedStatuses.includes(p.status));
+            const isFinished = FINISHED_STATUSES.includes(pickup.status);
+            const incompleteMarkers = allMarkersAtLocation.filter(p => !FINISHED_STATUSES.includes(p.status));
             
             if (isFinished) {
               // Finished stops get lower z-index
@@ -2320,8 +2312,7 @@ export default function DeliveryMap({
           let markerPosition = [delivery.latitude, delivery.longitude];
           let dynamicZIndex;
 
-          const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-          const isFinished = finishedStatuses.includes(delivery.status);
+          const isFinished = FINISHED_STATUSES.includes(delivery.status);
           const isNext = delivery.isNextInLine;
 
           if (isFinished) {
@@ -2352,9 +2343,8 @@ export default function DeliveryMap({
             );
             
             // Calculate z-index: incomplete stops first, then by stop_order
-            const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-            const isFinished = finishedStatuses.includes(delivery.status);
-            const incompleteMarkers = allMarkersAtLocation.filter(d => !finishedStatuses.includes(d.status));
+            const isFinished = FINISHED_STATUSES.includes(delivery.status);
+            const incompleteMarkers = allMarkersAtLocation.filter(d => !FINISHED_STATUSES.includes(d.status));
             
             if (isFinished) {
               // Finished stops get lower z-index
