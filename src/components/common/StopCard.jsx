@@ -820,8 +820,8 @@ export default function StopCard({
                                 await new Promise((resolve) => setTimeout(resolve, 100));
                                 console.log('✅ [STATUS BUTTON] Status change cycle complete');
 
-                                // CRITICAL: Reactivate FAB after action
-                                fabControlEvents.reactivateFAB();
+                                // CRITICAL: Reactivate FAB after action (skip card scroll - FAB handles it)
+                                fabControlEvents.reactivateFAB(true);
                               }
                             }}
                             className={`w-full justify-center text-center font-semibold ${
@@ -1128,8 +1128,8 @@ export default function StopCard({
                 await new Promise((resolve) => setTimeout(resolve, 100));
                 console.log('✅ [FAILURE] Failure marking cycle complete');
 
-                // CRITICAL: Reactivate FAB after action
-                fabControlEvents.reactivateFAB();
+                // CRITICAL: Reactivate FAB after action (skip card scroll - FAB handles it)
+                fabControlEvents.reactivateFAB(true);
               }
             }}
             deliveryName={displayName}
@@ -1945,8 +1945,8 @@ export default function StopCard({
                             try {
                               await onRestart(delivery.id);
                             } finally {
-                              // CRITICAL: Reactivate FAB after restart
-                              fabControlEvents.reactivateFAB();
+                              // CRITICAL: Reactivate FAB after restart (skip card scroll - FAB handles it)
+                              fabControlEvents.reactivateFAB(true);
                             }
                           }}>
                                 <RotateCcw className="w-4 h-4 mr-2" />

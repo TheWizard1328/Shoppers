@@ -303,6 +303,7 @@ function Dashboard() {
   const [useAIOptimization, setUseAIOptimization] = useState(true);
   const [driverRoutes, setDriverRoutes] = useState([]);
   const proximityLockedMarkersRef = useRef(new Set()); // Track which markers have been proximity-locked
+  const lastProximitySnapTimeRef = useRef(0); // Timestamp of last proximity snap
 
   const [dailyPolylineCount, setDailyPolylineCount] = useState(null);
   const [highlightedCardId, setHighlightedCardId] = useState(null);
@@ -853,10 +854,9 @@ function Dashboard() {
     console.log('🔓 [Map Interaction] Unlocking FAB immediately');
     setIsMapViewLocked(false);
     
-    // CRITICAL: Clear proximity lock when user manually interacts with map
-    // This allows proximity zoom to trigger again when driver re-enters 100m range
-    console.log('🔓 [Map Interaction] Clearing proximity locks');
-    proximityLockedMarkersRef.current.clear();
+    // CRITICAL: Reset proximity snap timer when user manually interacts with map
+    console.log('🔓 [Map Interaction] Resetting proximity snap timer');
+    lastProximitySnapTimeRef.current = 0;
   }, []);
 
   // NOTE: Removed auto-fit bounds effect that was causing map to re-center unexpectedly
@@ -1068,6 +1068,17 @@ function Dashboard() {
           // CRITICAL: Auto-zoom when within 100m of in_transit/en_route stop (mobile + not phase 2)
           // Only trigger if card is NOT already centered on screen
           if (isMobile && mapViewPhase !== 2 && newLocation.latitude && newLocation.longitude) {
+            // Check if 60 seconds have passed since last snap
+            const now = Date.now();
+            const timeSinceLastSnap = now - lastProximitySnapTimeRef.current;
+            const snapCooldown = 60000; // 60 seconds
+
+            if (timeSinceLastSnap < snapCooldown) {
+              const remainingSeconds = Math.ceil((snapCooldown - timeSinceLastSnap) / 1000);
+              console.log(`⏸️ [Proximity] Snap cooldown active - ${remainingSeconds}s remaining`);
+              continue; // Skip all proximity checks during cooldown
+            }
+
             const activeStatuses = ['in_transit', 'en_route'];
             const activeDeliveries = deliveriesWithStopOrder.filter((d) =>
               d && activeStatuses.includes(d.status)
@@ -1075,10 +1086,6 @@ function Dashboard() {
 
             // Check each active delivery for proximity
             for (const delivery of activeDeliveries) {
-              // Skip if already proximity-locked to this marker
-              if (proximityLockedMarkersRef.current.has(delivery.id)) {
-                continue;
-              }
 
               let stopLat, stopLon;
 
@@ -1127,10 +1134,10 @@ function Dashboard() {
                     continue;
                   }
 
-                  console.log(`📍 [Proximity] Driver within 100m of ${delivery.patient_name || 'Pickup'} and card NOT centered - ONE-TIME auto-center`);
+                  console.log(`📍 [Proximity] Driver within 100m of ${delivery.patient_name || 'Pickup'} and card NOT centered - auto-center with 60s cooldown`);
 
-                  // Mark this marker as locked (won't auto-zoom again)
-                  proximityLockedMarkersRef.current.add(delivery.id);
+                  // Record the snap time (prevents any snaps for 60 seconds)
+                  lastProximitySnapTimeRef.current = Date.now();
 
                   // Center map on the nearby marker
                   setShouldFitBounds({
