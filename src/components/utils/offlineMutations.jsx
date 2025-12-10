@@ -53,14 +53,6 @@ export const createPatientLocal = async (patientData) => {
     // Save to local IndexedDB
     await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [localPatient]);
 
-    // Queue for backend sync
-    await offlineDB.addPendingMutation({
-      operation: 'create',
-      entity: 'Patient',
-      recordId: tempId,
-      payload: patientData
-    });
-
     console.log('✅ [OfflineMutations] Patient created locally:', tempId);
     
     // CRITICAL: Notify listeners IMMEDIATELY for instant UI update
@@ -70,6 +62,22 @@ export const createPatientLocal = async (patientData) => {
       id: tempId,
       data: localPatient 
     });
+
+    // Try immediate backend sync
+    try {
+      const { base44 } = await import('@/api/base44Client');
+      await base44.entities.Patient.create(patientData);
+      console.log('✅ [Sync] Patient synced to backend immediately:', tempId);
+    } catch (error) {
+      console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
+      // Queue for backend sync if immediate sync fails
+      await offlineDB.addPendingMutation({
+        operation: 'create',
+        entity: 'Patient',
+        recordId: tempId,
+        payload: patientData
+      });
+    }
     
     return localPatient;
   } catch (error) {
@@ -103,14 +111,6 @@ export const updatePatientLocal = async (patientId, updates) => {
     // Save to local IndexedDB
     await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [updatedPatient]);
 
-    // Queue for backend sync
-    await offlineDB.addPendingMutation({
-      operation: 'update',
-      entity: 'Patient',
-      recordId: patientId,
-      payload: updates
-    });
-
     console.log('✅ [OfflineMutations] Patient updated locally:', patientId);
     
     // CRITICAL: Notify listeners IMMEDIATELY for instant UI update
@@ -120,6 +120,22 @@ export const updatePatientLocal = async (patientId, updates) => {
       id: patientId,
       data: updatedPatient 
     });
+
+    // Try immediate backend sync
+    try {
+      const { base44 } = await import('@/api/base44Client');
+      await base44.entities.Patient.update(patientId, updates);
+      console.log('✅ [Sync] Patient synced to backend immediately:', patientId);
+    } catch (error) {
+      console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
+      // Queue for backend sync if immediate sync fails
+      await offlineDB.addPendingMutation({
+        operation: 'update',
+        entity: 'Patient',
+        recordId: patientId,
+        payload: updates
+      });
+    }
     
     return updatedPatient;
   } catch (error) {
@@ -134,13 +150,6 @@ export const updatePatientLocal = async (patientId, updates) => {
 export const deletePatientLocal = async (patientId) => {
   try {
     console.log('📝 [OfflineMutations] Deleting patient locally:', patientId);
-    
-    // Queue for backend sync BEFORE removing from local DB
-    await offlineDB.addPendingMutation({
-      operation: 'delete',
-      entity: 'Patient',
-      recordId: patientId
-    });
 
     // Remove from local IndexedDB
     const db = await offlineDB.openDatabase();
@@ -162,6 +171,21 @@ export const deletePatientLocal = async (patientId) => {
       id: patientId,
       data: null 
     });
+
+    // Try immediate backend sync
+    try {
+      const { base44 } = await import('@/api/base44Client');
+      await base44.entities.Patient.delete(patientId);
+      console.log('✅ [Sync] Patient deletion synced to backend immediately:', patientId);
+    } catch (error) {
+      console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
+      // Queue for backend sync if immediate sync fails
+      await offlineDB.addPendingMutation({
+        operation: 'delete',
+        entity: 'Patient',
+        recordId: patientId
+      });
+    }
     
     return true;
   } catch (error) {
@@ -190,14 +214,6 @@ export const createDeliveryLocal = async (deliveryData) => {
     // Save to local IndexedDB
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [localDelivery]);
 
-    // Queue for backend sync
-    await offlineDB.addPendingMutation({
-      operation: 'create',
-      entity: 'Delivery',
-      recordId: tempId,
-      payload: deliveryData
-    });
-
     console.log('✅ [OfflineMutations] Delivery created locally:', tempId);
     
     // CRITICAL: Notify listeners IMMEDIATELY for instant UI update
@@ -207,6 +223,22 @@ export const createDeliveryLocal = async (deliveryData) => {
       id: tempId,
       data: localDelivery 
     });
+
+    // Try immediate backend sync
+    try {
+      const { base44 } = await import('@/api/base44Client');
+      await base44.entities.Delivery.create(deliveryData);
+      console.log('✅ [Sync] Delivery synced to backend immediately:', tempId);
+    } catch (error) {
+      console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
+      // Queue for backend sync if immediate sync fails
+      await offlineDB.addPendingMutation({
+        operation: 'create',
+        entity: 'Delivery',
+        recordId: tempId,
+        payload: deliveryData
+      });
+    }
     
     return localDelivery;
   } catch (error) {
@@ -240,14 +272,6 @@ export const updateDeliveryLocal = async (deliveryId, updates) => {
     // Save to local IndexedDB
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
 
-    // Queue for backend sync
-    await offlineDB.addPendingMutation({
-      operation: 'update',
-      entity: 'Delivery',
-      recordId: deliveryId,
-      payload: updates
-    });
-
     console.log('✅ [OfflineMutations] Delivery updated locally:', deliveryId);
     
     // CRITICAL: Notify listeners IMMEDIATELY for instant UI update
@@ -257,6 +281,22 @@ export const updateDeliveryLocal = async (deliveryId, updates) => {
       id: deliveryId,
       data: updatedDelivery 
     });
+
+    // Try immediate backend sync
+    try {
+      const { base44 } = await import('@/api/base44Client');
+      await base44.entities.Delivery.update(deliveryId, updates);
+      console.log('✅ [Sync] Delivery synced to backend immediately:', deliveryId);
+    } catch (error) {
+      console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
+      // Queue for backend sync if immediate sync fails
+      await offlineDB.addPendingMutation({
+        operation: 'update',
+        entity: 'Delivery',
+        recordId: deliveryId,
+        payload: updates
+      });
+    }
     
     return updatedDelivery;
   } catch (error) {
@@ -271,13 +311,6 @@ export const updateDeliveryLocal = async (deliveryId, updates) => {
 export const deleteDeliveryLocal = async (deliveryId) => {
   try {
     console.log('📝 [OfflineMutations] Deleting delivery locally:', deliveryId);
-    
-    // Queue for backend sync BEFORE removing from local DB
-    await offlineDB.addPendingMutation({
-      operation: 'delete',
-      entity: 'Delivery',
-      recordId: deliveryId
-    });
 
     // Remove from local IndexedDB
     const db = await offlineDB.openDatabase();
@@ -299,6 +332,21 @@ export const deleteDeliveryLocal = async (deliveryId) => {
       id: deliveryId,
       data: null 
     });
+
+    // Try immediate backend sync
+    try {
+      const { base44 } = await import('@/api/base44Client');
+      await base44.entities.Delivery.delete(deliveryId);
+      console.log('✅ [Sync] Delivery deletion synced to backend immediately:', deliveryId);
+    } catch (error) {
+      console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
+      // Queue for backend sync if immediate sync fails
+      await offlineDB.addPendingMutation({
+        operation: 'delete',
+        entity: 'Delivery',
+        recordId: deliveryId
+      });
+    }
     
     return true;
   } catch (error) {
@@ -325,16 +373,6 @@ export const batchCreateDeliveriesLocal = async (deliveriesData) => {
     // Save all to local IndexedDB
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, localDeliveries);
 
-    // Queue all for backend sync
-    for (const delivery of localDeliveries) {
-      await offlineDB.addPendingMutation({
-        operation: 'create',
-        entity: 'Delivery',
-        recordId: delivery.id,
-        payload: delivery
-      });
-    }
-
     console.log('✅ [OfflineMutations] Batch deliveries created locally');
     
     // CRITICAL: Notify listeners for each delivery for instant UI update
@@ -346,6 +384,24 @@ export const batchCreateDeliveriesLocal = async (deliveriesData) => {
         data: delivery 
       });
     });
+
+    // Try immediate backend sync
+    try {
+      const { base44 } = await import('@/api/base44Client');
+      await base44.entities.Delivery.bulkCreate(deliveriesData);
+      console.log(`✅ [Sync] ${localDeliveries.length} deliveries synced to backend immediately`);
+    } catch (error) {
+      console.warn('⚠️ [Sync] Immediate bulk sync failed, queuing for later:', error.message);
+      // Queue all for backend sync if immediate sync fails
+      for (const delivery of localDeliveries) {
+        await offlineDB.addPendingMutation({
+          operation: 'create',
+          entity: 'Delivery',
+          recordId: delivery.id,
+          payload: delivery
+        });
+      }
+    }
     
     return localDeliveries;
   } catch (error) {
