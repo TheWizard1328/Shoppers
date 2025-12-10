@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
@@ -792,6 +791,13 @@ export default function StopCard({
 
                                 await onStatusUpdate(delivery.id, status, {}, false);
 
+                                // Update next delivery flag
+                                await base44.functions.invoke('updateNextDeliveryFlag', {
+                                  deliveryId: delivery.id,
+                                  driverId: delivery.driver_id,
+                                  deliveryDate: delivery.delivery_date
+                                });
+
                                 if (status === 'completed' && userHasRole(currentUser, 'driver')) {
                                   await notifyDriverCompleted({
                                     driver: currentUser,
@@ -842,6 +848,13 @@ export default function StopCard({
                               const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
                               const skipAutoCenter = !finishedStatuses.includes(status);
                               await onStatusUpdate(delivery.id, status, {}, skipAutoCenter);
+
+                              // Update next delivery flag
+                              await base44.functions.invoke('updateNextDeliveryFlag', {
+                                deliveryId: delivery.id,
+                                driverId: delivery.driver_id,
+                                deliveryDate: delivery.delivery_date
+                              });
                             } finally {
                               console.log('▶️ [STATUS MENU] Resuming smart refresh');
                               setIsEntityUpdating(false);
@@ -1064,6 +1077,13 @@ export default function StopCard({
                   : `[${status.toUpperCase()}] ${reason}`;
 
                 await onStatusUpdate(delivery.id, status, { delivery_notes: updatedNotes }, false);
+
+                // Update next delivery flag
+                await base44.functions.invoke('updateNextDeliveryFlag', {
+                  deliveryId: delivery.id,
+                  driverId: delivery.driver_id,
+                  deliveryDate: delivery.delivery_date
+                });
 
                 // Trigger fullRouteOptimizer to recalculate ETAs
                 console.log('🔄 [FAILURE] Triggering route optimization...');
@@ -1746,6 +1766,13 @@ export default function StopCard({
                             // For a regular delivery, just mark it as completed
                             await onStatusUpdate(delivery.id, 'completed');
                           }
+
+                          // Update next delivery flag
+                          await base44.functions.invoke('updateNextDeliveryFlag', {
+                            deliveryId: delivery.id,
+                            driverId: delivery.driver_id,
+                            deliveryDate: delivery.delivery_date
+                          });
 
                           // Send notification to dispatchers (don't await - fire and forget)
                           if (userHasRole(currentUser, 'driver')) {
