@@ -72,6 +72,10 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
     setIsManualRefreshing(true);
 
     try {
+      // Import and perform bidirectional sync
+      const { performBidirectionalSync } = await import('../utils/offlineSync');
+      await performBidirectionalSync();
+
       // Reset all refresh timers to force immediate refresh
       smartRefreshManager.lastRefreshTimes = {
         driverLocation: 0,
@@ -88,9 +92,6 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       } else if (refreshData) {
         await refreshData(true);
       }
-      
-      // Notify that refresh is complete for UI updates
-      window.dispatchEvent(new CustomEvent('manualRefreshComplete'));
     } catch (error) {
       console.error('❌ [SmartRefreshIndicator] Manual refresh failed:', error);
     } finally {

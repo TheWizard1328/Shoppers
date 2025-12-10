@@ -320,6 +320,124 @@ export const processPendingMutations = async () => {
 };
 
 /**
+ * Bidirectional sync - compare local vs online and update both sides
+ */
+export const performBidirectionalSync = async () => {
+  if (syncInProgress) {
+    console.log('⏸️ [OfflineSync] Sync already in progress, skipping bidirectional sync');
+    return;
+  }
+
+  syncInProgress = true;
+  notifySyncStatus({ status: 'bidirectional_syncing' });
+
+  try {
+    console.log('🔄 [OfflineSync] Starting bidirectional sync...');
+
+    // STEP 1: Push local changes to backend
+    console.log('📤 [OfflineSync] Step 1/2: Pushing local changes to backend...');
+    await processPendingMutations();
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // STEP 2: Pull backend changes and compare with local database
+    console.log('📥 [OfflineSync] Step 2/2: Pulling backend changes and comparing...');
+    
+    // Fetch from backend
+    const [backendPatients, backendDeliveries] = await Promise.all([
+      Patient.list(),
+      (async () => {
+        const today = new Date();
+        const startDate = format(subDays(today, 60), 'yyyy-MM-dd');
+        const endDate = format(subDays(today, -30), 'yyyy-MM-dd');
+        return Delivery.filter({
+          delivery_date: { $gte: startDate, $lte: endDate }
+        }, '-updated_date');
+      })()
+    ]);
+
+    console.log(`📥 Fetched ${backendPatients.length} patients and ${backendDeliveries.length} deliveries from backend`);
+
+    // Get local data
+    const [localPatients, localDeliveries] = await Promise.all([
+      offlineDB.getAll(offlineDB.STORES.PATIENTS),
+      offlineDB.getAll(offlineDB.STORES.DELIVERIES)
+    ]);
+
+    console.log(`💾 Found ${localPatients.length} patients and ${localDeliveries.length} deliveries in local database`);
+
+    // Compare and merge
+    const updatedPatients = mergeData(localPatients, backendPatients);
+    const updatedDeliveries = mergeData(localDeliveries, backendDeliveries);
+
+    // Save merged data to local database
+    if (updatedPatients.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, updatedPatients);
+      console.log(`✅ Updated ${updatedPatients.length} patients in local database`);
+    }
+    
+    if (updatedDeliveries.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, updatedDeliveries);
+      console.log(`✅ Updated ${updatedDeliveries.length} deliveries in local database`);
+    }
+
+    // Update sync status
+    await Promise.all([
+      offlineDB.updateSyncStatus('Patient', { recordCount: backendPatients.length, status: 'synced' }),
+      offlineDB.updateSyncStatus('Delivery', { recordCount: backendDeliveries.length, status: 'synced' })
+    ]);
+
+    const results = {
+      patients: { total: backendPatients.length, updated: updatedPatients.length },
+      deliveries: { total: backendDeliveries.length, updated: updatedDeliveries.length }
+    };
+
+    console.log('✅ [OfflineSync] Bidirectional sync complete', results);
+    notifySyncStatus({ status: 'complete', results });
+
+    // Dispatch event to trigger UI refresh
+    window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
+
+    return results;
+  } catch (error) {
+    console.error('❌ [OfflineSync] Bidirectional sync failed:', error);
+    notifySyncStatus({ status: 'error', error: error.message });
+    throw error;
+  } finally {
+    syncInProgress = false;
+  }
+};
+
+/**
+ * Merge local and backend data - backend wins for conflicts (newer updated_date)
+ */
+const mergeData = (localRecords, backendRecords) => {
+  const localMap = new Map(localRecords.map(r => [r.id, r]));
+  const merged = [];
+
+  for (const backendRecord of backendRecords) {
+    const localRecord = localMap.get(backendRecord.id);
+    
+    if (!localRecord) {
+      // New record from backend
+      merged.push(backendRecord);
+    } else {
+      // Compare updated_date - backend wins if newer or equal
+      const backendTime = new Date(backendRecord.updated_date || backendRecord.created_date).getTime();
+      const localTime = new Date(localRecord.updated_date || localRecord.created_date).getTime();
+      
+      if (backendTime >= localTime) {
+        merged.push(backendRecord);
+      } else {
+        // Keep local version if newer
+        merged.push(localRecord);
+      }
+    }
+  }
+
+  return merged;
+};
+
+/**
  * Get sync statistics
  */
 export const getSyncStats = async () => {
