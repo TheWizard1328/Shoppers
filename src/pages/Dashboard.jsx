@@ -5362,27 +5362,45 @@ function Dashboard() {
       }
 
       console.log('');
-      console.log('📍 [START STEP 5] Fetching fresh deliveries from database...');
+      console.log('📍 [START STEP 5] Applying immediate local state update...');
 
-      const freshDeliveries = await base44.entities.Delivery.filter({
-        driver_id: driverId,
-        delivery_date: deliveryDate
+      // CRITICAL: Apply local updates immediately without fetching from backend
+      // This ensures UI shows the new order instantly, backend sync happens in background
+      const updatedDeliveries = deliveries.map(d => {
+        if (d.id === deliveryId) {
+          return {
+            ...d,
+            status: newStatus,
+            stop_order: newStopOrder,
+            delivery_time_eta: currentTime,
+            isNextDelivery: true
+          };
+        }
+        // Reset other isNextDelivery flags
+        if (d.driver_id === driverId && d.delivery_date === deliveryDate && d.isNextDelivery) {
+          return { ...d, isNextDelivery: false };
+        }
+        // Apply shifted stop orders
+        if (d.driver_id === driverId && d.delivery_date === deliveryDate && d.id !== deliveryId) {
+          if (completedDeliveries.length > 0) {
+            // Shift stops between lastCompleted and current
+            if (d.stop_order >= newStopOrder && d.stop_order < deliveryFromUI.stop_order) {
+              return { ...d, stop_order: d.stop_order + 1 };
+            }
+          } else {
+            // Shift all stops up
+            if (d.stop_order >= 1) {
+              return { ...d, stop_order: d.stop_order + 1 };
+            }
+          }
+        }
+        return d;
       });
+
+      console.log(`   - Updated ${updatedDeliveries.filter(d => d.id === deliveryId).length} started delivery`);
+      console.log(`   - Calling updateDeliveriesLocally with immediate changes...`);
       
-      console.log(`   - Fetched ${freshDeliveries.length} fresh deliveries from database`);
-      console.log(`   - Clearing pending updates for driver ${driverId} on ${deliveryDate}`);
-      smartRefreshManager.clearPendingUpdatesForDriver(driverId, deliveryDate);
-
-      const otherDriverDeliveries = (deliveries || []).filter((d) =>
-        d && (d.driver_id !== driverId || d.delivery_date !== deliveryDate)
-      );
-      console.log(`   - Keeping ${otherDriverDeliveries.length} deliveries from other drivers/dates`);
-
-      const mergedDeliveries = [...otherDriverDeliveries, ...freshDeliveries];
-      console.log(`   - Merged total: ${mergedDeliveries.length} deliveries`);
-      console.log(`   - Calling updateDeliveriesLocally...`);
-
-      updateDeliveriesLocally(mergedDeliveries);
+      updateDeliveriesLocally(updatedDeliveries);
       console.log('✅ [START STEP 5] Immediate UI update applied');
 
       // 6. Full data refresh
