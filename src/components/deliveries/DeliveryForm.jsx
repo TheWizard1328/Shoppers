@@ -1940,8 +1940,14 @@ export default function DeliveryForm({
         invalidate('Delivery');
       }
 
+      // CRITICAL: Clear staged deliveries AFTER successful save
+      // This prevents duplicate deliveries from being created
+      console.log('[AddToRoute] 🧹 Clearing staged deliveries from state...');
       setStagedDeliveries([]);
       setProjectedDeliveries([]);
+      hasLoadedPending.current = false; // Reset flag to allow reload
+      console.log('[AddToRoute] ✅ Staged deliveries cleared');
+      
       onCancel(); // Always close after successful batch save
     } catch (err) {
       console.error('[AddToRoute] ❌ Batch save error:', err);

@@ -1,11 +1,12 @@
 /**
  * Offline Mutations Manager
- * Handles local-first writes for Patient and Delivery entities
+ * Handles local-first writes for Patient, Delivery, and AppUser entities
  */
 
 import { offlineDB } from './offlineDatabase';
 import { Patient } from '@/entities/Patient';
 import { Delivery } from '@/entities/Delivery';
+import { AppUser } from '@/entities/AppUser';
 
 // Listeners for UI updates
 let mutationListeners = [];
