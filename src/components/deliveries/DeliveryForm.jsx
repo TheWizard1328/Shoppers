@@ -1860,21 +1860,27 @@ export default function DeliveryForm({
     setError(null);
 
     try {
-      // First, update existing deliveries with corrected TR#s (local-first)
+      // First, update existing deliveries with corrected TR#s
       if (existingDeliveriesToUpdate.length > 0) {
-        console.log(`[AddToRoute] 📝 Updating ${existingDeliveriesToUpdate.length} existing deliveries with corrected TR#s (local)...`);
+        console.log(`[AddToRoute] 📝 Updating ${existingDeliveriesToUpdate.length} existing deliveries with corrected TR#s...`);
         for (const update of existingDeliveriesToUpdate) {
           try {
-            await updateDeliveryLocal(update.id, { tracking_number: update.tracking_number });
+            // CRITICAL: Use backend-only update (deliveries may not be in IndexedDB yet)
+            const { base44 } = await import('@/api/base44Client');
+            await base44.entities.Delivery.update(update.id, { tracking_number: update.tracking_number });
           } catch (error) {
-            if (error.message?.includes('not found')) {
+            if (error.message?.includes('not found') || error.response?.status === 404) {
               console.log(`[AddToRoute] ⏭️ Skipping deleted delivery: ${update.id}`);
               continue;
             }
-            throw error;
+            // Replace delivery ID with patient name in error message
+            const delivery = allDeliveries?.find(d => d?.id === update.id);
+            const deliveryName = delivery?.patient_name || 'Unknown';
+            const errorMessage = error.message?.replace(update.id, deliveryName) || error.message;
+            throw new Error(errorMessage);
           }
         }
-        console.log('[AddToRoute] ✅ Existing TR#s corrected locally');
+        console.log('[AddToRoute] ✅ Existing TR#s corrected');
       }
 
       // Second, update pending deliveries that had status changes
