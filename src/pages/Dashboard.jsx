@@ -5182,9 +5182,11 @@ function Dashboard() {
       try {
         await base44.functions.invoke('etaOptimizer', {
           driverId: driverId,
-          deliveryDate: deliveryDate
+          deliveryDate: deliveryDate,
+          startFromDeliveryId: deliveryId,
+          baselineETA: currentTime
         });
-        console.log('✅ [START STEP 4] ETA optimizer completed - subsequent ETAs recalculated');
+        console.log('✅ [START STEP 4] ETA optimizer completed - subsequent ETAs recalculated from started delivery');
       } catch (etaError) {
         console.warn('⚠️ [START STEP 4] ETA optimizer failed:', etaError);
       }
