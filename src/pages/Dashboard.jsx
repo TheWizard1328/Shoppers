@@ -38,6 +38,7 @@ import { determineAMPMFromTime } from '@/components/utils/ampmUtils';
 import AIDriverAssistant from "@/components/dashboard/AIDriverAssistant";
 import MapViewCycleFAB from "@/components/dashboard/MapViewCycleFAB";
 import { getOrGenerateRoutePolyline, getStoredRouteCoordinates } from "@/components/utils/routePolylineManager";
+import { determinePolylineSegment, fetchPolylineForSegment } from "@/components/utils/dynamicPolylineManager";
 import { Input } from "@/components/ui/input";
 import { driverLocationPoller } from "@/components/utils/driverLocationPoller";
 import { getAvailableDrivers } from "@/components/utils/driverSelectors";
