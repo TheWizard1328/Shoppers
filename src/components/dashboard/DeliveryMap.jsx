@@ -1121,20 +1121,14 @@ export default function DeliveryMap({
     return selectedDate === today;
   }, [selectedDate]);
 
-  // Process driver locations - Desktop shows shared locations, Mobile shows blue dot
+  // Process driver locations - Show shared location markers for on-duty drivers with location sharing enabled
   const driverLocationMarkers = useMemo(() => {
     // Only show driver markers when viewing current date
     if (!isViewingCurrentDate) {
       return [];
     }
 
-    // CRITICAL: On mobile, don't show shared location markers (blue dot handles current driver)
-    if (isMobile) {
-      console.log('🗺️ [DeliveryMap] Mobile device - hiding shared location markers (blue dot shown separately)');
-      return [];
-    }
-
-    console.log('🗺️ [DeliveryMap] Desktop - processing shared driver locations:', safeDriverLocations.length);
+    console.log('🗺️ [DeliveryMap] Processing shared driver locations:', safeDriverLocations.length);
 
     const isAdmin = currentUser && userHasRole(currentUser, 'admin');
     const currentUserCityId = currentUser?.city_id;
