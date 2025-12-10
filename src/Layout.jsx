@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, Fragment, useMemo, useCallback, useRef } from "react";
 import "./components/utils/globalErrorHandler";
 import { Link, useLocation } from "react-router-dom";
@@ -89,6 +90,8 @@ import { ResizableDivider } from './components/ui/resizable-divider';
 import { performInitialSync, processPendingMutations } from './components/utils/offlineSync';
 import OfflineSyncIndicator from './components/layout/OfflineSyncIndicator';
 import { subscribeMutations } from './components/utils/offlineMutations';
+
+const APP_VERSION = 'v1.0.0';
 
 const createMergedUser = (authUser, appUser) => {
   // CRITICAL: Allow creating users from AppUser data alone (for non-admin users who can't fetch User.list())
@@ -897,7 +900,7 @@ export default function Layout({ children, currentPageName }) {
       console.log('🔄 [Layout] Updating users from smart refresh');
       setUsers(updates.users);
     }
-  }, [currentUser, isFormOverlayOpen]);
+  }, [currentUser, isFormOverlayOpen, deliveries, patients]);
 
   // Unified real-time refresh system - single 5s interval handles all entity types
   // Each entity has its own refresh interval managed by smartRefreshManager
@@ -1073,7 +1076,7 @@ export default function Layout({ children, currentPageName }) {
         refreshIntervalRef.current = null;
       }
     };
-    }, [initialGlobalFiltersSet, currentUser, isFormOverlayOpen, dataLoaded, updateAppDataState, appUsers, deliveries, stores, drivers]);
+    }, [initialGlobalFiltersSet, currentUser, isFormOverlayOpen, dataLoaded, updateAppDataState, appUsers, deliveries, stores, drivers, isEntityUpdating]);
 
     // Wake Lock API and visibility change handler
     useEffect(() => {
@@ -1227,7 +1230,7 @@ export default function Layout({ children, currentPageName }) {
       };
 
       performPageChangeRefresh();
-    }, [currentPageName]);
+    }, [currentPageName, initialGlobalFiltersSet, currentUser, dataLoaded, deliveries, patients, appUsers, stores, drivers, updateAppDataState]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -1589,7 +1592,7 @@ export default function Layout({ children, currentPageName }) {
       } finally {
       triggerFullDataLoad.isRunning = false;
       }
-      }, [currentUser, isFormOverlayOpen]);
+      }, [currentUser, isFormOverlayOpen, cities, patients]);
 
   useEffect(() => {
     if (!initialGlobalFiltersSet || !currentUser) {
@@ -2133,6 +2136,8 @@ export default function Layout({ children, currentPageName }) {
             display: flex !important;
             flex-direction: column !important;
             overflow: hidden !important;
+            max-height: 100vh !important;
+            max-height: 100dvh !important;
           }
         }
 
@@ -2485,14 +2490,12 @@ export default function Layout({ children, currentPageName }) {
 
                       <div>
                         <h2 className="font-bold text-lg text-slate-900">RxDeliver</h2>
-                        <p className="text-xs text-slate-500">Pharmacy Logistics</p>
+                        <p className="text-xs text-slate-500">Pharmacy Logistics • {APP_VERSION}</p>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2">
 
-                      {/* --- PHASE 4: SUBTLE SETTINGS MENU (DESKTOP) --- */}
-                      {/* Only show if at least one menu item is visible */}
                       {!sidebarOpen && userHasRole(currentUser, 'admin') && cities && cities.length > 0 && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
