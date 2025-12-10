@@ -314,24 +314,26 @@ Deno.serve(async (req) => {
       
       console.log(`  - Stop ${i + 1}: +${waypoint.extraTime || 5} min service → ${cumulativeTime.toISOString()}`);
       
-      // CRITICAL: Check if calculated ETA is in the past - update to current time if so
-      // This ensures ETAs are always realistic (never show past times for future stops)
-      if (i === 0) {
-        // For the NEXT stop (first incomplete), compare with current time
-        const currentDateTime = new Date();
-        if (cumulativeTime < currentDateTime) {
-          console.log(`  - Stop ${i + 1}: Calculated ETA is in the past (${cumulativeTime.toISOString()})`);
-          console.log(`  - Stop ${i + 1}: Updating to current time (${currentDateTime.toISOString()})`);
-          cumulativeTime = currentDateTime;
-        }
-      }
-      
       // Format ETA as HH:mm
       const etaHours = String(cumulativeTime.getHours()).padStart(2, '0');
       const etaMinutes = String(cumulativeTime.getMinutes()).padStart(2, '0');
-      const eta = `${etaHours}:${etaMinutes}`;
+      let eta = `${etaHours}:${etaMinutes}`;
       
-      console.log(`  - Stop ${i + 1}: Final ETA = ${eta}`);
+      // CRITICAL: Check if current time is beyond calculated ETA
+      // If so, update ETA to current time (can't arrive in the past)
+      const currentTimeForComparison = new Date();
+      if (cumulativeTime < currentTimeForComparison) {
+        const currentHours = String(currentTimeForComparison.getHours()).padStart(2, '0');
+        const currentMinutes = String(currentTimeForComparison.getMinutes()).padStart(2, '0');
+        eta = `${currentHours}:${currentMinutes}`;
+        
+        // Update cumulative time to current time so subsequent stops are calculated correctly
+        cumulativeTime = new Date(currentTimeForComparison);
+        
+        console.log(`  - Stop ${i + 1}: ETA was in past, updated to current time = ${eta}`);
+      } else {
+        console.log(`  - Stop ${i + 1}: Final ETA = ${eta}`);
+      }
       
       updatedDeliveries.push({
         id: waypoint.deliveryId,
