@@ -267,7 +267,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
   };
   
   // Conditional return AFTER all hooks
-  if (!isDriver && !isAdmin) { 
+  if (!isMobile || (!isDriver && !isAdmin)) { 
     return null; 
   }
 
@@ -277,40 +277,11 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
 
   const isSharingEnabled = localUser.location_tracking_enabled;
 
-  // Different layouts for mobile vs desktop
-  if (isMobile) {
-    // Mobile: Compact inline toggle
-    return (
-      <div className="flex items-center gap-1.5 bg-white/90 backdrop-blur-sm rounded-lg px-2 py-1 border border-slate-200 shadow-sm">
-        <Label htmlFor="location-toggle-mobile" className="text-[10px] font-medium text-slate-700 cursor-pointer whitespace-nowrap">
-          Share Location
-        </Label>
-        <Switch
-          id="location-toggle-mobile"
-          checked={isSharingEnabled}
-          onCheckedChange={handleToggle}
-          disabled={isToggling}
-          className="data-[state=checked]:bg-emerald-500 scale-75"
-        />
-        {isSharingEnabled ? 
-          <Eye className="h-3 w-3 text-emerald-600" /> : 
-          <EyeOff className="h-3 w-3 text-slate-400" />
-        }
-        {permissionStatus && (
-          <span className="text-[9px] text-slate-600 ml-1">
-            {permissionStatus}
-          </span>
-        )}
-      </div>
-    );
-  }
-
-  // Desktop: Full detailed toggle in sidebar
   return (
-    <div className="flex items-center gap-2 bg-slate-50 rounded-lg p-3 border border-slate-200">
-      <div className="flex items-center gap-2 flex-1">
+    <div className="flex items-center gap-2 bg-white/80 backdrop-blur-sm rounded-lg p-2 border border-white/40">
+      <div className="flex items-center gap-2">
         {getStatusIcon()}
-        <div className="flex flex-col flex-1">
+        <div className="flex flex-col">
           <div className="flex items-center gap-2">
             <Label htmlFor="location-toggle" className="text-xs font-medium text-slate-700 cursor-pointer">
               Location Sharing
