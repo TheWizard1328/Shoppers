@@ -5341,8 +5341,6 @@ function Dashboard() {
       });
       console.log(`✅ [START STEP 3] Started delivery reordered to stop #${newStopOrder}, marked as next, and ETA set to ${currentTime}`);
 
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-
       console.log('');
       console.log('📍 [START STEP 4] Running ETA optimizer to update subsequent deliveries (ALL users)...');
       
