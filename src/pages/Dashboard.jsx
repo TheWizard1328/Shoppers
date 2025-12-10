@@ -5419,7 +5419,7 @@ function Dashboard() {
       console.log('📍 [START STEP 7] Finding and scrolling to next delivery...');
 
       setTimeout(() => {
-        const nextCard = freshDeliveries?.find((d) =>
+        const nextCard = updatedDeliveries?.find((d) =>
           d && d.isNextDelivery && !finishedStatuses.includes(d.status)
         );
 
@@ -5429,12 +5429,12 @@ function Dashboard() {
 
           if (cardElement) {
             cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-            console.log('✅ [START STEP 6] Scrolled to next delivery card');
+            console.log('✅ [START STEP 7] Scrolled to next delivery card');
           } else {
-            console.warn('⚠️ [START STEP 6] Card element not found in DOM');
+            console.warn('⚠️ [START STEP 7] Card element not found in DOM');
           }
         } else {
-          console.log('ℹ️ [START STEP 6] No next card found (route may be complete)');
+          console.log('ℹ️ [START STEP 7] No next card found (route may be complete)');
         }
       }, 300);
 
