@@ -1377,25 +1377,23 @@ function Dashboard() {
       // Re-locking should start the timer for phase 1 and 3
       shouldStartTimer = newMapViewPhase === 1 || newMapViewPhase === 3;
 
-      // CRITICAL: When re-activating Phase 2, scroll to next delivery card
-      if (newMapViewPhase === 2) {
-        console.log('📍 [FAB Re-lock] Phase 2 - scrolling to next delivery');
-        setTimeout(() => {
-          const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-          const incompleteDeliveries = deliveriesWithStopOrder.
-          filter((d) => d && !finishedStatuses.includes(d.status)).
-          sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+      // CRITICAL: When re-activating any phase, scroll to next delivery card
+      console.log(`📍 [FAB Re-lock] Phase ${newMapViewPhase} - scrolling to next delivery`);
+      setTimeout(() => {
+        const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+        const incompleteDeliveries = deliveriesWithStopOrder.
+        filter((d) => d && !finishedStatuses.includes(d.status)).
+        sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
-          if (incompleteDeliveries.length > 0) {
-            const nextCard = incompleteDeliveries[0];
-            console.log(`📍 [FAB Re-lock] Scrolling to next delivery: ${nextCard.patient_name || 'Pickup'}`);
-            const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
-            if (cardElement) {
-              cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-            }
+        if (incompleteDeliveries.length > 0) {
+          const nextCard = incompleteDeliveries[0];
+          console.log(`📍 [FAB Re-lock] Scrolling to next delivery: ${nextCard.patient_name || 'Pickup'}`);
+          const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
+          if (cardElement) {
+            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
           }
-        }, 300);
-      }
+        }
+      }, 300);
     } else {
       // FAB is locked - advance to next phase
       const nextPhase = mapViewPhase % 3 + 1;
@@ -2605,6 +2603,23 @@ function Dashboard() {
       console.log('🗺️ [Card Collapse] Reactivating FAB phase:', mapViewPhase);
       setIsMapViewLocked(true);
       setMapViewTrigger((prev) => prev + 1);
+
+      // Scroll to next delivery card
+      setTimeout(() => {
+        const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+        const incompleteDeliveries = deliveriesWithStopOrder.
+        filter((d) => d && !finishedStatuses.includes(d.status)).
+        sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+
+        if (incompleteDeliveries.length > 0) {
+          const nextCard = incompleteDeliveries[0];
+          console.log(`📍 [Card Collapse] Scrolling to next delivery: ${nextCard.patient_name || 'Pickup'}`);
+          const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
+          if (cardElement) {
+            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+          }
+        }
+      }, 300);
 
       // Set up timer based on current phase
       if (mapViewPhase === 1 || mapViewPhase === 3) {
