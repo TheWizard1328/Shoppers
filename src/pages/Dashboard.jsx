@@ -5009,6 +5009,39 @@ function Dashboard() {
         updateData.actual_delivery_time = null;
       }
 
+      // CRITICAL: Update isNextDelivery flags BEFORE updating status (so UI shows correct next stop immediately)
+      if (['completed', 'failed', 'cancelled', 'returned'].includes(newStatus)) {
+        console.log('');
+        console.log('🏗️ STEP 0.5: Updating isNextDelivery flags BEFORE status change');
+        
+        // Reset all isNextDelivery flags for this driver/date
+        const allDriverDeliveriesForDate = deliveriesWithStopOrder.filter(d =>
+          d && d.driver_id === driverId && d.delivery_date === deliveryDate
+        );
+        
+        const resetPromises = allDriverDeliveriesForDate
+          .filter(d => d.isNextDelivery && d.id !== deliveryId)
+          .map(d => updateDeliveryLocal(d.id, { isNextDelivery: false }));
+        
+        if (resetPromises.length > 0) {
+          await Promise.all(resetPromises);
+          console.log(`✅ Reset ${resetPromises.length} isNextDelivery flags`);
+        }
+        
+        // Find the next incomplete delivery (excluding the one being completed) and mark it as next
+        const incompleteDeliveries = allDriverDeliveriesForDate
+          .filter(d => d.id !== deliveryId && !['completed', 'failed', 'cancelled', 'returned'].includes(d.status))
+          .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+        
+        if (incompleteDeliveries.length > 0) {
+          const nextStop = incompleteDeliveries[0];
+          await updateDeliveryLocal(nextStop.id, { isNextDelivery: true });
+          console.log(`✅ Set isNextDelivery=true for next stop: ${nextStop.patient_name || 'Pickup'}`);
+        } else {
+          console.log('ℹ️ No incomplete deliveries remaining (route complete)');
+        }
+      }
+
       console.log('');
       console.log('🏗️ STEP 1: Updating delivery status (local-first)');
       await updateDeliveryLocal(deliveryId, updateData);
@@ -5024,39 +5057,6 @@ function Dashboard() {
           console.log('✅ Patient last_delivery_date updated');
         } catch (error) {
           console.error('❌ Failed to update patient last_delivery_date:', error);
-        }
-      }
-
-      // STEP 1.6: Update isNextDelivery flags when completing a delivery
-      if (['completed', 'failed', 'cancelled', 'returned'].includes(newStatus)) {
-        console.log('');
-        console.log('🏗️ STEP 1.6: Updating isNextDelivery flags');
-        
-        // Reset all isNextDelivery flags for this driver/date
-        const allDriverDeliveriesForDate = deliveriesWithStopOrder.filter(d =>
-          d && d.driver_id === driverId && d.delivery_date === deliveryDate
-        );
-        
-        const resetPromises = allDriverDeliveriesForDate
-          .filter(d => d.isNextDelivery)
-          .map(d => updateDeliveryLocal(d.id, { isNextDelivery: false }));
-        
-        if (resetPromises.length > 0) {
-          await Promise.all(resetPromises);
-          console.log(`✅ Reset ${resetPromises.length} isNextDelivery flags`);
-        }
-        
-        // Find the next incomplete delivery and mark it as next
-        const incompleteDeliveries = allDriverDeliveriesForDate
-          .filter(d => !['completed', 'failed', 'cancelled', 'returned'].includes(d.status))
-          .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-        
-        if (incompleteDeliveries.length > 0) {
-          const nextStop = incompleteDeliveries[0];
-          await updateDeliveryLocal(nextStop.id, { isNextDelivery: true });
-          console.log(`✅ Set isNextDelivery=true for next stop: ${nextStop.patient_name || 'Pickup'}`);
-        } else {
-          console.log('ℹ️ No incomplete deliveries remaining (route complete)');
         }
       }
 
