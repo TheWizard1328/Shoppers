@@ -1081,81 +1081,81 @@ function Dashboard() {
 
               // Check each active delivery for proximity
               for (const delivery of activeDeliveries) {
+                let stopLat, stopLon;
 
-              let stopLat, stopLon;
+                if (delivery.patient_id) {
+                  const patient = patients.find((p) => p && p.id === delivery.patient_id);
+                  stopLat = patient?.latitude;
+                  stopLon = patient?.longitude;
+                } else if (delivery.store_id) {
+                  const store = stores.find((s) => s && s.id === delivery.store_id);
+                  stopLat = store?.latitude;
+                  stopLon = store?.longitude;
+                }
 
-              if (delivery.patient_id) {
-                const patient = patients.find((p) => p && p.id === delivery.patient_id);
-                stopLat = patient?.latitude;
-                stopLon = patient?.longitude;
-              } else if (delivery.store_id) {
-                const store = stores.find((s) => s && s.id === delivery.store_id);
-                stopLat = store?.latitude;
-                stopLon = store?.longitude;
-              }
+                if (stopLat && stopLon) {
+                  const distanceKm = calculateDistance(
+                    newLocation.latitude,
+                    newLocation.longitude,
+                    stopLat,
+                    stopLon
+                  );
 
-              if (stopLat && stopLon) {
-                const distanceKm = calculateDistance(
-                  newLocation.latitude,
-                  newLocation.longitude,
-                  stopLat,
-                  stopLon
-                );
-
-                // Within 100m (0.1km)
-                if (distanceKm <= 0.1) {
-                  // Check if card is currently centered on screen
-                  const cardElement = document.getElementById(`stop-card-${delivery.id}`);
-                  let isCardCentered = false;
-
-                  if (cardElement && stopCardsContainerRef.current) {
-                    const container = stopCardsContainerRef.current.querySelector('.overflow-x-auto');
-                    if (container) {
-                      const containerRect = container.getBoundingClientRect();
-                      const cardRect = cardElement.getBoundingClientRect();
-                      
-                      const containerCenter = containerRect.left + containerRect.width / 2;
-                      const cardCenter = cardRect.left + cardRect.width / 2;
-                      const distanceFromCenter = Math.abs(cardCenter - containerCenter);
-                      
-                      // Consider centered if within 50px of center
-                      isCardCentered = distanceFromCenter < 50;
-                      console.log(`📍 [Proximity] Card centering check: ${distanceFromCenter.toFixed(0)}px from center (${isCardCentered ? 'CENTERED' : 'NOT CENTERED'})`);
-                    }
-                  }
-
-                  if (isCardCentered) {
-                    console.log(`⏭️ [Proximity] Driver within 100m of ${delivery.patient_name || 'Pickup'} but card already centered - ignoring snap`);
-                    continue;
-                  }
-
-                  console.log(`📍 [Proximity] Driver within 100m of ${delivery.patient_name || 'Pickup'} and card NOT centered - auto-center with 60s cooldown`);
-
-                  // Record the snap time (prevents any snaps for 60 seconds)
-                  lastProximitySnapTimeRef.current = Date.now();
-
-                  // Center map on the nearby marker
-                  setShouldFitBounds({
-                    bounds: [[stopLat, stopLon]],
-                    options: {
-                      paddingTopLeft: [50, 50],
-                      paddingBottomRight: [50, StopCardsHeight],
-                      maxZoom: 17
-                    }
-                  });
-                  setMapCenter(null);
-                  setMapZoom(null);
-
-                  // Scroll to the associated card
-                  setTimeout(() => {
+                  // Within 100m (0.1km)
+                  if (distanceKm <= 0.1) {
+                    // Check if card is currently centered on screen
                     const cardElement = document.getElementById(`stop-card-${delivery.id}`);
-                    if (cardElement) {
-                      cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                      console.log(`✅ [Proximity] Centered card: ${delivery.id}`);
-                    }
-                  }, 300);
+                    let isCardCentered = false;
 
-                  break; // Only zoom to first nearby stop
+                    if (cardElement && stopCardsContainerRef.current) {
+                      const container = stopCardsContainerRef.current.querySelector('.overflow-x-auto');
+                      if (container) {
+                        const containerRect = container.getBoundingClientRect();
+                        const cardRect = cardElement.getBoundingClientRect();
+                        
+                        const containerCenter = containerRect.left + containerRect.width / 2;
+                        const cardCenter = cardRect.left + cardRect.width / 2;
+                        const distanceFromCenter = Math.abs(cardCenter - containerCenter);
+                        
+                        // Consider centered if within 50px of center
+                        isCardCentered = distanceFromCenter < 50;
+                        console.log(`📍 [Proximity] Card centering check: ${distanceFromCenter.toFixed(0)}px from center (${isCardCentered ? 'CENTERED' : 'NOT CENTERED'})`);
+                      }
+                    }
+
+                    if (isCardCentered) {
+                      console.log(`⏭️ [Proximity] Driver within 100m of ${delivery.patient_name || 'Pickup'} but card already centered - ignoring snap`);
+                      continue;
+                    }
+
+                    console.log(`📍 [Proximity] Driver within 100m of ${delivery.patient_name || 'Pickup'} and card NOT centered - auto-center with 60s cooldown`);
+
+                    // Record the snap time (prevents any snaps for 60 seconds)
+                    lastProximitySnapTimeRef.current = Date.now();
+
+                    // Center map on the nearby marker
+                    setShouldFitBounds({
+                      bounds: [[stopLat, stopLon]],
+                      options: {
+                        paddingTopLeft: [50, 50],
+                        paddingBottomRight: [50, StopCardsHeight],
+                        maxZoom: 17
+                      }
+                    });
+                    setMapCenter(null);
+                    setMapZoom(null);
+
+                    // Scroll to the associated card
+                    setTimeout(() => {
+                      const cardElement = document.getElementById(`stop-card-${delivery.id}`);
+                      if (cardElement) {
+                        cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                        console.log(`✅ [Proximity] Centered card: ${delivery.id}`);
+                      }
+                    }, 300);
+
+                    break; // Only zoom to first nearby stop
+                  }
                 }
               }
             } else {
