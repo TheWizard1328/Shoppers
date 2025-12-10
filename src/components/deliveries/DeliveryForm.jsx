@@ -23,6 +23,7 @@ import { useAppData } from '../utils/AppDataContext';
 import { getUserAgentInfo } from '../utils/deviceUtils';
 import { shouldShowStoreBadges, isAppOwner } from '../utils/userRoles';
 import { sendDeliveryMessage } from '../utils/deliveryMessaging';
+import { reorderStops } from '../utils/stopReorderer';
 import { 
   createPatientLocal, 
   updatePatientLocal, 
@@ -2064,32 +2065,15 @@ export default function DeliveryForm({
       invalidate('Delivery');
       invalidate('Patient');
 
-      // If status changed to completion, recalculate stop orders for remaining deliveries
-      if (statusChangedToCompletion && delivery.driver_id && delivery.delivery_date) {
-        console.log('[DeliveryForm] Status changed to completion, recalculating stop orders...');
-
-        // Get all deliveries for this driver on this date that are NOT completed/cancelled/failed
-        const remainingDeliveries = allDeliveries.filter((d) =>
-          d &&
-          d.id !== delivery.id &&
-          d.delivery_date === delivery.delivery_date &&
-          d.driver_id === delivery.driver_id &&
-          !['completed', 'cancelled', 'failed', 'returned'].includes(d.status)
-        );
-
-        // Sort by current stop_order
-        remainingDeliveries.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-
-        // Reassign sequential stop orders starting from 1
-        for (let i = 0; i < remainingDeliveries.length; i++) {
-          const newStopOrder = i + 1;
-          if (remainingDeliveries[i].stop_order !== newStopOrder) {
-            await base44.entities.Delivery.update(remainingDeliveries[i].id, { stop_order: newStopOrder });
-            console.log(`[DeliveryForm] Updated stop_order for ${remainingDeliveries[i].patient_name || 'Pickup'}: ${remainingDeliveries[i].stop_order} -> ${newStopOrder}`);
-          }
+      // CRITICAL: Always reorder stops after any delivery update or status change
+      if (delivery && delivery.driver_id && delivery.delivery_date) {
+        console.log('🔄 [DeliveryForm] Reordering stops after delivery update...');
+        try {
+          await reorderStops(delivery.driver_id, delivery.delivery_date, allDeliveries);
+          console.log('✅ [DeliveryForm] Stop reordering complete');
+        } catch (error) {
+          console.error('❌ [DeliveryForm] Stop reordering failed:', error);
         }
-
-        console.log(`[DeliveryForm] Recalculated stop orders for ${remainingDeliveries.length} remaining deliveries`);
       }
 
       if (isPickupMode && delivery && formData.status === 'completed' && formData.store_id && formData.ampm_deliveries) {
