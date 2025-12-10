@@ -942,7 +942,7 @@ function Dashboard() {
         });
 
       return unsubscribe;
-    }, []);
+    }, [deliveriesWithStopOrder, mapViewPhase]);
 
   useEffect(() => {
     return () => {
