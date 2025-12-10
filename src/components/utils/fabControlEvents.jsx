@@ -44,5 +44,33 @@ export const fabControlEvents = {
         console.error('Error in FAB event listener:', error);
       }
     });
+  },
+
+  /**
+   * Deactivate FAB and store current phase (for button actions)
+   */
+  deactivateFAB: () => {
+    console.log('📢 [FAB Events] Broadcasting FAB deactivation');
+    fabControlListeners.forEach(callback => {
+      try {
+        callback({ type: 'DEACTIVATE_FAB' });
+      } catch (error) {
+        console.error('Error in FAB event listener:', error);
+      }
+    });
+  },
+
+  /**
+   * Reactivate FAB and restore previous phase (after button action completes)
+   */
+  reactivateFAB: () => {
+    console.log('📢 [FAB Events] Broadcasting FAB reactivation');
+    fabControlListeners.forEach(callback => {
+      try {
+        callback({ type: 'REACTIVATE_FAB' });
+      } catch (error) {
+        console.error('Error in FAB event listener:', error);
+      }
+    });
   }
 };

@@ -39,6 +39,7 @@ import { toast } from "sonner";
 import { smartRefreshManager } from "../utils/smartRefreshManager";
 import FailureReasonDialog from "../deliveries/FailureReasonDialog";
 import { updateDeliveryLocal } from '../utils/offlineMutations';
+import { fabControlEvents } from '../utils/fabControlEvents';
 
 // Global statusConfig
 const statusConfig = {
@@ -779,6 +780,9 @@ export default function StopCard({
                                 return;
                               }
 
+                              // CRITICAL: Deactivate FAB before action
+                              fabControlEvents.deactivateFAB();
+
                               console.log('⏸️ [STATUS BUTTON] Pausing smart refresh...');
                               setIsEntityUpdating(true);
 
@@ -815,6 +819,9 @@ export default function StopCard({
                                 setIsEntityUpdating(false);
                                 await new Promise((resolve) => setTimeout(resolve, 100));
                                 console.log('✅ [STATUS BUTTON] Status change cycle complete');
+
+                                // CRITICAL: Reactivate FAB after action
+                                fabControlEvents.reactivateFAB();
                               }
                             }}
                             className={`w-full justify-center text-center font-semibold ${
@@ -1060,6 +1067,9 @@ export default function StopCard({
               const status = pendingFailureStatus;
               setPendingFailureStatus(null);
 
+              // CRITICAL: Deactivate FAB before action
+              fabControlEvents.deactivateFAB();
+
               console.log('⏸️ [FAILURE] Pausing smart refresh...');
               setIsEntityUpdating(true);
 
@@ -1117,6 +1127,9 @@ export default function StopCard({
                 setIsEntityUpdating(false);
                 await new Promise((resolve) => setTimeout(resolve, 100));
                 console.log('✅ [FAILURE] Failure marking cycle complete');
+
+                // CRITICAL: Reactivate FAB after action
+                fabControlEvents.reactivateFAB();
               }
             }}
             deliveryName={displayName}
@@ -1667,6 +1680,10 @@ export default function StopCard({
                     <Button
                       onClick={async (e) => {
                         e.stopPropagation();
+
+                        // CRITICAL: Deactivate FAB before action
+                        fabControlEvents.deactivateFAB();
+
                         setIsRetrying(true);
                         console.log('⏸️ [RETRY] Pausing smart refresh...');
                         setIsEntityUpdating(true);
@@ -1699,6 +1716,9 @@ export default function StopCard({
                           setIsEntityUpdating(false);
                           await new Promise((resolve) => setTimeout(resolve, 100));
                           console.log('✅ [RETRY] Retry cycle complete');
+
+                          // CRITICAL: Reactivate FAB after action
+                          fabControlEvents.reactivateFAB();
                         }
                       }}
                       size="sm"
@@ -1712,6 +1732,10 @@ export default function StopCard({
                     <Button
                       onClick={async (e) => {
                         e.stopPropagation();
+
+                        // CRITICAL: Deactivate FAB before action
+                        fabControlEvents.deactivateFAB();
+
                         setIsCompleting(true);
                         console.log('⏸️ [COMPLETE] Pausing smart refresh...');
                         setIsEntityUpdating(true);
@@ -1813,6 +1837,9 @@ export default function StopCard({
                           setIsEntityUpdating(false);
                           await new Promise((resolve) => setTimeout(resolve, 100));
                           console.log('✅ [COMPLETE] Complete cycle finished');
+
+                          // CRITICAL: Reactivate FAB after action
+                          fabControlEvents.reactivateFAB();
                         }
                       }}
                       size="sm"
@@ -1824,6 +1851,10 @@ export default function StopCard({
                     onStartDelivery &&
                     <Button onClick={async (e) => {
                       e.stopPropagation();
+
+                      // CRITICAL: Deactivate FAB before action
+                      fabControlEvents.deactivateFAB();
+
                       setIsStarting(true);
                       console.log('⏸️ [START] Pausing smart refresh...');
                       setIsEntityUpdating(true);
@@ -1867,6 +1898,9 @@ export default function StopCard({
                         setIsEntityUpdating(false);
                         await new Promise((resolve) => setTimeout(resolve, 100));
                         console.log('✅ [START] Start cycle complete');
+
+                        // CRITICAL: Reactivate FAB after action
+                        fabControlEvents.reactivateFAB();
                       }
                     }} size="sm" disabled={isStarting} className="bg-blue-600 px-3 text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-8 border-r border-blue-500 !text-white">
                               {isStarting ? <Loader2 className="w-3 h-3 mr-1 !text-white animate-spin" /> : <Clock className="w-3 h-3 mr-1 !text-white" />}
@@ -1904,7 +1938,16 @@ export default function StopCard({
                               <DropdownMenuSeparator className="bg-slate-200" />
                               <DropdownMenuItem onClick={async (e) => {
                             e.stopPropagation();
-                            onRestart(delivery.id);
+                            
+                            // CRITICAL: Deactivate FAB before restart
+                            fabControlEvents.deactivateFAB();
+                            
+                            try {
+                              await onRestart(delivery.id);
+                            } finally {
+                              // CRITICAL: Reactivate FAB after restart
+                              fabControlEvents.reactivateFAB();
+                            }
                           }}>
                                 <RotateCcw className="w-4 h-4 mr-2" />
                                 Restart Delivery
