@@ -107,14 +107,7 @@ const IntervalSlider = ({ id, label, value, onChange, min, max, step, priority }
 
 export default function AppSettingsPanel() {
   const [intervals, setIntervals] = useState(DEFAULT_INTERVALS);
-  // CRITICAL: Always sync with smartRefreshManager's current state on mount
-  // The manager is the source of truth since it persists across tab switches
-  const [smartRefreshEnabled, setSmartRefreshEnabled] = useState(() => {
-    // Always read from manager - it's already initialized by Layout
-    const currentValue = smartRefreshManager._enabled;
-    console.log(`⚙️ [AppSettingsPanel] Initial mount - reading from manager: _enabled=${currentValue}, _initialized=${smartRefreshManager._initialized}`);
-    return currentValue;
-  });
+  const [smartRefreshEnabled, setSmartRefreshEnabled] = useState(() => smartRefreshManager._enabled);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -128,10 +121,7 @@ export default function AppSettingsPanel() {
   const loadSettings = useCallback(async () => {
     setIsLoading(true);
     try {
-      // CRITICAL: If smartRefreshManager is already initialized, use its values as source of truth
-      // This handles tab switching where the manager already has the correct state
       if (smartRefreshManager._initialized) {
-        console.log(`⚙️ [AppSettingsPanel] Manager already initialized - using cached values: _enabled=${smartRefreshManager._enabled}`);
         setSmartRefreshEnabled(smartRefreshManager._enabled);
         setSavedSmartRefreshEnabled(smartRefreshManager._enabled);
       }
@@ -148,19 +138,14 @@ export default function AppSettingsPanel() {
           setSavedAppVersion(settings[0].setting_value.appVersion);
         }
         
-        // Only update enabled state from DB if manager wasn't already initialized
-        // This prevents DB read from overwriting user's recent toggle changes
         if (!smartRefreshManager._initialized) {
           const enabled = settings[0].setting_value.smartRefreshEnabled !== false;
-          console.log(`⚙️ [AppSettingsPanel] Loaded smartRefreshEnabled from DB: ${settings[0].setting_value.smartRefreshEnabled} → ${enabled}`);
           setSmartRefreshEnabled(enabled);
           setSavedSmartRefreshEnabled(enabled);
-          // Sync with smartRefreshManager
           smartRefreshManager._enabled = enabled;
           smartRefreshManager._initialized = true;
         }
       } else {
-        console.log('⚙️ [AppSettingsPanel] No settings found, using defaults');
         setIntervals(DEFAULT_INTERVALS);
         setSavedIntervals(DEFAULT_INTERVALS);
         if (!smartRefreshManager._initialized) {
@@ -181,22 +166,15 @@ export default function AppSettingsPanel() {
     loadSettings();
   }, [loadSettings]);
 
-  // Poll smartRefreshManager.lastRefreshTimes to keep "Current Refresh Status" live
   useEffect(() => {
     const updateRefreshTimes = () => {
       setLastRefreshTimes({ ...smartRefreshManager.lastRefreshTimes });
     };
-
-    // Update immediately on mount
     updateRefreshTimes();
-
-    // Poll every 2 seconds to keep the display live
     const interval = setInterval(updateRefreshTimes, 2000);
-
     return () => clearInterval(interval);
   }, []);
 
-  // Check for changes
   useEffect(() => {
     if (savedIntervals) {
       const intervalsChanged = Object.keys(intervals).some(key => intervals[key] !== savedIntervals[key]);
@@ -221,24 +199,21 @@ export default function AppSettingsPanel() {
         appVersion: appVersion
       };
 
-      // Save all settings together
       const existing = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
       
       if (existing && existing.length > 0) {
         await base44.entities.AppSettings.update(existing[0].id, {
           setting_value: settingsToSave,
-          description: 'Smart refresh interval settings (in milliseconds)'
+          description: 'Smart refresh interval and app version settings'
         });
       } else {
         await base44.entities.AppSettings.create({
           setting_key: 'refresh_intervals',
           setting_value: settingsToSave,
-          description: 'Smart refresh interval settings (in milliseconds)'
+          description: 'Smart refresh interval and app version settings'
         });
       }
 
-      // Apply to smartRefreshManager immediately
-      console.log(`⚙️ [AppSettingsPanel] Saving smartRefreshEnabled = ${smartRefreshEnabled}`);
       smartRefreshManager._enabled = smartRefreshEnabled;
       smartRefreshManager._initialized = true;
       smartRefreshManager.intervals = {
@@ -255,7 +230,7 @@ export default function AppSettingsPanel() {
       setSavedSmartRefreshEnabled(smartRefreshEnabled);
       setSavedAppVersion({ ...appVersion });
       setHasChanges(false);
-      alert('Settings saved! Changes will take effect on the next refresh cycle.');
+      alert('Settings saved successfully! Other users will see the new version on their next refresh.');
     } catch (error) {
       console.error('Failed to save app settings:', error);
       alert('Failed to save settings: ' + error.message);
@@ -270,6 +245,10 @@ export default function AppSettingsPanel() {
     }
   };
 
+  const handleIncrementBuild = () => {
+    setAppVersion(prev => ({ ...prev, build: prev.build + 1 }));
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -281,15 +260,9 @@ export default function AppSettingsPanel() {
     );
   }
 
-  const handleIncrementBuild = () => {
-    setAppVersion(prev => ({ ...prev, build: prev.build + 1 }));
-  };
-
   return (
     <div className="space-y-6">
-      {/* Version Management and Smart Refresh Toggle - Side by Side */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Version Management Card */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -297,7 +270,7 @@ export default function AppSettingsPanel() {
               App Version
             </CardTitle>
             <CardDescription>
-              Manage application version number (Major.Minor.Build format)
+              Manage application version (Major.Minor.Build) - all users will see this after they refresh
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -352,7 +325,6 @@ export default function AppSettingsPanel() {
           </CardContent>
         </Card>
 
-        {/* Master Toggle Card */}
         <Card className={!smartRefreshEnabled ? 'border-red-300 bg-red-50' : ''}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -376,19 +348,14 @@ export default function AppSettingsPanel() {
             <Switch
               checked={smartRefreshEnabled}
               onCheckedChange={async (checked) => {
-                // Update local state
                 setSmartRefreshEnabled(checked);
-                
-                // CRITICAL: Immediately update smartRefreshManager
                 smartRefreshManager._enabled = checked;
                 smartRefreshManager._initialized = true;
-                console.log(`⚙️ [AppSettingsPanel] Toggle changed - immediately set _enabled=${checked}`);
                 
-                // CRITICAL: Immediately persist to database (don't wait for Save button)
                 try {
                   const existing = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
                   const currentSettings = existing?.[0]?.setting_value || {};
-                  const updatedSettings = { ...currentSettings, smartRefreshEnabled: checked };
+                  const updatedSettings = { ...currentSettings, smartRefreshEnabled: checked, appVersion: appVersion };
                   
                   if (existing && existing.length > 0) {
                     await base44.entities.AppSettings.update(existing[0].id, {
@@ -398,10 +365,9 @@ export default function AppSettingsPanel() {
                     await base44.entities.AppSettings.create({
                       setting_key: 'refresh_intervals',
                       setting_value: updatedSettings,
-                      description: 'Smart refresh interval settings'
+                      description: 'Smart refresh interval and app version settings'
                     });
                   }
-                  console.log(`✅ [AppSettingsPanel] Saved smartRefreshEnabled=${checked} to database`);
                   setSavedSmartRefreshEnabled(checked);
                 } catch (error) {
                   console.error('Failed to save smart refresh toggle:', error);
@@ -431,7 +397,6 @@ export default function AppSettingsPanel() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Priority Legend */}
           <div className="flex items-center gap-4 text-sm">
             <span className="font-medium text-slate-700">Priority:</span>
             <Badge className="bg-red-100 text-red-800">high</Badge>
@@ -442,7 +407,6 @@ export default function AppSettingsPanel() {
             <span className="text-slate-500">= Background</span>
           </div>
 
-          {/* High Priority Section */}
           <div className="space-y-3">
             <h3 className="font-semibold text-slate-900 flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-red-500" />
@@ -492,7 +456,6 @@ export default function AppSettingsPanel() {
             </div>
           </div>
 
-          {/* Medium Priority Section */}
           <div className="space-y-3">
             <h3 className="font-semibold text-slate-900">Medium Priority</h3>
             <div className="grid gap-3">
@@ -519,7 +482,6 @@ export default function AppSettingsPanel() {
             </div>
           </div>
 
-          {/* Low Priority Section */}
           <div className="space-y-3">
             <h3 className="font-semibold text-slate-900">Low Priority (Background)</h3>
             <div className="grid gap-3">
@@ -556,7 +518,6 @@ export default function AppSettingsPanel() {
             </div>
           </div>
 
-          {/* System Section */}
           <div className="space-y-3">
             <h3 className="font-semibold text-slate-900">System (Layout)</h3>
             <div className="grid gap-3">
@@ -573,7 +534,6 @@ export default function AppSettingsPanel() {
             </div>
           </div>
 
-          {/* Actions */}
           <div className="flex items-center justify-between pt-4 border-t">
             <Button 
               variant="outline" 
@@ -604,7 +564,6 @@ export default function AppSettingsPanel() {
         </CardContent>
       </Card>
 
-      {/* Current Status Card */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
