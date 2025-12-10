@@ -193,7 +193,9 @@ Deno.serve(async (req) => {
           deliveryId: delivery.id,
           lat: patient?.latitude,
           lon: patient?.longitude,
-          extraTime: delivery.extra_time || 5
+          extraTime: delivery.extra_time || 5,
+          isPickup: false,
+          scheduledStartTime: null
         };
       } else {
         const store = storeMap.get(delivery.store_id);
@@ -201,7 +203,9 @@ Deno.serve(async (req) => {
           deliveryId: delivery.id,
           lat: store?.latitude,
           lon: store?.longitude,
-          extraTime: delivery.extra_time || 5
+          extraTime: delivery.extra_time || 5,
+          isPickup: true,
+          scheduledStartTime: delivery.delivery_time_start
         };
       }
     }).filter(w => w.lat && w.lon);
@@ -283,11 +287,27 @@ Deno.serve(async (req) => {
       const leg = legs[i];
       const waypoint = waypoints[i];
       
-      // Add travel time
-      const travelMinutes = Math.ceil(leg.duration.value / 60);
-      cumulativeTime = new Date(cumulativeTime.getTime() + travelMinutes * 60000);
+      // Check if this is a store pickup with no deliveries before it
+      const hasDeliveriesBefore = i > 0 && waypoints.slice(0, i).some(w => !w.isPickup);
       
-      console.log(`  - Stop ${i + 1}: +${travelMinutes} min travel → ${cumulativeTime.toISOString()}`);
+      if (waypoint.isPickup && !hasDeliveriesBefore && waypoint.scheduledStartTime) {
+        // Use scheduled pickup time as ETA
+        const [hours, minutes] = waypoint.scheduledStartTime.split(':').map(Number);
+        cumulativeTime = new Date(deliveryDateObj);
+        cumulativeTime.setHours(hours);
+        cumulativeTime.setMinutes(minutes);
+        cumulativeTime.setSeconds(0);
+        cumulativeTime.setMilliseconds(0);
+        
+        console.log(`  - Stop ${i + 1}: Store pickup - using scheduled time ${waypoint.scheduledStartTime}`);
+      } else {
+        // Normal ETA calculation
+        // Add travel time
+        const travelMinutes = Math.ceil(leg.duration.value / 60);
+        cumulativeTime = new Date(cumulativeTime.getTime() + travelMinutes * 60000);
+        
+        console.log(`  - Stop ${i + 1}: +${travelMinutes} min travel → ${cumulativeTime.toISOString()}`);
+      }
       
       // Add extra time at stop
       cumulativeTime = new Date(cumulativeTime.getTime() + (waypoint.extraTime || 5) * 60000);
