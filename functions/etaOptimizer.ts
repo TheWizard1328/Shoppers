@@ -53,10 +53,10 @@ Deno.serve(async (req) => {
     const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
     const driverAppUser = appUsers?.[0];
 
-    // CRITICAL: Skip ETA updates if driver is off duty
-    if (driverAppUser?.driver_status === 'off_duty') {
-      console.log('[ETA Updates] Skipping - driver is off duty');
-      return Response.json({ message: 'Driver is off duty - skipping ETA updates', updatedDeliveries: [] });
+    // CRITICAL: Skip ETA updates if driver is off duty or on break
+    if (driverAppUser?.driver_status === 'off_duty' || driverAppUser?.driver_status === 'on_break') {
+      console.log(`[ETA Updates] Skipping - driver is ${driverAppUser.driver_status}`);
+      return Response.json({ message: `Driver is ${driverAppUser.driver_status} - skipping ETA updates`, updatedDeliveries: [] });
     }
 
     // Get all deliveries for this driver/date
@@ -265,20 +265,15 @@ Deno.serve(async (req) => {
     const route = directionsData.routes[0];
     const legs = route.legs;
     
-    // CRITICAL: Build proper date-time by combining delivery date + start time
-    const deliveryDateObj = new Date(deliveryDate + 'T00:00:00');
-    
-    // Set cumulative time to delivery date + start time
-    let cumulativeTime = new Date(deliveryDateObj);
-    cumulativeTime.setHours(startTimeHours);
-    cumulativeTime.setMinutes(startTimeMinutes);
+    // CRITICAL: Use ACTUAL current time for ETA calculation, not delivery date
+    // This ensures ETAs are always calculated from "now", not from some past time
+    const currentTime = new Date();
+    let cumulativeTime = new Date(currentTime);
     cumulativeTime.setSeconds(0);
     cumulativeTime.setMilliseconds(0);
     
     console.log('[ETA Updates] Starting ETA calculation:');
-    console.log(`  - Delivery date: ${deliveryDate}`);
-    console.log(`  - Start time: ${startTimeHours}:${String(startTimeMinutes).padStart(2, '0')}`);
-    console.log(`  - Cumulative time initialized: ${cumulativeTime.toISOString()}`);
+    console.log(`  - Current time: ${cumulativeTime.toISOString()}`);
     console.log(`  - Number of legs: ${legs.length}`);
     
     const updatedDeliveries = [];
@@ -291,15 +286,21 @@ Deno.serve(async (req) => {
       const hasDeliveriesBefore = i > 0 && waypoints.slice(0, i).some(w => !w.isPickup);
       
       if (waypoint.isPickup && !hasDeliveriesBefore && waypoint.scheduledStartTime) {
-        // Use scheduled pickup time as ETA
+        // For first pickup, use MAX of current time or scheduled time
         const [hours, minutes] = waypoint.scheduledStartTime.split(':').map(Number);
-        cumulativeTime = new Date(deliveryDateObj);
-        cumulativeTime.setHours(hours);
-        cumulativeTime.setMinutes(minutes);
-        cumulativeTime.setSeconds(0);
-        cumulativeTime.setMilliseconds(0);
+        const scheduledTime = new Date();
+        scheduledTime.setHours(hours);
+        scheduledTime.setMinutes(minutes);
+        scheduledTime.setSeconds(0);
+        scheduledTime.setMilliseconds(0);
         
-        console.log(`  - Stop ${i + 1}: Store pickup - using scheduled time ${waypoint.scheduledStartTime}`);
+        // Use whichever is later: current time or scheduled time
+        if (scheduledTime > cumulativeTime) {
+          cumulativeTime = scheduledTime;
+          console.log(`  - Stop ${i + 1}: Store pickup - using scheduled time ${waypoint.scheduledStartTime}`);
+        } else {
+          console.log(`  - Stop ${i + 1}: Store pickup - scheduled time is past, using current time`);
+        }
       } else {
         // Normal ETA calculation
         // Add travel time
@@ -319,21 +320,7 @@ Deno.serve(async (req) => {
       const etaMinutes = String(cumulativeTime.getMinutes()).padStart(2, '0');
       let eta = `${etaHours}:${etaMinutes}`;
       
-      // CRITICAL: Check if current time is beyond calculated ETA
-      // If so, update ETA to current time (can't arrive in the past)
-      const currentTimeForComparison = new Date();
-      if (cumulativeTime < currentTimeForComparison) {
-        const currentHours = String(currentTimeForComparison.getHours()).padStart(2, '0');
-        const currentMinutes = String(currentTimeForComparison.getMinutes()).padStart(2, '0');
-        eta = `${currentHours}:${currentMinutes}`;
-        
-        // Update cumulative time to current time so subsequent stops are calculated correctly
-        cumulativeTime = new Date(currentTimeForComparison);
-        
-        console.log(`  - Stop ${i + 1}: ETA was in past, updated to current time = ${eta}`);
-      } else {
-        console.log(`  - Stop ${i + 1}: Final ETA = ${eta}`);
-      }
+      console.log(`  - Stop ${i + 1}: Final ETA = ${eta}`);
       
       updatedDeliveries.push({
         id: waypoint.deliveryId,

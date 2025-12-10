@@ -46,9 +46,9 @@ Deno.serve(async (req) => {
     console.log(`✅ [setDriverStatus] Status set to: ${newStatus}`);
     console.log(`📍 [setDriverStatus] Location tracking enabled: ${newStatus === 'on_duty'}`);
 
-    // When going on_break, clear all isNextDelivery flags
+    // When going on_break, ONLY clear isNextDelivery flags - DO NOT reorder deliveries
     if (newStatus === 'on_break') {
-      console.log(`🔄 [setDriverStatus] Driver going on break - clearing all isNextDelivery flags`);
+      console.log(`🔄 [setDriverStatus] Driver going on break - clearing isNextDelivery flags ONLY`);
       
       const today = new Date().toISOString().split('T')[0];
       const allTodayDeliveries = await base44.asServiceRole.entities.Delivery.filter({
@@ -59,12 +59,13 @@ Deno.serve(async (req) => {
       const deliveriesWithNextFlag = allTodayDeliveries.filter(d => d.isNextDelivery === true);
       
       console.log(`📦 [setDriverStatus] Clearing isNextDelivery on ${deliveriesWithNextFlag.length} deliveries`);
+      console.log(`📦 [setDriverStatus] NOT modifying stop_order - deliveries will remain in current sequence`);
       
       for (const delivery of deliveriesWithNextFlag) {
         await base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: false });
       }
       
-      console.log(`✅ [setDriverStatus] All isNextDelivery flags cleared for break`);
+      console.log(`✅ [setDriverStatus] isNextDelivery flags cleared - delivery order preserved`);
     }
     
     // When coming back on_duty from break, set isNextDelivery flag and update ETAs
