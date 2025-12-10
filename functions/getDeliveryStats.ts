@@ -240,8 +240,15 @@ Deno.serve(async (req) => {
     // Helper: Check if delivery is a return (status-based)
     const isReturn = (d) => d && d.status === 'returned';
     
-    // Helper: Check if delivery is failed
-    const isFailed = (d) => d && d.status === 'failed';
+    // Helper: Check if delivery is failed OR a cancelled pickup
+    const isFailed = (d) => {
+      if (!d) return false;
+      // Failed deliveries
+      if (d.status === 'failed') return true;
+      // Cancelled pickups (no patient_id)
+      if (d.status === 'cancelled' && !d.patient_id) return true;
+      return false;
+    };
     
     // Helper: Check if delivery is completed (ONLY 'completed', NOT failed/returned)
     const isCompleted = (d) => d && d.status === 'completed';

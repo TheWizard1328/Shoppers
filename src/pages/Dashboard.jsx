@@ -560,7 +560,14 @@ function Dashboard() {
     const inTransit = safeDeliveries.filter((d) => d && (d.status === 'in_transit' || d.status === 'en_route')).length;
     const completed = safeDeliveries.filter((d) => d && d.status === 'completed').length;
     const returned = safeDeliveries.filter(isReturn).length;
-    const failed = safeDeliveries.filter((d) => d && d.status === 'failed' && !isReturn(d)).length;
+    const failed = safeDeliveries.filter((d) => {
+      if (!d) return false;
+      // Failed deliveries (not returns)
+      if (d.status === 'failed' && !isReturn(d)) return true;
+      // Cancelled pickups (no patient_id)
+      if (d.status === 'cancelled' && !d.patient_id) return true;
+      return false;
+    }).length;
 
     return { total, inTransit, completed, failed, returned };
   }, [filteredDeliveries, patients]);
