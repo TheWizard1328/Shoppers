@@ -5407,46 +5407,11 @@ function Dashboard() {
       }
 
       console.log('');
-      console.log('📍 [START STEP 5] Applying immediate local state update...');
-
-      // CRITICAL: Apply local updates immediately without fetching from backend
-      // This ensures UI shows the new order instantly, backend sync happens in background
-      const updatedDeliveries = deliveries.map(d => {
-        if (d.id === deliveryId) {
-          return {
-            ...d,
-            status: newStatus,
-            stop_order: newStopOrder,
-            delivery_time_eta: currentTime,
-            isNextDelivery: true
-          };
-        }
-        // Reset other isNextDelivery flags
-        if (d.driver_id === driverId && d.delivery_date === deliveryDate && d.isNextDelivery) {
-          return { ...d, isNextDelivery: false };
-        }
-        // Apply shifted stop orders
-        if (d.driver_id === driverId && d.delivery_date === deliveryDate && d.id !== deliveryId) {
-          if (completedDeliveries.length > 0) {
-            // Shift stops between lastCompleted and current
-            if (d.stop_order >= newStopOrder && d.stop_order < deliveryFromUI.stop_order) {
-              return { ...d, stop_order: d.stop_order + 1 };
-            }
-          } else {
-            // Shift all stops up
-            if (d.stop_order >= 1) {
-              return { ...d, stop_order: d.stop_order + 1 };
-            }
-          }
-        }
-        return d;
-      });
-
-      console.log(`   - Updated ${updatedDeliveries.filter(d => d.id === deliveryId).length} started delivery`);
-      console.log(`   - Calling updateDeliveriesLocally with immediate changes...`);
+      console.log('📍 [START STEP 5] Recalculating all stop orders...');
       
-      updateDeliveriesLocally(updatedDeliveries);
-      console.log('✅ [START STEP 5] Immediate UI update applied');
+      // Recalculate stop orders for entire route
+      await recalculateStopOrders(driverId, deliveryDate);
+      console.log('✅ [START STEP 5] Stop orders recalculated');
 
       // 6. Full data refresh
       console.log('');
