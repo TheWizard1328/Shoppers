@@ -551,17 +551,22 @@ function Dashboard() {
     const isReturn = (delivery) => {
       if (!delivery) return false;
       const patient = patientMap.get(delivery.patient_id);
-      const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return');
-      const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
-      return notesReturn || addressReturn;
+      const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return') || 
+                          (delivery.delivery_notes || '').toLowerCase().includes('rtn');
+      const nameReturn = (delivery.patient_name || '').toLowerCase().includes('return') || 
+                         (delivery.patient_name || '').toLowerCase().includes('rtn');
+      const addressReturn = patient && ((patient.address || '').toLowerCase().includes('rtn') || 
+                                        (patient.full_name || '').toLowerCase().includes('return'));
+      return notesReturn || nameReturn || addressReturn;
     };
 
     const total = safeDeliveries.length;
     const inTransit = safeDeliveries.filter((d) => d && (d.status === 'in_transit' || d.status === 'en_route')).length;
-    // CRITICAL: Only count 'completed' status, explicitly exclude failed/cancelled/returned
+    // CRITICAL: Only count 'completed' status, explicitly exclude returns
     const completed = safeDeliveries.filter((d) => {
       if (!d || d.status !== 'completed') return false;
-      if (['failed', 'cancelled', 'returned'].includes(d.status)) return false;
+      // Exclude returns from completed count
+      if (isReturn(d)) return false;
       return true;
     }).length;
     const returned = safeDeliveries.filter(isReturn).length;

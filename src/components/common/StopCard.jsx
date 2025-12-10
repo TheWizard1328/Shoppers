@@ -55,7 +55,7 @@ const statusConfig = {
 };
 
 // MOVED OUTSIDE COMPONENT: Define finished statuses as a constant
-const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned', 'picked_up'];
+const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
 // Helper function to format time to 12-hour format with AM/PM
 const formatTime12Hour = (timeString) => {

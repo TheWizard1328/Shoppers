@@ -208,7 +208,7 @@ const ZOOM_LEVELS = {
 };
 
 // Shared finished statuses array
-const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
+const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
 // Helper for checking if user is an app owner (platform admin role)
 // MODIFIED: Create icons with zoom-aware sizing - REMOVED duplicateCount badge

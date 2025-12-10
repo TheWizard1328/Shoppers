@@ -237,12 +237,20 @@ Deno.serve(async (req) => {
     // HELPER FUNCTIONS
     // ===========================================
     
-    // Helper: Check if delivery is a return (status-based)
-    const isReturn = (d) => d && d.status === 'returned';
+    // Helper: Check if delivery is a return (based on notes/name with "return" or "rtn")
+    const isReturn = (d) => {
+      if (!d) return false;
+      const notes = (d.delivery_notes || '').toLowerCase();
+      const patientName = (d.patient_name || '').toLowerCase();
+      return notes.includes('return') || notes.includes('rtn') || 
+             patientName.includes('return') || patientName.includes('rtn');
+    };
     
-    // Helper: Check if delivery is failed OR a cancelled pickup
+    // Helper: Check if delivery is failed OR a cancelled pickup (EXCLUDE returns from failed count)
     const isFailed = (d) => {
       if (!d) return false;
+      // CRITICAL: Returns are counted separately, not as failures
+      if (isReturn(d)) return false;
       // Failed deliveries
       if (d.status === 'failed') return true;
       // Cancelled pickups (no patient_id)
@@ -250,13 +258,13 @@ Deno.serve(async (req) => {
       return false;
     };
     
-    // Helper: Check if delivery is completed (ONLY 'completed', explicitly EXCLUDE failed/cancelled/returned)
+    // Helper: Check if delivery is completed (ONLY 'completed', explicitly EXCLUDE returns)
     const isCompleted = (d) => {
       if (!d) return false;
       // CRITICAL: ONLY count 'completed' status
       if (d.status !== 'completed') return false;
-      // CRITICAL: Explicitly exclude failed, cancelled, and returned (defense in depth)
-      if (['failed', 'cancelled', 'returned'].includes(d.status)) return false;
+      // CRITICAL: Exclude returns from completed count
+      if (isReturn(d)) return false;
       return true;
     };
     
