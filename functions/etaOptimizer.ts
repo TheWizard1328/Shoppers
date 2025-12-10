@@ -148,9 +148,25 @@ Deno.serve(async (req) => {
     }
 
     // Get incomplete deliveries (Rule 2b)
-    const incompleteDeliveries = deliveries.filter(d => 
+    let incompleteDeliveries = deliveries.filter(d => 
       !['completed', 'failed', 'cancelled', 'returned'].includes(d.status)
-    ).sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+    );
+
+    // CRITICAL: If currentStopId is provided, ensure it's first in the optimization order
+    if (currentStopId) {
+      const currentStop = incompleteDeliveries.find(d => d.id === currentStopId);
+      const otherStops = incompleteDeliveries.filter(d => d.id !== currentStopId)
+        .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+      
+      if (currentStop) {
+        incompleteDeliveries = [currentStop, ...otherStops];
+        console.log(`[ETA Updates] Prioritizing currentStopId ${currentStopId} as first stop`);
+      } else {
+        incompleteDeliveries.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+      }
+    } else {
+      incompleteDeliveries.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+    }
 
     if (incompleteDeliveries.length === 0) {
       return Response.json({ message: 'No incomplete deliveries', updatedDeliveries: [] });
