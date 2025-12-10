@@ -2490,7 +2490,8 @@ export default function Layout({ children, currentPageName }) {
 
                       <div>
                         <h2 className="font-bold text-lg text-slate-900">RxDeliver</h2>
-                        <p className="text-xs text-slate-500">Pharmacy Logistics • {APP_VERSION}</p>
+                        <p className="text-xs text-slate-500">Pharmacy Logistics</p>
+                        <p className="text-xs text-slate-500">{APP_VERSION}</p>
                       </div>
                     </div>
 
