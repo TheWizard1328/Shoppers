@@ -5431,43 +5431,10 @@ function Dashboard() {
       await refreshData();
       console.log('✅ [START STEP 6] Full data refresh complete');
 
-      // 7. Scroll to next card
+      // 7. Map view will be handled by FAB reactivation event
       console.log('');
-      console.log('📍 [START STEP 7] Finding and scrolling to next delivery...');
-
-      setTimeout(() => {
-        const nextCard = deliveries?.find((d) =>
-          d && d.isNextDelivery && !finishedStatuses.includes(d.status)
-        );
-
-        if (nextCard) {
-          console.log(`   - Next card found: ${nextCard.patient_name || 'Pickup'} (ID: ${nextCard.id})`);
-          const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
-
-          if (cardElement) {
-            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-            console.log('✅ [START STEP 7] Scrolled to next delivery card');
-          } else {
-            console.warn('⚠️ [START STEP 7] Card element not found in DOM');
-          }
-        } else {
-          console.log('ℹ️ [START STEP 7] No next card found (route may be complete)');
-        }
-      }, 300);
-
-      // 8. Activate mapCycleFAB phase
-      console.log('');
-      console.log('📍 [START STEP 8] Checking map view update...');
-      console.log(`   - Map phase: ${mapViewPhase}`);
-      console.log(`   - Map locked: ${isMapViewLocked}`);
-
-      if (mapViewPhase === 2 && isMapViewLocked) {
-        console.log('   - Triggering map view update for Phase 2');
-        setMapViewTrigger((prev) => prev + 1);
-        console.log('✅ [START STEP 8] Map view updated');
-      } else {
-        console.log('   - No map update needed');
-      }
+      console.log('📍 [START STEP 7] Skipping card scroll and map update (will be handled by FAB reactivation)');
+      console.log('   - FAB reactivation will handle: scroll to next card + map repositioning');
 
       // Check if route is complete
       console.log('');
