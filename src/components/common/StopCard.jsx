@@ -751,7 +751,10 @@ export default function StopCard({
                 {showStatusDropdown ?
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <button className="inline-flex items-center gap-1 rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-sm font-bold px-2 py-0.5 cursor-pointer hover:opacity-80 bg-cyan-100 text-cyan-800"
+                      <button className={`inline-flex items-center gap-1 rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-sm font-bold px-2 py-0.5 cursor-pointer hover:opacity-80 ${
+                        delivery.status === 'en_route' ? 'bg-cyan-100 text-cyan-800' : 
+                        statusConfig[delivery.status]?.color || 'bg-slate-100 text-slate-800'
+                      }`}
                     onClick={(e) => e.stopPropagation()}>
                         {statusConfig[delivery.status]?.label || delivery.status}
                         <MoreVertical className="w-3 h-3" />
@@ -871,14 +874,14 @@ export default function StopCard({
                   </DropdownMenu> :
 
                 <Badge
-                  variant="secondary" className={`border-transparent hover:bg-secondary/80 inline-flex items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-sm font-bold px-2 py-0.5 ${
+                  variant="secondary" className={`border-transparent inline-flex items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-sm font-bold px-2 py-0.5 ${
                   delivery.status === 'failed' ? 'bg-red-500 !text-white' :                  
                   delivery.status === 'cancelled' ? 'bg-red-500 !text-white' :
                   delivery.status === 'returned' ? 'bg-orange-500 !text-white' :
                   'bg-emerald-500 !text-white'}`
                   }>
 
-                    {statusConfig[delivery.status]?.label || delivery.status}
+                    {delivery.status === 'returned' ? 'Returned' : statusConfig[delivery.status]?.label || delivery.status}
                   </Badge>
                 }
               </div>
