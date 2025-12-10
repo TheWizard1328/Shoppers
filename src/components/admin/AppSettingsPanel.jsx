@@ -121,6 +121,8 @@ export default function AppSettingsPanel() {
   const [savedIntervals, setSavedIntervals] = useState(null);
   const [savedSmartRefreshEnabled, setSavedSmartRefreshEnabled] = useState(() => smartRefreshManager._enabled);
   const [lastRefreshTimes, setLastRefreshTimes] = useState({});
+  const [appVersion, setAppVersion] = useState({ major: 1, minor: 0, build: 0 });
+  const [savedAppVersion, setSavedAppVersion] = useState({ major: 1, minor: 0, build: 0 });
 
   // Load settings from database
   const loadSettings = useCallback(async () => {
@@ -134,6 +136,14 @@ export default function AppSettingsPanel() {
         setSavedSmartRefreshEnabled(smartRefreshManager._enabled);
       }
       
+      // Load version settings
+      const versionSettings = await base44.entities.AppSettings.filter({ setting_key: 'app_version' });
+      if (versionSettings && versionSettings.length > 0 && versionSettings[0].setting_value) {
+        const version = versionSettings[0].setting_value;
+        setAppVersion(version);
+        setSavedAppVersion(version);
+      }
+
       const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
       if (settings && settings.length > 0 && settings[0].setting_value) {
         const loaded = { ...DEFAULT_INTERVALS, ...settings[0].setting_value };
@@ -193,9 +203,12 @@ export default function AppSettingsPanel() {
     if (savedIntervals) {
       const intervalsChanged = Object.keys(intervals).some(key => intervals[key] !== savedIntervals[key]);
       const enabledChanged = smartRefreshEnabled !== savedSmartRefreshEnabled;
-      setHasChanges(intervalsChanged || enabledChanged);
+      const versionChanged = appVersion.major !== savedAppVersion.major || 
+                            appVersion.minor !== savedAppVersion.minor || 
+                            appVersion.build !== savedAppVersion.build;
+      setHasChanges(intervalsChanged || enabledChanged || versionChanged);
     }
-  }, [intervals, savedIntervals, smartRefreshEnabled, savedSmartRefreshEnabled]);
+  }, [intervals, savedIntervals, smartRefreshEnabled, savedSmartRefreshEnabled, appVersion, savedAppVersion]);
 
   const handleIntervalChange = (key, value) => {
     setIntervals(prev => ({ ...prev, [key]: value }));
@@ -209,7 +222,7 @@ export default function AppSettingsPanel() {
         smartRefreshEnabled: smartRefreshEnabled
       };
 
-      // Check if setting exists
+      // Save refresh intervals
       const existing = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
       
       if (existing && existing.length > 0) {
@@ -222,6 +235,21 @@ export default function AppSettingsPanel() {
           setting_key: 'refresh_intervals',
           setting_value: settingsToSave,
           description: 'Smart refresh interval settings (in milliseconds)'
+        });
+      }
+
+      // Save version
+      const versionExisting = await base44.entities.AppSettings.filter({ setting_key: 'app_version' });
+      if (versionExisting && versionExisting.length > 0) {
+        await base44.entities.AppSettings.update(versionExisting[0].id, {
+          setting_value: appVersion,
+          description: 'Application version number'
+        });
+      } else {
+        await base44.entities.AppSettings.create({
+          setting_key: 'app_version',
+          setting_value: appVersion,
+          description: 'Application version number'
         });
       }
 
@@ -241,6 +269,7 @@ export default function AppSettingsPanel() {
 
       setSavedIntervals({ ...intervals });
       setSavedSmartRefreshEnabled(smartRefreshEnabled);
+      setSavedAppVersion({ ...appVersion });
       setHasChanges(false);
       alert('Settings saved! Changes will take effect on the next refresh cycle.');
     } catch (error) {
@@ -268,8 +297,75 @@ export default function AppSettingsPanel() {
     );
   }
 
+  const handleIncrementBuild = () => {
+    setAppVersion(prev => ({ ...prev, build: prev.build + 1 }));
+  };
+
   return (
     <div className="space-y-6">
+      {/* Version Management Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="w-5 h-5" />
+            App Version
+          </CardTitle>
+          <CardDescription>
+            Manage application version number (Major.Minor.Build format)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 gap-4 mb-4">
+            <div>
+              <Label htmlFor="major" className="text-sm font-medium">Major</Label>
+              <Input
+                id="major"
+                type="number"
+                min="0"
+                value={appVersion.major}
+                onChange={(e) => setAppVersion(prev => ({ ...prev, major: parseInt(e.target.value) || 0 }))}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="minor" className="text-sm font-medium">Minor</Label>
+              <Input
+                id="minor"
+                type="number"
+                min="0"
+                value={appVersion.minor}
+                onChange={(e) => setAppVersion(prev => ({ ...prev, minor: parseInt(e.target.value) || 0 }))}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="build" className="text-sm font-medium">Build</Label>
+              <Input
+                id="build"
+                type="number"
+                min="0"
+                value={appVersion.build}
+                onChange={(e) => setAppVersion(prev => ({ ...prev, build: parseInt(e.target.value) || 0 }))}
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="text-2xl font-mono font-bold text-slate-900">
+              v{appVersion.major}.{appVersion.minor}.{appVersion.build}
+            </div>
+            <Button 
+              variant="outline" 
+              onClick={handleIncrementBuild}
+              className="gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Increment Build
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Master Toggle Card */}
       <Card className={!smartRefreshEnabled ? 'border-red-300 bg-red-50' : ''}>
         <CardHeader>
