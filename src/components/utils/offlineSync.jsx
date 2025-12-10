@@ -268,19 +268,11 @@ export const processPendingMutations = async () => {
 
   for (const mutation of mutations) {
     try {
-      // Skip updates to temporary IDs if the corresponding create hasn't been processed yet
-      if (mutation.operation === 'update' && mutation.recordId.startsWith('temp_')) {
-        const hasUnprocessedCreate = mutations.some(
-          m => m.entity === mutation.entity && 
-               m.operation === 'create' && 
-               m.payload?.id === mutation.recordId &&
-               m.mutationId !== mutation.mutationId
-        );
-        
-        if (hasUnprocessedCreate) {
-          console.warn(`⏸️ [OfflineSync] Skipping update for temp ID ${mutation.recordId} - waiting for create`);
-          continue;
-        }
+      // CRITICAL: Remove invalid update/delete operations on temporary IDs
+      if ((mutation.operation === 'update' || mutation.operation === 'delete') && mutation.recordId.startsWith('temp_')) {
+        console.warn(`🗑️ [OfflineSync] Removing invalid ${mutation.operation} for temp ID ${mutation.recordId}`);
+        await offlineDB.removePendingMutation(mutation.mutationId);
+        continue;
       }
 
       console.log(`📤 [OfflineSync] Syncing ${mutation.operation} ${mutation.entity}:${mutation.recordId}`);
