@@ -1638,10 +1638,15 @@ export default function DeliveryForm({
       return true;
     });
 
+    // CRITICAL: Separate into 3 groups:
+    // 1. New deliveries (no id) - create new
+    // 2. Pending deliveries (id + status=pending) - transition to pending (no-op, just remove from staged)
+    // 3. Updated deliveries (id + status!=pending) - update status
     const newDeliveries = validStagedDeliveries.filter((staged) => !staged.id);
+    const pendingDeliveries = validStagedDeliveries.filter((staged) => staged.id && staged.status === 'pending');
     const updatedDeliveries = validStagedDeliveries.filter((staged) => staged.id && staged.status !== 'pending');
 
-    console.log('[AddToRoute] 🔍 Total staged:', validStagedDeliveries.length, '| New:', newDeliveries.length, '| Updated:', updatedDeliveries.length, '| Unchanged pending:', validStagedDeliveries.length - newDeliveries.length - updatedDeliveries.length);
+    console.log('[AddToRoute] 🔍 Total staged:', validStagedDeliveries.length, '| New:', newDeliveries.length, '| Pending (unchanged):', pendingDeliveries.length, '| Updated:', updatedDeliveries.length);
     console.log('[AddToRoute] 🔍 New deliveries to save:', newDeliveries.map((s) => ({
       _tempId: s._tempId,
       patient_name: s.patient_name
@@ -1654,6 +1659,18 @@ export default function DeliveryForm({
 
     if (newDeliveries.length === 0 && updatedDeliveries.length === 0) {
       console.log('[AddToRoute] ℹ️ No new or updated deliveries to save');
+      
+      // CRITICAL: If there are pending deliveries, just clear staged and close form
+      // They are already in the database as pending - no action needed
+      if (pendingDeliveries.length > 0) {
+        console.log(`[AddToRoute] ✅ ${pendingDeliveries.length} pending deliveries remain in database (no changes)`);
+        setStagedDeliveries([]);
+        setProjectedDeliveries([]);
+        hasLoadedPending.current = false;
+        onCancel();
+        return;
+      }
+      
       console.log('[AddToRoute] 🚪 Calling onCancel to close form...');
       hasLoadedPending.current = false; // Reset flag to allow reload next time
       onCancel();
