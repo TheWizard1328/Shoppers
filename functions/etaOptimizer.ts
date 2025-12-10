@@ -258,15 +258,13 @@ Deno.serve(async (req) => {
     const route = directionsData.routes[0];
     const legs = route.legs;
     
-    // CRITICAL: Use ACTUAL current time for ETA calculation, not delivery date
-    // This ensures ETAs are always calculated from "now", not from some past time
-    const currentTime = new Date();
-    let cumulativeTime = new Date(currentTime);
-    cumulativeTime.setSeconds(0);
-    cumulativeTime.setMilliseconds(0);
+    // CRITICAL: Use LOCAL time only (no timezone conversion)
+    const now = new Date();
+    let currentHours = now.getHours();
+    let currentMinutes = now.getMinutes();
     
     console.log('[ETA Updates] Starting ETA calculation:');
-    console.log(`  - Current time: ${cumulativeTime.toISOString()}`);
+    console.log(`  - Current local time: ${String(currentHours).padStart(2, '0')}:${String(currentMinutes).padStart(2, '0')}`);
     console.log(`  - Number of legs: ${legs.length}`);
     
     const updatedDeliveries = [];
@@ -280,38 +278,37 @@ Deno.serve(async (req) => {
       
       if (waypoint.isPickup && !hasDeliveriesBefore && waypoint.scheduledStartTime) {
         // For first pickup, use MAX of current time or scheduled time
-        const [hours, minutes] = waypoint.scheduledStartTime.split(':').map(Number);
-        const scheduledTime = new Date();
-        scheduledTime.setHours(hours);
-        scheduledTime.setMinutes(minutes);
-        scheduledTime.setSeconds(0);
-        scheduledTime.setMilliseconds(0);
+        const [schedHours, schedMinutes] = waypoint.scheduledStartTime.split(':').map(Number);
+        const currentTotalMinutes = currentHours * 60 + currentMinutes;
+        const scheduledTotalMinutes = schedHours * 60 + schedMinutes;
         
-        // Use whichever is later: current time or scheduled time
-        if (scheduledTime > cumulativeTime) {
-          cumulativeTime = scheduledTime;
+        // Use whichever is later
+        if (scheduledTotalMinutes > currentTotalMinutes) {
+          currentHours = schedHours;
+          currentMinutes = schedMinutes;
           console.log(`  - Stop ${i + 1}: Store pickup - using scheduled time ${waypoint.scheduledStartTime}`);
         } else {
           console.log(`  - Stop ${i + 1}: Store pickup - scheduled time is past, using current time`);
         }
       } else {
-        // Normal ETA calculation
         // Add travel time
         const travelMinutes = Math.ceil(leg.duration.value / 60);
-        cumulativeTime = new Date(cumulativeTime.getTime() + travelMinutes * 60000);
+        const totalMinutes = currentHours * 60 + currentMinutes + travelMinutes;
+        currentHours = Math.floor(totalMinutes / 60) % 24;
+        currentMinutes = totalMinutes % 60;
         
-        console.log(`  - Stop ${i + 1}: +${travelMinutes} min travel → ${cumulativeTime.toISOString()}`);
+        console.log(`  - Stop ${i + 1}: +${travelMinutes} min travel → ${String(currentHours).padStart(2, '0')}:${String(currentMinutes).padStart(2, '0')}`);
       }
       
       // Add extra time at stop
-      cumulativeTime = new Date(cumulativeTime.getTime() + (waypoint.extraTime || 5) * 60000);
+      const totalMinutes = currentHours * 60 + currentMinutes + (waypoint.extraTime || 5);
+      currentHours = Math.floor(totalMinutes / 60) % 24;
+      currentMinutes = totalMinutes % 60;
       
-      console.log(`  - Stop ${i + 1}: +${waypoint.extraTime || 5} min service → ${cumulativeTime.toISOString()}`);
+      console.log(`  - Stop ${i + 1}: +${waypoint.extraTime || 5} min service → ${String(currentHours).padStart(2, '0')}:${String(currentMinutes).padStart(2, '0')}`);
       
       // Format ETA as HH:mm
-      const etaHours = String(cumulativeTime.getHours()).padStart(2, '0');
-      const etaMinutes = String(cumulativeTime.getMinutes()).padStart(2, '0');
-      let eta = `${etaHours}:${etaMinutes}`;
+      const eta = `${String(currentHours).padStart(2, '0')}:${String(currentMinutes).padStart(2, '0')}`;
       
       console.log(`  - Stop ${i + 1}: Final ETA = ${eta}`);
       
@@ -334,7 +331,7 @@ Deno.serve(async (req) => {
       success: true,
       updatedDeliveries,
       startLocation: { lat: startLat, lon: startLon },
-      startTime: `${String(startTimeHours).padStart(2, '0')}:${String(startTimeMinutes).padStart(2, '0')}`
+      startTime: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
     });
 
   } catch (error) {
