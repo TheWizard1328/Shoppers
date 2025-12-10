@@ -5262,32 +5262,84 @@ function Dashboard() {
       console.log(`   - New Status: ${newStatus}`);
       console.log(`   - Current Time: ${currentTime}`);
 
-      // STEP 2: Update database with new status
+      // STEP 1.5: Find most recently completed delivery and reorder
       console.log('');
-      console.log('📍 [START STEP 2] Updating delivery status in database...');
-      console.log(`   - Delivery ID: ${deliveryId}`);
-      console.log(`   - Status: ${newStatus}`);
-      console.log(`   - ETA: ${currentTime}`);
-
-      // 2. Reset all isNextDelivery flags to false
-      console.log('\n📍 [START STEP 2] Resetting all isNextDelivery flags...');
+      console.log('📍 [START STEP 1.5] Finding most recently completed delivery for reordering...');
+      
       const allDriverDeliveriesForDate = deliveriesWithStopOrder.filter(d =>
         d && d.driver_id === driverId && d.delivery_date === deliveryDate
       );
+      
+      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+      const completedDeliveries = allDriverDeliveriesForDate
+        .filter(d => finishedStatuses.includes(d.status) && d.actual_delivery_time)
+        .sort((a, b) => new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time));
+
+      let newStopOrder;
+      if (completedDeliveries.length > 0) {
+        const lastCompleted = completedDeliveries[0];
+        newStopOrder = lastCompleted.stop_order + 1;
+        
+        console.log(`   - Found last completed: ${lastCompleted.patient_name || 'Pickup'} (stop_order: ${lastCompleted.stop_order})`);
+        console.log(`   - New stop_order for started delivery: ${newStopOrder}`);
+        
+        // Shift all stops between lastCompleted and current position up by 1
+        const stopsToShift = allDriverDeliveriesForDate.filter(d => 
+          d.id !== deliveryId && 
+          d.stop_order >= newStopOrder && 
+          d.stop_order < deliveryFromUI.stop_order
+        );
+        
+        if (stopsToShift.length > 0) {
+          console.log(`   - Shifting ${stopsToShift.length} stops up by 1`);
+          await Promise.all(
+            stopsToShift.map(d =>
+              updateDeliveryLocal(d.id, { stop_order: d.stop_order + 1 })
+            )
+          );
+          console.log('   ✅ Stop orders shifted');
+        }
+      } else {
+        newStopOrder = 1;
+        console.log(`   - No completed deliveries, placing at position 1`);
+        
+        // Shift all other stops up by 1
+        const stopsToShift = allDriverDeliveriesForDate.filter(d => 
+          d.id !== deliveryId && d.stop_order >= 1
+        );
+        
+        if (stopsToShift.length > 0) {
+          console.log(`   - Shifting ${stopsToShift.length} stops up by 1`);
+          await Promise.all(
+            stopsToShift.map(d =>
+              updateDeliveryLocal(d.id, { stop_order: d.stop_order + 1 })
+            )
+          );
+          console.log('   ✅ Stop orders shifted');
+        }
+      }
+      
+      console.log(`✅ [START STEP 1.5] Reordering complete - new stop_order: ${newStopOrder}`);
+
+      // STEP 2: Reset all isNextDelivery flags
+      console.log('');
+      console.log('📍 [START STEP 2] Resetting all isNextDelivery flags...');
       const resetPromises = allDriverDeliveriesForDate
         .filter(d => d.isNextDelivery)
         .map(d => updateDeliveryLocal(d.id, { isNextDelivery: false }));
       await Promise.all(resetPromises);
       console.log(`✅ [START STEP 2] Reset ${resetPromises.length} isNextDelivery flags`);
 
-      // 3. Update started delivery status AND mark as isNextDelivery
-      console.log('\n📍 [START STEP 3] Updating started delivery status and marking as next...');
+      // STEP 3: Update started delivery status, new stop_order, AND mark as isNextDelivery
+      console.log('');
+      console.log('📍 [START STEP 3] Updating started delivery status, stop_order, and marking as next...');
       await updateDeliveryLocal(deliveryId, {
         status: newStatus,
+        stop_order: newStopOrder,
         delivery_time_eta: currentTime,
         isNextDelivery: true
       });
-      console.log(`✅ [START STEP 3] Started delivery marked as next and ETA set to ${currentTime}`);
+      console.log(`✅ [START STEP 3] Started delivery reordered to stop #${newStopOrder}, marked as next, and ETA set to ${currentTime}`);
 
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
 
