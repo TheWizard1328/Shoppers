@@ -2601,7 +2601,7 @@ export default function DeliveryMap({
                       {route.driverName}
                     </span>
                     <span className="text-xs text-slate-500">
-                      ({route.stops.length})
+                      ({route.totalStops})
                     </span>
                   </div>
                 ))}
