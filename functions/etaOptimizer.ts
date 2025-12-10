@@ -147,9 +147,9 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Could not determine starting location or time' }, { status: 400 });
     }
 
-    // Get incomplete deliveries (Rule 2b)
+    // Get incomplete deliveries (Rule 2b) - exclude pending/staged deliveries
     let incompleteDeliveries = deliveries.filter(d => 
-      !['completed', 'failed', 'cancelled', 'returned'].includes(d.status)
+      !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status)
     );
 
     // CRITICAL: If currentStopId is provided, ensure it's first in the optimization order
