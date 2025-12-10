@@ -60,6 +60,11 @@ const hasEntityChanged = (oldItem, newItem) => {
  * @returns {Array} - New merged array
  */
 export const mergeEntityChanges = (currentState = [], { toUpdate, toAdd, toRemove }) => {
+  // CRITICAL: Return same reference if no changes to prevent React re-renders
+  if (toUpdate.length === 0 && toAdd.length === 0 && toRemove.length === 0) {
+    return currentState;
+  }
+  
   // CRITICAL: Preserve object references for unchanged items so React can optimize re-renders
   let merged = currentState;
   
@@ -80,9 +85,13 @@ export const mergeEntityChanges = (currentState = [], { toUpdate, toAdd, toRemov
     });
   }
   
-  // Apply additions
+  // Apply additions - CRITICAL: Check for duplicates before adding
   if (toAdd.length > 0) {
-    merged = [...merged, ...toAdd];
+    const existingIds = new Set(merged.map(item => item.id));
+    const uniqueAdditions = toAdd.filter(item => !existingIds.has(item.id));
+    if (uniqueAdditions.length > 0) {
+      merged = [...merged, ...uniqueAdditions];
+    }
   }
   
   // Apply removals
