@@ -21,16 +21,16 @@ class SmartRefreshManager {
     this.minRefreshInterval = 90000; // 90 seconds minimum between full refreshes (increased to reduce rate limits)
     this.lastFullRefreshTime = 0; // Track full refresh separately
     
-    // Real-time refresh intervals (milliseconds) - Optimized for collaboration
+    // Real-time refresh intervals (milliseconds) - CRITICAL: Heavily throttled to prevent rate limits and server crashes
     // PRIORITY: Today's data is critical, historical/future data is background
     this.intervals = {
-      driverLocation: 120000,    // 2min - driver GPS locations (heavily reduced for rate limits)
-      activeDeliveries: 180000,  // 3min - today's active delivery statuses
-      todayDeliveries: 240000,   // 4min - today's delivery changes only
-      appUsers: 300000,          // 5min - driver status, assignments
-      todayPatients: 900000,     // 15min - patients on today's routes only
-      patients: 7200000,         // 2hr - all other patients (very low priority)
-      stores: 14400000           // 4hr - store data almost never changes
+      driverLocation: 180000,    // 3min - driver GPS locations (throttled for rate limits)
+      activeDeliveries: 240000,  // 4min - today's active delivery statuses
+      todayDeliveries: 300000,   // 5min - today's delivery changes only
+      appUsers: 420000,          // 7min - driver status, assignments
+      todayPatients: 1800000,    // 30min - patients on today's routes only
+      patients: 14400000,        // 4hr - all other patients (very low priority)
+      stores: 28800000           // 8hr - store data almost never changes
     };
     
     // Track last refresh time for each entity type
@@ -46,9 +46,9 @@ class SmartRefreshManager {
       stores: now
     };
     
-    // Rate limit protection - Balanced for collaboration and API limits
+    // Rate limit protection - CRITICAL: Extended delays to prevent backend crashes
     this.lastApiCallTime = 0;
-    this.minTimeBetweenCalls = 8000; // 8 seconds minimum between any API call (increased to reduce rate limits)
+    this.minTimeBetweenCalls = 15000; // 15 seconds minimum between any API call (heavily increased to prevent server issues)
     
     // Rate limit error callback
     this.rateLimitCallback = null;
@@ -733,6 +733,13 @@ class SmartRefreshManager {
    */
   async refreshStores(currentStores) {
     try {
+      if (!this.shouldRefresh('stores')) {
+        return null;
+      }
+      
+      this.markRefreshed('stores');
+      await this.waitForRateLimit();
+      
       const lastTimestamp = getLatestUpdateTimestamp(currentStores);
       
       let queryFilter = {};
@@ -750,12 +757,12 @@ class SmartRefreshManager {
       }
       
       const diff = diffEntityArrays(currentStores, updatedStores);
-      logDiffStats('Store', diff);
       
       if (diff.toUpdate.length === 0 && diff.toAdd.length === 0) {
         return null;
       }
       
+      logDiffStats('Store', diff);
       const mergedStores = mergeEntityChanges(currentStores, diff);
       
       return {

@@ -32,18 +32,23 @@ export default function StoresPage() {
     loadData();
   }, []);
 
-  // Sync context data for real-time updates
+  // Sync context data for real-time updates - OPTIMIZED to prevent unnecessary re-renders
   useEffect(() => {
     if (contextDataLoaded) {
-      console.log("🔄 [Stores] Syncing data from AppDataContext");
-      if (contextStores.length > 0) {
+      // CRITICAL: Only update state if data actually changed (prevent re-renders)
+      if (contextStores.length > 0 && contextStores !== stores) {
         const sortedStores = sortStores(contextStores);
-        setStores(sortedStores);
+        // Deep compare to avoid re-renders when data is identical
+        if (JSON.stringify(sortedStores) !== JSON.stringify(stores)) {
+          console.log("🔄 [Stores] Syncing stores from AppDataContext");
+          setStores(sortedStores);
+        }
       }
-      if (contextCities.length > 0) {
+      if (contextCities.length > 0 && JSON.stringify(contextCities) !== JSON.stringify(cities)) {
+        console.log("🔄 [Stores] Syncing cities from AppDataContext");
         setCities(contextCities);
       }
-      if (contextUsers.length > 0) {
+      if (contextUsers.length > 0 && contextUsers !== allUsers) {
         const activeDrivers = contextUsers.filter(user =>
           user &&
           user.status === 'active' &&
@@ -57,8 +62,15 @@ export default function StoresPage() {
           const nameB = b.user_name || b.full_name || '';
           return nameA.localeCompare(nameB);
         });
-        setDrivers(sortedDrivers);
-        setAllUsers(contextUsers);
+        
+        // Only update if data changed
+        if (JSON.stringify(sortedDrivers) !== JSON.stringify(drivers)) {
+          console.log("🔄 [Stores] Syncing drivers from AppDataContext");
+          setDrivers(sortedDrivers);
+        }
+        if (JSON.stringify(contextUsers) !== JSON.stringify(allUsers)) {
+          setAllUsers(contextUsers);
+        }
       }
     }
   }, [contextDataLoaded, contextStores, contextCities, contextUsers]);

@@ -1035,6 +1035,15 @@ export default function Layout({ children, currentPageName }) {
         // STAGGERED: Full entity refresh - each entity checks its own interval
         console.log('');
         console.log('🔄 [3/3] Full Entity Refresh (staggered intervals)...');
+
+        // CRITICAL: Check stores separately to prevent unnecessary re-renders
+        const storesUpdate = await smartRefreshManager.refreshStores(stores);
+        if (storesUpdate?.hasChanges) {
+          console.log('   ✅ Updating stores state');
+          setStores(storesUpdate.stores);
+          updatedEntities.push('stores');
+        }
+
         const updates = await smartRefreshManager.performSmartRefresh(currentData, filters, isEntityUpdating);
         if (updates) {
           console.log('   ✅ Applying updates to state:', Object.keys(updates).join(', '));
@@ -1043,7 +1052,6 @@ export default function Layout({ children, currentPageName }) {
           if (updates.deliveries) updatedEntities.push('deliveries');
           if (updates.patients) updatedEntities.push('patients');
           if (updates.appUsers) updatedEntities.push('appUsers');
-          if (updates.stores) updatedEntities.push('stores');
         } else {
           console.log('   ⏭️ No entity updates needed');
         }
