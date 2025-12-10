@@ -5429,7 +5429,7 @@ function Dashboard() {
       console.log('📍 [START STEP 7] Finding and scrolling to next delivery...');
 
       setTimeout(() => {
-        const nextCard = updatedDeliveries?.find((d) =>
+        const nextCard = deliveries?.find((d) =>
           d && d.isNextDelivery && !finishedStatuses.includes(d.status)
         );
 
