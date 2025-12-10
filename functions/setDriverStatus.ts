@@ -46,32 +46,82 @@ Deno.serve(async (req) => {
     console.log(`✅ [setDriverStatus] Status set to: ${newStatus}`);
     console.log(`📍 [setDriverStatus] Location tracking enabled: ${newStatus === 'on_duty'}`);
 
-    // When going off_duty or on_break, clear isNextDelivery flag on all incomplete deliveries for this driver
-    if (newStatus === 'off_duty' || newStatus === 'on_break') {
-      console.log(`🔄 [setDriverStatus] Clearing isNextDelivery flags for driver ${user.id} (status: ${newStatus})`);
+    // When going on_break, clear all isNextDelivery flags
+    if (newStatus === 'on_break') {
+      console.log(`🔄 [setDriverStatus] Driver going on break - clearing all isNextDelivery flags`);
       
       const today = new Date().toISOString().split('T')[0];
-      
-      // CRITICAL: Fetch ALL incomplete deliveries, not just those with isNextDelivery=true
-      // This ensures we catch any that might have been missed
       const allTodayDeliveries = await base44.asServiceRole.entities.Delivery.filter({
         driver_id: user.id,
         delivery_date: today
       });
       
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-      const incompleteWithNextFlag = allTodayDeliveries.filter(d => 
-        !finishedStatuses.includes(d.status) && d.isNextDelivery === true
-      );
+      const deliveriesWithNextFlag = allTodayDeliveries.filter(d => d.isNextDelivery === true);
       
-      console.log(`📦 [setDriverStatus] Found ${incompleteWithNextFlag.length} incomplete deliveries with isNextDelivery=true (of ${allTodayDeliveries.length} total)`);
+      console.log(`📦 [setDriverStatus] Clearing isNextDelivery on ${deliveriesWithNextFlag.length} deliveries`);
       
-      for (const delivery of incompleteWithNextFlag) {
-        console.log(`   • Clearing isNextDelivery for: ${delivery.patient_name || 'Pickup'} (ID: ${delivery.id})`);
+      for (const delivery of deliveriesWithNextFlag) {
         await base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: false });
       }
       
-      console.log(`✅ [setDriverStatus] Cleared isNextDelivery on ${incompleteWithNextFlag.length} deliveries`);
+      console.log(`✅ [setDriverStatus] All isNextDelivery flags cleared for break`);
+    }
+    
+    // When coming back on_duty from break, set isNextDelivery flag and update ETAs
+    if (newStatus === 'on_duty') {
+      console.log(`🔄 [setDriverStatus] Driver back on duty - setting next delivery flag and updating ETAs`);
+      
+      const today = new Date().toISOString().split('T')[0];
+      const allTodayDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+        driver_id: user.id,
+        delivery_date: today
+      }, 'stop_order');
+      
+      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+      const incompleteDeliveries = allTodayDeliveries.filter(d => 
+        !finishedStatuses.includes(d.status) && d.status !== 'pending'
+      ).sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+      
+      if (incompleteDeliveries.length > 0) {
+        const nextDelivery = incompleteDeliveries[0];
+        
+        console.log(`📍 [setDriverStatus] Setting isNextDelivery=true for: ${nextDelivery.patient_name || 'Pickup'}`);
+        await base44.asServiceRole.entities.Delivery.update(nextDelivery.id, { isNextDelivery: true });
+        
+        // Trigger ETA recalculation
+        console.log(`📍 [setDriverStatus] Triggering ETA recalculation after break...`);
+        try {
+          await base44.asServiceRole.functions.invoke('etaOptimizer', {
+            driverId: user.id,
+            deliveryDate: today,
+            triggerFullRecalculation: true
+          });
+          console.log(`✅ [setDriverStatus] ETA recalculation completed`);
+        } catch (etaError) {
+          console.warn(`⚠️ [setDriverStatus] ETA recalculation failed:`, etaError);
+        }
+      } else {
+        console.log(`ℹ️ [setDriverStatus] No incomplete deliveries to mark as next`);
+      }
+    }
+    
+    // When going off_duty, clear isNextDelivery flags
+    if (newStatus === 'off_duty') {
+      console.log(`🔄 [setDriverStatus] Driver going off duty - clearing all isNextDelivery flags`);
+      
+      const today = new Date().toISOString().split('T')[0];
+      const allTodayDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+        driver_id: user.id,
+        delivery_date: today
+      });
+      
+      const deliveriesWithNextFlag = allTodayDeliveries.filter(d => d.isNextDelivery === true);
+      
+      for (const delivery of deliveriesWithNextFlag) {
+        await base44.asServiceRole.entities.Delivery.update(delivery.id, { isNextDelivery: false });
+      }
+      
+      console.log(`✅ [setDriverStatus] Cleared isNextDelivery on ${deliveriesWithNextFlag.length} deliveries`);
     }
 
     return Response.json({
