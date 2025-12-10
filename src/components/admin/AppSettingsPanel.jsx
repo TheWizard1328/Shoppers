@@ -245,8 +245,33 @@ export default function AppSettingsPanel() {
     }
   };
 
-  const handleIncrementBuild = () => {
-    setAppVersion(prev => ({ ...prev, build: prev.build + 1 }));
+  const handleIncrementBuild = async () => {
+    const newVersion = { ...appVersion, build: appVersion.build + 1 };
+    setAppVersion(newVersion);
+    
+    // Auto-save to database immediately
+    try {
+      const existing = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+      const currentSettings = existing?.[0]?.setting_value || {};
+      const updatedSettings = { ...currentSettings, appVersion: newVersion };
+      
+      if (existing && existing.length > 0) {
+        await base44.entities.AppSettings.update(existing[0].id, {
+          setting_value: updatedSettings
+        });
+      } else {
+        await base44.entities.AppSettings.create({
+          setting_key: 'refresh_intervals',
+          setting_value: updatedSettings,
+          description: 'Smart refresh interval and app version settings'
+        });
+      }
+      setSavedAppVersion(newVersion);
+      alert(`Build incremented to v${newVersion.major}.${newVersion.minor}.${newVersion.build}`);
+    } catch (error) {
+      console.error('Failed to save version:', error);
+      alert('Failed to save version: ' + error.message);
+    }
   };
 
   if (isLoading) {
