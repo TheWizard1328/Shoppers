@@ -209,8 +209,13 @@ const ZOOM_LEVELS = {
 
 // Helper for checking if user is an app owner (platform admin role)
 // MODIFIED: Create icons with zoom-aware sizing - REMOVED duplicateCount badge
-const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, number = null, zoomLevel = 12, duplicateCount = 0, isMobile = false, isHighlighted = false, isNextDelivery = false) => {
-  const innerColor = isNextDelivery ? '#3B82F6' : getInnerSymbolColor(status, true);
+const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, number = null, zoomLevel = 12, duplicateCount = 0, isMobile = false, isHighlighted = false, isNextDelivery = false, hasIncompleteStops = true) => {
+  // CRITICAL: Failed/cancelled/completed takes precedence over next delivery blue
+  const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+  const isFinished = finishedStatuses.includes(status);
+  const shouldShowNextBlue = isNextDelivery && !isFinished && hasIncompleteStops;
+  
+  const innerColor = shouldShowNextBlue ? '#3B82F6' : getInnerSymbolColor(status, true);
   const showNumber = zoomLevel >= ZOOM_LEVELS.HIDE_NUMBERS && number;
   const hasDuplicates = duplicateCount > 1;
 
@@ -313,8 +318,13 @@ const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, numbe
 };
 
 // Helper function to create delivery pin markers with circle - REMOVED duplicateCount badge
-const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, number = null, isFirstTime = false, duplicateCount = 0, zoomLevel = 12, isMobile = false, isNextInLine = false, isHighlighted = false) => {
-  const statusColor = isNextInLine ? '#3B82F6' : getInnerSymbolColor(status, false);
+const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, number = null, isFirstTime = false, duplicateCount = 0, zoomLevel = 12, isMobile = false, isNextInLine = false, isHighlighted = false, hasIncompleteStops = true) => {
+  // CRITICAL: Failed/cancelled/completed takes precedence over next delivery blue
+  const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+  const isFinished = finishedStatuses.includes(status);
+  const shouldShowNextBlue = isNextInLine && !isFinished && hasIncompleteStops;
+  
+  const statusColor = shouldShowNextBlue ? '#3B82F6' : getInnerSymbolColor(status, false);
   const hasYellowHalo = isFirstTime && zoomLevel >= ZOOM_LEVELS.SIMPLIFY_ROUTES;
   const hasDuplicates = duplicateCount > 1;
   const showNumber = zoomLevel >= ZOOM_LEVELS.HIDE_NUMBERS && number;
@@ -789,9 +799,12 @@ export default function DeliveryMap({
   }, [safeDeliveries, isSingleDriverMode, showRoutes]);
 
   // Get coordinates for deliveries and pickups - Use backend isNextDelivery flag
-  const { deliveryMarkers, groupedDeliveryMarkers, pickupMarkers, groupedPickupMarkers } = useMemo(() => {
+  const { deliveryMarkers, groupedDeliveryMarkers, pickupMarkers, groupedPickupMarkers, hasIncompleteStops } = useMemo(() => {
     // Define finished statuses (can be local if not used elsewhere in this useMemo)
     const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+    
+    // Check if route has any incomplete stops
+    const hasIncompleteStops = safeDeliveries.some(d => d && !finishedStatuses.includes(d.status));
 
     // Process delivery markers
     const deliveryMarkersRaw = patientDeliveries.map((delivery) => {
@@ -933,9 +946,10 @@ export default function DeliveryMap({
       deliveryMarkers: deliveryMarkersWithCounts, 
       groupedDeliveryMarkers: groupedDeliveries,
       pickupMarkers: pickupMarkersWithCounts,
-      groupedPickupMarkers: groupedPickups
+      groupedPickupMarkers: groupedPickups,
+      hasIncompleteStops
     };
-  }, [patientDeliveries, pickups, safePatients, safeStores, safeUsers, isSingleDriverMode, currentUser]);
+  }, [patientDeliveries, pickups, safePatients, safeStores, safeUsers, isSingleDriverMode, currentUser, safeDeliveries]);
 
   // NEW: Calculate fanned-out positions with corrected linear radius scaling
   const calculateFannedPosition = useCallback((originalLat, originalLng, markerIndex, totalMarkers, stopOrder) => {
@@ -2246,7 +2260,8 @@ export default function DeliveryMap({
                 pickup.duplicateCount,
                 isMobile,
                 highlightedDeliveryId === pickup.id,
-                pickup.isNextDelivery
+                pickup.isNextDelivery,
+                hasIncompleteStops
               )}
               zIndexOffset={dynamicZIndex}
               draggable={!pickup.useSimpleCircle}
@@ -2401,7 +2416,8 @@ export default function DeliveryMap({
                 currentZoom,
                 isMobile,
                 delivery.isNextInLine,
-                isHighlighted
+                isHighlighted,
+                hasIncompleteStops
               )}
               zIndexOffset={dynamicZIndex}
               draggable={!delivery.useSimpleCircle}
