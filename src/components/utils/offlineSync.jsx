@@ -422,21 +422,12 @@ export const forceSyncAll = async () => {
   notifySyncStatus({ status: 'force_syncing' });
 
   try {
-    console.log('🔄 [OfflineSync] Force FULL sync - clearing existing data...');
+    console.log('🔄 [OfflineSync] Force sync - performing complete bidirectional check and balance...');
 
-    // Clear existing data
-    await Promise.all([
-      offlineDB.clearStore(offlineDB.STORES.PATIENTS),
-      offlineDB.clearStore(offlineDB.STORES.DELIVERIES)
-    ]);
+    // Perform bidirectional sync which compares local vs online and updates both sides
+    const results = await performBidirectionalSync();
 
-    // Force FULL sync for both entities
-    const results = {
-      patients: await syncPatients(true), // forceFullSync = true
-      deliveries: await syncDeliveries(null, true) // forceFullSync = true
-    };
-
-    console.log('✅ [OfflineSync] Force FULL sync complete', results);
+    console.log('✅ [OfflineSync] Force bidirectional sync complete', results);
     notifySyncStatus({ status: 'complete', results });
 
     return results;
