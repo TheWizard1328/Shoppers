@@ -12,7 +12,7 @@ import { format, subDays } from 'date-fns';
 const { Patient: PatientEntity, Delivery: DeliveryEntity } = { Patient, Delivery };
 
 const BATCH_SIZE = 500; // Fetch records in batches to avoid memory issues
-const SYNC_DELAY_BETWEEN_BATCHES = 500; // 500ms delay between batches
+const SYNC_DELAY_BETWEEN_BATCHES = 1500; // 1500ms delay between batches to avoid rate limits
 const FULL_SYNC_CHECK_INTERVAL = 24 * 60 * 60 * 1000; // Check for full sync every 24 hours
 
 let syncInProgress = false;
@@ -183,7 +183,7 @@ const syncDeliveries = async (selectedDate = null, forceFullSync = false) => {
     if (selectedDateDeliveries.length > 0) {
       allDeliveries.push(...selectedDateDeliveries);
       console.log(`✅ [OfflineSync] Selected date: ${selectedDateDeliveries.length} deliveries`);
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
     // STEP 2: Sync current date if different (second priority)
@@ -194,7 +194,7 @@ const syncDeliveries = async (selectedDate = null, forceFullSync = false) => {
       if (todayDeliveries.length > 0) {
         allDeliveries.push(...todayDeliveries);
         console.log(`✅ [OfflineSync] Current date: ${todayDeliveries.length} deliveries`);
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
 
@@ -270,7 +270,7 @@ const syncDeliveries = async (selectedDate = null, forceFullSync = false) => {
       notifySyncStatus({ entity: 'Delivery', status: 'syncing', progress, count: allDeliveries.length, syncType: isFullSync ? 'full' : 'incremental' });
       
       // Rate limit protection (longer delay for full sync to be safe)
-      await new Promise(resolve => setTimeout(resolve, isFullSync ? 1000 : 500));
+      await new Promise(resolve => setTimeout(resolve, isFullSync ? 2000 : 1500));
     }
 
     // Save to IndexedDB in batches
@@ -374,7 +374,7 @@ export const performInitialSync = async (selectedDate = null) => {
     // FIRST: Process pending mutations (push local changes to backend)
     console.log('📤 [OfflineSync] Processing pending mutations first...');
     await processPendingMutations();
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
     // THEN: Determine sync type needed
     const needsPatientFullSync = await needsFullSync('Patient');
@@ -385,7 +385,7 @@ export const performInitialSync = async (selectedDate = null) => {
     // Sync patients (FULL or INCREMENTAL)
     console.log(`📋 [OfflineSync] Patient sync: ${needsPatientFullSync ? 'FULL SYNC' : 'INCREMENTAL SYNC'}`);
     results.patients = await syncPatients(needsPatientFullSync);
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 3000));
 
     // Sync deliveries (FULL or INCREMENTAL)
     console.log(`📋 [OfflineSync] Delivery sync: ${needsDeliveryFullSync ? 'FULL SYNC' : 'INCREMENTAL SYNC'}`);
@@ -494,7 +494,7 @@ export const processPendingMutations = async () => {
       console.log(`✅ [OfflineSync] Successfully synced ${mutation.operation} ${mutation.entity}:${mutation.recordId}`);
       
       // Small delay between mutations to avoid rate limits
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise(resolve => setTimeout(resolve, 500));
       
     } catch (error) {
       console.error(`❌ [OfflineSync] Failed to sync ${mutation.operation} ${mutation.entity}:${mutation.recordId}:`, error);
@@ -535,7 +535,7 @@ export const performBidirectionalSync = async () => {
     // STEP 1: Push local changes to backend
     console.log('📤 [OfflineSync] Step 1/2: Pushing local changes to backend...');
     await processPendingMutations();
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
     // STEP 2: Pull backend changes and compare with local database
     console.log('📥 [OfflineSync] Step 2/2: Pulling backend changes and comparing...');
@@ -553,7 +553,7 @@ export const performBidirectionalSync = async () => {
     for (const dateStr of priorityDates) {
       const dateDeliveries = await Delivery.filter({ delivery_date: dateStr });
       backendDeliveries.push(...dateDeliveries);
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
     
     // Then scan backwards/forwards with early exit
@@ -591,7 +591,7 @@ export const performBidirectionalSync = async () => {
         break;
       }
       
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
     console.log(`📥 Fetched ${backendPatients.length} patients and ${backendDeliveries.length} deliveries from backend`);
