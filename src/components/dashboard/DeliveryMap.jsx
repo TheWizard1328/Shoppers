@@ -1887,7 +1887,7 @@ export default function DeliveryMap({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url={document.documentElement.classList.contains('dark-theme') || 
                (document.documentElement.classList.contains('auto-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)
-               ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+               ? "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
                : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"}
           className={document.documentElement.classList.contains('dark-theme') || 
                     (document.documentElement.classList.contains('auto-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)
@@ -2581,7 +2581,7 @@ export default function DeliveryMap({
 
       <style>{`
         .dark-map-tiles {
-          filter: brightness(1.35) contrast(0.95);
+          filter: brightness(0.6) saturate(0) contrast(1.1);
         }
         
         .custom-popup .leaflet-popup-content-wrapper {
