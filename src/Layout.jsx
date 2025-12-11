@@ -2639,7 +2639,7 @@ export default function Layout({ children, currentPageName }) {
                       <Link
                         to={createPageUrl('Patients')}
                         onClick={() => setSidebarOpen(false)}
-                        className={`px-4 py-1 rounded-xl flex items-center gap-3 transition-all duration-200 ${
+                        className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
                           currentPageName === 'Patients' ?
                             'shadow-sm' :
                             'hover:opacity-80'}`
@@ -2660,7 +2660,7 @@ export default function Layout({ children, currentPageName }) {
                       <Link
                         to={getRouteNavigationUrl('Deliveries')}
                         onClick={() => setSidebarOpen(false)}
-                        className={`px-4 py-1 rounded-xl flex items-center gap-3 transition-all duration-200 ${
+                        className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
                           currentPageName === 'Deliveries' ?
                             'shadow-sm' :
                             'hover:opacity-80'}`
@@ -2681,7 +2681,7 @@ export default function Layout({ children, currentPageName }) {
                       <Link
                         to={constructUrlWithParams(createPageUrl("DeliveryMetrics"))}
                         onClick={() => setSidebarOpen(false)}
-                        className={`mb-2 px-4 py-1 rounded-xl flex items-center gap-3 transition-all duration-200 ${
+                        className={`mb-2 px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
                           currentPageName === 'DeliveryMetrics' ?
                             'shadow-sm' :
                             'hover:opacity-80'}`
