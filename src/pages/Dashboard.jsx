@@ -5676,64 +5676,55 @@ function Dashboard() {
               <div className="pr-1 flex items-center gap-2">
                 <h2 className="text-slate-900 pl-2 text-lg font-bold">Dashboard</h2>
                 {currentUser &&
-                    // STEP 4: Recalculate stop orders for selected drivers
+                    // STEP 4: Recalculate stop orders (mobile only, active driver only)
                     console.log('');
                     console.log('🔄 [MANUAL REFRESH STEP 4] Recalculating stop orders...');
-                    
-                    // CRITICAL: On mobile, only update current driver (even if "all drivers" selected)
-                    let driversToUpdate = driversWithDeliveries;
-                    if (isMobile && currentUser?.id) {
-                      driversToUpdate = [currentUser.id];
-                      console.log(`📱 [Mobile Mode] Only updating current driver: ${currentUser.user_name || currentUser.full_name}`);
+                    if (isMobile) {
+                      // Determine active driver ID
+                      const activeDriverId = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
+                      
+                      if (activeDriverId && driversWithDeliveries.includes(activeDriverId)) {
+                        await recalculateStopOrders(activeDriverId, selectedDateStr);
+                        console.log(`   ✅ Stop orders recalculated for active driver ${activeDriverId} (mobile only)`);
+                      } else {
+                        console.log('   ⏭️ Active driver has no deliveries or not found');
+                      }
+                    } else {
+                      console.log('   ⏭️ Skipping stop order recalculation (desktop)');
                     }
-                    
-                    for (const driverId of driversToUpdate) {
-                      await recalculateStopOrders(driverId, selectedDateStr);
-                      console.log(`   ✅ Stop orders recalculated for driver ${driverId}`);
-                    }
-                    console.log('✅ [MANUAL REFRESH STEP 4] Stop orders recalculated');
+                    console.log('✅ [MANUAL REFRESH STEP 4] Stop order recalculation complete');
 
-                    // STEP 4.5: Update isNextDelivery flags for selected drivers
+                    // STEP 4.5: Update isNextDelivery flags (mobile only, active driver only)
                     console.log('');
                     console.log('🔄 [MANUAL REFRESH STEP 4.5] Updating isNextDelivery flags...');
-                    const updatedDeliveries = await base44.entities.Delivery.filter({
-                      delivery_date: selectedDateStr
-                    }, 'stop_order');
-                    
-                    // Group by driver
-                    const deliveriesByDriver = {};
-                    updatedDeliveries.forEach(d => {
-                      if (!d || !d.driver_id) return;
-                      if (!deliveriesByDriver[d.driver_id]) {
-                        deliveriesByDriver[d.driver_id] = [];
-                      }
-                      deliveriesByDriver[d.driver_id].push(d);
-                    });
-                    
-                    // For each driver, reset all flags and mark first incomplete
-                    const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-                    for (const [driverId, driverDeliveries] of Object.entries(deliveriesByDriver)) {
-                      // CRITICAL: On mobile, only update current driver's flags
-                      if (isMobile && currentUser?.id && driverId !== currentUser.id) {
-                        console.log(`   ⏭️ Skipping driver ${driverId} (mobile mode - not current user)`);
-                        continue;
-                      }
+                    if (isMobile) {
+                      const activeDriverId = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
                       
-                      // Reset all isNextDelivery flags for this driver
-                      const resetPromises = driverDeliveries
-                        .filter(d => d.isNextDelivery)
-                        .map(d => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
-                      await Promise.all(resetPromises);
-                      
-                      // Find first incomplete and mark as next
-                      const firstIncomplete = driverDeliveries
-                        .filter(d => !finishedStatuses.includes(d.status))
-                        .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
-                      
-                      if (firstIncomplete) {
-                        await base44.entities.Delivery.update(firstIncomplete.id, { isNextDelivery: true });
-                        console.log(`   ✅ Set isNextDelivery for driver ${driverId}: ${firstIncomplete.patient_name || 'Pickup'}`);
+                      if (activeDriverId) {
+                        const driverDeliveries = freshDeliveries.filter(d => d && d.driver_id === activeDriverId);
+                        
+                        if (driverDeliveries.length > 0) {
+                          // Reset all isNextDelivery flags for this driver
+                          const resetPromises = driverDeliveries
+                            .filter(d => d.isNextDelivery)
+                            .map(d => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
+                          await Promise.all(resetPromises);
+                          console.log(`   Reset ${resetPromises.length} isNextDelivery flags`);
+                          
+                          // Find first incomplete and mark as next (NO reordering)
+                          const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+                          const firstIncomplete = driverDeliveries
+                            .filter(d => !finishedStatuses.includes(d.status))
+                            .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
+                          
+                          if (firstIncomplete) {
+                            await base44.entities.Delivery.update(firstIncomplete.id, { isNextDelivery: true });
+                            console.log(`   ✅ Set isNextDelivery for active driver: ${firstIncomplete.patient_name || 'Pickup'}`);
+                          }
+                        }
                       }
+                    } else {
+                      console.log('   ⏭️ Skipping isNextDelivery update (desktop)');
                     }
                     console.log('✅ [MANUAL REFRESH STEP 4.5] isNextDelivery flags updated');
 
