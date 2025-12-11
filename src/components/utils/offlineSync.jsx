@@ -13,9 +13,17 @@ const { Patient: PatientEntity, Delivery: DeliveryEntity } = { Patient, Delivery
 
 const BATCH_SIZE = 500; // Fetch records in batches to avoid memory issues
 const SYNC_DELAY_BETWEEN_BATCHES = 500; // 500ms delay between batches
+const FULL_SYNC_CHECK_INTERVAL = 24 * 60 * 60 * 1000; // Check for full sync every 24 hours
 
 let syncInProgress = false;
 let syncListeners = [];
+
+// Track full sync completion state
+let fullSyncCompleted = {
+  patients: false,
+  deliveries: false,
+  lastFullSyncDate: null
+};
 
 /**
  * Subscribe to sync status changes
@@ -41,16 +49,67 @@ const notifySyncStatus = (status) => {
 };
 
 /**
- * Sync Patients to IndexedDB
+ * Check if full sync is needed (first time or 24h+ since last full sync)
  */
-const syncPatients = async () => {
-  console.log('🔄 [OfflineSync] Starting Patient sync...');
-  notifySyncStatus({ entity: 'Patient', status: 'syncing', progress: 0 });
+const needsFullSync = async (entity) => {
+  const syncStatus = await offlineDB.getSyncStatus(entity);
+  
+  if (!syncStatus || !syncStatus.lastFullSync) {
+    console.log(`📋 [OfflineSync] ${entity} needs FULL SYNC - never synced`);
+    return true;
+  }
+  
+  const hoursSinceLastSync = (Date.now() - new Date(syncStatus.lastFullSync).getTime()) / (1000 * 60 * 60);
+  const needsRefresh = hoursSinceLastSync >= 24;
+  
+  if (needsRefresh) {
+    console.log(`📋 [OfflineSync] ${entity} needs FULL SYNC - ${Math.round(hoursSinceLastSync)}h since last sync`);
+  } else {
+    console.log(`✅ [OfflineSync] ${entity} using INCREMENTAL SYNC - last synced ${Math.round(hoursSinceLastSync)}h ago`);
+  }
+  
+  return needsRefresh;
+};
+
+/**
+ * Sync Patients to IndexedDB - FULL or INCREMENTAL
+ */
+const syncPatients = async (forceFullSync = false) => {
+  const isFullSync = forceFullSync || await needsFullSync('Patient');
+  
+  console.log(`🔄 [OfflineSync] Starting Patient ${isFullSync ? 'FULL' : 'INCREMENTAL'} sync...`);
+  notifySyncStatus({ entity: 'Patient', status: 'syncing', progress: 0, syncType: isFullSync ? 'full' : 'incremental' });
 
   try {
-    // Fetch all patients from backend
-    const patients = await Patient.list();
-    console.log(`📥 [OfflineSync] Fetched ${patients.length} patients from backend`);
+    let patients;
+    
+    if (isFullSync) {
+      // FULL SYNC: Fetch all patients
+      console.log('📥 [OfflineSync] FULL SYNC: Fetching ALL patients...');
+      patients = await Patient.list();
+      console.log(`📥 [OfflineSync] Fetched ${patients.length} patients from backend`);
+    } else {
+      // INCREMENTAL SYNC: Only fetch recently updated records
+      const lastSync = await offlineDB.getSyncStatus('Patient');
+      const lastSyncDate = lastSync?.lastSync || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // Fallback: 7 days ago
+      
+      console.log(`📥 [OfflineSync] INCREMENTAL SYNC: Fetching patients updated since ${lastSyncDate}...`);
+      
+      // Fetch all and filter by updated_date (base44 SDK doesn't support date filters)
+      const allPatients = await Patient.list();
+      patients = allPatients.filter(p => {
+        const updated = new Date(p.updated_date || p.created_date);
+        return updated >= new Date(lastSyncDate);
+      });
+      
+      console.log(`📥 [OfflineSync] Found ${patients.length} updated patients (out of ${allPatients.length} total)`);
+      
+      // If too many changes, upgrade to full sync
+      if (patients.length > allPatients.length * 0.5) {
+        console.log('⚠️ [OfflineSync] Large delta detected - upgrading to FULL SYNC');
+        patients = allPatients;
+      }
+    }
 
     // Save to IndexedDB in batches
     const batches = [];
@@ -72,16 +131,24 @@ const syncPatients = async () => {
       }
     }
 
-    // Update sync status
-    await offlineDB.updateSyncStatus('Patient', {
+    // Update sync status with full sync marker
+    const syncStatusUpdate = {
       recordCount: totalSaved,
-      status: 'synced'
-    });
-
-    console.log(`✅ [OfflineSync] Patient sync complete - ${totalSaved} records saved`);
-    notifySyncStatus({ entity: 'Patient', status: 'synced', count: totalSaved });
+      status: 'synced',
+      lastSync: new Date().toISOString()
+    };
     
-    return { success: true, count: totalSaved };
+    if (isFullSync) {
+      syncStatusUpdate.lastFullSync = new Date().toISOString();
+      fullSyncCompleted.patients = true;
+    }
+    
+    await offlineDB.updateSyncStatus('Patient', syncStatusUpdate);
+
+    console.log(`✅ [OfflineSync] Patient ${isFullSync ? 'FULL' : 'INCREMENTAL'} sync complete - ${totalSaved} records saved`);
+    notifySyncStatus({ entity: 'Patient', status: 'synced', count: totalSaved, syncType: isFullSync ? 'full' : 'incremental' });
+    
+    return { success: true, count: totalSaved, syncType: isFullSync ? 'full' : 'incremental' };
   } catch (error) {
     console.error('❌ [OfflineSync] Patient sync failed:', error);
     notifySyncStatus({ entity: 'Patient', status: 'error', error: error.message });
@@ -90,15 +157,15 @@ const syncPatients = async () => {
 };
 
 /**
- * Sync Deliveries to IndexedDB - OPTIMIZED with prioritized dates and early exit
- * 1. Sync selected date first
- * 2. Sync current date if different
- * 3. Incrementally sync remaining dates (7 future + 30 past)
- * 4. Exit early if no changes detected for 10 consecutive days
+ * Sync Deliveries to IndexedDB - FULL or INCREMENTAL
+ * FULL SYNC: All dates (7 future + 30 past)
+ * INCREMENTAL SYNC: Priority dates + changed dates only
  */
-const syncDeliveries = async (selectedDate = null) => {
-  console.log('🔄 [OfflineSync] Starting OPTIMIZED Delivery sync...');
-  notifySyncStatus({ entity: 'Delivery', status: 'syncing', progress: 0 });
+const syncDeliveries = async (selectedDate = null, forceFullSync = false) => {
+  const isFullSync = forceFullSync || await needsFullSync('Delivery');
+  
+  console.log(`🔄 [OfflineSync] Starting Delivery ${isFullSync ? 'FULL' : 'INCREMENTAL'} sync...`);
+  notifySyncStatus({ entity: 'Delivery', status: 'syncing', progress: 0, syncType: isFullSync ? 'full' : 'incremental' });
 
   try {
     const today = new Date();
@@ -131,8 +198,8 @@ const syncDeliveries = async (selectedDate = null) => {
       }
     }
 
-    // STEP 3: Incrementally sync remaining dates with early exit
-    console.log(`📥 [OfflineSync] STEP 3: Syncing remaining dates (7 future + 30 past)...`);
+    // STEP 3: Sync remaining dates (behavior depends on sync type)
+    console.log(`📥 [OfflineSync] STEP 3: Syncing remaining dates (${isFullSync ? 'FULL - all dates' : 'INCREMENTAL - changed dates only'})...`);
     
     // Build date list: 7 days forward, then 30 days back
     const datesToSync = [];
@@ -157,9 +224,10 @@ const syncDeliveries = async (selectedDate = null) => {
       }
     }
 
-    console.log(`📅 [OfflineSync] Will check ${datesToSync.length} dates (exit early if 10 days without changes)`);
+    const earlyExitThreshold = isFullSync ? Infinity : 10; // No early exit for full sync
+    console.log(`📅 [OfflineSync] Will check ${datesToSync.length} dates (${isFullSync ? 'NO early exit' : 'exit after 10 days without changes'})`);
 
-    // Fetch incrementally with early exit
+    // Fetch with different strategies based on sync type
     for (let i = 0; i < datesToSync.length; i++) {
       const dateStr = datesToSync[i];
       
@@ -169,34 +237,40 @@ const syncDeliveries = async (selectedDate = null) => {
       // Fetch from backend
       const backendDeliveriesForDate = await Delivery.filter({ delivery_date: dateStr });
       
-      // Check if there are any changes (additions, deletions, or updates)
-      const hasChanges = checkForChanges(localDeliveriesForDate, backendDeliveriesForDate);
-      
-      if (hasChanges) {
-        console.log(`✅ [OfflineSync] ${dateStr}: ${backendDeliveriesForDate.length} deliveries (CHANGES DETECTED)`);
+      if (isFullSync) {
+        // FULL SYNC: Always fetch and save
+        console.log(`✅ [OfflineSync] ${dateStr}: ${backendDeliveriesForDate.length} deliveries (FULL SYNC)`);
         allDeliveries.push(...backendDeliveriesForDate);
-        consecutiveDaysWithoutChanges = 0; // Reset counter
       } else {
-        console.log(`⏭️ [OfflineSync] ${dateStr}: ${backendDeliveriesForDate.length} deliveries (no changes)`);
-        consecutiveDaysWithoutChanges++;
+        // INCREMENTAL SYNC: Only fetch if changes detected
+        const hasChanges = checkForChanges(localDeliveriesForDate, backendDeliveriesForDate);
         
-        // Keep existing local data
-        allDeliveries.push(...localDeliveriesForDate);
-      }
-      
-      // EARLY EXIT: Stop if 10 consecutive days without changes
-      if (consecutiveDaysWithoutChanges >= 10) {
-        console.log(`🛑 [OfflineSync] EARLY EXIT: No changes detected for 10 consecutive days`);
-        console.log(`   Checked ${i + 1} of ${datesToSync.length} dates (saved ${datesToSync.length - i - 1} API calls)`);
-        break;
+        if (hasChanges) {
+          console.log(`✅ [OfflineSync] ${dateStr}: ${backendDeliveriesForDate.length} deliveries (CHANGES DETECTED)`);
+          allDeliveries.push(...backendDeliveriesForDate);
+          consecutiveDaysWithoutChanges = 0; // Reset counter
+        } else {
+          console.log(`⏭️ [OfflineSync] ${dateStr}: ${backendDeliveriesForDate.length} deliveries (no changes)`);
+          consecutiveDaysWithoutChanges++;
+          
+          // Keep existing local data
+          allDeliveries.push(...localDeliveriesForDate);
+        }
+        
+        // EARLY EXIT: Stop if threshold reached (only for incremental sync)
+        if (consecutiveDaysWithoutChanges >= earlyExitThreshold) {
+          console.log(`🛑 [OfflineSync] EARLY EXIT: No changes detected for ${earlyExitThreshold} consecutive days`);
+          console.log(`   Checked ${i + 1} of ${datesToSync.length} dates (saved ${datesToSync.length - i - 1} API calls)`);
+          break;
+        }
       }
       
       // Progress notification
       const progress = Math.round(((i + 1) / datesToSync.length) * 100);
-      notifySyncStatus({ entity: 'Delivery', status: 'syncing', progress, count: allDeliveries.length });
+      notifySyncStatus({ entity: 'Delivery', status: 'syncing', progress, count: allDeliveries.length, syncType: isFullSync ? 'full' : 'incremental' });
       
-      // Rate limit protection
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Rate limit protection (longer delay for full sync to be safe)
+      await new Promise(resolve => setTimeout(resolve, isFullSync ? 1000 : 500));
     }
 
     // Save to IndexedDB in batches
@@ -216,16 +290,25 @@ const syncDeliveries = async (selectedDate = null) => {
       }
     }
 
-    // Update sync status
-    await offlineDB.updateSyncStatus('Delivery', {
+    // Update sync status with full sync marker
+    const syncStatusUpdate = {
       recordCount: totalSaved,
-      status: 'synced'
-    });
-
-    console.log(`✅ [OfflineSync] Delivery sync complete - ${totalSaved} records saved`);
-    notifySyncStatus({ entity: 'Delivery', status: 'synced', count: totalSaved });
+      status: 'synced',
+      lastSync: new Date().toISOString()
+    };
     
-    return { success: true, count: totalSaved };
+    if (isFullSync) {
+      syncStatusUpdate.lastFullSync = new Date().toISOString();
+      fullSyncCompleted.deliveries = true;
+      fullSyncCompleted.lastFullSyncDate = new Date().toISOString();
+    }
+    
+    await offlineDB.updateSyncStatus('Delivery', syncStatusUpdate);
+
+    console.log(`✅ [OfflineSync] Delivery ${isFullSync ? 'FULL' : 'INCREMENTAL'} sync complete - ${totalSaved} records saved`);
+    notifySyncStatus({ entity: 'Delivery', status: 'synced', count: totalSaved, syncType: isFullSync ? 'full' : 'incremental' });
+    
+    return { success: true, count: totalSaved, syncType: isFullSync ? 'full' : 'incremental' };
   } catch (error) {
     console.error('❌ [OfflineSync] Delivery sync failed:', error);
     notifySyncStatus({ entity: 'Delivery', status: 'error', error: error.message });
@@ -274,7 +357,7 @@ const checkForChanges = (localRecords, backendRecords) => {
 };
 
 /**
- * Perform initial sync if needed - OPTIMIZED with priority dates
+ * Perform initial sync if needed - FULL or INCREMENTAL based on last sync time
  */
 export const performInitialSync = async (selectedDate = null) => {
   if (syncInProgress) {
@@ -286,45 +369,39 @@ export const performInitialSync = async (selectedDate = null) => {
   notifySyncStatus({ status: 'starting' });
 
   try {
-    console.log('🚀 [OfflineSync] Starting OPTIMIZED initial sync check...');
+    console.log('🚀 [OfflineSync] Starting intelligent sync (FULL first time, then INCREMENTAL)...');
 
     // FIRST: Process pending mutations (push local changes to backend)
     console.log('📤 [OfflineSync] Processing pending mutations first...');
     await processPendingMutations();
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // THEN: Check if sync is needed
-    const [needsPatientSync, needsDeliverySync] = await Promise.all([
-      offlineDB.needsInitialSync('Patient'),
-      offlineDB.needsInitialSync('Delivery')
-    ]);
-
+    // THEN: Determine sync type needed
+    const needsPatientFullSync = await needsFullSync('Patient');
+    const needsDeliveryFullSync = await needsFullSync('Delivery');
+    
     const results = { patients: null, deliveries: null };
 
-    // Sync patients if needed
-    if (needsPatientSync) {
-      console.log('📋 [OfflineSync] Patient sync needed');
-      results.patients = await syncPatients();
-      // Wait 2 seconds between syncs to avoid rate limits
-      await new Promise(resolve => setTimeout(resolve, 2000));
-    } else {
-      console.log('✅ [OfflineSync] Patient data is up to date');
-    }
+    // Sync patients (FULL or INCREMENTAL)
+    console.log(`📋 [OfflineSync] Patient sync: ${needsPatientFullSync ? 'FULL SYNC' : 'INCREMENTAL SYNC'}`);
+    results.patients = await syncPatients(needsPatientFullSync);
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
-    // Sync deliveries if needed - pass selected date for priority sync
-    if (needsDeliverySync) {
-      console.log('📋 [OfflineSync] Delivery sync needed');
-      results.deliveries = await syncDeliveries(selectedDate);
-    } else {
-      console.log('✅ [OfflineSync] Delivery data is up to date');
-    }
+    // Sync deliveries (FULL or INCREMENTAL)
+    console.log(`📋 [OfflineSync] Delivery sync: ${needsDeliveryFullSync ? 'FULL SYNC' : 'INCREMENTAL SYNC'}`);
+    results.deliveries = await syncDeliveries(selectedDate, needsDeliveryFullSync);
 
-    console.log('✅ [OfflineSync] Initial sync complete', results);
-    notifySyncStatus({ status: 'complete', results });
+    const syncSummary = {
+      patients: `${results.patients.syncType.toUpperCase()} - ${results.patients.count} records`,
+      deliveries: `${results.deliveries.syncType.toUpperCase()} - ${results.deliveries.count} records`
+    };
+
+    console.log('✅ [OfflineSync] Sync complete:', syncSummary);
+    notifySyncStatus({ status: 'complete', results: syncSummary });
 
     return results;
   } catch (error) {
-    console.error('❌ [OfflineSync] Initial sync failed:', error);
+    console.error('❌ [OfflineSync] Sync failed:', error);
     notifySyncStatus({ status: 'error', error: error.message });
     throw error;
   } finally {
@@ -333,7 +410,7 @@ export const performInitialSync = async (selectedDate = null) => {
 };
 
 /**
- * Force sync (clear and re-sync all data)
+ * Force FULL sync (clear and re-sync all data)
  */
 export const forceSyncAll = async () => {
   if (syncInProgress) {
@@ -345,7 +422,7 @@ export const forceSyncAll = async () => {
   notifySyncStatus({ status: 'force_syncing' });
 
   try {
-    console.log('🔄 [OfflineSync] Force sync - clearing existing data...');
+    console.log('🔄 [OfflineSync] Force FULL sync - clearing existing data...');
 
     // Clear existing data
     await Promise.all([
@@ -353,13 +430,13 @@ export const forceSyncAll = async () => {
       offlineDB.clearStore(offlineDB.STORES.DELIVERIES)
     ]);
 
-    // Re-sync everything
+    // Force FULL sync for both entities
     const results = {
-      patients: await syncPatients(),
-      deliveries: await syncDeliveries()
+      patients: await syncPatients(true), // forceFullSync = true
+      deliveries: await syncDeliveries(null, true) // forceFullSync = true
     };
 
-    console.log('✅ [OfflineSync] Force sync complete', results);
+    console.log('✅ [OfflineSync] Force FULL sync complete', results);
     notifySyncStatus({ status: 'complete', results });
 
     return results;
@@ -600,14 +677,30 @@ const mergeData = (localRecords, backendRecords) => {
 };
 
 /**
- * Get sync statistics
+ * Get sync statistics including full sync status
  */
 export const getSyncStats = async () => {
   const stats = await offlineDB.getStats();
   const pendingMutations = await offlineDB.getPendingMutations();
   
+  // Get sync status for each entity
+  const patientStatus = await offlineDB.getSyncStatus('Patient');
+  const deliveryStatus = await offlineDB.getSyncStatus('Delivery');
+  
   return {
     ...stats,
-    pendingMutations: pendingMutations.length
+    pendingMutations: pendingMutations.length,
+    fullSyncStatus: {
+      patients: {
+        completed: !!patientStatus?.lastFullSync,
+        lastFullSync: patientStatus?.lastFullSync,
+        lastSync: patientStatus?.lastSync
+      },
+      deliveries: {
+        completed: !!deliveryStatus?.lastFullSync,
+        lastFullSync: deliveryStatus?.lastFullSync,
+        lastSync: deliveryStatus?.lastSync
+      }
+    }
   };
 };
