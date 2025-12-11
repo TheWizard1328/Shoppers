@@ -2611,11 +2611,17 @@ export default function Layout({ children, currentPageName }) {
                     <Link
                       to={constructUrlWithParams("Dashboard")}
                       onClick={() => setSidebarOpen(false)}
-                      className={`${
+                      className={`mb-1 px-4 py-1 rounded-xl flex items-center gap-3 transition-all duration-200 ${
                         currentPageName === 'Dashboard' ?
-                          'bg-slate-100 text-slate-900 shadow-sm' :
-                          'text-slate-600 hover:bg-slate-50 hover:text-slate-900'} mb-1 px-4 py-1 rounded-xl flex items-center gap-3 transition-all duration-200`
-                      }>
+                          'shadow-sm' :
+                          'hover:opacity-80'}`
+                      }
+                      style={currentPageName === 'Dashboard' ? {
+                        background: 'var(--bg-slate-100)',
+                        color: 'var(--text-slate-900)'
+                      } : {
+                        color: 'var(--text-slate-600)'
+                      }}>
                       <LayoutDashboard className="w-5 h-5" />
                       <span className="font-semibold">Dashboard</span>
                     </Link>
