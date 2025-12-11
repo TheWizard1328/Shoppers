@@ -1913,7 +1913,20 @@ export default function DeliveryForm({
               cod_total_amount_required: updated.cod_total_amount_required || 0,
               delivery_instructions: updated.delivery_instructions || '',
               tracking_number: updated.tracking_number || '99',
-              isNextDelivery: hasCompletedDeliveries ? false : updated.isNextDelivery || false
+              isNextDelivery: hasCompletedDeliveries ? false : updated.isNextDelivery || false,
+              patient_name: updated.patient_name || '',
+              patient_phone: updated.patient_phone || '',
+              unit_number: updated.unit_number || '',
+              mailbox_ok: updated.mailbox_ok || false,
+              call_upon_arrival: updated.call_upon_arrival || false,
+              ring_bell: updated.ring_bell || false,
+              dont_ring_bell: updated.dont_ring_bell || false,
+              back_door: updated.back_door || false,
+              signature_needed: updated.signature_needed || false,
+              fridge_item: updated.fridge_item || false,
+              oversized: updated.oversized || false,
+              no_charge: updated.no_charge || false,
+              extra_time: updated.extra_time || 0
             };
 
             // Only update time windows if patient has time_window_start
@@ -1922,9 +1935,8 @@ export default function DeliveryForm({
               updateData.time_window_end = updated.time_window_end || '';
             }
 
-            // CRITICAL: Use backend-only update (deliveries may not be in IndexedDB yet)
-            const { base44 } = await import('@/api/base44Client');
-            await base44.entities.Delivery.update(updated.id, updateData);
+            // CRITICAL: Use local update to ensure immediate UI sync and offline support
+            await updateDeliveryLocal(updated.id, updateData);
             console.log(`[AddToRoute] ✅ Updated pending delivery: ${updated.patient_name} → status: ${updated.status}`);
           } catch (error) {
             // Skip deliveries that were deleted
