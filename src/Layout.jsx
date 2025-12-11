@@ -2883,7 +2883,7 @@ export default function Layout({ children, currentPageName }) {
                               }}
                               variant="outline"
                               className="flex-1 gap-2 text-red-600 hover:bg-red-50 hover:text-red-700"
-                              style={{ borderColor: '#fecaca' }}
+                              style={{ borderColor: '#fecaca', background: 'var(--bg-white)', color: '#dc2626' }}
                             >
                           <LogOut className="w-4 h-4" />
                           Log Out
