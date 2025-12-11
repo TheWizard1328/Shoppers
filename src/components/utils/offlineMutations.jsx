@@ -301,14 +301,34 @@ export const createDeliveryLocal = async (deliveryData) => {
  */
 export const updateDeliveryLocal = async (deliveryId, updates) => {
   try {
-    console.log('📝 [OfflineMutations] Updating delivery locally:', deliveryId);
+    console.log('📝 [OfflineMutations] Updating delivery:', deliveryId);
     
     // Get current delivery from IndexedDB
     const deliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
     const existingDelivery = deliveries.find(d => d.id === deliveryId);
     
+    // CRITICAL: If delivery not in IndexedDB, update backend FIRST, then add to IndexedDB
     if (!existingDelivery) {
-      throw new Error(`Delivery ${deliveryId} not found in local database`);
+      console.log('⚠️ [OfflineMutations] Delivery not in IndexedDB - syncing to backend first:', deliveryId);
+      
+      // Update backend immediately
+      const { base44 } = await import('@/api/base44Client');
+      const backendDelivery = await base44.entities.Delivery.update(deliveryId, updates);
+      console.log('✅ [Sync] Delivery updated on backend:', deliveryId);
+      
+      // Add to IndexedDB
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [backendDelivery]);
+      console.log('✅ [OfflineMutations] Added backend delivery to IndexedDB:', deliveryId);
+      
+      // Notify listeners for UI update
+      notifyMutation({ 
+        type: 'update', 
+        entity: 'Delivery', 
+        id: deliveryId,
+        data: backendDelivery 
+      });
+      
+      return backendDelivery;
     }
 
     // Apply updates
@@ -349,7 +369,7 @@ export const updateDeliveryLocal = async (deliveryId, updates) => {
     
     return updatedDelivery;
   } catch (error) {
-    console.error('❌ [OfflineMutations] Failed to update delivery locally:', error);
+    console.error('❌ [OfflineMutations] Failed to update delivery:', error);
     throw error;
   }
 };
