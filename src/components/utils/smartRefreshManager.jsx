@@ -21,16 +21,15 @@ class SmartRefreshManager {
     this.minRefreshInterval = 90000; // 90 seconds minimum between full refreshes (increased to reduce rate limits)
     this.lastFullRefreshTime = 0; // Track full refresh separately
     
-    // Real-time refresh intervals (milliseconds) - CRITICAL: Heavily throttled to prevent rate limits and server crashes
-    // PRIORITY: Today's data is critical, historical/future data is background
+    // Real-time refresh intervals (milliseconds) - ALL SET TO 15 SECONDS
     this.intervals = {
-      driverLocation: 180000,    // 3min - driver GPS locations (throttled for rate limits)
-      activeDeliveries: 240000,  // 4min - today's active delivery statuses
-      todayDeliveries: 300000,   // 5min - today's delivery changes only
-      appUsers: 420000,          // 7min - driver status, assignments
-      todayPatients: 1800000,    // 30min - patients on today's routes only
-      patients: 14400000,        // 4hr - all other patients (very low priority)
-      stores: 28800000           // 8hr - store data almost never changes
+      driverLocation: 15000,     // 15s - driver GPS locations
+      activeDeliveries: 15000,   // 15s - today's active delivery statuses
+      todayDeliveries: 15000,    // 15s - today's delivery changes only
+      appUsers: 15000,           // 15s - driver status, assignments
+      todayPatients: 15000,      // 15s - patients on today's routes only
+      patients: 15000,           // 15s - all other patients
+      stores: 15000              // 15s - store data
     };
     
     // Track last refresh time for each entity type
@@ -299,6 +298,15 @@ class SmartRefreshManager {
       const otherDateDeliveries = currentDeliveries.filter(d => d && d.delivery_date !== dateStr);
       const finalDeliveries = [...otherDateDeliveries, ...finalMergedDeliveries];
 
+      // CRITICAL: Sync to offline database after changes
+      try {
+        const { offlineManager } = await import('./offlineManager');
+        await offlineManager.cacheDeliveries(finalDeliveries, selectedDate);
+        console.log('✅ [SmartRefresh] Synced deliveries to offline DB');
+      } catch (offlineError) {
+        console.warn('⚠️ [SmartRefresh] Failed to sync deliveries to offline DB:', offlineError);
+      }
+
       this.notifyRateLimit(false);
       return {
         hasChanges: true,
@@ -510,6 +518,15 @@ class SmartRefreshManager {
       
       const mergedAppUsers = mergeEntityChanges(currentAppUsers, diff);
       
+      // CRITICAL: Sync to offline database after changes
+      try {
+        const { offlineManager } = await import('./offlineManager');
+        await offlineManager.cacheEntities('AppUser', mergedAppUsers);
+        console.log('✅ [SmartRefresh] Synced AppUsers to offline DB');
+      } catch (offlineError) {
+        console.warn('⚠️ [SmartRefresh] Failed to sync AppUsers to offline DB:', offlineError);
+      }
+      
       return {
         hasChanges: true,
         appUsers: mergedAppUsers
@@ -660,6 +677,15 @@ class SmartRefreshManager {
           console.log(`   🆕 New patient from server: ${up.full_name}`);
         }
       });
+      
+      // CRITICAL: Sync to offline database after changes
+      try {
+        const { offlineManager } = await import('./offlineManager');
+        await offlineManager.cacheEntities('Patient', mergedPatients);
+        console.log('✅ [SmartRefresh] Synced patients to offline DB');
+      } catch (offlineError) {
+        console.warn('⚠️ [SmartRefresh] Failed to sync patients to offline DB:', offlineError);
+      }
       
       return {
         hasChanges: true,

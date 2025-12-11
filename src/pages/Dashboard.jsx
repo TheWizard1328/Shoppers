@@ -5349,7 +5349,6 @@ function Dashboard() {
     console.log('✅ [START STEP 0] Background polling paused');
 
     try {
-      // Find delivery in UI state
       const deliveryFromUI = deliveriesWithStopOrder.find((d) => d?.id === deliveryId);
       if (!deliveryFromUI) {
         console.error('❌ [START ERROR] Delivery not found in local state');
@@ -5360,136 +5359,59 @@ function Dashboard() {
       const deliveryDate = deliveryFromUI.delivery_date;
       const isPickup = !deliveryFromUI.patient_id;
       const newStatus = isPickup ? 'en_route' : 'in_transit';
-      const currentTime = format(new Date(), 'HH:mm');
 
-      console.log(`📦 [START STEP 1] Delivery identified:`);
-      console.log(`   - Name: ${deliveryFromUI.patient_name || 'Store Pickup'}`);
-      console.log(`   - Stop Order: #${deliveryFromUI.stop_order}`);
-      console.log(`   - Type: ${isPickup ? 'PICKUP' : 'DELIVERY'}`);
-      console.log(`   - Driver ID: ${driverId}`);
-      console.log(`   - Date: ${deliveryDate}`);
-      console.log(`   - New Status: ${newStatus}`);
-      console.log(`   - Current Time: ${currentTime}`);
-
-      // STEP 1.5: Find most recently completed delivery and reorder
-      console.log('');
-      console.log('📍 [START STEP 1.5] Finding most recently completed delivery for reordering...');
+      console.log(`📦 [START STEP 1] Delivery identified: ${deliveryFromUI.patient_name || 'Store Pickup'}`);
 
       const allDriverDeliveriesForDate = deliveriesWithStopOrder.filter((d) =>
-      d && d.driver_id === driverId && d.delivery_date === deliveryDate
+        d && d.driver_id === driverId && d.delivery_date === deliveryDate
       );
 
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-      const completedDeliveries = allDriverDeliveriesForDate.
-      filter((d) => finishedStatuses.includes(d.status) && d.actual_delivery_time).
-      sort((a, b) => new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time));
+      const completedCount = allDriverDeliveriesForDate.filter((d) => finishedStatuses.includes(d.status)).length;
+      const newStopOrder = completedCount + 1;
 
-      let newStopOrder;
-      if (completedDeliveries.length > 0) {
-        const lastCompleted = completedDeliveries[0];
-        newStopOrder = lastCompleted.stop_order + 1;
+      console.log(`📍 [START STEP 2] Calculated new stop_order: ${newStopOrder} (completed: ${completedCount})`);
 
-        console.log(`   - Found last completed: ${lastCompleted.patient_name || 'Pickup'} (stop_order: ${lastCompleted.stop_order})`);
-        console.log(`   - New stop_order for started delivery: ${newStopOrder}`);
-
-        // Shift all stops between lastCompleted and current position up by 1
-        const stopsToShift = allDriverDeliveriesForDate.filter((d) =>
-        d.id !== deliveryId &&
-        d.stop_order >= newStopOrder &&
-        d.stop_order < deliveryFromUI.stop_order
-        );
-
-        if (stopsToShift.length > 0) {
-          console.log(`   - Shifting ${stopsToShift.length} stops up by 1`);
-          await Promise.all(
-            stopsToShift.map((d) =>
-            updateDeliveryLocal(d.id, { stop_order: d.stop_order + 1 })
-            )
-          );
-          console.log('   ✅ Stop orders shifted');
-        }
-      } else {
-        newStopOrder = 1;
-        console.log(`   - No completed deliveries, placing at position 1`);
-
-        // Shift all other stops up by 1
-        const stopsToShift = allDriverDeliveriesForDate.filter((d) =>
-        d.id !== deliveryId && d.stop_order >= 1
-        );
-
-        if (stopsToShift.length > 0) {
-          console.log(`   - Shifting ${stopsToShift.length} stops up by 1`);
-          await Promise.all(
-            stopsToShift.map((d) =>
-            updateDeliveryLocal(d.id, { stop_order: d.stop_order + 1 })
-            )
-          );
-          console.log('   ✅ Stop orders shifted');
+      // STEP 3: Reset ALL isNextDelivery flags
+      console.log('');
+      console.log('📍 [START STEP 3] Resetting ALL isNextDelivery flags to false...');
+      for (const d of allDriverDeliveriesForDate) {
+        if (d.isNextDelivery) {
+          await updateDeliveryLocal(d.id, { isNextDelivery: false });
         }
       }
+      console.log(`✅ [START STEP 3] All isNextDelivery flags reset`);
 
-      console.log(`✅ [START STEP 1.5] Reordering complete - new stop_order: ${newStopOrder}`);
-
-      // STEP 2: Reset all isNextDelivery flags
+      // STEP 4: Update selected stop with new stop_order and isNextDelivery=true
       console.log('');
-      console.log('📍 [START STEP 2] Resetting all isNextDelivery flags...');
-      const resetPromises = allDriverDeliveriesForDate.
-      filter((d) => d.isNextDelivery).
-      map((d) => updateDeliveryLocal(d.id, { isNextDelivery: false }));
-      await Promise.all(resetPromises);
-      console.log(`✅ [START STEP 2] Reset ${resetPromises.length} isNextDelivery flags`);
-
-      // STEP 3: Update started delivery status, new stop_order, AND mark as isNextDelivery - LOCAL FIRST
-      console.log('');
-      console.log('📍 [START STEP 3] Updating started delivery LOCALLY with new stop_order...');
-      // CRITICAL: Only set isNextDelivery=true if status is NOT pending
-      const isNextDeliveryValue = newStatus !== 'pending';
+      console.log('📍 [START STEP 4] Updating selected stop locally...');
       await updateDeliveryLocal(deliveryId, {
         status: newStatus,
         stop_order: newStopOrder,
-        delivery_time_eta: currentTime,
-        isNextDelivery: isNextDeliveryValue
+        isNextDelivery: true
       });
-      console.log(`✅ [START STEP 3] Started delivery reordered to stop #${newStopOrder} LOCALLY (isNextDelivery: ${isNextDeliveryValue})`);
+      console.log(`✅ [START STEP 4] Stop #${newStopOrder} updated locally (isNextDelivery: true)`);
 
+      // STEP 5: Update ETA for the selected stop and all remaining
       console.log('');
-      console.log('📍 [START STEP 4] Running full ETA recalculation after reordering...');
-      console.log(`   - Started stop now at position #${newStopOrder}`);
-      console.log(`   - All stops will get updated ETAs based on new sequence`);
-
-      // Refresh data BEFORE ETA optimizer to ensure it sees the updated stop_order
-      console.log('🔄 [START STEP 4] Refreshing deliveries before ETA calculation...');
-      invalidateDeliveriesForDate(deliveryDate);
-      await refreshData();
-
+      console.log('📍 [START STEP 5] Updating ETAs using backend optimizer...');
       try {
         await base44.functions.invoke('etaOptimizer', {
           driverId: driverId,
           deliveryDate: deliveryDate,
           deviceTime: new Date().toISOString()
         });
-        console.log('✅ [START STEP 4] Full ETA recalculation completed - all stop ETAs updated');
+        console.log('✅ [START STEP 5] ETAs updated via backend');
       } catch (etaError) {
-        console.warn('⚠️ [START STEP 4] ETA recalculation failed:', etaError);
+        console.warn('⚠️ [START STEP 5] ETA recalculation failed:', etaError);
       }
 
+      // STEP 6: Full data refresh to update UI
       console.log('');
-      console.log('📍 [START STEP 5] Recalculating all stop orders...');
-
-      // Recalculate stop orders for entire route
-      await recalculateStopOrders(driverId, deliveryDate);
-      console.log('✅ [START STEP 5] Stop orders recalculated');
-
-      // 6. Full data refresh
-      console.log('');
-      console.log('📍 [START STEP 6] Triggering full data refresh...');
-      console.log(`   - Invalidating deliveries cache for date: ${deliveryDate}`);
-
+      console.log('📍 [START STEP 6] Refreshing data...');
       invalidateDeliveriesForDate(deliveryDate);
-      console.log('   - Calling refreshData()...');
-
       await refreshData();
-      console.log('✅ [START STEP 6] Full data refresh complete');
+      console.log('✅ [START STEP 6] UI refresh complete');
 
       // 7. Scroll to first incomplete delivery
       console.log('');
