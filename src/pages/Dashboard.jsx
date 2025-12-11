@@ -3051,7 +3051,7 @@ function Dashboard() {
             return new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time);
           });
 
-          // CRITICAL: Sort incomplete stops - pickups BEFORE their pending deliveries
+          // CRITICAL: Sort incomplete stops - pending deliveries ALWAYS LAST
           incompleteStops.sort((a, b) => {
             if (!a || !b) return 0;
 
@@ -3060,7 +3060,11 @@ function Dashboard() {
             const isAPending = a.status === 'pending';
             const isBPending = b.status === 'pending';
 
-            // First, sort by time
+            // CRITICAL: Pending deliveries ALWAYS go last
+            if (isAPending && !isBPending) return 1;
+            if (!isAPending && isBPending) return -1;
+
+            // For non-pending stops, sort by time
             const timeA = a.delivery_time_start || a.delivery_time_eta || '99:99';
             const timeB = b.delivery_time_start || b.delivery_time_eta || '99:99';
 
@@ -3068,12 +3072,10 @@ function Dashboard() {
               return timeA.localeCompare(timeB);
             }
 
-            // CRITICAL: Same time - pickups ALWAYS before pending deliveries from same store
+            // CRITICAL: Same time - pickups before deliveries from same store
             if (a.store_id === b.store_id) {
-              // If A is pickup and B is pending delivery → A comes first
-              if (isAPickup && isBPending && !isBPickup) return -1;
-              // If B is pickup and A is pending delivery → B comes first
-              if (isBPickup && isAPending && !isAPickup) return 1;
+              if (isAPickup && !isBPickup) return -1;
+              if (!isAPickup && isBPickup) return 1;
 
               // If both are deliveries from same store, sort by distance
               if (!isAPickup && !isBPickup) {
@@ -3352,10 +3354,10 @@ function Dashboard() {
             map((d) => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
             await Promise.all(resetPromises);
 
-            // Find first incomplete delivery and mark as next
+            // Find first incomplete delivery and mark as next (SKIP PENDING)
             const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
             const firstIncomplete = allDriverDeliveries.
-            filter((d) => !finishedStatuses.includes(d.status)).
+            filter((d) => !finishedStatuses.includes(d.status) && d.status !== 'pending').
             sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
 
             if (firstIncomplete) {
@@ -5140,9 +5142,9 @@ function Dashboard() {
           console.log(`✅ Reset ${resetPromises.length} isNextDelivery flags`);
         }
 
-        // Find the next incomplete delivery (excluding the one being completed) and mark it as next
+        // Find the next incomplete delivery (excluding the one being completed) and mark as next (SKIP PENDING)
         const incompleteDeliveries = allDriverDeliveriesForDate.
-        filter((d) => d.id !== deliveryId && !['completed', 'failed', 'cancelled', 'returned'].includes(d.status)).
+        filter((d) => d.id !== deliveryId && !['completed', 'failed', 'cancelled', 'returned'].includes(d.status) && d.status !== 'pending').
         sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
         if (incompleteDeliveries.length > 0) {
@@ -5150,7 +5152,7 @@ function Dashboard() {
           await updateDeliveryLocal(nextStop.id, { isNextDelivery: true });
           console.log(`✅ Set isNextDelivery=true for next stop: ${nextStop.patient_name || 'Pickup'}`);
         } else {
-          console.log('ℹ️ No incomplete deliveries remaining (route complete)');
+          console.log('ℹ️ No non-pending incomplete deliveries remaining');
         }
       }
 
@@ -5430,13 +5432,15 @@ function Dashboard() {
       // STEP 3: Update started delivery status, new stop_order, AND mark as isNextDelivery - LOCAL FIRST
       console.log('');
       console.log('📍 [START STEP 3] Updating started delivery LOCALLY with new stop_order...');
+      // CRITICAL: Only set isNextDelivery=true if status is NOT pending
+      const isNextDeliveryValue = newStatus !== 'pending';
       await updateDeliveryLocal(deliveryId, {
         status: newStatus,
         stop_order: newStopOrder,
         delivery_time_eta: currentTime,
-        isNextDelivery: true
+        isNextDelivery: isNextDeliveryValue
       });
-      console.log(`✅ [START STEP 3] Started delivery reordered to stop #${newStopOrder} LOCALLY`);
+      console.log(`✅ [START STEP 3] Started delivery reordered to stop #${newStopOrder} LOCALLY (isNextDelivery: ${isNextDeliveryValue})`);
 
       console.log('');
       console.log('📍 [START STEP 4] Running full ETA recalculation after reordering...');
@@ -5785,10 +5789,10 @@ function Dashboard() {
                     await Promise.all(resetPromises);
                     console.log(`   Reset ${resetPromises.length} isNextDelivery flags`);
 
-                    // Find first incomplete and mark as next (NO reordering)
+                    // Find first incomplete and mark as next (NO reordering, SKIP PENDING)
                     const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
                     const firstIncomplete = updatedDeliveries.
-                    filter((d) => !finishedStatuses.includes(d.status)).
+                    filter((d) => !finishedStatuses.includes(d.status) && d.status !== 'pending').
                     sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
 
                     if (firstIncomplete) {
