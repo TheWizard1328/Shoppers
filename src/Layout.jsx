@@ -726,6 +726,22 @@ export default function Layout({ children, currentPageName }) {
       const unsubscribeMutations = subscribeMutations(async (mutation) => {
         console.log('🔄 [Layout] Local mutation detected:', mutation);
 
+        // CRITICAL: Handle 'replace' mutations to swap temp IDs with real backend IDs
+        if (mutation.type === 'replace') {
+          console.log(`🔄 [Layout] Replace mutation: ${mutation.oldId} → ${mutation.newId}`);
+          
+          if (mutation.entity === 'Patient') {
+            setPatients(prevPatients => 
+              prevPatients.map(p => p?.id === mutation.oldId ? mutation.data : p)
+            );
+          } else if (mutation.entity === 'Delivery') {
+            setDeliveries(prevDeliveries => 
+              prevDeliveries.map(d => d?.id === mutation.oldId ? mutation.data : d)
+            );
+          }
+          return;
+        }
+
         // CRITICAL: Update UI state immediately from local database with proper deduplication
         if (mutation.entity === 'Patient') {
           try {

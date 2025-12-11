@@ -67,8 +67,32 @@ export const createPatientLocal = async (patientData) => {
     // Try immediate backend sync
     try {
       const { base44 } = await import('@/api/base44Client');
-      await base44.entities.Patient.create(patientData);
-      console.log('✅ [Sync] Patient synced to backend immediately:', tempId);
+      const backendPatient = await base44.entities.Patient.create(patientData);
+      console.log('✅ [Sync] Patient synced to backend immediately:', tempId, '→', backendPatient.id);
+      
+      // CRITICAL: Remove temp record from IndexedDB
+      const db = await offlineDB.openDatabase();
+      const transaction = db.transaction([offlineDB.STORES.PATIENTS], 'readwrite');
+      const store = transaction.objectStore(offlineDB.STORES.PATIENTS);
+      await new Promise((resolve, reject) => {
+        const request = store.delete(tempId);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+      
+      // Add real backend record to IndexedDB
+      await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [backendPatient]);
+      
+      // Notify listeners to replace temp with real record
+      notifyMutation({ 
+        type: 'replace', 
+        entity: 'Patient', 
+        oldId: tempId,
+        newId: backendPatient.id,
+        data: backendPatient 
+      });
+      
+      console.log('✅ [Sync] Temp patient replaced with backend patient in IndexedDB');
     } catch (error) {
       console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
       // Queue for backend sync if immediate sync fails
@@ -228,8 +252,32 @@ export const createDeliveryLocal = async (deliveryData) => {
     // Try immediate backend sync
     try {
       const { base44 } = await import('@/api/base44Client');
-      await base44.entities.Delivery.create(deliveryData);
-      console.log('✅ [Sync] Delivery synced to backend immediately:', tempId);
+      const backendDelivery = await base44.entities.Delivery.create(deliveryData);
+      console.log('✅ [Sync] Delivery synced to backend immediately:', tempId, '→', backendDelivery.id);
+      
+      // CRITICAL: Remove temp record from IndexedDB
+      const db = await offlineDB.openDatabase();
+      const transaction = db.transaction([offlineDB.STORES.DELIVERIES], 'readwrite');
+      const store = transaction.objectStore(offlineDB.STORES.DELIVERIES);
+      await new Promise((resolve, reject) => {
+        const request = store.delete(tempId);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+      
+      // Add real backend record to IndexedDB
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [backendDelivery]);
+      
+      // Notify listeners to replace temp with real record
+      notifyMutation({ 
+        type: 'replace', 
+        entity: 'Delivery', 
+        oldId: tempId,
+        newId: backendDelivery.id,
+        data: backendDelivery 
+      });
+      
+      console.log('✅ [Sync] Temp delivery replaced with backend delivery in IndexedDB');
     } catch (error) {
       console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
       // Queue for backend sync if immediate sync fails
@@ -389,8 +437,37 @@ export const batchCreateDeliveriesLocal = async (deliveriesData) => {
     // Try immediate backend sync
     try {
       const { base44 } = await import('@/api/base44Client');
-      await base44.entities.Delivery.bulkCreate(deliveriesData);
+      const backendDeliveries = await base44.entities.Delivery.bulkCreate(deliveriesData);
       console.log(`✅ [Sync] ${localDeliveries.length} deliveries synced to backend immediately`);
+      
+      // CRITICAL: Remove all temp records from IndexedDB
+      const db = await offlineDB.openDatabase();
+      const transaction = db.transaction([offlineDB.STORES.DELIVERIES], 'readwrite');
+      const store = transaction.objectStore(offlineDB.STORES.DELIVERIES);
+      
+      for (const localDelivery of localDeliveries) {
+        await new Promise((resolve, reject) => {
+          const request = store.delete(localDelivery.id);
+          request.onsuccess = () => resolve();
+          request.onerror = () => reject(request.error);
+        });
+      }
+      
+      // Add all real backend records to IndexedDB
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, backendDeliveries);
+      
+      // Notify listeners to replace temp records with real records
+      backendDeliveries.forEach((backendDelivery, index) => {
+        notifyMutation({ 
+          type: 'replace', 
+          entity: 'Delivery', 
+          oldId: localDeliveries[index].id,
+          newId: backendDelivery.id,
+          data: backendDelivery 
+        });
+      });
+      
+      console.log('✅ [Sync] All temp deliveries replaced with backend deliveries in IndexedDB');
     } catch (error) {
       console.warn('⚠️ [Sync] Immediate bulk sync failed, queuing for later:', error.message);
       // Queue all for backend sync if immediate sync fails
