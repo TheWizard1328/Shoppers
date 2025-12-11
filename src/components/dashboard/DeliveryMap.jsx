@@ -1145,6 +1145,14 @@ export default function DeliveryMap({
         return null;
       }
 
+      const isCurrentUser = driverId === currentUser?.id;
+
+      // CRITICAL: On mobile, hide shared location marker for current user (blue dot shows instead)
+      if (isMobile && isCurrentUser) {
+        console.log(`  ⏭️ Skipping ${driver.user_name || driver.full_name}: current user on mobile (blue dot shows instead)`);
+        return null;
+      }
+
       // CRITICAL: Must be on_duty to show shared location
       if (location.driver_status !== 'on_duty') {
         console.log(`  ⏭️ Skipping ${driver.user_name || driver.full_name}: not on_duty`);
@@ -1179,7 +1187,6 @@ export default function DeliveryMap({
       const driverColor = getDriverColor(driver);
       const driverName = driver.user_name || driver.full_name || 'Unknown Driver';
       const driverInitial = driverName.charAt(0).toUpperCase();
-      const isCurrentUser = driverId === currentUser?.id;
 
       console.log(`  ✅ ${driverName}: Shared location marker (on_duty, tracking enabled)${isCurrentUser ? ' [SELF]' : ''}`);
 
