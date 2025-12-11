@@ -691,9 +691,9 @@ function Dashboard() {
   const nextStop = useMemo(() => {
     if (!isDriver || !currentUser || !filteredDeliveries || !Array.isArray(filteredDeliveries) || filteredDeliveries.length === 0) return null;
 
-    // CRITICAL: Use the backend's isNextDelivery flag for accuracy
+    // CRITICAL: Use the backend's isNextDelivery flag for accuracy (should never be pending)
     const nextDeliveryFromBackend = filteredDeliveries.find((d) =>
-    d && d.isNextDelivery === true && d.driver_id === currentUser.id
+    d && d.isNextDelivery === true && d.driver_id === currentUser.id && d.status !== 'pending'
     );
 
     if (nextDeliveryFromBackend) {
@@ -701,11 +701,11 @@ function Dashboard() {
       return nextDeliveryFromBackend;
     }
 
-    // Fallback: if backend hasn't marked one yet, find first incomplete
+    // Fallback: if backend hasn't marked one yet, find first incomplete (EXCLUDE PENDING)
     const unfinishedStops = filteredDeliveries.filter((d) => {
       if (!d) return false;
       return d.driver_id === currentUser.id &&
-      !['completed', 'failed', 'cancelled', 'returned'].includes(d.status);
+      !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status);
     });
 
     if (unfinishedStops.length === 0) return null;
@@ -716,7 +716,7 @@ function Dashboard() {
       return (a.delivery_time_start || '').localeCompare(b.delivery_time_start || '');
     });
 
-    console.log('⚠️ [nextStop] Using fallback (first incomplete stop):', sortedStops[0]?.patient_name || 'Pickup');
+    console.log('⚠️ [nextStop] Using fallback (first incomplete non-pending stop):', sortedStops[0]?.patient_name || 'Pickup');
     return sortedStops[0];
   }, [isDriver, filteredDeliveries, currentUser]);
 
@@ -3494,8 +3494,18 @@ function Dashboard() {
         }
 
         // Sort incomplete deliveries by ETA
+        // CRITICAL: Sort incomplete deliveries - pending ALWAYS LAST
         const sortedIncomplete = [...incompleteDeliveries].sort((a, b) => {
           if (!a || !b) return 0;
+
+          const isAPending = a.status === 'pending';
+          const isBPending = b.status === 'pending';
+
+          // Pending deliveries always go last
+          if (isAPending && !isBPending) return 1;
+          if (!isAPending && isBPending) return -1;
+
+          // For non-pending, sort by ETA
           const etaA = a.delivery_time_eta || a.delivery_time_start || '99:99';
           const etaB = b.delivery_time_eta || b.delivery_time_start || '99:99';
           return etaA.localeCompare(etaB);
