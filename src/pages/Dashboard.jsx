@@ -5686,22 +5686,8 @@ function Dashboard() {
                     console.log('═══════════════════════════════════════════════════');
                     console.log('');
 
-                    // Run ETA optimizer for current driver if applicable
-                    if (selectedDriverId && selectedDriverId !== 'all') {
-                      console.log('🔄 [MANUAL REFRESH] Running ETA optimizer...');
-                      try {
-                        await base44.functions.invoke('etaOptimizer', {
-                          driverId: selectedDriverId,
-                          deliveryDate: format(selectedDate, 'yyyy-MM-dd')
-                        });
-                        console.log('✅ [MANUAL REFRESH] ETA optimizer completed');
-                      } catch (etaError) {
-                        console.warn('⚠️ [MANUAL REFRESH] ETA optimizer failed:', etaError);
-                      }
-                    }
-
-                    // Trigger smart refresh cycle (incremental updates)
-                    console.log('🔄 [MANUAL REFRESH] Starting smart refresh cycle...');
+                    // STEP 1: Smart refresh cycle (fast incremental updates)
+                    console.log('🔄 [MANUAL REFRESH STEP 1] Running smart refresh cycle...');
                     
                     const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
                     const currentData = {
@@ -5739,13 +5725,63 @@ function Dashboard() {
                     };
 
                     const updates = await smartRefreshManager.performSmartRefresh(currentData, filters, false);
+                    console.log('✅ [MANUAL REFRESH STEP 1] Smart refresh complete');
+
+                    // STEP 2: Force reload deliveries for selected date
+                    console.log('');
+                    console.log('🔄 [MANUAL REFRESH STEP 2] Force reloading deliveries for selected date...');
+                    invalidateDeliveriesForDate(selectedDateStr);
+                    const freshDeliveries = await base44.entities.Delivery.filter({
+                      delivery_date: selectedDateStr
+                    });
+                    console.log(`✅ [MANUAL REFRESH STEP 2] Loaded ${freshDeliveries.length} deliveries`);
+
+                    // STEP 3: Update ETAs for all drivers with deliveries on selected date
+                    console.log('');
+                    console.log('🔄 [MANUAL REFRESH STEP 3] Updating ETAs for all drivers...');
+                    const driversWithDeliveries = [...new Set(freshDeliveries.map(d => d.driver_id).filter(Boolean))];
+                    console.log(`   Found ${driversWithDeliveries.length} drivers with deliveries`);
                     
-                    if (updates && updateDeliveriesLocally) {
-                      console.log('✅ [MANUAL REFRESH] Applying updates to local state');
-                      
-                      if (updates.deliveries) {
-                        setDeliveries(updates.deliveries);
+                    for (const driverId of driversWithDeliveries) {
+                      try {
+                        await base44.functions.invoke('etaOptimizer', {
+                          driverId: driverId,
+                          deliveryDate: selectedDateStr
+                        });
+                        console.log(`   ✅ ETAs updated for driver ${driverId}`);
+                      } catch (etaError) {
+                        console.warn(`   ⚠️ ETA update failed for driver ${driverId}:`, etaError);
                       }
+                    }
+                    console.log('✅ [MANUAL REFRESH STEP 3] All ETAs updated');
+
+                    // STEP 4: Recalculate stop orders for all drivers
+                    console.log('');
+                    console.log('🔄 [MANUAL REFRESH STEP 4] Recalculating stop orders...');
+                    for (const driverId of driversWithDeliveries) {
+                      await recalculateStopOrders(driverId, selectedDateStr);
+                      console.log(`   ✅ Stop orders recalculated for driver ${driverId}`);
+                    }
+                    console.log('✅ [MANUAL REFRESH STEP 4] All stop orders recalculated');
+
+                    // STEP 5: Reload fresh data and update UI
+                    console.log('');
+                    console.log('🔄 [MANUAL REFRESH STEP 5] Reloading fresh data...');
+                    invalidateDeliveriesForDate(selectedDateStr);
+                    const finalDeliveries = await base44.entities.Delivery.filter({
+                      delivery_date: selectedDateStr
+                    });
+                    
+                    // Update UI state
+                    if (updateDeliveriesLocally) {
+                      const otherDateDeliveries = deliveries.filter(d => d && d.delivery_date !== selectedDateStr);
+                      const mergedDeliveries = [...otherDateDeliveries, ...finalDeliveries];
+                      updateDeliveriesLocally(mergedDeliveries);
+                      console.log('✅ [MANUAL REFRESH STEP 5] UI updated with fresh data');
+                    }
+                    
+                    // Apply any smart refresh updates
+                    if (updates) {
                       if (updates.patients) {
                         setPatients(updates.patients);
                       }
