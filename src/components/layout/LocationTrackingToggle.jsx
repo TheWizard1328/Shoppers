@@ -20,12 +20,12 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
   const [gpsCapabilities, setGpsCapabilities] = useState(null);
   const autoStartedRef = useRef(false);
   const consecutiveErrorsRef = useRef(0);
-  
+
   // Check visibility ONCE on mount and cache the result - MOVED TO TOP
   const isMobile = useMemo(() => checkIsMobileDevice(), []);
   const isDriver = useRef(user ? userHasRole(user, 'driver') : false).current;
   const isAdmin = useRef(user ? userHasRole(user, 'admin') : false).current;
-  
+
   // Always sync localUser with user prop
   useEffect(() => {
     if (user) {
@@ -37,17 +37,17 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
       setLocalUser(user);
     }
   }, [user]);
-  
+
   // CRITICAL: Always start tracking on mobile devices for drivers/admins
   useEffect(() => {
-    if (!isMobile || (!isDriver && !isAdmin) || !localUser) return;
-    
+    if (!isMobile || !isDriver && !isAdmin || !localUser) return;
+
     const autoStartTracking = async () => {
       // Always auto-start tracking if not already running
       if (!locationTracker.isTracking && !autoStartedRef.current) {
         console.log('🚀 [LocationSharing] Auto-starting location tracking (always on for mobile drivers)');
         autoStartedRef.current = true;
-        
+
         try {
           await locationTracker.startTracking(localUser);
           console.log('✅ [LocationSharing] Auto-start successful');
@@ -58,18 +58,18 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         }
       }
     };
-    
+
     autoStartTracking();
   }, [localUser?.id, isMobile, isDriver, isAdmin]);
-  
+
   // Update tracking status and countdown periodically
   useEffect(() => {
-    if (!isMobile || (!isDriver && !isAdmin)) return;
-    
+    if (!isMobile || !isDriver && !isAdmin) return;
+
     const updateStatus = () => {
       const status = locationTracker.getStatus();
       setTrackingStatus(status);
-      
+
       // Only show error if tracking is actually failing, not during normal operation
       if (status.isTracking) {
         // Tracking is running - clear any errors
@@ -80,11 +80,11 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         setHasError(false);
         consecutiveErrorsRef.current = 0;
       }
-      
+
       // Update UI with timing info
       if (status.lastUpdate > 0) {
         setLastUpdateTime(new Date(status.lastUpdate));
-        
+
         const timeSinceLastUpdate = Date.now() - status.lastUpdate;
         const timeUntilNextUpdate = Math.max(0, 30000 - timeSinceLastUpdate);
         setNextUpdateIn(Math.ceil(timeUntilNextUpdate / 1000));
@@ -93,19 +93,19 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         setNextUpdateIn(null);
       }
     };
-    
+
     updateStatus();
     const interval = setInterval(updateStatus, 1000);
-    
+
     return () => clearInterval(interval);
   }, [isMobile, isDriver, isAdmin, localUser]);
-  
+
   // Check GPS capabilities
   useEffect(() => {
-    if (!isMobile || (!isDriver && !isAdmin)) return;
-    
+    if (!isMobile || !isDriver && !isAdmin) return;
+
     if (typeof locationTracker.checkGPSCapabilities === 'function') {
-      locationTracker.checkGPSCapabilities().then(capabilities => {
+      locationTracker.checkGPSCapabilities().then((capabilities) => {
         setGpsCapabilities(capabilities);
       });
     }
@@ -114,21 +114,21 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
   // Determine location status and notify parent
   useEffect(() => {
     if (!onLocationStatusChange) return;
-    
-    const status = hasError ? 'error' : 
-      (trackingStatus?.isTracking && (Date.now() - trackingStatus.lastUpdate > 60000)) ? 'stale' : 
-      'active';
-    
+
+    const status = hasError ? 'error' :
+    trackingStatus?.isTracking && Date.now() - trackingStatus.lastUpdate > 60000 ? 'stale' :
+    'active';
+
     onLocationStatusChange(status);
   }, [hasError, trackingStatus, onLocationStatusChange]);
-  
+
   const refreshUserState = async () => {
     try {
       console.log('🔄 [LocationSharing] Refreshing user state...');
-      
+
       const authUser = await base44.auth.me();
       const appUsers = await base44.entities.AppUser.filter({ user_id: authUser.id });
-      
+
       if (appUsers && appUsers.length > 0) {
         const appUser = appUsers[0];
         const mergedUser = {
@@ -139,33 +139,33 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
           user_name: appUser.user_name || authUser.full_name,
           app_roles: appUser.app_roles || []
         };
-        
+
         setLocalUser(mergedUser);
-        
+
         if (onUserUpdate) {
           onUserUpdate(mergedUser);
         }
-        
+
         return mergedUser;
       }
-      
+
       return authUser;
     } catch (error) {
       console.error('❌ [LocationSharing] Failed to refresh user state:', error);
       return null;
     }
   };
-  
+
   const handleToggle = async (checked) => {
     if (isToggling) return;
-    
+
     console.log('🎯 [LocationSharing] Sharing toggle clicked:', checked);
-    
+
     setIsToggling(true);
     setPermissionStatus('');
     consecutiveErrorsRef.current = 0;
     setHasError(false);
-    
+
     try {
       // Get AppUser ID
       let appUserId = localUser.appUserId;
@@ -175,25 +175,25 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
           appUserId = appUsers[0].id;
         }
       }
-      
+
       if (!appUserId) {
         throw new Error('User profile not found');
       }
-      
+
       if (checked) {
         // Enable sharing
         setPermissionStatus('Enabling location sharing...');
         await base44.entities.AppUser.update(appUserId, {
           location_tracking_enabled: true
         });
-        
+
         // CRITICAL: Update localUser immediately so UI reflects new state
         const updatedUser = {
           ...localUser,
           location_tracking_enabled: true
         };
         setLocalUser(updatedUser);
-        
+
         setPermissionStatus('Location sharing enabled!');
         console.log('✅ [LocationSharing] Sharing enabled');
       } else {
@@ -202,26 +202,26 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         await base44.entities.AppUser.update(appUserId, {
           location_tracking_enabled: false
         });
-        
+
         // CRITICAL: Update localUser immediately so UI reflects new state
         const updatedUser = {
           ...localUser,
           location_tracking_enabled: false
         };
         setLocalUser(updatedUser);
-        
+
         setPermissionStatus('Location sharing disabled');
         console.log('✅ [LocationSharing] Sharing disabled (tracking continues)');
       }
-      
+
       // Refresh user state in background
       await refreshUserState();
       setTimeout(() => setPermissionStatus(''), 3000);
-      
+
     } catch (error) {
       console.error('❌ [LocationSharing] Failed to toggle:', error);
       setPermissionStatus(`Error: ${error.message}`);
-      
+
       // Revert optimistic update on error
       await refreshUserState();
       setTimeout(() => setPermissionStatus(''), 4000);
@@ -232,12 +232,12 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
 
   const handleForceRefresh = async () => {
     if (isToggling) return;
-    
+
     setIsToggling(true);
     setPermissionStatus('Refreshing location...');
     consecutiveErrorsRef.current = 0;
     setHasError(false);
-    
+
     try {
       await locationTracker.restartTracking(localUser);
       setPermissionStatus('Location refreshed!');
@@ -284,10 +284,10 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
     }
     return 'Starting...';
   };
-  
+
   // Conditional return AFTER all hooks
-  if (!isMobile || (!isDriver && !isAdmin)) { 
-    return null; 
+  if (!isMobile || !isDriver && !isAdmin) {
+    return null;
   }
 
   if (!localUser) {
@@ -297,7 +297,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
   const isSharingEnabled = localUser.location_tracking_enabled;
 
   return (
-    <div className="flex items-center gap-2 bg-white/80 backdrop-blur-sm rounded-lg p-2 border border-white/40">
+    <div className="bg-transparent p-2 rounded-lg flex items-center gap-2 backdrop-blur-sm border border-white/40">
       <div className="flex items-center gap-2">
         {getStatusIcon()}
         <div className="flex flex-col">
@@ -310,22 +310,22 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
               checked={isSharingEnabled}
               onCheckedChange={handleToggle}
               disabled={isToggling}
-              className="data-[state=checked]:bg-emerald-500"
-            />
-            {isSharingEnabled ? 
-              <Eye className="h-3 w-3 text-emerald-600" /> : 
-              <EyeOff className="h-3 w-3 text-slate-400" />
+              className="data-[state=checked]:bg-emerald-500" />
+
+            {isSharingEnabled ?
+            <Eye className="h-3 w-3 text-emerald-600" /> :
+            <EyeOff className="h-3 w-3 text-slate-400" />
             }
           </div>
           <div className="flex items-center gap-2 text-[10px]">
             <span className={`font-medium ${getStatusColor()}`}>
               {getStatusText()}
             </span>
-            {lastUpdateTime && !hasError && ( 
-              <span className="text-slate-500">
+            {lastUpdateTime && !hasError &&
+            <span className="text-slate-500">
                 {lastUpdateTime.toLocaleTimeString()}
               </span>
-            )}
+            }
           </div>
         </div>
       </div>
@@ -336,16 +336,16 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         onClick={handleForceRefresh}
         disabled={isToggling}
         className="h-7 w-7"
-        title="Force refresh location"
-      >
+        title="Force refresh location">
+
         <RefreshCw className={`h-3 w-3 ${isToggling ? 'animate-spin' : ''}`} />
       </Button>
       
-      {permissionStatus && (
-        <span className="text-[10px] text-slate-600 ml-2">
+      {permissionStatus &&
+      <span className="text-[10px] text-slate-600 ml-2">
           {permissionStatus}
         </span>
-      )}
-    </div>
-  );
+      }
+    </div>);
+
 }
