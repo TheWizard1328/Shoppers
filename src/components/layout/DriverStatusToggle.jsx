@@ -335,9 +335,10 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
     <div className="flex items-center">
       <div 
         className={cn(
-          "relative flex items-center h-8 w-24 rounded-full bg-slate-200 p-0.5 transition-all",
+          "relative flex items-center h-8 w-24 rounded-full p-0.5 transition-all",
           isUpdating && "opacity-50 pointer-events-none"
         )}
+        style={{ background: 'var(--bg-slate-200)' }}
       >
         {/* Sliding indicator */}
         <div 
@@ -356,8 +357,9 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
           disabled={isUpdating}
           className={cn(
             "relative z-10 flex-1 h-full flex items-center justify-center text-[10px] font-bold rounded-full transition-colors",
-            status === 'off_duty' ? 'text-white' : 'text-slate-500 hover:text-slate-700'
+            status === 'off_duty' ? 'text-white' : ''
           )}
+          style={status !== 'off_duty' ? { color: 'var(--text-slate-500)' } : {}}
           title="Off Duty - Location sharing disabled"
         >
           Off
@@ -369,8 +371,9 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
           disabled={isUpdating}
           className={cn(
             "relative z-10 flex-1 h-full flex items-center justify-center text-[10px] font-bold rounded-full transition-colors",
-            status === 'on_duty' ? 'text-white' : 'text-slate-500 hover:text-slate-700'
+            status === 'on_duty' ? 'text-white' : ''
           )}
+          style={status !== 'on_duty' ? { color: 'var(--text-slate-500)' } : {}}
           title="On Duty - Location sharing enabled"
         >
           On
@@ -382,8 +385,9 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
           disabled={isUpdating}
           className={cn(
             "relative z-10 flex-1 h-full flex items-center justify-center text-[10px] font-bold rounded-full transition-colors",
-            status === 'on_break' ? 'text-white' : 'text-slate-500 hover:text-slate-700'
+            status === 'on_break' ? 'text-white' : ''
           )}
+          style={status !== 'on_break' ? { color: 'var(--text-slate-500)' } : {}}
           title="On Break - Location sharing disabled"
         >
           Break
