@@ -469,8 +469,16 @@ export default function Layout({ children, currentPageName }) {
       const [themePreference, setThemePreference] = useState('auto');
             const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
 
-            // Apply theme class to HTML element
+            // Apply theme class to HTML element (mobile only - desktop always light)
             useEffect(() => {
+              if (!isMobile) {
+                // Force light mode on desktop
+                document.documentElement.classList.remove('auto-theme', 'dark-theme');
+                document.documentElement.classList.add('light-theme');
+                return;
+              }
+
+              // Mobile theme switching
               if (themePreference === 'dark') {
                 document.documentElement.classList.remove('auto-theme', 'light-theme');
                 document.documentElement.classList.add('dark-theme');
@@ -481,7 +489,7 @@ export default function Layout({ children, currentPageName }) {
                 document.documentElement.classList.remove('light-theme', 'dark-theme');
                 document.documentElement.classList.add('auto-theme');
               }
-            }, [themePreference]);
+            }, [themePreference, isMobile]);
 
             const handleThemeChange = async (newTheme) => {
               setThemePreference(newTheme);
@@ -525,9 +533,11 @@ export default function Layout({ children, currentPageName }) {
           setSidebarWidth(settings.sidebar_width);
         }
 
-        // Apply theme preference
-        if (settings.theme_preference) {
-          setThemePreference(settings.theme_preference);
+        // Apply theme preference (mobile only - desktop always light)
+        if (settings.theme_preference && deviceType === 'Mobile') {
+        setThemePreference(settings.theme_preference);
+        } else {
+        setThemePreference('light');
         }
 
         setUserSettingsLoaded(true);
@@ -3015,25 +3025,29 @@ export default function Layout({ children, currentPageName }) {
                           <DropdownMenuSeparator />
 
                           {/* Theme Toggle - Mobile Only */}
-                          <div className="px-2 py-2">
-                            <label className="text-xs font-medium text-slate-700 mb-1.5 block">
-                              Theme
-                            </label>
-                            <Select
-                              value={themePreference}
-                              onValueChange={handleThemeChange}
-                            >
-                              <SelectTrigger className="w-full bg-white border-slate-300 h-9">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent className="z-[10002]">
-                                <SelectItem value="auto">Auto (System)</SelectItem>
-                                <SelectItem value="light">Light</SelectItem>
-                                <SelectItem value="dark">Dark</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <DropdownMenuSeparator />
+                          {isMobile && (
+                            <>
+                              <div className="px-2 py-2">
+                                <label className="text-xs font-medium text-slate-700 mb-1.5 block">
+                                  Theme
+                                </label>
+                                <Select
+                                  value={themePreference}
+                                  onValueChange={handleThemeChange}
+                                >
+                                  <SelectTrigger className="w-full bg-white border-slate-300 h-9">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent className="z-[10002]">
+                                    <SelectItem value="auto">Auto (System)</SelectItem>
+                                    <SelectItem value="light">Light</SelectItem>
+                                    <SelectItem value="dark">Dark</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <DropdownMenuSeparator />
+                            </>
+                          )}
 
                           {/* Import Buttons - App Owner Only */}
                           {realUser && isAppOwner(realUser) && (
