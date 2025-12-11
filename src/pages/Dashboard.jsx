@@ -3335,12 +3335,40 @@ function Dashboard() {
           }
 
           console.log('');
-          console.log('[AddToRoute] STEP 12: Triggering ETA recalculation with driver location...');
+          console.log('[AddToRoute] STEP 12: Updating isNextDelivery flags...');
+          try {
+            // Get all deliveries for this driver/date after save
+            const allDriverDeliveries = await base44.entities.Delivery.filter({
+              driver_id: driverId,
+              delivery_date: deliveryDate
+            }, 'stop_order');
+            
+            // Reset all flags first
+            const resetPromises = allDriverDeliveries
+              .filter(d => d.isNextDelivery)
+              .map(d => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
+            await Promise.all(resetPromises);
+            
+            // Find first incomplete delivery and mark as next
+            const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+            const firstIncomplete = allDriverDeliveries
+              .filter(d => !finishedStatuses.includes(d.status))
+              .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
+            
+            if (firstIncomplete) {
+              await base44.entities.Delivery.update(firstIncomplete.id, { isNextDelivery: true });
+              console.log(`✅ [AddToRoute] Set isNextDelivery=true for: ${firstIncomplete.patient_name || 'Pickup'}`);
+            }
+          } catch (flagError) {
+            console.warn('⚠️ [AddToRoute] isNextDelivery flag update failed:', flagError);
+          }
+
+          console.log('');
+          console.log('[AddToRoute] STEP 13: Triggering ETA recalculation with driver location...');
           try {
             await base44.functions.invoke('etaOptimizer', {
               driverId: driverId,
-              deliveryDate: deliveryDate,
-              triggerFullRecalculation: true
+              deliveryDate: deliveryDate
             });
             console.log('✅ [AddToRoute] ETA recalculation completed with driver location');
           } catch (etaError) {
