@@ -2462,9 +2462,6 @@ export default function Layout({ children, currentPageName }) {
                     />
                   )}
 
-                  {/* Offline Sync Indicator */}
-                  {currentUser && <OfflineSyncIndicator />}
-
                   {showDeliveryImport && (
                                             <RouteImport
                                   onCancel={() => {

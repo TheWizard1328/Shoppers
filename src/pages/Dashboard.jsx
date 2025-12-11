@@ -54,6 +54,8 @@ import SmartRefreshIndicator from "@/components/layout/SmartRefreshIndicator";
 import { offlineManager } from "@/components/utils/offlineManager";
 import { offlineDeliveryManager } from "@/components/utils/offlineDeliveryManager";
 import OfflineIndicator from "@/components/dashboard/OfflineIndicator";
+import OfflineSyncIndicator from '@/components/layout/OfflineSyncIndicator';
+import { isMobileDevice } from "@/components/utils/deviceUtils";
 
 // FIXED: StatBadge - always render with consistent hook structure
 const StatBadge = ({ icon: Icon, value, color, label, tooltip }) => {
