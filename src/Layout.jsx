@@ -2618,7 +2618,7 @@ export default function Layout({ children, currentPageName }) {
                     <Link
                       to={constructUrlWithParams("Dashboard")}
                       onClick={() => setSidebarOpen(false)}
-                      className={`px-4 rounded-xl flex items-center gap-3 transition-all duration-200 ${
+                      className={`px-4 rounded-xl flex items-center gap-3 py-1 transition-all duration-200 ${
                         currentPageName === 'Dashboard' ?
                           'shadow-sm' :
                           'hover:opacity-80'}`
