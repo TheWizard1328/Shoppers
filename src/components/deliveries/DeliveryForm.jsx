@@ -2719,15 +2719,15 @@ export default function DeliveryForm({
 
 
   return (
-    <div className={`fixed inset-0 z-[10010] overflow-hidden ${useFullscreen ? 'bg-white' : 'bg-black/60 flex items-center justify-center p-4'}`}>
+    <div className={`fixed inset-0 z-[10010] overflow-hidden ${useFullscreen ? '' : 'bg-black/60 flex items-center justify-center p-4'}`} style={useFullscreen ? { background: 'var(--bg-white)' } : {}}>
       <motion.div ref={formRef} initial={{ opacity: 0, scale: useFullscreen ? 1 : 0.95 }} animate={{ opacity: 1, y: 0 }} className={`w-full ${useFullscreen ? 'h-full' : !delivery ? 'max-w-4xl max-h-[90vh]' : 'max-w-lg max-h-[90vh]'} flex`}>
-        <Card className={`border-0 text-card-foreground bg-white flex flex-col w-full ${useFullscreen ? 'h-full' : 'rounded-xl border border-slate-200 shadow-xl'}`}>
-          <CardHeader className="border-b border-slate-200 p-4 flex-shrink-0">
+        <Card className={`border-0 flex flex-col w-full ${useFullscreen ? 'h-full' : 'rounded-xl shadow-xl'}`} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
+          <CardHeader className="border-b p-4 flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)' }}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Package className="w-5 h-5 text-emerald-600" />
                 <div className="flex items-center gap-2">
-                  <CardTitle className="text-xl font-bold">
+                  <CardTitle className="text-xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
                     {delivery ? isPickupMode ? 'Edit Pickup' : 'Edit Delivery' : 'Add To Route'}
                   </CardTitle>
                   {(() => {
@@ -2782,16 +2782,16 @@ export default function DeliveryForm({
             </div>
           </CardHeader>
 
-          {error && <div className="p-3 bg-red-100 text-red-700 text-sm text-center">Error: {error}</div>}
+          {error && <div className="p-3 bg-red-100 text-red-700 text-sm text-center" style={{ background: '#fee2e2', color: '#991b1b' }}>Error: {error}</div>}
 
           <CardContent className="p-4 flex-1 relative overflow-hidden">
             <div className="space-y-3 h-full flex flex-col">
               {/* Section 1: Patient Search - STATIC */}
               <div className={`flex gap-3 ${useMobileLayout ? 'flex-wrap' : ''} ${!delivery && !useMobileLayout ? 'flex-shrink-0' : ''}`}>
                 {!delivery && !isPickupMode &&
-                  <div className="relative flex-[2] space-y-1 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                  <div className="relative flex-[2] space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                     <div className="flex items-center justify-between mb-1">
-                      <Label className="text-sm font-semibold">Patient Search</Label>
+                      <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Search</Label>
                       {selectedPatient &&
                         <div className="p-1.5 px-2.5 bg-emerald-50 border border-emerald-200 rounded text-xs flex items-center gap-1.5 max-w-[200px]">
                           <span className="text-emerald-700 font-medium truncate">
@@ -2887,7 +2887,7 @@ export default function DeliveryForm({
                     </div>
 
                     {patientSearch && !formData.patient_id &&
-                      <div className="absolute top-full left-0 right-0 mt-1 max-h-64 overflow-y-auto border rounded-lg bg-white shadow-lg z-[100]">
+                    <div className="absolute top-full left-0 right-0 mt-1 max-h-64 overflow-y-auto border rounded-lg shadow-lg z-[100]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                         {selectedPatientIds.size > 1 &&
                           <div className="sticky top-0 bg-emerald-50 border-b border-emerald-200 p-2 flex items-center justify-between z-10">
                             <span className="text-sm font-medium text-emerald-700">
@@ -3017,8 +3017,8 @@ export default function DeliveryForm({
 
                 {/* Section 2: Pickup Location (for pickup mode) - STATIC */}
                 {isPickupMode && !delivery &&
-                  <div className={`${useMobileLayout ? 'w-full' : 'flex-[2]'} space-y-1 bg-slate-50 p-3 rounded-lg border border-slate-200`}>
-                    <Label className="text-sm font-semibold">Pickup Location *</Label>
+                  <div className={`${useMobileLayout ? 'w-full' : 'flex-[2]'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                    <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup Location *</Label>
                     <Select
                       value={selectedPickupOption}
                       onValueChange={(value) => {
@@ -3058,8 +3058,8 @@ export default function DeliveryForm({
                 }
 
                 {/* Section 2: Delivery Date - STATIC */}
-                <div className={`${useMobileLayout ? 'w-[calc(50%-0.375rem)]' : 'flex-1'} space-y-1 bg-slate-50 p-3 rounded-lg border border-slate-200`}>
-                  <Label className="text-sm font-semibold">Delivery Date *</Label>
+                <div className={`${useMobileLayout ? 'w-[calc(50%-0.375rem)]' : 'flex-1'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Date *</Label>
                   <Input
                     type="date"
                     value={formData.delivery_date}
@@ -3070,8 +3070,8 @@ export default function DeliveryForm({
                 </div>
 
                 {/* Section 3: Driver Selection - STATIC */}
-                <div className={`${useMobileLayout ? 'w-[calc(50%-0.375rem)]' : 'flex-1'} space-y-1 bg-slate-50 p-3 rounded-lg border border-slate-200`}>
-                  <Label className="text-sm font-semibold">Driver *</Label>
+                <div className={`${useMobileLayout ? 'w-[calc(50%-0.375rem)]' : 'flex-1'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver *</Label>
                   <Select
                     value={formData.driver_id || ''}
                     onValueChange={(driverId) => {
@@ -3098,8 +3098,8 @@ export default function DeliveryForm({
               </div>
 
               {isAppOwner(currentUser) && delivery &&
-                <div className="space-y-1 bg-slate-100 p-3 rounded-lg border border-slate-200">
-                  <Label className="text-sm font-semibold">Delivery Identifiers</Label>
+                <div className="space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-200)' }}>
+                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Identifiers</Label>
                   <div className="flex gap-3">
                     <div className="flex-1 space-y-1">
                       <Label htmlFor="tracking_number" className="text-xs">TR#</Label>
@@ -3140,11 +3140,11 @@ export default function DeliveryForm({
                 <div className={`flex flex-col gap-3 ${delivery || useMobileLayout ? 'flex-1' : 'flex-[13] overflow-y-auto'} ${isFormDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
 
                   {/* Section 1: Notes */}
-                  <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                  <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                     {!isPickupMode ?
                       <div className="flex gap-3">
                         <div className="flex-1 space-y-1">
-                          <Label className="text-sm font-semibold">Patient Notes</Label>
+                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Notes</Label>
                           <Textarea
                             value={formData.delivery_instructions || selectedPatient?.notes || ''}
                             onChange={(e) => setFormData((prev) => ({ ...prev, delivery_instructions: e.target.value }))}
@@ -3154,7 +3154,7 @@ export default function DeliveryForm({
                         </div>
 
                         <div className="flex-1 space-y-1">
-                          <Label className="text-sm font-semibold">Driver Notes</Label>
+                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver Notes</Label>
                           <Textarea
                             value={formData.delivery_notes}
                             onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))}
@@ -3164,7 +3164,7 @@ export default function DeliveryForm({
                         </div>
                       </div> :
                       <div className="space-y-1">
-                        <Label className="text-sm font-semibold">Pickup Notes</Label>
+                        <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup Notes</Label>
                         <Textarea
                           value={formData.delivery_notes}
                           onChange={(e) => setFormData((prev) => ({ ...prev, delivery_notes: e.target.value }))}
@@ -3181,7 +3181,7 @@ export default function DeliveryForm({
                       <div className="flex gap-3">
                         <div className="flex gap-3">
                           <div className="flex-1 space-y-2">
-                            <Label className="text-sm font-semibold">Delivery Options</Label>
+                            <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Options</Label>
                             <div className="space-y-3">
                               <CheckboxField
                                 id="fridge_item"
@@ -3219,7 +3219,7 @@ export default function DeliveryForm({
 
                           {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
                             <div className="flex-1 space-y-2">
-                              <Label className="text-sm font-semibold">COD</Label>
+                              <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>COD</Label>
                               <div className="space-y-3">
                                 <div className="flex items-center space-x-2">
                                   <Checkbox
@@ -3272,14 +3272,14 @@ export default function DeliveryForm({
 
                   {/* Section 3: Store/Status/Time Windows - Only visible to dispatchers and admins */}
                   {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
-                    <div className={`space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200 ${
+                    <div className={`space-y-2 p-3 rounded-lg border ${
                       delivery && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') &&
                       ['completed', 'failed', 'returned', 'cancelled', 'in_transit', 'en_route'].includes(formData.status) ?
                         'opacity-50 pointer-events-none' : ''}`
-                    }>
+                    } style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       <div className="flex gap-3">
                         <div className="flex-1 space-y-1">
-                          <Label className="text-sm font-semibold">{isPickupMode ? 'Pickup Store *' : 'Store *'}</Label>
+                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>{isPickupMode ? 'Pickup Store *' : 'Store *'}</Label>
                           <Select
                             value={(() => {
                               // For stores with AM/PM variants, find the correct variant based on store_id and ampm_deliveries
@@ -3329,7 +3329,7 @@ export default function DeliveryForm({
                         </div>
 
                         <div className="flex-1 space-y-1">
-                          <Label className="text-sm font-semibold">{isPickupMode ? 'Pickup Status' : 'Delivery Status'}</Label>
+                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>{isPickupMode ? 'Pickup Status' : 'Delivery Status'}</Label>
                           <Select
                             value={formData.status}
                             onValueChange={(value) => {
@@ -3364,7 +3364,7 @@ export default function DeliveryForm({
 
                       {isCompletionStatus && delivery ?
                         <div className="space-y-1">
-                          <Label className="text-sm font-semibold">Completion Time *</Label>
+                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Completion Time *</Label>
                           <Input
                             type="time"
                             value={completionTime}
@@ -3374,7 +3374,7 @@ export default function DeliveryForm({
                         </div> :
 
                         <div className="space-y-1">
-                          <Label className="text-sm font-semibold">Time Windows</Label>
+                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Time Windows</Label>
                           <div className="flex gap-3">
                             <div className="flex-1 relative">
                               <Input
@@ -3421,10 +3421,10 @@ export default function DeliveryForm({
 
                   {/* Section 4: Patient Name/Phone/Address/Unit */}
                   {!isPickupMode &&
-                    <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                    <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       <div className="flex gap-3">
                         <div className="flex-1 space-y-1">
-                          <Label className="text-sm font-semibold">Patient Name *</Label>
+                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Name *</Label>
                           <Input
                             value={formData.patient_name}
                             onChange={(e) => setFormData((prev) => ({ ...prev, patient_name: e.target.value }))}
@@ -3434,7 +3434,7 @@ export default function DeliveryForm({
                         </div>
 
                         <div className="flex-1 space-y-1">
-                          <Label className="text-sm font-semibold">Phone</Label>
+                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Phone</Label>
                           <PhoneInput
                             value={formData.patient_phone}
                             onChange={(value) => setFormData((prev) => ({ ...prev, patient_phone: value }))}
@@ -3445,7 +3445,7 @@ export default function DeliveryForm({
 
                       <div className="flex gap-3">
                         <div className="flex-[65] space-y-1">
-                          <Label className="text-sm font-semibold">Patient Address</Label>
+                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Address</Label>
                           <Input
                             value={selectedPatient?.address || ''}
                             disabled
@@ -3454,7 +3454,7 @@ export default function DeliveryForm({
                         </div>
 
                         <div className="flex-[35] space-y-1">
-                          <Label className="text-sm font-semibold">Unit #</Label>
+                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Unit #</Label>
                           <Input
                             value={formData.unit_number}
                             onChange={(e) => setFormData((prev) => ({ ...prev, unit_number: e.target.value }))}
@@ -3468,10 +3468,10 @@ export default function DeliveryForm({
 
                   {/* Section 5: Patient Preferences & Recurring */}
                   {!isPickupMode &&
-                    <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                    <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       <div className="flex gap-3">
                         <div className="flex-1 space-y-2">
-                          <Label className="text-sm font-semibold">Patient Preferences</Label>
+                          <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Preferences</Label>
                           <div className="space-y-3">
                             <CheckboxField
                               id="mailbox_ok"
@@ -3585,8 +3585,8 @@ export default function DeliveryForm({
                   }
 
                   {isPickupMode &&
-                    <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                      <Label className="text-sm font-semibold">Pickup Options</Label>
+                    <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                      <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup Options</Label>
                       <div className="space-y-3">
                         <CheckboxField
                           id="after_hours_pickup"
@@ -3601,8 +3601,8 @@ export default function DeliveryForm({
 
                 {/* Staged Panel - STATIC */}
                 {!delivery && !useMobileLayout &&
-                  <div className="w-[21rem] flex-shrink-0 bg-slate-50 p-3 rounded-lg border-2 border-slate-400 flex flex-col h-full">
-                    <Label className="text-sm font-semibold mb-2">Staged: (S: {stagedDeliveries.length} P: {projectedDeliveries.length})</Label>
+                  <div className="w-[21rem] flex-shrink-0 p-3 rounded-lg border-2 flex flex-col h-full" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                    <Label className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>Staged: (S: {stagedDeliveries.length} P: {projectedDeliveries.length})</Label>
                     <div className="space-y-1 flex-1 overflow-y-auto min-h-0">
                       {sortedStagedDeliveries.map((staged) => {
                         const stagedStore = stores?.find((s) => s && s.id === staged.store_id);
@@ -3779,10 +3779,10 @@ export default function DeliveryForm({
                     exit={{ x: '100%' }}
                     transition={{ type: 'spring', damping: 25, stiffness: 300 }}
                     onClick={(e) => e.stopPropagation()}
-                    className="absolute right-0 top-0 bottom-0 w-[75%] bg-white shadow-2xl flex flex-col">
+                    className="absolute right-0 top-0 bottom-0 w-[75%] shadow-2xl flex flex-col" style={{ background: 'var(--bg-white)' }}>
 
-                    <div className="border-b p-4 flex items-center justify-between bg-slate-50">
-                      <h3 className="text-lg font-semibold">Staged: (S: {stagedDeliveries.length} P: {projectedDeliveries.length})</h3>
+                    <div className="border-b p-4 flex items-center justify-between" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
+                      <h3 className="text-lg font-semibold" style={{ color: 'var(--text-slate-900)' }}>Staged: (S: {stagedDeliveries.length} P: {projectedDeliveries.length})</h3>
                       <Button variant="ghost" size="icon" onClick={() => setShowStagedPanel(false)}>
                         <X className="w-4 h-4" />
                       </Button>
@@ -3948,7 +3948,7 @@ export default function DeliveryForm({
             </AnimatePresence>
           </CardContent>
 
-          <CardFooter className="border-t p-3 bg-slate-50 flex-shrink-0">
+          <CardFooter className="border-t p-3 flex-shrink-0" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
             <div className="flex items-center justify-between w-full gap-4">
               {!delivery && useMobileLayout &&
                 <Button
@@ -4093,9 +4093,9 @@ export default function DeliveryForm({
       {/* Delete Pending Confirmation Dialog */}
       {deleteConfirmation.show && deleteConfirmation.staged &&
         <div className="fixed inset-0 z-[10020] bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-4">
-            <h3 className="text-lg font-semibold mb-2">Delete Pending Delivery?</h3>
-            <p className="text-sm text-slate-600 mb-4">
+          <div className="rounded-lg shadow-xl max-w-sm w-full p-4" style={{ background: 'var(--bg-white)' }}>
+            <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>Delete Pending Delivery?</h3>
+            <p className="text-sm mb-4" style={{ color: 'var(--text-slate-600)' }}>
               Are you sure you want to delete the pending delivery for <strong>{deleteConfirmation.staged.patient_name}</strong>? This action cannot be undone.
             </p>
             <div className="flex gap-2 justify-end">

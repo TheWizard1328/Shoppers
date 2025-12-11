@@ -522,10 +522,10 @@ export default function PatientForm({
         exit={{ opacity: 0, scale: 0.95 }}
         className="w-full max-w-[30rem] max-h-[90vh] flex flex-col">
 
-        <Card className="bg-white border-slate-200 shadow-xl flex flex-col overflow-hidden">
-          <CardHeader className="px-4 py-2 flex flex-col space-y-1.5 border-b border-slate-200 flex-shrink-0">
+        <Card className="shadow-xl flex flex-col overflow-hidden" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          <CardHeader className="px-4 py-2 flex flex-col space-y-1.5 border-b flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)' }}>
             <div className="flex items-center justify-between">
-              <CardTitle className="text-xl font-bold text-slate-900 flex items-center gap-2">
+              <CardTitle className="text-xl font-bold flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
                 <UserPlus className="w-5 h-5 text-emerald-600" />
                 {patient ? 'Edit Patient' : 'Add New Patient'}
               </CardTitle>
@@ -539,13 +539,13 @@ export default function PatientForm({
             <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="space-y-2">
               {/* AppOwner Only: GPS & Distance Section */}
               {isAppOwner(currentUser) &&
-              <div className="bg-amber-50 border-2 border-amber-300 px-2 py-2 rounded-[10px] space-y-2">
+              <div className="border-2 border-amber-300 px-2 py-2 rounded-[10px] space-y-2" style={{ background: '#fffbeb' }}>
                   <div className="flex items-center gap-2 mb-1">
-                    <Label className="text-xs font-semibold text-amber-900 uppercase">App Owner Controls</Label>
+                    <Label className="text-xs font-semibold uppercase" style={{ color: '#78350f' }}>App Owner Controls</Label>
                   </div>
                   <div className="grid grid-cols-12 gap-2">
                     <div className="col-span-2 space-y-1">
-                      <Label htmlFor="patient_id_appowner" className="text-sm font-medium">PID</Label>
+                      <Label htmlFor="patient_id_appowner" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>PID</Label>
                       <Input
                       id="patient_id_appowner"
                       value={formData.patient_id}
@@ -555,7 +555,7 @@ export default function PatientForm({
                       maxLength={5} />
                     </div>
                     <div className="col-span-4 space-y-1">
-                      <Label htmlFor="latitude" className="text-sm font-medium">Latitude</Label>
+                      <Label htmlFor="latitude" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Latitude</Label>
                       <Input
                       id="latitude"
                       type="number"
@@ -566,7 +566,7 @@ export default function PatientForm({
                       className="h-10 md:h-9 text-sm border-slate-300 bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                     </div>
                     <div className="col-span-4 space-y-1">
-                      <Label htmlFor="longitude" className="text-sm font-medium">Longitude</Label>
+                      <Label htmlFor="longitude" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Longitude</Label>
                       <Input
                       id="longitude"
                       type="number"
@@ -577,7 +577,7 @@ export default function PatientForm({
                       className="h-10 md:h-9 text-sm border-slate-300 bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                     </div>
                     <div className="col-span-2 space-y-1">
-                      <Label htmlFor="distance" className="text-sm font-medium">Dist (km)</Label>
+                      <Label htmlFor="distance" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Dist (km)</Label>
                       <Input
                       id="distance"
                       type="number"
@@ -592,10 +592,10 @@ export default function PatientForm({
               }
 
               {/* Container 1: Store/Status/Time Windows */}
-              <div className="bg-slate-100 px-2 py-2 rounded-[10px] space-y-2">
+              <div className="px-2 py-2 rounded-[10px] space-y-2" style={{ background: 'var(--bg-slate-100)' }}>
                 <div className="grid grid-cols-12 gap-2">
                   <div className="col-span-3 space-y-1">
-                    <Label htmlFor="store_id" className="text-sm font-medium">Assigned Store *</Label>
+                    <Label htmlFor="store_id" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Assigned Store *</Label>
                     <Select
                       value={formData.store_id}
                       onValueChange={(value) => setFormData((prev) => ({ ...prev, store_id: value }))}
@@ -614,7 +614,7 @@ export default function PatientForm({
                   </div>
 
                   <div className="col-span-3 space-y-1">
-                    <Label htmlFor="status" className="text-sm font-medium">Status</Label>
+                    <Label htmlFor="status" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Status</Label>
                     <Select
                       value={formData.status}
                       onValueChange={(value) => setFormData((prev) => ({ ...prev, status: value }))}>
@@ -629,7 +629,7 @@ export default function PatientForm({
                   </div>
 
                   <div className="col-span-3 space-y-1">
-                    <Label htmlFor="time_window_start" className="text-sm font-medium">Deliver After</Label>
+                    <Label htmlFor="time_window_start" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Deliver After</Label>
                     <Input
                       id="time_window_start"
                       type="time"
@@ -639,7 +639,7 @@ export default function PatientForm({
                   </div>
 
                   <div className="col-span-3 space-y-1">
-                    <Label htmlFor="time_window_end" className="text-sm font-medium">Deliver Before</Label>
+                    <Label htmlFor="time_window_end" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Deliver Before</Label>
                     <Input
                       id="time_window_end"
                       type="time"
@@ -652,7 +652,7 @@ export default function PatientForm({
                 {!isAppOwner(currentUser) &&
                 <div className="grid grid-cols-12 gap-2">
                     <div className="col-span-12 space-y-1">
-                      <Label htmlFor="patient_id" className="text-sm font-medium">Patient ID (PID) *</Label>
+                      <Label htmlFor="patient_id" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Patient ID (PID) *</Label>
                       <Input
                       id="patient_id"
                       value={formData.patient_id}
@@ -669,10 +669,10 @@ export default function PatientForm({
               </div>
 
               {/* Container 2: Name/Phone and Address/Unit */}
-              <div className="bg-slate-100 px-2 py-2 rounded-[10px] space-y-2">
+              <div className="px-2 py-2 rounded-[10px] space-y-2" style={{ background: 'var(--bg-slate-100)' }}>
                 <div className="grid grid-cols-12 gap-2">
                   <div className="px-1 col-span-8 space-y-1">
-                    <Label htmlFor="full_name" className="text-sm font-medium">Full Name *</Label>
+                    <Label htmlFor="full_name" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Full Name *</Label>
                     <Input
                       id="full_name"
                       value={formData.full_name}
@@ -682,7 +682,7 @@ export default function PatientForm({
                   </div>
 
                   <div className="col-span-4 space-y-1">
-                    <Label htmlFor="phone" className="text-sm font-medium">Phone Number</Label>
+                    <Label htmlFor="phone" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Phone Number</Label>
                     <PhoneInput
                       id="phone"
                       value={formData.phone}
@@ -694,7 +694,7 @@ export default function PatientForm({
 
                 <div className="grid grid-cols-12 gap-2">
                   <div className="col-span-8 space-y-1">
-                    <Label htmlFor="address" className="text-sm font-medium">Address *</Label>
+                    <Label htmlFor="address" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Address *</Label>
                     <GoogleAddressAutocomplete
                       value={formData.address}
                       onChange={(value) => setFormData((prev) => ({ ...prev, address: value }))}
@@ -706,7 +706,7 @@ export default function PatientForm({
                   </div>
 
                   <div className="col-span-4 space-y-1">
-                    <Label htmlFor="unit_number" className="text-sm font-medium">Unit/Apt #</Label>
+                    <Label htmlFor="unit_number" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Unit/Apt #</Label>
                     <Input
                       id="unit_number"
                       value={formData.unit_number}
@@ -717,9 +717,9 @@ export default function PatientForm({
               </div>
 
               {/* Container 3: Patient Notes */}
-              <div className="bg-slate-100 px-1 py-1 rounded-[10px]">
+              <div className="px-1 py-1 rounded-[10px]" style={{ background: 'var(--bg-slate-100)' }}>
                 <div className="px-2 py-2 space-y-1">
-                  <Label htmlFor="notes" className="text-sm font-medium">Patient Notes</Label>
+                  <Label htmlFor="notes" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Patient Notes</Label>
                   <Textarea
                     id="notes"
                     value={formData.notes}
@@ -730,9 +730,9 @@ export default function PatientForm({
               </div>
 
               <div className="grid grid-cols-2 gap-2">
-                <div className="bg-slate-100 px-3 py-2 rounded-[10px]">
-                  <div className="border-b border-slate-200 pb-2 mb-3">
-                    <h3 className="text-sm font-semibold text-slate-700">Delivery Preferences</h3>
+                <div className="px-3 py-2 rounded-[10px]" style={{ background: 'var(--bg-slate-100)' }}>
+                  <div className="border-b pb-2 mb-3" style={{ borderColor: 'var(--border-slate-200)' }}>
+                    <h3 className="text-sm font-semibold" style={{ color: 'var(--text-slate-700)' }}>Delivery Preferences</h3>
                   </div>
 
                   <div className="space-y-3">
@@ -768,14 +768,14 @@ export default function PatientForm({
                   </div>
                 </div>
 
-                <div className="bg-slate-100 px-3 py-2 rounded-[10px] relative">
-                  <div className="border-b border-slate-200 pb-2">
+                <div className="px-3 py-2 rounded-[10px] relative" style={{ background: 'var(--bg-slate-100)' }}>
+                  <div className="border-b pb-2" style={{ borderColor: 'var(--border-slate-200)' }}>
                     <div className="flex items-center space-x-2">
                       <Checkbox
                         id="recurring"
                         checked={isRecurring}
                         onCheckedChange={handleRecurringChange} />
-                      <Label htmlFor="recurring" className="text-sm font-medium">
+                      <Label htmlFor="recurring" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
                         Recurring
                       </Label>
                     </div>
@@ -859,8 +859,8 @@ export default function PatientForm({
                   </RadioGroup>
 
                   {showWeeklyDays && isRecurring && (frequency === 'weekly' || frequency === 'bi-weekly') &&
-                  <div className="absolute left-0 top-[-120px] w-full bg-white border-2 border-emerald-400 rounded-lg p-4 shadow-xl z-20">
-                      <p className="text-sm font-semibold text-slate-700 mb-3">Select Days:</p>
+                  <div className="absolute left-0 top-[-120px] w-full border-2 border-emerald-400 rounded-lg p-4 shadow-xl z-20" style={{ background: 'var(--bg-white)' }}>
+                      <p className="text-sm font-semibold mb-3" style={{ color: 'var(--text-slate-700)' }}>Select Days:</p>
                       <div className="space-y-2">
                         {['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map((day) =>
                       <div key={day} className="flex items-center space-x-2">
@@ -890,7 +890,7 @@ export default function PatientForm({
             </form>
           </CardContent>
 
-          <CardFooter className="bg-slate-50 px-4 py-2 border-t border-slate-200 flex items-center justify-end flex-shrink-0">
+          <CardFooter className="px-4 py-2 border-t flex items-center justify-end flex-shrink-0" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
             <div className="flex gap-3">
               <Button type="button" variant="outline" onClick={onCancel} className="bg-white">
                 Cancel
