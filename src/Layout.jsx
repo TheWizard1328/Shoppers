@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, Fragment, useMemo, useCallback, useRef } from "react";
 import "./components/utils/globalErrorHandler";
 import { Link, useLocation } from "react-router-dom";
@@ -2253,23 +2252,6 @@ export default function Layout({ children, currentPageName }) {
         .custom-scrollbar {
           scrollbar-width: thin;
           scrollbar-color: rgba(0,0,0,0.2) transparent;
-        }
-
-        /* Dark mode Leaflet map styling */
-        html.dark-theme .leaflet-layer,
-        html.dark-theme .leaflet-control-zoom-in,
-        html.dark-theme .leaflet-control-zoom-out,
-        html.dark-theme .leaflet-control-attribution {
-          filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
-        }
-
-        @media (prefers-color-scheme: dark) {
-          html.auto-theme .leaflet-layer,
-          html.auto-theme .leaflet-control-zoom-in,
-          html.auto-theme .leaflet-control-zoom-out,
-          html.auto-theme .leaflet-control-attribution {
-            filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
-          }
         }
 
         :root {
