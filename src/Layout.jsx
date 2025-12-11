@@ -1142,12 +1142,12 @@ export default function Layout({ children, currentPageName }) {
           });
         } catch (err) {
 
-          // Silently fail - wake lock not critical
-        }}
-    };
 
-    const releaseWakeLock = () => {
-      if (wakeLockRef.current) {
+
+
+
+          // Silently fail - wake lock not critical
+        }}};const releaseWakeLock = () => {if (wakeLockRef.current) {
         wakeLockRef.current.release();
         wakeLockRef.current = null;
       }
@@ -1325,13 +1325,13 @@ export default function Layout({ children, currentPageName }) {
       });
     } catch (error) {
 
-      // Silent fail
-    }};
 
-  const handleImpersonate = useCallback(async (userId) => {
-    sessionStorage.setItem('impersonationId', userId);
-    window.location.reload();
-  }, []);
+
+
+
+      // Silent fail
+    }};const handleImpersonate = useCallback(async (userId) => {sessionStorage.setItem('impersonationId', userId);window.location.reload();
+    }, []);
 
   const handleStopImpersonating = useCallback(() => {
     sessionStorage.removeItem('impersonationId');
@@ -2635,12 +2635,12 @@ export default function Layout({ children, currentPageName }) {
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
                   <Link
                     to={createPageUrl('Patients')}
-                    onClick={() => setSidebarOpen(false)}
-                    className={`mb-1 px-4 py-1 rounded-xl flex items-center gap-3 transition-all duration-200 ${
-                    currentPageName === 'Patients' ?
-                    'shadow-sm' :
-                    'hover:opacity-80'}`
-                    }
+                    onClick={() => setSidebarOpen(false)} className="px-4 rounded-xl flex items-center gap-3 transition-all duration-200 hover:opacity-80"
+
+
+
+
+
                     style={currentPageName === 'Patients' ? {
                       background: 'var(--bg-slate-100)',
                       color: 'var(--text-slate-900)'
@@ -2656,12 +2656,12 @@ export default function Layout({ children, currentPageName }) {
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                   <Link
                     to={getRouteNavigationUrl('Deliveries')}
-                    onClick={() => setSidebarOpen(false)}
-                    className={`mb-1 px-4 py-1 rounded-xl flex items-center gap-3 transition-all duration-200 ${
-                    currentPageName === 'Deliveries' ?
-                    'shadow-sm' :
-                    'hover:opacity-80'}`
-                    }
+                    onClick={() => setSidebarOpen(false)} className="px-4 rounded-xl flex items-center gap-3 transition-all duration-200 hover:opacity-80"
+
+
+
+
+
                     style={currentPageName === 'Deliveries' ? {
                       background: 'var(--bg-slate-100)',
                       color: 'var(--text-slate-900)'
@@ -2677,21 +2677,21 @@ export default function Layout({ children, currentPageName }) {
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                   <Link
                     to={constructUrlWithParams(createPageUrl("DeliveryMetrics"))}
-                    onClick={() => setSidebarOpen(false)}
-                    className={`mb-2 px-4 py-1 rounded-xl flex items-center gap-3 transition-all duration-200 ${
-                    currentPageName === 'DeliveryMetrics' ?
-                    'shadow-sm' :
-                    'hover:opacity-80'}`
-                    }
+                    onClick={() => setSidebarOpen(false)} className="px-4 rounded-xl flex items-center gap-3 transition-all duration-200 hover:opacity-80"
+
+
+
+
+
                     style={currentPageName === 'DeliveryMetrics' ? {
                       background: 'var(--bg-slate-100)',
                       color: 'var(--text-slate-900)'
                     } : {
                       color: 'var(--text-slate-600)'
-                    }}>
-                        <BarChart3 className="w-5 h-5" />
-                        <span className="font-semibold">Route Metrics</span>
-                      </Link>
+                    }}>Route Metrics
+
+
+                  </Link>
                   }
                   </div>
 
@@ -2701,17 +2701,17 @@ export default function Layout({ children, currentPageName }) {
                       <div className="text-xs font-semibold uppercase tracking-wider px-3 py-1" style={{ color: 'var(--text-slate-500)' }}>
                         Admin
                       </div>
-                      <div className="space-y-1">
+                      <div className="">
                         {adminNavigationItems.map((item) =>
                     <Link
                       key={item.title}
                       to={constructUrlWithParams(item.url)}
-                      onClick={() => setSidebarOpen(false)}
-                      className={`my-1 px-4 py-1 rounded-xl flex items-center gap-3 transition-all duration-200 ${
-                      currentPageName === item.pageName ?
-                      'shadow-sm' :
-                      'hover:opacity-80'}`
-                      }
+                      onClick={() => setSidebarOpen(false)} className="px-4 rounded-xl flex items-center gap-3 transition-all duration-200 hover:opacity-80"
+
+
+
+
+
                       style={currentPageName === item.pageName ? {
                         background: 'var(--bg-slate-100)',
                         color: 'var(--text-slate-900)'
@@ -2902,12 +2902,12 @@ export default function Layout({ children, currentPageName }) {
                   </div>
               }
 
-                <header className="mobile-header border-b px-4 py-3 sticky top-0 z-[100001]"
-
-              style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
-              onTouchStart={handleTouchStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}>
+                <header
+                className="mobile-header border-b px-4 py-3 sticky top-0"
+                style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}>
 
                   {(isPulling || isRefreshing) && pullDistance > 0 &&
                 <div
