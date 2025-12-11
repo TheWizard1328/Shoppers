@@ -282,23 +282,28 @@ Deno.serve(async (req) => {
     for (let i = 0; i < waypoints.length; i++) {
       const leg = legs[i];
       const waypoint = waypoints[i];
-      
+
       console.log('');
       console.log(`[ETA Updates] ─── Stop ${i + 1} ───`);
       console.log(`[ETA Updates]   Type: ${waypoint.isPickup ? 'PICKUP' : 'DELIVERY'}`);
       console.log(`[ETA Updates]   Current time: ${String(Math.floor(cumulativeMinutes/60)).padStart(2, '0')}:${String(cumulativeMinutes%60).padStart(2, '0')}`);
-      
+
       // For FIRST stop only, check if pickup has scheduled time in future
       if (i === 0 && waypoint.isPickup && waypoint.scheduledStartTime) {
         const [schedHours, schedMinutes] = waypoint.scheduledStartTime.split(':').map(Number);
         const scheduledTotalMinutes = schedHours * 60 + schedMinutes;
-        
+
         if (scheduledTotalMinutes > cumulativeMinutes) {
           const waitMinutes = scheduledTotalMinutes - cumulativeMinutes;
           console.log(`[ETA Updates]   First pickup scheduled for ${waypoint.scheduledStartTime} (${waitMinutes} min wait)`);
           cumulativeMinutes = scheduledTotalMinutes;
         } else {
-          console.log(`[ETA Updates]   First pickup scheduled time ${waypoint.scheduledStartTime} already passed`);
+          console.log(`[ETA Updates]   First pickup scheduled time ${waypoint.scheduledStartTime} already passed - adding travel time`);
+          // CRITICAL: If scheduled time has passed, add travel time from current location
+          const travelSeconds = leg.duration.value;
+          const travelMinutes = Math.ceil(travelSeconds / 60);
+          console.log(`[ETA Updates]   Google travel time: ${travelSeconds}s = ${travelMinutes} minutes`);
+          cumulativeMinutes += travelMinutes;
         }
       } else {
         // Add travel time from previous stop
