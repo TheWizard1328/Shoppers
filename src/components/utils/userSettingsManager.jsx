@@ -408,7 +408,6 @@ export async function saveSetting(userId, key, value) {
     } else {
       // Create new record with created timestamp
       const now = new Date().toISOString();
-      const { getUserAgentInfo } = await import('./deviceUtils');
       const { deviceType } = getUserAgentInfo();
       const isMobile = deviceType === 'Mobile';
       
@@ -599,6 +598,6 @@ export function clearSettingsCache() {
  * Gets the default settings object
  * @returns {object} - Default settings
  */
-export function getDefaultSettings() {
+export function getDefaultSettingsObject() {
   return { ...DEFAULT_SETTINGS };
 }
