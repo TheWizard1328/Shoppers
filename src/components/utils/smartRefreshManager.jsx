@@ -590,6 +590,15 @@ class SmartRefreshManager {
       
 
       
+      // CRITICAL: Sync to offline database after changes
+      try {
+        const { offlineManager } = await import('./offlineManager');
+        await offlineManager.cacheEntities('AppUser', updatedAppUsers);
+        console.log('✅ [SmartRefresh] Synced AppUsers (locations) to offline DB');
+      } catch (offlineError) {
+        console.warn('⚠️ [SmartRefresh] Failed to sync AppUsers to offline DB:', offlineError);
+      }
+      
       return {
         hasChanges: true,
         appUsers: updatedAppUsers
