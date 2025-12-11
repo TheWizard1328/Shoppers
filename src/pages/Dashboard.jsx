@@ -17,11 +17,11 @@ import { getDriverColor } from "@/components/dashboard/DeliveryMap";
 import HorizontalStopCards from "@/components/dashboard/HorizontalStopCards";
 import DeliveryForm from "@/components/deliveries/DeliveryForm";
 import PatientForm from "@/components/patients/PatientForm";
-import { 
+import {
   createDeliveryLocal,
   updateDeliveryLocal,
-  batchCreateDeliveriesLocal
-} from "@/components/utils/offlineMutations";
+  batchCreateDeliveriesLocal } from
+"@/components/utils/offlineMutations";
 import RouteOptimizationSettings, { getRouteOptimizationSettings } from "@/components/dashboard/RouteOptimizationSettings";
 import { sortUsers } from "@/components/utils/sorting";
 import { AnimatePresence, motion } from "framer-motion";
@@ -261,7 +261,7 @@ function Dashboard() {
   });
   const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [driverLocation, setDriverLocation] = useState(null);
-  
+
   // Debug: Log driverLocation changes
   useEffect(() => {
     console.log('📍 [Dashboard driverLocation STATE CHANGED]:', driverLocation ? {
@@ -456,28 +456,28 @@ function Dashboard() {
     let result = deliveries.filter((d) => {
       if (!d) return false;
       if (d.delivery_date !== dateStr) return false;
-      
+
       // Only filter by selected driver if not "all"
       if (selectedDriverId && selectedDriverId !== 'all') {
         if (d.driver_id !== selectedDriverId) return false;
       }
-      
+
       return true;
     });
 
     // DISPATCHER: When viewing "All Drivers", only show deliveries for drivers who have stops in dispatcher's stores
     if (isDispatcher && selectedDriverId === 'all') {
       const dispatcherStoreIds = currentUser?.store_ids || [];
-      
+
       // Get drivers who have deliveries in dispatcher's stores
       const driversWithStoreDeliveries = new Set(
-        result.filter(d => d && dispatcherStoreIds.includes(d.store_id))
-          .map(d => d.driver_id)
-          .filter(Boolean)
+        result.filter((d) => d && dispatcherStoreIds.includes(d.store_id)).
+        map((d) => d.driver_id).
+        filter(Boolean)
       );
 
       // Filter to only show deliveries from those drivers
-      result = result.filter(d => d && driversWithStoreDeliveries.has(d.driver_id));
+      result = result.filter((d) => d && driversWithStoreDeliveries.has(d.driver_id));
       console.log(`📊 [Deliveries Filter] Dispatcher "All Drivers" - showing ${result.length} deliveries from ${driversWithStoreDeliveries.size} drivers with stops in assigned stores`);
     } else {
       console.log(`📊 [Deliveries Filter] Date: ${dateStr}, Driver: ${selectedDriverId}, Total: ${result.length}`);
@@ -553,12 +553,12 @@ function Dashboard() {
     const isReturn = (delivery) => {
       if (!delivery) return false;
       const patient = patientMap.get(delivery.patient_id);
-      const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return') || 
-                          (delivery.delivery_notes || '').toLowerCase().includes('rtn');
-      const nameReturn = (delivery.patient_name || '').toLowerCase().includes('return') || 
-                         (delivery.patient_name || '').toLowerCase().includes('rtn');
-      const addressReturn = patient && ((patient.address || '').toLowerCase().includes('rtn') || 
-                                        (patient.full_name || '').toLowerCase().includes('return'));
+      const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return') ||
+      (delivery.delivery_notes || '').toLowerCase().includes('rtn');
+      const nameReturn = (delivery.patient_name || '').toLowerCase().includes('return') ||
+      (delivery.patient_name || '').toLowerCase().includes('rtn');
+      const addressReturn = patient && ((patient.address || '').toLowerCase().includes('rtn') ||
+      (patient.full_name || '').toLowerCase().includes('return'));
       return notesReturn || nameReturn || addressReturn;
     };
 
@@ -627,13 +627,13 @@ function Dashboard() {
 
       // Get unique driver IDs that have deliveries for dispatcher's stores
       const driversWithStoreDeliveries = new Set(
-        deliveries
-          ?.filter(d => d && dispatcherStoreIds.includes(d.store_id))
-          .map(d => d.driver_id)
-          .filter(Boolean)
+        deliveries?.
+        filter((d) => d && dispatcherStoreIds.includes(d.store_id)).
+        map((d) => d.driver_id).
+        filter(Boolean)
       );
 
-      const filteredDrivers = drivers.filter(d => d && driversWithStoreDeliveries.has(d.id));
+      const filteredDrivers = drivers.filter((d) => d && driversWithStoreDeliveries.has(d.id));
       console.log(`✅ [Dashboard driversList] Dispatcher - returning ${filteredDrivers.length} drivers with deliveries in assigned stores`);
       return filteredDrivers;
     }
@@ -853,7 +853,7 @@ function Dashboard() {
 
     console.log('🔓 [Map Interaction] Unlocking FAB immediately');
     setIsMapViewLocked(false);
-    
+
     // CRITICAL: Reset proximity snap timer when user manually interacts with map
     console.log('🔓 [Map Interaction] Resetting proximity snap timer');
     lastProximitySnapTimeRef.current = 0;
@@ -891,11 +891,11 @@ function Dashboard() {
 
 
 
+
         // This subscription handles changes from other components
       }});return unsubscribe;}, []); // Listen for driver status break/resume events from DriverStatusToggle
   useEffect(() => {const unsubscribe = fabControlEvents.subscribe((event) => {if (event.type === 'BREAK_START') {console.log('🗺️ [Dashboard] Driver going on break - unlocking FAB and zooming to phase 1'); // Save current phase for later restoration
-            phaseBeforeBreakRef.current = event.previousPhase;
-            // Clear any timers
+            phaseBeforeBreakRef.current = event.previousPhase; // Clear any timers
             if (mapLockTimeoutRef.current) {
               clearTimeout(mapLockTimeoutRef.current);
               mapLockTimeoutRef.current = null;
@@ -1076,7 +1076,7 @@ function Dashboard() {
             if (timeSinceLastSnap >= snapCooldown) {
               const activeStatuses = ['in_transit', 'en_route'];
               const activeDeliveries = deliveriesWithStopOrder.filter((d) =>
-                d && activeStatuses.includes(d.status)
+              d && activeStatuses.includes(d.status)
               );
 
               // Check each active delivery for proximity
@@ -1112,11 +1112,11 @@ function Dashboard() {
                       if (container) {
                         const containerRect = container.getBoundingClientRect();
                         const cardRect = cardElement.getBoundingClientRect();
-                        
+
                         const containerCenter = containerRect.left + containerRect.width / 2;
                         const cardCenter = cardRect.left + cardRect.width / 2;
                         const distanceFromCenter = Math.abs(cardCenter - containerCenter);
-                        
+
                         // Consider centered if within 50px of center
                         isCardCentered = distanceFromCenter < 50;
                         console.log(`📍 [Proximity] Card centering check: ${distanceFromCenter.toFixed(0)}px from center (${isCardCentered ? 'CENTERED' : 'NOT CENTERED'})`);
@@ -1217,61 +1217,61 @@ function Dashboard() {
 
 
 
+
+
       // Callback provided for future use, but not actively calling refreshData
       // to prevent triggering auto-selection every 15 seconds
     });const unsubscribe = driverLocationPoller.subscribe((locations) => {if (!locations || !Array.isArray(locations)) return;setAllDriverLocations(locations);});return () => {unsubscribe();driverLocationPoller.stop();};}, [isDataLoaded, currentUser, deliveries, drivers]);useEffect(() => {if (!isDataLoaded || !currentUser || !deliveries || !drivers) {return;}const appUsers = users?.filter((u) => u.user_id) || [];driverLocationPoller.processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate);}, [isDataLoaded, currentUser, deliveries, drivers, stores, users, selectedDate]); // Fetch and display current-to-next polyline for display
   // This polyline is generated by the backend (optimizeDriverRoute) and stored in DriverRoutePolyline entity
   // It shows the route from last completed stop (or home) to the next stop
-  useEffect(() => {
-    if (!currentUser || !selectedDriverId) {
-      setCurrentToNextPolyline(null);
-      return;
-    }
+  useEffect(() => {if (!currentUser || !selectedDriverId) {setCurrentToNextPolyline(null);
+        return;
+      }
 
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
-    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-    if (todayStr !== selectedDateStr) {
-      setCurrentToNextPolyline(null);
-      return;
-    }
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+      if (todayStr !== selectedDateStr) {
+        setCurrentToNextPolyline(null);
+        return;
+      }
 
-    const driverIdToFetch = selectedDriverId !== 'all' ? selectedDriverId : currentUser?.id;
-    if (!driverIdToFetch) {
-      setCurrentToNextPolyline(null);
-      return;
-    }
+      const driverIdToFetch = selectedDriverId !== 'all' ? selectedDriverId : currentUser?.id;
+      if (!driverIdToFetch) {
+        setCurrentToNextPolyline(null);
+        return;
+      }
 
-    const fetchPolyline = async () => {
-      try {
-        const driverDeliveries = filteredDeliveries.filter(d => d && d.driver_id === driverIdToFetch);
-        const driver = users.find(u => u && u.id === driverIdToFetch);
-        
-        const segment = determinePolylineSegment(driverDeliveries, driver, patients, stores);
-        
-        if (segment) {
-          console.log(`🗺️ [Polyline] ${segment.segmentType}: [${segment.originLat.toFixed(4)}, ${segment.originLon.toFixed(4)}] → [${segment.destLat.toFixed(4)}, ${segment.destLon.toFixed(4)}]`);
-          
-          const polyline = await fetchPolylineForSegment(
-            segment.originLat, 
-            segment.originLon, 
-            segment.destLat, 
-            segment.destLon
-          );
-          
-          setCurrentToNextPolyline(polyline);
-        } else {
+      const fetchPolyline = async () => {
+        try {
+          const driverDeliveries = filteredDeliveries.filter((d) => d && d.driver_id === driverIdToFetch);
+          const driver = users.find((u) => u && u.id === driverIdToFetch);
+
+          const segment = determinePolylineSegment(driverDeliveries, driver, patients, stores);
+
+          if (segment) {
+            console.log(`🗺️ [Polyline] ${segment.segmentType}: [${segment.originLat.toFixed(4)}, ${segment.originLon.toFixed(4)}] → [${segment.destLat.toFixed(4)}, ${segment.destLon.toFixed(4)}]`);
+
+            const polyline = await fetchPolylineForSegment(
+              segment.originLat,
+              segment.originLon,
+              segment.destLat,
+              segment.destLon
+            );
+
+            setCurrentToNextPolyline(polyline);
+          } else {
+            setCurrentToNextPolyline(null);
+          }
+        } catch (error) {
+          console.error('❌ [Polyline] Error:', error);
           setCurrentToNextPolyline(null);
         }
-      } catch (error) {
-        console.error('❌ [Polyline] Error:', error);
-        setCurrentToNextPolyline(null);
-      }
-    };
+      };
 
-    fetchPolyline();
-    const interval = setInterval(fetchPolyline, 30000);
-    return () => clearInterval(interval);
-  }, [currentUser?.id, selectedDriverId, selectedDate, filteredDeliveries, patients, stores, users]);
+      fetchPolyline();
+      const interval = setInterval(fetchPolyline, 30000);
+      return () => clearInterval(interval);
+    }, [currentUser?.id, selectedDriverId, selectedDate, filteredDeliveries, patients, stores, users]);
 
   useEffect(() => {
     if (!currentUser || !userHasRole(currentUser, 'driver') || showAIAssistant || !isAIEnabled) {
@@ -2144,31 +2144,31 @@ function Dashboard() {
     const runETAOptimizer = async () => {
       try {
         const dateStr = format(selectedDate, 'yyyy-MM-dd');
-        
+
         // CRITICAL: Don't run optimizer if no deliveries loaded yet
         if (!filteredDeliveries || filteredDeliveries.length === 0) {
           console.log('⏭️ [Dashboard] No deliveries loaded yet - skipping ETA optimizer');
           return;
         }
-        
+
         // Check if route is complete - stop running optimizer if no incomplete stops
         const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-        const hasIncompleteStops = filteredDeliveries.some(d => 
-          d && !finishedStatuses.includes(d.status)
+        const hasIncompleteStops = filteredDeliveries.some((d) =>
+        d && !finishedStatuses.includes(d.status)
         );
-        
+
         if (!hasIncompleteStops) {
           console.log('⏭️ [Dashboard] Route complete - skipping ETA optimizer');
           return;
         }
-        
+
         console.log('⏰ [Dashboard] Running periodic ETA optimizer...');
-        
+
         await base44.functions.invoke('etaOptimizer', {
           driverId: selectedDriverId,
           deliveryDate: dateStr
         });
-        
+
         console.log('✅ [Dashboard] Periodic ETA optimizer completed');
       } catch (error) {
         console.warn('⚠️ [Dashboard] Periodic ETA optimizer failed:', error);
@@ -2177,7 +2177,7 @@ function Dashboard() {
 
     // Run after initial delay to avoid competing with data load
     const initialTimer = setTimeout(runETAOptimizer, 60000);
-    
+
     // Then run every 5 minutes to reduce API calls
     const interval = setInterval(runETAOptimizer, 300000);
 
@@ -3071,7 +3071,7 @@ function Dashboard() {
               if (isAPickup && isBPending && !isBPickup) return -1;
               // If B is pickup and A is pending delivery → B comes first
               if (isBPickup && isAPending && !isAPickup) return 1;
-              
+
               // If both are deliveries from same store, sort by distance
               if (!isAPickup && !isBPickup) {
                 const storeForSort = stores.find((s) => s && s.id === a.store_id);
@@ -3342,19 +3342,19 @@ function Dashboard() {
               driver_id: driverId,
               delivery_date: deliveryDate
             }, 'stop_order');
-            
+
             // Reset all flags first
-            const resetPromises = allDriverDeliveries
-              .filter(d => d.isNextDelivery)
-              .map(d => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
+            const resetPromises = allDriverDeliveries.
+            filter((d) => d.isNextDelivery).
+            map((d) => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
             await Promise.all(resetPromises);
-            
+
             // Find first incomplete delivery and mark as next
             const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-            const firstIncomplete = allDriverDeliveries
-              .filter(d => !finishedStatuses.includes(d.status))
-              .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
-            
+            const firstIncomplete = allDriverDeliveries.
+            filter((d) => !finishedStatuses.includes(d.status)).
+            sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
+
             if (firstIncomplete) {
               await base44.entities.Delivery.update(firstIncomplete.id, { isNextDelivery: true });
               console.log(`✅ [AddToRoute] Set isNextDelivery=true for: ${firstIncomplete.patient_name || 'Pickup'}`);
@@ -4716,7 +4716,7 @@ function Dashboard() {
             await updateDeliveryLocal(stop.id, { stop_order: i + 1 });
             const stopName = stop.patient_id ?
             patients.find((p) => p && p.id === stop.patient_id)?.full_name :
-            stores.find ((s) => s && s.id === stop.store_id)?.name + ' Pickup';
+            stores.find((s) => s && s.id === stop.store_id)?.name + ' Pickup';
             console.log(`   ✅ Updated completed stop #${i + 1}: ${stopName}`);
           }
           console.log(`✅ Updated ${sortedCompleted.length} completed stops for ${driver.user_name}`);
@@ -4861,17 +4861,17 @@ function Dashboard() {
   const handleDeleteDelivery = async (deliveryId) => {
     try {
       const { deleteDeliveryLocal } = await import('../components/utils/offlineMutations');
-      
+
       // Get delivery info before deleting for ETA update
-      const targetDelivery = deliveriesWithStopOrder.find(d => d && d.id === deliveryId);
+      const targetDelivery = deliveriesWithStopOrder.find((d) => d && d.id === deliveryId);
       const driverId = targetDelivery?.driver_id;
       const deliveryDate = targetDelivery?.delivery_date;
-      
+
       await deleteDeliveryLocal(deliveryId);
 
       // Update local state immediately
       if (updateDeliveriesLocally) {
-        const updatedDeliveries = deliveries.filter(d => d.id !== deliveryId);
+        const updatedDeliveries = deliveries.filter((d) => d.id !== deliveryId);
         updateDeliveriesLocally(updatedDeliveries);
       }
 
@@ -4903,41 +4903,41 @@ function Dashboard() {
 
   const recalculateStopOrders = async (driverId, deliveryDate) => {
     console.log('🔢 [RECALC STOP ORDER] Recalculating stop orders to match card order...');
-    
+
     const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-    const driverDeliveries = deliveries.filter(d => 
-      d && d.driver_id === driverId && d.delivery_date === deliveryDate
+    const driverDeliveries = deliveries.filter((d) =>
+    d && d.driver_id === driverId && d.delivery_date === deliveryDate
     );
-    
+
     // Sort by visual card order (completed first by time, then incomplete by stop_order)
     const sortedDeliveries = [...driverDeliveries].sort((a, b) => {
       const isACompleted = finishedStatuses.includes(a.status);
       const isBCompleted = finishedStatuses.includes(b.status);
-      
+
       if (isACompleted && !isBCompleted) return -1;
       if (!isACompleted && isBCompleted) return 1;
-      
+
       if (isACompleted) {
         const timeA = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : 0;
         const timeB = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : 0;
         return timeA - timeB;
       }
-      
+
       return (a.stop_order || 999) - (b.stop_order || 999);
     });
-    
+
     // Reassign stop_order to ALL deliveries (both completed and incomplete)
     const updates = [];
     for (let i = 0; i < sortedDeliveries.length; i++) {
       const delivery = sortedDeliveries[i];
       const newStopOrder = i + 1;
-      
+
       if (delivery.stop_order !== newStopOrder) {
         updates.push({ id: delivery.id, stop_order: newStopOrder });
         await updateDeliveryLocal(delivery.id, { stop_order: newStopOrder });
       }
     }
-    
+
     if (updates.length > 0) {
       console.log(`✅ [RECALC STOP ORDER] Updated ${updates.length} stop orders`);
     } else {
@@ -5082,7 +5082,7 @@ function Dashboard() {
       console.log(`#️⃣ Stop Order: ${targetDelivery.stop_order}`);
 
       const updateData = { status: newStatus, ...extraData };
-      
+
       // CRITICAL: Always clear isNextDelivery flag when completing/failing deliveries
       if (['completed', 'failed', 'cancelled', 'returned'].includes(newStatus)) {
         updateData.isNextDelivery = false;
@@ -5120,26 +5120,26 @@ function Dashboard() {
       if (['completed', 'failed', 'cancelled', 'returned'].includes(newStatus)) {
         console.log('');
         console.log('🏗️ STEP 0.5: Updating isNextDelivery flags BEFORE status change');
-        
+
         // Reset all isNextDelivery flags for this driver/date
-        const allDriverDeliveriesForDate = deliveriesWithStopOrder.filter(d =>
-          d && d.driver_id === driverId && d.delivery_date === deliveryDate
+        const allDriverDeliveriesForDate = deliveriesWithStopOrder.filter((d) =>
+        d && d.driver_id === driverId && d.delivery_date === deliveryDate
         );
-        
-        const resetPromises = allDriverDeliveriesForDate
-          .filter(d => d.isNextDelivery && d.id !== deliveryId)
-          .map(d => updateDeliveryLocal(d.id, { isNextDelivery: false }));
-        
+
+        const resetPromises = allDriverDeliveriesForDate.
+        filter((d) => d.isNextDelivery && d.id !== deliveryId).
+        map((d) => updateDeliveryLocal(d.id, { isNextDelivery: false }));
+
         if (resetPromises.length > 0) {
           await Promise.all(resetPromises);
           console.log(`✅ Reset ${resetPromises.length} isNextDelivery flags`);
         }
-        
+
         // Find the next incomplete delivery (excluding the one being completed) and mark it as next
-        const incompleteDeliveries = allDriverDeliveriesForDate
-          .filter(d => d.id !== deliveryId && !['completed', 'failed', 'cancelled', 'returned'].includes(d.status))
-          .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-        
+        const incompleteDeliveries = allDriverDeliveriesForDate.
+        filter((d) => d.id !== deliveryId && !['completed', 'failed', 'cancelled', 'returned'].includes(d.status)).
+        sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+
         if (incompleteDeliveries.length > 0) {
           const nextStop = incompleteDeliveries[0];
           await updateDeliveryLocal(nextStop.id, { isNextDelivery: true });
@@ -5169,7 +5169,7 @@ function Dashboard() {
 
       // CRITICAL: Update ETAs for mobile drivers only when completing/failing stops
       const shouldUpdateETAs = isMobile && isDriver && ['completed', 'failed', 'cancelled'].includes(newStatus);
-      
+
       if (shouldUpdateETAs) {
         console.log('📱 [STATUS UPDATE - Mobile Driver] Triggering ETA updates for subsequent stops...');
         try {
@@ -5194,15 +5194,15 @@ function Dashboard() {
 
       console.log('');
       console.log('🏗️ STEP 3: Skipping route optimization (disabled)');
-      
+
       // Check if route is complete
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
       const allDriverDeliveries = deliveriesWithStopOrder.filter((d) =>
-        d && d.driver_id === driverId && d.delivery_date === targetDelivery.delivery_date
+      d && d.driver_id === driverId && d.delivery_date === targetDelivery.delivery_date
       );
-      const routeComplete = allDriverDeliveries.length > 0 && 
-        allDriverDeliveries.every(d => finishedStatuses.includes(d.status));
-      
+      const routeComplete = allDriverDeliveries.length > 0 &&
+      allDriverDeliveries.every((d) => finishedStatuses.includes(d.status));
+
       if (routeComplete && newStatus === 'completed') {
         console.log('✅ Route complete - showing summary');
         if (!hasShownSummaryRef.current) {
@@ -5356,36 +5356,36 @@ function Dashboard() {
       // STEP 1.5: Find most recently completed delivery and reorder
       console.log('');
       console.log('📍 [START STEP 1.5] Finding most recently completed delivery for reordering...');
-      
-      const allDriverDeliveriesForDate = deliveriesWithStopOrder.filter(d =>
-        d && d.driver_id === driverId && d.delivery_date === deliveryDate
+
+      const allDriverDeliveriesForDate = deliveriesWithStopOrder.filter((d) =>
+      d && d.driver_id === driverId && d.delivery_date === deliveryDate
       );
-      
+
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-      const completedDeliveries = allDriverDeliveriesForDate
-        .filter(d => finishedStatuses.includes(d.status) && d.actual_delivery_time)
-        .sort((a, b) => new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time));
+      const completedDeliveries = allDriverDeliveriesForDate.
+      filter((d) => finishedStatuses.includes(d.status) && d.actual_delivery_time).
+      sort((a, b) => new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time));
 
       let newStopOrder;
       if (completedDeliveries.length > 0) {
         const lastCompleted = completedDeliveries[0];
         newStopOrder = lastCompleted.stop_order + 1;
-        
+
         console.log(`   - Found last completed: ${lastCompleted.patient_name || 'Pickup'} (stop_order: ${lastCompleted.stop_order})`);
         console.log(`   - New stop_order for started delivery: ${newStopOrder}`);
-        
+
         // Shift all stops between lastCompleted and current position up by 1
-        const stopsToShift = allDriverDeliveriesForDate.filter(d => 
-          d.id !== deliveryId && 
-          d.stop_order >= newStopOrder && 
-          d.stop_order < deliveryFromUI.stop_order
+        const stopsToShift = allDriverDeliveriesForDate.filter((d) =>
+        d.id !== deliveryId &&
+        d.stop_order >= newStopOrder &&
+        d.stop_order < deliveryFromUI.stop_order
         );
-        
+
         if (stopsToShift.length > 0) {
           console.log(`   - Shifting ${stopsToShift.length} stops up by 1`);
           await Promise.all(
-            stopsToShift.map(d =>
-              updateDeliveryLocal(d.id, { stop_order: d.stop_order + 1 })
+            stopsToShift.map((d) =>
+            updateDeliveryLocal(d.id, { stop_order: d.stop_order + 1 })
             )
           );
           console.log('   ✅ Stop orders shifted');
@@ -5393,31 +5393,31 @@ function Dashboard() {
       } else {
         newStopOrder = 1;
         console.log(`   - No completed deliveries, placing at position 1`);
-        
+
         // Shift all other stops up by 1
-        const stopsToShift = allDriverDeliveriesForDate.filter(d => 
-          d.id !== deliveryId && d.stop_order >= 1
+        const stopsToShift = allDriverDeliveriesForDate.filter((d) =>
+        d.id !== deliveryId && d.stop_order >= 1
         );
-        
+
         if (stopsToShift.length > 0) {
           console.log(`   - Shifting ${stopsToShift.length} stops up by 1`);
           await Promise.all(
-            stopsToShift.map(d =>
-              updateDeliveryLocal(d.id, { stop_order: d.stop_order + 1 })
+            stopsToShift.map((d) =>
+            updateDeliveryLocal(d.id, { stop_order: d.stop_order + 1 })
             )
           );
           console.log('   ✅ Stop orders shifted');
         }
       }
-      
+
       console.log(`✅ [START STEP 1.5] Reordering complete - new stop_order: ${newStopOrder}`);
 
       // STEP 2: Reset all isNextDelivery flags
       console.log('');
       console.log('📍 [START STEP 2] Resetting all isNextDelivery flags...');
-      const resetPromises = allDriverDeliveriesForDate
-        .filter(d => d.isNextDelivery)
-        .map(d => updateDeliveryLocal(d.id, { isNextDelivery: false }));
+      const resetPromises = allDriverDeliveriesForDate.
+      filter((d) => d.isNextDelivery).
+      map((d) => updateDeliveryLocal(d.id, { isNextDelivery: false }));
       await Promise.all(resetPromises);
       console.log(`✅ [START STEP 2] Reset ${resetPromises.length} isNextDelivery flags`);
 
@@ -5436,12 +5436,12 @@ function Dashboard() {
       console.log('📍 [START STEP 4] Running full ETA recalculation after reordering...');
       console.log(`   - Started stop now at position #${newStopOrder}`);
       console.log(`   - All stops will get updated ETAs based on new sequence`);
-      
+
       // Refresh data BEFORE ETA optimizer to ensure it sees the updated stop_order
       console.log('🔄 [START STEP 4] Refreshing deliveries before ETA calculation...');
       invalidateDeliveriesForDate(deliveryDate);
       await refreshData();
-      
+
       try {
         await base44.functions.invoke('etaOptimizer', {
           driverId: driverId,
@@ -5454,7 +5454,7 @@ function Dashboard() {
 
       console.log('');
       console.log('📍 [START STEP 5] Recalculating all stop orders...');
-      
+
       // Recalculate stop orders for entire route
       await recalculateStopOrders(driverId, deliveryDate);
       console.log('✅ [START STEP 5] Stop orders recalculated');
@@ -5473,11 +5473,11 @@ function Dashboard() {
       // 7. Scroll to first incomplete delivery
       console.log('');
       console.log('📍 [START STEP 7] Scrolling to first incomplete delivery...');
-      
-      const remainingIncomplete = deliveries
-        .filter(d => d && d.driver_id === driverId && d.delivery_date === deliveryDate && !finishedStatuses.includes(d.status))
-        .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-      
+
+      const remainingIncomplete = deliveries.
+      filter((d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate && !finishedStatuses.includes(d.status)).
+      sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+
       if (remainingIncomplete.length > 0) {
         const nextCard = remainingIncomplete[0];
         console.log(`📍 [START STEP 7] Scrolling to next delivery: ${nextCard.patient_name || 'Pickup'}`);
@@ -5495,10 +5495,10 @@ function Dashboard() {
       // Check if route is complete
       console.log('');
       console.log('📍 [START STEP 8] Checking if route is complete...');
-      
-      const routeComplete = deliveries
-        .filter(d => d.driver_id === driverId && d.delivery_date === deliveryDate)
-        .every(d => finishedStatuses.includes(d.status));
+
+      const routeComplete = deliveries.
+      filter((d) => d.driver_id === driverId && d.delivery_date === deliveryDate).
+      every((d) => finishedStatuses.includes(d.status));
       console.log(`   - routeComplete: ${routeComplete}`);
 
       if (routeComplete) {
@@ -5667,7 +5667,7 @@ function Dashboard() {
               if (retractClustersRef.current) {
                 retractClustersRef.current();
               }
-            }} className="px-2 py-2 rounded-2xl shadow-xl border min-w-[340px] cursor-pointer z-[700]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', pointerEvents: 'auto', touchAction: 'manipulation', position: 'relative' }}>
+            }} className="px-2 py-2 rounded-2xl shadow-xl border min-w-[340px] cursor-pointer z-[601]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', pointerEvents: 'auto', touchAction: 'manipulation', position: 'relative' }}>
 
 
             
@@ -5676,155 +5676,155 @@ function Dashboard() {
               <div className="pr-1 flex items-center gap-2">
                 <h2 className="pl-2 text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>Dashboard</h2>
                 {currentUser &&
-                  <SmartRefreshIndicator
-                    inline={true}
-                    onManualRefresh={async () => {
-                      // CRITICAL: Only affect active driver on mobile devices
-                      if (!isMobile) {
-                        console.log('⏭️ [MANUAL REFRESH] Skipping - desktop device');
-                        return;
-                      }
+                <SmartRefreshIndicator
+                  inline={true}
+                  onManualRefresh={async () => {
+                    // CRITICAL: Only affect active driver on mobile devices
+                    if (!isMobile) {
+                      console.log('⏭️ [MANUAL REFRESH] Skipping - desktop device');
+                      return;
+                    }
 
-                      console.clear();
-                      console.log('');
-                      console.log('═══════════════════════════════════════════════════');
-                      console.log('📱 [MANUAL REFRESH - MOBILE] === REFRESH CYCLE START ===');
-                      console.log('═══════════════════════════════════════════════════');
-                      console.log('');
+                    console.clear();
+                    console.log('');
+                    console.log('═══════════════════════════════════════════════════');
+                    console.log('📱 [MANUAL REFRESH - MOBILE] === REFRESH CYCLE START ===');
+                    console.log('═══════════════════════════════════════════════════');
+                    console.log('');
 
-                      // Determine active driver ID
-                      const activeDriverId = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
-                      
-                      if (!activeDriverId) {
-                        console.log('⏭️ [MANUAL REFRESH] No active driver to refresh');
-                        return;
-                      }
+                    // Determine active driver ID
+                    const activeDriverId = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
 
-                      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-                      console.log(`🎯 [MANUAL REFRESH] Target: Driver ${activeDriverId}, Date: ${selectedDateStr}`);
+                    if (!activeDriverId) {
+                      console.log('⏭️ [MANUAL REFRESH] No active driver to refresh');
+                      return;
+                    }
 
-                      // STEP 1: Smart refresh cycle
-                      console.log('');
-                      console.log('🔄 [MANUAL REFRESH STEP 1] Running smart refresh cycle...');
-                      const currentData = { deliveries, patients, appUsers, stores };
-                      const filters = {
-                        selectedDate,
-                        deliveryFilter: { driver_id: activeDriverId },
-                        patientFilter: {},
-                        activeDriverIds: [activeDriverId]
-                      };
+                    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+                    console.log(`🎯 [MANUAL REFRESH] Target: Driver ${activeDriverId}, Date: ${selectedDateStr}`);
 
-                      const cityStoreIds = stores.map(s => s?.id).filter(Boolean);
-                      if (cityStoreIds.length > 0) {
-                        filters.deliveryFilter.store_id = { $in: cityStoreIds };
-                        filters.patientFilter.store_id = { $in: cityStoreIds };
-                      }
+                    // STEP 1: Smart refresh cycle
+                    console.log('');
+                    console.log('🔄 [MANUAL REFRESH STEP 1] Running smart refresh cycle...');
+                    const currentData = { deliveries, patients, appUsers, stores };
+                    const filters = {
+                      selectedDate,
+                      deliveryFilter: { driver_id: activeDriverId },
+                      patientFilter: {},
+                      activeDriverIds: [activeDriverId]
+                    };
 
-                      smartRefreshManager.lastRefreshTimes = {
-                        driverLocation: 0,
-                        activeDeliveries: 0,
-                        todayDeliveries: 0,
-                        appUsers: 0,
-                        patients: 0,
-                        stores: 0
-                      };
+                    const cityStoreIds = stores.map((s) => s?.id).filter(Boolean);
+                    if (cityStoreIds.length > 0) {
+                      filters.deliveryFilter.store_id = { $in: cityStoreIds };
+                      filters.patientFilter.store_id = { $in: cityStoreIds };
+                    }
 
-                      const updates = await smartRefreshManager.performSmartRefresh(currentData, filters, false);
-                      console.log('✅ [MANUAL REFRESH STEP 1] Smart refresh complete');
+                    smartRefreshManager.lastRefreshTimes = {
+                      driverLocation: 0,
+                      activeDeliveries: 0,
+                      todayDeliveries: 0,
+                      appUsers: 0,
+                      patients: 0,
+                      stores: 0
+                    };
 
-                      // STEP 2: Force reload deliveries for active driver
-                      console.log('');
-                      console.log('🔄 [MANUAL REFRESH STEP 2] Force reloading deliveries for active driver...');
-                      invalidateDeliveriesForDate(selectedDateStr);
-                      const freshDeliveries = await base44.entities.Delivery.filter({
-                        delivery_date: selectedDateStr,
-                        driver_id: activeDriverId
+                    const updates = await smartRefreshManager.performSmartRefresh(currentData, filters, false);
+                    console.log('✅ [MANUAL REFRESH STEP 1] Smart refresh complete');
+
+                    // STEP 2: Force reload deliveries for active driver
+                    console.log('');
+                    console.log('🔄 [MANUAL REFRESH STEP 2] Force reloading deliveries for active driver...');
+                    invalidateDeliveriesForDate(selectedDateStr);
+                    const freshDeliveries = await base44.entities.Delivery.filter({
+                      delivery_date: selectedDateStr,
+                      driver_id: activeDriverId
+                    });
+                    console.log(`✅ [MANUAL REFRESH STEP 2] Loaded ${freshDeliveries.length} deliveries`);
+
+                    // STEP 3: Update ETAs for active driver
+                    console.log('');
+                    console.log('🔄 [MANUAL REFRESH STEP 3] Updating ETAs for active driver...');
+                    try {
+                      await base44.functions.invoke('etaOptimizer', {
+                        driverId: activeDriverId,
+                        deliveryDate: selectedDateStr
                       });
-                      console.log(`✅ [MANUAL REFRESH STEP 2] Loaded ${freshDeliveries.length} deliveries`);
+                      console.log(`   ✅ ETAs updated for active driver`);
+                    } catch (etaError) {
+                      console.warn(`   ⚠️ ETA update failed:`, etaError);
+                    }
+                    console.log('✅ [MANUAL REFRESH STEP 3] ETA updates complete');
 
-                      // STEP 3: Update ETAs for active driver
-                      console.log('');
-                      console.log('🔄 [MANUAL REFRESH STEP 3] Updating ETAs for active driver...');
-                      try {
-                        await base44.functions.invoke('etaOptimizer', {
-                          driverId: activeDriverId,
-                          deliveryDate: selectedDateStr
-                        });
-                        console.log(`   ✅ ETAs updated for active driver`);
-                      } catch (etaError) {
-                        console.warn(`   ⚠️ ETA update failed:`, etaError);
+                    // STEP 4: Recalculate stop orders for active driver
+                    console.log('');
+                    console.log('🔄 [MANUAL REFRESH STEP 4] Recalculating stop orders for active driver...');
+                    await recalculateStopOrders(activeDriverId, selectedDateStr);
+                    console.log('✅ [MANUAL REFRESH STEP 4] Stop orders recalculated');
+
+                    // STEP 5: Update isNextDelivery flags for active driver
+                    console.log('');
+                    console.log('🔄 [MANUAL REFRESH STEP 5] Updating isNextDelivery flags...');
+                    const updatedDeliveries = await base44.entities.Delivery.filter({
+                      delivery_date: selectedDateStr,
+                      driver_id: activeDriverId
+                    }, 'stop_order');
+
+                    // Reset all isNextDelivery flags for this driver
+                    const resetPromises = updatedDeliveries.
+                    filter((d) => d.isNextDelivery).
+                    map((d) => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
+                    await Promise.all(resetPromises);
+                    console.log(`   Reset ${resetPromises.length} isNextDelivery flags`);
+
+                    // Find first incomplete and mark as next (NO reordering)
+                    const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+                    const firstIncomplete = updatedDeliveries.
+                    filter((d) => !finishedStatuses.includes(d.status)).
+                    sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
+
+                    if (firstIncomplete) {
+                      await base44.entities.Delivery.update(firstIncomplete.id, { isNextDelivery: true });
+                      console.log(`   ✅ Set isNextDelivery for active driver: ${firstIncomplete.patient_name || 'Pickup'}`);
+                    }
+                    console.log('✅ [MANUAL REFRESH STEP 5] isNextDelivery flags updated');
+
+                    // STEP 6: Reload fresh data and update UI
+                    console.log('');
+                    console.log('🔄 [MANUAL REFRESH STEP 6] Reloading fresh data...');
+                    invalidateDeliveriesForDate(selectedDateStr);
+                    const finalDeliveries = await base44.entities.Delivery.filter({
+                      delivery_date: selectedDateStr
+                    });
+
+                    // Update UI state
+                    if (updateDeliveriesLocally) {
+                      const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
+                      const mergedDeliveries = [...otherDateDeliveries, ...finalDeliveries];
+                      updateDeliveriesLocally(mergedDeliveries);
+                      console.log('✅ [MANUAL REFRESH STEP 6] UI updated with fresh data');
+                    }
+
+                    // Apply any smart refresh updates
+                    if (updates) {
+                      if (updates.patients) {
+                        setPatients(updates.patients);
                       }
-                      console.log('✅ [MANUAL REFRESH STEP 3] ETA updates complete');
-
-                      // STEP 4: Recalculate stop orders for active driver
-                      console.log('');
-                      console.log('🔄 [MANUAL REFRESH STEP 4] Recalculating stop orders for active driver...');
-                      await recalculateStopOrders(activeDriverId, selectedDateStr);
-                      console.log('✅ [MANUAL REFRESH STEP 4] Stop orders recalculated');
-
-                      // STEP 5: Update isNextDelivery flags for active driver
-                      console.log('');
-                      console.log('🔄 [MANUAL REFRESH STEP 5] Updating isNextDelivery flags...');
-                      const updatedDeliveries = await base44.entities.Delivery.filter({
-                        delivery_date: selectedDateStr,
-                        driver_id: activeDriverId
-                      }, 'stop_order');
-                      
-                      // Reset all isNextDelivery flags for this driver
-                      const resetPromises = updatedDeliveries
-                        .filter(d => d.isNextDelivery)
-                        .map(d => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
-                      await Promise.all(resetPromises);
-                      console.log(`   Reset ${resetPromises.length} isNextDelivery flags`);
-                      
-                      // Find first incomplete and mark as next (NO reordering)
-                      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-                      const firstIncomplete = updatedDeliveries
-                        .filter(d => !finishedStatuses.includes(d.status))
-                        .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
-                      
-                      if (firstIncomplete) {
-                        await base44.entities.Delivery.update(firstIncomplete.id, { isNextDelivery: true });
-                        console.log(`   ✅ Set isNextDelivery for active driver: ${firstIncomplete.patient_name || 'Pickup'}`);
+                      if (updates.appUsers) {
+                        setAppUsers(updates.appUsers);
                       }
-                      console.log('✅ [MANUAL REFRESH STEP 5] isNextDelivery flags updated');
-
-                      // STEP 6: Reload fresh data and update UI
-                      console.log('');
-                      console.log('🔄 [MANUAL REFRESH STEP 6] Reloading fresh data...');
-                      invalidateDeliveriesForDate(selectedDateStr);
-                      const finalDeliveries = await base44.entities.Delivery.filter({
-                        delivery_date: selectedDateStr
-                      });
-                      
-                      // Update UI state
-                      if (updateDeliveriesLocally) {
-                        const otherDateDeliveries = deliveries.filter(d => d && d.delivery_date !== selectedDateStr);
-                        const mergedDeliveries = [...otherDateDeliveries, ...finalDeliveries];
-                        updateDeliveriesLocally(mergedDeliveries);
-                        console.log('✅ [MANUAL REFRESH STEP 6] UI updated with fresh data');
+                      if (updates.stores) {
+                        setStores(updates.stores);
                       }
-                      
-                      // Apply any smart refresh updates
-                      if (updates) {
-                        if (updates.patients) {
-                          setPatients(updates.patients);
-                        }
-                        if (updates.appUsers) {
-                          setAppUsers(updates.appUsers);
-                        }
-                        if (updates.stores) {
-                          setStores(updates.stores);
-                        }
-                      }
+                    }
 
-                      console.log('');
-                      console.log('═══════════════════════════════════════════════════');
-                      console.log('✅ [MANUAL REFRESH] === REFRESH CYCLE COMPLETE ===');
-                      console.log('═══════════════════════════════════════════════════');
-                      console.log('');
-                    }}
-                  />
+                    console.log('');
+                    console.log('═══════════════════════════════════════════════════');
+                    console.log('✅ [MANUAL REFRESH] === REFRESH CYCLE COMPLETE ===');
+                    console.log('═══════════════════════════════════════════════════');
+                    console.log('');
+                  }} />
+
                 }
               </div>
 
