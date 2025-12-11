@@ -1967,8 +1967,10 @@ export default function DeliveryForm({
     } catch (err) {
       console.error('[AddToRoute] ❌ Batch save error:', err);
       setError(`Failed to save: ${err.message || 'Unknown error'}`);
+      setIsLoadingPredictions(false); // Resume predictions on error
     } finally {
       setIsSaving(false);
+      setIsLoadingPredictions(false); // Resume predictions after completion
     }
   }, [stagedDeliveries, onSave, onCancel, allDeliveries, formData.delivery_date, formData.driver_id, editingStagedId]);
 
