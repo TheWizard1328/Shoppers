@@ -111,10 +111,15 @@ const syncPatients = async (forceFullSync = false) => {
       }
     }
 
+    // CRITICAL: Remove temp IDs before saving backend data to prevent duplicates
+    console.log(`🧹 [OfflineSync] Filtering out temp IDs from backend data...`);
+    const cleanPatients = patients.filter(p => !p.id.startsWith('temp_'));
+    console.log(`   Removed ${patients.length - cleanPatients.length} temp records`);
+    
     // Save to IndexedDB in batches
     const batches = [];
-    for (let i = 0; i < patients.length; i += BATCH_SIZE) {
-      batches.push(patients.slice(i, i + BATCH_SIZE));
+    for (let i = 0; i < cleanPatients.length; i += BATCH_SIZE) {
+      batches.push(cleanPatients.slice(i, i + BATCH_SIZE));
     }
 
     let totalSaved = 0;
@@ -273,11 +278,16 @@ const syncDeliveries = async (selectedDate = null, forceFullSync = false) => {
       await new Promise(resolve => setTimeout(resolve, isFullSync ? 2000 : 1500));
     }
 
+    // CRITICAL: Remove temp IDs before saving backend data to prevent duplicates
+    console.log(`🧹 [OfflineSync] Filtering out temp IDs from backend data...`);
+    const cleanDeliveries = allDeliveries.filter(d => !d.id.startsWith('temp_'));
+    console.log(`   Removed ${allDeliveries.length - cleanDeliveries.length} temp records`);
+    
     // Save to IndexedDB in batches
-    console.log(`💾 [OfflineSync] Saving ${allDeliveries.length} total deliveries to IndexedDB...`);
+    console.log(`💾 [OfflineSync] Saving ${cleanDeliveries.length} total deliveries to IndexedDB...`);
     const batches = [];
-    for (let i = 0; i < allDeliveries.length; i += BATCH_SIZE) {
-      batches.push(allDeliveries.slice(i, i + BATCH_SIZE));
+    for (let i = 0; i < cleanDeliveries.length; i += BATCH_SIZE) {
+      batches.push(cleanDeliveries.slice(i, i + BATCH_SIZE));
     }
 
     for (let i = 0; i < batches.length; i++) {
@@ -595,9 +605,16 @@ export const performBidirectionalSync = async () => {
 
     console.log(`💾 Found ${localPatients.length} patients and ${localDeliveries.length} deliveries in local database`);
 
+    // CRITICAL: Filter out temp records from backend data before merging
+    console.log(`🧹 [OfflineSync] Filtering out temp IDs from backend data...`);
+    const cleanBackendPatients = backendPatients.filter(p => !p.id.startsWith('temp_'));
+    const cleanBackendDeliveries = backendDeliveries.filter(d => !d.id.startsWith('temp_'));
+    console.log(`   Removed ${backendPatients.length - cleanBackendPatients.length} temp patients`);
+    console.log(`   Removed ${backendDeliveries.length - cleanBackendDeliveries.length} temp deliveries`);
+    
     // Compare and merge
-    const updatedPatients = mergeData(localPatients, backendPatients);
-    const updatedDeliveries = mergeData(localDeliveries, backendDeliveries);
+    const updatedPatients = mergeData(localPatients, cleanBackendPatients);
+    const updatedDeliveries = mergeData(localDeliveries, cleanBackendDeliveries);
 
     // Save merged data to local database
     if (updatedPatients.length > 0) {
