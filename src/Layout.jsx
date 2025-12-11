@@ -260,12 +260,12 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
   }
 
   return (
-    <div className="px-3 py-2 space-y-1">
+    <div className="px-3 py-2 space-y-3">
       <div>
         <h4 className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-slate-500)' }}>
           {isToday ? "Today's Stats:" : format(selectedDate, 'MMM dd, yyyy') + ':'}
         </h4>
-        <div className="space-y-1">
+        <div className="space-y-2">
           {!userHasRole(currentUser, 'driver') && <StatItem icon={Truck} label="Active Drivers" value={stats.today.activeDrivers} colorClass="text-blue-600" />}
           <StatItem icon={Package} label="Active Stops" value={stats.today.activeStops} colorClass="text-slate-600" />
           <StatItem icon={CheckCircle} label="Completed" value={stats.today.completed} colorClass="text-green-600" />
@@ -282,7 +282,7 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
 
       <div>
         <h4 className="xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-slate-500)' }}>{format(selectedDate, 'MMMM yyyy')}:</h4>
-        <div className="space-y-1">
+        <div className="space-y-2">
           <StatItem icon={CheckCircle} label="Completed" value={stats.month.completed} colorClass="text-green-600" />
           {(stats.month.failed > 0 || stats.month.returns > 0) &&
           <StatItem
@@ -1144,12 +1144,12 @@ export default function Layout({ children, currentPageName }) {
 
 
 
+
+
+
+
           // Silently fail - wake lock not critical
-        }}};
-    const releaseWakeLock = () => {
-      if (wakeLockRef.current) {
-        wakeLockRef.current.release();
-        wakeLockRef.current = null;
+        }}};const releaseWakeLock = () => {if (wakeLockRef.current) {wakeLockRef.current.release();wakeLockRef.current = null;
       }
     };
 
@@ -1327,12 +1327,12 @@ export default function Layout({ children, currentPageName }) {
 
 
 
-      // Silent fail
-    }};const handleImpersonate = useCallback(async (userId) => {
-    sessionStorage.setItem('impersonationId', userId);
-    window.location.reload();
-  }, []);
 
+
+
+
+      // Silent fail
+    }};const handleImpersonate = useCallback(async (userId) => {sessionStorage.setItem('impersonationId', userId);window.location.reload();}, []);
   const handleStopImpersonating = useCallback(() => {
     sessionStorage.removeItem('impersonationId');
     window.location.reload();
@@ -2611,7 +2611,7 @@ export default function Layout({ children, currentPageName }) {
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-3 custom-scrollbar" style={{ background: 'var(--bg-white)' }}>
-                  <div className="">
+                  <div className="space-y-1">
                     <Link
                     to={constructUrlWithParams("Dashboard")}
                     onClick={() => setSidebarOpen(false)}
@@ -2635,12 +2635,12 @@ export default function Layout({ children, currentPageName }) {
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
                   <Link
                     to={createPageUrl('Patients')}
-                    onClick={() => setSidebarOpen(false)}
-                    className={`mb-1 px-4 py-1 rounded-xl flex items-center gap-3 transition-all duration-200 ${
-                    currentPageName === 'Patients' ?
-                    'shadow-sm' :
-                    'hover:opacity-80'}`
-                    }
+                    onClick={() => setSidebarOpen(false)} className="px-4 rounded-xl flex items-center gap-3 transition-all duration-200 hover:opacity-80"
+
+
+
+
+
                     style={currentPageName === 'Patients' ? {
                       background: 'var(--bg-slate-100)',
                       color: 'var(--text-slate-900)'
@@ -2656,12 +2656,12 @@ export default function Layout({ children, currentPageName }) {
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                   <Link
                     to={getRouteNavigationUrl('Deliveries')}
-                    onClick={() => setSidebarOpen(false)}
-                    className={`mb-1 px-4 py-1 rounded-xl flex items-center gap-3 transition-all duration-200 ${
-                    currentPageName === 'Deliveries' ?
-                    'shadow-sm' :
-                    'hover:opacity-80'}`
-                    }
+                    onClick={() => setSidebarOpen(false)} className="px-4 rounded-xl flex items-center gap-3 transition-all duration-200 hover:opacity-80"
+
+
+
+
+
                     style={currentPageName === 'Deliveries' ? {
                       background: 'var(--bg-slate-100)',
                       color: 'var(--text-slate-900)'
@@ -2677,41 +2677,41 @@ export default function Layout({ children, currentPageName }) {
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                   <Link
                     to={constructUrlWithParams(createPageUrl("DeliveryMetrics"))}
-                    onClick={() => setSidebarOpen(false)}
-                    className={`mb-2 px-4 py-1 rounded-xl flex items-center gap-3 transition-all duration-200 ${
-                    currentPageName === 'DeliveryMetrics' ?
-                    'shadow-sm' :
-                    'hover:opacity-80'}`
-                    }
+                    onClick={() => setSidebarOpen(false)} className="px-4 rounded-xl flex items-center gap-3 transition-all duration-200 hover:opacity-80"
+
+
+
+
+
                     style={currentPageName === 'DeliveryMetrics' ? {
                       background: 'var(--bg-slate-100)',
                       color: 'var(--text-slate-900)'
                     } : {
                       color: 'var(--text-slate-600)'
-                    }}>
-                        <BarChart3 className="w-5 h-5" />
-                        <span className="font-semibold">Route Metrics</span>
-                      </Link>
+                    }}>Route Metrics
+
+
+                  </Link>
                   }
                   </div>
 
                   {userHasRole(currentUser, 'admin') &&
-                <div className="mt-2">
+                <div className="mt-2 space-y-1">
                       <div className="border-t mb-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
                       <div className="text-xs font-semibold uppercase tracking-wider px-3 py-1" style={{ color: 'var(--text-slate-500)' }}>
                         Admin
                       </div>
-                      <div className="space-y-1">
+                      <div className="">
                         {adminNavigationItems.map((item) =>
                     <Link
                       key={item.title}
                       to={constructUrlWithParams(item.url)}
-                      onClick={() => setSidebarOpen(false)}
-                      className={`my-1 px-4 py-1 rounded-xl flex items-center gap-3 transition-all duration-200 ${
-                      currentPageName === item.pageName ?
-                      'shadow-sm' :
-                      'hover:opacity-80'}`
-                      }
+                      onClick={() => setSidebarOpen(false)} className="px-4 rounded-xl flex items-center gap-3 transition-all duration-200 hover:opacity-80"
+
+
+
+
+
                       style={currentPageName === item.pageName ? {
                         background: 'var(--bg-slate-100)',
                         color: 'var(--text-slate-900)'
