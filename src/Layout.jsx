@@ -2519,7 +2519,7 @@ export default function Layout({ children, currentPageName }) {
             }
 
               {/* Sidebar */}
-              <div className="app-sidebar  border-r flex flex-col z-[500]" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
+              <div className="app-sidebar  border-r flex flex-col z-[999]" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
                 <div className="border-b p-4 flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)' }}>
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
