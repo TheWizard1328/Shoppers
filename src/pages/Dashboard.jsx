@@ -5963,6 +5963,7 @@ function Dashboard() {
                 }
                 </motion.div>
               }
+            <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} />
             </AnimatePresence>
           </motion.div>
 
@@ -6012,6 +6013,8 @@ function Dashboard() {
             </div>
           </div>
         }
+
+        <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} />
 
         <div className="absolute inset-0 overflow-hidden">
           <DeliveryMap
