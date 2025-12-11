@@ -5082,6 +5082,12 @@ function Dashboard() {
       console.log(`#️⃣ Stop Order: ${targetDelivery.stop_order}`);
 
       const updateData = { status: newStatus, ...extraData };
+      
+      // CRITICAL: Always clear isNextDelivery flag when completing/failing deliveries
+      if (['completed', 'failed', 'cancelled', 'returned'].includes(newStatus)) {
+        updateData.isNextDelivery = false;
+        console.log('🚫 Clearing isNextDelivery flag from completed/failed delivery');
+      }
 
       // CRITICAL: Cancelled pickups are treated as completed (with timestamp)
       if (['completed', 'failed', 'delivered'].includes(newStatus) || newStatus === 'cancelled' && isPickup) {
