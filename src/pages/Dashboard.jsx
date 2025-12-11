@@ -5676,95 +5676,24 @@ function Dashboard() {
               <div className="pr-1 flex items-center gap-2">
                 <h2 className="text-slate-900 pl-2 text-lg font-bold">Dashboard</h2>
                 {currentUser &&
-                <SmartRefreshIndicator
-                  inline={true}
-                  onManualRefresh={async () => {
-                    console.clear();
-                    console.log('');
-                    console.log('═══════════════════════════════════════════════════');
-                    console.log('🔄 [MANUAL REFRESH] === REFRESH CYCLE START ===');
-                    console.log('═══════════════════════════════════════════════════');
-                    console.log('');
-
-                    // STEP 1: Smart refresh cycle (fast incremental updates)
-                    console.log('🔄 [MANUAL REFRESH STEP 1] Running smart refresh cycle...');
-                    
-                    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-                    const currentData = {
-                      deliveries,
-                      patients,
-                      appUsers,
-                      stores
-                    };
-
-                    const filters = {
-                      selectedDate,
-                      deliveryFilter: {},
-                      patientFilter: {},
-                      activeDriverIds: drivers.map(d => d?.id).filter(Boolean)
-                    };
-
-                    const cityStoreIds = stores.map(s => s?.id).filter(Boolean);
-                    if (cityStoreIds.length > 0) {
-                      filters.deliveryFilter.store_id = { $in: cityStoreIds };
-                      filters.patientFilter.store_id = { $in: cityStoreIds };
-                    }
-
-                    if (selectedDriverId && selectedDriverId !== 'all') {
-                      filters.deliveryFilter.driver_id = selectedDriverId;
-                    }
-
-                    // Force all entity intervals to refresh immediately
-                    smartRefreshManager.lastRefreshTimes = {
-                      driverLocation: 0,
-                      activeDeliveries: 0,
-                      todayDeliveries: 0,
-                      appUsers: 0,
-                      patients: 0,
-                      stores: 0
-                    };
-
-                    const updates = await smartRefreshManager.performSmartRefresh(currentData, filters, false);
-                    console.log('✅ [MANUAL REFRESH STEP 1] Smart refresh complete');
-
-                    // STEP 2: Force reload deliveries for selected date
-                    console.log('');
-                    console.log('🔄 [MANUAL REFRESH STEP 2] Force reloading deliveries for selected date...');
-                    invalidateDeliveriesForDate(selectedDateStr);
-                    const freshDeliveries = await base44.entities.Delivery.filter({
-                      delivery_date: selectedDateStr
-                    });
-                    console.log(`✅ [MANUAL REFRESH STEP 2] Loaded ${freshDeliveries.length} deliveries`);
-
-                    // STEP 3: Update ETAs for all drivers with deliveries on selected date
-                    console.log('');
-                    console.log('🔄 [MANUAL REFRESH STEP 3] Updating ETAs for all drivers...');
-                    const driversWithDeliveries = [...new Set(freshDeliveries.map(d => d.driver_id).filter(Boolean))];
-                    console.log(`   Found ${driversWithDeliveries.length} drivers with deliveries`);
-                    
-                    for (const driverId of driversWithDeliveries) {
-                      try {
-                        await base44.functions.invoke('etaOptimizer', {
-                          driverId: driverId,
-                          deliveryDate: selectedDateStr
-                        });
-                        console.log(`   ✅ ETAs updated for driver ${driverId}`);
-                      } catch (etaError) {
-                        console.warn(`   ⚠️ ETA update failed for driver ${driverId}:`, etaError);
-                      }
-                    }
-                    console.log('✅ [MANUAL REFRESH STEP 3] All ETAs updated');
-
-                    // STEP 4: Recalculate stop orders for all drivers
+                    // STEP 4: Recalculate stop orders for selected drivers
                     console.log('');
                     console.log('🔄 [MANUAL REFRESH STEP 4] Recalculating stop orders...');
-                    for (const driverId of driversWithDeliveries) {
+                    
+                    // CRITICAL: On mobile, only update current driver (even if "all drivers" selected)
+                    let driversToUpdate = driversWithDeliveries;
+                    if (isMobile && currentUser?.id) {
+                      driversToUpdate = [currentUser.id];
+                      console.log(`📱 [Mobile Mode] Only updating current driver: ${currentUser.user_name || currentUser.full_name}`);
+                    }
+                    
+                    for (const driverId of driversToUpdate) {
                       await recalculateStopOrders(driverId, selectedDateStr);
                       console.log(`   ✅ Stop orders recalculated for driver ${driverId}`);
                     }
-                    console.log('✅ [MANUAL REFRESH STEP 4] All stop orders recalculated');
+                    console.log('✅ [MANUAL REFRESH STEP 4] Stop orders recalculated');
 
-                    // STEP 4.5: Update isNextDelivery flags for all drivers
+                    // STEP 4.5: Update isNextDelivery flags for selected drivers
                     console.log('');
                     console.log('🔄 [MANUAL REFRESH STEP 4.5] Updating isNextDelivery flags...');
                     const updatedDeliveries = await base44.entities.Delivery.filter({
@@ -5784,6 +5713,12 @@ function Dashboard() {
                     // For each driver, reset all flags and mark first incomplete
                     const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
                     for (const [driverId, driverDeliveries] of Object.entries(deliveriesByDriver)) {
+                      // CRITICAL: On mobile, only update current driver's flags
+                      if (isMobile && currentUser?.id && driverId !== currentUser.id) {
+                        console.log(`   ⏭️ Skipping driver ${driverId} (mobile mode - not current user)`);
+                        continue;
+                      }
+                      
                       // Reset all isNextDelivery flags for this driver
                       const resetPromises = driverDeliveries
                         .filter(d => d.isNextDelivery)
@@ -5800,7 +5735,7 @@ function Dashboard() {
                         console.log(`   ✅ Set isNextDelivery for driver ${driverId}: ${firstIncomplete.patient_name || 'Pickup'}`);
                       }
                     }
-                    console.log('✅ [MANUAL REFRESH STEP 4.5] All isNextDelivery flags updated');
+                    console.log('✅ [MANUAL REFRESH STEP 4.5] isNextDelivery flags updated');
 
                     // STEP 5: Reload fresh data and update UI
                     console.log('');
