@@ -2129,8 +2129,12 @@ export default function DeliveryMap({
           let dynamicZIndex;
           
           const isFinished = FINISHED_STATUSES.includes(pickup.status);
+          const isPending = pickup.status === 'pending';
 
-          if (isFinished) {
+          if (isPending) {
+            // Rule 0: Pending markers ALWAYS on top (highest z-index)
+            dynamicZIndex = 5000 + (500 - (pickup.number || 500));
+          } else if (isFinished) {
             // Rule 2: Finished markers are at the bottom.
             // Order them by stop order so #1 is still on top of #2 if both are finished.
             dynamicZIndex = 100 + (500 - (pickup.number || 500));
@@ -2272,15 +2276,19 @@ export default function DeliveryMap({
 
           const isFinished = FINISHED_STATUSES.includes(delivery.status);
           const isNext = delivery.isNextInLine;
+          const isPending = delivery.status === 'pending';
 
-          if (isFinished) {
+          if (isPending) {
+            // Rule 0: Pending markers ALWAYS on top (highest z-index)
+            dynamicZIndex = 5000 + (500 - (delivery.number || 500));
+          } else if (isFinished) {
             dynamicZIndex = 100 + (500 - (delivery.number || 500));
           } else {
             dynamicZIndex = 1000 + (500 - (delivery.number || 500));
           }
           
-          // Rule 3: Next marker is on top of everything.
-          if (isNext) {
+          // Rule 3: Next marker is on top of everything except pending.
+          if (isNext && !isPending) {
             dynamicZIndex = 2000;
           }
           
