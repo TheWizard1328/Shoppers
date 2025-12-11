@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, Fragment, useMemo, useCallback, useRef } from "react";
 import "./components/utils/globalErrorHandler";
 import { Link, useLocation } from "react-router-dom";
@@ -43,13 +44,13 @@ import {
   UserCog,
   Stethoscope,
   MoreVertical,
-  MessageCircle } from
-"lucide-react";
+  MessageCircle
+} from "lucide-react";
 import {
   Popover,
   PopoverContent,
-  PopoverTrigger } from
-"@/components/ui/popover";
+  PopoverTrigger
+} from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandList, CommandItem } from "@/components/ui/command";
 import {
   DropdownMenu,
@@ -57,8 +58,8 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger } from
-"@/components/ui/dropdown-menu";
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -72,20 +73,20 @@ import { sortUsers, sortStores } from './components/utils/sorting';
 import { UserProvider } from './components/utils/UserContext';
 import { AppDataProvider } from './components/utils/AppDataContext';
 import { ResizableDivider } from './components/ui/resizable-divider';
-import { globalFilters } from './components/utils/globalFilters';
-import CitySelectionPopup from './components/cities/CitySelectionPopup';
-import { getActiveDriversForCity, getAvailableDrivers } from './components/utils/driverSelectors';
+      import { globalFilters } from './components/utils/globalFilters';
+      import CitySelectionPopup from './components/cities/CitySelectionPopup';
+      import { getActiveDriversForCity, getAvailableDrivers } from './components/utils/driverSelectors';
 // Removed: getCitiesWithinRadius - no longer using geographic filtering
-import { getUserAgentInfo } from './components/utils/deviceUtils';
-import PatientImport from './components/patients/PatientImport';
-import RouteImport from './components/deliveries/RouteImport';
-import DriverStatusToggle from './components/layout/DriverStatusToggle';
-import { loadUserSettings, saveSetting, clearSettingsCache } from './components/utils/userSettingsManager';
-import MessagingPanel from './components/messaging/MessagingPanel';
-import SmartRefreshIndicator from './components/layout/SmartRefreshIndicator';
-import { isMobileDevice } from './components/utils/deviceUtils';
-import MessageNotificationBalloon from './components/messaging/MessageNotificationBalloon';
-import { initializeDailyCleanup } from './components/utils/messageCleaner';
+      import { getUserAgentInfo } from './components/utils/deviceUtils';
+      import PatientImport from './components/patients/PatientImport';
+      import RouteImport from './components/deliveries/RouteImport';
+      import DriverStatusToggle from './components/layout/DriverStatusToggle';
+      import { loadUserSettings, saveSetting, clearSettingsCache } from './components/utils/userSettingsManager';
+      import MessagingPanel from './components/messaging/MessagingPanel';
+      import SmartRefreshIndicator from './components/layout/SmartRefreshIndicator';
+      import { isMobileDevice } from './components/utils/deviceUtils';
+      import MessageNotificationBalloon from './components/messaging/MessageNotificationBalloon';
+      import { initializeDailyCleanup } from './components/utils/messageCleaner';
 import { performInitialSync, processPendingMutations } from './components/utils/offlineSync';
 import OfflineSyncIndicator from './components/layout/OfflineSyncIndicator';
 import { subscribeMutations } from './components/utils/offlineMutations';
@@ -166,65 +167,65 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
   }, [selectedDateStr]);
 
   // Fetch stats from backend function (lightweight - no full data load)
-  useEffect(() => {
-    if (!currentUser) return;
+          useEffect(() => {
+            if (!currentUser) return;
 
-    const fetchStats = async () => {
-      try {
-        setHasError(false);
-        const selectedDriverId = globalFilters.getSelectedDriverId();
+            const fetchStats = async () => {
+              try {
+                setHasError(false);
+                const selectedDriverId = globalFilters.getSelectedDriverId();
 
-        // CRITICAL: Pass selected driver ID directly - backend handles filtering
-        // When 'all' is selected → driverId=null (show all drivers)
-        // When specific driver selected → driverId=that driver (show only that driver)
-        const driverId = selectedDriverId === 'all' ? null : selectedDriverId;
+                // CRITICAL: Pass selected driver ID directly - backend handles filtering
+                // When 'all' is selected → driverId=null (show all drivers)
+                // When specific driver selected → driverId=that driver (show only that driver)
+                const driverId = selectedDriverId === 'all' ? null : selectedDriverId;
 
-        // Store filtering based on user role
-        let filteredStoreIds = [];
-        if (userHasRole(currentUser, 'admin')) {
-          filteredStoreIds = storeIds;
-        } else if (userHasRole(currentUser, 'dispatcher')) {
-          filteredStoreIds = (currentUser.store_ids || []).filter(Boolean);
-        } else if (userHasRole(currentUser, 'driver')) {
-          filteredStoreIds = storeIds;
-        }
+                // Store filtering based on user role
+                let filteredStoreIds = [];
+                if (userHasRole(currentUser, 'admin')) {
+                  filteredStoreIds = storeIds;
+                } else if (userHasRole(currentUser, 'dispatcher')) {
+                  filteredStoreIds = (currentUser.store_ids || []).filter(Boolean);
+                } else if (userHasRole(currentUser, 'driver')) {
+                  filteredStoreIds = storeIds;
+                }
 
-        const response = await base44.functions.invoke('getDeliveryStats', {
-          selectedDate: selectedDateStr,
-          driverId: driverId,
-          storeIds: filteredStoreIds.length > 0 ? filteredStoreIds : null
-        });
+                const response = await base44.functions.invoke('getDeliveryStats', {
+                  selectedDate: selectedDateStr,
+                  driverId: driverId,
+                  storeIds: filteredStoreIds.length > 0 ? filteredStoreIds : null
+                });
 
-        const data = response?.data || response;
-        if (data && data.today) {
-          setStats(data);
-        } else {
-          setHasError(true);
-        }
-      } catch (error) {
-        setHasError(true);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+                const data = response?.data || response;
+                if (data && data.today) {
+                  setStats(data);
+                } else {
+                  setHasError(true);
+                }
+              } catch (error) {
+                setHasError(true);
+              } finally {
+                setIsLoading(false);
+              }
+            };
 
-    // Listen for manual refresh requests (e.g., after imports)
-    window.addEventListener('refreshDeliveryStats', fetchStats);
+            // Listen for manual refresh requests (e.g., after imports)
+            window.addEventListener('refreshDeliveryStats', fetchStats);
 
-    // Delay initial fetch slightly to avoid competing with layout init
-    console.log('🔄 [QuickStats] Scheduling stats fetch for date:', selectedDateStr);
-    const initialTimer = setTimeout(fetchStats, 1000);
-    // Refresh stats every 60 seconds
-    const interval = setInterval(fetchStats, 60000);
-    return () => {
-      clearTimeout(initialTimer);
-      clearInterval(interval);
-      window.removeEventListener('refreshDeliveryStats', fetchStats);
-    };
-  }, [currentUser, selectedDateStr, storeIds]);
+            // Delay initial fetch slightly to avoid competing with layout init
+            console.log('🔄 [QuickStats] Scheduling stats fetch for date:', selectedDateStr);
+            const initialTimer = setTimeout(fetchStats, 1000);
+            // Refresh stats every 60 seconds
+            const interval = setInterval(fetchStats, 60000);
+            return () => {
+              clearTimeout(initialTimer);
+              clearInterval(interval);
+              window.removeEventListener('refreshDeliveryStats', fetchStats);
+            };
+          }, [currentUser, selectedDateStr, storeIds]);
 
   const StatItem = ({ icon: Icon, label, value, colorClass }) =>
-  <div className="flex items-center justify-between text-sm">
+      <div className="flex items-center justify-between text-sm">
         <div className="flex items-center gap-2">
           <Icon className={`w-4 h-4 ${colorClass || 'text-slate-500'}`} />
           <span className="font-medium" style={{ color: 'var(--text-slate-600)' }}>{label}</span>
@@ -247,16 +248,16 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
           <div className="h-6 bg-slate-200 rounded"></div>
           <div className="h-6 bg-slate-200 rounded"></div>
         </div>
-      </div>);
-
+      </div>
+    );
   }
 
   if (hasError || !stats) {
     return (
       <div className="px-3 py-2 text-sm text-slate-500">
         Unable to load stats
-      </div>);
-
+      </div>
+    );
   }
 
   return (
@@ -270,11 +271,11 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
           <StatItem icon={Package} label="Active Stops" value={stats.today.activeStops} colorClass="text-slate-600" />
           <StatItem icon={CheckCircle} label="Completed" value={stats.today.completed} colorClass="text-green-600" />
           {(stats.today.failed > 0 || stats.today.returns > 0) &&
-          <StatItem
-            icon={AlertCircle}
-            label="Failed/Returned"
-            value={`${stats.today.failed} / ${stats.today.returns}`}
-            colorClass="text-red-600" />
+            <StatItem
+              icon={AlertCircle}
+              label="Failed/Returned"
+              value={`${stats.today.failed} / ${stats.today.returns}`}
+              colorClass="text-red-600" />
           }
           {/* <StatItem icon={MapPin} label="Polylines" value={stats.today.polylineCount || 0} colorClass="text-blue-600" /> */}
         </div>
@@ -285,16 +286,16 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
         <div className="space-y-2">
           <StatItem icon={CheckCircle} label="Completed" value={stats.month.completed} colorClass="text-green-600" />
           {(stats.month.failed > 0 || stats.month.returns > 0) &&
-          <StatItem
-            icon={AlertCircle}
-            label="Failed/Returned"
-            value={`${stats.month.failed} / ${stats.month.returns}`}
-            colorClass="text-red-600" />
+            <StatItem
+              icon={AlertCircle}
+              label="Failed/Returned"
+              value={`${stats.month.failed} / ${stats.month.returns}`}
+              colorClass="text-red-600" />
           }
         </div>
       </div>
-    </div>);
-
+    </div>
+  );
 };
 
 const UserImpersonation = ({ users = [], onImpersonate, onStopImpersonating, impersonatingUser, currentUser }) => {
@@ -315,14 +316,14 @@ const UserImpersonation = ({ users = [], onImpersonate, onStopImpersonating, imp
             <CommandList>
               <CommandGroup>
                 {availableUsers.map((user) =>
-                <CommandItem
-                  key={user.id}
-                  value={`${user.user_name || user.full_name} ${formatRoles(user)}`}
-                  onSelect={() => {
-                    onImpersonate(user.id);
-                    setOpen(false);
-                  }}
-                  className="flex justify-between">
+                  <CommandItem
+                    key={user.id}
+                    value={`${user.user_name || user.full_name} ${formatRoles(user)}`}
+                    onSelect={() => {
+                      onImpersonate(user.id);
+                      setOpen(false);
+                    }}
+                    className="flex justify-between">
 
                     <span>{user.user_name || user.full_name}</span>
                     <span className="text-xs capitalize text-slate-500">{formatRoles(user)}</span>
@@ -343,7 +344,7 @@ const CollapsibleSidebarLink = ({ title, icon: Icon, children, open, onToggle, c
       <div
         onClick={onToggle}
         className={`group hover:bg-slate-50 transition-all duration-200 rounded-xl mb-1 cursor-pointer flex items-center justify-between gap-3 px-4 py-3 ${
-        isActive ? 'bg-slate-100 text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`
+          isActive ? 'bg-slate-100 text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`
         }>
 
         <div className="flex items-center gap-3">
@@ -355,12 +356,12 @@ const CollapsibleSidebarLink = ({ title, icon: Icon, children, open, onToggle, c
       </div>
       <AnimatePresence>
         {open &&
-        <motion.div
-          initial={{ height: 0, opacity: 0 }}
-          animate={{ height: 'auto', opacity: 1 }}
-          exit={{ height: 0, opacity: 0 }}
-          transition={{ duration: 0.15, ease: "easeInOut" }}
-          className="overflow-hidden pl-6">
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.15, ease: "easeInOut" }}
+            className="overflow-hidden pl-6">
 
             <div className="py-2 border-l border-slate-200 space-y-1">
               {children}
@@ -380,9 +381,9 @@ class ErrorBoundary extends React.Component {
 
   static getDerivedStateFromError(error) {
     if (error.message && (
-    error.message.includes('l is not a function') ||
-    error.message.includes('_leaflet_pos') ||
-    error.message.includes('Leaflet'))) {
+      error.message.includes('l is not a function') ||
+      error.message.includes('_leaflet_pos') ||
+      error.message.includes('Leaflet'))) {
       console.warn('Leaflet error caught by ErrorBoundary, continuing normally');
       return { hasError: false };
     }
@@ -391,9 +392,9 @@ class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     if (error.message && (
-    error.message.includes('l is not a function') ||
-    error.message.includes('_leaflet_pos') ||
-    error.message.includes('Leaflet'))) {
+      error.message.includes('l is not a function') ||
+      error.message.includes('_leaflet_pos') ||
+      error.message.includes('Leaflet'))) {
       console.warn('Leaflet error caught and neutralized by ErrorBoundary');
       return;
     }
@@ -426,7 +427,7 @@ export default function Layout({ children, currentPageName }) {
 
   const [initialGlobalFiltersSet, setInitialGlobalFiltersSet] = useState(false);
   const [showCitySelectionPopup, setShowCitySelectionPopup] = useState(false);
-
+  
   // Track if we've done initial driver selection (prevent re-running on filter changes)
   const hasSetInitialDriver = useRef(false);
 
@@ -466,33 +467,33 @@ export default function Layout({ children, currentPageName }) {
   // Remove unused driverLocationIntervalRef - now handled by unified refresh
 
   const [sidebarWidth, setSidebarWidth] = useState(240); // Will be loaded from user settings
-  const [themePreference, setThemePreference] = useState('auto');
-  const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
+      const [themePreference, setThemePreference] = useState('auto');
+            const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
 
-  // Apply theme class to HTML element
-  useEffect(() => {
-    if (themePreference === 'dark') {
-      document.documentElement.classList.remove('auto-theme', 'light-theme');
-      document.documentElement.classList.add('dark-theme');
-    } else if (themePreference === 'light') {
-      document.documentElement.classList.remove('auto-theme', 'dark-theme');
-      document.documentElement.classList.add('light-theme');
-    } else {
-      document.documentElement.classList.remove('light-theme', 'dark-theme');
-      document.documentElement.classList.add('auto-theme');
-    }
-  }, [themePreference]);
+            // Apply theme class to HTML element
+            useEffect(() => {
+              if (themePreference === 'dark') {
+                document.documentElement.classList.remove('auto-theme', 'light-theme');
+                document.documentElement.classList.add('dark-theme');
+              } else if (themePreference === 'light') {
+                document.documentElement.classList.remove('auto-theme', 'dark-theme');
+                document.documentElement.classList.add('light-theme');
+              } else {
+                document.documentElement.classList.remove('light-theme', 'dark-theme');
+                document.documentElement.classList.add('auto-theme');
+              }
+            }, [themePreference]);
 
-  const handleThemeChange = async (newTheme) => {
-    setThemePreference(newTheme);
-    if (currentUser?.id) {
-      await saveSetting(currentUser.id, 'theme_preference', newTheme);
-    }
-  };
-  const [showMessaging, setShowMessaging] = useState(false);
-  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
-  const [initialConversation, setInitialConversation] = useState(null);
-  const [appVersion, setAppVersion] = useState(DEFAULT_APP_VERSION);
+            const handleThemeChange = async (newTheme) => {
+              setThemePreference(newTheme);
+              if (currentUser?.id) {
+                await saveSetting(currentUser.id, 'theme_preference', newTheme);
+              }
+            };
+      const [showMessaging, setShowMessaging] = useState(false);
+      const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+      const [initialConversation, setInitialConversation] = useState(null);
+      const [appVersion, setAppVersion] = useState(DEFAULT_APP_VERSION);
 
   useEffect(() => {
     const init = async () => {
@@ -514,56 +515,56 @@ export default function Layout({ children, currentPageName }) {
 
         console.log(`✅ [Layout] Step 2.1 Complete: User loaded - ${fetchedUser.user_name || fetchedUser.full_name}`);
 
-        // Load user settings for this user and device
-        console.log('📋 [Layout] Step 2.1b: Loading user settings...');
-        try {
-          const settings = await loadUserSettings(fetchedUser.id);
-          console.log('✅ [Layout] User settings loaded:', settings);
+      // Load user settings for this user and device
+      console.log('📋 [Layout] Step 2.1b: Loading user settings...');
+      try {
+        const settings = await loadUserSettings(fetchedUser.id);
+        console.log('✅ [Layout] User settings loaded:', settings);
 
-          // Apply sidebar width
-          if (settings.sidebar_width) {
-            setSidebarWidth(settings.sidebar_width);
-          }
-
-          // Apply theme preference
-          if (settings.theme_preference) {
-            setThemePreference(settings.theme_preference);
-          }
-
-          setUserSettingsLoaded(true);
-        } catch (settingsError) {
-          console.warn('⚠️ [Layout] Error loading user settings:', settingsError);
-          setUserSettingsLoaded(true);
+        // Apply sidebar width
+        if (settings.sidebar_width) {
+          setSidebarWidth(settings.sidebar_width);
         }
 
-        // Load app-wide settings (smart refresh toggle and version)
-        console.log('⚙️ [Layout] Step 2.1c: Loading app settings...');
-        try {
-          const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+        // Apply theme preference
+        if (settings.theme_preference) {
+          setThemePreference(settings.theme_preference);
+        }
 
-          if (settings && settings.length > 0 && settings[0].setting_value) {
-            // Initialize smart refresh
-            const smartRefreshEnabled = settings[0].setting_value.smartRefreshEnabled !== false;
-            smartRefreshManager._enabled = smartRefreshEnabled;
-            smartRefreshManager._initialized = true;
-            console.log(`⚙️ [Layout] Smart refresh initialized: ${smartRefreshEnabled ? 'ENABLED' : 'DISABLED'}`);
+        setUserSettingsLoaded(true);
+      } catch (settingsError) {
+        console.warn('⚠️ [Layout] Error loading user settings:', settingsError);
+        setUserSettingsLoaded(true);
+      }
 
-            // Load app version
-            if (settings[0].setting_value.appVersion) {
-              const version = settings[0].setting_value.appVersion;
-              setAppVersion(`v${version.major}.${version.minor}.${version.build}`);
-            }
-          } else {
-            // Default to enabled on error
-            smartRefreshManager._enabled = true;
-            smartRefreshManager._initialized = true;
+      // Load app-wide settings (smart refresh toggle and version)
+      console.log('⚙️ [Layout] Step 2.1c: Loading app settings...');
+      try {
+        const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+
+        if (settings && settings.length > 0 && settings[0].setting_value) {
+          // Initialize smart refresh
+          const smartRefreshEnabled = settings[0].setting_value.smartRefreshEnabled !== false;
+          smartRefreshManager._enabled = smartRefreshEnabled;
+          smartRefreshManager._initialized = true;
+          console.log(`⚙️ [Layout] Smart refresh initialized: ${smartRefreshEnabled ? 'ENABLED' : 'DISABLED'}`);
+
+          // Load app version
+          if (settings[0].setting_value.appVersion) {
+            const version = settings[0].setting_value.appVersion;
+            setAppVersion(`v${version.major}.${version.minor}.${version.build}`);
           }
-        } catch (appSettingsError) {
-          console.warn('⚠️ [Layout] Error loading app settings:', appSettingsError);
+        } else {
           // Default to enabled on error
           smartRefreshManager._enabled = true;
           smartRefreshManager._initialized = true;
         }
+      } catch (appSettingsError) {
+        console.warn('⚠️ [Layout] Error loading app settings:', appSettingsError);
+        // Default to enabled on error
+        smartRefreshManager._enabled = true;
+        smartRefreshManager._initialized = true;
+      }
 
         console.log('🔐 [Layout] Step 2.2: Checking access permissions...');
 
@@ -610,7 +611,7 @@ export default function Layout({ children, currentPageName }) {
         let initialCityId = null;
 
         if (fetchedUser.city_id) {
-          const userCity = citiesData.find((c) => c && c.id === fetchedUser.city_id);
+          const userCity = citiesData.find(c => c && c.id === fetchedUser.city_id);
 
           if (userCity) {
             initialCityId = fetchedUser.city_id;
@@ -692,79 +693,79 @@ export default function Layout({ children, currentPageName }) {
     };
 
     init();
-  }, []);
+    }, []);
 
-  // Initialize daily message cleanup
-  useEffect(() => {
+    // Initialize daily message cleanup
+    useEffect(() => {
     initializeDailyCleanup();
-  }, []);
+    }, []);
 
-  // Initialize offline database sync
-  useEffect(() => {
-    if (!currentUser) return;
+    // Initialize offline database sync
+    useEffect(() => {
+      if (!currentUser) return;
 
-    console.log('🚀 [Layout] Initializing offline database sync...');
+      console.log('🚀 [Layout] Initializing offline database sync...');
 
-    // Start background sync after 5 seconds to avoid blocking initial load
-    const syncTimer = setTimeout(() => {
-      const selectedDateStr = globalFilters.getSelectedDate();
-      const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
+      // Start background sync after 5 seconds to avoid blocking initial load
+      const syncTimer = setTimeout(() => {
+        const selectedDateStr = globalFilters.getSelectedDate();
+        const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
 
-      performInitialSync(selectedDate).catch((error) => {
-        console.error('❌ [Layout] Initial offline sync failed:', error);
-      });
-    }, 5000);
+        performInitialSync(selectedDate).catch(error => {
+          console.error('❌ [Layout] Initial offline sync failed:', error);
+        });
+      }, 5000);
 
-    // Set up periodic mutation processing (every 30 seconds)
-    const mutationSyncInterval = setInterval(() => {
-      processPendingMutations().catch((error) => {
-        console.error('❌ [Layout] Mutation processing failed:', error);
-      });
-    }, 30000);
+      // Set up periodic mutation processing (every 30 seconds)
+      const mutationSyncInterval = setInterval(() => {
+        processPendingMutations().catch(error => {
+          console.error('❌ [Layout] Mutation processing failed:', error);
+        });
+      }, 30000);
 
-    // Subscribe to local mutations and refresh UI IMMEDIATELY
-    const unsubscribeMutations = subscribeMutations(async (mutation) => {
-      console.log('🔄 [Layout] Local mutation detected:', mutation);
+      // Subscribe to local mutations and refresh UI IMMEDIATELY
+      const unsubscribeMutations = subscribeMutations(async (mutation) => {
+        console.log('🔄 [Layout] Local mutation detected:', mutation);
 
-      // CRITICAL: Update UI state immediately from local database
-      if (mutation.entity === 'Patient') {
-        try {
-          const freshPatients = await getData('Patient', null, null, false); // Read from IndexedDB cache
-          setPatients(freshPatients);
-          console.log('✅ [Layout] Patients state updated immediately from local mutation');
-        } catch (error) {
-          console.error('❌ [Layout] Error updating patients from local mutation:', error);
+        // CRITICAL: Update UI state immediately from local database
+        if (mutation.entity === 'Patient') {
+          try {
+            const freshPatients = await getData('Patient', null, null, false); // Read from IndexedDB cache
+            setPatients(freshPatients);
+            console.log('✅ [Layout] Patients state updated immediately from local mutation');
+          } catch (error) {
+            console.error('❌ [Layout] Error updating patients from local mutation:', error);
+          }
+        } else if (mutation.entity === 'Delivery') {
+          try {
+            const selectedDateStr = globalFilters.getSelectedDate();
+            const freshDeliveries = await getData('Delivery', null, null, false); // Read from IndexedDB cache
+            setDeliveries(freshDeliveries);
+            console.log('✅ [Layout] Deliveries state updated immediately from local mutation');
+          } catch (error) {
+            console.error('❌ [Layout] Error updating deliveries from local mutation:', error);
+          }
         }
-      } else if (mutation.entity === 'Delivery') {
-        try {
-          const selectedDateStr = globalFilters.getSelectedDate();
-          const freshDeliveries = await getData('Delivery', null, null, false); // Read from IndexedDB cache
-          setDeliveries(freshDeliveries);
-          console.log('✅ [Layout] Deliveries state updated immediately from local mutation');
-        } catch (error) {
-          console.error('❌ [Layout] Error updating deliveries from local mutation:', error);
-        }
-      }
-    });
+      });
 
-    // Listen for offline sync completion to refresh UI
-    const handleSyncComplete = () => {
-      console.log('🔄 [Layout] Offline sync complete - refreshing data...');
-      invalidate('Patient');
-      invalidate('Delivery');
-      triggerFullDataLoadRef.current(true);
-    };
-    window.addEventListener('offlineSyncComplete', handleSyncComplete);
+      // Listen for offline sync completion to refresh UI
+      const handleSyncComplete = () => {
+        console.log('🔄 [Layout] Offline sync complete - refreshing data...');
+        invalidate('Patient');
+        invalidate('Delivery');
+        triggerFullDataLoadRef.current(true);
+      };
+      window.addEventListener('offlineSyncComplete', handleSyncComplete);
 
-    return () => {
-      clearTimeout(syncTimer);
-      clearInterval(mutationSyncInterval);
-      unsubscribeMutations();
-      window.removeEventListener('offlineSyncComplete', handleSyncComplete);
-    };
-  }, [currentUser]);
+      return () => {
+        clearTimeout(syncTimer);
+        clearInterval(mutationSyncInterval);
+        unsubscribeMutations();
+        window.removeEventListener('offlineSyncComplete', handleSyncComplete);
+      };
+    }, [currentUser]);
 
-  // Fetch unread message count - only when messaging panel is closed
+    // Fetch unread message count - only when messaging panel is closed
   // When panel is open, ConversationsList handles the count
   // OPTIMIZED: Reduced frequency significantly to prevent rate limits
   useEffect(() => {
@@ -832,7 +833,7 @@ export default function Layout({ children, currentPageName }) {
         clearInterval(refreshIntervalRef.current);
       }
     };
-  }, [sidebarOpen, isMobile]);
+    }, [sidebarOpen, isMobile]);
 
   // Ref to track if we're currently reloading data due to AppUser change
   const isReloadingFromAppUserChange = useRef(false);
@@ -841,11 +842,11 @@ export default function Layout({ children, currentPageName }) {
   // Granular delivery update function for immediate UI synchronization
   const updateDeliveriesLocally = useCallback((updates) => {
     console.log('🔄 [Layout] updateDeliveriesLocally called with', updates.length, 'updates');
-
-    setDeliveries((prevDeliveries) => {
-      const updatesMap = new Map(updates.map((u) => [u.id, u]));
-
-      return prevDeliveries.map((delivery) => {
+    
+    setDeliveries(prevDeliveries => {
+      const updatesMap = new Map(updates.map(u => [u.id, u]));
+      
+      return prevDeliveries.map(delivery => {
         if (!delivery) return delivery;
         const update = updatesMap.get(delivery.id);
         if (update) {
@@ -886,12 +887,12 @@ export default function Layout({ children, currentPageName }) {
     if (updates.appUsers) {
       console.log('🔄 [Layout] Updating appUsers from smart refresh');
       console.log('   📊 AppUsers updated - checking for driver_status changes...');
-      const onDutyDrivers = updates.appUsers.filter((u) => u && u.driver_status === 'on_duty');
-      console.log(`   🚗 On-duty drivers: ${onDutyDrivers.length}`, onDutyDrivers.map((d) => d.user_name || d.user_id));
+      const onDutyDrivers = updates.appUsers.filter(u => u && u.driver_status === 'on_duty');
+      console.log(`   🚗 On-duty drivers: ${onDutyDrivers.length}`, onDutyDrivers.map(d => d.user_name || d.user_id));
 
       // CRITICAL: Check if current user's AppUser changed BEFORE updating state
       if (currentUser && !currentUser._isImpersonating && !isReloadingFromAppUserChange.current) {
-        const updatedAppUserForCurrentUser = updates.appUsers.find((au) => au && au.user_id === currentUser.id);
+        const updatedAppUserForCurrentUser = updates.appUsers.find(au => au && au.user_id === currentUser.id);
 
         if (updatedAppUserForCurrentUser) {
           // Compare against currentUser's store_ids, not stale appUsers state
@@ -968,146 +969,146 @@ export default function Layout({ children, currentPageName }) {
     const startupTimer = setTimeout(() => {
       console.log('🚀 [Layout] Starting unified real-time refresh (20s tick, staggered intervals per entity)');
 
-      // Unified refresh function - runs every 30s, each entity checks its own interval
-      const performUnifiedRefresh = async () => {
-        // CRITICAL: Check if smart refresh is disabled
-        // When disabled, skip automatic background polling entirely
-        if (!smartRefreshManager._enabled) {
+    // Unified refresh function - runs every 30s, each entity checks its own interval
+    const performUnifiedRefresh = async () => {
+      // CRITICAL: Check if smart refresh is disabled
+      // When disabled, skip automatic background polling entirely
+      if (!smartRefreshManager._enabled) {
+        return;
+      }
+
+      const updatedEntities = [];
+      try {
+        setSmartRefreshActivity(prev => ({ ...prev, active: true }));
+        console.log('');
+        console.log('═══════════════════════════════════════════════════');
+        console.log('🔄 [UNIFIED REFRESH] Starting refresh cycle');
+        console.log('═══════════════════════════════════════════════════');
+
+        const selectedDateStr = globalFilters.getSelectedDate();
+        const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
+
+        // Build current data and filters
+        const currentData = {
+          deliveries,
+          patients,
+          appUsers,
+          stores
+        };
+
+        const filters = {
+          selectedDate,
+          deliveryFilter: {},
+          patientFilter: {},
+          activeDriverIds: drivers.map(d => d?.id).filter(Boolean)
+        };
+
+        const selectedDriverId = globalFilters.getSelectedDriverId();
+        const cityStoreIds = stores.map(s => s?.id).filter(Boolean);
+
+        if (cityStoreIds.length > 0) {
+          filters.deliveryFilter.store_id = { $in: cityStoreIds };
+          filters.patientFilter.store_id = { $in: cityStoreIds };
+        }
+
+        const isAdmin = userHasRole(currentUser, 'admin');
+        const isDriver = userHasRole(currentUser, 'driver');
+        const isDispatcher = userHasRole(currentUser, 'dispatcher');
+
+        if (isDriver && !isDispatcher && !isAdmin) {
+          filters.deliveryFilter.driver_id = currentUser.id;
+        }
+
+        if (selectedDriverId && selectedDriverId !== 'all') {
+          filters.deliveryFilter.driver_id = selectedDriverId;
+        }
+
+        console.log(`📊 Current State: ${deliveries.length} deliveries, ${appUsers.length} appUsers, ${patients.length} patients, ${stores.length} stores`);
+        console.log(`🎯 Entity Update Flag: ${isEntityUpdating ? 'PAUSED' : 'ACTIVE'}`);
+
+        // CRITICAL: Skip all refreshes if entity update in progress
+        if (isEntityUpdating) {
+          console.log('⏸️ [Layout] Smart refresh SKIPPED - entity update in progress');
+          console.log('═══════════════════════════════════════════════════');
           return;
         }
 
-        const updatedEntities = [];
-        try {
-          setSmartRefreshActivity((prev) => ({ ...prev, active: true }));
-          console.log('');
-          console.log('═══════════════════════════════════════════════════');
-          console.log('🔄 [UNIFIED REFRESH] Starting refresh cycle');
-          console.log('═══════════════════════════════════════════════════');
-
-          const selectedDateStr = globalFilters.getSelectedDate();
-          const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
-
-          // Build current data and filters
-          const currentData = {
-            deliveries,
-            patients,
-            appUsers,
-            stores
-          };
-
-          const filters = {
-            selectedDate,
-            deliveryFilter: {},
-            patientFilter: {},
-            activeDriverIds: drivers.map((d) => d?.id).filter(Boolean)
-          };
-
-          const selectedDriverId = globalFilters.getSelectedDriverId();
-          const cityStoreIds = stores.map((s) => s?.id).filter(Boolean);
-
-          if (cityStoreIds.length > 0) {
-            filters.deliveryFilter.store_id = { $in: cityStoreIds };
-            filters.patientFilter.store_id = { $in: cityStoreIds };
-          }
-
-          const isAdmin = userHasRole(currentUser, 'admin');
-          const isDriver = userHasRole(currentUser, 'driver');
-          const isDispatcher = userHasRole(currentUser, 'dispatcher');
-
-          if (isDriver && !isDispatcher && !isAdmin) {
-            filters.deliveryFilter.driver_id = currentUser.id;
-          }
-
-          if (selectedDriverId && selectedDriverId !== 'all') {
-            filters.deliveryFilter.driver_id = selectedDriverId;
-          }
-
-          console.log(`📊 Current State: ${deliveries.length} deliveries, ${appUsers.length} appUsers, ${patients.length} patients, ${stores.length} stores`);
-          console.log(`🎯 Entity Update Flag: ${isEntityUpdating ? 'PAUSED' : 'ACTIVE'}`);
-
-          // CRITICAL: Skip all refreshes if entity update in progress
-          if (isEntityUpdating) {
-            console.log('⏸️ [Layout] Smart refresh SKIPPED - entity update in progress');
-            console.log('═══════════════════════════════════════════════════');
-            return;
-          }
-
-          // FAST: Driver locations (20s) - highest priority for real-time map
-          console.log('');
-          console.log('📍 [1/3] Driver Locations Refresh...');
-          const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers);
-          if (locationUpdates?.hasChanges) {
-            console.log('   ✅ Updating appUsers state with new locations');
-            setAppUsers(locationUpdates.appUsers);
-            updatedEntities.push('locations');
-          } else {
-            console.log('   ⏭️ No location changes');
-          }
-
-          // FAST: Active delivery statuses (30s) - for real-time map markers
-          console.log('');
-          console.log('📦 [2/3] Active Delivery Statuses Refresh...');
-          const activeDeliveryUpdates = await smartRefreshManager.refreshActiveDeliveryStatuses(deliveries, selectedDate, filters);
-          if (activeDeliveryUpdates?.hasChanges) {
-            console.log('   ✅ Updating deliveries state with active status changes');
-            setDeliveries(activeDeliveryUpdates.deliveries);
-            if (!updatedEntities.includes('deliveries')) updatedEntities.push('deliveries');
-          } else {
-            console.log('   ⏭️ No active delivery changes');
-          }
-
-          // STAGGERED: Full entity refresh - each entity checks its own interval
-          console.log('');
-          console.log('🔄 [3/3] Full Entity Refresh (staggered intervals)...');
-
-          // CRITICAL: Check stores separately to prevent unnecessary re-renders
-          const storesUpdate = await smartRefreshManager.refreshStores(stores);
-          if (storesUpdate?.hasChanges) {
-            console.log('   ✅ Updating stores state');
-            setStores(storesUpdate.stores);
-            updatedEntities.push('stores');
-          }
-
-          const updates = await smartRefreshManager.performSmartRefresh(currentData, filters, isEntityUpdating);
-          if (updates) {
-            console.log('   ✅ Applying updates to state:', Object.keys(updates).join(', '));
-            updateAppDataState(updates);
-            // Track which entities were updated
-            if (updates.deliveries) updatedEntities.push('deliveries');
-            if (updates.patients) updatedEntities.push('patients');
-            if (updates.appUsers) updatedEntities.push('appUsers');
-          } else {
-            console.log('   ⏭️ No entity updates needed');
-          }
-
-          // Notify map of any updates and reactivate FAB phase
-          const hasAnyUpdates = locationUpdates?.hasChanges || activeDeliveryUpdates?.hasChanges || updates;
-          if (hasAnyUpdates) {
-            console.log('');
-            console.log('🔔 Notifying map of updates and reactivating FAB phase');
-            if (onSmartRefreshCompleteRef.current) {
-              onSmartRefreshCompleteRef.current();
-            }
-          }
-
-          console.log('');
-          console.log('✅ [UNIFIED REFRESH] Cycle complete');
-          console.log('═══════════════════════════════════════════════════');
-
-          // Update activity state with which entities changed
-          const uniqueUpdates = [...new Set(updatedEntities)];
-          setSmartRefreshActivity({ active: false, updatedEntities: uniqueUpdates });
-        } catch (error) {
-          if (error.response?.status === 429 || error.message?.includes('429')) {
-            console.error('🚨 [Layout] RATE LIMIT ERROR:', error.message);
-            smartRefreshManager.notifyRateLimit(true);
-          } else {
-            console.warn('⚠️ [Layout] Refresh error:', error.message);
-          }
-          console.log('═══════════════════════════════════════════════════');
-          setSmartRefreshActivity({ active: false, updatedEntities: [] });
+        // FAST: Driver locations (20s) - highest priority for real-time map
+        console.log('');
+        console.log('📍 [1/3] Driver Locations Refresh...');
+        const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers);
+        if (locationUpdates?.hasChanges) {
+          console.log('   ✅ Updating appUsers state with new locations');
+          setAppUsers(locationUpdates.appUsers);
+          updatedEntities.push('locations');
+        } else {
+          console.log('   ⏭️ No location changes');
         }
-      };
+
+        // FAST: Active delivery statuses (30s) - for real-time map markers
+        console.log('');
+        console.log('📦 [2/3] Active Delivery Statuses Refresh...');
+        const activeDeliveryUpdates = await smartRefreshManager.refreshActiveDeliveryStatuses(deliveries, selectedDate, filters);
+        if (activeDeliveryUpdates?.hasChanges) {
+          console.log('   ✅ Updating deliveries state with active status changes');
+          setDeliveries(activeDeliveryUpdates.deliveries);
+          if (!updatedEntities.includes('deliveries')) updatedEntities.push('deliveries');
+        } else {
+          console.log('   ⏭️ No active delivery changes');
+        }
+
+        // STAGGERED: Full entity refresh - each entity checks its own interval
+        console.log('');
+        console.log('🔄 [3/3] Full Entity Refresh (staggered intervals)...');
+
+        // CRITICAL: Check stores separately to prevent unnecessary re-renders
+        const storesUpdate = await smartRefreshManager.refreshStores(stores);
+        if (storesUpdate?.hasChanges) {
+          console.log('   ✅ Updating stores state');
+          setStores(storesUpdate.stores);
+          updatedEntities.push('stores');
+        }
+
+        const updates = await smartRefreshManager.performSmartRefresh(currentData, filters, isEntityUpdating);
+        if (updates) {
+          console.log('   ✅ Applying updates to state:', Object.keys(updates).join(', '));
+          updateAppDataState(updates);
+          // Track which entities were updated
+          if (updates.deliveries) updatedEntities.push('deliveries');
+          if (updates.patients) updatedEntities.push('patients');
+          if (updates.appUsers) updatedEntities.push('appUsers');
+        } else {
+          console.log('   ⏭️ No entity updates needed');
+        }
+
+        // Notify map of any updates and reactivate FAB phase
+        const hasAnyUpdates = locationUpdates?.hasChanges || activeDeliveryUpdates?.hasChanges || updates;
+        if (hasAnyUpdates) {
+          console.log('');
+          console.log('🔔 Notifying map of updates and reactivating FAB phase');
+          if (onSmartRefreshCompleteRef.current) {
+            onSmartRefreshCompleteRef.current();
+          }
+        }
+
+        console.log('');
+        console.log('✅ [UNIFIED REFRESH] Cycle complete');
+        console.log('═══════════════════════════════════════════════════');
+        
+        // Update activity state with which entities changed
+        const uniqueUpdates = [...new Set(updatedEntities)];
+        setSmartRefreshActivity({ active: false, updatedEntities: uniqueUpdates });
+      } catch (error) {
+        if (error.response?.status === 429 || error.message?.includes('429')) {
+          console.error('🚨 [Layout] RATE LIMIT ERROR:', error.message);
+          smartRefreshManager.notifyRateLimit(true);
+        } else {
+          console.warn('⚠️ [Layout] Refresh error:', error.message);
+        }
+        console.log('═══════════════════════════════════════════════════');
+        setSmartRefreshActivity({ active: false, updatedEntities: [] });
+      }
+    };
 
       // CRITICAL: Don't run initial refresh immediately - wait for data to be fully loaded
       // The normal interval will handle the first refresh after data is stable
@@ -1127,97 +1128,97 @@ export default function Layout({ children, currentPageName }) {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialGlobalFiltersSet, currentUser, isFormOverlayOpen, dataLoaded, updateAppDataState, appUsers, deliveries, stores, drivers, isEntityUpdating]);
+    }, [initialGlobalFiltersSet, currentUser, isFormOverlayOpen, dataLoaded, updateAppDataState, appUsers, deliveries, stores, drivers, isEntityUpdating]);
 
-  // Wake Lock API and visibility change handler
-  useEffect(() => {
-    // Wake Lock API - keep screen on when app is focused
-    const requestWakeLock = async () => {
-      if ('wakeLock' in navigator && document.visibilityState === 'visible') {
-        try {
-          wakeLockRef.current = await navigator.wakeLock.request('screen');
-          console.log('🔆 [Layout] Wake Lock acquired');
-          wakeLockRef.current.addEventListener('release', () => {
-            console.log('🔅 [Layout] Wake Lock released');
-          });
-        } catch (err) {
-
-          // Silently fail - wake lock not critical
-        }}
-    };
-
-    const releaseWakeLock = () => {
-      if (wakeLockRef.current) {
-        wakeLockRef.current.release();
-        wakeLockRef.current = null;
-      }
-    };
-
-    // Handle visibility change - force immediate refresh on focus
-    const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible') {
-        console.log('👁️ [Layout] App regained focus - forcing immediate refresh');
-        await requestWakeLock();
-
-        // Force immediate refresh by resetting all interval timers
-        if (initialGlobalFiltersSet && currentUser && dataLoaded && !isFormOverlayOpen) {
-          // Reset smartRefreshManager timers to force immediate refresh
-          smartRefreshManager.lastRefreshTimes = {
-            driverLocation: 0,
-            activeDeliveries: 0,
-            todayDeliveries: 0,
-            appUsers: 0,
-            patients: 0,
-            stores: 0
-          };
+    // Wake Lock API and visibility change handler
+    useEffect(() => {
+      // Wake Lock API - keep screen on when app is focused
+      const requestWakeLock = async () => {
+        if ('wakeLock' in navigator && document.visibilityState === 'visible') {
+          try {
+            wakeLockRef.current = await navigator.wakeLock.request('screen');
+            console.log('🔆 [Layout] Wake Lock acquired');
+            wakeLockRef.current.addEventListener('release', () => {
+              console.log('🔅 [Layout] Wake Lock released');
+            });
+          } catch (err) {
+            // Silently fail - wake lock not critical
+          }
         }
-      } else {
-        releaseWakeLock();
+      };
+
+      const releaseWakeLock = () => {
+        if (wakeLockRef.current) {
+          wakeLockRef.current.release();
+          wakeLockRef.current = null;
+        }
+      };
+
+      // Handle visibility change - force immediate refresh on focus
+      const handleVisibilityChange = async () => {
+        if (document.visibilityState === 'visible') {
+          console.log('👁️ [Layout] App regained focus - forcing immediate refresh');
+          await requestWakeLock();
+
+          // Force immediate refresh by resetting all interval timers
+          if (initialGlobalFiltersSet && currentUser && dataLoaded && !isFormOverlayOpen) {
+            // Reset smartRefreshManager timers to force immediate refresh
+            smartRefreshManager.lastRefreshTimes = {
+              driverLocation: 0,
+              activeDeliveries: 0,
+              todayDeliveries: 0,
+              appUsers: 0,
+              patients: 0,
+              stores: 0
+            };
+          }
+        } else {
+          releaseWakeLock();
+        }
+      };
+
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      if (document.visibilityState === 'visible') {
+        requestWakeLock();
       }
-    };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+      return () => {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        releaseWakeLock();
+      };
+    }, [initialGlobalFiltersSet, currentUser, dataLoaded, isFormOverlayOpen]);
 
-    if (document.visibilityState === 'visible') {
-      requestWakeLock();
-    }
+    // Trigger smart refresh when navigating between pages
+    // CRITICAL: Only depend on currentPageName to prevent loops
+    useEffect(() => {
+      if (!initialGlobalFiltersSet || !currentUser || !dataLoaded) {
+        console.log('⏸️ [Layout] Skipping page navigation refresh - not ready');
+        return;
+      }
 
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      releaseWakeLock();
-    };
-  }, [initialGlobalFiltersSet, currentUser, dataLoaded, isFormOverlayOpen]);
+      console.log(`📄 [Layout] ===== PAGE NAVIGATION DETECTED =====`);
+      console.log(`📄 [Layout] Switched to: ${currentPageName}`);
+      
+      // CRITICAL: Only trigger immediate refresh when returning to Dashboard
+      if (currentPageName !== 'Dashboard') {
+        console.log(`📄 [Layout] Non-dashboard page - skipping immediate refresh`);
+        return;
+      }
+      
+      console.log(`📄 [Layout] Dashboard detected - forcing IMMEDIATE smart refresh...`);
 
-  // Trigger smart refresh when navigating between pages
-  // CRITICAL: Only depend on currentPageName to prevent loops
-  useEffect(() => {
-    if (!initialGlobalFiltersSet || !currentUser || !dataLoaded) {
-      console.log('⏸️ [Layout] Skipping page navigation refresh - not ready');
-      return;
-    }
-
-    console.log(`📄 [Layout] ===== PAGE NAVIGATION DETECTED =====`);
-    console.log(`📄 [Layout] Switched to: ${currentPageName}`);
-
-    // CRITICAL: Only trigger immediate refresh when returning to Dashboard
-    if (currentPageName !== 'Dashboard') {
-      console.log(`📄 [Layout] Non-dashboard page - skipping immediate refresh`);
-      return;
-    }
-
-    console.log(`📄 [Layout] Dashboard detected - forcing IMMEDIATE smart refresh...`);
-
-    // CRITICAL: Reset all smart refresh timers to force immediate data sync
-    smartRefreshManager.lastRefreshTimes = {
-      driverLocation: 0,
-      activeDeliveries: 0,
-      todayDeliveries: 0,
-      appUsers: 0,
-      patients: 0,
-      stores: 0
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPageName]);
+      // CRITICAL: Reset all smart refresh timers to force immediate data sync
+      smartRefreshManager.lastRefreshTimes = {
+        driverLocation: 0,
+        activeDeliveries: 0,
+        todayDeliveries: 0,
+        appUsers: 0,
+        patients: 0,
+        stores: 0
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentPageName]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -1268,7 +1269,7 @@ export default function Layout({ children, currentPageName }) {
 
       // CRITICAL: Trigger data reload instead of full page reload
       console.log('🔄 [Pull-to-Refresh] Refreshing data...');
-
+      
       setTimeout(async () => {
         try {
           const selectedDateStr = globalFilters.getSelectedDate();
@@ -1278,15 +1279,15 @@ export default function Layout({ children, currentPageName }) {
           if (selectedDriverId && selectedDriverId !== 'all') {
             await updatePolylineOnRefresh(selectedDriverId, selectedDateStr);
           }
-
+          
           // Clear all caches and reload data
           invalidate('Delivery');
           invalidate('Patient');
           invalidate('AppUser');
-
+          
           // Trigger full data load - UI refreshes when selected date completes
           await triggerFullDataLoadRef.current(true);
-
+          
           console.log('✅ [Pull-to-Refresh] Data refresh complete');
         } catch (error) {
           console.error('❌ [Pull-to-Refresh] Data refresh failed:', error);
@@ -1324,9 +1325,9 @@ export default function Layout({ children, currentPageName }) {
         }
       });
     } catch (error) {
-
       // Silent fail
-    }};
+    }
+  };
 
   const handleImpersonate = useCallback(async (userId) => {
     sessionStorage.setItem('impersonationId', userId);
@@ -1385,7 +1386,7 @@ export default function Layout({ children, currentPageName }) {
   }, []);
 
   const triggerFullDataLoadRef = useRef();
-
+  
   const triggerFullDataLoad = useCallback(async (forceRefresh = false) => {
     if (isFormOverlayOpen) {
       console.log('⏸️ [Layout] Form overlay is open, skipping data refresh');
@@ -1428,7 +1429,7 @@ export default function Layout({ children, currentPageName }) {
       // Step 1: AppUsers
       const allAppUsers = await getData('AppUser', null, null, forceRefresh);
       console.log(`✅ [Layout] Step 1: Loaded ${allAppUsers.length} AppUsers`);
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await new Promise(resolve => setTimeout(resolve, 200));
 
       // Step 2: Cities
       if (!workingCities || workingCities.length === 0) {
@@ -1436,25 +1437,25 @@ export default function Layout({ children, currentPageName }) {
         workingCities.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
         setCities(workingCities);
         console.log(`✅ [Layout] Step 2: Loaded ${workingCities.length} Cities`);
-        await new Promise((resolve) => setTimeout(resolve, 200));
+        await new Promise(resolve => setTimeout(resolve, 200));
       }
 
       // Step 3: Stores
       const allStores = await getData('Store', null, null, forceRefresh);
       allStores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
       console.log(`✅ [Layout] Step 3: Loaded ${allStores.length} Stores`);
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await new Promise(resolve => setTimeout(resolve, 200));
 
       // Step 4: Patients (NO FILTER - dispatchers need all patient coords for map markers)
       const patientsData = await getData('Patient', null, null, forceRefresh);
       setPatients(patientsData);
       console.log(`✅ [Layout] Step 4: Loaded ${patientsData.length} Patients (all - needed for map coordinates)`);
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await new Promise(resolve => setTimeout(resolve, 200));
 
       // Step 5: Deliveries - CRITICAL: Load ALL drivers for selected city
       // Build city store filter (ALWAYS used to restrict to selected city)
       let cityStoreFilter = {};
-      const cityStoreIds = allStores.map((s) => s?.id).filter(Boolean);
+      const cityStoreIds = allStores.map(s => s?.id).filter(Boolean);
       if (cityStoreIds.length > 0) {
         cityStoreFilter.store_id = { $in: cityStoreIds };
       }
@@ -1474,16 +1475,16 @@ export default function Layout({ children, currentPageName }) {
           setDeliveries(initialDeliveries);
 
           // Update patient cache with missing patients from deliveries
-          const patientIdsInDeliveries = [...new Set(initialDeliveries.filter((d) => d?.patient_id).map((d) => d.patient_id))];
-          const existingPatientIds = new Set(patientsData.map((p) => p.id));
-          const missingPatientIds = patientIdsInDeliveries.filter((pId) => !existingPatientIds.has(pId));
+          const patientIdsInDeliveries = [...new Set(initialDeliveries.filter(d => d?.patient_id).map(d => d.patient_id))];
+          const existingPatientIds = new Set(patientsData.map(p => p.id));
+          const missingPatientIds = patientIdsInDeliveries.filter(pId => !existingPatientIds.has(pId));
 
           if (missingPatientIds.length > 0) {
             console.log(`⚡ [Layout] Fetching ${missingPatientIds.length} missing patients...`);
-            Patient.filter({ id: { $in: missingPatientIds } }).then((newPatients) => {
-              setPatients((prev) => [...prev, ...newPatients]);
+            Patient.filter({ id: { $in: missingPatientIds } }).then(newPatients => {
+              setPatients(prev => [...prev, ...newPatients]);
               console.log(`✅ [Layout] Added ${newPatients.length} missing patients`);
-            }).catch((err) => {
+            }).catch(err => {
               console.warn('⚠️ [Layout] Error fetching missing patients:', err);
             });
           }
@@ -1495,17 +1496,17 @@ export default function Layout({ children, currentPageName }) {
         // Background full month callback
         (fullMonthDeliveries) => {
           console.log(`🔄 [Layout] Step 5b: Background merge of ${fullMonthDeliveries.length} full month deliveries`);
-          setDeliveries((prevDeliveries) => {
+          setDeliveries(prevDeliveries => {
             const map = new Map();
-            fullMonthDeliveries.forEach((d) => map.set(d.id, d));
-            prevDeliveries.forEach((d) => map.set(d.id, d)); // Selected date takes priority
+            fullMonthDeliveries.forEach(d => map.set(d.id, d));
+            prevDeliveries.forEach(d => map.set(d.id, d)); // Selected date takes priority
             return Array.from(map.values());
           });
           console.log(`✅ [Layout] Background: Full month merged`);
         }
       );
 
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await new Promise(resolve => setTimeout(resolve, 200));
 
       // Step 6: Users (admin only)
       let authUsersData = [];
@@ -1515,7 +1516,7 @@ export default function Layout({ children, currentPageName }) {
       } else {
         console.log(`ℹ️ [Layout] Step 6: Skipping User.list() - non-admin`);
       }
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await new Promise(resolve => setTimeout(resolve, 200));
 
       console.log('🔀 [Layout] Building merged user list from AppUsers and currentUser...');
       const mergedUsersMap = new Map();
@@ -1527,9 +1528,9 @@ export default function Layout({ children, currentPageName }) {
 
       // For admins: merge authUsers with appUsers
       if (authUsersData.length > 0) {
-        authUsersData.forEach((authUser) => {
+        authUsersData.forEach(authUser => {
           if (!authUser) return;
-          const appUser = allAppUsers.find((au) => au && au.user_id === authUser.id);
+          const appUser = allAppUsers.find(au => au && au.user_id === authUser.id);
           const merged = createMergedUser(authUser, appUser);
           if (merged) {
             mergedUsersMap.set(merged.id, merged);
@@ -1537,7 +1538,7 @@ export default function Layout({ children, currentPageName }) {
         });
       } else {
         // For non-admins: create users from AppUser data only
-        allAppUsers.forEach((appUser) => {
+        allAppUsers.forEach(appUser => {
           if (!appUser || mergedUsersMap.has(appUser.user_id)) return;
           const pseudoUser = createMergedUser(null, appUser);
           if (pseudoUser) {
@@ -1550,7 +1551,7 @@ export default function Layout({ children, currentPageName }) {
       console.log(`✅ [Layout] Merged ${mergedUsers.length} users`);
 
       // Get ALL active drivers - no geographic filtering
-      let activeDrivers = mergedUsers.filter((user) => {
+      let activeDrivers = mergedUsers.filter(user => {
         if (!user || !user.app_roles || !Array.isArray(user.app_roles)) return false;
         if (!user.app_roles.includes('driver') && !user.app_roles.includes('admin')) return false;
         if (!user.user_name) return false;
@@ -1567,9 +1568,9 @@ export default function Layout({ children, currentPageName }) {
       setStores(allStores);
       setAppUsers(allAppUsers);
 
-      console.log("✅ [Layout] === PHASE 3: ALL DATA LOAD COMPLETE ===");
+      console.log("✅ [Layout] === PHASE 3: ALL DATA LOAD COMPLETE ===")
 
-    } catch (error) {
+      } catch (error) {
       console.error("❌ [Layout] Error during full data load:", error);
       setUsers([]);
       setDrivers([]);
@@ -1578,12 +1579,12 @@ export default function Layout({ children, currentPageName }) {
       setDeliveries([]);
       setAppUsers([]);
       setDataLoaded(true); // Ensure it's set even on error
-    } finally {
+      } finally {
       triggerFullDataLoad.isRunning = false;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser, isFormOverlayOpen]);
-
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [currentUser, isFormOverlayOpen]);
+  
   triggerFullDataLoadRef.current = triggerFullDataLoad;
 
   useEffect(() => {
@@ -1630,7 +1631,7 @@ export default function Layout({ children, currentPageName }) {
 
   const filteredDeliveries = useMemo(() => {
     if (!deliveries.length || !currentUser) return [];
-    let data = deliveries.filter((delivery) => delivery);
+    let data = deliveries.filter(delivery => delivery);
 
     if (selectedStoreId && selectedStoreId !== 'all') {
       data = data.filter((delivery) => delivery && delivery.store_id === selectedStoreId);
@@ -1666,7 +1667,7 @@ export default function Layout({ children, currentPageName }) {
 
   const filteredPatients = useMemo(() => {
     if (!patients.length || !currentUser) return [];
-    let data = patients.filter((patient) => patient);
+    let data = patients.filter(patient => patient);
 
     if (selectedStoreId && selectedStoreId !== 'all') {
       data = data.filter((p) => p && p.store_id === selectedStoreId);
@@ -1686,49 +1687,49 @@ export default function Layout({ children, currentPageName }) {
   // Route count - count driver-routes (each driver-date combination) in the selected month
   const totalRoutesCount = useMemo(() => {
     if (!deliveries || deliveries.length === 0 || !currentUser) return 0;
-
+    
     const selectedDateStr = globalFilters.getSelectedDate();
     if (!selectedDateStr) return 0;
-
+    
     const selectedDate = new Date(selectedDateStr + 'T00:00:00');
     const selectedYear = selectedDate.getFullYear();
     const selectedMonth = selectedDate.getMonth();
-
+    
     // CRITICAL: Filter deliveries based on user role
     let relevantDeliveries = deliveries;
-
+    
     if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
       // Dispatchers: only count routes for their assigned stores
       const dispatcherStoreIds = new Set(currentUser.store_ids || []);
-      relevantDeliveries = deliveries.filter((d) => d && dispatcherStoreIds.has(d.store_id));
+      relevantDeliveries = relevantDeliveries.filter(d => d && dispatcherStoreIds.has(d.store_id));
     } else if (userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) {
       // Drivers: only count their own routes
-      relevantDeliveries = deliveries.filter((d) => d && d.driver_id === currentUser.id);
+      relevantDeliveries = relevantDeliveries.filter(d => d && d.driver_id === currentUser.id);
     }
-
+    
     // For each date in the selected month, count unique drivers
     const dateDriverMap = new Map();
-
-    relevantDeliveries.forEach((delivery) => {
+    
+    relevantDeliveries.forEach(delivery => {
       if (!delivery || !delivery.delivery_date || !delivery.driver_id) return;
-
+      
       const deliveryDate = new Date(delivery.delivery_date + 'T00:00:00');
-      if (deliveryDate.getFullYear() !== selectedYear ||
-      deliveryDate.getMonth() !== selectedMonth) return;
-
+      if (deliveryDate.getFullYear() !== selectedYear || 
+          deliveryDate.getMonth() !== selectedMonth) return;
+      
       const dateKey = delivery.delivery_date;
       if (!dateDriverMap.has(dateKey)) {
         dateDriverMap.set(dateKey, new Set());
       }
       dateDriverMap.get(dateKey).add(delivery.driver_id);
     });
-
+    
     // Sum up the number of drivers across all dates
     let totalRoutes = 0;
-    dateDriverMap.forEach((driverSet) => {
+    dateDriverMap.forEach(driverSet => {
       totalRoutes += driverSet.size;
     });
-
+    
     return totalRoutes;
   }, [deliveries, currentUser]);
 
@@ -1742,7 +1743,7 @@ export default function Layout({ children, currentPageName }) {
   }, [stores, filteredPatients]);
 
   const getLatestDateWithDeliveries = useCallback((driverId = null) => {
-    let relevantDeliveries = filteredDeliveries.filter((delivery) => delivery);
+    let relevantDeliveries = filteredDeliveries.filter(delivery => delivery);
     if (driverId) {
       const driver = users.find((u) => u && u.id === driverId);
       if (driver) {
@@ -1754,7 +1755,7 @@ export default function Layout({ children, currentPageName }) {
       return format(new Date(), 'yyyy-MM-dd');
     }
 
-    const dates = [...new Set(relevantDeliveries.filter((delivery) => delivery && delivery.delivery_date).map((delivery) => delivery.delivery_date))];
+    const dates = [...new Set(relevantDeliveries.filter(delivery => delivery && delivery.delivery_date).map((delivery) => delivery.delivery_date))];
     dates.sort((a, b) => b.localeCompare(a));
 
     return dates[0] || format(new Date(), 'yyyy-MM-dd');
@@ -1776,17 +1777,17 @@ export default function Layout({ children, currentPageName }) {
 
         if (userHasRole(currentUser, 'admin')) {
           // Admins see all stores in selected city
-          filteredStoreIds = stores.map((s) => s?.id).filter(Boolean);
+          filteredStoreIds = stores.map(s => s?.id).filter(Boolean);
         } else if (userHasRole(currentUser, 'dispatcher')) {
           // Dispatchers see only their assigned stores
           filteredStoreIds = (currentUser.store_ids || []).filter(Boolean);
         } else if (userHasRole(currentUser, 'driver')) {
           // Drivers see stores where they have deliveries
           const driverStoreIds = new Set(
-            deliveries.
-            filter((d) => d && d.driver_id === currentUser.id).
-            map((d) => d.store_id).
-            filter(Boolean)
+            deliveries
+              .filter(d => d && d.driver_id === currentUser.id)
+              .map(d => d.store_id)
+              .filter(Boolean)
           );
           filteredStoreIds = Array.from(driverStoreIds);
         }
@@ -1842,27 +1843,27 @@ export default function Layout({ children, currentPageName }) {
 
   const adminNavigationItems = useMemo(() => {
     const items = [
-    {
-      title: 'Cities',
-      pageName: 'Cities',
-      count: entityCounts.cities,
-      url: createPageUrl("Cities"),
-      icon: Building2
-    },
-    {
-      title: 'Stores',
-      pageName: 'Stores',
-      count: entityCounts.stores,
-      url: createPageUrl("Stores"),
-      icon: Building
-    },
-    {
-      title: 'Users',
-      pageName: 'AppUsers',
-      count: entityCounts.users,
-      url: createPageUrl("AppUsers"),
-      icon: Users2
-    }];
+      {
+        title: 'Cities',
+        pageName: 'Cities',
+        count: entityCounts.cities,
+        url: createPageUrl("Cities"),
+        icon: Building2
+      },
+      {
+        title: 'Stores',
+        pageName: 'Stores',
+        count: entityCounts.stores,
+        url: createPageUrl("Stores"),
+        icon: Building
+      },
+      {
+        title: 'Users',
+        pageName: 'AppUsers',
+        count: entityCounts.users,
+        url: createPageUrl("AppUsers"),
+        icon: Users2
+      }];
 
 
 
@@ -2254,6 +2255,23 @@ export default function Layout({ children, currentPageName }) {
           scrollbar-color: rgba(0,0,0,0.2) transparent;
         }
 
+        /* Dark mode Leaflet map styling */
+        html.dark-theme .leaflet-layer,
+        html.dark-theme .leaflet-control-zoom-in,
+        html.dark-theme .leaflet-control-zoom-out,
+        html.dark-theme .leaflet-control-attribution {
+          filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+        }
+
+        @media (prefers-color-scheme: dark) {
+          html.auto-theme .leaflet-layer,
+          html.auto-theme .leaflet-control-zoom-in,
+          html.auto-theme .leaflet-control-zoom-out,
+          html.auto-theme .leaflet-control-attribution {
+            filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+          }
+        }
+
         :root {
           --primary: 15 23 42;
           --primary-foreground: 248 250 252;
@@ -2361,162 +2379,162 @@ export default function Layout({ children, currentPageName }) {
 
         ${Array.from({ length: 12 }, (_, i) => {
           const colors = [
-          '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6',
-          '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16',
-          '#06b6d4', '#a855f7'];
+            '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6',
+            '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16',
+            '#06b6d4', '#a855f7'];
 
           return `.store-color-${i} { color: ${colors[i]}; }`;
         }).join('\n')}
       `}</style>
 
-      {showCitySelectionPopup && currentUser && cities && cities.length > 0 &&
-      <CitySelectionPopup
-        cities={cities}
-        currentUser={currentUser}
-        onCitySelected={handleCitySelected} />
+      {showCitySelectionPopup && currentUser && cities && cities.length > 0 && (
+        <CitySelectionPopup
+          cities={cities}
+          currentUser={currentUser}
+          onCitySelected={handleCitySelected}
+        />
+      )}
 
-      }
+      {showPatientImport && (
+                      <PatientImport
+                        onClose={() => {
+                          setShowPatientImport(false);
+                          setIsFormOverlayOpen(false);
+                        }}
+                        onImportStart={() => {
+                          console.log('⏸️ [Layout] Pausing smart refresh for patient import...');
+                          setIsFormOverlayOpen(true);
+                        }}
+                        onImportComplete={async () => {
+                                                        setShowPatientImport(false);
+                                                        setIsFormOverlayOpen(false);
+                                                        console.log('▶️ [Layout] Resuming smart refresh after patient import');
+                                                        // Background refresh - invalidate cache and fetch fresh data without full reload
+                                                        invalidate('Patient');
+                                                        const freshPatients = await getData('Patient', null, null, true);
+                                                        setPatients(freshPatients);
+                                                        console.log('✅ [Layout] Patient import complete - background refreshed', freshPatients.length, 'patients');
+                                                        // Trigger stats refresh
+                                                        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+                                                      }}
+                      />
+                    )}
 
-      {showPatientImport &&
-      <PatientImport
-        onClose={() => {
-          setShowPatientImport(false);
-          setIsFormOverlayOpen(false);
-        }}
-        onImportStart={() => {
-          console.log('⏸️ [Layout] Pausing smart refresh for patient import...');
-          setIsFormOverlayOpen(true);
-        }}
-        onImportComplete={async () => {
-          setShowPatientImport(false);
-          setIsFormOverlayOpen(false);
-          console.log('▶️ [Layout] Resuming smart refresh after patient import');
-          // Background refresh - invalidate cache and fetch fresh data without full reload
-          invalidate('Patient');
-          const freshPatients = await getData('Patient', null, null, true);
-          setPatients(freshPatients);
-          console.log('✅ [Layout] Patient import complete - background refreshed', freshPatients.length, 'patients');
-          // Trigger stats refresh
-          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-        }} />
-
-      }
-
-      {showMessaging &&
-      <MessagingPanel
-        currentUser={currentUser}
-        users={users}
-        onClose={() => {
-          setShowMessaging(false);
-          setInitialConversation(null);
-        }}
-        initialConversation={initialConversation}
-        onUnreadCountChange={setUnreadMessageCount} />
-
-      }
+      {showMessaging && (
+                    <MessagingPanel
+                      currentUser={currentUser}
+                      users={users}
+                      onClose={() => {
+                        setShowMessaging(false);
+                        setInitialConversation(null);
+                      }}
+                      initialConversation={initialConversation}
+                      onUnreadCountChange={setUnreadMessageCount}
+                    />
+                  )}
                   
                   {/* Message Notification Balloon */}
-                  {currentUser && !showMessaging &&
-      <MessageNotificationBalloon
-        currentUser={currentUser}
-        onOpenConversation={(conversationId, otherUserId, otherUserName) => {
-          setInitialConversation({ conversationId, otherUserId, otherUserName });
-          setShowMessaging(true);
-          setUnreadMessageCount(0);
-        }} />
-
-      }
+                  {currentUser && !showMessaging && (
+                    <MessageNotificationBalloon
+                      currentUser={currentUser}
+                      onOpenConversation={(conversationId, otherUserId, otherUserName) => {
+                        setInitialConversation({ conversationId, otherUserId, otherUserName });
+                        setShowMessaging(true);
+                        setUnreadMessageCount(0);
+                      }}
+                    />
+                  )}
 
                   {/* Offline Sync Indicator */}
                   {currentUser && <OfflineSyncIndicator />}
 
-                  {showDeliveryImport &&
-      <RouteImport
-        onCancel={() => {
-          setShowDeliveryImport(false);
-          setIsFormOverlayOpen(false);
-          // Clean up global callback
-          if (typeof window !== 'undefined') {
-            delete window.__routeImportStartCallback;
-          }
-        }}
-        ref={() => {
-          // Set up global callback for RouteImport to call
-          if (typeof window !== 'undefined') {
-            window.__routeImportStartCallback = () => {
-              console.log('⏸️ [Layout] Pausing smart refresh for route import...');
-              setIsFormOverlayOpen(true);
-            };
-          }
-        }}
-        onImportComplete={async () => {
-          setShowDeliveryImport(false);
-          setIsFormOverlayOpen(false);
-          // Clean up global callback
-          if (typeof window !== 'undefined') {
-            delete window.__routeImportStartCallback;
-          }
-          console.log('▶️ [Layout] Resuming smart refresh after route import');
-          // Background refresh - invalidate cache and fetch fresh data without full reload
-          console.log('🔄 [Layout] Route import complete - triggering full data refresh...');
-          invalidate('Delivery');
-          invalidate('Patient');
-          await triggerFullDataLoadRef.current(true);
-          console.log('✅ [Layout] Route import complete - full data refreshed');
-          // Trigger stats refresh
-          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-        }}
-        stores={stores}
-        allUsers={users}
-        currentUser={currentUser}
-        allDeliveries={deliveries} />
+                  {showDeliveryImport && (
+                                            <RouteImport
+                                  onCancel={() => {
+                                    setShowDeliveryImport(false);
+                                    setIsFormOverlayOpen(false);
+                                    // Clean up global callback
+                                    if (typeof window !== 'undefined') {
+                                      delete window.__routeImportStartCallback;
+                                    }
+                                  }}
+                                  ref={() => {
+                                    // Set up global callback for RouteImport to call
+                                    if (typeof window !== 'undefined') {
+                                      window.__routeImportStartCallback = () => {
+                                        console.log('⏸️ [Layout] Pausing smart refresh for route import...');
+                                        setIsFormOverlayOpen(true);
+                                      };
+                                    }
+                                  }}
+                                  onImportComplete={async () => {
+                                                                                                        setShowDeliveryImport(false);
+                                                                                                        setIsFormOverlayOpen(false);
+                                                                                                        // Clean up global callback
+                                                                                                        if (typeof window !== 'undefined') {
+                                                                                                          delete window.__routeImportStartCallback;
+                                                                                                        }
+                                                                                                        console.log('▶️ [Layout] Resuming smart refresh after route import');
+                                                                                                        // Background refresh - invalidate cache and fetch fresh data without full reload
+                                                                                                        console.log('🔄 [Layout] Route import complete - triggering full data refresh...');
+                                                                                                        invalidate('Delivery');
+                                                                                                        invalidate('Patient');
+                                                                                                        await triggerFullDataLoadRef.current(true);
+                                                                                                        console.log('✅ [Layout] Route import complete - full data refreshed');
+                                                                                                        // Trigger stats refresh
+                                                                                                        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+                                                                                                      }}
+                        stores={stores}
+                        allUsers={users}
+                        currentUser={currentUser}
+                        allDeliveries={deliveries}
+                      />
+                    )}
 
-      }
-
-      {isLoadingLayout ?
-      <div className="h-screen flex items-center justify-center bg-slate-50">
+      {isLoadingLayout ? (
+        <div className="h-screen flex items-center justify-center bg-slate-50">
           <div className="text-center">
             <div className="animate-spin w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
             <p className="text-slate-600 text-lg font-medium">Loading RxDeliver...</p>
           </div>
-        </div> :
-      !hasAccess || !currentUser ?
-      <div className="h-screen flex items-center justify-center bg-slate-50">
+        </div>
+      ) : !hasAccess || !currentUser ? (
+        <div className="h-screen flex items-center justify-center bg-slate-50">
           <div className="text-center p-8">
             <h2 className="2xl font-bold text-slate-900 mb-4">RxDeliver</h2>
             <p className="text-slate-600 mb-6">Redirecting to login...</p>
             <p className="text-sm text-slate-500">If you're not redirected automatically, please refresh the page.</p>
           </div>
-        </div> :
-
-      <UserProvider initialUser={currentUser}>
+        </div>
+      ) : (
+        <UserProvider initialUser={currentUser}>
           <AppDataProvider value={{
-          deliveries: deliveries || [],
-          patients: patients || [],
-          stores: stores || [],
-          drivers: drivers || [],
-          users: users || [],
-          appUsers: appUsers || [],
-          cities: cities || [],
-          isDataLoaded: dataLoaded,
-          refreshData: triggerFullDataLoadRef.current,
-          updateDeliveriesLocally: updateDeliveriesLocally,
-          isFormOverlayOpen: isFormOverlayOpen,
-          setIsFormOverlayOpen: setIsFormOverlayOpen,
-          isEntityUpdating: isEntityUpdating,
-          setIsEntityUpdating: setIsEntityUpdating,
-          smartRefreshActivity: smartRefreshActivity,
-          setSmartRefreshActivity: setSmartRefreshActivity,
-          setOnSmartRefreshComplete: (callback) => {onSmartRefreshCompleteRef.current = callback;},
-          // Data is already loaded from last 30 days - Dashboard filters locally
-          dataReadyForSelectedDate: dataLoaded
-        }}>
+              deliveries: deliveries || [],
+              patients: patients || [],
+              stores: stores || [],
+              drivers: drivers || [],
+              users: users || [],
+              appUsers: appUsers || [],
+              cities: cities || [],
+              isDataLoaded: dataLoaded,
+              refreshData: triggerFullDataLoadRef.current,
+              updateDeliveriesLocally: updateDeliveriesLocally,
+              isFormOverlayOpen: isFormOverlayOpen,
+              setIsFormOverlayOpen: setIsFormOverlayOpen,
+              isEntityUpdating: isEntityUpdating,
+              setIsEntityUpdating: setIsEntityUpdating,
+              smartRefreshActivity: smartRefreshActivity,
+              setSmartRefreshActivity: setSmartRefreshActivity,
+              setOnSmartRefreshComplete: (callback) => { onSmartRefreshCompleteRef.current = callback; },
+              // Data is already loaded from last 30 days - Dashboard filters locally
+              dataReadyForSelectedDate: dataLoaded
+              }}>
             <div className="app-container">
               {isMobile && sidebarOpen &&
-            <div
-              className="sidebar-overlay"
-              onClick={() => setSidebarOpen(false)} />
-            }
+                <div
+                  className="sidebar-overlay"
+                  onClick={() => setSidebarOpen(false)} />
+              }
 
               {/* Sidebar */}
               <div className={`app-sidebar ${sidebarOpen ? 'sidebar-open' : ''} border-r flex flex-col z-[200]`} style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
@@ -2524,26 +2542,26 @@ export default function Layout({ children, currentPageName }) {
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                       {/* Close button - show when sidebar is open (always on mobile, on desktop when expanded) */}
-                      {sidebarOpen &&
-                    <button
-                      onClick={() => setSidebarOpen(false)}
-                      className="p-2 rounded-lg transition-colors"
-                      style={{
-                        '&:hover': { background: 'var(--bg-slate-100)' }
-                      }}>
+                      {sidebarOpen && (
+                        <button
+                          onClick={() => setSidebarOpen(false)}
+                          className="p-2 rounded-lg transition-colors"
+                          style={{
+                            '&:hover': { background: 'var(--bg-slate-100)' }
+                          }}>
                           <X className="w-5 h-5" style={{ color: 'var(--text-slate-700)' }} />
                         </button>
-                    }
+                      )}
 
                       <img
-                      src="/app-logo.png"
-                      alt="RxDeliver"
-                      className="w-10 h-10 rounded object-contain"
-                      style={{ filter: 'var(--image-filter, none)' }}
-                      onError={(e) => {
-                        e.currentTarget.src = 'https://cdn-icons-png.flaticon.com/512/3843/3843479.png';
-                        e.currentTarget.onerror = null;
-                      }} />
+                        src="/app-logo.png"
+                        alt="RxDeliver"
+                        className="w-10 h-10 rounded object-contain"
+                        style={{ filter: 'var(--image-filter, none)' }}
+                        onError={(e) => {
+                          e.currentTarget.src = 'https://cdn-icons-png.flaticon.com/512/3843/3843479.png';
+                          e.currentTarget.onerror = null;
+                        }} />
 
                       <div>
                         <h2 className="font-bold text-lg" style={{ color: 'var(--text-slate-900)' }}>RxDeliver</h2>
@@ -2554,8 +2572,8 @@ export default function Layout({ children, currentPageName }) {
 
                     <div className="flex items-center gap-2">
 
-                      {!sidebarOpen && userHasRole(currentUser, 'admin') && cities && cities.length > 0 &&
-                    <DropdownMenu>
+                      {!sidebarOpen && userHasRole(currentUser, 'admin') && cities && cities.length > 0 && (
+                        <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                               <MoreVertical className="w-4 h-4 text-slate-500" />
@@ -2566,8 +2584,8 @@ export default function Layout({ children, currentPageName }) {
                             <DropdownMenuSeparator />
 
                             {/* Import Buttons - App Owner Only */}
-                            {realUser && isAppOwner(realUser) &&
-                        <>
+                            {realUser && isAppOwner(realUser) && (
+                              <>
                                 <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer">
                                   <FileText className="w-4 h-4 mr-2" />
                                   Patient Import
@@ -2578,37 +2596,37 @@ export default function Layout({ children, currentPageName }) {
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                               </>
-                        }
+                            )}
 
                             {/* City Filter - Admin Only */}
-                            {userHasRole(currentUser, 'admin') && cities && cities.length > 0 &&
-                        <div className="px-2 py-2">
+                            {userHasRole(currentUser, 'admin') && cities && cities.length > 0 && (
+                              <div className="px-2 py-2">
                                 <label className="text-xs font-medium text-slate-700 mb-1.5 block">
                                   City Filter
                                 </label>
                                 <Select
-                            value={globalFilters.getSelectedCityId()}
-                            onValueChange={(cityId) => {
-                              console.log('🏙️ [Layout] Admin changed city filter to:', cityId);
-                              globalFilters.setSelectedCityId(cityId);
-                            }}>
-                            
+                                  value={globalFilters.getSelectedCityId()}
+                                  onValueChange={(cityId) => {
+                                    console.log('🏙️ [Layout] Admin changed city filter to:', cityId);
+                                    globalFilters.setSelectedCityId(cityId);
+                                  }}
+                                >
                                   <SelectTrigger className="w-full bg-white border-slate-300 h-9">
                                     <SelectValue placeholder="Select city..." />
                                   </SelectTrigger>
                                   <SelectContent className="max-h-[300px] overflow-y-auto z-[10002]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                                          {cities.map((city) =>
-                              <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
+                                          {cities.map((city) => (
+                                            <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
                                               {city.name}
                                             </SelectItem>
-                              )}
+                                          ))}
                                         </SelectContent>
                                 </Select>
                               </div>
-                        }
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
-                    }
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2616,19 +2634,19 @@ export default function Layout({ children, currentPageName }) {
                 <div className="flex-1 overflow-y-auto p-3 custom-scrollbar" style={{ background: 'var(--bg-white)' }}>
                   <div className="">
                     <Link
-                    to={constructUrlWithParams("Dashboard")}
-                    onClick={() => setSidebarOpen(false)}
-                    className={`px-4 rounded-xl flex items-center gap-3 transition-all duration-200 ${
-                    currentPageName === 'Dashboard' ?
-                    'shadow-sm' :
-                    'hover:opacity-80'}`
-                    }
-                    style={currentPageName === 'Dashboard' ? {
-                      background: 'var(--bg-slate-100)',
-                      color: 'var(--text-slate-900)'
-                    } : {
-                      color: 'var(--text-slate-600)'
-                    }}>
+                      to={constructUrlWithParams("Dashboard")}
+                      onClick={() => setSidebarOpen(false)}
+                      className={`px-4 rounded-xl flex items-center gap-3 transition-all duration-200 ${
+                        currentPageName === 'Dashboard' ?
+                          'shadow-sm' :
+                          'hover:opacity-80'}`
+                      }
+                      style={currentPageName === 'Dashboard' ? {
+                        background: 'var(--bg-slate-100)',
+                        color: 'var(--text-slate-900)'
+                      } : {
+                        color: 'var(--text-slate-600)'
+                      }}>
                       <LayoutDashboard className="w-5 h-5" />
                       <span className="font-semibold">Dashboard</span>
                     </Link>
@@ -2636,356 +2654,356 @@ export default function Layout({ children, currentPageName }) {
                     <div className="border-t my-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
-                  <Link
-                    to={createPageUrl('Patients')}
-                    onClick={() => setSidebarOpen(false)}
-                    className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
-                    currentPageName === 'Patients' ?
-                    'shadow-sm' :
-                    'hover:opacity-80'}`
-                    }
-                    style={currentPageName === 'Patients' ? {
-                      background: 'var(--bg-slate-100)',
-                      color: 'var(--text-slate-900)'
-                    } : {
-                      color: 'var(--text-slate-600)'
-                    }}>
+                      <Link
+                        to={createPageUrl('Patients')}
+                        onClick={() => setSidebarOpen(false)}
+                        className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                          currentPageName === 'Patients' ?
+                            'shadow-sm' :
+                            'hover:opacity-80'}`
+                        }
+                        style={currentPageName === 'Patients' ? {
+                          background: 'var(--bg-slate-100)',
+                          color: 'var(--text-slate-900)'
+                        } : {
+                          color: 'var(--text-slate-600)'
+                        }}>
                         <Users className="w-5 h-5" />
                         <span className="font-semibold">Patients</span>
                         <Badge variant="secondary" className="ml-auto justify-center w-[45px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{entityCounts.patients}</Badge>
                         </Link>
-                  }
+                        }
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
-                  <Link
-                    to={getRouteNavigationUrl('Deliveries')}
-                    onClick={() => setSidebarOpen(false)}
-                    className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
-                    currentPageName === 'Deliveries' ?
-                    'shadow-sm' :
-                    'hover:opacity-80'}`
-                    }
-                    style={currentPageName === 'Deliveries' ? {
-                      background: 'var(--bg-slate-100)',
-                      color: 'var(--text-slate-900)'
-                    } : {
-                      color: 'var(--text-slate-600)'
-                    }}>
+                      <Link
+                        to={getRouteNavigationUrl('Deliveries')}
+                        onClick={() => setSidebarOpen(false)}
+                        className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                          currentPageName === 'Deliveries' ?
+                            'shadow-sm' :
+                            'hover:opacity-80'}`
+                        }
+                        style={currentPageName === 'Deliveries' ? {
+                          background: 'var(--bg-slate-100)',
+                          color: 'var(--text-slate-900)'
+                        } : {
+                          color: 'var(--text-slate-600)'
+                        }}>
                         <Package className="w-5 h-5" />
                         <span className="font-semibold">Routes</span>
                         <Badge variant="secondary" className="ml-auto justify-center w-[45px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{totalRoutesCount}</Badge>
                         </Link>
-                  }
+                        }
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
-                  <Link
-                    to={constructUrlWithParams(createPageUrl("DeliveryMetrics"))}
-                    onClick={() => setSidebarOpen(false)}
-                    className={`mb-2 px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
-                    currentPageName === 'DeliveryMetrics' ?
-                    'shadow-sm' :
-                    'hover:opacity-80'}`
-                    }
-                    style={currentPageName === 'DeliveryMetrics' ? {
-                      background: 'var(--bg-slate-100)',
-                      color: 'var(--text-slate-900)'
-                    } : {
-                      color: 'var(--text-slate-600)'
-                    }}>
+                      <Link
+                        to={constructUrlWithParams(createPageUrl("DeliveryMetrics"))}
+                        onClick={() => setSidebarOpen(false)}
+                        className={`mb-2 px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                          currentPageName === 'DeliveryMetrics' ?
+                            'shadow-sm' :
+                            'hover:opacity-80'}`
+                        }
+                        style={currentPageName === 'DeliveryMetrics' ? {
+                          background: 'var(--bg-slate-100)',
+                          color: 'var(--text-slate-900)'
+                        } : {
+                          color: 'var(--text-slate-600)'
+                        }}>
                         <BarChart3 className="w-5 h-5" />
                         <span className="font-semibold">Route Metrics</span>
                       </Link>
-                  }
+                    }
                   </div>
 
                   {userHasRole(currentUser, 'admin') &&
-                <div className="mt-2">
+                    <div className="mt-2">
                       <div className="border-t mb-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
                       <div className="text-xs font-semibold uppercase tracking-wider px-3 py-1" style={{ color: 'var(--text-slate-500)' }}>
                         Admin
                       </div>
                       <div className="space-y-1">
                         {adminNavigationItems.map((item) =>
-                    <Link
-                      key={item.title}
-                      to={constructUrlWithParams(item.url)}
-                      onClick={() => setSidebarOpen(false)}
-                      className={`px-4 rounded-xl flex items-center gap-3 transition-all duration-200 ${
-                      currentPageName === item.pageName ?
-                      'shadow-sm' :
-                      'hover:opacity-80'}`
-                      }
-                      style={currentPageName === item.pageName ? {
-                        background: 'var(--bg-slate-100)',
-                        color: 'var(--text-slate-900)'
-                      } : {
-                        color: 'var(--text-slate-600)'
-                      }}>
+                          <Link
+                            key={item.title}
+                            to={constructUrlWithParams(item.url)}
+                            onClick={() => setSidebarOpen(false)}
+                            className={`px-4 rounded-xl flex items-center gap-3 transition-all duration-200 ${
+                              currentPageName === item.pageName ?
+                                'shadow-sm' :
+                                'hover:opacity-80'}`
+                            }
+                            style={currentPageName === item.pageName ? {
+                              background: 'var(--bg-slate-100)',
+                              color: 'var(--text-slate-900)'
+                            } : {
+                              color: 'var(--text-slate-600)'
+                            }}>
                             {item.icon && <item.icon className="w-5 h-5" />}
                             <span className="font-semibold">{item.title}</span>
                             {item.count !== undefined && <Badge variant="secondary" className="ml-auto justify-center w-[30px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{item.count}</Badge>}
                             </Link>
-                    )}
+                            )}
                             </div>
                             </div>
-                }
+                            }
 
                   {currentPageName === 'Dashboard' &&
-                <div className="mt-2">
+                    <div className="mt-2">
                       <div className="border-t mb-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
                       <div className="text-xs font-semibold uppercase tracking-wider px-3 py-1" style={{ color: 'var(--text-slate-500)' }}>
                         Quick Stats
                       </div>
                       <QuickStats
-                    currentUser={currentUser}
-                    storeIds={stores.map((s) => s?.id).filter(Boolean)} />
+                        currentUser={currentUser}
+                        storeIds={stores.map(s => s?.id).filter(Boolean)} />
 
                     </div>
-                }
+                  }
                 </div>
 
                 <div className="border-t p-4 flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
                     {currentUser ?
-                <div>
+                    <div>
                       <div className={`flex items-center gap-3 mb-3 p-3 rounded-lg ${
-                  impersonatingUser ? 'bg-yellow-50 border-2 border-yellow-300' : ''}`
-                  }>
+                        impersonatingUser ? 'bg-yellow-50 border-2 border-yellow-300' : ''}`
+                      }>
                         <div className={`w-9 h-9 rounded-full flex items-center justify-center relative flex-shrink-0 ${
-                    impersonatingUser ?
-                    'bg-gradient-to-br from-yellow-500 to-yellow-600' :
-                    userHasRole(currentUser, 'admin') ?
-                    'bg-gradient-to-br from-blue-500 to-blue-600' :
-                    userHasRole(currentUser, 'dispatcher') ?
-                    'bg-gradient-to-br from-red-500 to-red-600' :
-                    userHasRole(currentUser, 'driver') ?
-                    'bg-gradient-to-br from-emerald-500 to-emerald-600' :
-                    'bg-gradient-to-br from-gray-400 to-gray-500' // Added fallback gradient for roles not specifically colored
-                    }`
-                    }>
+                          impersonatingUser ?
+                            'bg-gradient-to-br from-yellow-500 to-yellow-600' :
+                            userHasRole(currentUser, 'admin') ?
+                              'bg-gradient-to-br from-blue-500 to-blue-600' :
+                              userHasRole(currentUser, 'dispatcher') ?
+                                'bg-gradient-to-br from-red-500 to-red-600' :
+                                userHasRole(currentUser, 'driver') ?
+                                  'bg-gradient-to-br from-emerald-500 to-emerald-600' :
+                                  'bg-gradient-to-br from-gray-400 to-gray-500' // Added fallback gradient for roles not specifically colored
+                          }`
+                        }>
                           <span className="text-white font-bold text-sm">
                             {(getDriverDisplayName(currentUser) || 'U')?.charAt(0)}
                           </span>
                         </div>
                         <div className="flex-1 min-w-0">
                           {impersonatingUser &&
-                      <p className="text-xs font-semibold text-yellow-800 mb-1">
+                            <p className="text-xs font-semibold text-yellow-800 mb-1">
                               Viewing As
                             </p>
-                      }
+                          }
                           <p className="font-semibold text-sm truncate" style={{ color: 'var(--text-slate-900)' }}>
-                            {getDriverDisplayName(currentUser)} {showWatermark && <>[{deviceType} - {os}]</>}
+                            {getDriverDisplayName(currentUser)} {showWatermark && (<>[{deviceType} - {os}]</>)}
                           </p>
                           <p className="text-xs truncate capitalize" style={{ color: 'var(--text-slate-500)' }}>
                             {formatRoles(currentUser)}
                           </p>
                           {currentUser.phone &&
-                      <div className="flex items-center gap-2 text-xs text-slate-500">
+                            <div className="flex items-center gap-2 text-xs text-slate-500">
                               <Phone className="w-3 h-3" />
                               <a
-                          href={`tel:${currentUser.phone}`}
-                          className="hover:text-slate-700 transition-colors">
+                                href={`tel:${currentUser.phone}`}
+                                className="hover:text-slate-700 transition-colors">
 
                                 {formatPhoneNumber(currentUser.phone)}
                               </a>
                             </div>
-                      }
+                          }
                         </div>
-                        <button
-                      onClick={() => {
-                        setShowMessaging(true);
-                        setUnreadMessageCount(0);
-                        setSidebarOpen(false); // Close sidebar when opening messages
-                      }}
-                      className="p-2 hover:bg-slate-100 rounded-lg transition-colors relative"
-                      title="Messages">
-                      
+                        <button 
+                              onClick={() => {
+                                setShowMessaging(true);
+                                setUnreadMessageCount(0);
+                                setSidebarOpen(false); // Close sidebar when opening messages
+                              }}
+                              className="p-2 hover:bg-slate-100 rounded-lg transition-colors relative"
+                              title="Messages"
+                            >
                               <MessageCircle className="w-5 h-5 text-slate-500 hover:text-slate-700" fill={unreadMessageCount > 0 ? '#10b981' : 'none'} />
-                              {unreadMessageCount > 0 &&
-                      <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-500 text-xs font-bold rounded-full flex items-center justify-center px-1 border-2 border-white" style={{ color: '#ffffff' }}>
+                              {unreadMessageCount > 0 && (
+                                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-500 text-xs font-bold rounded-full flex items-center justify-center px-1 border-2 border-white" style={{ color: '#ffffff' }}>
                                       {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
                                     </span>
-                      }
+                              )}
                             </button>
                       </div>
 
                       {impersonatingUser &&
-                  <Button
-                    onClick={handleStopImpersonating}
-                    variant="destructive"
-                    className="w-full gap-2 mb-3">
+                        <Button
+                          onClick={handleStopImpersonating}
+                          variant="destructive"
+                          className="w-full gap-2 mb-3">
                           <LogOut className="w-4 h-4" /> Stop Viewing As
                         </Button>
-                  }
+                      }
 
                       {(impersonatingUser || userHasRole(realUser, 'admin')) &&
-                  <UserImpersonation
-                    users={users} // Pass Layout's local users state
-                    currentUser={currentUser}
-                    onImpersonate={handleImpersonate}
-                    onStopImpersonating={handleStopImpersonating}
-                    impersonatingUser={impersonatingUser} />
+                        <UserImpersonation
+                          users={users} // Pass Layout's local users state
+                          currentUser={currentUser}
+                          onImpersonate={handleImpersonate}
+                          onStopImpersonating={handleStopImpersonating}
+                          impersonatingUser={impersonatingUser} />
 
 
-                  }
+                      }
 
                       <div className="flex gap-2 mt-3">
                           <Button
-                      onClick={async () => {
-                        if (window.confirm('Are you sure you want to log out?')) {
-                          try {
-                            sessionStorage.clear();
-                            clearUserCache();
-                            clearSettingsCache();
-                            await User.logout();
-                            window.location.href = '/';
-                          } catch (error) {
-                            console.error('Logout failed:', error);
-                            sessionStorage.clear();
-                            localStorage.clear();
-                            window.location.href = '/';
-                          }
-                        }
-                      }}
-                      variant="outline"
-                      className="flex-1 gap-2 text-red-600 hover:bg-red-50 hover:text-red-700"
-                      style={{ borderColor: '#fecaca' }}>
-                      
+                              onClick={async () => {
+                                if (window.confirm('Are you sure you want to log out?')) {
+                                  try {
+                                    sessionStorage.clear();
+                                    clearUserCache();
+                                    clearSettingsCache();
+                                    await User.logout();
+                                    window.location.href = '/';
+                                  } catch (error) {
+                                    console.error('Logout failed:', error);
+                                    sessionStorage.clear();
+                                    localStorage.clear();
+                                    window.location.href = '/';
+                                  }
+                                }
+                              }}
+                              variant="outline"
+                              className="flex-1 gap-2 text-red-600 hover:bg-red-50 hover:text-red-700"
+                              style={{ borderColor: '#fecaca' }}
+                            >
                           <LogOut className="w-4 h-4" />
                           Log Out
                         </Button>
                       </div>
                     </div> :
 
-                <div className="space-y-2">
+                    <div className="space-y-2">
                       <div className="text-sm text-slate-500 mb-2">Not logged in</div>
                       <Button
-                    onClick={async () => {
-                      try {
-                        sessionStorage.clear();
-                        clearUserCache();
-                        const currentUrl = window.location.origin + window.location.pathname;
-                        await User.loginWithRedirect(currentUrl);
-                      } catch (error) {
-                        console.error('Login failed:', error);
-                        window.location.href = '/';
-                      }
-                    }}
-                    className="w-full gap-2 bg-emerald-500 hover:bg-emerald-600">
+                        onClick={async () => {
+                          try {
+                            sessionStorage.clear();
+                            clearUserCache();
+                            const currentUrl = window.location.origin + window.location.pathname;
+                            await User.loginWithRedirect(currentUrl);
+                          } catch (error) {
+                            console.error('Login failed:', error);
+                            window.location.href = '/';
+                          }
+                        }}
+                        className="w-full gap-2 bg-emerald-500 hover:bg-emerald-600">
 
                         Log In
                       </Button>
                     </div>
-                }
+                  }
                 </div>
               </div>
 
               {/* Resizable Divider for Sidebar - Only on desktop */}
               {!isMobile &&
-            <ResizableDivider
-              storageKey="rxdeliver_sidebar_width"
-              defaultWidth={240}
-              minWidth={200}
-              maxWidth={400}
-              onWidthChange={(width) => {
-                setSidebarWidth(width);
-                // Save to user settings (debounced via localStorage in ResizableDivider, but also save to backend)
-                if (currentUser?.id) {
-                  saveSetting(currentUser.id, 'sidebar_width', width);
-                }
-              }} />
+                <ResizableDivider
+                  storageKey="rxdeliver_sidebar_width"
+                  defaultWidth={240}
+                  minWidth={200}
+                  maxWidth={400}
+                  onWidthChange={(width) => {
+                    setSidebarWidth(width);
+                    // Save to user settings (debounced via localStorage in ResizableDivider, but also save to backend)
+                    if (currentUser?.id) {
+                      saveSetting(currentUser.id, 'sidebar_width', width);
+                    }
+                  }} />
 
-            }
+              }
 
               {/* Main Content Area */}
               <div className="main-content-area">
                 {/* Smart Refresh Indicator - Fixed position on all pages except Dashboard */}
-                {currentPageName !== 'Dashboard' &&
-              <div className="fixed bottom-4 right-4 z-[100]">
+                {currentPageName !== 'Dashboard' && (
+                  <div className="fixed bottom-4 right-4 z-[100]">
                     <SmartRefreshIndicator />
                   </div>
-              }
+                )}
 
                 <header
-                className="mobile-header border-b px-4 py-3 sticky top-0"
-                style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
-                onTouchStart={handleTouchStart}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={handleTouchEnd}>
+                  className="mobile-header border-b px-4 py-3 sticky top-0"
+                  style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
+                  onTouchStart={handleTouchStart}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}>
 
                   {(isPulling || isRefreshing) && pullDistance > 0 &&
-                <div
-                  className="fixed left-0 right-0 flex justify-center items-center pointer-events-none"
-                  style={{
-                    top: `${Math.min(pullDistance + 10, pullThreshold + 30)}px`,
-                    opacity: Math.min(pullDistance / pullThreshold, 1),
-                    zIndex: 10000
-                  }}>
+                    <div
+                      className="fixed left-0 right-0 flex justify-center items-center pointer-events-none"
+                      style={{
+                        top: `${Math.min(pullDistance + 10, pullThreshold + 30)}px`,
+                        opacity: Math.min(pullDistance / pullThreshold, 1),
+                        zIndex: 10000
+                      }}>
 
                       <div className="bg-white rounded-full p-3 shadow-2xl border-2 border-emerald-500">
                         <RefreshCw
-                      className={`w-6 h-6 text-emerald-600 ${
-                      isRefreshing ? 'animate-spin' : ''}`
-                      }
-                      style={{
-                        transform: !isRefreshing ? `rotate(${pullDistance * 3}deg)` : 'none'
-                      }} />
+                          className={`w-6 h-6 text-emerald-600 ${
+                            isRefreshing ? 'animate-spin' : ''}`
+                          }
+                          style={{
+                            transform: !isRefreshing ? `rotate(${pullDistance * 3}deg)` : 'none'
+                          }} />
 
                       </div>
                     </div>
-                }
+                  }
 
                   <div className="flex items-center justify-between gap-2">
                     <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSidebarOpen(!sidebarOpen);
-                    }}
-                    className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSidebarOpen(!sidebarOpen);
+                      }}
+                      className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
 
                       {sidebarOpen ?
-                    <X className="w-6 h-6 text-slate-700" /> :
+                        <X className="w-6 h-6 text-slate-700" /> :
 
-                    <Menu className="w-6 h-6 text-slate-700" />
-                    }
+                        <Menu className="w-6 h-6 text-slate-700" />
+                      }
                     </button>
 
-                    <div
-                    className="flex items-center gap-2 flex-shrink-0 relative cursor-pointer"
-                    onClick={() => {
-                      if (unreadMessageCount > 0) {
-                        setShowMessaging(true);
-                        setUnreadMessageCount(0);
-                      }
-                    }}>
-                    
+                    <div 
+                      className="flex items-center gap-2 flex-shrink-0 relative cursor-pointer"
+                      onClick={() => {
+                        if (unreadMessageCount > 0) {
+                          setShowMessaging(true);
+                          setUnreadMessageCount(0);
+                        }
+                      }}
+                    >
                       <img
-                      src="/app-logo.png"
-                      alt="RxDeliver"
-                      className="w-8 h-8 rounded object-contain"
-                      style={{ filter: 'var(--image-filter, none)' }}
-                      onError={(e) => {
-                        e.currentTarget.src = 'https://cdn-icons-png.flaticon.com/512/3843/3843479.png';
-                        e.currentTarget.onerror = null;
-                      }} />
-                      {unreadMessageCount > 0 &&
-                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-500 text-xs font-bold rounded-full flex items-center justify-center px-1 border-2 border-white" style={{ color: '#ffffff' }}>
+                        src="/app-logo.png"
+                        alt="RxDeliver"
+                        className="w-8 h-8 rounded object-contain"
+                        style={{ filter: 'var(--image-filter, none)' }}
+                        onError={(e) => {
+                          e.currentTarget.src = 'https://cdn-icons-png.flaticon.com/512/3843/3843479.png';
+                          e.currentTarget.onerror = null;
+                        }} />
+                      {unreadMessageCount > 0 && (
+                        <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-blue-500 text-xs font-bold rounded-full flex items-center justify-center px-1 border-2 border-white" style={{ color: '#ffffff' }}>
                           {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
                         </span>
-                    }
+                      )}
                     </div>
 
                     <div className="flex-1"></div>
 
                         {/* --- PHASE 4: SUBTLE SETTINGS MENU (MOBILE) --- */}
                         {/* Only show if at least one menu item is visible */}
-                        {userHasRole(currentUser, 'admin') && cities && cities.length > 0 &&
-                  <DropdownMenu>
+                        {userHasRole(currentUser, 'admin') && cities && cities.length > 0 && (
+                      <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
                             <MoreVertical className="w-5 h-5 text-slate-500" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 w-56 z-[10002]">
+                        <DropdownMenuContent align="end" className="w-56 z-[10000]">
                           <DropdownMenuLabel>Settings</DropdownMenuLabel>
                           <DropdownMenuSeparator />
 
@@ -2995,9 +3013,9 @@ export default function Layout({ children, currentPageName }) {
                               Theme
                             </label>
                             <Select
-                          value={themePreference}
-                          onValueChange={handleThemeChange}>
-                          
+                              value={themePreference}
+                              onValueChange={handleThemeChange}
+                            >
                               <SelectTrigger className="w-full bg-white border-slate-300 h-9">
                                 <SelectValue />
                               </SelectTrigger>
@@ -3011,8 +3029,8 @@ export default function Layout({ children, currentPageName }) {
                           <DropdownMenuSeparator />
 
                           {/* Import Buttons - App Owner Only */}
-                          {realUser && isAppOwner(realUser) &&
-                      <>
+                          {realUser && isAppOwner(realUser) && (
+                            <>
                               <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer">
                                 <FileText className="w-4 h-4 mr-2" />
                                 Patient Import
@@ -3023,70 +3041,70 @@ export default function Layout({ children, currentPageName }) {
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                             </>
-                      }
+                          )}
 
                           {/* City Filter - Admin Only */}
-                          {userHasRole(currentUser, 'admin') && cities && cities.length > 0 &&
-                      <div className="px-2 py-2">
+                          {userHasRole(currentUser, 'admin') && cities && cities.length > 0 && (
+                            <div className="px-2 py-2">
                               <label className="text-xs font-medium text-slate-700 mb-1.5 block">
                                 City Filter
                               </label>
                               <Select
-                          value={globalFilters.getSelectedCityId()}
-                          onValueChange={(cityId) => {
-                            console.log('🏙️ [Layout] Admin changed city filter (mobile) to:', cityId);
-                            globalFilters.setSelectedCityId(cityId);
-                          }}>
-                          
+                                value={globalFilters.getSelectedCityId()}
+                                onValueChange={(cityId) => {
+                                  console.log('🏙️ [Layout] Admin changed city filter (mobile) to:', cityId);
+                                  globalFilters.setSelectedCityId(cityId);
+                                }}
+                              >
                                 <SelectTrigger className="w-full bg-white border-slate-300 h-9">
                                   <SelectValue placeholder="City" />
                                 </SelectTrigger>
                                 <SelectContent className="max-h-[300px] overflow-y-auto z-[10002]">
-                                  {cities.map((city) =>
-                            <SelectItem key={city.id} value={city.id}>
+                                  {cities.map((city) => (
+                                    <SelectItem key={city.id} value={city.id}>
                                       {city.name}
                                     </SelectItem>
-                            )}
+                                  ))}
                                 </SelectContent>
                               </Select>
                             </div>
-                      }
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
-                  }
+                    )}
                   </div>
 
                   {/* Driver Status Toggle - Centered in Mobile Header - Only on mobile */}
-                  {isMobile && currentUser && userHasRole(currentUser, 'driver') &&
-                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-                      <DriverStatusToggle
-                    currentUser={currentUser}
-                    onStatusChange={async (newStatus) => {
-                      console.log('Driver status changed to:', newStatus);
-                      // Refresh user data to sync location tracking toggle
-                      clearUserCache();
-                      const refreshedUser = await getEffectiveUser();
-                      if (refreshedUser) {
-                        setCurrentUser(refreshedUser);
-                      }
-                    }} />
-                  
+                  {isMobile && currentUser && userHasRole(currentUser, 'driver') && (
+                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+                      <DriverStatusToggle 
+                        currentUser={currentUser}
+                        onStatusChange={async (newStatus) => {
+                          console.log('Driver status changed to:', newStatus);
+                          // Refresh user data to sync location tracking toggle
+                          clearUserCache();
+                          const refreshedUser = await getEffectiveUser();
+                          if (refreshedUser) {
+                            setCurrentUser(refreshedUser);
+                          }
+                        }}
+                      />
                     </div>
-                }
+                  )}
 
                   {currentUser &&
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-3">
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-3">
                       <div className="flex flex-col items-center gap-1">
                         <div className={`w-9 h-9 rounded-full flex items-center justify-center relative flex-shrink-0 ${
-                    userHasRole(currentUser, 'admin') ?
-                    'bg-gradient-to-br from-blue-500 to-blue-600' :
-                    userHasRole(currentUser, 'dispatcher') ?
-                    'bg-gradient-to-br from-red-500 to-red-600' :
-                    userHasRole(currentUser, 'driver') ?
-                    'bg-gradient-to-br from-emerald-500 to-emerald-600' :
-                    'bg-gradient-to-br from-gray-400 to-gray-500'}`
-
-                    }>
+                          userHasRole(currentUser, 'admin') ?
+                            'bg-gradient-to-br from-blue-500 to-blue-600' :
+                            userHasRole(currentUser, 'dispatcher') ?
+                              'bg-gradient-to-br from-red-500 to-red-600' :
+                              userHasRole(currentUser, 'driver') ?
+                                'bg-gradient-to-br from-emerald-500 to-emerald-600' :
+                                'bg-gradient-to-br from-gray-400 to-gray-500'
+                          }`
+                        }>
                           <span className="text-white font-bold text-sm">
                             {(getDriverDisplayName(currentUser) || 'U')?.charAt(0)}
                           </span>
@@ -3096,7 +3114,7 @@ export default function Layout({ children, currentPageName }) {
                         </span>
                       </div>
                     </div>
-                }
+                  }
                 </header>
 
                 <main className="flex-1 overflow-y-auto relative" style={{ background: 'var(--bg-slate-50)' }}>
@@ -3106,7 +3124,7 @@ export default function Layout({ children, currentPageName }) {
             </div>
           </AppDataProvider>
         </UserProvider>
-      }
-    </ErrorBoundary>);
-
+      )}
+    </ErrorBoundary>
+  );
 }
