@@ -5764,6 +5764,44 @@ function Dashboard() {
                     }
                     console.log('✅ [MANUAL REFRESH STEP 4] All stop orders recalculated');
 
+                    // STEP 4.5: Update isNextDelivery flags for all drivers
+                    console.log('');
+                    console.log('🔄 [MANUAL REFRESH STEP 4.5] Updating isNextDelivery flags...');
+                    const updatedDeliveries = await base44.entities.Delivery.filter({
+                      delivery_date: selectedDateStr
+                    }, 'stop_order');
+                    
+                    // Group by driver
+                    const deliveriesByDriver = {};
+                    updatedDeliveries.forEach(d => {
+                      if (!d || !d.driver_id) return;
+                      if (!deliveriesByDriver[d.driver_id]) {
+                        deliveriesByDriver[d.driver_id] = [];
+                      }
+                      deliveriesByDriver[d.driver_id].push(d);
+                    });
+                    
+                    // For each driver, reset all flags and mark first incomplete
+                    const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+                    for (const [driverId, driverDeliveries] of Object.entries(deliveriesByDriver)) {
+                      // Reset all isNextDelivery flags for this driver
+                      const resetPromises = driverDeliveries
+                        .filter(d => d.isNextDelivery)
+                        .map(d => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
+                      await Promise.all(resetPromises);
+                      
+                      // Find first incomplete and mark as next
+                      const firstIncomplete = driverDeliveries
+                        .filter(d => !finishedStatuses.includes(d.status))
+                        .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
+                      
+                      if (firstIncomplete) {
+                        await base44.entities.Delivery.update(firstIncomplete.id, { isNextDelivery: true });
+                        console.log(`   ✅ Set isNextDelivery for driver ${driverId}: ${firstIncomplete.patient_name || 'Pickup'}`);
+                      }
+                    }
+                    console.log('✅ [MANUAL REFRESH STEP 4.5] All isNextDelivery flags updated');
+
                     // STEP 5: Reload fresh data and update UI
                     console.log('');
                     console.log('🔄 [MANUAL REFRESH STEP 5] Reloading fresh data...');
