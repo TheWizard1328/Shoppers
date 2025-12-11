@@ -453,7 +453,7 @@ const createDriverIcon = (driverStatus = 'on_duty', initial = '') => {
       ">
         <div style="
           background-color: ${color};
-          border: 3px solid white;
+          border: 2px solid white;
           border-radius: 50%;
           width: ${size}px;
           height: ${size}px;
