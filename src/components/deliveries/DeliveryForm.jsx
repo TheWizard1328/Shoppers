@@ -1618,9 +1618,14 @@ export default function DeliveryForm({
       hasId: !!s.id
     })));
 
+    // CRITICAL: Pause prediction manager when Done button is clicked
+    console.log('⏸️ [DeliveryForm] Pausing delivery prediction manager...');
+    setIsLoadingPredictions(true);
+
     if (stagedDeliveries.length === 0) {
       console.warn('[AddToRoute] ⚠️ No staged deliveries to save');
       hasLoadedPending.current = false; // Reset flag when closing without saves
+      setIsLoadingPredictions(false); // Resume predictions
       return;
     }
 
