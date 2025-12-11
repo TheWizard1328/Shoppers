@@ -187,6 +187,13 @@ const getByCompoundIndex = async (storeName, indexName, values) => {
 };
 
 /**
+ * Get records by date (shorthand for getByIndex with delivery_date)
+ */
+const getByDate = async (storeName, dateStr) => {
+  return getByIndex(storeName, 'delivery_date', dateStr);
+};
+
+/**
  * Clear all data from a store
  */
 const clearStore = async (storeName) => {
@@ -417,6 +424,7 @@ export const offlineDB = {
   bulkSave,
   getAll,
   getByIndex,
+  getByDate,
   getByCompoundIndex,
   clearStore,
   getSyncStatus,
