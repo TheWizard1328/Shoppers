@@ -247,7 +247,7 @@ export async function loadUserSettings(userId) {
       console.log('✅ [UserSettings] Found record in double-check (race condition avoided)');
       cachedSettings = { ...DEFAULT_SETTINGS, ...doubleCheck[0] };
       currentUserId = userId;
-      saveToLocalCache(userId, cachedSettings);
+      await saveToLocalPersistentStore(userId, deviceId, cachedSettings);
       return cachedSettings;
     }
     
@@ -284,7 +284,7 @@ export async function loadUserSettings(userId) {
         if (finalCheck && finalCheck.length > 0) {
           cachedSettings = { ...DEFAULT_SETTINGS, ...finalCheck[0] };
           currentUserId = userId;
-          saveToLocalCache(userId, cachedSettings);
+          await saveToLocalPersistentStore(userId, deviceId, cachedSettings);
           return cachedSettings;
         }
       }
@@ -335,8 +335,8 @@ export async function saveSetting(userId, key, value) {
   }
   currentUserId = userId;
   
-  // Save to local persistent store (IndexedDB)
-  await saveToLocalPersistentStore(userId, deviceId, cachedSettings);
+  // Save to local cache for offline access
+  saveToLocalCache(userId, cachedSettings);
 
   // If offline, queue for later sync
   if (!offlineManager.getOnlineStatus()) {
@@ -407,8 +407,8 @@ export async function saveSetting(userId, key, value) {
     cachedSettings = { ...DEFAULT_SETTINGS, ...updatedSettings };
     currentUserId = userId;
     
-    // Update local persistent store (IndexedDB)
-    await saveToLocalPersistentStore(userId, deviceId, cachedSettings);
+    // Update local cache
+    saveToLocalCache(userId, cachedSettings);
 
     return cachedSettings;
 
@@ -454,8 +454,8 @@ export async function saveSettings(userId, settings) {
   }
   currentUserId = userId;
   
-  // Save to local persistent store (IndexedDB)
-  await saveToLocalPersistentStore(userId, deviceId, cachedSettings);
+  // Save to local cache for offline access
+  saveToLocalCache(userId, cachedSettings);
 
   // If offline, queue for later sync
   if (!offlineManager.getOnlineStatus()) {

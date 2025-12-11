@@ -203,7 +203,7 @@ class OfflineManager {
         timestamp: Date.now()
       });
       
-      this.cachedData.userSettings = settings; 
+      this.cachedData.userSettings = settings;
       console.log(`💾 [OfflineManager] Cached user settings for: ${userId} on device: ${deviceId}`);
     } catch (error) {
       console.error('❌ [OfflineManager] Error caching user settings:', error);
@@ -213,6 +213,10 @@ class OfflineManager {
   // Get cached user settings, keyed by userId and deviceId
   async getCachedUserSettings(userId, deviceId) {
     try {
+      if (this.cachedData.userSettings && this.cachedData.userSettings.user_id === userId && this.cachedData.userSettings.device_id === deviceId) {
+        return this.cachedData.userSettings;
+      }
+
       const db = await this.openDB();
       const tx = db.transaction('cache', 'readonly');
       const store = tx.objectStore('cache');
