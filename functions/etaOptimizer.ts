@@ -313,6 +313,13 @@ Deno.serve(async (req) => {
         cumulativeMinutes += travelMinutes;
       }
       
+      // CRITICAL: Ensure ETA is never earlier than current time
+      // This handles edge cases where calculations might produce past times
+      if (cumulativeMinutes < currentTotalMinutes) {
+        console.log(`[ETA Updates]   ⚠️ Calculated time ${cumulativeMinutes} is before current time ${currentTotalMinutes}, adjusting to current time`);
+        cumulativeMinutes = currentTotalMinutes;
+      }
+      
       // ETA is the arrival time (before adding service time)
       const arrivalHours = Math.floor(cumulativeMinutes / 60) % 24;
       const arrivalMinutes = cumulativeMinutes % 60;
