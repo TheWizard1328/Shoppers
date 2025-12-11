@@ -115,18 +115,27 @@ export async function getDeviceId() {
 
 /**
  * Default settings values
+ * CRITICAL: Check device type to set appropriate default theme
  */
-const DEFAULT_SETTINGS = {
-  fab_map_cycle_phase: 1,
-  units_of_measurement: 'kilometers',
-  notifications_enabled: true,
-  notifications_sound: true,
-  notifications_vibration: true,
-  sidebar_width: 240,
-  right_panel_width: 350,
-  theme_preference: 'auto',
-  selected_driver_id: null
+const getDefaultSettings = () => {
+  const { getUserAgentInfo } = require('./deviceUtils');
+  const { deviceType } = getUserAgentInfo();
+  const isMobile = deviceType === 'Mobile';
+  
+  return {
+    fab_map_cycle_phase: 1,
+    units_of_measurement: 'kilometers',
+    notifications_enabled: true,
+    notifications_sound: true,
+    notifications_vibration: true,
+    sidebar_width: 240,
+    right_panel_width: 350,
+    theme_preference: isMobile ? 'auto' : 'light',
+    selected_driver_id: null
+  };
 };
+
+const DEFAULT_SETTINGS = getDefaultSettings();
 
 /**
  * Save settings to local storage for offline access
@@ -264,10 +273,15 @@ export async function loadUserSettings(userId) {
     
     try {
       const now = new Date().toISOString();
+      const { getUserAgentInfo } = await import('./deviceUtils');
+      const { deviceType } = getUserAgentInfo();
+      const isMobile = deviceType === 'Mobile';
+      
       const newSettings = await UserSettings.create({
         user_id: userId,
         device_id: deviceId,
         ...DEFAULT_SETTINGS,
+        theme_preference: isMobile ? 'auto' : 'light',
         created: now,
         updated: now
       });
@@ -395,10 +409,15 @@ export async function saveSetting(userId, key, value) {
     } else {
       // Create new record with created timestamp
       const now = new Date().toISOString();
+      const { getUserAgentInfo } = await import('./deviceUtils');
+      const { deviceType } = getUserAgentInfo();
+      const isMobile = deviceType === 'Mobile';
+      
       updatedSettings = await UserSettings.create({
         user_id: userId,
         device_id: deviceId,
         ...DEFAULT_SETTINGS,
+        theme_preference: isMobile ? 'auto' : 'light',
         [key]: value,
         created: now,
         updated: now
@@ -507,10 +526,15 @@ export async function saveSettings(userId, settings) {
     } else {
       // Create new record with created timestamp
       const now = new Date().toISOString();
+      const { getUserAgentInfo } = await import('./deviceUtils');
+      const { deviceType } = getUserAgentInfo();
+      const isMobile = deviceType === 'Mobile';
+      
       updatedSettings = await UserSettings.create({
         user_id: userId,
         device_id: deviceId,
         ...DEFAULT_SETTINGS,
+        theme_preference: isMobile ? 'auto' : 'light',
         ...settings,
         created: now,
         updated: now
