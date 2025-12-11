@@ -6060,7 +6060,7 @@ function Dashboard() {
       <div className="flex-1 w-full relative min-h-0">
         {/* Polyline API hits badge - App Owner only */}
         {currentUser && isAppOwner(currentUser) && dailyPolylineCount !== null &&
-        <div className="absolute top-2 left-2 z-[20]">
+        <div className="absolute top-2 left-2 z-[999]">
             <div className="backdrop-blur-sm rounded-lg px-2 py-1 shadow-sm border text-xs font-medium" style={{ background: 'var(--bg-white)', opacity: 0.9, borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-600)' }}>
               🛣️ {dailyPolylineCount}
             </div>
