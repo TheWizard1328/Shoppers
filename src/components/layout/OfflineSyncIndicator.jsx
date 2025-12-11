@@ -54,23 +54,28 @@ export default function OfflineSyncIndicator() {
   };
 
   return (
-    <div className="fixed bottom-4 left-4 z-[100]">
+    <div className="fixed bottom-4 right-4 z-[100000]">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-lg shadow-lg border border-slate-200 overflow-hidden"
+        className="rounded-lg shadow-lg border overflow-hidden"
+        style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}
       >
         {/* Collapsed View */}
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 transition-colors w-full"
+          className="flex items-center gap-2 px-3 py-2 transition-colors w-full"
+          style={{ 
+            background: 'var(--bg-white)',
+            '&:hover': { background: 'var(--bg-slate-50)' }
+          }}
         >
           {getStatusIcon()}
-          <span className="text-xs font-medium text-slate-700">
+          <span className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>
             {isSyncing ? 'Syncing...' : 'Offline DB'}
           </span>
           {stats && !isSyncing && (
-            <span className="text-xs text-slate-500 ml-1">
+            <span className="text-xs ml-1" style={{ color: 'var(--text-slate-500)' }}>
               ({stats.patients.count + stats.deliveries.count} records)
             </span>
           )}
@@ -83,19 +88,20 @@ export default function OfflineSyncIndicator() {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="border-t border-slate-200"
+              className="border-t"
+              style={{ borderColor: 'var(--border-slate-200)' }}
             >
               <div className="p-3 space-y-2">
                 {stats && (
                   <>
                     <div className="text-xs space-y-1">
                       <div className="flex justify-between">
-                        <span className="text-slate-600">Patients:</span>
-                        <span className="font-medium">{stats.patients.count}</span>
+                        <span style={{ color: 'var(--text-slate-600)' }}>Patients:</span>
+                        <span className="font-medium" style={{ color: 'var(--text-slate-900)' }}>{stats.patients.count}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-slate-600">Deliveries:</span>
-                        <span className="font-medium">{stats.deliveries.count}</span>
+                        <span style={{ color: 'var(--text-slate-600)' }}>Deliveries:</span>
+                        <span className="font-medium" style={{ color: 'var(--text-slate-900)' }}>{stats.deliveries.count}</span>
                       </div>
                       {stats.pendingMutations > 0 && (
                         <div className="flex justify-between text-amber-600">
@@ -111,7 +117,7 @@ export default function OfflineSyncIndicator() {
                           <span>Syncing {syncStatus.entity}...</span>
                           <span>{syncStatus.progress || 0}%</span>
                         </div>
-                        <div className="w-full bg-slate-200 rounded-full h-1.5">
+                        <div className="w-full rounded-full h-1.5" style={{ background: 'var(--bg-slate-200)' }}>
                           <div 
                             className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
                             style={{ width: `${syncStatus.progress || 0}%` }}
