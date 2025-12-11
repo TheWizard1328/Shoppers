@@ -727,7 +727,7 @@ export default function StopCard({
                   }
                   {showDriverName && safeDriver &&
                   <>
-                      <span className="px-1 py-0.5 text-xs font-semibold opacity-60 rounded-full inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>•</span>
+                      <span className="px-1 py-0.5 text-xs font-semibold opacity-60 rounded-full inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80">•</span>
                       <Badge
                       variant="secondary" className="inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 px-2 py-0.5 rounded-full text-xs !text-white  font-semibold"
                       style={{ backgroundColor: driverBadgeColor, color: driverBadgeTextColor }}>
