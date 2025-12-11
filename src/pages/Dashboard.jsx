@@ -5440,12 +5440,12 @@ function Dashboard() {
       console.log('');
       console.log('📍 [START STEP 7] Scrolling to first incomplete delivery...');
       
-      const incompleteDeliveries = deliveries
+      const remainingIncomplete = deliveries
         .filter(d => d && d.driver_id === driverId && d.delivery_date === deliveryDate && !finishedStatuses.includes(d.status))
         .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
       
-      if (incompleteDeliveries.length > 0) {
-        const nextCard = incompleteDeliveries[0];
+      if (remainingIncomplete.length > 0) {
+        const nextCard = remainingIncomplete[0];
         console.log(`📍 [START STEP 7] Scrolling to next delivery: ${nextCard.patient_name || 'Pickup'}`);
         setTimeout(() => {
           const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
