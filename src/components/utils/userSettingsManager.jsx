@@ -9,7 +9,6 @@ import { offlineManager } from './offlineManager';
 import { getUserAgentInfo } from './deviceUtils';
 
 const DEVICE_ID_KEY = 'rxdeliver_device_id';
-const LOCAL_SETTINGS_KEY = 'rxdeliver_user_settings_cache';
 
 // In-memory cache for current session
 let cachedSettings = null;
@@ -138,39 +137,29 @@ const getInitialDefaultSettings = () => {
 const DEFAULT_SETTINGS = getInitialDefaultSettings();
 
 /**
- * Save settings to local storage for offline access
+ * Save settings to offlineManager's IndexedDB for robust local persistence
  */
-function saveToLocalCache(userId, settings) {
+async function saveToLocalPersistentStore(userId, deviceId, settings) {
   try {
-    const cacheData = {
-      userId,
-      settings,
-      timestamp: Date.now()
-    };
-    localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(cacheData));
-    
-    // Also save to IndexedDB via offlineManager
-    offlineManager.cacheUserSettings(userId, settings);
+    await offlineManager.cacheUserSettings(userId, deviceId, settings);
+    console.log('📦 [UserSettings] Saved to local persistent store (IndexedDB)');
   } catch (error) {
-    console.warn('⚠️ [UserSettings] Error saving to local cache:', error);
+    console.warn('⚠️ [UserSettings] Error saving to local persistent store:', error);
   }
 }
 
 /**
- * Load settings from local cache (for offline use)
+ * Loads settings from offlineManager's IndexedDB (for offline use)
  */
-function loadFromLocalCache(userId) {
+async function loadFromLocalPersistentStore(userId, deviceId) {
   try {
-    const cached = localStorage.getItem(LOCAL_SETTINGS_KEY);
+    const cached = await offlineManager.getCachedUserSettings(userId, deviceId);
     if (cached) {
-      const data = JSON.parse(cached);
-      if (data.userId === userId && data.settings) {
-        console.log('📦 [UserSettings] Loaded from local cache');
-        return data.settings;
-      }
+      console.log('📦 [UserSettings] Loaded from local persistent store (IndexedDB)');
+      return cached;
     }
   } catch (error) {
-    console.warn('⚠️ [UserSettings] Error loading from local cache:', error);
+    console.warn('⚠️ [UserSettings] Error loading from local persistent store:', error);
   }
   return null;
 }
@@ -195,20 +184,11 @@ export async function loadUserSettings(userId) {
     return cachedSettings;
   }
 
-  // Check if offline - use cached settings
+  // Check if offline - use cached settings from IndexedDB
   if (!offlineManager.getOnlineStatus()) {
-    console.log('📴 [UserSettings] Offline - loading from cache');
+    console.log('📴 [UserSettings] Offline - loading from local persistent store');
     
-    // Try local storage first
-    const localSettings = loadFromLocalCache(userId);
-    if (localSettings) {
-      cachedSettings = { ...DEFAULT_SETTINGS, ...localSettings };
-      currentUserId = userId;
-      return cachedSettings;
-    }
-    
-    // Try IndexedDB cache
-    const indexedSettings = await offlineManager.getCachedUserSettings(userId);
+    const indexedSettings = await loadFromLocalPersistentStore(userId, deviceId);
     if (indexedSettings) {
       cachedSettings = { ...DEFAULT_SETTINGS, ...indexedSettings };
       currentUserId = userId;
@@ -216,7 +196,7 @@ export async function loadUserSettings(userId) {
     }
     
     // Return defaults if no cache available
-    console.log('⚠️ [UserSettings] No cached settings available, using defaults');
+    console.log('⚠️ [UserSettings] No cached settings available in IndexedDB, using defaults');
     return { ...DEFAULT_SETTINGS };
   }
 
@@ -247,8 +227,8 @@ export async function loadUserSettings(userId) {
       cachedSettings = { ...DEFAULT_SETTINGS, ...settings[0] };
       currentUserId = userId;
       
-      // Cache for offline use
-      saveToLocalCache(userId, cachedSettings);
+      // Cache for offline use in IndexedDB
+      await saveToLocalPersistentStore(userId, deviceId, cachedSettings);
       
       console.log('✅ [UserSettings] Loaded existing settings');
       return cachedSettings;
@@ -287,8 +267,8 @@ export async function loadUserSettings(userId) {
       cachedSettings = { ...DEFAULT_SETTINGS, ...newSettings };
       currentUserId = userId;
       
-      // Cache for offline use
-      saveToLocalCache(userId, cachedSettings);
+      // Cache for offline use in IndexedDB
+      await saveToLocalPersistentStore(userId, deviceId, cachedSettings);
       
       console.log('✅ [UserSettings] Created new settings record');
       return cachedSettings;
@@ -318,11 +298,11 @@ export async function loadUserSettings(userId) {
   } catch (error) {
     console.error('❌ [UserSettings] Error loading settings:', error);
     
-    // Try to load from cache on error
-    const localSettings = loadFromLocalCache(userId);
-    if (localSettings) {
-      console.log('📦 [UserSettings] Network error - falling back to cached settings');
-      cachedSettings = { ...DEFAULT_SETTINGS, ...localSettings };
+    // Try to load from local persistent store on error
+    const indexedSettings = await loadFromLocalPersistentStore(userId, deviceId);
+    if (indexedSettings) {
+      console.log('📦 [UserSettings] Network error - falling back to cached settings from IndexedDB');
+      cachedSettings = { ...DEFAULT_SETTINGS, ...indexedSettings };
       currentUserId = userId;
       return cachedSettings;
     }
@@ -355,8 +335,8 @@ export async function saveSetting(userId, key, value) {
   }
   currentUserId = userId;
   
-  // Save to local cache for offline access
-  saveToLocalCache(userId, cachedSettings);
+  // Save to local persistent store (IndexedDB)
+  await saveToLocalPersistentStore(userId, deviceId, cachedSettings);
 
   // If offline, queue for later sync
   if (!offlineManager.getOnlineStatus()) {
@@ -401,7 +381,7 @@ export async function saveSetting(userId, key, value) {
       
       // Update existing record with updated timestamp
       updatedSettings = await UserSettings.update(existingSettings[0].id, {
-        [key]: value,
+        ...cachedSettings, // Pass all current cached settings to ensure consistency
         updated: new Date().toISOString()
       });
       console.log('✅ [UserSettings] Updated existing settings');
@@ -427,8 +407,8 @@ export async function saveSetting(userId, key, value) {
     cachedSettings = { ...DEFAULT_SETTINGS, ...updatedSettings };
     currentUserId = userId;
     
-    // Update local cache
-    saveToLocalCache(userId, cachedSettings);
+    // Update local persistent store (IndexedDB)
+    await saveToLocalPersistentStore(userId, deviceId, cachedSettings);
 
     return cachedSettings;
 
@@ -474,8 +454,8 @@ export async function saveSettings(userId, settings) {
   }
   currentUserId = userId;
   
-  // Save to local cache for offline access
-  saveToLocalCache(userId, cachedSettings);
+  // Save to local persistent store (IndexedDB)
+  await saveToLocalPersistentStore(userId, deviceId, cachedSettings);
 
   // If offline, queue for later sync
   if (!offlineManager.getOnlineStatus()) {
@@ -517,7 +497,7 @@ export async function saveSettings(userId, settings) {
       
       // Update existing record with updated timestamp
       updatedSettings = await UserSettings.update(existingSettings[0].id, {
-        ...settings,
+        ...cachedSettings, // Pass all current cached settings to ensure consistency
         updated: new Date().toISOString()
       });
       console.log('✅ [UserSettings] Updated existing settings');
@@ -543,8 +523,8 @@ export async function saveSettings(userId, settings) {
     cachedSettings = { ...DEFAULT_SETTINGS, ...updatedSettings };
     currentUserId = userId;
     
-    // Update local cache
-    saveToLocalCache(userId, cachedSettings);
+    // Update local persistent store (IndexedDB)
+    await saveToLocalPersistentStore(userId, deviceId, cachedSettings);
 
     return cachedSettings;
 

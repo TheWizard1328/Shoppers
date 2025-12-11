@@ -190,39 +190,35 @@ class OfflineManager {
     }
   }
 
-  // Cache user settings specifically for offline use
-  async cacheUserSettings(userId, settings) {
+  // Cache user settings specifically for offline use, keyed by userId and deviceId
+  async cacheUserSettings(userId, deviceId, settings) {
     try {
       const db = await this.openDB();
       const tx = db.transaction('cache', 'readwrite');
       const store = tx.objectStore('cache');
       
       await store.put({
-        id: `userSettings_${userId}`,
+        id: `userSettings_${userId}_${deviceId}`, // Unique ID for user+device settings
         data: settings,
         timestamp: Date.now()
       });
       
-      this.cachedData.userSettings = settings;
-      console.log(`💾 [OfflineManager] Cached user settings for: ${userId}`);
+      this.cachedData.userSettings = settings; 
+      console.log(`💾 [OfflineManager] Cached user settings for: ${userId} on device: ${deviceId}`);
     } catch (error) {
       console.error('❌ [OfflineManager] Error caching user settings:', error);
     }
   }
 
-  // Get cached user settings
-  async getCachedUserSettings(userId) {
+  // Get cached user settings, keyed by userId and deviceId
+  async getCachedUserSettings(userId, deviceId) {
     try {
-      if (this.cachedData.userSettings) {
-        return this.cachedData.userSettings;
-      }
-
       const db = await this.openDB();
       const tx = db.transaction('cache', 'readonly');
       const store = tx.objectStore('cache');
       
       return new Promise((resolve, reject) => {
-        const request = store.get(`userSettings_${userId}`);
+        const request = store.get(`userSettings_${userId}_${deviceId}`);
         request.onsuccess = () => {
           if (request.result?.data) {
             this.cachedData.userSettings = request.result.data;
