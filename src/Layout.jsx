@@ -2558,7 +2558,7 @@ export default function Layout({ children, currentPageName }) {
                               <MoreVertical className="w-4 h-4 text-slate-500" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 w-56 z-[10001]">
+                          <DropdownMenuContent align="end" className="w-56 z-[10000]">
                             <DropdownMenuLabel>Settings</DropdownMenuLabel>
                             <DropdownMenuSeparator />
 
@@ -2982,7 +2982,7 @@ export default function Layout({ children, currentPageName }) {
                             <MoreVertical className="w-5 h-5 text-slate-500" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-56 z-[10000]">
+                        <DropdownMenuContent align="end" className="min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 w-56 z-[10001]">
                           <DropdownMenuLabel>Settings</DropdownMenuLabel>
                           <DropdownMenuSeparator />
 
