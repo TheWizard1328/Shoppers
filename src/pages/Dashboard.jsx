@@ -5676,155 +5676,155 @@ function Dashboard() {
               <div className="pr-1 flex items-center gap-2">
                 <h2 className="text-slate-900 pl-2 text-lg font-bold">Dashboard</h2>
                 {currentUser &&
-                <SmartRefreshIndicator
-                  inline={true}
-                  onManualRefresh={async () => {
-                    // CRITICAL: Only affect active driver on mobile devices
-                    if (!isMobile) {
-                      console.log('⏭️ [MANUAL REFRESH] Skipping - desktop device');
-                      return;
-                    }
+                  <SmartRefreshIndicator
+                    inline={true}
+                    onManualRefresh={async () => {
+                      // CRITICAL: Only affect active driver on mobile devices
+                      if (!isMobile) {
+                        console.log('⏭️ [MANUAL REFRESH] Skipping - desktop device');
+                        return;
+                      }
 
-                    console.clear();
-                    console.log('');
-                    console.log('═══════════════════════════════════════════════════');
-                    console.log('📱 [MANUAL REFRESH - MOBILE] === REFRESH CYCLE START ===');
-                    console.log('═══════════════════════════════════════════════════');
-                    console.log('');
+                      console.clear();
+                      console.log('');
+                      console.log('═══════════════════════════════════════════════════');
+                      console.log('📱 [MANUAL REFRESH - MOBILE] === REFRESH CYCLE START ===');
+                      console.log('═══════════════════════════════════════════════════');
+                      console.log('');
 
-                    // Determine active driver ID
-                    const activeDriverId = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
-                    
-                    if (!activeDriverId) {
-                      console.log('⏭️ [MANUAL REFRESH] No active driver to refresh');
-                      return;
-                    }
+                      // Determine active driver ID
+                      const activeDriverId = selectedDriverId === 'all' ? currentUser?.id : selectedDriverId;
+                      
+                      if (!activeDriverId) {
+                        console.log('⏭️ [MANUAL REFRESH] No active driver to refresh');
+                        return;
+                      }
 
-                    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-                    console.log(`🎯 [MANUAL REFRESH] Target: Driver ${activeDriverId}, Date: ${selectedDateStr}`);
+                      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+                      console.log(`🎯 [MANUAL REFRESH] Target: Driver ${activeDriverId}, Date: ${selectedDateStr}`);
 
-                    // STEP 1: Smart refresh cycle
-                    console.log('');
-                    console.log('🔄 [MANUAL REFRESH STEP 1] Running smart refresh cycle...');
-                    const currentData = { deliveries, patients, appUsers, stores };
-                    const filters = {
-                      selectedDate,
-                      deliveryFilter: { driver_id: activeDriverId },
-                      patientFilter: {},
-                      activeDriverIds: [activeDriverId]
-                    };
+                      // STEP 1: Smart refresh cycle
+                      console.log('');
+                      console.log('🔄 [MANUAL REFRESH STEP 1] Running smart refresh cycle...');
+                      const currentData = { deliveries, patients, appUsers, stores };
+                      const filters = {
+                        selectedDate,
+                        deliveryFilter: { driver_id: activeDriverId },
+                        patientFilter: {},
+                        activeDriverIds: [activeDriverId]
+                      };
 
-                    const cityStoreIds = stores.map(s => s?.id).filter(Boolean);
-                    if (cityStoreIds.length > 0) {
-                      filters.deliveryFilter.store_id = { $in: cityStoreIds };
-                      filters.patientFilter.store_id = { $in: cityStoreIds };
-                    }
+                      const cityStoreIds = stores.map(s => s?.id).filter(Boolean);
+                      if (cityStoreIds.length > 0) {
+                        filters.deliveryFilter.store_id = { $in: cityStoreIds };
+                        filters.patientFilter.store_id = { $in: cityStoreIds };
+                      }
 
-                    smartRefreshManager.lastRefreshTimes = {
-                      driverLocation: 0,
-                      activeDeliveries: 0,
-                      todayDeliveries: 0,
-                      appUsers: 0,
-                      patients: 0,
-                      stores: 0
-                    };
+                      smartRefreshManager.lastRefreshTimes = {
+                        driverLocation: 0,
+                        activeDeliveries: 0,
+                        todayDeliveries: 0,
+                        appUsers: 0,
+                        patients: 0,
+                        stores: 0
+                      };
 
-                    const updates = await smartRefreshManager.performSmartRefresh(currentData, filters, false);
-                    console.log('✅ [MANUAL REFRESH STEP 1] Smart refresh complete');
+                      const updates = await smartRefreshManager.performSmartRefresh(currentData, filters, false);
+                      console.log('✅ [MANUAL REFRESH STEP 1] Smart refresh complete');
 
-                    // STEP 2: Force reload deliveries for active driver
-                    console.log('');
-                    console.log('🔄 [MANUAL REFRESH STEP 2] Force reloading deliveries for active driver...');
-                    invalidateDeliveriesForDate(selectedDateStr);
-                    const freshDeliveries = await base44.entities.Delivery.filter({
-                      delivery_date: selectedDateStr,
-                      driver_id: activeDriverId
-                    });
-                    console.log(`✅ [MANUAL REFRESH STEP 2] Loaded ${freshDeliveries.length} deliveries`);
-
-                    // STEP 3: Update ETAs for active driver
-                    console.log('');
-                    console.log('🔄 [MANUAL REFRESH STEP 3] Updating ETAs for active driver...');
-                    try {
-                      await base44.functions.invoke('etaOptimizer', {
-                        driverId: activeDriverId,
-                        deliveryDate: selectedDateStr
+                      // STEP 2: Force reload deliveries for active driver
+                      console.log('');
+                      console.log('🔄 [MANUAL REFRESH STEP 2] Force reloading deliveries for active driver...');
+                      invalidateDeliveriesForDate(selectedDateStr);
+                      const freshDeliveries = await base44.entities.Delivery.filter({
+                        delivery_date: selectedDateStr,
+                        driver_id: activeDriverId
                       });
-                      console.log(`   ✅ ETAs updated for active driver`);
-                    } catch (etaError) {
-                      console.warn(`   ⚠️ ETA update failed:`, etaError);
-                    }
-                    console.log('✅ [MANUAL REFRESH STEP 3] ETA updates complete');
+                      console.log(`✅ [MANUAL REFRESH STEP 2] Loaded ${freshDeliveries.length} deliveries`);
 
-                    // STEP 4: Recalculate stop orders for active driver
-                    console.log('');
-                    console.log('🔄 [MANUAL REFRESH STEP 4] Recalculating stop orders for active driver...');
-                    await recalculateStopOrders(activeDriverId, selectedDateStr);
-                    console.log('✅ [MANUAL REFRESH STEP 4] Stop orders recalculated');
-
-                    // STEP 5: Update isNextDelivery flags for active driver
-                    console.log('');
-                    console.log('🔄 [MANUAL REFRESH STEP 5] Updating isNextDelivery flags...');
-                    const updatedDeliveries = await base44.entities.Delivery.filter({
-                      delivery_date: selectedDateStr,
-                      driver_id: activeDriverId
-                    }, 'stop_order');
-                    
-                    // Reset all isNextDelivery flags for this driver
-                    const resetPromises = updatedDeliveries
-                      .filter(d => d.isNextDelivery)
-                      .map(d => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
-                    await Promise.all(resetPromises);
-                    console.log(`   Reset ${resetPromises.length} isNextDelivery flags`);
-                    
-                    // Find first incomplete and mark as next (NO reordering)
-                    const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-                    const firstIncomplete = updatedDeliveries
-                      .filter(d => !finishedStatuses.includes(d.status))
-                      .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
-                    
-                    if (firstIncomplete) {
-                      await base44.entities.Delivery.update(firstIncomplete.id, { isNextDelivery: true });
-                      console.log(`   ✅ Set isNextDelivery for active driver: ${firstIncomplete.patient_name || 'Pickup'}`);
-                    }
-                    console.log('✅ [MANUAL REFRESH STEP 5] isNextDelivery flags updated');
-
-                    // STEP 6: Reload fresh data and update UI
-                    console.log('');
-                    console.log('🔄 [MANUAL REFRESH STEP 6] Reloading fresh data...');
-                    invalidateDeliveriesForDate(selectedDateStr);
-                    const finalDeliveries = await base44.entities.Delivery.filter({
-                      delivery_date: selectedDateStr
-                    });
-                    
-                    // Update UI state
-                    if (updateDeliveriesLocally) {
-                      const otherDateDeliveries = deliveries.filter(d => d && d.delivery_date !== selectedDateStr);
-                      const mergedDeliveries = [...otherDateDeliveries, ...finalDeliveries];
-                      updateDeliveriesLocally(mergedDeliveries);
-                      console.log('✅ [MANUAL REFRESH STEP 6] UI updated with fresh data');
-                    }
-                    
-                    // Apply any smart refresh updates
-                    if (updates) {
-                      if (updates.patients) {
-                        setPatients(updates.patients);
+                      // STEP 3: Update ETAs for active driver
+                      console.log('');
+                      console.log('🔄 [MANUAL REFRESH STEP 3] Updating ETAs for active driver...');
+                      try {
+                        await base44.functions.invoke('etaOptimizer', {
+                          driverId: activeDriverId,
+                          deliveryDate: selectedDateStr
+                        });
+                        console.log(`   ✅ ETAs updated for active driver`);
+                      } catch (etaError) {
+                        console.warn(`   ⚠️ ETA update failed:`, etaError);
                       }
-                      if (updates.appUsers) {
-                        setAppUsers(updates.appUsers);
-                      }
-                      if (updates.stores) {
-                        setStores(updates.stores);
-                      }
-                    }
+                      console.log('✅ [MANUAL REFRESH STEP 3] ETA updates complete');
 
-                    console.log('');
-                    console.log('═══════════════════════════════════════════════════');
-                    console.log('✅ [MANUAL REFRESH] === REFRESH CYCLE COMPLETE ===');
-                    console.log('═══════════════════════════════════════════════════');
-                    console.log('');
-                  }} />
+                      // STEP 4: Recalculate stop orders for active driver
+                      console.log('');
+                      console.log('🔄 [MANUAL REFRESH STEP 4] Recalculating stop orders for active driver...');
+                      await recalculateStopOrders(activeDriverId, selectedDateStr);
+                      console.log('✅ [MANUAL REFRESH STEP 4] Stop orders recalculated');
 
+                      // STEP 5: Update isNextDelivery flags for active driver
+                      console.log('');
+                      console.log('🔄 [MANUAL REFRESH STEP 5] Updating isNextDelivery flags...');
+                      const updatedDeliveries = await base44.entities.Delivery.filter({
+                        delivery_date: selectedDateStr,
+                        driver_id: activeDriverId
+                      }, 'stop_order');
+                      
+                      // Reset all isNextDelivery flags for this driver
+                      const resetPromises = updatedDeliveries
+                        .filter(d => d.isNextDelivery)
+                        .map(d => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
+                      await Promise.all(resetPromises);
+                      console.log(`   Reset ${resetPromises.length} isNextDelivery flags`);
+                      
+                      // Find first incomplete and mark as next (NO reordering)
+                      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+                      const firstIncomplete = updatedDeliveries
+                        .filter(d => !finishedStatuses.includes(d.status))
+                        .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
+                      
+                      if (firstIncomplete) {
+                        await base44.entities.Delivery.update(firstIncomplete.id, { isNextDelivery: true });
+                        console.log(`   ✅ Set isNextDelivery for active driver: ${firstIncomplete.patient_name || 'Pickup'}`);
+                      }
+                      console.log('✅ [MANUAL REFRESH STEP 5] isNextDelivery flags updated');
+
+                      // STEP 6: Reload fresh data and update UI
+                      console.log('');
+                      console.log('🔄 [MANUAL REFRESH STEP 6] Reloading fresh data...');
+                      invalidateDeliveriesForDate(selectedDateStr);
+                      const finalDeliveries = await base44.entities.Delivery.filter({
+                        delivery_date: selectedDateStr
+                      });
+                      
+                      // Update UI state
+                      if (updateDeliveriesLocally) {
+                        const otherDateDeliveries = deliveries.filter(d => d && d.delivery_date !== selectedDateStr);
+                        const mergedDeliveries = [...otherDateDeliveries, ...finalDeliveries];
+                        updateDeliveriesLocally(mergedDeliveries);
+                        console.log('✅ [MANUAL REFRESH STEP 6] UI updated with fresh data');
+                      }
+                      
+                      // Apply any smart refresh updates
+                      if (updates) {
+                        if (updates.patients) {
+                          setPatients(updates.patients);
+                        }
+                        if (updates.appUsers) {
+                          setAppUsers(updates.appUsers);
+                        }
+                        if (updates.stores) {
+                          setStores(updates.stores);
+                        }
+                      }
+
+                      console.log('');
+                      console.log('═══════════════════════════════════════════════════');
+                      console.log('✅ [MANUAL REFRESH] === REFRESH CYCLE COMPLETE ===');
+                      console.log('═══════════════════════════════════════════════════');
+                      console.log('');
+                    }}
+                  />
                 }
               </div>
 
