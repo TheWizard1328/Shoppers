@@ -434,7 +434,7 @@ const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, nu
 };
 
 const createDriverIcon = (driverStatus = 'on_duty', initial = '') => {
-  const size = 30; // Increased size slightly to accommodate initial
+  const size = 15; // Reduced by 50% from 30 to 15
   
   // Green for on_duty, Orange for on_break, Grey for off_duty
   const statusColors = {
@@ -466,7 +466,7 @@ const createDriverIcon = (driverStatus = 'on_duty', initial = '') => {
           transition: transform 0.2s ease, box-shadow 0.2s ease;
         ">
           <span style="
-            font-size: 16px;
+            font-size: 8px;
             font-weight: bold;
             color: white;
             text-transform: uppercase;
