@@ -2516,8 +2516,8 @@ export default function Layout({ children, currentPageName }) {
               }
 
               {/* Sidebar */}
-              <div className={`app-sidebar ${sidebarOpen ? 'sidebar-open' : ''} border-r border-slate-200 bg-white flex flex-col z-[200]`}>
-                <div className="border-b border-slate-100 p-4 flex-shrink-0">
+              <div className={`app-sidebar ${sidebarOpen ? 'sidebar-open' : ''} border-r flex flex-col z-[200]`} style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
+                <div className="border-b p-4 flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)' }}>
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                       {/* Mobile close button - only show when sidebar is open */}
@@ -2539,9 +2539,9 @@ export default function Layout({ children, currentPageName }) {
                         }} />
 
                       <div>
-                        <h2 className="font-bold text-lg text-slate-900">RxDeliver</h2>
-                        <p className="text-xs text-slate-500">Pharmacy Logistics</p>
-                        <p className="text-xs text-slate-500">{appVersion}</p>
+                        <h2 className="font-bold text-lg" style={{ color: 'var(--text-slate-900)' }}>RxDeliver</h2>
+                        <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>Pharmacy Logistics</p>
+                        <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>{appVersion}</p>
                       </div>
                     </div>
 
@@ -2606,7 +2606,7 @@ export default function Layout({ children, currentPageName }) {
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-3 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto p-3 custom-scrollbar" style={{ background: 'var(--bg-white)' }}>
                   <div className="">
                     <Link
                       to={constructUrlWithParams("Dashboard")}
@@ -2620,7 +2620,7 @@ export default function Layout({ children, currentPageName }) {
                       <span className="font-semibold">Dashboard</span>
                     </Link>
 
-                    <div className="border-t border-slate-200 my-2"></div>
+                    <div className="border-t my-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
                       <Link
@@ -2707,7 +2707,7 @@ export default function Layout({ children, currentPageName }) {
                   }
                 </div>
 
-                <div className="border-t border-slate-100 p-4 flex-shrink-0 bg-white">
+                <div className="border-t p-4 flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
                     {currentUser ?
                     <div>
                       <div className={`flex items-center gap-3 mb-3 p-3 rounded-lg ${
@@ -2735,10 +2735,10 @@ export default function Layout({ children, currentPageName }) {
                               Viewing As
                             </p>
                           }
-                          <p className="font-semibold text-slate-900 text-sm truncate">
+                          <p className="font-semibold text-sm truncate" style={{ color: 'var(--text-slate-900)' }}>
                             {getDriverDisplayName(currentUser)} {showWatermark && (<>[{deviceType} - {os}]</>)}
                           </p>
-                          <p className="text-xs text-slate-500 truncate capitalize">
+                          <p className="text-xs truncate capitalize" style={{ color: 'var(--text-slate-500)' }}>
                             {formatRoles(currentUser)}
                           </p>
                           {currentUser.phone &&
@@ -2868,7 +2868,8 @@ export default function Layout({ children, currentPageName }) {
                 )}
 
                 <header
-                  className="mobile-header border-b border-slate-200 bg-white px-4 py-3 sticky top-0"
+                  className="mobile-header border-b px-4 py-3 sticky top-0"
+                  style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
                   onTouchStart={handleTouchStart}
                   onTouchMove={handleTouchMove}
                   onTouchEnd={handleTouchEnd}>
@@ -3059,7 +3060,7 @@ export default function Layout({ children, currentPageName }) {
                   }
                 </header>
 
-                <main className="flex-1 overflow-y-auto bg-slate-50 relative">
+                <main className="flex-1 overflow-y-auto relative" style={{ background: 'var(--bg-slate-50)' }}>
                   {children}
                 </main>
               </div>

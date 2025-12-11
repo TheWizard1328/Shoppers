@@ -1782,7 +1782,7 @@ export default function DeliveryMap({
     };
 
     return (
-      <div className="min-w-[220px] max-w-[300px]">
+      <div className="min-w-[220px] max-w-[300px]" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
         <div className="flex items-center justify-between gap-2 mb-2">
           <div className="flex items-center gap-1.5">
             {isPickup ? <Home className="w-4 h-4 text-emerald-600" /> : <Package className="w-4 h-4 text-blue-600" />}
@@ -1797,17 +1797,17 @@ export default function DeliveryMap({
         </div>
 
         <div className="space-y-1.5">
-          <p className="text-sm font-semibold text-slate-900">
+          <p className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>
             {isPickup ? store?.address : patient?.full_name}
           </p>
 
-          <p className="text-xs text-slate-600">
+          <p className="text-xs" style={{ color: 'var(--text-slate-600)' }}>
             {isPickup ? store?.address : patient?.address}
             {!isPickup && delivery.unit_number && <span className="ml-1">#{delivery.unit_number}</span>}
           </p>
 
           {delivery.delivery_time_start && (
-            <div className="flex items-center gap-1 text-xs text-slate-600">
+            <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-slate-600)' }}>
               <Clock className="w-3.5 h-3.5 flex-shrink-0" />
               <span>
                 {delivery.delivery_time_start}
@@ -1824,20 +1824,20 @@ export default function DeliveryMap({
           )}
 
           {driver && (
-            <div className="flex items-center gap-1 text-xs text-slate-600">
+            <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-slate-600)' }}>
               <Truck className="w-3.5 h-3.5 flex-shrink-0" />
               <span>{driver.user_name || driver.full_name}</span>
             </div>
           )}
 
           {delivery.prescription_number && (
-            <div className="text-xs text-slate-600">
+            <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>
               <span className="font-medium">Rx#</span> {delivery.prescription_number}
             </div>
           )}
 
           {delivery.tracking_number && (
-            <div className="text-xs text-slate-600">
+            <div className="text-xs" style={{ color: 'var(--text-slate-600)' }}>
               <span className="font-medium">TR#</span> {delivery.tracking_number}
             </div>
           )}
@@ -1849,13 +1849,13 @@ export default function DeliveryMap({
           )}
 
           {!isPickup && delivery.delivery_instructions && (
-            <div className="text-xs text-slate-500 italic border-t border-slate-200 pt-1.5 mt-1.5">
+            <div className="text-xs italic border-t pt-1.5 mt-1.5" style={{ color: 'var(--text-slate-500)', borderColor: 'var(--border-slate-200)' }}>
               {delivery.delivery_instructions}
             </div>
           )}
 
           {delivery.delivery_notes && (
-            <div className="text-xs text-blue-600 border-t border-slate-200 pt-1.5 mt-1.5">
+            <div className="text-xs text-blue-600 border-t pt-1.5 mt-1.5" style={{ borderColor: 'var(--border-slate-200)' }}>
               <span className="font-medium">Notes:</span> {delivery.delivery_notes}
             </div>
           )}
@@ -1970,8 +1970,8 @@ export default function DeliveryMap({
               }}>
               <Popup closeButton={false} className="route-popup">
                 <div className="text-xs">
-                  <p className="font-semibold text-slate-900">{route.driverName}</p>
-                  <p className="text-slate-600">{route.totalStops} stops</p>
+                  <p className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{route.driverName}</p>
+                  <p style={{ color: 'var(--text-slate-600)' }}>{route.totalStops} stops</p>
                   {route.isCompleted && <p className="text-emerald-600 font-medium">✓ Route Complete</p>}
                 </div>
               </Popup>
@@ -2511,10 +2511,10 @@ export default function DeliveryMap({
       <MapCrosshair stopCardsHeight={areStopCardsVisible ? stopCardsHeight : 0} />
 
       {safeDeliveries.length === 0 &&
-        <div className="absolute inset-0 flex items-center justify-center bg-white/80 pointer-events-none">
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ background: 'var(--bg-white)', opacity: 0.8 }}>
           <div className="text-center">
-            <Package className="w-12 h-12 mx-auto mb-2 text-slate-400" />
-            <p className="text-slate-600">No deliveries for selected date</p>
+            <Package className="w-12 h-12 mx-auto mb-2" style={{ color: 'var(--text-slate-400)' }} />
+            <p style={{ color: 'var(--text-slate-600)' }}>No deliveries for selected date</p>
           </div>
         </div>
       }
@@ -2523,7 +2523,7 @@ export default function DeliveryMap({
 
       {/* NEW: Zoom Level Overlay */}
       {showZoomOverlay &&
-        <div className="absolute top-4 left-4 z-[99999] bg-slate-900 text-white px-4 py-2 rounded-lg shadow-lg transition-opacity duration-300 pointer-events-none">
+        <div className="absolute top-4 left-4 z-[99999] px-4 py-2 rounded-lg shadow-lg transition-opacity duration-300 pointer-events-none" style={{ background: 'var(--text-slate-900)', color: 'var(--bg-white)' }}>
           <div className="flex items-center gap-2">
             {/* <span className="text-sm font-medium">Zoom Level:</span> */}
             <span className="text-lg font-bold">{currentZoom.toFixed(1)}</span>
@@ -2544,7 +2544,7 @@ export default function DeliveryMap({
           onMouseEnter={() => onLegendInteraction(true)}
           onMouseLeave={() => onLegendInteraction(false)}
         >
-          <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 px-3 py-2">
+          <div className="backdrop-blur-sm rounded-lg shadow-lg border px-3 py-2" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)' }}>
             <div className="flex flex-wrap gap-x-3 gap-y-1.5 items-center justify-center">
               {driverRoutes
                 .sort((a, b) => a.sortOrder - b.sortOrder)
@@ -2560,10 +2560,10 @@ export default function DeliveryMap({
                       className="w-3 h-3 rounded-full border-2 border-white shadow-sm flex-shrink-0"
                       style={{ backgroundColor: route.color }}
                     />
-                    <span className="text-xs font-medium text-slate-700 whitespace-nowrap">
+                    <span className="text-xs font-medium whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>
                       {route.driverName}
                     </span>
-                    <span className="text-xs text-slate-500">
+                    <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
                       ({route.totalStops})
                     </span>
                   </div>

@@ -646,7 +646,8 @@ export default function StopCard({
         if (!isStrippedDelivery) {
           onClick && onClick(delivery);
         }
-      }}>
+      }}
+      style={{ background: 'var(--bg-white)', borderColor: isNextDelivery ? '#10B981' : '#3B82F6' }}>
         <CardContent className="mt-1 mb-1 px-3 py-0 flex flex-col">
           {/* HEADER SECTION - Always Visible */}
           <div className="flex items-start gap-1">
@@ -711,11 +712,11 @@ export default function StopCard({
             </div>
 
             <div className="flex-1 min-w-0">
-              <h3 className="text-slate-900 pt-0 text-xl font-semibold text-center truncate">
+              <h3 className="pt-0 text-xl font-semibold text-center truncate" style={{ color: 'var(--text-slate-900)' }}>
                 {finalDisplayName}
               </h3>
               <div className="flex flex-col items-center">
-                <div className="text-slate-600 text-sm flex items-center justify-center">
+                <div className="text-sm flex items-center justify-center" style={{ color: 'var(--text-slate-600)' }}>
                   {FINISHED_STATUSES.includes(delivery.status) && delivery.actual_delivery_time ?
                   <>
                       <Clock className="w-3 h-3" />
@@ -735,7 +736,7 @@ export default function StopCard({
                     </>
                   }
                 </div>
-                <div className="text-[11px] text-slate-500 min-h-[14px]">
+                <div className="text-[11px] min-h-[14px]" style={{ color: 'var(--text-slate-500)' }}>
                   {!FINISHED_STATUSES.includes(delivery.status) && (delivery.time_window_start || delivery.time_window_end) &&
                   <>
                       {delivery.time_window_start && formatTime12Hour(delivery.time_window_start)}
@@ -911,23 +912,23 @@ export default function StopCard({
           </div>
 
           {/* Hide address/phone section for stripped deliveries */}
-          {!isStrippedDelivery && <div className="border-t border-slate-200"></div>}
+          {!isStrippedDelivery && <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}></div>}
 
           {!isStrippedDelivery && <div className="flex flex-col">
             <div className="flex items-start justify-between">
               <div className="mt-1 flex flex-col justify-center gap-0.5 flex-1 min-w-0 min-h-[50px]">
                 {finalDisplayAddress ?
                 <>
-                    {/* Main address without unit/buzzer */}
-                    <div className="flex items-start gap-2 text-sm text-slate-700">
-                      <span className="text-xl font-medium truncate">
-                        {isPickup ? store?.address || '' : patient?.address || ''}
-                      </span>
-                    </div>
+                  {/* Main address without unit/buzzer */}
+                  <div className="flex items-start gap-2 text-sm" style={{ color: 'var(--text-slate-700)' }}>
+                    <span className="text-xl font-medium truncate">
+                      {isPickup ? store?.address || '' : patient?.address || ''}
+                    </span>
+                  </div>
 
                     {/* Unit/Buzzer row (phone removed - now in expanded section) */}
                     {!isStrippedDelivery && !shouldRedact &&
-                  <div className="flex items-center text-sm text-slate-600">
+                  <div className="flex items-center text-sm" style={{ color: 'var(--text-slate-600)' }}>
                         {/* Unit and Buzzer info */}
                         {(() => {
                       const unitNum = !isPickup ? delivery?.unit_number || patient?.unit_number : null;
@@ -989,14 +990,15 @@ export default function StopCard({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 flex items-center justify-center z-[10000]"
+              className="fixed inset-0 flex items-center justify-center z-[10000]"
+              style={{ background: 'rgba(0, 0, 0, 0.6)' }}
               onClick={() => setShowDeleteConfirm(false)}>
                 <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
                 onClick={(e) => e.stopPropagation()}
-                className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+                className="rounded-lg shadow-xl p-6 max-w-md w-full mx-4" style={{ background: 'var(--bg-white)' }}>
                   <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-red-600">
                     <Trash2 className="w-5 h-5" />
                     Confirm Delete
@@ -1007,23 +1009,23 @@ export default function StopCard({
                       Are you sure you want to delete this {isPickup ? 'pickup' : 'delivery'}?
                     </p>
 
-                    <div className="bg-slate-50 rounded-lg p-3 space-y-1 text-sm">
+                    <div className="rounded-lg p-3 space-y-1 text-sm" style={{ background: 'var(--bg-slate-50)' }}>
                       <div>
-                        <span className="font-semibold text-slate-700">Name:</span>
-                        <p className="text-slate-900 pl-16">{displayName}</p>
+                        <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Name:</span>
+                        <p className="pl-16" style={{ color: 'var(--text-slate-900)' }}>{displayName}</p>
                       </div>
 
                       {displayAddress &&
                     <div>
-                          <span className="font-semibold text-slate-700">Address:</span>
-                          <p className="text-slate-900 pl-16">{displayAddress}</p>
+                          <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Address:</span>
+                          <p className="pl-16" style={{ color: 'var(--text-slate-900)' }}>{displayAddress}</p>
                         </div>
                     }
 
                       {delivery.tracking_number &&
                     <div>
-                          <span className="font-semibold text-slate-700">Tr#:</span>
-                          <p className="text-slate-900 pl-16">{delivery.tracking_number}</p>
+                          <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Tr#:</span>
+                          <p className="pl-16" style={{ color: 'var(--text-slate-900)' }}>{delivery.tracking_number}</p>
                         </div>
                     }
                     </div>
@@ -1144,14 +1146,15 @@ export default function StopCard({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 flex items-center justify-center z-[10000]"
+              className="fixed inset-0 flex items-center justify-center z-[10000]"
+              style={{ background: 'rgba(0, 0, 0, 0.6)' }}
               onClick={handleCancelReturn}>
                 <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
                 onClick={(e) => e.stopPropagation()}
-                className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+                className="rounded-lg shadow-xl p-6 max-w-md w-full mx-4" style={{ background: 'var(--bg-white)' }}>
                   <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                     <Undo2 className="w-5 h-5 text-orange-600" />
                     Confirm Return Delivery
@@ -1160,40 +1163,40 @@ export default function StopCard({
                   <div className="space-y-3 mb-6 text-sm">
                     <p className="text-slate-600">A new return delivery will be created with the following details:</p>
 
-                    <div className="bg-slate-50 rounded-lg p-3 space-y-2">
+                    <div className="rounded-lg p-3 space-y-2" style={{ background: 'var(--bg-slate-50)' }}>
                       <div>
-                        <span className="font-semibold text-slate-700">Return To: {returnPatient.full_name}</span>
-                        <p className="text-slate-900"></p>
+                        <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Return To: {returnPatient.full_name}</span>
+                        <p style={{ color: 'var(--text-slate-900)' }}></p>
                       </div>
 
                       <div>
-                        <span className="font-semibold text-slate-700">Address: {returnPatient.address || store?.address || 'N/A'}</span>
-                        <p className="text-slate-900"></p>
+                        <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Address: {returnPatient.address || store?.address || 'N/A'}</span>
+                        <p style={{ color: 'var(--text-slate-900)' }}></p>
                       </div>
 
                       <div>
-                        <span className="font-semibold text-slate-700">Phone: {formatPhoneNumber(returnPatient.phone || store?.phone || 'N/A')}</span>
-                        <p className="text-slate-900"></p>
+                        <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Phone: {formatPhoneNumber(returnPatient.phone || store?.phone || 'N/A')}</span>
+                        <p style={{ color: 'var(--text-slate-900)' }}></p>
                       </div>
 
                       <div>
-                        <span className="font-semibold text-slate-700">Delivery Date: {delivery.delivery_date}</span>
-                        <p className="text-slate-900"></p>
+                        <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Delivery Date: {delivery.delivery_date}</span>
+                        <p style={{ color: 'var(--text-slate-900)' }}></p>
                       </div>
 
                       <div>
-                        <span className="font-semibold text-slate-700">Assigned Driver: {getDriverDisplayName(driver) || 'N/A'}</span>
-                        <p className="text-slate-900"></p>
+                        <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Assigned Driver: {getDriverDisplayName(driver) || 'N/A'}</span>
+                        <p style={{ color: 'var(--text-slate-900)' }}></p>
                       </div>
 
                       <div>
-                        <span className="font-semibold text-slate-700">Notes:</span>
-                        <p className="text-slate-900 text-xs">PATIENT RETURN For: {patient?.full_name || delivery.patient_name || 'Unknown'}</p>
+                        <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Notes:</span>
+                        <p className="text-xs" style={{ color: 'var(--text-slate-900)' }}>PATIENT RETURN For: {patient?.full_name || delivery.patient_name || 'Unknown'}</p>
                       </div>
 
                       <div>
-                        <span className="font-semibold text-slate-700">Tracking Number:</span>
-                        <p className="text-slate-500 italic">Will be assigned when saved</p>
+                        <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Tracking Number:</span>
+                        <p className="italic" style={{ color: 'var(--text-slate-500)' }}>Will be assigned when saved</p>
                       </div>
                     </div>
                   </div>
@@ -1221,10 +1224,10 @@ export default function StopCard({
           <AnimatePresence>
             {isExpanded && !isStrippedDelivery &&
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
-                <div className="pt-3 space-y-3 border-t border-slate-200 mt-2">
+                <div className="pt-3 space-y-3 border-t mt-2" style={{ borderColor: 'var(--border-slate-200)' }}>
                   {/* Phone number - moved below divider */}
                   {finalDisplayPhone &&
-                <div className="flex items-center text-sm text-slate-600">
+                <div className="flex items-center text-sm" style={{ color: 'var(--text-slate-600)' }}>
                       <Phone className="w-4 h-4 mr-2 text-slate-500" />
                       <span className="text-base font-medium">{formatPhoneNumber(finalDisplayPhone)}</span>
                     </div>
@@ -1343,10 +1346,10 @@ export default function StopCard({
 
                   {!isPickup && patient && (patient.notes || patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door || patient.recurring) &&
                 <div className="flex items-start gap-2">
-                      <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-slate-700 mb-0.5">Patient Info:</p>
-                        <div className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded px-2 py-1.5 space-y-1">
+                <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold mb-0.5" style={{ color: 'var(--text-slate-700)' }}>Patient Info:</p>
+                  <div className="text-xs rounded px-2 py-1.5 space-y-1" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
                           {/* Delivery Preferences */}
                           {(patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door) &&
                       <div className="flex flex-wrap gap-1">
@@ -1394,9 +1397,9 @@ export default function StopCard({
 
                   {/* Show pending pickup list for pickups that are en_route (equivalent to in_transit for deliveries) */}
                   {isPickup && delivery.status === 'en_route' && pendingPickups && pendingPickups.length > 0 &&
-                <div className="pt-2 border-t border-slate-200">
+                <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                       <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-xs font-bold text-slate-700 flex items-center gap-2">
+                        <h4 className="text-xs font-bold flex items-center gap-2" style={{ color: 'var(--text-slate-700)' }}>
                           <Package className="w-3.5 h-3.5" />
                           Pending Pickup List ({pendingPickups.length})
                         </h4>
@@ -1552,7 +1555,10 @@ export default function StopCard({
                       return (
                         <div
                           key={deliveryId}
-                          className="flex items-center justify-between gap-2 bg-white border border-slate-200 px-2.5 py-1.5 rounded-md cursor-pointer hover:bg-slate-50 transition-colors"
+                          className="flex items-center justify-between gap-2 border px-2.5 py-1.5 rounded-md cursor-pointer transition-colors"
+                          style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-slate-50)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--bg-white)'; }}
                           onClick={(e) => {
                             e.stopPropagation();
                             if (onEditDelivery && projectedDelivery.id) {
@@ -1560,7 +1566,7 @@ export default function StopCard({
                             }
                           }}>
 
-                              <span className="text-xs font-medium text-slate-900 truncate flex-1">
+                              <span className="text-xs font-medium truncate flex-1" style={{ color: 'var(--text-slate-900)' }}>
                                 {projectedDelivery.patient_name || 'Unknown Patient'}
                               </span>
                               <div className="flex items-center gap-1 flex-shrink-0">
@@ -1574,7 +1580,7 @@ export default function StopCard({
                                     {hasSignature && (hasCOD || projIsFirstDelivery || hasOversized || hasFridge ? ' S' : 'S')}
                                   </Badge>
                             }
-                                <span className="text-xs font-semibold text-slate-600">
+                                <span className="text-xs font-semibold" style={{ color: 'var(--text-slate-600)' }}>
                                   TR#{projectedDelivery.tracking_number || '??'}
                                 </span>
                                 {/* Individual accept button - only for assigned driver, dispatcher, or admin */}
@@ -1639,7 +1645,7 @@ export default function StopCard({
 
                   <div className="space-y-1 mt-2">
                     <div className="flex items-center justify-between">
-                      <Label className="text-xs font-medium text-slate-700 flex items-center gap-1">Driver Notes</Label>
+                      <Label className="text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>Driver Notes</Label>
                     </div>
                     <Textarea
                     value={notesInput}
@@ -1648,7 +1654,8 @@ export default function StopCard({
                     onKeyDown={handleNotesKeyDown}
                     onClick={(e) => e.stopPropagation()}
                     placeholder="Add driver notes..."
-                    className="text-xs resize-none h-16 border-slate-200"
+                    className="text-xs resize-none h-16"
+                    style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}
                     disabled={isCompleted && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')} />
                   </div>
                 </div>
@@ -1658,7 +1665,7 @@ export default function StopCard({
 
           {/* FOOTER SECTION - Only visible to assigned driver or app owner */}
           {!isStrippedDelivery && isAssignedDriverOrAppOwner && <div className="space-y-3 mt-2">
-            <div className="border-t border-slate-200">
+            <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
               <div className="mt-2 mx-auto pb-1 flex justify-between items-center">
                 {(isAssignedDriverOrAppOwner || canEdit) &&
                 <>

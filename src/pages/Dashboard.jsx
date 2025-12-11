@@ -72,7 +72,7 @@ const StatBadge = ({ icon: Icon, value, color, label, tooltip }) => {
       <div className={`p-1.5 rounded-lg ${colorClasses[color]}`}>
         <Icon className="w-3.5 h-3.5" />
       </div>
-      <span className="text-lg font-bold text-slate-900">{value}</span>
+      <span className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{value}</span>
     </div>;
 
 
@@ -5619,7 +5619,7 @@ function Dashboard() {
   }
 
   return (
-    <div className="h-full w-full flex flex-col bg-slate-50 overflow-hidden">
+    <div className="h-full w-full flex flex-col overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
       <AnimatePresence>
         {optimizationMessage &&
         <motion.div
@@ -5629,17 +5629,17 @@ function Dashboard() {
           className={optimizationMessagePositioning}
           style={{ top: isExpanded ? '216px' : '116px' }}>
 
-            <div className="bg-white rounded-lg shadow-2xl border-2 border-emerald-500 p-3 flex items-center gap-3">
+            <div className="rounded-lg shadow-2xl border-2 border-emerald-500 p-3 flex items-center gap-3" style={{ background: 'var(--bg-white)' }}>
               {isOptimizing &&
             <div className="animate-spin w-4 h-4 border-3 border-emerald-500 border-t-transparent rounded-full flex-shrink-0"></div>
             }
-              <p className="text-slate-900 font-medium flex-1 text-sm">{optimizationMessage}</p>
+              <p className="font-medium flex-1 text-sm" style={{ color: 'var(--text-slate-900)' }}>{optimizationMessage}</p>
               {!isOptimizing &&
             <button
               onClick={() => setOptimizationMessage(null)}
               className="text-slate-400 hover:text-slate-600 flex-shrink-0">
 
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-3.5 h-3.5" style={{ color: 'var(--text-slate-400)' }} />
                 </button>
             }
             </div>
@@ -5667,14 +5667,14 @@ function Dashboard() {
               if (retractClustersRef.current) {
                 retractClustersRef.current();
               }
-            }} className="bg-white px-2 py-2 rounded-2xl shadow-xl border min-w-[340px] cursor-pointer z-[700] border-slate-200" style={{ pointerEvents: 'auto', touchAction: 'manipulation', position: 'relative' }}>
+            }} className="px-2 py-2 rounded-2xl shadow-xl border min-w-[340px] cursor-pointer z-[700]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', pointerEvents: 'auto', touchAction: 'manipulation', position: 'relative' }}>
 
 
             
 
             <div className="flex items-center justify-between mb-2">
               <div className="pr-1 flex items-center gap-2">
-                <h2 className="text-slate-900 pl-2 text-lg font-bold">Dashboard</h2>
+                <h2 className="pl-2 text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>Dashboard</h2>
                 {currentUser &&
                   <SmartRefreshIndicator
                     inline={true}
@@ -5949,13 +5949,13 @@ function Dashboard() {
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.2 }}
                 className="overflow-hidden">
-                  <div className="mt-2 pt-2 border-t border-slate-200 flex items-center gap-2">
+                  <div className="mt-2 pt-2 border-t flex items-center gap-2" style={{ borderColor: 'var(--border-slate-200)' }}>
                     <Select
                     value={selectedDriverId}
                     onValueChange={handleDriverChange}
                     disabled={isDriverDropdownDisabled}>
 
-                      <SelectTrigger className="flex h-8 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 flex-1" style={{ pointerEvents: 'auto', touchAction: 'manipulation' }}>
+                      <SelectTrigger className="flex h-8 w-full items-center justify-between rounded-md border px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 flex-1" style={{ pointerEvents: 'auto', touchAction: 'manipulation', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
                         <SelectValue placeholder="All Drivers" />
                       </SelectTrigger>
                       <SelectContent className="z-[10001]" style={{ pointerEvents: 'auto' }}>
@@ -6028,7 +6028,7 @@ function Dashboard() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
             onMouseEnter={() => handleCardInteraction(true)}
-            onMouseLeave={() => handleCardInteraction(false)} className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-slate-200 px-2 py-2">
+            onMouseLeave={() => handleCardInteraction(false)} className="backdrop-blur-sm rounded-lg shadow-lg border px-2 py-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', opacity: 0.95 }}>
 
 
               <div className="flex flex-wrap gap-x-2 gap-y-1.5 items-center justify-center">
@@ -6043,10 +6043,10 @@ function Dashboard() {
                   className="w-3 h-3 rounded-full border-2 border-white shadow-sm flex-shrink-0"
                   style={{ backgroundColor: route.color }} />
 
-                      <span className="text-xs font-medium text-slate-700 whitespace-nowrap">
+                      <span className="text-xs font-medium whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>
                         {route.driverName}
                       </span>
-                      <span className="text-xs text-slate-500">
+                      <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
                         ({route.stops.length})
                       </span>
                     </div>
@@ -6061,7 +6061,7 @@ function Dashboard() {
         {/* Polyline API hits badge - App Owner only */}
         {currentUser && isAppOwner(currentUser) && dailyPolylineCount !== null &&
         <div className="absolute top-2 left-2 z-[20]">
-            <div className="bg-white/90 backdrop-blur-sm rounded-lg px-2 py-1 shadow-sm border border-slate-200 text-xs font-medium text-slate-600 z-[601]">
+            <div className="backdrop-blur-sm rounded-lg px-2 py-1 shadow-sm border text-xs font-medium z-[601]" style={{ background: 'var(--bg-white)', opacity: 0.9, borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-600)' }}>
               🛣️ {dailyPolylineCount}
             </div>
           </div>
