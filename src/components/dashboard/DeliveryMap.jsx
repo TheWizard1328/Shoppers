@@ -1884,14 +1884,12 @@ export default function DeliveryMap({
         }}> {/* Close fan on map click */}
 
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
           url={document.documentElement.classList.contains('dark-theme') || 
                (document.documentElement.classList.contains('auto-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)
-               ? "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-               : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"}
-          className={document.documentElement.classList.contains('dark-theme') || 
-                    (document.documentElement.classList.contains('auto-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)
-                    ? "dark-map-tiles" : ""} />
+               ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+               : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"}
+        />
 
         <MapController />
 
@@ -2580,10 +2578,6 @@ export default function DeliveryMap({
       )}
 
       <style>{`
-        .dark-map-tiles {
-          filter: brightness(0.6) saturate(0) contrast(1.1);
-        }
-        
         .custom-popup .leaflet-popup-content-wrapper {
           padding: 6px;
           border-radius: 8px;
