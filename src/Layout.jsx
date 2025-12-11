@@ -467,7 +467,28 @@ export default function Layout({ children, currentPageName }) {
 
   const [sidebarWidth, setSidebarWidth] = useState(240); // Will be loaded from user settings
       const [themePreference, setThemePreference] = useState('auto');
-      const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
+            const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
+
+            // Apply theme class to HTML element
+            useEffect(() => {
+              if (themePreference === 'dark') {
+                document.documentElement.classList.remove('auto-theme', 'light-theme');
+                document.documentElement.classList.add('dark-theme');
+              } else if (themePreference === 'light') {
+                document.documentElement.classList.remove('auto-theme', 'dark-theme');
+                document.documentElement.classList.add('light-theme');
+              } else {
+                document.documentElement.classList.remove('light-theme', 'dark-theme');
+                document.documentElement.classList.add('auto-theme');
+              }
+            }, [themePreference]);
+
+            const handleThemeChange = async (newTheme) => {
+              setThemePreference(newTheme);
+              if (currentUser?.id) {
+                await saveSetting(currentUser.id, 'theme_preference', newTheme);
+              }
+            };
       const [showMessaging, setShowMessaging] = useState(false);
       const [unreadMessageCount, setUnreadMessageCount] = useState(0);
       const [initialConversation, setInitialConversation] = useState(null);
@@ -1989,16 +2010,74 @@ export default function Layout({ children, currentPageName }) {
   return (
     <ErrorBoundary>
       <style>{`
-        html, body {
-          font-size: 15px;
-          margin: 0;
-          padding: 0;
-          height: 100vh;
-          height: 100dvh;
-          width: 100vw;
-          overflow: hidden;
-          overscroll-behavior: none;
-        }
+          :root {
+            /* Light mode (default) - whites, blacks, and grays */
+            --bg-white: #ffffff;
+            --bg-slate-50: #f8fafc;
+            --bg-slate-100: #f1f5f9;
+            --bg-slate-200: #e2e8f0;
+            --text-slate-900: #0f172a;
+            --text-slate-800: #1e293b;
+            --text-slate-700: #334155;
+            --text-slate-600: #475569;
+            --text-slate-500: #64748b;
+            --text-slate-400: #94a3b8;
+            --border-slate-200: #e2e8f0;
+            --border-slate-300: #cbd5e1;
+            --shadow-color: rgba(0, 0, 0, 0.1);
+          }
+
+          /* Dark mode via class (explicit user selection) */
+          html.dark-theme,
+          html.dark-theme body {
+            /* Inverted whites, blacks, and grays */
+            --bg-white: #0f172a;
+            --bg-slate-50: #1e293b;
+            --bg-slate-100: #334155;
+            --bg-slate-200: #475569;
+            --text-slate-900: #f8fafc;
+            --text-slate-800: #f1f5f9;
+            --text-slate-700: #e2e8f0;
+            --text-slate-600: #cbd5e1;
+            --text-slate-500: #94a3b8;
+            --text-slate-400: #64748b;
+            --border-slate-200: #475569;
+            --border-slate-300: #334155;
+            --shadow-color: rgba(255, 255, 255, 0.1);
+          }
+
+          /* Auto mode - respect system preference */
+          @media (prefers-color-scheme: dark) {
+            html.auto-theme,
+            html.auto-theme body {
+              --bg-white: #0f172a;
+              --bg-slate-50: #1e293b;
+              --bg-slate-100: #334155;
+              --bg-slate-200: #475569;
+              --text-slate-900: #f8fafc;
+              --text-slate-800: #f1f5f9;
+              --text-slate-700: #e2e8f0;
+              --text-slate-600: #cbd5e1;
+              --text-slate-500: #94a3b8;
+              --text-slate-400: #64748b;
+              --border-slate-200: #475569;
+              --border-slate-300: #334155;
+              --shadow-color: rgba(255, 255, 255, 0.1);
+            }
+          }
+
+          html, body {
+            font-size: 15px;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            height: 100dvh;
+            width: 100vw;
+            overflow: hidden;
+            overscroll-behavior: none;
+            background: var(--bg-white);
+            color: var(--text-slate-900);
+          }
 
         #root {
           height: 100vh;
@@ -2030,7 +2109,7 @@ export default function Layout({ children, currentPageName }) {
           height: 100dvh;
           width: 100vw;
           overflow: hidden;
-          background: #f8fafc;
+          background: var(--bg-slate-50);
         }
 
         main {
@@ -2071,8 +2150,8 @@ export default function Layout({ children, currentPageName }) {
             position: sticky;
             top: 0;
             z-index: 10001 !important;
-            background: white;
-            border-bottom: 1px solid #e2e8f0;
+            background: var(--bg-white);
+            border-bottom: 1px solid var(--border-slate-200);
           }
 
           main {
@@ -2091,14 +2170,14 @@ export default function Layout({ children, currentPageName }) {
             z-index: 10000 !important;
             transform: translateX(-100%) !important;
             transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-            background: white !important;
-            box-shadow: 4px 0 12px rgba(0, 0, 0, 0.15) !important;
+            background: var(--bg-white) !important;
+            box-shadow: 4px 0 12px var(--shadow-color) !important;
             flex-shrink: 0 !important;
           }
 
           .app-sidebar.sidebar-open {
             transform: translateX(0) !important;
-            box-shadow: 4px 0 12px rgba(0, 0, 0, 0.15) !important;
+            box-shadow: 4px 0 12px var(--shadow-color) !important;
           }
 
           .main-content-area {
@@ -2868,6 +2947,27 @@ export default function Layout({ children, currentPageName }) {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-56 z-[10000]">
                           <DropdownMenuLabel>Settings</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+
+                          {/* Theme Toggle - Mobile Only */}
+                          <div className="px-2 py-2">
+                            <label className="text-xs font-medium text-slate-700 mb-1.5 block">
+                              Theme
+                            </label>
+                            <Select
+                              value={themePreference}
+                              onValueChange={handleThemeChange}
+                            >
+                              <SelectTrigger className="w-full bg-white border-slate-300 h-9">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="z-[10002]">
+                                <SelectItem value="auto">Auto (System)</SelectItem>
+                                <SelectItem value="light">Light</SelectItem>
+                                <SelectItem value="dark">Dark</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
                           <DropdownMenuSeparator />
 
                           {/* Import Buttons - App Owner Only */}
