@@ -46,15 +46,15 @@ Deno.serve(async (req) => {
       delivery_date: deliveryDate
     });
 
-    // Filter to incomplete stops only
+    // Filter to incomplete stops only (EXCLUDE PENDING)
     const incompleteDeliveries = allDeliveries.filter(d => 
-      d && !finishedStatuses.includes(d.status)
+      d && !finishedStatuses.includes(d.status) && d.status !== 'pending'
     );
 
-    console.log(`  📊 Found ${incompleteDeliveries.length} incomplete deliveries`);
+    console.log(`  📊 Found ${incompleteDeliveries.length} incomplete non-pending deliveries`);
 
     if (incompleteDeliveries.length === 0) {
-      console.log('  ✅ No incomplete deliveries - route completed');
+      console.log('  ✅ No incomplete non-pending deliveries - route completed or only pending remains');
       return Response.json({ 
         success: true, 
         message: 'Route completed - no next delivery to set' 
