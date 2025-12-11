@@ -2710,7 +2710,7 @@ export default function Layout({ children, currentPageName }) {
                             key={item.title}
                             to={constructUrlWithParams(item.url)}
                             onClick={() => setSidebarOpen(false)}
-                            className={`my-1 px-4 py-1 rounded-xl flex items-center gap-3 transition-all duration-200 ${
+                            className={`px-4 rounded-xl flex items-center gap-3 transition-all duration-200 ${
                               currentPageName === item.pageName ?
                                 'shadow-sm' :
                                 'hover:opacity-80'}`
