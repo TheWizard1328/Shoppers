@@ -409,7 +409,12 @@ Deno.serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('[ETA Updates] Error in etaOptimizer:', error);
-    return Response.json({ error: error.message }, { status: 500 });
+    console.error('[ETA Updates] ❌ CRITICAL ERROR in etaOptimizer:');
+    console.error('[ETA Updates] Error message:', error.message);
+    console.error('[ETA Updates] Error stack:', error.stack);
+    return Response.json({ 
+      error: error.message,
+      details: error.stack?.substring(0, 500)
+    }, { status: 500 });
   }
 });
