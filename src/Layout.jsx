@@ -1142,14 +1142,14 @@ export default function Layout({ children, currentPageName }) {
           });
         } catch (err) {
 
-
-
-
-
-
-
           // Silently fail - wake lock not critical
-        }}};const releaseWakeLock = () => {if (wakeLockRef.current) {wakeLockRef.current.release();wakeLockRef.current = null;
+        }}
+    };
+
+    const releaseWakeLock = () => {
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release();
+        wakeLockRef.current = null;
       }
     };
 
@@ -1325,14 +1325,14 @@ export default function Layout({ children, currentPageName }) {
       });
     } catch (error) {
 
-
-
-
-
-
-
       // Silent fail
-    }};const handleImpersonate = useCallback(async (userId) => {sessionStorage.setItem('impersonationId', userId);window.location.reload();}, []);
+    }};
+
+  const handleImpersonate = useCallback(async (userId) => {
+    sessionStorage.setItem('impersonationId', userId);
+    window.location.reload();
+  }, []);
+
   const handleStopImpersonating = useCallback(() => {
     sessionStorage.removeItem('impersonationId');
     window.location.reload();
@@ -2558,7 +2558,7 @@ export default function Layout({ children, currentPageName }) {
                               <MoreVertical className="w-4 h-4 text-slate-500" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-56 z-[10000]">
+                          <DropdownMenuContent align="end" className="min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 w-56 z-[10001]">
                             <DropdownMenuLabel>Settings</DropdownMenuLabel>
                             <DropdownMenuSeparator />
 
@@ -2611,7 +2611,7 @@ export default function Layout({ children, currentPageName }) {
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-3 custom-scrollbar" style={{ background: 'var(--bg-white)' }}>
-                  <div className="space-y-1">
+                  <div className="">
                     <Link
                     to={constructUrlWithParams("Dashboard")}
                     onClick={() => setSidebarOpen(false)}
@@ -2635,12 +2635,12 @@ export default function Layout({ children, currentPageName }) {
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
                   <Link
                     to={createPageUrl('Patients')}
-                    onClick={() => setSidebarOpen(false)} className="px-4 rounded-xl flex items-center gap-3 transition-all duration-200 hover:opacity-80"
-
-
-
-
-
+                    onClick={() => setSidebarOpen(false)}
+                    className={`mb-1 px-4 py-1 rounded-xl flex items-center gap-3 transition-all duration-200 ${
+                    currentPageName === 'Patients' ?
+                    'shadow-sm' :
+                    'hover:opacity-80'}`
+                    }
                     style={currentPageName === 'Patients' ? {
                       background: 'var(--bg-slate-100)',
                       color: 'var(--text-slate-900)'
@@ -2656,12 +2656,12 @@ export default function Layout({ children, currentPageName }) {
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                   <Link
                     to={getRouteNavigationUrl('Deliveries')}
-                    onClick={() => setSidebarOpen(false)} className="px-4 rounded-xl flex items-center gap-3 transition-all duration-200 hover:opacity-80"
-
-
-
-
-
+                    onClick={() => setSidebarOpen(false)}
+                    className={`mb-1 px-4 py-1 rounded-xl flex items-center gap-3 transition-all duration-200 ${
+                    currentPageName === 'Deliveries' ?
+                    'shadow-sm' :
+                    'hover:opacity-80'}`
+                    }
                     style={currentPageName === 'Deliveries' ? {
                       background: 'var(--bg-slate-100)',
                       color: 'var(--text-slate-900)'
@@ -2677,41 +2677,41 @@ export default function Layout({ children, currentPageName }) {
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                   <Link
                     to={constructUrlWithParams(createPageUrl("DeliveryMetrics"))}
-                    onClick={() => setSidebarOpen(false)} className="px-4 rounded-xl flex items-center gap-3 transition-all duration-200 hover:opacity-80"
-
-
-
-
-
+                    onClick={() => setSidebarOpen(false)}
+                    className={`mb-2 px-4 py-1 rounded-xl flex items-center gap-3 transition-all duration-200 ${
+                    currentPageName === 'DeliveryMetrics' ?
+                    'shadow-sm' :
+                    'hover:opacity-80'}`
+                    }
                     style={currentPageName === 'DeliveryMetrics' ? {
                       background: 'var(--bg-slate-100)',
                       color: 'var(--text-slate-900)'
                     } : {
                       color: 'var(--text-slate-600)'
-                    }}>Route Metrics
-
-
-                  </Link>
+                    }}>
+                        <BarChart3 className="w-5 h-5" />
+                        <span className="font-semibold">Route Metrics</span>
+                      </Link>
                   }
                   </div>
 
                   {userHasRole(currentUser, 'admin') &&
-                <div className="mt-2 space-y-1">
+                <div className="mt-2">
                       <div className="border-t mb-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
                       <div className="text-xs font-semibold uppercase tracking-wider px-3 py-1" style={{ color: 'var(--text-slate-500)' }}>
                         Admin
                       </div>
-                      <div className="">
+                      <div className="space-y-1">
                         {adminNavigationItems.map((item) =>
                     <Link
                       key={item.title}
                       to={constructUrlWithParams(item.url)}
-                      onClick={() => setSidebarOpen(false)} className="px-4 rounded-xl flex items-center gap-3 transition-all duration-200 hover:opacity-80"
-
-
-
-
-
+                      onClick={() => setSidebarOpen(false)}
+                      className={`my-1 px-4 py-1 rounded-xl flex items-center gap-3 transition-all duration-200 ${
+                      currentPageName === item.pageName ?
+                      'shadow-sm' :
+                      'hover:opacity-80'}`
+                      }
                       style={currentPageName === item.pageName ? {
                         background: 'var(--bg-slate-100)',
                         color: 'var(--text-slate-900)'
