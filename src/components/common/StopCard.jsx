@@ -754,14 +754,14 @@ export default function StopCard({
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button className={`inline-flex items-center gap-1 rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-sm font-bold px-2 py-0.5 cursor-pointer hover:opacity-80 ${
-                      delivery.status === 'en_route' ? 'bg-cyan-100 text-cyan-800' : 
-                      statusConfig[delivery.status]?.color || ''
-                    }`}
-                  style={!delivery.status || delivery.status === 'en_route' || statusConfig[delivery.status] ? {} : {
-                    background: 'var(--bg-slate-100)',
-                    color: 'var(--text-slate-800)'
-                  }}
-                  onClick={(e) => e.stopPropagation()}>
+                    delivery.status === 'en_route' ? 'bg-cyan-100 text-cyan-800' :
+                    statusConfig[delivery.status]?.color || ''}`
+                    }
+                    style={!delivery.status || delivery.status === 'en_route' || statusConfig[delivery.status] ? {} : {
+                      background: 'var(--bg-slate-100)',
+                      color: 'var(--text-slate-800)'
+                    }}
+                    onClick={(e) => e.stopPropagation()}>
                         {statusConfig[delivery.status]?.label || delivery.status}
                         <MoreVertical className="w-3 h-3" />
                       </button>
@@ -887,7 +887,7 @@ export default function StopCard({
 
                 <Badge
                   variant="secondary" className={`border-transparent inline-flex items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-sm font-bold px-2 py-0.5 ${
-                  delivery.status === 'failed' ? 'bg-red-500 !text-white' :                  
+                  delivery.status === 'failed' ? 'bg-red-500 !text-white' :
                   delivery.status === 'cancelled' ? 'bg-red-500 !text-white' :
                   delivery.status === 'returned' ? 'bg-orange-500 !text-white' :
                   'bg-emerald-500 !text-white'}`
@@ -1091,9 +1091,9 @@ export default function StopCard({
 
                 // Add reason to delivery notes
                 const existingNotes = delivery.delivery_notes || '';
-                const updatedNotes = existingNotes 
-                  ? `${existingNotes}\n[${status.toUpperCase()}] ${reason}`
-                  : `[${status.toUpperCase()}] ${reason}`;
+                const updatedNotes = existingNotes ?
+                `${existingNotes}\n[${status.toUpperCase()}] ${reason}` :
+                `[${status.toUpperCase()}] ${reason}`;
 
                 await onStatusUpdate(delivery.id, status, { delivery_notes: updatedNotes }, false);
 
@@ -1140,8 +1140,8 @@ export default function StopCard({
             }}
             deliveryName={displayName}
             isPickup={isPickup}
-            statusType={pendingFailureStatus}
-          />
+            statusType={pendingFailureStatus} />
+          
 
           {/* Return Confirmation Dialog */}
           <AnimatePresence>
@@ -1561,8 +1561,8 @@ export default function StopCard({
                           key={deliveryId}
                           className="flex items-center justify-between gap-2 border px-2.5 py-1.5 rounded-md cursor-pointer transition-colors"
                           style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}
-                          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-slate-50)'; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--bg-white)'; }}
+                          onMouseEnter={(e) => {e.currentTarget.style.background = 'var(--bg-slate-50)';}}
+                          onMouseLeave={(e) => {e.currentTarget.style.background = 'var(--bg-white)';}}
                           onClick={(e) => {
                             e.stopPropagation();
                             if (onEditDelivery && projectedDelivery.id) {
@@ -1923,13 +1923,13 @@ export default function StopCard({
                         <DropdownMenuTrigger asChild>
                           <Button
                           variant="ghost"
-                          size="icon"
-                          className={`h-8 w-8 border border-slate-300 hover:bg-slate-100 relative z-[100] ${delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'returned' ? 'rounded-l-none' : 'rounded-md'}`}
+                          size="icon" className="bg-transparent text-sm font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground h-8 w-8 border border-slate-300 hover:bg-slate-100 relative z-[100]"
+
                           onClick={(e) => e.stopPropagation()}>
                             <MoreVertical className="w-4 h-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="z-[99999]" sideOffset={5} onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenuContent align="end" className="bg-transparent text-popover-foreground p-1 rounded-md min-w-[8rem] overflow-hidden border shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-[99999]" sideOffset={5} onClick={(e) => e.stopPropagation()}>
                           {onEditDelivery && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                         <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEditDelivery(delivery);}}>
                               <Edit className="w-4 h-4 mr-2" />
@@ -1949,10 +1949,10 @@ export default function StopCard({
                               <DropdownMenuSeparator className="bg-slate-200" />
                               <DropdownMenuItem onClick={async (e) => {
                             e.stopPropagation();
-                            
+
                             // CRITICAL: Deactivate FAB before restart
                             fabControlEvents.deactivateFAB();
-                            
+
                             try {
                               await onRestart(delivery.id);
                             } finally {
