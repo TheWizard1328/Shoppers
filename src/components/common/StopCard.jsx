@@ -727,7 +727,7 @@ export default function StopCard({
                   }
                   {showDriverName && safeDriver &&
                   <>
-                      <span className="bg-secondary text-secondary-foreground px-1 py-0.5 text-xs font-semibold opacity-60 rounded-full inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80">•</span>
+                      <span className="px-1 py-0.5 text-xs font-semibold opacity-60 rounded-full inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>•</span>
                       <Badge
                       variant="secondary" className="inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 px-2 py-0.5 rounded-full text-xs !text-white  font-semibold"
                       style={{ backgroundColor: driverBadgeColor, color: driverBadgeTextColor }}>
@@ -752,17 +752,21 @@ export default function StopCard({
               <div className="flex items-center gap-1">
                 {showStatusDropdown ?
                 <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button className={`inline-flex items-center gap-1 rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-sm font-bold px-2 py-0.5 cursor-pointer hover:opacity-80 ${
-                        delivery.status === 'en_route' ? 'bg-cyan-100 text-cyan-800' : 
-                        statusConfig[delivery.status]?.color || 'bg-slate-100 text-slate-800'
-                      }`}
-                    onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenuTrigger asChild>
+                    <button className={`inline-flex items-center gap-1 rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-sm font-bold px-2 py-0.5 cursor-pointer hover:opacity-80 ${
+                      delivery.status === 'en_route' ? 'bg-cyan-100 text-cyan-800' : 
+                      statusConfig[delivery.status]?.color || ''
+                    }`}
+                  style={!delivery.status || delivery.status === 'en_route' || statusConfig[delivery.status] ? {} : {
+                    background: 'var(--bg-slate-100)',
+                    color: 'var(--text-slate-800)'
+                  }}
+                  onClick={(e) => e.stopPropagation()}>
                         {statusConfig[delivery.status]?.label || delivery.status}
                         <MoreVertical className="w-3 h-3" />
                       </button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="z-[99999] text-base p-2 space-y-2">
+                    <DropdownMenuContent align="end" className="z-[99999] text-base p-2 space-y-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                       {nextAvailableStatuses.filter((s) => !['pending', 'Ready For Pickup'].includes(s)).map((status) => {
                       const isCompleteStatus = status === 'completed';
                       const isFailedStatus = status === 'failed' || status === 'cancelled';

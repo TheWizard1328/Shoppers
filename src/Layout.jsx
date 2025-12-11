@@ -224,13 +224,13 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
           }, [currentUser, selectedDateStr, storeIds]);
 
   const StatItem = ({ icon: Icon, label, value, colorClass }) =>
-    <div className="flex items-center justify-between text-sm">
-      <div className="flex items-center gap-2">
-        <Icon className={`w-4 h-4 ${colorClass || 'text-slate-500'}`} />
-        <span className="text-slate-600 font-medium">{label}</span>
-      </div>
-      <Badge variant="secondary" className="inline-flex border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 bg-slate-100 text-slate-700 justify-center w-[55px] rounded-[10px]">{value}</Badge>
-    </div>;
+      <div className="flex items-center justify-between text-sm">
+        <div className="flex items-center gap-2">
+          <Icon className={`w-4 h-4 ${colorClass || 'text-slate-500'}`} />
+          <span className="font-medium" style={{ color: 'var(--text-slate-600)' }}>{label}</span>
+        </div>
+        <Badge variant="secondary" className="inline-flex border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 justify-center w-[55px] rounded-[10px]" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>{value}</Badge>
+      </div>;
 
   if (!currentUser) return null;
 
@@ -262,7 +262,7 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
   return (
     <div className="px-3 py-2 space-y-3">
       <div>
-        <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+        <h4 className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-slate-500)' }}>
           {isToday ? "Today's Stats:" : format(selectedDate, 'MMM dd, yyyy') + ':'}
         </h4>
         <div className="space-y-2">
@@ -281,7 +281,7 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
       </div>
 
       <div>
-        <h4 className="xs font-semibold text-slate-500 uppercase tracking-wider mb-2">{format(selectedDate, 'MMMM yyyy')}:</h4>
+        <h4 className="xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-slate-500)' }}>{format(selectedDate, 'MMMM yyyy')}:</h4>
         <div className="space-y-2">
           <StatItem icon={CheckCircle} label="Completed" value={stats.month.completed} colorClass="text-green-600" />
           {(stats.month.failed > 0 || stats.month.returns > 0) &&
@@ -2025,6 +2025,7 @@ export default function Layout({ children, currentPageName }) {
             --border-slate-200: #e2e8f0;
             --border-slate-300: #cbd5e1;
             --shadow-color: rgba(0, 0, 0, 0.1);
+            --image-filter: none;
           }
 
           /* Dark mode via class (explicit user selection) */
@@ -2044,6 +2045,7 @@ export default function Layout({ children, currentPageName }) {
             --border-slate-200: #475569;
             --border-slate-300: #334155;
             --shadow-color: rgba(255, 255, 255, 0.1);
+            --image-filter: invert(1) hue-rotate(180deg);
           }
 
           /* Auto mode - respect system preference */
@@ -2063,6 +2065,7 @@ export default function Layout({ children, currentPageName }) {
               --border-slate-200: #475569;
               --border-slate-300: #334155;
               --shadow-color: rgba(255, 255, 255, 0.1);
+              --image-filter: invert(1) hue-rotate(180deg);
             }
           }
 
@@ -2533,6 +2536,7 @@ export default function Layout({ children, currentPageName }) {
                         src="/app-logo.png"
                         alt="RxDeliver"
                         className="w-10 h-10 rounded object-contain"
+                        style={{ filter: 'var(--image-filter, none)' }}
                         onError={(e) => {
                           e.currentTarget.src = 'https://cdn-icons-png.flaticon.com/512/3843/3843479.png';
                           e.currentTarget.onerror = null;
@@ -2589,13 +2593,13 @@ export default function Layout({ children, currentPageName }) {
                                   <SelectTrigger className="w-full bg-white border-slate-300 h-9">
                                     <SelectValue placeholder="Select city..." />
                                   </SelectTrigger>
-                                  <SelectContent className="max-h-[300px] overflow-y-auto z-[10002]">
-                                    {cities.map((city) => (
-                                      <SelectItem key={city.id} value={city.id}>
-                                        {city.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
+                                  <SelectContent className="max-h-[300px] overflow-y-auto z-[10002]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                                          {cities.map((city) => (
+                                            <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
+                                              {city.name}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
                                 </Select>
                               </div>
                             )}
@@ -2632,41 +2636,59 @@ export default function Layout({ children, currentPageName }) {
                       <Link
                         to={createPageUrl('Patients')}
                         onClick={() => setSidebarOpen(false)}
-                        className={`${
+                        className={`mb-1 px-4 py-1 rounded-xl flex items-center gap-3 transition-all duration-200 ${
                           currentPageName === 'Patients' ?
-                            'bg-slate-100 text-slate-900 shadow-sm' :
-                            'text-slate-600 hover:bg-slate-50 hover:text-slate-900'} mb-1 px-4 py-1 rounded-xl flex items-center gap-3 transition-all duration-200`
-                        }>
+                            'shadow-sm' :
+                            'hover:opacity-80'}`
+                        }
+                        style={currentPageName === 'Patients' ? {
+                          background: 'var(--bg-slate-100)',
+                          color: 'var(--text-slate-900)'
+                        } : {
+                          color: 'var(--text-slate-600)'
+                        }}>
                         <Users className="w-5 h-5" />
                         <span className="font-semibold">Patients</span>
-                        <Badge variant="secondary" className="ml-auto bg-slate-200 text-slate-600 justify-center w-[45px] rounded-[10px]">{entityCounts.patients}</Badge>
-                      </Link>
-                    }
+                        <Badge variant="secondary" className="ml-auto justify-center w-[45px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{entityCounts.patients}</Badge>
+                        </Link>
+                        }
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                       <Link
                         to={getRouteNavigationUrl('Deliveries')}
                         onClick={() => setSidebarOpen(false)}
-                        className={`${
+                        className={`mb-1 px-4 py-1 rounded-xl flex items-center gap-3 transition-all duration-200 ${
                           currentPageName === 'Deliveries' ?
-                            'bg-slate-100 text-slate-900 shadow-sm' :
-                            'text-slate-600 hover:bg-slate-50 hover:text-slate-900'} mb-1 px-4 py-1 rounded-xl flex items-center gap-3 transition-all duration-200`
-                        }>
+                            'shadow-sm' :
+                            'hover:opacity-80'}`
+                        }
+                        style={currentPageName === 'Deliveries' ? {
+                          background: 'var(--bg-slate-100)',
+                          color: 'var(--text-slate-900)'
+                        } : {
+                          color: 'var(--text-slate-600)'
+                        }}>
                         <Package className="w-5 h-5" />
                         <span className="font-semibold">Routes</span>
-                        <Badge variant="secondary" className="ml-auto bg-slate-200 text-slate-600 justify-center w-[45px] rounded-[10px]">{totalRoutesCount}</Badge>
-                      </Link>
-                    }
+                        <Badge variant="secondary" className="ml-auto justify-center w-[45px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{totalRoutesCount}</Badge>
+                        </Link>
+                        }
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                       <Link
                         to={constructUrlWithParams(createPageUrl("DeliveryMetrics"))}
                         onClick={() => setSidebarOpen(false)}
-                        className={`${
+                        className={`mb-2 px-4 py-1 rounded-xl flex items-center gap-3 transition-all duration-200 ${
                           currentPageName === 'DeliveryMetrics' ?
-                            'bg-slate-100 text-slate-900 shadow-sm' :
-                            'text-slate-600 hover:bg-slate-50 hover:text-slate-900'} mb-2 px-4 py-1 rounded-xl flex items-center gap-3 transition-all duration-200`
-                        }>
+                            'shadow-sm' :
+                            'hover:opacity-80'}`
+                        }
+                        style={currentPageName === 'DeliveryMetrics' ? {
+                          background: 'var(--bg-slate-100)',
+                          color: 'var(--text-slate-900)'
+                        } : {
+                          color: 'var(--text-slate-600)'
+                        }}>
                         <BarChart3 className="w-5 h-5" />
                         <span className="font-semibold">Route Metrics</span>
                       </Link>
@@ -2675,8 +2697,8 @@ export default function Layout({ children, currentPageName }) {
 
                   {userHasRole(currentUser, 'admin') &&
                     <div className="mt-2">
-                      <div className="border-t border-slate-200 mb-2"></div>
-                      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 py-1">
+                      <div className="border-t mb-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
+                      <div className="text-xs font-semibold uppercase tracking-wider px-3 py-1" style={{ color: 'var(--text-slate-500)' }}>
                         Admin
                       </div>
                       <div className="space-y-1">
@@ -2685,24 +2707,30 @@ export default function Layout({ children, currentPageName }) {
                             key={item.title}
                             to={constructUrlWithParams(item.url)}
                             onClick={() => setSidebarOpen(false)}
-                            className={`${
+                            className={`my-1 px-4 py-1 rounded-xl flex items-center gap-3 transition-all duration-200 ${
                               currentPageName === item.pageName ?
-                                'bg-slate-100 text-slate-900 shadow-sm' :
-                                'text-slate-600 hover:bg-slate-50 hover:text-slate-900'} my-1 px-4 py-1 rounded-xl flex items-center gap-3 transition-all duration-200`
-                            }>
+                                'shadow-sm' :
+                                'hover:opacity-80'}`
+                            }
+                            style={currentPageName === item.pageName ? {
+                              background: 'var(--bg-slate-100)',
+                              color: 'var(--text-slate-900)'
+                            } : {
+                              color: 'var(--text-slate-600)'
+                            }}>
                             {item.icon && <item.icon className="w-5 h-5" />}
                             <span className="font-semibold">{item.title}</span>
-                            {item.count !== undefined && <Badge variant="secondary" className="ml-auto bg-slate-200 text-slate-600 justify-center w-[30px] rounded-[10px]">{item.count}</Badge>}
-                          </Link>
-                        )}
-                      </div>
-                    </div>
-                  }
+                            {item.count !== undefined && <Badge variant="secondary" className="ml-auto justify-center w-[30px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{item.count}</Badge>}
+                            </Link>
+                            )}
+                            </div>
+                            </div>
+                            }
 
                   {currentPageName === 'Dashboard' &&
                     <div className="mt-2">
-                      <div className="border-t border-slate-200 mb-2"></div>
-                      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 py-1">
+                      <div className="border-t mb-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
+                      <div className="text-xs font-semibold uppercase tracking-wider px-3 py-1" style={{ color: 'var(--text-slate-500)' }}>
                         Quick Stats
                       </div>
                       <QuickStats
@@ -2799,25 +2827,26 @@ export default function Layout({ children, currentPageName }) {
 
                       <div className="flex gap-2 mt-3">
                           <Button
-                          onClick={async () => {
-                            if (window.confirm('Are you sure you want to log out?')) {
-                              try {
-                                sessionStorage.clear();
-                                clearUserCache();
-                                clearSettingsCache();
-                                await User.logout();
-                                window.location.href = '/';
-                              } catch (error) {
-                                console.error('Logout failed:', error);
-                                sessionStorage.clear();
-                                localStorage.clear();
-                                window.location.href = '/';
-                              }
-                            }
-                          }}
-                          variant="outline"
-                          className="flex-1 gap-2 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
-                        >
+                              onClick={async () => {
+                                if (window.confirm('Are you sure you want to log out?')) {
+                                  try {
+                                    sessionStorage.clear();
+                                    clearUserCache();
+                                    clearSettingsCache();
+                                    await User.logout();
+                                    window.location.href = '/';
+                                  } catch (error) {
+                                    console.error('Logout failed:', error);
+                                    sessionStorage.clear();
+                                    localStorage.clear();
+                                    window.location.href = '/';
+                                  }
+                                }
+                              }}
+                              variant="outline"
+                              className="flex-1 gap-2 text-red-600 hover:bg-red-50 hover:text-red-700"
+                              style={{ borderColor: '#fecaca' }}
+                            >
                           <LogOut className="w-4 h-4" />
                           Log Out
                         </Button>
@@ -2930,6 +2959,7 @@ export default function Layout({ children, currentPageName }) {
                         src="/app-logo.png"
                         alt="RxDeliver"
                         className="w-8 h-8 rounded object-contain"
+                        style={{ filter: 'var(--image-filter, none)' }}
                         onError={(e) => {
                           e.currentTarget.src = 'https://cdn-icons-png.flaticon.com/512/3843/3843479.png';
                           e.currentTarget.onerror = null;

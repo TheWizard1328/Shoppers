@@ -5841,7 +5841,7 @@ function Dashboard() {
                       <span className="text-sm">{format(selectedDate, 'EEE MMM dd')}</span>
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 z-[10001]" align="end" style={{ pointerEvents: 'auto' }}>
+                  <PopoverContent className="w-auto p-0 z-[10001]" align="end" style={{ pointerEvents: 'auto', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                     <Calendar
                       mode="single"
                       selected={selectedDate}
@@ -5958,10 +5958,10 @@ function Dashboard() {
                       <SelectTrigger className="flex h-8 w-full items-center justify-between rounded-md border px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 flex-1" style={{ pointerEvents: 'auto', touchAction: 'manipulation', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
                         <SelectValue placeholder="All Drivers" />
                       </SelectTrigger>
-                      <SelectContent className="z-[10001]" style={{ pointerEvents: 'auto' }}>
-                        <SelectItem value="all">All Drivers</SelectItem>
+                      <SelectContent className="z-[10001]" style={{ pointerEvents: 'auto', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                        <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Drivers</SelectItem>
                         {driversList.map((driver) =>
-                      <SelectItem key={driver.id} value={driver.id}>
+                      <SelectItem key={driver.id} value={driver.id} style={{ color: 'var(--text-slate-900)' }}>
                             {driver.user_name || driver.full_name}
                           </SelectItem>
                       )}
