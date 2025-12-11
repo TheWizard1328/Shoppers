@@ -5436,10 +5436,28 @@ function Dashboard() {
       await refreshData();
       console.log('✅ [START STEP 6] Full data refresh complete');
 
-      // 7. Map view will be handled by FAB reactivation event
+      // 7. Scroll to first incomplete delivery
       console.log('');
-      console.log('📍 [START STEP 7] Skipping card scroll and map update (will be handled by FAB reactivation)');
-      console.log('   - FAB reactivation will handle: scroll to next card + map repositioning');
+      console.log('📍 [START STEP 7] Scrolling to first incomplete delivery...');
+      
+      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+      const incompleteDeliveries = deliveries
+        .filter(d => d && d.driver_id === driverId && d.delivery_date === deliveryDate && !finishedStatuses.includes(d.status))
+        .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+      
+      if (incompleteDeliveries.length > 0) {
+        const nextCard = incompleteDeliveries[0];
+        console.log(`📍 [START STEP 7] Scrolling to next delivery: ${nextCard.patient_name || 'Pickup'}`);
+        setTimeout(() => {
+          const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
+          if (cardElement) {
+            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            console.log(`✅ [START STEP 7] Centered card: ${nextCard.id}`);
+          }
+        }, 300);
+      } else {
+        console.log('⏭️ [START STEP 7] No incomplete deliveries to scroll to');
+      }
 
       // Check if route is complete
       console.log('');
