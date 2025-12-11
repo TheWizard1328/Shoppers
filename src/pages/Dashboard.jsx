@@ -5440,7 +5440,6 @@ function Dashboard() {
       console.log('');
       console.log('📍 [START STEP 7] Scrolling to first incomplete delivery...');
       
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
       const incompleteDeliveries = deliveries
         .filter(d => d && d.driver_id === driverId && d.delivery_date === deliveryDate && !finishedStatuses.includes(d.status))
         .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
