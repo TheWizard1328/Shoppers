@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
       console.warn('[ETA Updates] Failed to parse request body:', parseError);
     }
 
-    const { driverId, deliveryDate, currentStopId } = body;
+    const { driverId, deliveryDate, currentStopId, deviceTime } = body;
 
     if (!driverId || !deliveryDate) {
       console.error('[ETA Updates] Missing required parameters:', { driverId, deliveryDate });
@@ -91,14 +91,19 @@ Deno.serve(async (req) => {
     const stores = await base44.asServiceRole.entities.Store.filter({ id: { $in: storeIds } });
     const storeMap = new Map(stores.map(s => [s.id, s]));
 
-    // Determine starting location and time - ALWAYS use LOCAL TIME
+    // Determine starting location and time - ALWAYS use DEVICE TIME
     let startLat, startLon;
-    let startTimeMinutes; // Minutes since midnight in local time
+    let startTimeMinutes; // Minutes since midnight in device's local time
     
-    const now = new Date();
+    // CRITICAL: Use device time passed from frontend, fallback to server time
+    const now = deviceTime ? new Date(deviceTime) : new Date();
     const currentLocalHours = now.getHours();
     const currentLocalMinutes = now.getMinutes();
     const currentTotalMinutes = currentLocalHours * 60 + currentLocalMinutes;
+    
+    if (!deviceTime) {
+      console.warn('[ETA Updates] ⚠️ No deviceTime provided - falling back to server time (may be incorrect)');
+    }
 
     // Try current GPS location first (Rule 1a)
     if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
