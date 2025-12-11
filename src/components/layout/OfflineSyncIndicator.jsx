@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Database, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { subscribeSyncStatus, getSyncStats, forceSyncAll, processPendingMutations } from '@/components/utils/offlineSync';
+import { subscribeSyncStatus, getSyncStats, forceSyncAll } from '@/components/utils/offlineSync';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function OfflineSyncIndicator() {
@@ -32,29 +32,8 @@ export default function OfflineSyncIndicator() {
     try {
       setIsSyncing(true);
       await forceSyncAll();
-      const newStats = await getSyncStats();
-      setStats(newStats);
-      
-      // Trigger UI refresh after sync completes
-      window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
     } catch (error) {
       console.error('Force sync failed:', error);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  const handleSyncMutations = async () => {
-    try {
-      setIsSyncing(true);
-      await processPendingMutations();
-      const newStats = await getSyncStats();
-      setStats(newStats);
-      
-      // Trigger UI refresh after mutations synced
-      window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
-    } catch (error) {
-      console.error('Mutation sync failed:', error);
     } finally {
       setIsSyncing(false);
     }
@@ -143,31 +122,16 @@ export default function OfflineSyncIndicator() {
                   </>
                 )}
 
-                <div className="space-y-1">
-                  {stats?.pendingMutations > 0 && (
-                    <Button
-                      onClick={handleSyncMutations}
-                      disabled={isSyncing}
-                      size="sm"
-                      variant="outline"
-                      className="w-full text-xs"
-                    >
-                      <RefreshCw className={`w-3 h-3 mr-1 ${isSyncing ? 'animate-spin' : ''}`} />
-                      Sync Changes ({stats.pendingMutations})
-                    </Button>
-                  )}
-                  
-                  <Button
-                    onClick={handleForceSync}
-                    disabled={isSyncing}
-                    size="sm"
-                    variant="outline"
-                    className="w-full text-xs"
-                  >
-                    <RefreshCw className={`w-3 h-3 mr-1 ${isSyncing ? 'animate-spin' : ''}`} />
-                    {isSyncing ? 'Syncing...' : 'Force Sync'}
-                  </Button>
-                </div>
+                <Button
+                  onClick={handleForceSync}
+                  disabled={isSyncing}
+                  size="sm"
+                  variant="outline"
+                  className="w-full text-xs"
+                >
+                  <RefreshCw className={`w-3 h-3 mr-1 ${isSyncing ? 'animate-spin' : ''}`} />
+                  {isSyncing ? 'Syncing...' : 'Force Sync'}
+                </Button>
               </div>
             </motion.div>
           )}
