@@ -1643,43 +1643,29 @@ export default function DeliveryForm({
       return true;
     });
 
-    // CRITICAL: Separate into 3 groups:
+    // CRITICAL: Separate into 2 groups:
     // 1. New deliveries (no id) - create new
-    // 2. Pending deliveries (id + status=pending) - transition to pending (no-op, just remove from staged)
-    // 3. Updated deliveries (id + status!=pending) - update status
+    // 2. Existing deliveries (id) - update (includes both pending and status-changed)
     const newDeliveries = validStagedDeliveries.filter((staged) => !staged.id);
-    const pendingDeliveries = validStagedDeliveries.filter((staged) => staged.id && staged.status === 'pending');
-    const updatedDeliveries = validStagedDeliveries.filter((staged) => staged.id && staged.status !== 'pending');
+    const existingDeliveries = validStagedDeliveries.filter((staged) => staged.id);
 
-    console.log('[AddToRoute] 🔍 Total staged:', validStagedDeliveries.length, '| New:', newDeliveries.length, '| Pending (unchanged):', pendingDeliveries.length, '| Updated:', updatedDeliveries.length);
+    console.log('[AddToRoute] 🔍 Total staged:', validStagedDeliveries.length, '| New:', newDeliveries.length, '| Existing:', existingDeliveries.length);
     console.log('[AddToRoute] 🔍 New deliveries to save:', newDeliveries.map((s) => ({
       _tempId: s._tempId,
       patient_name: s.patient_name
     })));
-    console.log('[AddToRoute] 🔍 Updated deliveries to save:', updatedDeliveries.map((s) => ({
+    console.log('[AddToRoute] 🔍 Existing deliveries to save:', existingDeliveries.map((s) => ({
       id: s.id,
       patient_name: s.patient_name,
       status: s.status
     })));
 
-    if (newDeliveries.length === 0 && updatedDeliveries.length === 0) {
-      console.log('[AddToRoute] ℹ️ No new or updated deliveries to save');
-      
-      // CRITICAL: If there are pending deliveries, just clear staged and close form
-      // They are already in the database as pending - no action needed
-      if (pendingDeliveries.length > 0) {
-        console.log(`[AddToRoute] ✅ ${pendingDeliveries.length} pending deliveries remain in database (no changes)`);
-        setStagedDeliveries([]);
-        setProjectedDeliveries([]);
-        hasLoadedPending.current = false;
-        onCancel();
-        return;
-      }
-      
-      console.log('[AddToRoute] 🚪 Calling onCancel to close form...');
-      hasLoadedPending.current = false; // Reset flag to allow reload next time
+    if (newDeliveries.length === 0 && existingDeliveries.length === 0) {
+      console.log('[AddToRoute] ℹ️ No deliveries to save');
+      setStagedDeliveries([]);
+      setProjectedDeliveries([]);
+      hasLoadedPending.current = false;
       onCancel();
-      console.log('[AddToRoute] ✅ onCancel called');
       return;
     }
 
@@ -1888,9 +1874,9 @@ export default function DeliveryForm({
         console.log('[AddToRoute] ✅ Existing TR#s corrected');
       }
 
-      // Second, update pending deliveries that had status changes
-      if (updatedDeliveries.length > 0) {
-        console.log(`[AddToRoute] 📝 Updating ${updatedDeliveries.length} pending deliveries with status changes...`);
+      // Second, update existing deliveries (both pending and status-changed)
+      if (existingDeliveries.length > 0) {
+        console.log(`[AddToRoute] 📝 Updating ${existingDeliveries.length} existing deliveries...`);
 
         // Check if any deliveries are completed for this driver/date
         const hasCompletedDeliveries = allDeliveries?.some((d) =>
@@ -1900,11 +1886,11 @@ export default function DeliveryForm({
           d.status === 'completed'
         );
 
-        for (const updated of updatedDeliveries) {
+        for (const updated of existingDeliveries) {
           try {
             console.log(`[AddToRoute] 🔄 Updating delivery ${updated.id}: ${updated.patient_name}`);
-            console.log(`   - Old status: pending → New status: ${updated.status}`);
-            console.log(`   - Tracking Number: ${updated.tracking_number}`);
+            console.log(`   - Status: ${updated.status}`);
+            console.log(`   - Time window: ${updated.time_window_start} - ${updated.time_window_end}`);
 
             const updateData = {
               status: updated.status,
@@ -1926,18 +1912,14 @@ export default function DeliveryForm({
               fridge_item: updated.fridge_item || false,
               oversized: updated.oversized || false,
               no_charge: updated.no_charge || false,
-              extra_time: updated.extra_time || 0
+              extra_time: updated.extra_time || 0,
+              time_window_start: updated.time_window_start || '',
+              time_window_end: updated.time_window_end || ''
             };
-
-            // Only update time windows if patient has time_window_start
-            if (updated.time_window_start) {
-              updateData.time_window_start = updated.time_window_start;
-              updateData.time_window_end = updated.time_window_end || '';
-            }
 
             // CRITICAL: Use local update to ensure immediate UI sync and offline support
             await updateDeliveryLocal(updated.id, updateData);
-            console.log(`[AddToRoute] ✅ Updated pending delivery: ${updated.patient_name} → status: ${updated.status}`);
+            console.log(`[AddToRoute] ✅ Updated delivery: ${updated.patient_name}`);
           } catch (error) {
             // Skip deliveries that were deleted
             if (error.message?.includes('not found') || error.response?.status === 404) {
@@ -1949,7 +1931,7 @@ export default function DeliveryForm({
             throw new Error(errorMessage);
           }
         }
-        console.log('[AddToRoute] ✅ All pending deliveries updated');
+        console.log('[AddToRoute] ✅ All existing deliveries updated');
       }
 
       // Then save new deliveries OR trigger data refresh
@@ -1959,10 +1941,9 @@ export default function DeliveryForm({
         console.log('[AddToRoute] ✅ Batch save completed successfully');
       }
 
-      // CRITICAL: Always trigger data refresh to show updated status changes
-      if (updatedDeliveries.length > 0 && newDeliveries.length === 0) {
-        console.log('[AddToRoute] 🔄 Triggering data refresh for status updates...');
-        // Use invalidate and manual close instead of calling onSave with empty array
+      // CRITICAL: Always trigger data refresh if only updating existing deliveries
+      if (existingDeliveries.length > 0 && newDeliveries.length === 0) {
+        console.log('[AddToRoute] 🔄 Triggering data refresh for existing delivery updates...');
         const { invalidate } = await import('../utils/dataManager');
         invalidate('Delivery');
       }
