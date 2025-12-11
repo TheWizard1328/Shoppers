@@ -224,7 +224,7 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
   }, [currentUser, selectedDateStr, storeIds]);
 
   const StatItem = ({ icon: Icon, label, value, colorClass }) =>
-  <div className="py-1 flex items-center justify-between text-sm">
+  <div className="flex items-center justify-between text-sm">
         <div className="flex items-center gap-2">
           <Icon className={`w-4 h-4 ${colorClass || 'text-slate-500'}`} />
           <span className="font-medium" style={{ color: 'var(--text-slate-600)' }}>{label}</span>
@@ -260,12 +260,12 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
   }
 
   return (
-    <div className="px-3 py-2 space-y-3">
-      <div className="py-1">
+    <div className="px-3">
+      <div>
         <h4 className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-slate-500)' }}>
           {isToday ? "Today's Stats:" : format(selectedDate, 'MMM dd, yyyy') + ':'}
         </h4>
-        <div className="">
+        <div className="space-y-2">
           {!userHasRole(currentUser, 'driver') && <StatItem icon={Truck} label="Active Drivers" value={stats.today.activeDrivers} colorClass="text-blue-600" />}
           <StatItem icon={Package} label="Active Stops" value={stats.today.activeStops} colorClass="text-slate-600" />
           <StatItem icon={CheckCircle} label="Completed" value={stats.today.completed} colorClass="text-green-600" />
@@ -282,7 +282,7 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
 
       <div>
         <h4 className="xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-slate-500)' }}>{format(selectedDate, 'MMMM yyyy')}:</h4>
-        <div className="space-y-2">
+        <div className=" py-1">
           <StatItem icon={CheckCircle} label="Completed" value={stats.month.completed} colorClass="text-green-600" />
           {(stats.month.failed > 0 || stats.month.returns > 0) &&
           <StatItem
