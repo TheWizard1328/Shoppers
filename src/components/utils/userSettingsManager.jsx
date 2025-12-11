@@ -335,8 +335,8 @@ export async function saveSetting(userId, key, value) {
   }
   currentUserId = userId;
   
-  // Save to local cache for offline access
-  saveToLocalCache(userId, cachedSettings);
+  // Save to local persistent store (IndexedDB)
+  await saveToLocalPersistentStore(userId, deviceId, cachedSettings);
 
   // If offline, queue for later sync
   if (!offlineManager.getOnlineStatus()) {
@@ -407,8 +407,8 @@ export async function saveSetting(userId, key, value) {
     cachedSettings = { ...DEFAULT_SETTINGS, ...updatedSettings };
     currentUserId = userId;
     
-    // Update local cache
-    saveToLocalCache(userId, cachedSettings);
+    // Update local persistent store (IndexedDB)
+    await saveToLocalPersistentStore(userId, deviceId, cachedSettings);
 
     return cachedSettings;
 
@@ -454,8 +454,8 @@ export async function saveSettings(userId, settings) {
   }
   currentUserId = userId;
   
-  // Save to local cache for offline access
-  saveToLocalCache(userId, cachedSettings);
+  // Save to local persistent store (IndexedDB)
+  await saveToLocalPersistentStore(userId, deviceId, cachedSettings);
 
   // If offline, queue for later sync
   if (!offlineManager.getOnlineStatus()) {
