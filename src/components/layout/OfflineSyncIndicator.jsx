@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { subscribeSyncStatus, getSyncStats, forceSyncAll } from '@/components/utils/offlineSync';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function OfflineSyncIndicator({ embedded = false }) {
+export default function OfflineSyncIndicator({ embedded = false, inline = false }) {
   const [syncStatus, setSyncStatus] = useState({ status: 'idle' });
   const [stats, setStats] = useState(null);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -53,8 +53,8 @@ export default function OfflineSyncIndicator({ embedded = false }) {
     return <Database className={`w-4 h-4 ${getStatusColor()}`} />;
   };
 
-  // Embedded mode for stats card (mobile)
-  if (embedded) {
+  // Inline mode for stats card (mobile) or upper-left (desktop)
+  if (embedded || inline) {
     return (
       <div className="w-full">
         <button
