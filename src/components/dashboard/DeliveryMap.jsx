@@ -2577,14 +2577,17 @@ export default function DeliveryMap({
         .custom-popup .leaflet-popup-content-wrapper {
           padding: 6px;
           border-radius: 8px;
-          box-shadow: 0 3px 14px rgba(0,0,0,0.25);
+          box-shadow: 0 3px 14px var(--shadow-color);
+          background: var(--bg-white);
+          color: var(--text-slate-900);
         }
         .custom-popup .leaflet-popup-content {
           margin: 0;
           line-height: 1.3;
         }
         .custom-popup .leaflet-popup-tip {
-          box-shadow: 0 3px 14px rgba(0,0,0,0.25);
+          box-shadow: 0 3px 14px var(--shadow-color);
+          background: var(--bg-white);
         }
         .leaflet-popup-pane {
           z-index: 10010 !important;
@@ -2595,7 +2598,9 @@ export default function DeliveryMap({
         .route-popup .leaflet-popup-content-wrapper {
           padding: 4px 8px;
           border-radius: 6px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+          box-shadow: 0 2px 8px var(--shadow-color);
+          background: var(--bg-white);
+          color: var(--text-slate-900);
           z-index: 999999;
         }
         .route-popup .leaflet-popup-content {
@@ -2603,7 +2608,8 @@ export default function DeliveryMap({
           line-height: 1.2;
         }
         .route-popup .leaflet-popup-tip {
-          box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+          box-shadow: 0 2px 8px var(--shadow-color);
+          background: var(--bg-white);
         }
         
         @keyframes pulseHalo {
