@@ -726,21 +726,30 @@ export default function Layout({ children, currentPageName }) {
       const unsubscribeMutations = subscribeMutations(async (mutation) => {
         console.log('🔄 [Layout] Local mutation detected:', mutation);
 
-        // CRITICAL: Update UI state immediately from local database
+        // CRITICAL: Update UI state immediately from local database with proper deduplication
         if (mutation.entity === 'Patient') {
           try {
-            const freshPatients = await getData('Patient', null, null, false); // Read from IndexedDB cache
-            setPatients(freshPatients);
-            console.log('✅ [Layout] Patients state updated immediately from local mutation');
+            const freshPatients = await getData('Patient', null, null, false);
+            setPatients(prevPatients => {
+              const map = new Map();
+              prevPatients.forEach(p => p && map.set(p.id, p));
+              freshPatients.forEach(p => p && map.set(p.id, p)); // Fresh data overwrites
+              return Array.from(map.values());
+            });
+            console.log('✅ [Layout] Patients state updated and deduplicated from local mutation');
           } catch (error) {
             console.error('❌ [Layout] Error updating patients from local mutation:', error);
           }
         } else if (mutation.entity === 'Delivery') {
           try {
-            const selectedDateStr = globalFilters.getSelectedDate();
-            const freshDeliveries = await getData('Delivery', null, null, false); // Read from IndexedDB cache
-            setDeliveries(freshDeliveries);
-            console.log('✅ [Layout] Deliveries state updated immediately from local mutation');
+            const freshDeliveries = await getData('Delivery', null, null, false);
+            setDeliveries(prevDeliveries => {
+              const map = new Map();
+              prevDeliveries.forEach(d => d && map.set(d.id, d));
+              freshDeliveries.forEach(d => d && map.set(d.id, d)); // Fresh data overwrites
+              return Array.from(map.values());
+            });
+            console.log('✅ [Layout] Deliveries state updated and deduplicated from local mutation');
           } catch (error) {
             console.error('❌ [Layout] Error updating deliveries from local mutation:', error);
           }
