@@ -218,6 +218,11 @@ Deno.serve(async (req) => {
 
     // Call Google Directions API
     const GOOGLE_MAPS_API_KEY = Deno.env.get('GOOGLE_MAPS_API_KEY');
+    
+    if (!GOOGLE_MAPS_API_KEY) {
+      console.error('[ETA Updates] GOOGLE_MAPS_API_KEY not set');
+      return Response.json({ error: 'Google Maps API key not configured' }, { status: 500 });
+    }
 
     // Increment polyline generation count before API call
     const todayStr = deliveryDate; // Already in YYYY-MM-DD format
@@ -255,17 +260,44 @@ Deno.serve(async (req) => {
       directionsUrl += `&waypoints=${waypointsParam}`;
     }
 
-    const directionsResponse = await fetch(directionsUrl);
-    const directionsData = await directionsResponse.json();
+    let directionsData;
+    try {
+      const directionsResponse = await fetch(directionsUrl);
+      directionsData = await directionsResponse.json();
+      
+      if (!directionsResponse.ok) {
+        console.error('[ETA Updates] Google Directions API HTTP error:', directionsResponse.status);
+        return Response.json({ error: `Google Maps API returned ${directionsResponse.status}` }, { status: 500 });
+      }
+    } catch (fetchError) {
+      console.error('[ETA Updates] Error fetching from Google Directions API:', fetchError.message);
+      return Response.json({ error: 'Failed to connect to Google Maps API: ' + fetchError.message }, { status: 500 });
+    }
 
     if (directionsData.status !== 'OK') {
-      console.error('[ETA Updates] Google Directions API error:', directionsData.status);
-      return Response.json({ error: 'Failed to calculate route: ' + directionsData.status }, { status: 500 });
+      console.error('[ETA Updates] Google Directions API error:', directionsData.status, directionsData.error_message || '');
+      return Response.json({ 
+        error: `Failed to calculate route: ${directionsData.status}${directionsData.error_message ? ' - ' + directionsData.error_message : ''}` 
+      }, { status: 500 });
+    }
+    
+    if (!directionsData.routes || directionsData.routes.length === 0) {
+      console.error('[ETA Updates] No routes returned from Google Directions API');
+      return Response.json({ error: 'No routes found' }, { status: 500 });
     }
 
     // Calculate ETAs for each stop - CRITICAL: Use simple minute arithmetic from current local time
     const route = directionsData.routes[0];
     const legs = route.legs;
+    
+    if (!legs || legs.length === 0) {
+      console.error('[ETA Updates] No legs found in route');
+      return Response.json({ error: 'Invalid route data from Google Maps' }, { status: 500 });
+    }
+    
+    if (legs.length !== waypoints.length) {
+      console.warn(`[ETA Updates] Mismatch: ${legs.length} legs vs ${waypoints.length} waypoints`);
+    }
     
     // Start with current local time in minutes since midnight
     let cumulativeMinutes = startTimeMinutes;
@@ -282,6 +314,16 @@ Deno.serve(async (req) => {
     for (let i = 0; i < waypoints.length; i++) {
       const leg = legs[i];
       const waypoint = waypoints[i];
+      
+      if (!leg) {
+        console.error(`[ETA Updates] Missing leg data for waypoint ${i + 1}`);
+        continue;
+      }
+      
+      if (!leg.duration || typeof leg.duration.value !== 'number') {
+        console.error(`[ETA Updates] Invalid duration data for leg ${i + 1}:`, leg.duration);
+        continue;
+      }
 
       console.log('');
       console.log(`[ETA Updates] ─── Stop ${i + 1} ───`);
@@ -342,11 +384,17 @@ Deno.serve(async (req) => {
     console.log('[ETA Updates] ═══════════════════════════════════════');
 
     // Update deliveries in database (Rule 5)
-    for (const update of updatedDeliveries) {
-      await base44.asServiceRole.entities.Delivery.update(update.id, {
-        delivery_time_eta: update.delivery_time_eta
-      });
-    }
+    const updatePromises = updatedDeliveries.map(async (update) => {
+      try {
+        await base44.asServiceRole.entities.Delivery.update(update.id, {
+          delivery_time_eta: update.delivery_time_eta
+        });
+      } catch (updateError) {
+        console.error(`[ETA Updates] Failed to update delivery ${update.id}:`, updateError.message);
+      }
+    });
+    
+    await Promise.all(updatePromises);
 
     console.log(`✅ [ETA Updates] Updated ETAs for ${updatedDeliveries.length} deliveries`);
 
