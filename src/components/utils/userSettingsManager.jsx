@@ -6,6 +6,7 @@
 
 import { UserSettings } from '@/entities/UserSettings';
 import { offlineManager } from './offlineManager';
+import { getUserAgentInfo } from './deviceUtils';
 
 const DEVICE_ID_KEY = 'rxdeliver_device_id';
 const LOCAL_SETTINGS_KEY = 'rxdeliver_user_settings_cache';
@@ -118,7 +119,6 @@ export async function getDeviceId() {
  * CRITICAL: Check device type to set appropriate default theme
  */
 const getInitialDefaultSettings = () => {
-  const { getUserAgentInfo } = require('./deviceUtils');
   const { deviceType } = getUserAgentInfo();
   const isMobile = deviceType === 'Mobile';
   
@@ -273,7 +273,6 @@ export async function loadUserSettings(userId) {
     
     try {
       const now = new Date().toISOString();
-      const { getUserAgentInfo } = await import('./deviceUtils');
       const { deviceType } = getUserAgentInfo();
       const isMobile = deviceType === 'Mobile';
       
@@ -526,7 +525,6 @@ export async function saveSettings(userId, settings) {
     } else {
       // Create new record with created timestamp
       const now = new Date().toISOString();
-      const { getUserAgentInfo } = await import('./deviceUtils');
       const { deviceType } = getUserAgentInfo();
       const isMobile = deviceType === 'Mobile';
       
