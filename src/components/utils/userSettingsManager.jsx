@@ -117,7 +117,7 @@ export async function getDeviceId() {
  * Default settings values
  * CRITICAL: Check device type to set appropriate default theme
  */
-const getDefaultSettings = () => {
+const getInitialDefaultSettings = () => {
   const { getUserAgentInfo } = require('./deviceUtils');
   const { deviceType } = getUserAgentInfo();
   const isMobile = deviceType === 'Mobile';
@@ -135,7 +135,7 @@ const getDefaultSettings = () => {
   };
 };
 
-const DEFAULT_SETTINGS = getDefaultSettings();
+const DEFAULT_SETTINGS = getInitialDefaultSettings();
 
 /**
  * Save settings to local storage for offline access
