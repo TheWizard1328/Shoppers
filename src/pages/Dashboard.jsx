@@ -2167,7 +2167,8 @@ function Dashboard() {
 
         await base44.functions.invoke('etaOptimizer', {
           driverId: selectedDriverId,
-          deliveryDate: dateStr
+          deliveryDate: dateStr,
+          deviceTime: new Date().toISOString()
         });
 
         console.log('✅ [Dashboard] Periodic ETA optimizer completed');
@@ -2956,7 +2957,8 @@ function Dashboard() {
             await base44.functions.invoke('etaOptimizer', {
               driverId: driverId,
               deliveryDate: deliveryDate,
-              triggerFullRecalculation: true
+              triggerFullRecalculation: true,
+              deviceTime: new Date().toISOString()
             });
             console.log('✅ [AddToRoute] Full ETA recalculation completed');
           } catch (etaError) {
@@ -3369,7 +3371,8 @@ function Dashboard() {
           try {
             await base44.functions.invoke('etaOptimizer', {
               driverId: driverId,
-              deliveryDate: deliveryDate
+              deliveryDate: deliveryDate,
+              deviceTime: new Date().toISOString()
             });
             console.log('✅ [AddToRoute] ETA recalculation completed with driver location');
           } catch (etaError) {
@@ -4889,7 +4892,8 @@ function Dashboard() {
           await base44.functions.invoke('etaOptimizer', {
             driverId: driverId,
             deliveryDate: deliveryDate,
-            triggerFullRecalculation: true
+            triggerFullRecalculation: true,
+            deviceTime: new Date().toISOString()
           });
           console.log('✅ [DELETE] Full ETA recalculation completed');
         } catch (etaError) {
@@ -5177,7 +5181,8 @@ function Dashboard() {
           await base44.functions.invoke('etaOptimizer', {
             driverId: targetDelivery.driver_id,
             deliveryDate: deliveryDate,
-            triggerFullRecalculation: false
+            triggerFullRecalculation: false,
+            deviceTime: new Date().toISOString()
           });
           console.log('✅ [STATUS UPDATE] ETAs updated for subsequent stops');
         } catch (etaError) {
@@ -5446,7 +5451,8 @@ function Dashboard() {
       try {
         await base44.functions.invoke('etaOptimizer', {
           driverId: driverId,
-          deliveryDate: deliveryDate
+          deliveryDate: deliveryDate,
+          deviceTime: new Date().toISOString()
         });
         console.log('✅ [START STEP 4] Full ETA recalculation completed - all stop ETAs updated');
       } catch (etaError) {
@@ -5749,7 +5755,8 @@ function Dashboard() {
                     try {
                       await base44.functions.invoke('etaOptimizer', {
                         driverId: activeDriverId,
-                        deliveryDate: selectedDateStr
+                        deliveryDate: selectedDateStr,
+                        deviceTime: new Date().toISOString()
                       });
                       console.log(`   ✅ ETAs updated for active driver`);
                     } catch (etaError) {
