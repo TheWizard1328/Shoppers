@@ -1698,7 +1698,7 @@ function Dashboard() {
               bounds,
               options: {
                 paddingTopLeft: isMobile ? [50, StatsCardHeight - 120] : [50, 50],
-                paddingBottomRight: [50, StopCardsHeight - 150],
+                paddingBottomRight: [50, StopCardsHeight - 250],
                 maxZoom: 12,
                 animate: false
               }
