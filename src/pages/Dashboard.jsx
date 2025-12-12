@@ -339,7 +339,7 @@ function Dashboard() {
   const getMapPadding = useCallback((cardExpanded = false) => {
     const topPadding = isMobile 
       ? (isExpanded ? STATS_CARD_EXTENDED_HEIGHT : STATS_CARD_BASE_HEIGHT - 0) 
-      : 25;
+      : 10;
     const bottomPadding = cardExpanded 
       ? STOP_CARDS_EXPANDED_HEIGHT 
       : STOP_CARDS_BASE_HEIGHT + 25;
