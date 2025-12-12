@@ -338,11 +338,11 @@ function Dashboard() {
   // Computed padding values for consistent map bounds
   const getMapPadding = useCallback((cardExpanded = false) => {
     const topPadding = isMobile 
-      ? (isExpanded ? STATS_CARD_EXTENDED_HEIGHT : STATS_CARD_BASE_HEIGHT - 0) 
+      ? (isExpanded ? STATS_CARD_EXTENDED_HEIGHT : STATS_CARD_BASE_HEIGHT + 15) 
       : 15;
     const bottomPadding = cardExpanded 
       ? STOP_CARDS_EXPANDED_HEIGHT 
-      : STOP_CARDS_BASE_HEIGHT + 25;
+      : STOP_CARDS_BASE_HEIGHT + 250;
     return {
       paddingTopLeft: [50, topPadding],
       paddingBottomRight: [50, bottomPadding]
