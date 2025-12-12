@@ -306,6 +306,7 @@ function Dashboard() {
   const [driverRoutes, setDriverRoutes] = useState([]);
   const proximityLockedMarkersRef = useRef(new Set()); // Track which markers have been proximity-locked
   const lastProximitySnapTimeRef = useRef(0); // Timestamp of last proximity snap
+  const lastUserInteractionRef = useRef(0); // Timestamp of last user interaction (map/card)
 
   const [dailyPolylineCount, setDailyPolylineCount] = useState(null);
   const [highlightedCardId, setHighlightedCardId] = useState(null);
@@ -877,9 +878,9 @@ function Dashboard() {
     console.log('🔓 [Map Interaction] Unlocking FAB immediately');
     setIsMapViewLocked(false);
 
-    // CRITICAL: Reset proximity snap timer when user manually interacts with map
-    console.log('🔓 [Map Interaction] Resetting proximity snap timer');
-    lastProximitySnapTimeRef.current = 0;
+    // CRITICAL: Disable proximity snap for 5 minutes after ANY user interaction
+    console.log('🔓 [Map Interaction] Disabling proximity snap for 5 minutes');
+    lastUserInteractionRef.current = Date.now();
   }, []);
 
   // NOTE: Removed auto-fit bounds effect that was causing map to re-center unexpectedly
@@ -1089,14 +1090,19 @@ function Dashboard() {
           setDriverLocation(newLocation);
 
           // CRITICAL: Auto-zoom when within 100m of in_transit/en_route stop (mobile + not phase 2)
-          // Only trigger if card is NOT already centered on screen
+          // Only trigger if user has been idle AND card is NOT already centered
           if (isMobile && mapViewPhase !== 2 && newLocation.latitude && newLocation.longitude) {
-            // Check if 60 seconds have passed since last snap
             const now = Date.now();
+            
+            // Check if 5 minutes have passed since last user interaction (map/card)
+            const timeSinceUserInteraction = now - lastUserInteractionRef.current;
+            const interactionCooldown = 300000; // 5 minutes
+            
+            // Also check 60 seconds since last auto-snap
             const timeSinceLastSnap = now - lastProximitySnapTimeRef.current;
             const snapCooldown = 60000; // 60 seconds
 
-            if (timeSinceLastSnap >= snapCooldown) {
+            if (timeSinceUserInteraction >= interactionCooldown && timeSinceLastSnap >= snapCooldown) {
               const activeStatuses = ['in_transit', 'en_route'];
               const activeDeliveries = deliveriesWithStopOrder.filter((d) =>
               d && activeStatuses.includes(d.status)
@@ -1182,8 +1188,13 @@ function Dashboard() {
                 }
               }
             } else {
-              const remainingSeconds = Math.ceil((snapCooldown - timeSinceLastSnap) / 1000);
-              console.log(`⏸️ [Proximity] Snap cooldown active - ${remainingSeconds}s remaining`);
+              if (timeSinceUserInteraction < interactionCooldown) {
+                const remainingMinutes = Math.ceil((interactionCooldown - timeSinceUserInteraction) / 60000);
+                console.log(`⏸️ [Proximity] User interaction cooldown - ${remainingMinutes}m remaining (prevents aggressive snapping)`);
+              } else {
+                const remainingSeconds = Math.ceil((snapCooldown - timeSinceLastSnap) / 1000);
+                console.log(`⏸️ [Proximity] Snap cooldown active - ${remainingSeconds}s remaining`);
+              }
             }
           }
         },
@@ -2545,6 +2556,9 @@ function Dashboard() {
     mapLockExpiresAtRef.current = null;
     setIsMapViewLocked(false);
 
+    // CRITICAL: Disable proximity snap for 5 minutes after marker click
+    lastUserInteractionRef.current = Date.now();
+
     const cardElement = document.getElementById(`stop-card-${delivery.id}`);
     if (cardElement) {
       cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
@@ -2555,6 +2569,9 @@ function Dashboard() {
     if (!delivery || !delivery.id) {
       return;
     }
+
+    // CRITICAL: Disable proximity snap for 5 minutes when card is clicked
+    lastUserInteractionRef.current = Date.now();
 
     if (selectedCardId === delivery.id) {
       // Card is being collapsed - restore previous map state and reactivate FAB phase
@@ -6028,6 +6045,10 @@ function Dashboard() {
             style={isMobile ? { scrollSnapType: 'x mandatory' } : {}}
             onWheel={(e) => {
               e.currentTarget.scrollLeft += e.deltaY;
+            }}
+            onTouchStart={() => {
+              // Disable proximity snap when user starts scrolling cards
+              lastUserInteractionRef.current = Date.now();
             }}
             onScroll={(e) => {
               if (!isMobile) return;
