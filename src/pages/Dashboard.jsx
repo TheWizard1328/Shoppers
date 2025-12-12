@@ -299,11 +299,24 @@ function Dashboard() {
 
   const STOP_CARDS_EXPANDED_HEIGHT = 450; // Expanded card height for map padding
   const STOP_CARDS_BASE_HEIGHT = 145; // Fixed non-expanded height for map padding
-  const StopCardsHeight = STOP_CARDS_BASE_HEIGHT;
-
+  
   const STATS_CARD_BASE_HEIGHT = 116; // Fixed non-expanded height for map padding
-  const STATS_CARD_EXTENDED_HEIGHT = 216; // Fixed non-expanded height for map padding
-  const StatsCardHeight = STATS_CARD_BASE_HEIGHT;
+  const STATS_CARD_EXTENDED_HEIGHT = 216; // Extended height when expanded
+  
+  // Computed padding values for consistent map bounds
+  const getMapPadding = useCallback((cardExpanded = false) => {
+    const topPadding = isMobile 
+      ? (isExpanded ? STATS_CARD_EXTENDED_HEIGHT + 10 : STATS_CARD_BASE_HEIGHT + 10) 
+      : 50;
+    const bottomPadding = cardExpanded 
+      ? STOP_CARDS_EXPANDED_HEIGHT + 100 
+      : STOP_CARDS_BASE_HEIGHT + 50;
+    
+    return {
+      paddingTopLeft: [50, topPadding],
+      paddingBottomRight: [50, bottomPadding]
+    };
+  }, [isMobile, isExpanded]);
 
   const mapLockTimeoutRef = useRef(null);
   const mapLockExpiresAtRef = useRef(null); // Timestamp when lock should expire
@@ -1141,11 +1154,11 @@ function Dashboard() {
                     lastProximitySnapTimeRef.current = Date.now();
 
                     // Center map on the nearby marker
+                    const padding = getMapPadding(false);
                     setShouldFitBounds({
                       bounds: [[stopLat, stopLon]],
                       options: {
-                        paddingTopLeft: isMobile ? [50, StatsCardHeight] : [50, 50],
-                        paddingBottomRight: [50, StopCardsHeight],
+                        ...padding,
                         maxZoom: 17
                       }
                     });
@@ -1695,11 +1708,11 @@ function Dashboard() {
             [closestCity.latitude + latOffset, closestCity.longitude + lonOffset]];
 
 
+            const padding = getMapPadding(false);
             setShouldFitBounds({
               bounds,
               options: {
-                paddingTopLeft: isMobile ? [50, StatsCardHeight] : [50, 50],
-                paddingBottomRight: [50, StopCardsHeight],
+                ...padding,
                 maxZoom: 12,
                 animate: false
               }
@@ -1713,12 +1726,12 @@ function Dashboard() {
           console.log('🗺️ [FAB Click] Phase 1 - Drivers but no stops, centering on drivers + city center');
           allCoordinates.push([currentCity.latitude, currentCity.longitude]);
           console.log('  [FAB Click] Total coordinates:', allCoordinates.length);
-          console.log('  [FAB Click] Bottom padding:', StopCardsHeight);
+          console.log('  [FAB Click] Bottom padding:', STOP_CARDS_BASE_HEIGHT + 50);
+          const padding = getMapPadding(false);
           setShouldFitBounds({
             bounds: allCoordinates,
             options: {
-              paddingTopLeft: isMobile ? [50, StatsCardHeight] : [50, 50],
-              paddingBottomRight: [50, 50],
+              ...padding,
               maxZoom: 14
             }
           });
@@ -1764,11 +1777,12 @@ function Dashboard() {
 
           console.log(`  [FAB Click] Span: ${(maxSpan * 111).toFixed(1)}km, maxZoom: ${phase1MaxZoom}`);
 
+          const padding = getMapPadding(false);
+          console.log(`  [FAB Click] Padding:`, padding);
           setShouldFitBounds({
             bounds: allCoordinates,
             options: {
-              paddingTopLeft: isMobile ? [50, StatsCardHeight] : [50, 50],
-              paddingBottomRight: [50, StopCardsHeight],
+              ...padding,
               maxZoom: phase1MaxZoom
             }
           });
@@ -1810,23 +1824,16 @@ function Dashboard() {
             }
           }
 
-          // Calculate visual center offset: add extra padding to shift view UP to account for stop cards
-          // This way the actual driver+stop midpoint is centered in the VISIBLE map area (above stop cards)
-          // Increased multiplier from 1.0 to 1.5 for more aggressive upward shift
-          const visualCenterOffset = Math.round(StopCardsHeight);
-          const bottomPadding = StopCardsHeight + visualCenterOffset;
-
           console.log('🗺️ [FAB Click] Phase 2 - Fitting bounds to driver + next stop');
           console.log('  [FAB Click] Driver:', [driverLocation.latitude, driverLocation.longitude]);
           console.log('  [FAB Click] Next Stop:', [nextStopCoordinates.lat, nextStopCoordinates.lon]);
-          console.log('  [FAB Click] Stop cards height:', StopCardsHeight);
-          console.log('  [FAB Click] Visual center offset:', visualCenterOffset);
-          console.log('  [FAB Click] Bottom padding:', bottomPadding);
+
+          const padding = getMapPadding(false);
+          console.log('  [FAB Click] Padding:', padding);
           setShouldFitBounds({
             bounds,
             options: {
-              paddingTopLeft: isMobile ? [50, StatsCardHeight] : [50, 50],
-              paddingBottomRight: [50, StopCardsHeight],
+              ...padding,
               maxZoom: 17
             }
           });
@@ -1853,14 +1860,14 @@ function Dashboard() {
         console.log('🗺️ [FAB Click] Phase 3 - Centering on driver location');
         console.log('  [FAB Click] Center:', [driverLocation.latitude, driverLocation.longitude]);
         console.log('  [FAB Click] Zoom: 15');
-        console.log('  [FAB Click] Bottom padding:', StopCardsHeight);
 
         // Use fitBounds with driver location to apply bottom padding
+        const padding = getMapPadding(false);
+        console.log('  [FAB Click] Padding:', padding);
         setShouldFitBounds({
           bounds: [[driverLocation.latitude, driverLocation.longitude]],
           options: {
-            paddingTopLeft: isMobile ? [50, StatsCardHeight - 120] : [50, 50],
-            paddingBottomRight: [50, StopCardsHeight],
+            ...padding,
             maxZoom: 15,
             animate: false
           }
@@ -2093,15 +2100,11 @@ function Dashboard() {
           }
         }
 
-        // Same increased padding as FAB click for phase 2 continuous updates
-        const visualCenterOffset = Math.round(StopCardsHeight);
-        const bottomPadding = StopCardsHeight + visualCenterOffset;
-
+        const padding = getMapPadding(false);
         setShouldFitBounds({
           bounds,
           options: {
-            paddingTopLeft: isMobile ? [50, StatsCardHeight] : [50, 50],
-            paddingBottomRight: [50, StopCardsHeight],
+            ...padding,
             maxZoom: 17
           }
         });
@@ -2241,14 +2244,14 @@ function Dashboard() {
       }, 300);
 
       // Center map on this delivery using fitBounds for bottom padding
+      const padding = getMapPadding(false);
       if (nextDelivery.patient_id) {
         const patient = patients.find((p) => p && p.id === nextDelivery.patient_id);
         if (patient?.latitude && patient?.longitude) {
           setShouldFitBounds({
             bounds: [[patient.latitude, patient.longitude]],
             options: {
-              paddingTopLeft: isMobile ? [50, StatsCardHeight] : [50, 50],
-              paddingBottomRight: [50, StopCardsHeight],
+              ...padding,
               maxZoom: 15
             }
           });
@@ -2261,8 +2264,7 @@ function Dashboard() {
           setShouldFitBounds({
             bounds: [[store.latitude, store.longitude]],
             options: {
-              paddingTopLeft: isMobile ? [50, StatsCardHeight] : [50, 50],
-              paddingBottomRight: [50, StopCardsHeight],
+              ...padding,
               maxZoom: 15
             }
           });
@@ -2657,8 +2659,7 @@ function Dashboard() {
       setIsMapViewLocked(false);
 
       // CRITICAL: Use expanded height for padding calculation
-      const visualCenterOffset = Math.round(STOP_CARDS_EXPANDED_HEIGHT);
-      const bottomPadding = STOP_CARDS_EXPANDED_HEIGHT + visualCenterOffset;
+      const expandedPadding = getMapPadding(true);
 
       if (delivery.patient_id) {
         // Patient delivery - center on patient marker only (not store)
@@ -2667,8 +2668,7 @@ function Dashboard() {
           setShouldFitBounds({
             bounds: [[patient.latitude, patient.longitude]],
             options: {
-              paddingTopLeft: [50, 50],
-              paddingBottomRight: [50, bottomPadding],
+              ...expandedPadding,
               maxZoom: 16
             }
           });
@@ -2683,8 +2683,7 @@ function Dashboard() {
           setShouldFitBounds({
             bounds: [[store.latitude, store.longitude]],
             options: {
-              paddingTopLeft: [50, 50],
-              paddingBottomRight: [50, bottomPadding],
+              ...expandedPadding,
               maxZoom: 16
             }
           });
