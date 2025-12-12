@@ -1746,7 +1746,7 @@ function Dashboard() {
           // Dynamic zoom calculation based on geographic spread and screen size
           // Convert degrees to km (1 degree ≈ 111km) and use logarithmic scale
           // Mobile needs tighter zoom (higher numbers), desktop can zoom out more (lower numbers)
-          const spanKm = maxSpan * 111;
+          const spanKm = maxSpan * 111.0;
           const baseZoom = 16 - Math.log2(spanKm + 1) * 1.5;
           const screenAdjustment = isMobile ? 0.5 : -0.5; // Mobile +0.5 zoom, Desktop -0.5 zoom
           const phase1MaxZoom = Math.max(10, Math.min(15, Math.round((baseZoom + screenAdjustment) * 10) / 10));
