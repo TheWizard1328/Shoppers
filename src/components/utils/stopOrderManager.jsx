@@ -44,7 +44,15 @@ export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate) => 
     if (isAPending && !isBPending) return 1;
     if (!isAPending && isBPending) return -1;
 
-    // Among non-pending incomplete, sort by stop_order
+    // Among non-pending incomplete, sort by ETA (then stop_order as fallback)
+    const etaA = a.delivery_time_eta || a.delivery_time_start || '99:99';
+    const etaB = b.delivery_time_eta || b.delivery_time_start || '99:99';
+    
+    if (etaA !== etaB) {
+      return etaA.localeCompare(etaB);
+    }
+    
+    // If ETAs are equal, use stop_order as tiebreaker
     return (a.stop_order || 999) - (b.stop_order || 999);
   });
 
