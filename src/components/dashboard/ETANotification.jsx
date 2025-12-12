@@ -26,13 +26,18 @@ export default function ETANotification({
       const previousETA = previousETAs.get(delivery.id);
 
       if (previousETA && previousETA !== currentETA) {
-        // Calculate time difference in minutes
+        // Calculate time difference in minutes using local device time
+        const today = new Date();
+        const dateStr = today.toISOString().split('T')[0];
+        
         const [prevHours, prevMinutes] = previousETA.split(':').map(Number);
         const [currHours, currMinutes] = currentETA.split(':').map(Number);
         
-        const prevTotalMinutes = prevHours * 60 + prevMinutes;
-        const currTotalMinutes = currHours * 60 + currMinutes;
-        const diffMinutes = currTotalMinutes - prevTotalMinutes;
+        // Create Date objects in local time
+        const prevDate = new Date(dateStr + 'T' + previousETA + ':00');
+        const currDate = new Date(dateStr + 'T' + currentETA + ':00');
+        
+        const diffMinutes = Math.round((currDate - prevDate) / (1000 * 60));
 
         // Only notify for changes > 5 minutes
         if (Math.abs(diffMinutes) >= 5) {
