@@ -1879,7 +1879,7 @@ function Dashboard() {
       default:
         break;
     }
-  }, [mapViewPhase, driverLocation, nextStopCoordinates, deliveriesWithStopOrder, patients, stores, isDriver, STOP_CARDS_BASE_HEIGHT, mapViewTrigger, isDispatcher, StopCardsHeight, currentUser]);
+  }, [mapViewPhase, driverLocation, nextStopCoordinates, deliveriesWithStopOrder, patients, stores, isDriver, STOP_CARDS_BASE_HEIGHT, mapViewTrigger, isDispatcher, currentUser, getMapPadding]);
 
   // Apply initial map view on first load - WAIT for deliveries to be loaded
   useEffect(() => {
@@ -1998,7 +1998,7 @@ function Dashboard() {
         }, 300);
       }
     }
-  }, [isDataLoaded, userSettingsLoaded, deliveriesWithStopOrder.length, initialMapViewApplied, isDriver, driverLocation, StopCardsHeight]);
+  }, [isDataLoaded, userSettingsLoaded, deliveriesWithStopOrder.length, initialMapViewApplied, isDriver, driverLocation, getMapPadding]);
 
   // CRITICAL: Dedicated effect to scroll to next delivery card on initial load
   // This runs AFTER cards are rendered and handles ALL phases
@@ -2122,7 +2122,7 @@ function Dashboard() {
     return () => {
       setOnSmartRefreshComplete(null);
     };
-  }, [setOnSmartRefreshComplete, mapViewPhase, isDriver, driverLocation, nextStopCoordinates, StopCardsHeight, currentUser]);
+  }, [setOnSmartRefreshComplete, mapViewPhase, isDriver, driverLocation, nextStopCoordinates, currentUser, getMapPadding]);
 
   // Auto-center on next stop on initial load
   const hasAutoSelectedRef = useRef(false);
@@ -2275,7 +2275,7 @@ function Dashboard() {
 
       hasAutoSelectedRef.current = true;
     }
-  }, [isDataLoaded, deliveriesWithStopOrder, isLoadingUser, patients, stores, initialMapViewApplied, StopCardsHeight]);
+  }, [isDataLoaded, deliveriesWithStopOrder, isLoadingUser, patients, stores, initialMapViewApplied, getMapPadding]);
 
   // PHASE 4: Apply driver selection AFTER data is loaded
   // Only for pure drivers who MUST see their own route (override settings)
