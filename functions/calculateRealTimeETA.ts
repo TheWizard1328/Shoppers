@@ -94,62 +94,76 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Calculate cumulative ETAs
+    // Calculate cumulative ETAs with optimized API usage
     const googleMapsKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
     const etaUpdates = [];
-    let currentLocation = driverLocation;
-    let cumulativeMinutes = 0;
     let apiCallCount = 0;
 
+    // Build waypoints for single API call
+    const stops = [];
     for (const delivery of sortedDeliveries) {
-      // Determine destination coordinates
+      if (delivery.status === 'completed') continue;
+
       let destLat, destLng;
-      
       if (delivery.puid) {
-        // This is a pickup - use store coordinates
         const store = storeMap.get(delivery.store_id);
         if (!store || !store.latitude || !store.longitude) continue;
         destLat = store.latitude;
         destLng = store.longitude;
       } else {
-        // This is a delivery - use patient coordinates
         const patient = patientMap.get(delivery.patient_id);
         if (!patient || !patient.latitude || !patient.longitude) continue;
         destLat = patient.latitude;
         destLng = patient.longitude;
       }
 
-      // Skip if already completed
-      if (delivery.status === 'completed') continue;
+      stops.push({
+        delivery,
+        lat: destLat,
+        lng: destLng
+      });
+    }
 
-      // Call Google Directions API for traffic-aware ETA
-      try {
-        const directionsUrl = `https://maps.googleapis.com/maps/api/directions/json?` +
-          `origin=${currentLocation.lat},${currentLocation.lng}&` +
-          `destination=${destLat},${destLng}&` +
-          `departure_time=now&` +
-          `traffic_model=best_guess&` +
-          `key=${googleMapsKey}`;
+    if (stops.length === 0) {
+      return Response.json({ message: 'No incomplete stops found', etas: [] });
+    }
 
-        const directionsResponse = await fetch(directionsUrl);
-        const directionsData = await directionsResponse.json();
-        
-        // Increment API call counter
-        apiCallCount++;
+    // Build single API call with waypoints
+    try {
+      const waypoints = stops.slice(1, -1).map(s => `${s.lat},${s.lng}`).join('|');
+      const destination = stops[stops.length - 1];
 
-        if (directionsData.status === 'OK' && directionsData.routes?.[0]) {
-          const route = directionsData.routes[0];
-          const leg = route.legs[0];
-          
-          // Get duration in traffic (in seconds)
+      let directionsUrl = `https://maps.googleapis.com/maps/api/directions/json?` +
+        `origin=${driverLocation.lat},${driverLocation.lng}&` +
+        `destination=${destination.lat},${destination.lng}&` +
+        `departure_time=now&` +
+        `traffic_model=best_guess&` +
+        `key=${googleMapsKey}`;
+
+      if (waypoints) {
+        directionsUrl += `&waypoints=${waypoints}`;
+      }
+
+      const directionsResponse = await fetch(directionsUrl);
+      const directionsData = await directionsResponse.json();
+      apiCallCount++;
+
+      if (directionsData.status === 'OK' && directionsData.routes?.[0]) {
+        const route = directionsData.routes[0];
+        let cumulativeMinutes = 0;
+
+        // Process each leg
+        for (let i = 0; i < route.legs.length; i++) {
+          const leg = route.legs[i];
+          const stop = stops[i];
+          const delivery = stop.delivery;
+
           const durationSeconds = leg.duration_in_traffic?.value || leg.duration?.value || 0;
           const durationMinutes = Math.ceil(durationSeconds / 60);
-
-          // Add service time (5 minutes per stop)
           const serviceTime = delivery.extra_time || 5;
           cumulativeMinutes += durationMinutes + serviceTime;
 
-          // Calculate ETA in device's local time by adding cumulative minutes to current local time
+          // Calculate ETA in device's local time
           const etaTotalMinutes = currentTotalMinutes + cumulativeMinutes;
           const etaHours = Math.floor(etaTotalMinutes / 60) % 24;
           const etaMinutes = etaTotalMinutes % 60;
@@ -173,13 +187,10 @@ Deno.serve(async (req) => {
               delivery_time_eta: etaString
             });
           }
-
-          // Move current location to this stop
-          currentLocation = { lat: destLat, lng: destLng };
         }
-      } catch (error) {
-        console.error(`Error calculating ETA for delivery ${delivery.id}:`, error);
       }
+    } catch (error) {
+      console.error('Error calculating ETAs:', error);
     }
 
     // Update polyline counter with total API calls made
