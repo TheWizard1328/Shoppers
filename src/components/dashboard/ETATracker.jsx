@@ -44,9 +44,14 @@ export default function ETATracker({
 
     const updateETAs = async () => {
       try {
+        // Get device's current local time to use as reference
+        const now = new Date();
+        const currentLocalTime = now.toTimeString().slice(0, 5); // HH:mm in device's local timezone
+
         const response = await base44.functions.invoke('calculateRealTimeETA', {
           driverId: selectedDriverId,
-          deliveryDate: selectedDate
+          deliveryDate: selectedDate,
+          currentLocalTime: currentLocalTime
         });
 
         const data = response?.data || response;

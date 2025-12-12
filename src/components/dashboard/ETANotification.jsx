@@ -6,7 +6,7 @@ import { format } from 'date-fns';
 /**
  * Real-time ETA notification system
  * Monitors ETA changes and alerts users about significant delays or improvements
- * Now handles UTC ISO strings and displays in local time
+ * Works with local time strings (HH:mm) - no timezone conversion needed
  */
 export default function ETANotification({ 
   deliveries = [], 
@@ -28,12 +28,15 @@ export default function ETANotification({
 
       if (previousETA && previousETA !== currentETA) {
         try {
-          // Parse ISO strings as Date objects
-          const prevDate = new Date(previousETA);
-          const currDate = new Date(currentETA);
+          // Parse HH:mm time strings
+          const [prevHours, prevMinutes] = previousETA.split(':').map(Number);
+          const [currHours, currMinutes] = currentETA.split(':').map(Number);
           
-          // Calculate time difference in minutes
-          const diffMinutes = Math.round((currDate.getTime() - prevDate.getTime()) / (1000 * 60));
+          // Convert to total minutes for comparison
+          const prevTotalMinutes = prevHours * 60 + prevMinutes;
+          const currTotalMinutes = currHours * 60 + currMinutes;
+          
+          const diffMinutes = currTotalMinutes - prevTotalMinutes;
 
           // Only notify for changes > 5 minutes
           if (Math.abs(diffMinutes) >= 5) {
@@ -56,7 +59,7 @@ export default function ETANotification({
             }, 8000);
           }
         } catch (error) {
-          console.error('Error parsing ETA dates:', error);
+          console.error('Error parsing ETA times:', error);
         }
       }
 
@@ -68,10 +71,6 @@ export default function ETANotification({
   if (!notification) return null;
 
   const { isDelay, diffMinutes, type, patientName, deliveryId, oldEta, newEta } = notification;
-
-  // Format ISO strings to local time for display
-  const formattedOldEta = oldEta ? format(new Date(oldEta), 'HH:mm') : 'N/A';
-  const formattedNewEta = newEta ? format(new Date(newEta), 'HH:mm') : 'N/A';
 
   return (
     <AnimatePresence>
@@ -126,13 +125,13 @@ export default function ETANotification({
               <div className="flex items-center gap-4 text-xs">
                 <div>
                   <span className="text-slate-500">Previous:</span>
-                  <span className="font-mono font-semibold ml-1 text-slate-700">{formattedOldEta}</span>
+                  <span className="font-mono font-semibold ml-1 text-slate-700">{oldEta}</span>
                 </div>
                 <div>
                   <span className="text-slate-500">Updated:</span>
                   <span className={`font-mono font-semibold ml-1 ${
                     isDelay ? 'text-red-700' : 'text-green-700'
-                  }`}>{formattedNewEta}</span>
+                  }`}>{newEta}</span>
                 </div>
               </div>
 
