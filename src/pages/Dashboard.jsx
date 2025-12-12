@@ -64,7 +64,7 @@ import DashboardOfflineSync from '@/components/dashboard/DashboardOfflineSync';
 
   const STATS_CARD_BASE_HEIGHT = 116; // Fixed non-expanded height for map padding
   const STATS_CARD_EXTENDED_HEIGHT = 216; // Fixed non-expanded height for map padding
-  const StatsCardHeight = STATS_CARD_BASE_HEIGHT + 100;
+  const StatsCardHeight = STATS_CARD_BASE_HEIGHT;
 
   // FIXED: StatBadge - always render with consistent hook structure
   const StatBadge = ({ icon: Icon, value, color, label, tooltip }) => {
