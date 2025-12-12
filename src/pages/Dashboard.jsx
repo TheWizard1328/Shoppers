@@ -1708,7 +1708,7 @@ function Dashboard() {
           }
         }
         // CASE 2: Drivers but no stop markers → center on drivers + city center
-        else if (!hasStopMarkers && currentCity?.latitude && currentCity?.longitude) {
+        else if (!hasStopMarkers) {
           console.log('🗺️ [FAB Click] Phase 1 - Drivers but no stops, centering on drivers + city center');
           allCoordinates.push([currentCity.latitude, currentCity.longitude]);
           console.log('  [FAB Click] Total coordinates:', allCoordinates.length);
