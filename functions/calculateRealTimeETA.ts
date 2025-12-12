@@ -94,17 +94,18 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Calculate cumulative ETAs with optimized API usage
+    // Build waypoints for ONE API call with all incomplete stops
     const googleMapsKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
     const etaUpdates = [];
-    let apiCallCount = 0;
+    const waypoints = [];
+    const deliveriesWithCoords = [];
 
-    // Build waypoints for single API call
-    const stops = [];
+    // Collect all stop coordinates
     for (const delivery of sortedDeliveries) {
       if (delivery.status === 'completed') continue;
 
       let destLat, destLng;
+      
       if (delivery.puid) {
         const store = storeMap.get(delivery.store_id);
         if (!store || !store.latitude || !store.longitude) continue;
@@ -117,53 +118,53 @@ Deno.serve(async (req) => {
         destLng = patient.longitude;
       }
 
-      stops.push({
-        delivery,
-        lat: destLat,
-        lng: destLng
+      deliveriesWithCoords.push({ delivery, lat: destLat, lng: destLng });
+    }
+
+    if (deliveriesWithCoords.length === 0) {
+      return Response.json({ 
+        message: 'No incomplete deliveries with coordinates',
+        etaUpdates: []
       });
     }
 
-    if (stops.length === 0) {
-      return Response.json({ message: 'No incomplete stops found', etas: [] });
-    }
+    // Build waypoints string (all stops except the last one)
+    const waypointsStr = deliveriesWithCoords
+      .slice(0, -1)
+      .map(d => `${d.lat},${d.lng}`)
+      .join('|');
 
-    // Build single API call with waypoints
+    const lastStop = deliveriesWithCoords[deliveriesWithCoords.length - 1];
+
+    // ONE API call for the entire route
     try {
-      const waypoints = stops.slice(1, -1).map(s => `${s.lat},${s.lng}`).join('|');
-      const destination = stops[stops.length - 1];
-
-      let directionsUrl = `https://maps.googleapis.com/maps/api/directions/json?` +
+      const directionsUrl = `https://maps.googleapis.com/maps/api/directions/json?` +
         `origin=${driverLocation.lat},${driverLocation.lng}&` +
-        `destination=${destination.lat},${destination.lng}&` +
+        `destination=${lastStop.lat},${lastStop.lng}&` +
+        (waypointsStr ? `waypoints=optimize:false|${waypointsStr}&` : '') +
         `departure_time=now&` +
         `traffic_model=best_guess&` +
         `key=${googleMapsKey}`;
 
-      if (waypoints) {
-        directionsUrl += `&waypoints=${waypoints}`;
-      }
-
       const directionsResponse = await fetch(directionsUrl);
       const directionsData = await directionsResponse.json();
-      apiCallCount++;
 
       if (directionsData.status === 'OK' && directionsData.routes?.[0]) {
         const route = directionsData.routes[0];
         let cumulativeMinutes = 0;
 
-        // Process each leg
+        // Process each leg of the route
         for (let i = 0; i < route.legs.length; i++) {
           const leg = route.legs[i];
-          const stop = stops[i];
-          const delivery = stop.delivery;
+          const delivery = deliveriesWithCoords[i].delivery;
 
           const durationSeconds = leg.duration_in_traffic?.value || leg.duration?.value || 0;
           const durationMinutes = Math.ceil(durationSeconds / 60);
           const serviceTime = delivery.extra_time || 5;
+          
           cumulativeMinutes += durationMinutes + serviceTime;
 
-          // Calculate ETA in device's local time
+          // Calculate ETA
           const etaTotalMinutes = currentTotalMinutes + cumulativeMinutes;
           const etaHours = Math.floor(etaTotalMinutes / 60) % 24;
           const etaMinutes = etaTotalMinutes % 60;
@@ -188,19 +189,22 @@ Deno.serve(async (req) => {
             });
           }
         }
+
+        console.log(`✅ Updated ${etaUpdates.length} ETAs with ONE API call`);
       }
     } catch (error) {
-      console.error('Error calculating ETAs:', error);
+      console.error('Error calculating route ETAs:', error);
     }
 
-    // Update polyline counter with total API calls made
-    if (apiCallCount > 0) {
-      await base44.asServiceRole.entities.DriverRoutePolyline.update(polylineRecord.id, {
-        daily_generation_count: (polylineRecord.daily_generation_count || 0) + apiCallCount,
-        last_generated_at: new Date().toISOString()
-      });
-      console.log(`📊 Incremented polyline counter by ${apiCallCount} (total: ${(polylineRecord.daily_generation_count || 0) + apiCallCount})`);
-    }
+    const apiCallCount = 1; // Only ONE API call now
+
+    // Update polyline counter - only 1 API call now
+    await base44.asServiceRole.entities.DriverRoutePolyline.update(polylineRecord.id, {
+      daily_generation_count: (polylineRecord.daily_generation_count || 0) + 1,
+      last_generated_at: new Date().toISOString()
+    });
+    console.log(`📊 Incremented polyline counter by 1 (total: ${(polylineRecord.daily_generation_count || 0) + 1})`);
+
 
     console.log(`✅ Updated ${etaUpdates.length} ETAs for driver ${driverId}`);
 
@@ -211,7 +215,7 @@ Deno.serve(async (req) => {
       driverLocation,
       etaUpdates,
       totalDeliveries: deliveries.length,
-      apiCallsMade: apiCallCount
+      apiCallsMade: 1
     });
 
   } catch (error) {
