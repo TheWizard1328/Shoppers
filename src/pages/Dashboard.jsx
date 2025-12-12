@@ -1698,8 +1698,8 @@ function Dashboard() {
               bounds,
               options: {
                 paddingTopLeft: isMobile ? [50, StatsCardHeight - 120] : [50, 50],
-                paddingBottomRight: [50, StopCardsHeight - 500],
-                maxZoom: 10,
+                paddingBottomRight: [50, StopCardsHeight],
+                maxZoom: 12,
                 animate: false
               }
             });
