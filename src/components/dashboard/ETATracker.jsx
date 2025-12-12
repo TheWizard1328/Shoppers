@@ -89,8 +89,8 @@ export default function ETATracker({
     // Update ETAs immediately
     updateETAs();
 
-    // Then update every 2 minutes (120 seconds)
-    intervalRef.current = setInterval(updateETAs, 120000);
+    // Then update every 10 minutes (600 seconds) - reduced frequency to limit API usage
+    intervalRef.current = setInterval(updateETAs, 600000);
 
     return () => {
       if (intervalRef.current) {
