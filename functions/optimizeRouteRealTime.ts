@@ -224,8 +224,6 @@ Deno.serve(async (req) => {
     const optimizedRoute = [];
     const unvisited = new Set(stops.map((_, i) => i));
     let currentPos = 0; // Start from driver location (index 0 in origins)
-    const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
     let cumulativeTime = currentMinutes;
 
     while (unvisited.size > 0) {
