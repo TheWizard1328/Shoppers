@@ -1717,7 +1717,7 @@ function Dashboard() {
             bounds: allCoordinates,
             options: {
               paddingTopLeft: isMobile ? [50, StatsCardHeight - 118] : [50, 50],
-              paddingBottomRight: [50, StopCardsHeight],
+              paddingBottomRight: [50, StopCardsHeight + 50],
               maxZoom: 14
             }
           });
@@ -1767,7 +1767,7 @@ function Dashboard() {
             bounds: allCoordinates,
             options: {
               paddingTopLeft: isMobile ? [50, StatsCardHeight + 50] : [50, 50],
-              paddingBottomRight: [50, StopCardsHeight + 150],
+              paddingBottomRight: [50, StopCardsHeight + 50],
               maxZoom: phase1MaxZoom
             }
           });
