@@ -58,11 +58,32 @@ export default function RealTimeRouteOptimizer({
       if (data?.success) {
         console.log(`✅ [RealTimeRouteOptimizer] Route ${data.routeChanged ? 'OPTIMIZED' : 'unchanged'}`);
         
-        if (data.routeChanged && data.updates?.length > 0) {
+        if (data.routeChanged && data.durationUpdates?.length > 0) {
+          // Calculate ETAs locally using device time
+          const now = new Date();
+          const currentHours = now.getHours();
+          const currentMinutes = now.getMinutes();
+          const currentTotalMinutes = currentHours * 60 + currentMinutes;
+
+          // Calculate and save ETAs locally
+          for (const update of data.durationUpdates) {
+            const etaTotalMinutes = currentTotalMinutes + update.cumulativeMinutes;
+            const etaHours = Math.floor(etaTotalMinutes / 60) % 24;
+            const etaMinutes = etaTotalMinutes % 60;
+            const etaString = `${etaHours.toString().padStart(2, '0')}:${etaMinutes.toString().padStart(2, '0')}`;
+
+            // Save ETA to database
+            await base44.entities.Delivery.update(update.deliveryId, {
+              delivery_time_eta: etaString
+            });
+
+            console.log(`⏰ [RealTimeRouteOptimizer] Updated ETA for ${update.delivery_id}: ${etaString} (${update.cumulativeMinutes} min from now)`);
+          }
+
           // Show notification
           setNotification({
             id: Date.now(),
-            updates: data.updates,
+            updates: data.durationUpdates,
             totalStops: data.totalStops
           });
 
@@ -72,14 +93,14 @@ export default function RealTimeRouteOptimizer({
           }, 6000);
 
           if (onRouteOptimized) {
-            onRouteOptimized(data.updates);
+            onRouteOptimized(data.durationUpdates);
           }
 
           // Dispatch event for other components
           window.dispatchEvent(new CustomEvent('routeOptimized', {
             detail: {
               driverId: selectedDriverId,
-              updates: data.updates
+              updates: data.durationUpdates
             }
           }));
         }
