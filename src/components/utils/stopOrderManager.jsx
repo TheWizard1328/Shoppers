@@ -1,0 +1,106 @@
+/**
+ * Centralized Stop Order Management
+ * Handles sequential stop order calculation for deliveries
+ */
+
+import { base44 } from '@/api/base44Client';
+import { updateDeliveryLocal } from './offlineMutations';
+
+/**
+ * Recalculates and updates stop orders for all deliveries for a given driver/date
+ * Ensures completed stops are first (sorted by completion time), then incomplete (sorted by stop_order), pending always last
+ * Updates all stop orders sequentially from 1 to N
+ */
+export const recalculateAndUpdateStopOrders = async (driverId, deliveryDate) => {
+  console.log('🔢 [STOP ORDER MGR] Recalculating stop orders...');
+
+  const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+  
+  // Fetch fresh data from backend to ensure accuracy
+  const driverDeliveries = await base44.entities.Delivery.filter({
+    driver_id: driverId,
+    delivery_date: deliveryDate
+  });
+
+  // Sort: completed first by time, then incomplete by stop_order, pending always last
+  const sortedDeliveries = [...driverDeliveries].sort((a, b) => {
+    const isACompleted = finishedStatuses.includes(a.status);
+    const isBCompleted = finishedStatuses.includes(b.status);
+    const isAPending = a.status === 'pending';
+    const isBPending = b.status === 'pending';
+
+    // Completed stops first
+    if (isACompleted && !isBCompleted) return -1;
+    if (!isACompleted && isBCompleted) return 1;
+
+    // Among completed, sort by completion time
+    if (isACompleted) {
+      const timeA = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : 0;
+      const timeB = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : 0;
+      return timeA - timeB;
+    }
+
+    // Among incomplete: pending always last
+    if (isAPending && !isBPending) return 1;
+    if (!isAPending && isBPending) return -1;
+
+    // Among non-pending incomplete, sort by stop_order
+    return (a.stop_order || 999) - (b.stop_order || 999);
+  });
+
+  // Reassign stop_order sequentially to ALL deliveries
+  const updates = [];
+  for (let i = 0; i < sortedDeliveries.length; i++) {
+    const delivery = sortedDeliveries[i];
+    const newStopOrder = i + 1;
+
+    if (delivery.stop_order !== newStopOrder) {
+      updates.push({ id: delivery.id, stop_order: newStopOrder });
+      await updateDeliveryLocal(delivery.id, { stop_order: newStopOrder });
+    }
+  }
+
+  if (updates.length > 0) {
+    console.log(`✅ [STOP ORDER MGR] Updated ${updates.length} stop orders sequentially`);
+  } else {
+    console.log('ℹ️ [STOP ORDER MGR] No updates needed');
+  }
+
+  return sortedDeliveries;
+};
+
+/**
+ * Updates isNextDelivery flags for a driver/date
+ * Sets the first non-completed, non-pending delivery as the next delivery
+ */
+export const updateNextDeliveryFlags = async (driverId, deliveryDate) => {
+  console.log('🎯 [STOP ORDER MGR] Updating isNextDelivery flags...');
+
+  const allDeliveries = await base44.entities.Delivery.filter({
+    driver_id: driverId,
+    delivery_date: deliveryDate
+  }, 'stop_order');
+
+  // Reset all flags
+  const resetPromises = allDeliveries
+    .filter((d) => d.isNextDelivery)
+    .map((d) => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
+  
+  if (resetPromises.length > 0) {
+    await Promise.all(resetPromises);
+    console.log(`  Reset ${resetPromises.length} isNextDelivery flags`);
+  }
+
+  // Find first incomplete (SKIP PENDING)
+  const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+  const firstIncomplete = allDeliveries
+    .filter((d) => !finishedStatuses.includes(d.status) && d.status !== 'pending')
+    .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
+
+  if (firstIncomplete) {
+    await base44.entities.Delivery.update(firstIncomplete.id, { isNextDelivery: true });
+    console.log(`✅ [STOP ORDER MGR] Set isNextDelivery for: ${firstIncomplete.patient_name || 'Pickup'}`);
+  } else {
+    console.log('ℹ️ [STOP ORDER MGR] No non-pending incomplete deliveries');
+  }
+};
