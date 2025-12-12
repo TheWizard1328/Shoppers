@@ -4,16 +4,21 @@ import React from 'react';
  * Map Crosshair Overlay Component
  * 
  * Renders a fixed crosshair at the visual center of the map area.
- * Adjusts position when stop cards are visible to center in the visible map area.
+ * Adjusts position to account for UI overlays (StatsCard at top, StopCards at bottom).
  * 
  * This is a pure overlay - not part of the map, so it doesn't move when panning.
  */
-export default function MapCrosshair({ stopCardsHeight = 0 }) {
-  // The crosshair starts at the exact center of the map container.
-  // When stop cards are visible at the bottom, the "visible" map area is reduced.
-  // To center the crosshair in the VISIBLE area (above the cards), we shift UP.
-  // Shift amount = stopCardsHeight / 2 (half the obscured area)
-  const verticalShift = stopCardsHeight > 0 ? Math.round(stopCardsHeight / 2) : 0;
+export default function MapCrosshair({ stopCardsHeight = 0, statsCardHeight = 0, isMobile = false }) {
+  // Calculate vertical shift to center crosshair in the visible map area
+  // On mobile: center between bottom of StatsCard and top of StopCards
+  // On desktop: center between top of map edge and top of StopCards
+  
+  const topObscured = isMobile ? statsCardHeight : 0;
+  const bottomObscured = stopCardsHeight;
+  
+  // Net shift = (bottomObscured - topObscured) / 2
+  // Positive = shift up, Negative = shift down
+  const verticalShift = Math.round((bottomObscured - topObscured) / 2);
 
   return (
     <div 
