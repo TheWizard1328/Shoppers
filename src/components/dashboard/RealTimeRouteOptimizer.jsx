@@ -8,7 +8,7 @@ import { Route, TrendingUp, CheckCircle } from 'lucide-react';
 /**
  * Real-time route optimization service
  * ONLY runs on driver's mobile device
- * Automatically re-sequences stops every 5 minutes based on traffic and location
+ * Triggers only on specific events (not automatic interval)
  */
 export default function RealTimeRouteOptimizer({ 
   selectedDriverId, 
@@ -17,97 +17,84 @@ export default function RealTimeRouteOptimizer({
   isActive = true,
   onRouteOptimized 
 }) {
-  const intervalRef = useRef(null);
   const [notification, setNotification] = useState(null);
 
-  useEffect(() => {
+  const optimizeRoute = async () => {
     // CRITICAL: Only run on driver's mobile device
     const isMobile = isMobileDevice();
     const isDriver = currentUser && userHasRole(currentUser, 'driver');
     const isCurrentDriver = currentUser && currentUser.id === selectedDriverId;
 
     if (!isMobile || !isDriver || !isCurrentDriver) {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
+      console.log('⏸️ [RealTimeRouteOptimizer] Skipping - not driver\'s mobile device');
       return;
     }
 
     // CRITICAL: Only run when driver is on duty (not off_duty or on_break)
     if (currentUser.driver_status !== 'on_duty') {
       console.log('⏸️ [RealTimeRouteOptimizer] Skipping - driver not on duty (status:', currentUser.driver_status, ')');
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
       return;
     }
 
     if (!isActive || !selectedDriverId || selectedDriverId === 'all' || !selectedDate) {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
       return;
     }
 
-    console.log('🔄 [RealTimeRouteOptimizer] Starting route optimization for driver:', selectedDriverId);
+    console.log('🔄 [RealTimeRouteOptimizer] Triggering route optimization for driver:', selectedDriverId);
 
-    const optimizeRoute = async () => {
-      try {
-        const response = await base44.functions.invoke('optimizeRouteRealTime', {
-          driverId: selectedDriverId,
-          deliveryDate: selectedDate
-        });
+    try {
+      const response = await base44.functions.invoke('optimizeRouteRealTime', {
+        driverId: selectedDriverId,
+        deliveryDate: selectedDate
+      });
 
-        const data = response?.data || response;
+      const data = response?.data || response;
 
-        if (data?.success) {
-          console.log(`✅ [RealTimeRouteOptimizer] Route ${data.routeChanged ? 'OPTIMIZED' : 'unchanged'}`);
-          
-          if (data.routeChanged && data.updates?.length > 0) {
-            // Show notification
-            setNotification({
-              id: Date.now(),
-              updates: data.updates,
-              totalStops: data.totalStops
-            });
+      if (data?.success) {
+        console.log(`✅ [RealTimeRouteOptimizer] Route ${data.routeChanged ? 'OPTIMIZED' : 'unchanged'}`);
+        
+        if (data.routeChanged && data.updates?.length > 0) {
+          // Show notification
+          setNotification({
+            id: Date.now(),
+            updates: data.updates,
+            totalStops: data.totalStops
+          });
 
-            // Auto-dismiss after 6 seconds
-            setTimeout(() => {
-              setNotification(null);
-            }, 6000);
+          // Auto-dismiss after 6 seconds
+          setTimeout(() => {
+            setNotification(null);
+          }, 6000);
 
-            if (onRouteOptimized) {
-              onRouteOptimized(data.updates);
-            }
-
-            // Dispatch event for other components
-            window.dispatchEvent(new CustomEvent('routeOptimized', {
-              detail: {
-                driverId: selectedDriverId,
-                updates: data.updates
-              }
-            }));
+          if (onRouteOptimized) {
+            onRouteOptimized(data.updates);
           }
+
+          // Dispatch event for other components
+          window.dispatchEvent(new CustomEvent('routeOptimized', {
+            detail: {
+              driverId: selectedDriverId,
+              updates: data.updates
+            }
+          }));
         }
-      } catch (error) {
-        console.error('❌ [RealTimeRouteOptimizer] Error:', error);
       }
+    } catch (error) {
+      console.error('❌ [RealTimeRouteOptimizer] Error:', error);
+    }
+  };
+
+  useEffect(() => {
+    // Listen for manual optimization triggers
+    const handleTriggerOptimization = () => {
+      console.log('🎯 [RealTimeRouteOptimizer] Manual trigger received');
+      optimizeRoute();
     };
 
-    // Optimize immediately on start
-    optimizeRoute();
-
-    // Then optimize every 5 minutes
-    intervalRef.current = setInterval(optimizeRoute, 300000);
+    window.addEventListener('triggerRouteOptimization', handleTriggerOptimization);
 
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
+      window.removeEventListener('triggerRouteOptimization', handleTriggerOptimization);
     };
   }, [selectedDriverId, selectedDate, currentUser, isActive, onRouteOptimized]);
 
