@@ -2521,7 +2521,7 @@ export default function DeliveryMap({
       {/* Map Crosshair Overlay - Always visible, non-interactive */}
       <MapCrosshair 
         stopCardsHeight={areStopCardsVisible ? stopCardsHeight : 0}
-        statsCardHeight={areCardsVisible ? (isStatsCardExpanded ? 216 : 116) : 0}
+        statsCardHeight={isMobile && areCardsVisible ? (isStatsCardExpanded ? 216 : 116) : 0}
         isMobile={isMobile} />
 
       {safeDeliveries.length === 0 &&
