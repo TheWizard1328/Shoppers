@@ -302,21 +302,6 @@ function Dashboard() {
   
   const STATS_CARD_BASE_HEIGHT = 116; // Fixed non-expanded height for map padding
   const STATS_CARD_EXTENDED_HEIGHT = 216; // Extended height when expanded
-  
-  // Computed padding values for consistent map bounds
-  const getMapPadding = useCallback((cardExpanded = false) => {
-    const topPadding = isMobile 
-      ? (isExpanded ? STATS_CARD_EXTENDED_HEIGHT + 10 : STATS_CARD_BASE_HEIGHT + 10) 
-      : 50;
-    const bottomPadding = cardExpanded 
-      ? STOP_CARDS_EXPANDED_HEIGHT + 100 
-      : STOP_CARDS_BASE_HEIGHT + 50;
-    
-    return {
-      paddingTopLeft: [50, topPadding],
-      paddingBottomRight: [50, bottomPadding]
-    };
-  }, [isMobile, isExpanded]);
 
   const mapLockTimeoutRef = useRef(null);
   const mapLockExpiresAtRef = useRef(null); // Timestamp when lock should expire
@@ -349,6 +334,21 @@ function Dashboard() {
   const isMobile = useMemo(() => isMobileDevice(), []);
   const isDriver = useMemo(() => currentUser ? userHasRole(currentUser, 'driver') : false, [currentUser]);
   const isAdmin = useMemo(() => currentUser ? userHasRole(currentUser, 'admin') : false, [currentUser]);
+
+  // Computed padding values for consistent map bounds
+  const getMapPadding = useCallback((cardExpanded = false) => {
+    const topPadding = isMobile 
+      ? (isExpanded ? STATS_CARD_EXTENDED_HEIGHT + 10 : STATS_CARD_BASE_HEIGHT + 10) 
+      : 50;
+    const bottomPadding = cardExpanded 
+      ? STOP_CARDS_EXPANDED_HEIGHT + 100 
+      : STOP_CARDS_BASE_HEIGHT + 50;
+    
+    return {
+      paddingTopLeft: [50, topPadding],
+      paddingBottomRight: [50, bottomPadding]
+    };
+  }, [isMobile, isExpanded]);
 
   // Load user settings on mount - PHASE 1: Load backend values FIRST
   useEffect(() => {
