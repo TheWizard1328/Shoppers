@@ -307,17 +307,16 @@ Deno.serve(async (req) => {
       currentPosition = stopIdx + 1; // Move to next position in matrix
     }
 
-    console.log(`✅ Route optimization complete - ${routeChanged ? 'CHANGED' : 'UNCHANGED'} (${updates.length} updates with ETAs)`);
+    console.log(`✅ Route optimization complete - ${routeChanged ? 'CHANGED' : 'UNCHANGED'} (${updates.length} updates with durations)`);
 
     return Response.json({
       success: true,
       driverId,
       deliveryDate,
       routeChanged,
-      updates,
+      durationUpdates: updates,
       totalStops: stops.length,
-      apiCallsMade: 1,
-      etasUpdated: true
+      apiCallsMade: 1
     });
 
   } catch (error) {
