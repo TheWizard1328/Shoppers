@@ -42,19 +42,58 @@ Deno.serve(async (req) => {
       lng: driverAppUser.current_longitude
     };
 
-    // Get all pending/active deliveries for this driver
-    const deliveries = await base44.asServiceRole.entities.Delivery.filter({
+    // Get ALL deliveries for this driver (completed AND incomplete)
+    const allDeliveries = await base44.asServiceRole.entities.Delivery.filter({
       driver_id: driverId,
-      delivery_date: deliveryDate,
-      status: { $in: ['pending', 'Ready For Pickup', 'in_transit', 'en_route'] }
+      delivery_date: deliveryDate
     });
 
-    if (!deliveries || deliveries.length === 0) {
+    if (!allDeliveries || allDeliveries.length === 0) {
       return Response.json({ 
-        message: 'No deliveries to optimize',
+        message: 'No deliveries found',
         routeChanged: false
       });
     }
+
+    // Separate completed and incomplete deliveries
+    const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+    const completedDeliveries = allDeliveries.filter(d => finishedStatuses.includes(d.status));
+    const incompleteDeliveries = allDeliveries.filter(d => !finishedStatuses.includes(d.status));
+
+    console.log(`📊 Route breakdown: ${completedDeliveries.length} completed, ${incompleteDeliveries.length} incomplete`);
+
+    // CRITICAL: Sort completed deliveries by actual completion time
+    completedDeliveries.sort((a, b) => {
+      if (!a.actual_delivery_time || !b.actual_delivery_time) return 0;
+      return new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time);
+    });
+
+    // Update completed deliveries with sequential stop_order (preserve completion order)
+    for (let i = 0; i < completedDeliveries.length; i++) {
+      const delivery = completedDeliveries[i];
+      const sequentialOrder = i + 1;
+      
+      // Only update if stop_order changed
+      if (delivery.stop_order !== sequentialOrder) {
+        await base44.asServiceRole.entities.Delivery.update(delivery.id, {
+          stop_order: sequentialOrder
+        });
+        console.log(`✅ Reordered completed stop #${sequentialOrder}: ${delivery.patient_name || 'Pickup'}`);
+      }
+    }
+
+    const startingStopOrder = completedDeliveries.length;
+    console.log(`🎯 Incomplete stops will start from stop_order ${startingStopOrder + 1}`);
+
+    if (incompleteDeliveries.length === 0) {
+      return Response.json({ 
+        message: 'No incomplete deliveries to optimize',
+        routeChanged: false,
+        completedStopsReordered: completedDeliveries.length
+      });
+    }
+
+    const deliveries = incompleteDeliveries;
 
     // Get patients and stores for coordinates
     const patientIds = [...new Set(deliveries.filter(d => d.patient_id).map(d => d.patient_id))];
@@ -226,12 +265,12 @@ Deno.serve(async (req) => {
     let currentPosition = 0; // Driver location
     let accumulatedMinutes = currentMinutes;
     
-    // Update stop_order and ETAs in database
+    // Update stop_order and ETAs in database (continuing from completed stops)
     const updates = [];
     for (let i = 0; i < optimizedRoute.length; i++) {
       const stopIdx = optimizedRoute[i];
       const stop = stops[stopIdx];
-      const newStopOrder = i + 1;
+      const newStopOrder = startingStopOrder + i + 1; // Continue from completed stops
 
       // Calculate ETA
       const travelTime = Math.ceil(matrix[currentPosition][stopIdx].duration / 60);
