@@ -5370,7 +5370,7 @@ function Dashboard() {
 
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
       const completedCount = allDriverDeliveriesForDate.filter((d) => finishedStatuses.includes(d.status)).length;
-      const newStopOrder = completedCount + 1;
+      const newStopOrder = completedCount;
 
       console.log(`📍 [START STEP 2] Calculated new stop_order: ${newStopOrder} (completed: ${completedCount})`);
 
