@@ -1144,7 +1144,7 @@ function Dashboard() {
                     setShouldFitBounds({
                       bounds: [[stopLat, stopLon]],
                       options: {
-                        paddingTopLeft: [50, 50],
+                        paddingTopLeft: [50, {if(isMobile) {StatsCardsHeight : 50}}],
                         paddingBottomRight: [50, StopCardsHeight],
                         maxZoom: 17
                       }
@@ -1697,7 +1697,7 @@ function Dashboard() {
             setShouldFitBounds({
               bounds,
               options: {
-                paddingTopLeft: [50, 100],
+                paddingTopLeft: [50, {if(isMobile) {StatsCardsHeight : 50}}],
                 paddingBottomRight: [50, StopCardsHeight],
                 maxZoom: 12,
                 animate: false
@@ -1716,7 +1716,7 @@ function Dashboard() {
           setShouldFitBounds({
             bounds: allCoordinates,
             options: {
-              paddingTopLeft: [50, 100],
+              paddingTopLeft: [50, {if(isMobile) {StatsCardsHeight : 50}}],
               paddingBottomRight: [50, StopCardsHeight],
               maxZoom: 14
             }
@@ -1766,7 +1766,7 @@ function Dashboard() {
           setShouldFitBounds({
             bounds: allCoordinates,
             options: {
-              paddingTopLeft: [50, 100],
+              paddingTopLeft: [50, {if(isMobile) {StatsCardsHeight : 50}}],
               paddingBottomRight: [50, StopCardsHeight],
               maxZoom: phase1MaxZoom
             }
@@ -1823,8 +1823,8 @@ function Dashboard() {
           setShouldFitBounds({
             bounds,
             options: {
-              paddingTopLeft: [50, 50],
-              paddingBottomRight: [50, bottomPadding],
+              paddingTopLeft: [50, {if(isMobile) {StatsCardsHeight : 50}}],
+              paddingBottomRight: [50, StopCardsHeight],
               maxZoom: 17
             }
           });
@@ -1856,7 +1856,7 @@ function Dashboard() {
         setShouldFitBounds({
           bounds: [[driverLocation.latitude, driverLocation.longitude]],
           options: {
-            paddingTopLeft: [50, 50],
+            paddingTopLeft: [50, {if(isMobile) {StatsCardsHeight : 50}}],
             paddingBottomRight: [50, StopCardsHeight],
             maxZoom: 15,
             animate: false
@@ -2097,8 +2097,8 @@ function Dashboard() {
         setShouldFitBounds({
           bounds,
           options: {
-            paddingTopLeft: [50, 50],
-            paddingBottomRight: [50, bottomPadding],
+            paddingTopLeft: [50, {if(isMobile) {StatsCardsHeight : 50}}],
+            paddingBottomRight: [50, StopCardsHeight],
             maxZoom: 17
           }
         });
@@ -2244,7 +2244,7 @@ function Dashboard() {
           setShouldFitBounds({
             bounds: [[patient.latitude, patient.longitude]],
             options: {
-              paddingTopLeft: [50, 50],
+              paddingTopLeft: [50, {if(isMobile) {StatsCardsHeight : 50}}],
               paddingBottomRight: [50, StopCardsHeight],
               maxZoom: 15
             }
@@ -2258,7 +2258,7 @@ function Dashboard() {
           setShouldFitBounds({
             bounds: [[store.latitude, store.longitude]],
             options: {
-              paddingTopLeft: [50, 50],
+              paddingTopLeft: [50, {if(isMobile) {StatsCardsHeight : 50}}],
               paddingBottomRight: [50, StopCardsHeight],
               maxZoom: 15
             }
@@ -6013,7 +6013,7 @@ function Dashboard() {
             onMapInteraction={handleMapInteraction}
             onDoubleTap={handleMapViewCycle}
             retractClustersRef={retractClustersRef}
-            stopCardsHeight={deliveriesWithStopOrder.length > 0 ? STOP_CARDS_BASE_HEIGHT + 45 : 0}
+            stopCardsHeight //={deliveriesWithStopOrder.length > 0 ? STOP_CARDS_BASE_HEIGHT + 100 : 0}
             areStopCardsVisible={deliveriesWithStopOrder.length > 0}
             highlightedDeliveryId={highlightedCardId} />
 
