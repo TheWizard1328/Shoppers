@@ -525,24 +525,42 @@ function Dashboard() {
 
     const result = [];
     Object.keys(groupedByDriver).forEach((driverId) => {
-      const driverDeliveries = groupedByDriver[driverId].sort((a, b) => {
+      const driverDeliveries = groupedByDriver[driverId];
+      
+      // CRITICAL: New sorting logic - completed by time, then isNextDelivery, then remaining by ETA
+      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+      
+      const completedDeliveries = driverDeliveries.filter(d => d && finishedStatuses.includes(d.status));
+      const incompleteDeliveries = driverDeliveries.filter(d => d && !finishedStatuses.includes(d.status));
+      
+      // Sort completed by actual_delivery_time
+      completedDeliveries.sort((a, b) => {
         if (!a || !b) return 0;
-        const stopOrderA = a.stop_order ?? Infinity;
-        const stopOrderB = b.stop_order ?? Infinity;
-
-        if (stopOrderA !== stopOrderB) {
-          return stopOrderA - stopOrderB;
-        }
-
-        const timeA = a.delivery_time_start || '';
-        const timeB = b.delivery_time_start || '';
-        return timeA.localeCompare(timeB);
+        if (!a.actual_delivery_time || !b.actual_delivery_time) return 0;
+        return new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time);
       });
+      
+      // Find the isNextDelivery delivery
+      const nextDeliveryIdx = incompleteDeliveries.findIndex(d => d && d.isNextDelivery === true);
+      const nextDelivery = nextDeliveryIdx >= 0 ? incompleteDeliveries.splice(nextDeliveryIdx, 1)[0] : null;
+      
+      // Sort remaining incomplete by ETA
+      incompleteDeliveries.sort((a, b) => {
+        if (!a || !b) return 0;
+        const etaA = a.delivery_time_eta || a.delivery_time_start || '99:99';
+        const etaB = b.delivery_time_eta || b.delivery_time_start || '99:99';
+        return etaA.localeCompare(etaB);
+      });
+      
+      // Combine: completed + nextDelivery + remaining
+      const sortedDeliveries = nextDelivery 
+        ? [...completedDeliveries, nextDelivery, ...incompleteDeliveries]
+        : [...completedDeliveries, ...incompleteDeliveries];
 
       // CRITICAL: Include ALL deliveries (including pending) in result
       let displayCounter = 1;
 
-      driverDeliveries.forEach((delivery) => {
+      sortedDeliveries.forEach((delivery) => {
         if (!delivery) return;
 
         // Only assign display_stop_order to non-pending deliveries
@@ -1400,17 +1418,13 @@ function Dashboard() {
       // Re-locking should start the timer for phase 1 and 3
       shouldStartTimer = newMapViewPhase === 1 || newMapViewPhase === 3;
 
-      // CRITICAL: When re-activating any phase, scroll to next delivery card
-      console.log(`📍 [FAB Re-lock] Phase ${newMapViewPhase} - scrolling to next delivery`);
+      // CRITICAL: Scroll to card with isNextDelivery=true
+      console.log(`📍 [FAB Re-lock] Phase ${newMapViewPhase} - scrolling to isNextDelivery card`);
       setTimeout(() => {
-        const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-        const incompleteDeliveries = deliveriesWithStopOrder.
-        filter((d) => d && !finishedStatuses.includes(d.status)).
-        sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-
-        if (incompleteDeliveries.length > 0) {
-          const nextCard = incompleteDeliveries[0];
-          console.log(`📍 [FAB Re-lock] Scrolling to next delivery: ${nextCard.patient_name || 'Pickup'}`);
+        const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
+        
+        if (nextCard) {
+          console.log(`📍 [FAB Re-lock] Scrolling to isNextDelivery: ${nextCard.patient_name || 'Pickup'}`);
           const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
           if (cardElement) {
             cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
@@ -1466,18 +1480,15 @@ function Dashboard() {
 
     setMapViewTrigger((prev) => prev + 1);
 
-    // CRITICAL: Scroll to next delivery card for ALL phases
+    // CRITICAL: Scroll to next delivery card (isNextDelivery === true)
     setTimeout(() => {
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-      const incompleteDeliveries = deliveriesWithStopOrder.
-      filter((d) => d && !finishedStatuses.includes(d.status)).
-      sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-
-      if (incompleteDeliveries.length > 0) {
-        const nextCard = incompleteDeliveries[0];
+      const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
+      
+      if (nextCard) {
         const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
         if (cardElement) {
           cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+          console.log(`✅ [FAB] Centered card with isNextDelivery=true: ${nextCard.patient_name || 'Pickup'}`);
         }
       }
     }, 300);
@@ -1971,20 +1982,16 @@ function Dashboard() {
       // Phase 2 stays locked - no timer
     }
 
-    // Scroll to next card for phase 2
+    // Scroll to card with isNextDelivery=true for phase 2
     if (phaseToApply === 2) {
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-      const incompleteDeliveries = deliveriesWithStopOrder.
-      filter((d) => d && !finishedStatuses.includes(d.status)).
-      sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+      const nextDelivery = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
 
-      if (incompleteDeliveries.length > 0) {
-        const nextDelivery = incompleteDeliveries[0];
+      if (nextDelivery) {
         setTimeout(() => {
           const cardElement = document.getElementById(`stop-card-${nextDelivery.id}`);
           if (cardElement) {
             cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-            console.log(`📍 [Initial Load Phase 2] Scrolled to card: ${nextDelivery.id}`);
+            console.log(`📍 [Initial Load Phase 2] Scrolled to isNextDelivery card: ${nextDelivery.id}`);
           }
         }, 300);
       }
@@ -2594,16 +2601,12 @@ function Dashboard() {
         setIsMapViewLocked(false);
       }, 100);
 
-      // Scroll to next delivery card
+      // Scroll to card with isNextDelivery=true
       setTimeout(() => {
-        const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-        const incompleteDeliveries = deliveriesWithStopOrder.
-        filter((d) => d && !finishedStatuses.includes(d.status)).
-        sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-
-        if (incompleteDeliveries.length > 0) {
-          const nextCard = incompleteDeliveries[0];
-          console.log(`📍 [Card Collapse] Scrolling to next delivery: ${nextCard.patient_name || 'Pickup'}`);
+        const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
+        
+        if (nextCard) {
+          console.log(`📍 [Card Collapse] Scrolling to isNextDelivery: ${nextCard.patient_name || 'Pickup'}`);
           const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
           if (cardElement) {
             cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
