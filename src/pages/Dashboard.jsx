@@ -6014,7 +6014,8 @@ function Dashboard() {
             onDoubleTap={handleMapViewCycle}
             retractClustersRef={retractClustersRef}
             areStopCardsVisible={deliveriesWithStopOrder.length > 0}
-            highlightedDeliveryId={highlightedCardId} />
+            highlightedDeliveryId={highlightedCardId}
+            stopCardsHeight={selectedCardId ? STOP_CARDS_EXPANDED_HEIGHT : STOP_CARDS_BASE_HEIGHT + 50} />
 
         </div>
 
