@@ -1523,6 +1523,7 @@ function Dashboard() {
 
     switch (mapViewPhase) {
       case 1: // "Show All Stops"
+        console.clear;
         console.log('📍 [FAB Click] Phase 1: Show All Stops (temporary lock)');
         const allCoordinates = [];
         let hasStopMarkers = false;
@@ -1777,6 +1778,7 @@ function Dashboard() {
         break;
 
       case 2: // "Center on Driver & Next Stop"
+        console.clear;
         console.log('📍 [FAB Click] Phase 2: Center on Driver & Next Stop (persistent lock - continuous update)');
         // Mark that we're doing a programmatic map move (debounces interaction handler)
         lastProgrammaticMapMoveRef.current = Date.now();
@@ -1840,6 +1842,7 @@ function Dashboard() {
         break;
 
       case 3: // "Center on Driver"
+        console.clear;
         console.log('📍 [FAB Click] Phase 3: Center on Driver (zoom 15, temporary lock)');
 
         if (!driverLocation?.latitude || !driverLocation?.longitude) {
