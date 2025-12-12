@@ -1768,7 +1768,7 @@ function Dashboard() {
             options: {
               paddingTopLeft: isMobile ? [50, StatsCardHeight] : [50, 50],
               paddingBottomRight: [50, StopCardsHeight],
-              maxZoom: 14 //phase1MaxZoom
+              maxZoom: phase1MaxZoom
             }
           });
           setMapCenter(null);
