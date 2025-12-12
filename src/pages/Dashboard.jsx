@@ -2565,8 +2565,8 @@ function Dashboard() {
       setSelectedCardId(null);
       setHighlightedCardId(null);
 
-      // CRITICAL: Reactivate the current FAB phase when card collapses
-      console.log('🗺️ [Card Collapse] Reactivating FAB phase:', mapViewPhase);
+      // CRITICAL: Reactivate the current FAB phase when card collapses (NO TIMER)
+      console.log('🗺️ [Card Collapse] Reactivating FAB phase:', mapViewPhase, '(no auto-unlock timer)');
       setIsMapViewLocked(true);
       setMapViewTrigger((prev) => prev + 1);
 
@@ -2586,22 +2586,6 @@ function Dashboard() {
           }
         }
       }, 300);
-
-      // Set up timer based on current phase
-      if (mapViewPhase === 1 || mapViewPhase === 3) {
-        const lockDuration = 3000;
-        const expiresAt = Date.now() + lockDuration;
-        mapLockExpiresAtRef.current = expiresAt;
-
-        mapLockTimeoutRef.current = window.setTimeout(() => {
-          if (mapLockExpiresAtRef.current === expiresAt) {
-            console.log(`⚫ [Card Collapse] Phase ${mapViewPhase} auto-unlocking after ${lockDuration}ms`);
-            setIsMapViewLocked(false);
-            mapLockExpiresAtRef.current = null;
-            mapLockTimeoutRef.current = null;
-          }
-        }, lockDuration);
-      }
     } else {
       // Card is being expanded - save current map state first
       console.log('📍 [Card Expand] Saving current map state and centering on delivery');
