@@ -1743,30 +1743,12 @@ function Dashboard() {
           const lonSpan = maxLon - minLon;
           const maxSpan = Math.max(latSpan, lonSpan);
 
-          // Determine maxZoom based on geographic spread
-          // ~0.01 degrees = ~1km, ~0.1 degrees = ~10km
-          let phase1MaxZoom = 14; // Default - good for city-wide view
-          if (maxSpan < 0.005) {
-            // Very close together (< 500m) - allow closer zoom but cap at 15
-            phase1MaxZoom = 15;
-          } else if (maxSpan < 0.02) {
-            // Close together (< 2km) - zoom 14
-            phase1MaxZoom = 14;
-          } else if (maxSpan < 0.1) {
-            // Medium spread (< 10km) - zoom 13
-            phase1MaxZoom = 13;
-          } else if (maxSpan < 0.12) {
-            // Medium spread (< 12km) - zoom 12
-            phase1MaxZoom = 12;
-          } else if (maxSpan < 0.2) {
-            // Medium spread (< 20km) - zoom 10
-            phase1MaxZoom = 11;
-          } else {
-            // Wide spread (> 20km) - zoom 9
-            phase1MaxZoom = 10;
-          }
+          // Dynamic zoom calculation based on geographic spread
+          // Convert degrees to km (1 degree ≈ 111km) and use logarithmic scale
+          const spanKm = maxSpan * 111;
+          const phase1MaxZoom = Math.max(10, Math.min(15, Math.round(16 - Math.log2(spanKm + 1) * 1.5)));
 
-          console.log(`  [FAB Click] Span: ${(maxSpan * 111).toFixed(1)}km, maxZoom: ${phase1MaxZoom}`);
+          console.log(`  [FAB Click] Span: ${spanKm.toFixed(1)}km, maxZoom: ${phase1MaxZoom}`);
 
           const padding = getMapPadding(false);
           console.log(`  [FAB Click] Padding:`, padding);
