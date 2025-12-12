@@ -567,11 +567,13 @@ export function getAllSettings() {
 
 /**
  * Clears the settings cache (useful on logout)
+ * CRITICAL: Does NOT clear IndexedDB - only in-memory cache
  */
 export function clearSettingsCache() {
   cachedSettings = null;
   currentUserId = null;
-  console.log('🧹 [UserSettings] Cache cleared');
+  cachedDeviceId = null; // Clear device ID cache
+  console.log('🧹 [UserSettings] In-memory cache cleared (IndexedDB preserved)');
 }
 
 /**
