@@ -2504,7 +2504,6 @@ function Dashboard() {
 
     } catch (error) {
       console.error('❌ [Dashboard] Date change failed:', error);
-      setIsEntityUpdating(false);
     }
   };
 
