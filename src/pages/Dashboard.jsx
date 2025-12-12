@@ -1760,10 +1760,10 @@ function Dashboard() {
             phase1MaxZoom = 12;
           } else if (maxSpan < 0.2) {
             // Medium spread (< 20km) - zoom 10
-            phase1MaxZoom = 10;
+            phase1MaxZoom = 11;
           } else {
             // Wide spread (> 20km) - zoom 9
-            phase1MaxZoom = 9;
+            phase1MaxZoom = 10;
           }
 
           console.log(`  [FAB Click] Span: ${(maxSpan * 111).toFixed(1)}km, maxZoom: ${phase1MaxZoom}`);
