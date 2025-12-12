@@ -1749,7 +1749,7 @@ function Dashboard() {
           const spanKm = maxSpan * 111.0;
           const baseZoom = 16 - Math.log2(spanKm + 1) * 1.5;
           const screenAdjustment = isMobile ? 0.5 : -0.5; // Mobile +0.5 zoom, Desktop -0.5 zoom
-          const phase1MaxZoom = Math.max(10, Math.min(15, Math.round((baseZoom + screenAdjustment) * 10) / 10));
+          const phase1MaxZoom = Math.max(8.0, Math.min(15, Math.round((baseZoom + screenAdjustment) * 10) / 10)).toFixed(1);
 
           console.log(`  [FAB Click] Span: ${spanKm.toFixed(1)}km, maxZoom: ${phase1MaxZoom} (${isMobile ? 'mobile' : 'desktop'})`);
 
