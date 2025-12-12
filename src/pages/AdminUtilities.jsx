@@ -2076,10 +2076,10 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
       const settings = await UserSettings.list();
       setUserSettings(settings || []);
       
-      // Load local settings from IndexedDB
+      // Load local cached settings from IndexedDB
       const { offlineManager } = await import('../components/utils/offlineManager');
-      const localSettings = await offlineManager.getAllFromStore('UserSettings');
-      console.log('📋 [UserSettingsTable] Loaded local settings from IndexedDB:', localSettings?.length || 0);
+      const localSettings = await offlineManager.getAllCachedUserSettings();
+      console.log('📋 [UserSettingsTable] Loaded local cached settings from IndexedDB:', localSettings?.length || 0);
       setLocalUserSettings(localSettings || []);
       
       return settings || [];
@@ -2174,16 +2174,28 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
   };
 
   const handleDeleteSetting = async (settingId) => {
-    if (!window.confirm(`Are you sure you want to delete this ${viewMode === 'cloud' ? 'cloud' : 'local'} user setting?`)) return;
+    if (!window.confirm(`Are you sure you want to delete this ${viewMode === 'cloud' ? 'cloud' : 'local cached'} user setting?`)) return;
     try {
       if (viewMode === 'cloud') {
         await UserSettings.delete(settingId);
         setUserSettings(prev => prev.filter(s => s.id !== settingId));
       } else {
-        // Delete from local IndexedDB
+        // Delete from local IndexedDB cache
+        const setting = localUserSettings.find(s => s.id === settingId || s._cacheId === settingId);
+        if (!setting) {
+          alert('Setting not found in local cache.');
+          return;
+        }
+        
         const { offlineManager } = await import('../components/utils/offlineManager');
-        await offlineManager.deleteFromStore('UserSettings', settingId);
-        setLocalUserSettings(prev => prev.filter(s => s.id !== settingId));
+        const cacheId = setting._cacheId || settingId;
+        const deleted = await offlineManager.deleteCachedUserSettings(cacheId);
+        
+        if (deleted) {
+          setLocalUserSettings(prev => prev.filter(s => (s._cacheId || s.id) !== cacheId));
+        } else {
+          alert('Failed to delete from local cache.');
+        }
       }
     } catch (error) {
       console.error('Failed to delete setting:', error);

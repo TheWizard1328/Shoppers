@@ -651,6 +651,54 @@ class OfflineManager {
     return age === null || age > maxAgeMs;
   }
 
+  // Get all cached UserSettings from IndexedDB (for admin diagnostics)
+  async getAllCachedUserSettings() {
+    try {
+      const db = await this.openDB();
+      const tx = db.transaction('cache', 'readonly');
+      const store = tx.objectStore('cache');
+      
+      return new Promise((resolve, reject) => {
+        const request = store.getAll();
+        request.onsuccess = () => {
+          // Filter only UserSettings entries (those with id starting with 'userSettings_')
+          const allCached = request.result || [];
+          const userSettingsEntries = allCached
+            .filter(entry => entry.id && entry.id.startsWith('userSettings_'))
+            .map(entry => ({
+              ...entry.data,
+              _cacheId: entry.id,
+              _timestamp: entry.timestamp
+            }));
+          
+          console.log(`📦 [OfflineManager] Found ${userSettingsEntries.length} cached UserSettings entries`);
+          resolve(userSettingsEntries);
+        };
+        request.onerror = () => reject(request.error);
+      });
+    } catch (error) {
+      console.error('❌ [OfflineManager] Error getting cached UserSettings:', error);
+      return [];
+    }
+  }
+
+  // Delete cached UserSettings entry from IndexedDB (for cleanup)
+  async deleteCachedUserSettings(cacheId) {
+    try {
+      const db = await this.openDB();
+      const tx = db.transaction('cache', 'readwrite');
+      const store = tx.objectStore('cache');
+      
+      await store.delete(cacheId);
+      
+      console.log(`🗑️ [OfflineManager] Deleted cached UserSettings: ${cacheId}`);
+      return true;
+    } catch (error) {
+      console.error('❌ [OfflineManager] Error deleting cached UserSettings:', error);
+      return false;
+    }
+  }
+
   // Cleanup on destroy
   destroy() {
     this.stopBackgroundSync();
