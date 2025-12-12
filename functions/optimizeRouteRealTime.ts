@@ -17,12 +17,24 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { driverId, deliveryDate } = await req.json();
+    const { driverId, deliveryDate, currentLocalTime } = await req.json();
 
     if (!driverId || !deliveryDate) {
       return Response.json({ 
         error: 'Missing required parameters: driverId, deliveryDate' 
       }, { status: 400 });
+    }
+
+    // Use client's local time if provided, otherwise fall back to server UTC time
+    let currentMinutes;
+    if (currentLocalTime) {
+      const [hours, minutes] = currentLocalTime.split(':').map(Number);
+      currentMinutes = hours * 60 + minutes;
+      console.log(`🕐 Using client local time: ${currentLocalTime} (${currentMinutes} minutes)`);
+    } else {
+      const now = new Date();
+      currentMinutes = now.getHours() * 60 + now.getMinutes();
+      console.warn(`⚠️ No local time provided, using server time (may be UTC)`);
     }
 
     console.log(`🔄 Optimizing route for driver ${driverId} on ${deliveryDate}`);
