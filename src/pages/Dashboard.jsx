@@ -1766,7 +1766,7 @@ function Dashboard() {
           setShouldFitBounds({
             bounds: allCoordinates,
             options: {
-              paddingTopLeft: isMobile ? [150, StatsCardHeight] : [50, 50],
+              paddingTopLeft: isMobile ? [100, StatsCardHeight] : [50, 50],
               paddingBottomRight: [50, StopCardsHeight - 250],
               maxZoom: phase1MaxZoom
             }
