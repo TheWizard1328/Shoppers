@@ -342,7 +342,7 @@ function Dashboard() {
       : 25;
     const bottomPadding = cardExpanded 
       ? STOP_CARDS_EXPANDED_HEIGHT 
-      : STOP_CARDS_BASE_HEIGHT - 0;
+      : STOP_CARDS_BASE_HEIGHT + 25;
     return {
       paddingTopLeft: [50, topPadding],
       paddingBottomRight: [50, bottomPadding]
