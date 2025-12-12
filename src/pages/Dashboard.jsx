@@ -5332,24 +5332,37 @@ function Dashboard() {
       });
       console.log(`✅ [START STEP 4] Stop #${newStopOrder} updated locally (isNextDelivery: true)`);
 
-      // STEP 4.5: Recalculate all stop orders sequentially
+      // STEP 4.5: Run route optimizer (optimizes order AND calculates ETAs)
       console.log('');
-      console.log('📍 [START STEP 4.5] Recalculating stop orders...');
-      await recalculateStopOrders(driverId, deliveryDate);
-      console.log('✅ [START STEP 4.5] Stop orders recalculated');
-
-      // STEP 5: Update ETA for the selected stop and all remaining
-      console.log('');
-      console.log('📍 [START STEP 5] Updating ETAs using backend optimizer...');
+      console.log('📍 [START STEP 4.5] Running route optimizer with ETA calculation...');
       try {
-        await base44.functions.invoke('etaOptimizer', {
+        // Get driver's current location for route optimization
+        const driverAppUser = appUsers.find(u => u && u.user_id === driverId);
+        const currentLocation = driverAppUser?.current_latitude && driverAppUser?.current_longitude ? {
+          latitude: driverAppUser.current_latitude,
+          longitude: driverAppUser.current_longitude
+        } : null;
+
+        await base44.functions.invoke('optimizeRouteRealTime', {
           driverId: driverId,
           deliveryDate: deliveryDate,
-          deviceTime: new Date().toISOString()
+          generatePolyline: true,
+          currentLocation: currentLocation
         });
-        console.log('✅ [START STEP 5] ETAs updated via backend');
-      } catch (etaError) {
-        console.warn('⚠️ [START STEP 5] ETA recalculation failed:', etaError);
+        console.log('✅ [START STEP 4.5] Route optimized and ETAs updated');
+      } catch (optimizeError) {
+        console.warn('⚠️ [START STEP 4.5] Route optimization failed, falling back to ETA update only:', optimizeError);
+        // Fallback to just ETA update if optimization fails
+        try {
+          await base44.functions.invoke('etaOptimizer', {
+            driverId: driverId,
+            deliveryDate: deliveryDate,
+            deviceTime: new Date().toISOString()
+          });
+          console.log('✅ [START STEP 4.5] ETAs updated via fallback');
+        } catch (etaError) {
+          console.warn('⚠️ [START STEP 4.5] ETA fallback also failed:', etaError);
+        }
       }
 
       // STEP 6: Full data refresh to update UI
