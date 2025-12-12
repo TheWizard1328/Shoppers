@@ -1486,26 +1486,32 @@ export default function Layout({ children, currentPageName }) {
       console.log(`✅ [Layout] Step 4: Loaded ${patientsData.length} Patients (all - needed for map coordinates)`);
       await new Promise(resolve => setTimeout(resolve, 200));
 
-      // Step 5: Deliveries - CRITICAL: Load ALL drivers for selected city
+      // Step 5: Deliveries - OPTIMIZED: Prioritize selected driver first
       // Build city store filter (ALWAYS used to restrict to selected city)
       let cityStoreFilter = {};
       const cityStoreIds = allStores.map(s => s?.id).filter(Boolean);
-      if (cityStoreIds.length > 0) {
+      if (cityStoreFilter.length > 0) {
         cityStoreFilter.store_id = { $in: cityStoreIds };
       }
 
-      // CRITICAL: For past 30 days data, load ALL drivers in city (no role filtering)
-      // This allows dispatchers to see historical data for all drivers
+      // PRIORITY: Load ONLY selected driver's data first for instant UI
+      let priorityFilter = { ...cityStoreFilter };
+      if (selectedDriverId && selectedDriverId !== 'all') {
+        priorityFilter.driver_id = selectedDriverId;
+        console.log(`⚡ [Layout] Priority loading: Driver ${selectedDriverId} only`);
+      }
+
+      // BACKGROUND: Load remaining drivers after UI renders
       let backgroundFilter = { ...cityStoreFilter };
 
       await loadDeliveries(
         selectedDateStr,
-        cityStoreFilter, // PRIORITY: ALL drivers for selected city (today + next 7 days)
-        backgroundFilter, // BACKGROUND: Role-filtered past data
+        priorityFilter, // PRIORITY: Selected driver only (or all if 'all' selected)
+        backgroundFilter, // BACKGROUND: Full city data
         forceRefresh,
-        // Initial load callback (selected date + next 7 days for ALL drivers)
+        // Initial load callback (selected driver/date - INSTANT UI)
         (initialDeliveries) => {
-          console.log(`⚡ [Layout] Step 5a: Initial UI update with ${initialDeliveries.length} deliveries for ${selectedDateStr}`);
+          console.log(`⚡ [Layout] Step 5a: INSTANT UI update with ${initialDeliveries.length} deliveries for ${selectedDriverId === 'all' ? 'all drivers' : 'selected driver'}`);
           setDeliveries(initialDeliveries);
 
           // Update patient cache with missing patients from deliveries
@@ -1527,16 +1533,17 @@ export default function Layout({ children, currentPageName }) {
           setDataLoaded(true);
           console.log(`✅ [Layout] === UI READY - Dashboard can render ===`);
         },
-        // Background full month callback
+        // Background callback - load remaining drivers + full month
         (fullMonthDeliveries) => {
-          console.log(`🔄 [Layout] Step 5b: Background merge of ${fullMonthDeliveries.length} full month deliveries`);
+          console.log(`🔄 [Layout] Step 5b: Background loading - merging ${fullMonthDeliveries.length} full dataset`);
           setDeliveries(prevDeliveries => {
             const map = new Map();
             fullMonthDeliveries.forEach(d => map.set(d.id, d));
-            prevDeliveries.forEach(d => map.set(d.id, d)); // Selected date takes priority
-            return Array.from(map.values());
+            prevDeliveries.forEach(d => map.set(d.id, d)); // Priority data takes precedence
+            const merged = Array.from(map.values());
+            console.log(`✅ [Layout] Background: Merged to ${merged.length} total deliveries`);
+            return merged;
           });
-          console.log(`✅ [Layout] Background: Full month merged`);
         }
       );
 
