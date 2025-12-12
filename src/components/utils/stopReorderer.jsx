@@ -11,13 +11,25 @@ import { base44 } from '@/api/base44Client';
 
 /**
  * Reorder stops for a driver's route on a specific date
+ * Sends current local time to backend for accurate ETA calculations
  * @param {string} driverId - The driver's ID
  * @param {string} deliveryDate - The date in yyyy-MM-dd format
  * @param {Array} allDeliveries - All deliveries (to filter by driver/date)
+ * @param {string} currentLocalTime - Optional current local time (HH:mm) from client device
  * @returns {Promise<Array>} - The reordered deliveries
  */
-export const reorderStops = async (driverId, deliveryDate, allDeliveries) => {
+export const reorderStops = async (driverId, deliveryDate, allDeliveries, currentLocalTime = null) => {
   console.log('🔄 [Reorder] Starting stop reordering for driver:', driverId, 'date:', deliveryDate);
+  
+  // Get current local time if not provided
+  const localTime = currentLocalTime || (() => {
+    const now = new Date();
+    const hours = now.getHours().toString().padStart(2, '0');
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+  })();
+  
+  console.log(`🕐 [Reorder] Using local time: ${localTime}`);
   
   // Filter deliveries for this driver and date
   const driverDeliveries = allDeliveries.filter(d => 
