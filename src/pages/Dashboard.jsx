@@ -5898,14 +5898,6 @@ function Dashboard() {
                       </div>
                     </>
                 }
-
-                  {/* Offline DB Sync Indicator - Mobile Only */}
-                  {isMobile && (
-                    <>
-                      <div className="border-t border-slate-200 mt-2"></div>
-                      <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} />
-                    </>
-                  )}
                 </motion.div>
                 }
                 </AnimatePresence>
@@ -5958,12 +5950,7 @@ function Dashboard() {
           </div>
         }
 
-        {/* Offline Sync Indicator - Desktop only (below polyline counter) */}
-        {!isMobile && (
-          <div className="absolute top-12 left-2 z-[999]">
-            <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} />
-          </div>
-        )}
+        <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} />
 
         {/* Real-time ETA Tracker */}
         {realTimeETAEnabled && selectedDriverId && selectedDriverId !== 'all' && (

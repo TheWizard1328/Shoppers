@@ -585,8 +585,7 @@ export default function Layout({ children, currentPageName }) {
 
           sessionStorage.clear();
           clearUserCache();
-          // CRITICAL: Don't clear settings cache - preserves user preferences
-          // clearSettingsCache();
+          clearSettingsCache();
 
           alert('Access Denied: Your account is currently inactive. Please contact an administrator.');
 
@@ -2868,15 +2867,13 @@ export default function Layout({ children, currentPageName }) {
                                   try {
                                     sessionStorage.clear();
                                     clearUserCache();
-                                    // CRITICAL: Don't clear settings cache on logout - preserves user preferences
-                                    // clearSettingsCache();
+                                    clearSettingsCache();
                                     await User.logout();
                                     window.location.href = '/';
                                   } catch (error) {
                                     console.error('Logout failed:', error);
                                     sessionStorage.clear();
-                                    // CRITICAL: Don't clear localStorage - preserves IndexedDB data
-                                    // localStorage.clear();
+                                    localStorage.clear();
                                     window.location.href = '/';
                                   }
                                 }
@@ -2898,7 +2895,6 @@ export default function Layout({ children, currentPageName }) {
                           try {
                             sessionStorage.clear();
                             clearUserCache();
-                            // CRITICAL: Don't clear settings cache - preserves device ID and preferences
                             const currentUrl = window.location.origin + window.location.pathname;
                             await User.loginWithRedirect(currentUrl);
                           } catch (error) {

@@ -304,7 +304,6 @@ export const isUserDataAvailable = async () => {
 };
 
 // Function to clear user cache when logging out
-// CRITICAL: Does NOT clear IndexedDB - only in-memory caches
 export const clearUserCache = () => {
     userCache = {
         data: null,
@@ -319,7 +318,7 @@ export const clearUserCache = () => {
         ttl: 900000 // 15 minutes
     };
     sessionStorage.removeItem('impersonationId');
-    console.log(`🗑️ [auth.js] User cache cleared (IndexedDB preserved for user settings)`);
+    console.log(`🗑️ [auth.js] User cache cleared`);
 };
 
 // Function to extend cache TTL when user is active (prevents session timeout during idle)
