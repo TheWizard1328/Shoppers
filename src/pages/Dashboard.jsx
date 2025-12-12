@@ -1856,8 +1856,8 @@ function Dashboard() {
         setShouldFitBounds({
           bounds: [[driverLocation.latitude, driverLocation.longitude]],
           options: {
-            paddingTopLeft: isMobile ? [50, StatsCardHeight - 50] : [50, 50],
-            paddingBottomRight: [50, StopCardsHeight - 50],
+            paddingTopLeft: isMobile ? [50, StatsCardHeight - 100] : [50, 50],
+            paddingBottomRight: [50, StopCardsHeight - 100],
             maxZoom: 15,
             animate: false
           }
