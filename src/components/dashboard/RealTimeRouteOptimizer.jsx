@@ -43,9 +43,14 @@ export default function RealTimeRouteOptimizer({
     console.log('🔄 [RealTimeRouteOptimizer] Triggering route optimization for driver:', selectedDriverId);
 
     try {
+      // Get current device local time
+      const now = new Date();
+      const currentLocalTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+      
       const response = await base44.functions.invoke('optimizeRouteRealTime', {
         driverId: selectedDriverId,
-        deliveryDate: selectedDate
+        deliveryDate: selectedDate,
+        currentLocalTime: currentLocalTime
       });
 
       const data = response?.data || response;
