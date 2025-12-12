@@ -1755,11 +1755,11 @@ function Dashboard() {
           } else if (maxSpan < 0.1) {
             // Medium spread (< 10km) - zoom 13
             phase1MaxZoom = 13;
-          } else if (maxSpan < 11) {
-            // Medium spread (< 10km) - zoom 12
+          } else if (maxSpan < 0.12) {
+            // Medium spread (< 12km) - zoom 12
             phase1MaxZoom = 12;
-          } else if (maxSpan < 21) {
-            // Medium spread (< 10km) - zoom 10
+          } else if (maxSpan < 0.2) {
+            // Medium spread (< 20km) - zoom 10
             phase1MaxZoom = 10;
           } else {
             // Wide spread (> 20km) - zoom 9
