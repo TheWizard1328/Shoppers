@@ -79,11 +79,27 @@ Deno.serve(async (req) => {
       (a.stop_order || Infinity) - (b.stop_order || Infinity)
     );
 
+    // Get or create polyline record for counter tracking
+    let polylineRecords = await base44.asServiceRole.entities.DriverRoutePolyline.filter({
+      driver_id: driverId,
+      delivery_date: deliveryDate
+    });
+    
+    let polylineRecord = polylineRecords?.[0];
+    if (!polylineRecord) {
+      polylineRecord = await base44.asServiceRole.entities.DriverRoutePolyline.create({
+        driver_id: driverId,
+        delivery_date: deliveryDate,
+        daily_generation_count: 0
+      });
+    }
+
     // Calculate cumulative ETAs
     const googleMapsKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
     const etaUpdates = [];
     let currentLocation = driverLocation;
     let cumulativeMinutes = 0;
+    let apiCallCount = 0;
 
     for (const delivery of sortedDeliveries) {
       // Determine destination coordinates
@@ -117,6 +133,9 @@ Deno.serve(async (req) => {
 
         const directionsResponse = await fetch(directionsUrl);
         const directionsData = await directionsResponse.json();
+        
+        // Increment API call counter
+        apiCallCount++;
 
         if (directionsData.status === 'OK' && directionsData.routes?.[0]) {
           const route = directionsData.routes[0];
@@ -163,6 +182,15 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Update polyline counter with total API calls made
+    if (apiCallCount > 0) {
+      await base44.asServiceRole.entities.DriverRoutePolyline.update(polylineRecord.id, {
+        daily_generation_count: (polylineRecord.daily_generation_count || 0) + apiCallCount,
+        last_generated_at: new Date().toISOString()
+      });
+      console.log(`📊 Incremented polyline counter by ${apiCallCount} (total: ${(polylineRecord.daily_generation_count || 0) + apiCallCount})`);
+    }
+
     console.log(`✅ Updated ${etaUpdates.length} ETAs for driver ${driverId}`);
 
     return Response.json({
@@ -171,7 +199,8 @@ Deno.serve(async (req) => {
       deliveryDate,
       driverLocation,
       etaUpdates,
-      totalDeliveries: deliveries.length
+      totalDeliveries: deliveries.length,
+      apiCallsMade: apiCallCount
     });
 
   } catch (error) {
