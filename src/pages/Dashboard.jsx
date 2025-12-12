@@ -1202,7 +1202,7 @@ function Dashboard() {
         navigator.geolocation.clearWatch(watchId);
       }
     };
-  }, [isDriver, currentUser, isMobile]);
+  }, [isDriver, currentUser, isMobile, deliveriesWithStopOrder, patients, stores, mapViewPhase, getMapPadding]);
 
   // Track other drivers' locations via poller (for all-drivers mode)
   useEffect(() => {
@@ -1741,7 +1741,6 @@ function Dashboard() {
         // CASE 3: Normal case with stop markers
         else if (allCoordinates.length > 0) {
           console.log('🗺️ [FAB Click] Phase 1 - Fitting bounds to', allCoordinates.length, 'coordinates');
-          console.log('  [FAB Click] Bottom padding:', StopCardsHeight);
 
           // Calculate span to determine appropriate maxZoom
           // Prevent over-zooming when stops are close together
