@@ -1757,7 +1757,7 @@ function Dashboard() {
             phase1MaxZoom = 13;
           } else {
             // Wide spread (> 10km) - zoom 12
-            phase1MaxZoom = 12;
+            phase1MaxZoom = 8;
           }
 
           console.log(`  [FAB Click] Span: ${(maxSpan * 111).toFixed(1)}km, maxZoom: ${phase1MaxZoom}`);
