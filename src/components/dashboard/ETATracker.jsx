@@ -54,30 +54,55 @@ export default function ETATracker({
 
     const updateETAs = async () => {
       try {
-        // Get device's current local time to use as reference
-        const now = new Date();
-        const currentLocalTime = now.toTimeString().slice(0, 5); // HH:mm in device's local timezone
-
+        // Get travel durations from backend
         const response = await base44.functions.invoke('calculateRealTimeETA', {
           driverId: selectedDriverId,
-          deliveryDate: selectedDate,
-          currentLocalTime: currentLocalTime
+          deliveryDate: selectedDate
         });
 
         const data = response?.data || response;
 
-        if (data?.success && data?.etaUpdates?.length > 0) {
-          console.log(`✅ [ETATracker] Updated ${data.etaUpdates.length} ETAs`);
+        if (data?.success && data?.durationUpdates?.length > 0) {
+          // Calculate local ETAs from durations on device
+          const now = new Date();
+          const currentHours = now.getHours();
+          const currentMinutes = now.getMinutes();
+          const currentTotalMinutes = currentHours * 60 + currentMinutes;
+
+          const etaUpdates = [];
+          
+          // Apply durations to current local time
+          for (const update of data.durationUpdates) {
+            const etaTotalMinutes = currentTotalMinutes + update.cumulativeMinutes;
+            const etaHours = Math.floor(etaTotalMinutes / 60) % 24;
+            const etaMinutes = etaTotalMinutes % 60;
+            const etaString = `${etaHours.toString().padStart(2, '0')}:${etaMinutes.toString().padStart(2, '0')}`;
+
+            etaUpdates.push({
+              deliveryId: update.deliveryId,
+              delivery_id: update.delivery_id,
+              newEta: etaString,
+              travelMinutes: update.travelMinutes,
+              serviceMinutes: update.serviceMinutes
+            });
+
+            // Update database with calculated local ETA
+            await base44.entities.Delivery.update(update.deliveryId, {
+              delivery_time_eta: etaString
+            });
+          }
+
+          console.log(`✅ [ETATracker] Updated ${etaUpdates.length} ETAs using device local time`);
           
           if (onETAUpdate) {
-            onETAUpdate(data.etaUpdates);
+            onETAUpdate(etaUpdates);
           }
 
           // Dispatch custom event for other components to listen
           window.dispatchEvent(new CustomEvent('etaUpdated', {
             detail: {
               driverId: selectedDriverId,
-              updates: data.etaUpdates
+              updates: etaUpdates
             }
           }));
         }

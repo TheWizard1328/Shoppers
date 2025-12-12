@@ -1,9 +1,9 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
 /**
- * Calculates real-time ETAs for all active deliveries for a driver
+ * Calculates real-time travel durations for all active deliveries for a driver
  * Uses driver's current GPS location and Google Directions API for traffic-aware estimates
- * Stores ETAs as local time strings (HH:mm) based on device's timezone
+ * Returns only durations - frontend calculates local ETAs
  */
 Deno.serve(async (req) => {
   try {
@@ -14,19 +14,15 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { driverId, deliveryDate, currentLocalTime } = await req.json();
+    const { driverId, deliveryDate } = await req.json();
 
-    if (!driverId || !deliveryDate || !currentLocalTime) {
+    if (!driverId || !deliveryDate) {
       return Response.json({ 
-        error: 'Missing required parameters: driverId, deliveryDate, currentLocalTime' 
+        error: 'Missing required parameters: driverId, deliveryDate' 
       }, { status: 400 });
     }
 
-    // Parse device's current local time (HH:mm format)
-    const [currentHours, currentMinutes] = currentLocalTime.split(':').map(Number);
-    const currentTotalMinutes = currentHours * 60 + currentMinutes;
-
-    console.log(`📍 Calculating real-time ETAs for driver ${driverId} on ${deliveryDate}, current time: ${currentLocalTime}`);
+    console.log(`📍 Calculating travel durations for driver ${driverId} on ${deliveryDate}`);
 
     // Get driver's current location
     const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
@@ -153,44 +149,31 @@ Deno.serve(async (req) => {
         const route = directionsData.routes[0];
         let cumulativeMinutes = 0;
 
-        // Process each leg of the route
+        // Process each leg of the route - return durations only
         for (let i = 0; i < route.legs.length; i++) {
           const leg = route.legs[i];
           const delivery = deliveriesWithCoords[i].delivery;
 
           const durationSeconds = leg.duration_in_traffic?.value || leg.duration?.value || 0;
-          const durationMinutes = Math.ceil(durationSeconds / 60);
+          const travelMinutes = Math.ceil(durationSeconds / 60);
           const serviceTime = delivery.extra_time || 5;
           
-          cumulativeMinutes += durationMinutes + serviceTime;
-
-          // Calculate ETA
-          const etaTotalMinutes = currentTotalMinutes + cumulativeMinutes;
-          const etaHours = Math.floor(etaTotalMinutes / 60) % 24;
-          const etaMinutes = etaTotalMinutes % 60;
-          const etaString = `${etaHours.toString().padStart(2, '0')}:${etaMinutes.toString().padStart(2, '0')}`;
+          cumulativeMinutes += travelMinutes + serviceTime;
 
           etaUpdates.push({
             deliveryId: delivery.id,
             delivery_id: delivery.delivery_id,
-            oldEta: delivery.delivery_time_eta,
-            newEta: etaString,
-            durationMinutes,
+            cumulativeMinutes: cumulativeMinutes,
+            travelMinutes: travelMinutes,
+            serviceMinutes: serviceTime,
             distanceMeters: leg.distance?.value || 0,
             trafficDelay: leg.duration_in_traffic?.value 
               ? (leg.duration_in_traffic.value - leg.duration.value) / 60
               : 0
           });
-
-          // Update delivery ETA in database if changed
-          if (delivery.delivery_time_eta !== etaString) {
-            await base44.asServiceRole.entities.Delivery.update(delivery.id, {
-              delivery_time_eta: etaString
-            });
-          }
         }
 
-        console.log(`✅ Updated ${etaUpdates.length} ETAs with ONE API call`);
+        console.log(`✅ Calculated ${etaUpdates.length} travel durations with ONE API call`);
       }
     } catch (error) {
       console.error('Error calculating route ETAs:', error);
@@ -206,14 +189,14 @@ Deno.serve(async (req) => {
     console.log(`📊 Incremented polyline counter by 1 (total: ${(polylineRecord.daily_generation_count || 0) + 1})`);
 
 
-    console.log(`✅ Updated ${etaUpdates.length} ETAs for driver ${driverId}`);
+    console.log(`✅ Calculated ${etaUpdates.length} travel durations for driver ${driverId}`);
 
     return Response.json({
       success: true,
       driverId,
       deliveryDate,
       driverLocation,
-      etaUpdates,
+      durationUpdates: etaUpdates,
       totalDeliveries: deliveries.length,
       apiCallsMade: 1
     });
