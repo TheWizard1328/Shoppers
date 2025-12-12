@@ -3,7 +3,8 @@
  * Stores Patient and Delivery entities locally for offline access
  */
 
-const DB_NAME = 'RxDeliverOfflineDB';
+// CRITICAL: Use stable database name and version to prevent recreation
+const DB_NAME = 'rxdeliver_persistent_offline_v1';
 const DB_VERSION = 1;
 
 // Store names

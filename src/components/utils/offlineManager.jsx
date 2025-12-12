@@ -543,7 +543,8 @@ class OfflineManager {
   // Open IndexedDB with version upgrade for new stores
   openDB() {
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open('rxdeliver_offline', 2); // Version 2 for new features
+      // CRITICAL: Use stable database name to prevent recreation
+      const request = indexedDB.open('rxdeliver_persistent_cache_v2', 2);
       
       request.onerror = () => reject(request.error);
       request.onsuccess = () => resolve(request.result);
