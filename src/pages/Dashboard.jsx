@@ -303,7 +303,7 @@ function Dashboard() {
 
   const STATS_CARD_BASE_HEIGHT = 116; // Fixed non-expanded height for map padding
   const STATS_CARD_EXTENDED_HEIGHT = 216; // Fixed non-expanded height for map padding
-  const StatsCardHeight = STATS_CARD_BASE_HEIGHT - 120;
+  const StatsCardHeight = STATS_CARD_BASE_HEIGHT;
 
   const mapLockTimeoutRef = useRef(null);
   const mapLockExpiresAtRef = useRef(null); // Timestamp when lock should expire
@@ -1856,7 +1856,7 @@ function Dashboard() {
         setShouldFitBounds({
           bounds: [[driverLocation.latitude, driverLocation.longitude]],
           options: {
-            paddingTopLeft: isMobile ? [50, StatsCardHeight] : [50, 50],
+            paddingTopLeft: isMobile ? [50, StatsCardHeight - 120] : [50, 50],
             paddingBottomRight: [50, StopCardsHeight],
             maxZoom: 15,
             animate: false
