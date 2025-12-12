@@ -2565,10 +2565,10 @@ function Dashboard() {
       setSelectedCardId(null);
       setHighlightedCardId(null);
 
-      // CRITICAL: Reactivate the current FAB phase when card collapses (NO TIMER)
-      console.log('🗺️ [Card Collapse] Reactivating FAB phase:', mapViewPhase, '(no auto-unlock timer)');
-      setIsMapViewLocked(true);
+      // CRITICAL: Reactivate FAB phase to recenter/zoom map, then unlock immediately
+      console.log('🗺️ [Card Collapse] Reactivating FAB phase:', mapViewPhase, '(unlocked immediately)');
       setMapViewTrigger((prev) => prev + 1);
+      setIsMapViewLocked(false);
 
       // Scroll to next delivery card
       setTimeout(() => {
