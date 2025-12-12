@@ -2042,7 +2042,9 @@ const UserDataTable = ({ users, onEdit, onDelete, onDeleteSelected, isLoadingDat
 
 const UserSettingsTable = ({ appUsers, mergedUsers }) => {
   const [userSettings, setUserSettings] = useState([]);
+  const [localUserSettings, setLocalUserSettings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [viewMode, setViewMode] = useState('cloud'); // 'cloud' or 'local'
   const refreshIntervalRef = useRef(null);
   const { visibleColumns, toggleColumn, config } = useColumnVisibility('userSettings');
   const [columnWidths, setColumnWidths] = useState(() => {
@@ -2070,12 +2072,21 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
 
   const loadSettings = useCallback(async () => {
     try {
+      // Load cloud settings
       const settings = await UserSettings.list();
       setUserSettings(settings || []);
+      
+      // Load local settings from IndexedDB
+      const { offlineManager } = await import('../components/utils/offlineManager');
+      const localSettings = await offlineManager.getAllFromStore('UserSettings');
+      console.log('📋 [UserSettingsTable] Loaded local settings from IndexedDB:', localSettings?.length || 0);
+      setLocalUserSettings(localSettings || []);
+      
       return settings || [];
     } catch (error) {
       console.error('Failed to load user settings:', error);
       setUserSettings([]);
+      setLocalUserSettings([]);
       return [];
     }
   }, []);
@@ -2163,15 +2174,24 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
   };
 
   const handleDeleteSetting = async (settingId) => {
-    if (!window.confirm('Are you sure you want to delete this user setting?')) return;
+    if (!window.confirm(`Are you sure you want to delete this ${viewMode === 'cloud' ? 'cloud' : 'local'} user setting?`)) return;
     try {
-      await UserSettings.delete(settingId);
-      setUserSettings(prev => prev.filter(s => s.id !== settingId));
+      if (viewMode === 'cloud') {
+        await UserSettings.delete(settingId);
+        setUserSettings(prev => prev.filter(s => s.id !== settingId));
+      } else {
+        // Delete from local IndexedDB
+        const { offlineManager } = await import('../components/utils/offlineManager');
+        await offlineManager.deleteFromStore('UserSettings', settingId);
+        setLocalUserSettings(prev => prev.filter(s => s.id !== settingId));
+      }
     } catch (error) {
       console.error('Failed to delete setting:', error);
       alert('Failed to delete setting: ' + error.message);
     }
   };
+
+  const displayedSettings = viewMode === 'cloud' ? userSettings : localUserSettings;
 
   return (
     <Card>
@@ -2180,15 +2200,34 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
           <div className="flex items-center gap-2">
             <Settings className="w-5 h-5" />
             User Settings
+            <Badge variant={viewMode === 'cloud' ? 'default' : 'secondary'}>
+              {viewMode === 'cloud' ? 'Cloud' : 'Local'} ({displayedSettings.length})
+            </Badge>
           </div>
-          <ColumnVisibilityControl
-            config={config}
-            visibleColumns={visibleColumns}
-            onToggle={toggleColumn}
-          />
+          <div className="flex gap-2">
+            <Button
+              variant={viewMode === 'cloud' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode('cloud')}
+            >
+              Cloud ({userSettings.length})
+            </Button>
+            <Button
+              variant={viewMode === 'local' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode('local')}
+            >
+              Local ({localUserSettings.length})
+            </Button>
+            <ColumnVisibilityControl
+              config={config}
+              visibleColumns={visibleColumns}
+              onToggle={toggleColumn}
+            />
+          </div>
         </CardTitle>
         <CardDescription>
-          View and manage per-user, per-device settings stored in the database.
+          View and manage per-user, per-device settings. Toggle between Cloud (backend) and Local (IndexedDB) storage.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -2197,9 +2236,9 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
             <Loader2 className="w-6 h-6 animate-spin text-emerald-500" />
             <span className="ml-2 text-slate-600">Loading user settings...</span>
           </div>
-        ) : userSettings.length === 0 ? (
+        ) : displayedSettings.length === 0 ? (
           <div className="text-center py-8 text-slate-500">
-            No user settings found.
+            No {viewMode} user settings found.
           </div>
         ) : (
           <div className="border rounded-md overflow-hidden">
@@ -2255,7 +2294,7 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {userSettings.map(setting => {
+                  {displayedSettings.map(setting => {
                     const selectedDriverName = setting.selected_driver_id 
                       ? (setting.selected_driver_id === 'all' ? 'All Drivers' : getUserName(setting.selected_driver_id))
                       : '-';
