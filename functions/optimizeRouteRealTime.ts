@@ -222,29 +222,45 @@ Deno.serve(async (req) => {
     const newOrder = optimizedRoute.map(i => i + 1).join(',');
     const routeChanged = oldOrder !== newOrder;
 
-    // Update stop_order in database if route changed
+    // Calculate ETAs based on optimized route
+    let currentPosition = 0; // Driver location
+    let accumulatedMinutes = currentMinutes;
+    
+    // Update stop_order and ETAs in database
     const updates = [];
-    if (routeChanged) {
-      for (let i = 0; i < optimizedRoute.length; i++) {
-        const stopIdx = optimizedRoute[i];
-        const stop = stops[stopIdx];
-        const newStopOrder = i + 1;
+    for (let i = 0; i < optimizedRoute.length; i++) {
+      const stopIdx = optimizedRoute[i];
+      const stop = stops[stopIdx];
+      const newStopOrder = i + 1;
 
-        if (stop.delivery.stop_order !== newStopOrder) {
-          await base44.asServiceRole.entities.Delivery.update(stop.delivery.id, {
-            stop_order: newStopOrder
-          });
+      // Calculate ETA
+      const travelTime = Math.ceil(matrix[currentPosition][stopIdx].duration / 60);
+      const serviceTime = stop.delivery.extra_time || 5;
+      accumulatedMinutes += travelTime + serviceTime;
+      
+      const etaHours = Math.floor(accumulatedMinutes / 60) % 24;
+      const etaMinutes = accumulatedMinutes % 60;
+      const etaString = `${etaHours.toString().padStart(2, '0')}:${etaMinutes.toString().padStart(2, '0')}`;
 
-          updates.push({
-            deliveryId: stop.delivery.delivery_id,
-            oldOrder: stop.delivery.stop_order,
-            newOrder: newStopOrder
-          });
-        }
-      }
+      // Update delivery with new stop_order and ETA
+      const updateData = {
+        stop_order: newStopOrder,
+        delivery_time_eta: etaString
+      };
+
+      await base44.asServiceRole.entities.Delivery.update(stop.delivery.id, updateData);
+
+      updates.push({
+        deliveryId: stop.delivery.delivery_id,
+        oldOrder: stop.delivery.stop_order,
+        newOrder: newStopOrder,
+        eta: etaString
+      });
+
+      currentPosition = stopIdx + 1; // Move to next position in matrix
     }
 
-    console.log(`✅ Route optimization complete - ${routeChanged ? 'CHANGED' : 'UNCHANGED'} (${updates.length} updates)`);
+    console.log(`✅ Route optimization complete - ${routeChanged ? 'CHANGED' : 'UNCHANGED'} (${updates.length} updates with ETAs)`);
 
     return Response.json({
       success: true,
@@ -253,7 +269,8 @@ Deno.serve(async (req) => {
       routeChanged,
       updates,
       totalStops: stops.length,
-      apiCallsMade: 1
+      apiCallsMade: 1,
+      etasUpdated: true
     });
 
   } catch (error) {
