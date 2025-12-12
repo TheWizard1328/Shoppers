@@ -282,28 +282,26 @@ Deno.serve(async (req) => {
       const stop = stops[stopIdx];
       const newStopOrder = startingStopOrder + i + 1; // Continue from completed stops
 
-      // Calculate ETA
+      // Calculate travel duration (don't calculate ETA on backend)
       const travelTime = Math.ceil(matrix[currentPosition][stopIdx].duration / 60);
       const serviceTime = stop.delivery.extra_time || 5;
       accumulatedMinutes += travelTime + serviceTime;
-      
-      const etaHours = Math.floor(accumulatedMinutes / 60) % 24;
-      const etaMinutes = accumulatedMinutes % 60;
-      const etaString = `${etaHours.toString().padStart(2, '0')}:${etaMinutes.toString().padStart(2, '0')}`;
 
-      // Update delivery with new stop_order and ETA
+      // Update delivery with new stop_order only (no ETA)
       const updateData = {
-        stop_order: newStopOrder,
-        delivery_time_eta: etaString
+        stop_order: newStopOrder
       };
 
       await base44.asServiceRole.entities.Delivery.update(stop.delivery.id, updateData);
 
       updates.push({
-        deliveryId: stop.delivery.delivery_id,
+        deliveryId: stop.delivery.id,
+        delivery_id: stop.delivery.delivery_id,
         oldOrder: stop.delivery.stop_order,
         newOrder: newStopOrder,
-        eta: etaString
+        cumulativeMinutes: accumulatedMinutes - currentMinutes,
+        travelMinutes: travelTime,
+        serviceMinutes: serviceTime
       });
 
       currentPosition = stopIdx + 1; // Move to next position in matrix
