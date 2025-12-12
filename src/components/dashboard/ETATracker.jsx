@@ -27,9 +27,13 @@ export default function ETATracker({
 
     const updateETAs = async () => {
       try {
+        // Get device's timezone offset in minutes
+        const timezoneOffset = new Date().getTimezoneOffset();
+
         const response = await base44.functions.invoke('calculateRealTimeETA', {
           driverId: selectedDriverId,
-          deliveryDate: selectedDate
+          deliveryDate: selectedDate,
+          timezoneOffset: timezoneOffset
         });
 
         const data = response?.data || response;

@@ -13,13 +13,16 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { driverId, deliveryDate } = await req.json();
+    const { driverId, deliveryDate, timezoneOffset } = await req.json();
 
     if (!driverId || !deliveryDate) {
       return Response.json({ 
         error: 'Missing required parameters: driverId, deliveryDate' 
       }, { status: 400 });
     }
+
+    // Default to UTC if no timezone offset provided
+    const deviceTimezoneOffset = timezoneOffset !== undefined ? timezoneOffset : 0;
 
     console.log(`📍 Calculating real-time ETAs for driver ${driverId} on ${deliveryDate}`);
 
@@ -125,10 +128,16 @@ Deno.serve(async (req) => {
           const serviceTime = delivery.extra_time || 5;
           cumulativeMinutes += durationMinutes + serviceTime;
 
-          // Calculate ETA time
+          // Calculate ETA time in device's local timezone
           const now = new Date();
           const etaTime = new Date(now.getTime() + cumulativeMinutes * 60000);
-          const etaString = etaTime.toTimeString().slice(0, 5); // HH:mm
+          
+          // Apply device timezone offset to get local time
+          // getTimezoneOffset() returns offset in minutes (positive for behind UTC)
+          const localEtaTime = new Date(etaTime.getTime() - (deviceTimezoneOffset * 60000));
+          const hours = localEtaTime.getUTCHours().toString().padStart(2, '0');
+          const minutes = localEtaTime.getUTCMinutes().toString().padStart(2, '0');
+          const etaString = `${hours}:${minutes}`;
 
           etaUpdates.push({
             deliveryId: delivery.id,
