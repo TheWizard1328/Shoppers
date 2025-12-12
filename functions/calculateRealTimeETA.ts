@@ -3,6 +3,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 /**
  * Calculates real-time ETAs for all active deliveries for a driver
  * Uses driver's current GPS location and Google Directions API for traffic-aware estimates
+ * Stores ETAs as UTC ISO strings for timezone-independent accuracy
  */
 Deno.serve(async (req) => {
   try {
@@ -13,17 +14,13 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { driverId, deliveryDate, currentLocalTime } = await req.json();
+    const { driverId, deliveryDate } = await req.json();
 
-    if (!driverId || !deliveryDate || !currentLocalTime) {
+    if (!driverId || !deliveryDate) {
       return Response.json({ 
-        error: 'Missing required parameters: driverId, deliveryDate, currentLocalTime' 
+        error: 'Missing required parameters: driverId, deliveryDate' 
       }, { status: 400 });
     }
-
-    // Parse device's current local time (HH:mm format)
-    const [currentHours, currentMinutes] = currentLocalTime.split(':').map(Number);
-    const currentTotalMinutes = currentHours * 60 + currentMinutes;
 
     console.log(`📍 Calculating real-time ETAs for driver ${driverId} on ${deliveryDate}`);
 
@@ -129,17 +126,16 @@ Deno.serve(async (req) => {
           const serviceTime = delivery.extra_time || 5;
           cumulativeMinutes += durationMinutes + serviceTime;
 
-          // Calculate ETA in device's local time by adding cumulative minutes to current local time
-          const etaTotalMinutes = currentTotalMinutes + cumulativeMinutes;
-          const etaHours = Math.floor(etaTotalMinutes / 60) % 24;
-          const etaMinutes = etaTotalMinutes % 60;
-          const etaString = `${etaHours.toString().padStart(2, '0')}:${etaMinutes.toString().padStart(2, '0')}`;
+          // Calculate ETA as UTC Date object
+          const now = new Date();
+          const etaTime = new Date(now.getTime() + cumulativeMinutes * 60000);
+          const etaIsoString = etaTime.toISOString();
 
           etaUpdates.push({
             deliveryId: delivery.id,
             delivery_id: delivery.delivery_id,
             oldEta: delivery.delivery_time_eta,
-            newEta: etaString,
+            newEta: etaIsoString,
             durationMinutes,
             distanceMeters: leg.distance?.value || 0,
             trafficDelay: leg.duration_in_traffic?.value 
@@ -148,9 +144,9 @@ Deno.serve(async (req) => {
           });
 
           // Update delivery ETA in database if changed
-          if (delivery.delivery_time_eta !== etaString) {
+          if (delivery.delivery_time_eta !== etaIsoString) {
             await base44.asServiceRole.entities.Delivery.update(delivery.id, {
-              delivery_time_eta: etaString
+              delivery_time_eta: etaIsoString
             });
           }
 

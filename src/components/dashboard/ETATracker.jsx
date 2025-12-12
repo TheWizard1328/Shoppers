@@ -1,20 +1,37 @@
 import React, { useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Clock } from 'lucide-react';
+import { isMobileDevice } from '../utils/deviceUtils';
+import { userHasRole } from '../utils/userRoles';
 
 /**
  * Background ETA tracking service
- * Automatically calculates and updates ETAs for active drivers
+ * ONLY runs on driver's mobile device - not on dispatchers or desktop
+ * Automatically calculates and updates ETAs every 2 minutes
  */
 export default function ETATracker({ 
   selectedDriverId, 
   selectedDate, 
+  currentUser,
   isActive = true,
   onETAUpdate 
 }) {
   const intervalRef = useRef(null);
 
   useEffect(() => {
+    // CRITICAL: Only run on driver's mobile device
+    const isMobile = isMobileDevice();
+    const isDriver = currentUser && userHasRole(currentUser, 'driver');
+    const isCurrentDriver = currentUser && currentUser.id === selectedDriverId;
+
+    if (!isMobile || !isDriver || !isCurrentDriver) {
+      console.log('⏸️ [ETATracker] Skipping - not driver\'s mobile device');
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      return;
+    }
+
     if (!isActive || !selectedDriverId || selectedDriverId === 'all' || !selectedDate) {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -27,14 +44,9 @@ export default function ETATracker({
 
     const updateETAs = async () => {
       try {
-        // Get device's current local time to use as reference
-        const now = new Date();
-        const currentLocalTime = now.toTimeString().slice(0, 5); // HH:mm in device's local timezone
-
         const response = await base44.functions.invoke('calculateRealTimeETA', {
           driverId: selectedDriverId,
-          deliveryDate: selectedDate,
-          currentLocalTime: currentLocalTime
+          deliveryDate: selectedDate
         });
 
         const data = response?.data || response;
@@ -71,7 +83,7 @@ export default function ETATracker({
         intervalRef.current = null;
       }
     };
-  }, [selectedDriverId, selectedDate, isActive, onETAUpdate]);
+  }, [selectedDriverId, selectedDate, currentUser, isActive, onETAUpdate]);
 
   // Render nothing - this is a background service
   return null;
