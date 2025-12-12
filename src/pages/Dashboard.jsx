@@ -59,6 +59,7 @@ import OfflineSyncIndicator from '@/components/layout/OfflineSyncIndicator';
 import DashboardOfflineSync from '@/components/dashboard/DashboardOfflineSync';
 import ETATracker from '../components/dashboard/ETATracker';
 import ETANotification from '../components/dashboard/ETANotification';
+import RealTimeRouteOptimizer from '../components/dashboard/RealTimeRouteOptimizer';
 
   // FIXED: StatBadge - always render with consistent hook structure
   const StatBadge = ({ icon: Icon, value, color, label, tooltip }) => {
@@ -5956,12 +5957,24 @@ function Dashboard() {
           <ETATracker
             selectedDriverId={selectedDriverId}
             selectedDate={selectedDateStr}
+            currentUser={currentUser}
             isActive={!showDeliveryForm && !showPatientForm && !showOptimizationSettings}
             onETAUpdate={(updates) => {
               console.log('📍 ETA updates received:', updates);
             }}
           />
         )}
+
+        {/* Real-time Route Optimizer */}
+        <RealTimeRouteOptimizer
+          selectedDriverId={selectedDriverId}
+          selectedDate={selectedDateStr}
+          currentUser={currentUser}
+          isActive={!showDeliveryForm && !showPatientForm && !showOptimizationSettings}
+          onRouteOptimized={(updates) => {
+            console.log('🔄 Route optimization updates:', updates);
+          }}
+        />
 
         {/* ETA Change Notifications */}
         <ETANotification
