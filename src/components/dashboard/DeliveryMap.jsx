@@ -2519,7 +2519,10 @@ export default function DeliveryMap({
       </MapContainer>
 
       {/* Map Crosshair Overlay - Always visible, non-interactive */}
-      <MapCrosshair stopCardsHeight={areStopCardsVisible ? stopCardsHeight : 0} />
+      <MapCrosshair 
+        stopCardsHeight={areStopCardsVisible ? stopCardsHeight : 0}
+        statsCardHeight={areCardsVisible ? (isStatsCardExpanded ? 216 : 116) : 0}
+        isMobile={isMobile} />
 
       {safeDeliveries.length === 0 &&
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ background: 'var(--bg-white)', opacity: 0.8 }}>
