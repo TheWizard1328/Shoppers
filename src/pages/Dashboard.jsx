@@ -6002,8 +6002,7 @@ function Dashboard() {
             retractClustersRef={retractClustersRef}
             areStopCardsVisible={deliveriesWithStopOrder.length > 0}
             highlightedDeliveryId={highlightedCardId}
-            stopCardsHeight={selectedCardId ? STOP_CARDS_EXPANDED_HEIGHT : STOP_CARDS_BASE_HEIGHT + 50}
-            topPadding={isMobile ? (isExpanded ? STATS_CARD_EXTENDED_HEIGHT : STATS_CARD_BASE_HEIGHT + 15) : 20} />
+            stopCardsHeight={selectedCardId ? STOP_CARDS_EXPANDED_HEIGHT : STOP_CARDS_BASE_HEIGHT + 50} />
 
         </div>
 
