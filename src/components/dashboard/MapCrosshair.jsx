@@ -29,11 +29,11 @@ export default function MapCrosshair({ stopCardsHeight = 0, statsCardHeight = 0,
         justifyContent: 'center'
       }}
     >
-      {/* Crosshair container - shifted UP when stop cards visible */}
+      {/* Crosshair container - shifted to center in visible map area */}
       <div 
         className="relative w-6 h-6"
         style={{
-          transform: verticalShift > 0 ? `translateY(-${verticalShift}px)` : 'none'
+          transform: verticalShift !== 0 ? `translateY(${verticalShift > 0 ? '-' : ''}${Math.abs(verticalShift)}px)` : 'none'
         }}
       >
         {/* Horizontal line */}
