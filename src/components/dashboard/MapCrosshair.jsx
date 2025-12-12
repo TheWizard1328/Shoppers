@@ -17,7 +17,7 @@ export default function MapCrosshair({ stopCardsHeight = 0, statsCardHeight = 0,
   const bottomObscured = stopCardsHeight;
   
   // Net shift = (bottomObscured - topObscured) / 2
-  // Positive = shift down, Negative = shift up
+  // Positive = shift up, Negative = shift down
   const verticalShift = Math.round((bottomObscured - topObscured) / 2);
 
   return (
@@ -33,7 +33,7 @@ export default function MapCrosshair({ stopCardsHeight = 0, statsCardHeight = 0,
       <div 
         className="relative w-6 h-6"
         style={{
-          transform: verticalShift !== 0 ? `translateY(${verticalShift}px)` : 'none'
+          transform: verticalShift !== 0 ? `translateY(${verticalShift > 0 ? '-' : ''}${Math.abs(verticalShift)}px)` : 'none'
         }}
       >
         {/* Horizontal line */}
