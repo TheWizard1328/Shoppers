@@ -57,6 +57,8 @@ import { offlineDeliveryManager } from "@/components/utils/offlineDeliveryManage
 import OfflineIndicator from "@/components/dashboard/OfflineIndicator";
 import OfflineSyncIndicator from '@/components/layout/OfflineSyncIndicator';
 import DashboardOfflineSync from '@/components/dashboard/DashboardOfflineSync';
+import ETATracker from '../components/dashboard/ETATracker';
+import ETANotification from '../components/dashboard/ETANotification';
 
   // FIXED: StatBadge - always render with consistent hook structure
   const StatBadge = ({ icon: Icon, value, color, label, tooltip }) => {
@@ -308,6 +310,7 @@ function Dashboard() {
   const [highlightedCardId, setHighlightedCardId] = useState(null);
   const [currentToNextPolyline, setCurrentToNextPolyline] = useState(null);
   const [hasRateLimitError, setHasRateLimitError] = useState(false);
+  const [realTimeETAEnabled, setRealTimeETAEnabled] = useState(true);
 
   // Track previous map state for restoring when card is collapsed
   const [previousMapState, setPreviousMapState] = useState(null);
@@ -5948,6 +5951,24 @@ function Dashboard() {
         }
 
         <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} />
+
+        {/* Real-time ETA Tracker */}
+        {realTimeETAEnabled && selectedDriverId && selectedDriverId !== 'all' && (
+          <ETATracker
+            selectedDriverId={selectedDriverId}
+            selectedDate={selectedDateStr}
+            isActive={!showDeliveryForm && !showPatientForm && !showOptimizationSettings}
+            onETAUpdate={(updates) => {
+              console.log('📍 ETA updates received:', updates);
+            }}
+          />
+        )}
+
+        {/* ETA Change Notifications */}
+        <ETANotification
+          deliveries={filteredDeliveries}
+          driverId={selectedDriverId}
+        />
 
         <div className="absolute inset-0 overflow-hidden">
           <DeliveryMap
