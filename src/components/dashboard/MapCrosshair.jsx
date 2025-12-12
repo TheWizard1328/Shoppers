@@ -16,9 +16,10 @@ export default function MapCrosshair({ stopCardsHeight = 0, statsCardHeight = 0,
   const topObscured = isMobile ? statsCardHeight : 0;
   const bottomObscured = stopCardsHeight;
   
-  // Net shift = (bottomObscured - topObscured) / 2
-  // Positive = shift up, Negative = shift down
-  const verticalShift = Math.round((bottomObscured - topObscured) / 2);
+  // Net shift = (topObscured - bottomObscured) / 2
+  // If top is more obscured, shift DOWN (positive translateY)
+  // If bottom is more obscured, shift UP (negative translateY)
+  const verticalShift = Math.round((topObscured - bottomObscured) / 2);
 
   return (
     <div 
