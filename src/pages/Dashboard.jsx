@@ -1743,12 +1743,15 @@ function Dashboard() {
           const lonSpan = maxLon - minLon;
           const maxSpan = Math.max(latSpan, lonSpan);
 
-          // Dynamic zoom calculation based on geographic spread
+          // Dynamic zoom calculation based on geographic spread and screen size
           // Convert degrees to km (1 degree ≈ 111km) and use logarithmic scale
+          // Mobile needs tighter zoom (higher numbers), desktop can zoom out more (lower numbers)
           const spanKm = maxSpan * 111;
-          const phase1MaxZoom = Math.max(10, Math.min(15, Math.round(16 - Math.log2(spanKm + 1) * 1.5)));
+          const baseZoom = 16 - Math.log2(spanKm + 1) * 1.5;
+          const screenAdjustment = isMobile ? 0.5 : -0.5; // Mobile +0.5 zoom, Desktop -0.5 zoom
+          const phase1MaxZoom = Math.max(10, Math.min(15, Math.round(baseZoom + screenAdjustment)));
 
-          console.log(`  [FAB Click] Span: ${spanKm.toFixed(1)}km, maxZoom: ${phase1MaxZoom}`);
+          console.log(`  [FAB Click] Span: ${spanKm.toFixed(1)}km, maxZoom: ${phase1MaxZoom} (${isMobile ? 'mobile' : 'desktop'})`);
 
           const padding = getMapPadding(false);
           console.log(`  [FAB Click] Padding:`, padding);
