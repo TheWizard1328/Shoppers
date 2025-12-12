@@ -5929,10 +5929,9 @@ function Dashboard() {
                     </>
                 }
                 </motion.div>
-              }
-            <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} />
-            </AnimatePresence>
-          </motion.div>
+                }
+                </AnimatePresence>
+                </motion.div>
 
           {/* Driver Legend - positioned directly below stats card */}
           {isAllDriversMode && driverRoutes.length > 0 &&
@@ -5980,6 +5979,8 @@ function Dashboard() {
             </div>
           </div>
         }
+
+        <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} />
 
         <div className="absolute inset-0 overflow-hidden">
           <DeliveryMap
