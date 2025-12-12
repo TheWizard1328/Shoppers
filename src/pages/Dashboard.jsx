@@ -1823,7 +1823,7 @@ function Dashboard() {
           setShouldFitBounds({
             bounds,
             options: {
-              paddingTopLeft: isMobile ? [50, StatsCardHeight - 150] : [50, 50],
+              paddingTopLeft: isMobile ? [50, StatsCardHeight - 200] : [50, 50],
               paddingBottomRight: [50, StopCardsHeight],
               maxZoom: 17
             }
