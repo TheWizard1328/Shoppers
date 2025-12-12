@@ -5958,6 +5958,13 @@ function Dashboard() {
           </div>
         }
 
+        {/* Offline Sync Indicator - Desktop only (below polyline counter) */}
+        {!isMobile && (
+          <div className="absolute top-12 left-2 z-[999]">
+            <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} />
+          </div>
+        )}
+
         {/* Real-time ETA Tracker */}
         {realTimeETAEnabled && selectedDriverId && selectedDriverId !== 'all' && (
           <ETATracker
