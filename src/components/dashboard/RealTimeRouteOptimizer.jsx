@@ -34,6 +34,16 @@ export default function RealTimeRouteOptimizer({
       return;
     }
 
+    // CRITICAL: Only run when driver is on duty (not off_duty or on_break)
+    if (currentUser.driver_status !== 'on_duty') {
+      console.log('⏸️ [RealTimeRouteOptimizer] Skipping - driver not on duty (status:', currentUser.driver_status, ')');
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      return;
+    }
+
     if (!isActive || !selectedDriverId || selectedDriverId === 'all' || !selectedDate) {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
