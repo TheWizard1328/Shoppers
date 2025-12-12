@@ -2306,69 +2306,6 @@ function Dashboard() {
   }, [selectedDriverId]); // Add selectedDriverId as dependency
 
   const handleDateChange = async (date) => {
-    setSelectedDate(date);
-    globalFilters.setSelectedDate(date);
-    setIsCalendarOpen(false);
-
-    // Save to user settings
-    if (currentUser?.id) {
-      const dateStr = format(date, 'yyyy-MM-dd');
-      console.log('💾 [Dashboard] Saving date selection to user settings:', dateStr);
-      saveSetting(currentUser.id, 'selected_date', dateStr);
-    }
-
-    // CRITICAL: Pause smart refresh and clear pending operations
-    console.log('🔄 [Dashboard] Date changed - pausing smart refresh and prioritizing selected date');
-    setIsEntityUpdating(true);
-    smartRefreshManager.clearPendingUpdates();
-
-    try {
-      const dateStr = format(date, 'yyyy-MM-dd');
-      
-      // PRIORITY 1: Load selected driver's data FIRST (or all drivers if no specific selection)
-      let freshDeliveries;
-      if (selectedDriverId && selectedDriverId !== 'all') {
-        // Load specific driver first for instant UI update
-        console.log(`⚡ [Dashboard] Priority load: Driver ${selectedDriverId} on ${dateStr}`);
-        freshDeliveries = await base44.entities.Delivery.filter({
-          delivery_date: dateStr,
-          driver_id: selectedDriverId
-        });
-        console.log(`✅ [Dashboard] Loaded ${freshDeliveries.length} deliveries for selected driver (INSTANT)`);
-        
-        // Update UI immediately with this driver's data
-        if (updateDeliveriesLocally) {
-          const otherDeliveries = deliveries.filter((d) => d && (d.delivery_date !== dateStr || d.driver_id !== selectedDriverId));
-          const mergedDeliveries = [...otherDeliveries, ...freshDeliveries];
-          updateDeliveriesLocally(mergedDeliveries);
-        }
-        
-        // PRIORITY 2: Load remaining drivers for this date in background (don't wait)
-        base44.entities.Delivery.filter({ delivery_date: dateStr }).then(allDateDeliveries => {
-          console.log(`✅ [Dashboard] Background load: ${allDateDeliveries.length} total deliveries for ${dateStr}`);
-          if (updateDeliveriesLocally) {
-            const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== dateStr);
-            const mergedDeliveries = [...otherDateDeliveries, ...allDateDeliveries];
-            updateDeliveriesLocally(mergedDeliveries);
-          }
-        }).catch(err => console.warn('Background load failed:', err));
-      } else {
-        // Load all drivers for this date
-        console.log(`⚡ [Dashboard] Priority load: All drivers on ${dateStr}`);
-        freshDeliveries = await base44.entities.Delivery.filter({
-          delivery_date: dateStr
-        });
-        console.log(`✅ [Dashboard] Loaded ${freshDeliveries.length} deliveries for all drivers (INSTANT)`);
-        
-        // Update context with fresh deliveries
-        if (updateDeliveriesLocally) {
-          const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== dateStr);
-          const mergedDeliveries = [...otherDateDeliveries, ...freshDeliveries];
-          updateDeliveriesLocally(mergedDeliveries);
-        }
-      }
-
-  const handleDateChange = async (date) => {
     console.log('📅 [Date Change] START - pausing all background operations');
     
     // CRITICAL: Pause smart refresh immediately
