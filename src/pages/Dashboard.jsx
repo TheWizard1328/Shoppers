@@ -297,12 +297,6 @@ function Dashboard() {
   const hasShownSummaryRef = useRef(false);
   const stopCardsContainerRef = useRef(null);
 
-  const STOP_CARDS_EXPANDED_HEIGHT = 450; // Expanded card height for map padding
-  const STOP_CARDS_BASE_HEIGHT = 145; // Fixed non-expanded height for map padding
-  
-  const STATS_CARD_BASE_HEIGHT = 116; // Fixed non-expanded height for map padding
-  const STATS_CARD_EXTENDED_HEIGHT = 216; // Extended height when expanded
-
   const mapLockTimeoutRef = useRef(null);
   const mapLockExpiresAtRef = useRef(null); // Timestamp when lock should expire
   const [useAIOptimization, setUseAIOptimization] = useState(true);
@@ -334,6 +328,12 @@ function Dashboard() {
   const isMobile = useMemo(() => isMobileDevice(), []);
   const isDriver = useMemo(() => currentUser ? userHasRole(currentUser, 'driver') : false, [currentUser]);
   const isAdmin = useMemo(() => currentUser ? userHasRole(currentUser, 'admin') : false, [currentUser]);
+
+  const STOP_CARDS_EXPANDED_HEIGHT = 450; // Expanded card height for map padding
+  const STOP_CARDS_BASE_HEIGHT = 145; // Fixed non-expanded height for map padding
+  
+  const STATS_CARD_BASE_HEIGHT = 116; // Fixed non-expanded height for map padding
+  const STATS_CARD_EXTENDED_HEIGHT = 216; // Extended height when expanded
 
   // Computed padding values for consistent map bounds
   const getMapPadding = useCallback((cardExpanded = false) => {
