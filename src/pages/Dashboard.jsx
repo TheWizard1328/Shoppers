@@ -1699,7 +1699,7 @@ function Dashboard() {
               options: {
                 paddingTopLeft: isMobile ? [50, StatsCardHeight - 120] : [50, 50],
                 paddingBottomRight: [50, StopCardsHeight - 500],
-                maxZoom: 12,
+                maxZoom: 10,
                 animate: false
               }
             });
