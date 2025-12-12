@@ -2368,122 +2368,142 @@ function Dashboard() {
         }
       }
 
-      // Auto-select driver based on role and date
+  const handleDateChange = async (date) => {
+    console.log('📅 [Date Change] START - pausing all background operations');
+    
+    // CRITICAL: Pause smart refresh immediately
+    setIsEntityUpdating(true);
+    
+    setSelectedDate(date);
+    globalFilters.setSelectedDate(date);
+    setIsCalendarOpen(false);
+
+    const dateStr = format(date, 'yyyy-MM-dd');
+
+    // Save to user settings (async, don't wait)
+    if (currentUser?.id) {
+      console.log('💾 [Dashboard] Saving date selection to user settings:', dateStr);
+      saveSetting(currentUser.id, 'selected_date', dateStr);
+    }
+
+    try {
+      // STEP 1: Clear pending updates for clean slate
+      smartRefreshManager.clearPendingUpdates();
+      
+      // STEP 2: Priority load - selected driver first for instant UI
+      let priorityDeliveries;
+      if (selectedDriverId && selectedDriverId !== 'all') {
+        console.log(`⚡ [Date Change] PRIORITY: Loading driver ${selectedDriverId} for ${dateStr}...`);
+        priorityDeliveries = await base44.entities.Delivery.filter({
+          delivery_date: dateStr,
+          driver_id: selectedDriverId
+        });
+        console.log(`✅ [Date Change] INSTANT: ${priorityDeliveries.length} deliveries loaded for selected driver`);
+      } else {
+        console.log(`⚡ [Date Change] PRIORITY: Loading all drivers for ${dateStr}...`);
+        priorityDeliveries = await base44.entities.Delivery.filter({
+          delivery_date: dateStr
+        });
+        console.log(`✅ [Date Change] INSTANT: ${priorityDeliveries.length} deliveries loaded for all drivers`);
+      }
+
+      // STEP 3: Update UI immediately with priority data
+      if (updateDeliveriesLocally) {
+        const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== dateStr);
+        const mergedDeliveries = [...otherDateDeliveries, ...priorityDeliveries];
+        updateDeliveriesLocally(mergedDeliveries);
+        console.log('✅ [Date Change] UI updated immediately with priority data');
+      }
+      
+      // STEP 4: Resume UI immediately (don't wait for background loads)
+      console.log('▶️ [Date Change] Resuming UI (background loads will continue)');
+      setIsEntityUpdating(false);
+
+      // STEP 5: Auto-select driver based on role
       const today = startOfDay(new Date());
       const selected = startOfDay(date);
       const isPastDate = selected < today;
 
-      console.log('🎯 [Date Change] Auto-selecting driver based on role and date...');
-
       let autoSelectedDriver = null;
 
-      // RULE 1: Admin logic
       if (userHasRole(currentUser, 'admin')) {
-        // Get all unique drivers with deliveries on this date
-        const driversWithStops = new Set(
-          freshDeliveries.map((d) => d.driver_id).filter(Boolean)
-        );
+        const driversWithStops = new Set(priorityDeliveries.map((d) => d.driver_id).filter(Boolean));
+        const adminHasStops = priorityDeliveries.some((d) => d && d.driver_id === currentUser.id);
 
-        // Check if admin has their own deliveries on this date
-        const adminHasStops = freshDeliveries.some((d) => d && d.driver_id === currentUser.id);
-
-        // CRITICAL: Always check driver count FIRST
         if (driversWithStops.size === 1) {
-          // Only one driver has stops → always select that driver
           autoSelectedDriver = Array.from(driversWithStops)[0];
-          console.log(`📋 [Date Change] Admin + single driver → ${autoSelectedDriver}`);
         } else if (driversWithStops.size > 1 && (isPastDate || !adminHasStops)) {
-          // Multiple drivers + (past date OR admin has no stops) → All Drivers
           autoSelectedDriver = 'all';
-          console.log('📋 [Date Change] Admin + multiple drivers + (past date OR no admin stops) → All Drivers');
         } else {
-          // Default to All Drivers
           autoSelectedDriver = 'all';
-          console.log('📋 [Date Change] Admin + default → All Drivers');
         }
-      }
-      // RULE 2: Dispatcher logic
-      else if (userHasRole(currentUser, 'dispatcher')) {
+      } else if (userHasRole(currentUser, 'dispatcher')) {
         const dispatcherStoreIds = currentUser.store_ids || [];
-
-        // Get deliveries for dispatcher's stores on this date
-        const storeDeliveries = freshDeliveries.filter((d) =>
-        d && dispatcherStoreIds.includes(d.store_id)
-        );
-
-        // Get unique drivers with deliveries for these stores
-        const driversWithStops = new Set(
-          storeDeliveries.map((d) => d.driver_id).filter(Boolean)
-        );
+        const storeDeliveries = priorityDeliveries.filter((d) => d && dispatcherStoreIds.includes(d.store_id));
+        const driversWithStops = new Set(storeDeliveries.map((d) => d.driver_id).filter(Boolean));
 
         if (driversWithStops.size > 1) {
           autoSelectedDriver = 'all';
-          console.log('📋 [Date Change] Dispatcher + multiple drivers → All Drivers');
         } else if (driversWithStops.size === 1) {
           autoSelectedDriver = Array.from(driversWithStops)[0];
-          console.log(`📋 [Date Change] Dispatcher + single driver → ${autoSelectedDriver}`);
         } else {
-          // No deliveries for dispatcher's stores
           autoSelectedDriver = 'all';
-          console.log('📋 [Date Change] Dispatcher + no deliveries → All Drivers');
         }
-      }
-      // RULE 3: Driver always selects themselves
-      else if (userHasRole(currentUser, 'driver')) {
+      } else if (userHasRole(currentUser, 'driver')) {
         autoSelectedDriver = currentUser.id;
-        console.log('📋 [Date Change] Driver → Self');
-      }
-      // RULE 4: Default to All Drivers
-      else {
+      } else {
         autoSelectedDriver = 'all';
-        console.log('📋 [Date Change] Default → All Drivers');
       }
 
       if (autoSelectedDriver && autoSelectedDriver !== selectedDriverId) {
         console.log(`✅ [Date Change] Auto-selecting driver: ${autoSelectedDriver}`);
         setSelectedDriverId(autoSelectedDriver);
         globalFilters.setSelectedDriverId(autoSelectedDriver);
-
-        // Save to user settings
         if (currentUser?.id) {
           saveSetting(currentUser.id, 'selected_driver_id', autoSelectedDriver);
         }
       }
 
-      // CRITICAL: Lock FAB and trigger map view after data loads
+      // STEP 6: Trigger map view (non-blocking)
       setTimeout(() => {
-        console.log('🗺️ [Dashboard] Locking FAB and triggering map view after date change');
-
-        // Clear existing timers
         if (mapLockTimeoutRef.current) {
           clearTimeout(mapLockTimeoutRef.current);
           mapLockTimeoutRef.current = null;
         }
         mapLockExpiresAtRef.current = null;
 
-        // Lock FAB and trigger map view
         setIsMapViewLocked(true);
         setMapViewTrigger((prev) => prev + 1);
 
-        // Set up timer based on current phase
         if (mapViewPhase === 1 || mapViewPhase === 3) {
           const lockDuration = 3000;
           const expiresAt = Date.now() + lockDuration;
           mapLockExpiresAtRef.current = expiresAt;
-
           mapLockTimeoutRef.current = window.setTimeout(() => {
             if (mapLockExpiresAtRef.current === expiresAt) {
-              console.log(`⚫ [Date Change] Phase ${mapViewPhase} auto-unlocking after ${lockDuration}ms`);
               setIsMapViewLocked(false);
               mapLockExpiresAtRef.current = null;
               mapLockTimeoutRef.current = null;
             }
           }, lockDuration);
         }
-      }, 300);
+      }, 100);
+      
+      // STEP 7: Background loads (non-blocking)
+      console.log('🔄 [Date Change] Starting background data loads...');
+      Promise.all([
+        // Load other dates in background if needed
+        selectedDriverId !== 'all' ? base44.entities.Delivery.filter({ delivery_date: dateStr }) : Promise.resolve(null)
+      ]).then(([allDateDeliveries]) => {
+        if (allDateDeliveries && updateDeliveriesLocally) {
+          const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== dateStr);
+          updateDeliveriesLocally([...otherDateDeliveries, ...allDateDeliveries]);
+          console.log('✅ [Date Change] Background: Loaded remaining drivers');
+        }
+      }).catch(err => console.warn('Background loads failed:', err));
+
     } catch (error) {
-      console.error('❌ [Dashboard] Instant refresh failed:', error);
-    } finally {
+      console.error('❌ [Dashboard] Date change failed:', error);
       setIsEntityUpdating(false);
     }
   };
