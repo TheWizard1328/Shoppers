@@ -2565,10 +2565,16 @@ function Dashboard() {
       setSelectedCardId(null);
       setHighlightedCardId(null);
 
-      // CRITICAL: Reactivate FAB phase to recenter/zoom map, then unlock immediately
-      console.log('🗺️ [Card Collapse] Reactivating FAB phase:', mapViewPhase, '(unlocked immediately)');
+      // CRITICAL: Reactivate FAB phase to recenter/zoom map, then unlock after 100ms
+      console.log('🗺️ [Card Collapse] Reactivating FAB phase:', mapViewPhase, '(unlocking after 100ms)');
+      setIsMapViewLocked(true);
       setMapViewTrigger((prev) => prev + 1);
-      setIsMapViewLocked(false);
+
+      // Unlock after brief 100ms delay to allow map to recenter
+      setTimeout(() => {
+        console.log('🔓 [Card Collapse] Unlocking FAB after map recenter');
+        setIsMapViewLocked(false);
+      }, 100);
 
       // Scroll to next delivery card
       setTimeout(() => {
