@@ -1144,7 +1144,7 @@ function Dashboard() {
                     setShouldFitBounds({
                       bounds: [[stopLat, stopLon]],
                       options: {
-                        paddingTopLeft: isMobile ? [50, StatsCardHeight - 118] : [50, 50],
+                        paddingTopLeft: isMobile ? [50, StatsCardHeight] : [50, 50],
                         paddingBottomRight: [50, StopCardsHeight],
                         maxZoom: 17
                       }
@@ -1716,7 +1716,7 @@ function Dashboard() {
           setShouldFitBounds({
             bounds: allCoordinates,
             options: {
-              paddingTopLeft: isMobile ? [50, StatsCardHeight - 118] : [50, 50],
+              paddingTopLeft: isMobile ? [50, StatsCardHeight] : [50, 50],
               paddingBottomRight: [50, StopCardsHeight + 50],
               maxZoom: 14
             }
@@ -1823,7 +1823,7 @@ function Dashboard() {
           setShouldFitBounds({
             bounds,
             options: {
-              paddingTopLeft: isMobile ? [50, StatsCardHeight - 118] : [50, 50],
+              paddingTopLeft: isMobile ? [50, StatsCardHeight] : [50, 50],
               paddingBottomRight: [50, bottomPadding],
               maxZoom: 17
             }
@@ -1856,7 +1856,7 @@ function Dashboard() {
         setShouldFitBounds({
           bounds: [[driverLocation.latitude, driverLocation.longitude]],
           options: {
-            paddingTopLeft: isMobile ? [50, StatsCardHeight - 118] : [50, 50],
+            paddingTopLeft: isMobile ? [50, StatsCardHeight] : [50, 50],
             paddingBottomRight: [50, StopCardsHeight],
             maxZoom: 15,
             animate: false
@@ -2097,7 +2097,7 @@ function Dashboard() {
         setShouldFitBounds({
           bounds,
           options: {
-            paddingTopLeft: isMobile ? [50, StatsCardHeight - 118] : [50, 50],
+            paddingTopLeft: isMobile ? [50, StatsCardHeight] : [50, 50],
             paddingBottomRight: [50, bottomPadding],
             maxZoom: 17
           }
@@ -2244,7 +2244,7 @@ function Dashboard() {
           setShouldFitBounds({
             bounds: [[patient.latitude, patient.longitude]],
             options: {
-              paddingTopLeft: isMobile ? [50, StatsCardHeight - 118] : [50, 50],
+              paddingTopLeft: isMobile ? [50, StatsCardHeight] : [50, 50],
               paddingBottomRight: [50, StopCardsHeight],
               maxZoom: 15
             }
@@ -2258,7 +2258,7 @@ function Dashboard() {
           setShouldFitBounds({
             bounds: [[store.latitude, store.longitude]],
             options: {
-              paddingTopLeft: isMobile ? [50, StatsCardHeight - 118] : [50, 50],
+              paddingTopLeft: isMobile ? [50, StatsCardHeight] : [50, 50],
               paddingBottomRight: [50, StopCardsHeight],
               maxZoom: 15
             }
@@ -6013,7 +6013,6 @@ function Dashboard() {
             onMapInteraction={handleMapInteraction}
             onDoubleTap={handleMapViewCycle}
             retractClustersRef={retractClustersRef}
-            // stopCardsHeight={deliveriesWithStopOrder.length > 0 ? STOP_CARDS_BASE_HEIGHT : 0}
             areStopCardsVisible={deliveriesWithStopOrder.length > 0}
             highlightedDeliveryId={highlightedCardId} />
 
