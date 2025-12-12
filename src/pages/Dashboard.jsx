@@ -60,7 +60,7 @@ import DashboardOfflineSync from '@/components/dashboard/DashboardOfflineSync';
 
   const STOP_CARDS_EXPANDED_HEIGHT = 450; // Expanded card height for map padding
   const STOP_CARDS_BASE_HEIGHT = 145; // Fixed non-expanded height for map padding
-  const StopCardsHeight = STOP_CARDS_BASE_HEIGHT;
+  const StopCardsHeight = STOP_CARDS_BASE_HEIGHT - 50;
 
   const STATS_CARD_BASE_HEIGHT = 116; // Fixed non-expanded height for map padding
   const STATS_CARD_EXTENDED_HEIGHT = 216; // Fixed non-expanded height for map padding
