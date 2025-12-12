@@ -47,7 +47,7 @@ import { isMobileDevice } from "@/components/utils/deviceUtils";
 import { smartRefreshManager } from "@/components/utils/smartRefreshManager";
 import { reorderStops } from "@/components/utils/stopReorderer";
 import { recalculateAndUpdateStopOrders, updateNextDeliveryFlags } from "@/components/utils/stopOrderManager";
-import { importetSetting } from "@/components/utils/userSettingsManager";
+import { loadUserSettings, saveSetting, getSetting } from "@/components/utils/userSettingsManager";
 import { fabControlEvents } from "@/components/utils/fabControlEvents";
 import RouteNotification from "@/components/dashboard/RouteNotification";
 import ProactiveAlertSystem from "@/components/dashboard/ProactiveAlertSystem";
@@ -5354,6 +5354,12 @@ function Dashboard() {
       });
       console.log(`✅ [START STEP 4] Stop #${newStopOrder} updated locally (isNextDelivery: true)`);
 
+      // STEP 4.5: Recalculate all stop orders sequentially
+      console.log('');
+      console.log('📍 [START STEP 4.5] Recalculating stop orders...');
+      await recalculateStopOrders(driverId, deliveryDate);
+      console.log('✅ [START STEP 4.5] Stop orders recalculated');
+
       // STEP 5: Update ETA for the selected stop and all remaining
       console.log('');
       console.log('📍 [START STEP 5] Updating ETAs using backend optimizer...');
@@ -5391,7 +5397,6 @@ function Dashboard() {
           if (cardElement) {
             cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
             console.log(`✅ [START STEP 7] Centered card: ${nextCard.id}`);
-            await recalculateStopOrders(driverId, deliveryDate);
           }
         }, 300);
       } else {
