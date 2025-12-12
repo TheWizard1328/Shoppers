@@ -233,19 +233,34 @@ Deno.serve(async (req) => {
       for (const idx of unvisited) {
         const stop = stops[idx];
         const travelTime = Math.ceil(matrix[currentPos][idx].duration / 60); // Convert to minutes
+        const serviceTime = stop.delivery.extra_time || 5;
         const arrivalTime = cumulativeTime + travelTime;
 
         // Calculate score (lower is better)
         let score = travelTime;
 
-        // Penalty for violating time windows
+        // CRITICAL: Heavy penalties for time window violations
         if (stop.timeWindow) {
           if (arrivalTime < stop.timeWindow.start) {
-            // Arriving too early - wait time penalty
-            score += (stop.timeWindow.start - arrivalTime) * 0.5;
+            // Arriving too early - minor wait penalty
+            const waitTime = stop.timeWindow.start - arrivalTime;
+            score += waitTime * 0.3;
           } else if (arrivalTime > stop.timeWindow.end) {
-            // Arriving too late - heavy penalty
-            score += (arrivalTime - stop.timeWindow.end) * 2;
+            // Arriving too late - VERY HEAVY penalty to avoid
+            const lateTime = arrivalTime - stop.timeWindow.end;
+            score += lateTime * 5; // 5x multiplier for late arrivals
+          } else {
+            // Within window - small bonus
+            score -= 10;
+          }
+        }
+
+        // Additional bonus for stops with urgent time windows (ending soon)
+        if (stop.timeWindow && stop.timeWindow.end) {
+          const timeUntilDeadline = stop.timeWindow.end - cumulativeTime;
+          if (timeUntilDeadline > 0 && timeUntilDeadline < 60) {
+            // Urgent delivery (less than 60 min remaining) - prioritize
+            score -= (60 - timeUntilDeadline) * 0.5;
           }
         }
 
