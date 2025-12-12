@@ -6013,7 +6013,7 @@ function Dashboard() {
             onMapInteraction={handleMapInteraction}
             onDoubleTap={handleMapViewCycle}
             retractClustersRef={retractClustersRef}
-            stopCardsHeight //={deliveriesWithStopOrder.length > 0 ? STOP_CARDS_BASE_HEIGHT + 100 : 0}
+            stopCardsHeight={deliveriesWithStopOrder.length > 0 ? STOP_CARDS_BASE_HEIGHT + 100 : 0}
             areStopCardsVisible={deliveriesWithStopOrder.length > 0}
             highlightedDeliveryId={highlightedCardId} />
 
