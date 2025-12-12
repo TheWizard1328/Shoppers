@@ -13,16 +13,17 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { driverId, deliveryDate, timezoneOffset } = await req.json();
+    const { driverId, deliveryDate, currentLocalTime } = await req.json();
 
-    if (!driverId || !deliveryDate) {
+    if (!driverId || !deliveryDate || !currentLocalTime) {
       return Response.json({ 
-        error: 'Missing required parameters: driverId, deliveryDate' 
+        error: 'Missing required parameters: driverId, deliveryDate, currentLocalTime' 
       }, { status: 400 });
     }
 
-    // Default to UTC if no timezone offset provided
-    const deviceTimezoneOffset = timezoneOffset !== undefined ? timezoneOffset : 0;
+    // Parse device's current local time (HH:mm format)
+    const [currentHours, currentMinutes] = currentLocalTime.split(':').map(Number);
+    const currentTotalMinutes = currentHours * 60 + currentMinutes;
 
     console.log(`📍 Calculating real-time ETAs for driver ${driverId} on ${deliveryDate}`);
 
@@ -128,16 +129,11 @@ Deno.serve(async (req) => {
           const serviceTime = delivery.extra_time || 5;
           cumulativeMinutes += durationMinutes + serviceTime;
 
-          // Calculate ETA time in device's local timezone
-          const now = new Date();
-          const etaTime = new Date(now.getTime() + cumulativeMinutes * 60000);
-          
-          // Apply device timezone offset to get local time
-          // getTimezoneOffset() returns offset in minutes (positive for behind UTC)
-          const localEtaTime = new Date(etaTime.getTime() - (deviceTimezoneOffset * 60000));
-          const hours = localEtaTime.getUTCHours().toString().padStart(2, '0');
-          const minutes = localEtaTime.getUTCMinutes().toString().padStart(2, '0');
-          const etaString = `${hours}:${minutes}`;
+          // Calculate ETA in device's local time by adding cumulative minutes to current local time
+          const etaTotalMinutes = currentTotalMinutes + cumulativeMinutes;
+          const etaHours = Math.floor(etaTotalMinutes / 60) % 24;
+          const etaMinutes = etaTotalMinutes % 60;
+          const etaString = `${etaHours.toString().padStart(2, '0')}:${etaMinutes.toString().padStart(2, '0')}`;
 
           etaUpdates.push({
             deliveryId: delivery.id,
