@@ -15,8 +15,8 @@ let cachedSettings = null;
 let currentUserId = null;
 let cachedDeviceId = null; // In-memory cache to avoid repeated async calls
 
-// IndexedDB setup for device ID persistence
-const DB_NAME = 'rxdeliver_device_db';
+// CRITICAL: Use a unique database name that won't conflict with other IndexedDB operations
+const DB_NAME = 'rxdeliver_persistent_device_id';
 const STORE_NAME = 'device_store';
 
 function openDeviceDb() {
