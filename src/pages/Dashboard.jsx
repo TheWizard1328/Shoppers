@@ -1857,7 +1857,7 @@ function Dashboard() {
           bounds: [[driverLocation.latitude, driverLocation.longitude]],
           options: {
             paddingTopLeft: isMobile ? [50, StatsCardHeight - 100] : [50, 50],
-            paddingBottomRight: [50, StopCardsHeight + 25],
+            paddingBottomRight: [50, StopCardsHeight + 50],
             maxZoom: 15,
             animate: false
           }
