@@ -58,8 +58,14 @@ import OfflineIndicator from "@/components/dashboard/OfflineIndicator";
 import OfflineSyncIndicator from '@/components/layout/OfflineSyncIndicator';
 import DashboardOfflineSync from '@/components/dashboard/DashboardOfflineSync';
 
-// FIXED: StatBadge - always render with consistent hook structure
-const StatBadge = ({ icon: Icon, value, color, label, tooltip }) => {
+  const STOP_CARDS_EXPANDED_HEIGHT = 450; // Expanded card height for map padding
+  const STOP_CARDS_BASE_HEIGHT = 145; // Fixed non-expanded height for map padding
+  const STATS_CARDS_BASE_HEIGHT = 145; // Fixed non-expanded height for map padding
+  const StopCardsHeight = STOP_CARDS_BASE_HEIGHT + 100;
+  const StatsCardsHeight = STATS_CARDS_BASE_HEIGHT + 100;
+
+  // FIXED: StatBadge - always render with consistent hook structure
+  const StatBadge = ({ icon: Icon, value, color, label, tooltip }) => {
   // ALWAYS calculate color class (hook-like behavior should be consistent)
   const colorClasses = useMemo(() => ({
     blue: "bg-blue-100 text-blue-600",
@@ -296,12 +302,6 @@ function Dashboard() {
   const [showRouteSummary, setShowRouteSummary] = useState(false);
   const hasShownSummaryRef = useRef(false);
   const stopCardsContainerRef = useRef(null);
-
-  const STOP_CARDS_EXPANDED_HEIGHT = 450; // Expanded card height for map padding
-  const STOP_CARDS_BASE_HEIGHT = 145; // Fixed non-expanded height for map padding
-  const STATS_CARDS_BASE_HEIGHT = 145; // Fixed non-expanded height for map padding
-  const StopCardsHeight = STOP_CARDS_BASE_HEIGHT + 100;
-  const StatsCardsHeight = STATS_CARDS_BASE_HEIGHT + 100;
 
   const mapLockTimeoutRef = useRef(null);
   const mapLockExpiresAtRef = useRef(null); // Timestamp when lock should expire
