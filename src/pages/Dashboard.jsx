@@ -59,7 +59,7 @@ import OfflineSyncIndicator from '@/components/layout/OfflineSyncIndicator';
 import DashboardOfflineSync from '@/components/dashboard/DashboardOfflineSync';
 
   const STOP_CARDS_EXPANDED_HEIGHT = 450; // Expanded card height for map padding
-  const STOP_CARDS_BASE_HEIGHT = 135; // Fixed non-expanded height for map padding
+  const STOP_CARDS_BASE_HEIGHT = 145; // Fixed non-expanded height for map padding
   const StopCardsHeight = STOP_CARDS_BASE_HEIGHT;
 
   const STATS_CARD_BASE_HEIGHT = 116; // Fixed non-expanded height for map padding
@@ -2098,7 +2098,7 @@ function Dashboard() {
           bounds,
           options: {
             paddingTopLeft: isMobile ? [50, StatsCardHeight] : [50, 50],
-            paddingBottomRight: [50, StopCardsHeight],
+            paddingBottomRight: [50, bottomPadding],
             maxZoom: 17
           }
         });
@@ -6013,7 +6013,7 @@ function Dashboard() {
             onMapInteraction={handleMapInteraction}
             onDoubleTap={handleMapViewCycle}
             retractClustersRef={retractClustersRef}
-            stopCardsHeight={deliveriesWithStopOrder.length > 0 ? STOP_CARDS_BASE_HEIGHT + 100 : 0}
+            stopCardsHeight={deliveriesWithStopOrder.length > 0 ? STOP_CARDS_BASE_HEIGHT : 0}
             areStopCardsVisible={deliveriesWithStopOrder.length > 0}
             highlightedDeliveryId={highlightedCardId} />
 
