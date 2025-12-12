@@ -5981,8 +5981,6 @@ function Dashboard() {
           </div>
         }
 
-        <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} />
-
         <div className="absolute inset-0 overflow-hidden">
           <DeliveryMap
             deliveries={deliveriesWithStopOrder}
