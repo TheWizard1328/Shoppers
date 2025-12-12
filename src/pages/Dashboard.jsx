@@ -5391,6 +5391,7 @@ function Dashboard() {
           if (cardElement) {
             cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
             console.log(`✅ [START STEP 7] Centered card: ${nextCard.id}`);
+            await recalculateStopOrders(driverId, deliveryDate);
           }
         }, 300);
       } else {
