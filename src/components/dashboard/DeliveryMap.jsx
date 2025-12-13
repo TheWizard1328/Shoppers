@@ -1,3 +1,4 @@
+
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, Circle } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -318,7 +319,7 @@ const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, numbe
   });
 };
 
-// Helper function to create delivery pin markers with circle - REMOVED duplicateCount badge
+// Helper function to create delivery pin markers with circle/square based on PM status
 const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, number = null, isFirstTime = false, duplicateCount = 0, zoomLevel = 12, isMobile = false, isNextInLine = false, isHighlighted = false, hasIncompleteStops = true, isPM = false) => {
   // CRITICAL: Failed/cancelled/completed takes precedence over next delivery blue
   const isFinished = FINISHED_STATUSES.includes(status);
@@ -368,20 +369,35 @@ const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, nu
                 stroke-width="1.2"
                 style="filter: drop-shadow(0 2px 3px rgba(0,0,0,0.3));" />
           
-          ${hasYellowHalo ? `
+          ${hasYellowHalo ? (isPM ? `
+            <!-- Yellow SQUARE halo for PM new/first time deliveries -->
+            <rect x="4.5" y="4.5" width="15" height="15" 
+                  fill="none" 
+                  stroke="#FBBF24" 
+                  stroke-width="5.5" 
+                  opacity="1" />
+          ` : `
             <!-- Yellow halo for new/first time deliveries - wider and brighter -->
             <circle cx="12" cy="12" r="7.5" 
                     fill="none" 
                     stroke="#FBBF24" 
                     stroke-width="5.5" 
                     opacity="1" />
-          ` : ''}
+          `) : ''}
           
-          <!-- Inner STATUS circle - larger -->
-          <circle cx="12" cy="12" r="8" 
+          ${isPM ? `
+            <!-- Inner STATUS SQUARE for PM deliveries -->
+            <rect x="4" y="4" width="16" height="16" 
                   fill="${statusColor}" 
                   stroke="${storeColor}" 
                   stroke-width="1.2" />
+          ` : `
+            <!-- Inner STATUS circle - larger -->
+            <circle cx="12" cy="12" r="8" 
+                    fill="${statusColor}" 
+                    stroke="${storeColor}" 
+                    stroke-width="1.2" />
+          `}
           
           ${showNumber ? `
             <!-- Stop number with contrasting color -->
@@ -2384,7 +2400,8 @@ export default function DeliveryMap({
                 isMobile,
                 delivery.isNextInLine,
                 isHighlighted,
-                hasIncompleteStops
+                hasIncompleteStops,
+                delivery.ampm_deliveries === 'PM' // CRITICAL: Pass PM flag
               )}
               zIndexOffset={dynamicZIndex}
               draggable={!delivery.useSimpleCircle}
