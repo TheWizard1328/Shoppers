@@ -319,7 +319,7 @@ const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, numbe
 };
 
 // Helper function to create delivery pin markers with circle - REMOVED duplicateCount badge
-const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, number = null, isFirstTime = false, duplicateCount = 0, zoomLevel = 12, isMobile = false, isNextInLine = false, isHighlighted = false, hasIncompleteStops = true) => {
+const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, number = null, isFirstTime = false, duplicateCount = 0, zoomLevel = 12, isMobile = false, isNextInLine = false, isHighlighted = false, hasIncompleteStops = true, isPM = false) => {
   // CRITICAL: Failed/cancelled/completed takes precedence over next delivery blue
   const isFinished = FINISHED_STATUSES.includes(status);
   const shouldShowNextBlue = isNextInLine && !isFinished && hasIncompleteStops;
