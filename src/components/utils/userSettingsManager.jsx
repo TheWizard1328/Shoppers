@@ -626,6 +626,7 @@ export async function saveSetting(userId, key, value) {
 
 /**
  * Saves multiple settings at once
+ * Handles global settings (synced across devices) vs device-specific settings
  * Queues for offline sync if not connected
  * @param {string} userId - The user's ID
  * @param {object} settings - Object with key-value pairs to save
@@ -638,6 +639,20 @@ export async function saveSettings(userId, settings) {
   }
 
   const deviceId = await getDeviceId();
+  
+  // Separate global and device-specific settings
+  const globalUpdates = {};
+  const deviceUpdates = {};
+  
+  Object.keys(settings).forEach(key => {
+    if (isGlobalSetting(key)) {
+      globalUpdates[key] = settings[key];
+    } else {
+      deviceUpdates[key] = settings[key];
+    }
+  });
+  
+  console.log(`💾 [UserSettings] Saving ${Object.keys(globalUpdates).length} global + ${Object.keys(deviceUpdates).length} device-specific settings`);
   
   // Update local cache immediately
   if (cachedSettings) {
