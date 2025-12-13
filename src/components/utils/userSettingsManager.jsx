@@ -680,9 +680,29 @@ export async function saveSettings(userId, settings) {
   }
 
   try {
-    console.log(`💾 [UserSettings] Saving multiple settings for user: ${userId}, device: ${deviceId}`, settings);
+    // CRITICAL: Update global settings across ALL devices
+    if (Object.keys(globalUpdates).length > 0) {
+      console.log(`🌐 [UserSettings] Updating ${Object.keys(globalUpdates).length} global settings across all devices`);
+      
+      const allDeviceSettings = await UserSettings.filter({
+        user_id: userId
+      });
+      
+      for (const deviceRecord of allDeviceSettings) {
+        try {
+          await UserSettings.update(deviceRecord.id, {
+            ...globalUpdates,
+            updated: new Date().toISOString()
+          });
+        } catch (updateError) {
+          console.warn(`   Failed to update device ${deviceRecord.device_id}:`, updateError.message);
+        }
+      }
+      
+      console.log(`✅ [UserSettings] Updated global settings on ${allDeviceSettings.length} devices`);
+    }
 
-    // Find existing settings
+    // Find existing settings for THIS device
     const existingSettings = await UserSettings.filter({
       user_id: userId,
       device_id: deviceId
@@ -703,12 +723,12 @@ export async function saveSettings(userId, settings) {
         }
       }
       
-      // Update existing record with updated timestamp
+      // Update existing record with all settings (global + device-specific)
       updatedSettings = await UserSettings.update(existingSettings[0].id, {
         ...cachedSettings, // Pass all current cached settings to ensure consistency
         updated: new Date().toISOString()
       });
-      console.log('✅ [UserSettings] Updated existing settings');
+      console.log('✅ [UserSettings] Updated settings on this device');
     } else {
       // Create new record with created timestamp
       const now = new Date().toISOString();
