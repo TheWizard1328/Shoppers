@@ -660,7 +660,7 @@ export default function StopCard({
             
             <div className="flex flex-col py-0. gap-0.5  items-center">
               <Badge
-                variant="secondary" className="inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary hover:bg-secondary/80 font-bold text-sm px-2 py-0.5 text-white w-[40px] justify-center rounded-full"
+                variant="secondary" className={`inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary hover:bg-secondary/80 font-bold text-sm px-2 py-0.5 text-white w-[40px] justify-center ${delivery.ampm_deliveries === 'PM' ? 'rounded-md' : 'rounded-full'}`}
                 style={{
                   backgroundColor: storeColor || '#10B981',
                   color: 'white'
