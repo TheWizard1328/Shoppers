@@ -359,34 +359,42 @@ export async function loadUserSettings(userId) {
   try {
     console.log(`🔍 [UserSettings] Loading settings for user: ${userId}, device: ${deviceId}`);
     
-    // CRITICAL: Limit to 10 records to prevent fetching too many duplicates
-    const settings = await UserSettings.filter({
+    // STEP 1: Load global settings (synced across all devices)
+    const globalSettings = await loadGlobalSettings(userId);
+    
+    // STEP 2: Load device-specific settings for this device
+    const deviceSettings = await UserSettings.filter({
       user_id: userId,
       device_id: deviceId
     }, '-created_date', 10);
 
-    if (settings && settings.length > 0) {
+    if (deviceSettings && deviceSettings.length > 0) {
       // CRITICAL: If multiple records exist, delete duplicates and keep the first one
-      if (settings.length > 1) {
-        console.warn(`⚠️ [UserSettings] Found ${settings.length} duplicate records, cleaning up...`);
-        for (let i = 1; i < settings.length; i++) {
+      if (deviceSettings.length > 1) {
+        console.warn(`⚠️ [UserSettings] Found ${deviceSettings.length} duplicate records, cleaning up...`);
+        for (let i = 1; i < deviceSettings.length; i++) {
           try {
-            await UserSettings.delete(settings[i].id);
-            console.log(`   Deleted duplicate record: ${settings[i].id}`);
+            await UserSettings.delete(deviceSettings[i].id);
+            console.log(`   Deleted duplicate record: ${deviceSettings[i].id}`);
           } catch (deleteError) {
             console.warn('   Failed to delete duplicate:', deleteError.message);
           }
         }
       }
       
-      // Merge with defaults to ensure all fields exist
-      cachedSettings = { ...DEFAULT_SETTINGS, ...settings[0] };
+      // STEP 3: Merge defaults → global settings → device-specific settings
+      // Priority: device-specific > global > defaults
+      cachedSettings = { 
+        ...DEFAULT_SETTINGS, 
+        ...globalSettings, // Apply global settings (synced across devices)
+        ...deviceSettings[0] // Override with device-specific settings
+      };
       currentUserId = userId;
       
       // Cache for offline use in IndexedDB
       await saveToLocalPersistentStore(userId, deviceId, cachedSettings);
       
-      console.log('✅ [UserSettings] Loaded existing settings');
+      console.log('✅ [UserSettings] Loaded settings (global + device-specific)');
       return cachedSettings;
     }
 
