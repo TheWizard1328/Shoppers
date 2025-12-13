@@ -66,7 +66,7 @@ export default function ETANotification({
       // Update ETA map
       setPreviousETAs(prev => new Map(prev).set(delivery.id, currentETA));
     });
-  }, [deliveries, previousETAs]);
+  }, [deliveries]);
 
   if (!notification) return null;
 
