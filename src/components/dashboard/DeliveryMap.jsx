@@ -1,4 +1,3 @@
-
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, Circle } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -24,21 +23,15 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png'
 });
 
-// Driver color palette for "All Drivers" mode - contrasting colors without red, yellow, orange, or green
+// Driver color palette for "All Drivers" mode - 6 highly visible, contrasting colors
 const DRIVER_COLORS = [
   '', // Blank color storage for unused 0 index - will be handled by getDriverColor fallback
-  '#2196F3', // Blue (Index 1)
-  '#9C27B0', // Purple (Index 2)
-  '#E91E63', // Pink (Index 3)
-  '#FF5722', // Deep Orange (Index 4)
-  '#607D8B', // Blue Grey (Index 5)
-  '#03A9F4', // Light Blue (Index 6)
-  '#00BCD4', // Cyan (Index 7)
-  '#795548', // Brown (Index 8)
-  '#FFC107', // Amber (Index 9)
-  '#4CAF50', // Green (Index 10)
-  '#8BC34A', // Light Green (Index 11)
-  '#FF9800' // Orange (Index 12)
+  '#0074D9', // Deep Blue (Index 1)
+  '#F012BE', // Hot Pink (Index 2)
+  '#7FDBFF', // Electric Cyan (Index 3)
+  '#B10DC9', // Royal Purple (Index 4)
+  '#001F3F', // Navy Blue (Index 5)
+  '#D946EF'  // Bright Magenta (Index 6)
 ];
 
 // NEW: Simple circle marker for dispatcher view (other stores)
