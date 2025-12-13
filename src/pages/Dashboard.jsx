@@ -1847,7 +1847,7 @@ function Dashboard() {
           const topPadding = isMobile 
            ? (isExpanded ? STATS_CARD_EXTENDED_HEIGHT : STATS_CARD_BASE_HEIGHT + 15) 
            : 20;
-          setMapCenter([driverLocation.latitude + topPadding, driverLocation.longitude]);
+          setMapCenter([driverLocation.latitude, driverLocation.longitude]);
           setMapZoom(15);
           setShouldFitBounds(null);
         }
@@ -1873,7 +1873,7 @@ function Dashboard() {
           : 20;
         console.log('  [FAB Click] Padding:', padding);
         setShouldFitBounds({
-          bounds: [[driverLocation.latitude + topPadding, driverLocation.longitude]],
+          bounds: [[driverLocation.latitude, driverLocation.longitude]],
           options: {
             ...padding,
             maxZoom: 15,
