@@ -28,8 +28,8 @@ const DRIVER_COLORS = [
   '', // Blank color storage for unused 0 index - will be handled by getDriverColor fallback
   '#F012BE', // Hot Pink (Index 1)
   '#D946EF', // Bright Magenta (Index 2)
-  '#0074D9', // Deep Blue (Index 3)
-  '#7FDBFF', // Electric Cyan (Index 4)
+  '#7FDBFF', // Electric Cyan (Index 3)
+  '#0074D9', // Deep Blue (Index 4)
   '#B10DC9', // Royal Purple (Index 5)
   '#001F3F'  // Navy Blue (Index 6)
 ];
