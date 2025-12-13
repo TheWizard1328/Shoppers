@@ -285,7 +285,43 @@ async function loadFromLocalPersistentStore(userId, deviceId) {
 }
 
 /**
+ * Loads global settings (synced across all devices) for the user
+ * @param {string} userId - The user's ID
+ * @returns {Promise<object>} - Global settings object
+ */
+async function loadGlobalSettings(userId) {
+  try {
+    // CRITICAL: Query for global settings without device_id filter
+    // Returns settings from any device (latest)
+    const allUserSettings = await UserSettings.filter({
+      user_id: userId
+    }, '-updated', 1); // Get most recently updated record
+
+    if (allUserSettings && allUserSettings.length > 0) {
+      const latestSettings = allUserSettings[0];
+      const globalSettings = {};
+      
+      // Extract only global settings
+      GLOBAL_SETTINGS.forEach(key => {
+        if (latestSettings[key] !== undefined) {
+          globalSettings[key] = latestSettings[key];
+        }
+      });
+      
+      console.log('🌐 [UserSettings] Loaded global settings from latest device');
+      return globalSettings;
+    }
+    
+    return {};
+  } catch (error) {
+    console.warn('⚠️ [UserSettings] Error loading global settings:', error);
+    return {};
+  }
+}
+
+/**
  * Loads user settings from the backend for the current user and device
+ * Merges global settings (synced across devices) with device-specific settings
  * Falls back to cached settings when offline
  * @param {string} userId - The user's ID
  * @returns {Promise<object>} - The user settings object
