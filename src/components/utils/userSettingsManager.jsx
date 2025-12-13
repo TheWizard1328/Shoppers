@@ -73,7 +73,86 @@ async function getDeviceIdFromIndexedDB() {
 }
 
 /**
- * Gets or generates a unique device ID, preferring IndexedDB for persistence
+ * Generate a deterministic device fingerprint based on browser/hardware characteristics
+ * This creates a stable ID across browser tabs, PWAs, and sessions on the same machine
+ */
+async function generateDeviceFingerprint() {
+  const components = [];
+  
+  // 1. Screen characteristics (stable across sessions)
+  components.push(screen.width);
+  components.push(screen.height);
+  components.push(screen.colorDepth);
+  components.push(screen.pixelDepth);
+  
+  // 2. Timezone (stable unless user changes timezone)
+  components.push(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  
+  // 3. Language preferences (stable)
+  components.push(navigator.language);
+  components.push(navigator.languages.join(','));
+  
+  // 4. Platform/OS (stable)
+  components.push(navigator.platform);
+  components.push(navigator.userAgent);
+  
+  // 5. Hardware concurrency (CPU cores - stable)
+  components.push(navigator.hardwareConcurrency || 0);
+  
+  // 6. Device memory (stable on same device)
+  components.push(navigator.deviceMemory || 0);
+  
+  // 7. Canvas fingerprint (highly stable, unique per device)
+  try {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 200;
+    canvas.height = 50;
+    ctx.textBaseline = 'top';
+    ctx.font = '14px Arial';
+    ctx.fillStyle = '#f60';
+    ctx.fillRect(125, 1, 62, 20);
+    ctx.fillStyle = '#069';
+    ctx.fillText('RxDeliver Device ID', 2, 15);
+    ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
+    ctx.fillText('RxDeliver Device ID', 4, 17);
+    const canvasData = canvas.toDataURL();
+    components.push(canvasData.slice(-100)); // Last 100 chars for uniqueness
+  } catch (e) {
+    components.push('canvas-unavailable');
+  }
+  
+  // 8. WebGL fingerprint (stable, unique per GPU)
+  try {
+    const canvas = document.createElement('canvas');
+    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+    if (gl) {
+      const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+      if (debugInfo) {
+        components.push(gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL));
+        components.push(gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL));
+      }
+    }
+  } catch (e) {
+    components.push('webgl-unavailable');
+  }
+  
+  // Combine all components and hash
+  const fingerprint = components.join('|||');
+  
+  // Generate deterministic hash using SubtleCrypto
+  const encoder = new TextEncoder();
+  const data = encoder.encode(fingerprint);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  
+  return 'device_fp_' + hashHex.slice(0, 32);
+}
+
+/**
+ * Gets or generates a unique device ID using deterministic fingerprinting
+ * This ensures the same device ID across browser tabs, PWAs, and sessions
  */
 export async function getDeviceId() {
   // Return cached if available
@@ -81,34 +160,43 @@ export async function getDeviceId() {
     return cachedDeviceId;
   }
 
-  // 1. Try to get from IndexedDB first (most persistent)
-  let deviceId = await getDeviceIdFromIndexedDB();
-
-  if (deviceId) {
-    // If found in IndexedDB, ensure it's also in localStorage
-    if (localStorage.getItem(DEVICE_ID_KEY) !== deviceId) {
-      localStorage.setItem(DEVICE_ID_KEY, deviceId);
-    }
-    cachedDeviceId = deviceId;
-    return deviceId;
+  // 1. Generate fingerprint-based device ID (deterministic)
+  const fingerprintId = await generateDeviceFingerprint();
+  
+  // 2. Check if we have a stored ID that matches this fingerprint
+  const storedId = await getDeviceIdFromIndexedDB();
+  const localStorageId = localStorage.getItem(DEVICE_ID_KEY);
+  
+  let deviceId;
+  
+  // Priority: Use fingerprint-based ID for consistency across instances
+  // But if we have a stored non-fingerprint ID, migrate it
+  if (storedId && storedId.startsWith('device_fp_')) {
+    deviceId = storedId;
+    console.log('📱 [UserSettings] Using existing fingerprint-based device ID');
+  } else if (localStorageId && localStorageId.startsWith('device_fp_')) {
+    deviceId = localStorageId;
+    console.log('📱 [UserSettings] Using existing fingerprint-based device ID from localStorage');
+  } else if (storedId && !storedId.startsWith('device_fp_')) {
+    // Migrate old random ID to fingerprint-based
+    console.log('🔄 [UserSettings] Migrating old device ID to fingerprint-based ID');
+    deviceId = fingerprintId;
+  } else if (localStorageId && !localStorageId.startsWith('device_fp_')) {
+    // Migrate old random ID to fingerprint-based
+    console.log('🔄 [UserSettings] Migrating old device ID to fingerprint-based ID');
+    deviceId = fingerprintId;
+  } else {
+    // No existing ID - use fingerprint
+    deviceId = fingerprintId;
+    console.log('📱 [UserSettings] Generated new fingerprint-based device ID');
   }
-
-  // 2. If not in IndexedDB, try localStorage
-  deviceId = localStorage.getItem(DEVICE_ID_KEY);
-
-  if (deviceId) {
-    // If found in localStorage, save to IndexedDB for future persistence
-    await saveDeviceIdToIndexedDB(deviceId);
-    cachedDeviceId = deviceId;
-    return deviceId;
-  }
-
-  // 3. If not found in either, generate a new one
-  deviceId = 'device_' + crypto.randomUUID();
+  
+  // Save to both storage locations for redundancy
   localStorage.setItem(DEVICE_ID_KEY, deviceId);
   await saveDeviceIdToIndexedDB(deviceId);
   cachedDeviceId = deviceId;
-  console.log('📱 [UserSettings] Generated new device ID:', deviceId);
+  
+  console.log('📱 [UserSettings] Device ID (first 16 chars):', deviceId.slice(0, 24));
   
   return deviceId;
 }
