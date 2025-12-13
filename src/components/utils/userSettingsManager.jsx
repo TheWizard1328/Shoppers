@@ -420,21 +420,23 @@ export async function loadUserSettings(userId) {
       const { deviceType } = getUserAgentInfo();
       const isMobile = deviceType === 'Mobile';
       
+      // Merge global settings with defaults for new device
       const newSettings = await UserSettings.create({
         user_id: userId,
         device_id: deviceId,
         ...DEFAULT_SETTINGS,
-        theme_preference: isMobile ? 'auto' : 'light',
+        ...globalSettings, // Include global settings from other devices
+        theme_preference: isMobile ? 'auto' : 'light', // Device-specific override
         created: now,
         updated: now
       });
-      cachedSettings = { ...DEFAULT_SETTINGS, ...newSettings };
+      cachedSettings = { ...DEFAULT_SETTINGS, ...globalSettings, ...newSettings };
       currentUserId = userId;
       
       // Cache for offline use in IndexedDB
       await saveToLocalPersistentStore(userId, deviceId, cachedSettings);
       
-      console.log('✅ [UserSettings] Created new settings record');
+      console.log('✅ [UserSettings] Created new settings record (with global settings)');
       return cachedSettings;
     } catch (createError) {
       // CRITICAL: If creation fails due to conflict, try fetching one more time
