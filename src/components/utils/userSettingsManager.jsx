@@ -526,9 +526,32 @@ export async function saveSetting(userId, key, value) {
   }
 
   try {
-    console.log(`💾 [UserSettings] Saving ${key}=${value} for user: ${userId}, device: ${deviceId}`);
+    // CRITICAL: For global settings, update ALL device records for this user
+    // For device-specific settings, only update this device's record
+    if (isGlobal) {
+      console.log(`🌐 [UserSettings] Updating GLOBAL setting across all devices`);
+      
+      // Get all device records for this user
+      const allDeviceSettings = await UserSettings.filter({
+        user_id: userId
+      });
+      
+      // Update all devices with the new global setting
+      for (const deviceRecord of allDeviceSettings) {
+        try {
+          await UserSettings.update(deviceRecord.id, {
+            [key]: value,
+            updated: new Date().toISOString()
+          });
+        } catch (updateError) {
+          console.warn(`   Failed to update device ${deviceRecord.device_id}:`, updateError.message);
+        }
+      }
+      
+      console.log(`✅ [UserSettings] Updated global setting on ${allDeviceSettings.length} devices`);
+    }
 
-    // Find existing settings
+    // Find existing settings for THIS device
     const existingSettings = await UserSettings.filter({
       user_id: userId,
       device_id: deviceId
@@ -554,7 +577,7 @@ export async function saveSetting(userId, key, value) {
         ...cachedSettings, // Pass all current cached settings to ensure consistency
         updated: new Date().toISOString()
       });
-      console.log('✅ [UserSettings] Updated existing settings');
+      console.log(`✅ [UserSettings] Updated ${isGlobal ? 'global' : 'device-specific'} setting on this device`);
     } else {
       // Create new record with created timestamp
       const now = new Date().toISOString();
