@@ -996,9 +996,8 @@ class SmartRefreshManager {
   }
 
   /**
-   * Minimal smart refresh - ONLY refreshes selected date deliveries and driver status
-   * Full entity refreshes (patients, stores) are removed to reduce API calls
-   * Other pages will handle their own data fetching needs
+   * PRIORITY smart refresh - selected date deliveries + patients FIRST, then UI update
+   * Focuses on dashboard data only (other pages handle their own fetching)
    */
   async performSmartRefresh(currentData, filters, isEntityUpdating = false) {
     // CRITICAL: When disabled, skip background polling
@@ -1026,15 +1025,51 @@ class SmartRefreshManager {
     const updates = {};
     
     try {
-      // REMOVED: Full entity refresh for patients, stores
-      // Dashboard only needs: selected date deliveries + driver locations/status
-      // Other pages handle their own data needs
+      // PRIORITY 1: Refresh selected date deliveries FIRST
+      if (this.shouldRefresh('todayDeliveries')) {
+        console.log('📦 [SmartRefresh Priority] Step 1: Checking deliveries for selected date...');
+        this.markRefreshed('todayDeliveries');
+        
+        const deliveryUpdate = await this.refreshCurrentDayDeliveries(
+          currentData.deliveries || [],
+          filters.selectedDate,
+          filters.deliveryFilter || {},
+          currentData.stores || [],
+          currentData.drivers || [],
+          false
+        );
+        
+        if (deliveryUpdate?.hasChanges) {
+          updates.deliveries = deliveryUpdate.deliveries;
+          console.log('✅ [SmartRefresh Priority] Deliveries updated - will apply to UI');
+        }
+      }
       
-      // Note: Driver locations and active delivery statuses are handled separately
-      // by refreshDriverLocations() and refreshActiveDeliveryStatuses() 
-      // which are called directly from Layout.jsx's unified refresh
+      // PRIORITY 2: Refresh patients on selected date route SECOND
+      if (this.shouldRefresh('todayPatients') && updates.deliveries) {
+        console.log('👥 [SmartRefresh Priority] Step 2: Checking patients for selected date deliveries...');
+        this.markRefreshed('todayPatients');
+        
+        const dateStr = format(filters.selectedDate, 'yyyy-MM-dd');
+        const todayDeliveries = updates.deliveries.filter(d => d && d.delivery_date === dateStr);
+        
+        const patientUpdate = await this.refreshTodayPatients(
+          currentData.patients || [],
+          todayDeliveries
+        );
+        
+        if (patientUpdate?.hasChanges) {
+          updates.patients = patientUpdate.patients;
+          console.log('✅ [SmartRefresh Priority] Patients updated - will apply to UI');
+        }
+      }
+      
+      // PRIORITY 3: AppUsers (driver status, locations) - still handled by separate methods
       
       const hasAnyUpdates = Object.keys(updates).length > 0;
+      if (hasAnyUpdates) {
+        console.log('✅ [SmartRefresh Priority] Returning updates:', Object.keys(updates).join(', '));
+      }
       return hasAnyUpdates ? updates : null;
       
     } catch (error) {
