@@ -1844,7 +1844,10 @@ function Dashboard() {
         } else {
           // If no next stop, just center on driver
           console.log('⚠️ [FAB Click] Phase 2: No next stop found, centering on driver only');
-          setMapCenter([driverLocation.latitude, driverLocation.longitude]);
+          const topPadding = isMobile 
+           ? (isExpanded ? STATS_CARD_EXTENDED_HEIGHT : STATS_CARD_BASE_HEIGHT + 15) 
+           : 20;
+          setMapCenter([driverLocation.latitude + topPadding, driverLocation.longitude]);
           setMapZoom(15);
           setShouldFitBounds(null);
         }
@@ -1865,9 +1868,12 @@ function Dashboard() {
 
         // Use fitBounds with driver location to apply bottom padding
         const padding = getMapPadding(false);
+        const topPadding = isMobile 
+          ? (isExpanded ? STATS_CARD_EXTENDED_HEIGHT : STATS_CARD_BASE_HEIGHT + 15) 
+          : 20;
         console.log('  [FAB Click] Padding:', padding);
         setShouldFitBounds({
-          bounds: [[driverLocation.latitude, driverLocation.longitude]],
+          bounds: [[driverLocation.latitude + topPadding, driverLocation.longitude]],
           options: {
             ...padding,
             maxZoom: 15,
