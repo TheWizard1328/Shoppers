@@ -480,12 +480,25 @@ export const processPendingMutations = async () => {
       
       // Execute the mutation on the backend
       const Entity = mutation.entity === 'Patient' ? Patient : Delivery;
-      if (mutation.operation === 'create') {
-        await Entity.create(mutation.payload);
-      } else if (mutation.operation === 'update') {
-        await Entity.update(mutation.recordId, mutation.payload);
-      } else if (mutation.operation === 'delete') {
-        await Entity.delete(mutation.recordId);
+      
+      try {
+        if (mutation.operation === 'create') {
+          await Entity.create(mutation.payload);
+        } else if (mutation.operation === 'update') {
+          await Entity.update(mutation.recordId, mutation.payload);
+        } else if (mutation.operation === 'delete') {
+          await Entity.delete(mutation.recordId);
+        }
+      } catch (syncError) {
+        // CRITICAL: If entity not found (404), it was already deleted - remove from queue silently
+        if (syncError.response?.status === 404 || syncError.message?.includes('not found')) {
+          console.log(`⏭️ [OfflineSync] ${mutation.entity}:${mutation.recordId} already deleted - removing from queue`);
+          await offlineDB.removePendingMutation(mutation.mutationId);
+          successCount++;
+          continue;
+        }
+        // Re-throw other errors to be handled by outer catch
+        throw syncError;
       }
 
       // Remove from pending queue on success
