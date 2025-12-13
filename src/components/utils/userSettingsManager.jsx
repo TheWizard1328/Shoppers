@@ -225,6 +225,38 @@ const getInitialDefaultSettings = () => {
 const DEFAULT_SETTINGS = getInitialDefaultSettings();
 
 /**
+ * SETTINGS CLASSIFICATION
+ * Defines which settings are global (synced across devices) vs device-specific
+ */
+const GLOBAL_SETTINGS = [
+  'units_of_measurement',
+  'notifications_enabled', 
+  'notifications_sound',
+  'notifications_vibration'
+];
+
+const DEVICE_SPECIFIC_SETTINGS = [
+  'fab_map_cycle_phase',
+  'sidebar_width',
+  'right_panel_width',
+  'theme_preference',
+  'selected_driver_id',
+  'selected_date',
+  'admin_utilities_year',
+  'admin_utilities_month',
+  'admin_utilities_driver'
+];
+
+// Check if a setting is global or device-specific
+function isGlobalSetting(key) {
+  return GLOBAL_SETTINGS.includes(key);
+}
+
+function isDeviceSpecificSetting(key) {
+  return DEVICE_SPECIFIC_SETTINGS.includes(key);
+}
+
+/**
  * Save settings to offlineManager's IndexedDB for robust local persistence
  */
 async function saveToLocalPersistentStore(userId, deviceId, settings) {
