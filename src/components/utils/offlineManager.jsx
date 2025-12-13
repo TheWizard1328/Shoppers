@@ -700,6 +700,332 @@ class OfflineManager {
     }
   }
 
+  /**
+   * UNIFIED DATA MANAGEMENT API
+   * Centralized interface for all offline data operations
+   */
+
+  // Get all offline data stores
+  async getAllDataStores() {
+    try {
+      const db = await this.openDB();
+      const tx = db.transaction('cache', 'readonly');
+      const store = tx.objectStore('cache');
+      
+      return new Promise((resolve, reject) => {
+        const request = store.getAll();
+        request.onsuccess = () => {
+          const allData = request.result || [];
+          const organized = {
+            patients: allData.find(d => d.id === 'Patient')?.data || [],
+            deliveries: allData.find(d => d.id === 'Delivery')?.data || [],
+            stores: allData.find(d => d.id === 'Store')?.data || [],
+            appUsers: allData.find(d => d.id === 'AppUser')?.data || [],
+            userSettings: allData.filter(d => d.id && d.id.startsWith('userSettings_')),
+            metadata: {
+              totalStores: allData.length,
+              lastUpdate: this.cachedData.lastUpdate
+            }
+          };
+          resolve(organized);
+        };
+        request.onerror = () => reject(request.error);
+      });
+    } catch (error) {
+      console.error('❌ [OfflineManager] Error getting all data stores:', error);
+      return null;
+    }
+  }
+
+  // Get data statistics for diagnostics
+  async getDataStatistics() {
+    try {
+      const allData = await this.getAllDataStores();
+      
+      return {
+        patients: {
+          count: allData.patients?.length || 0,
+          hasData: (allData.patients?.length || 0) > 0
+        },
+        deliveries: {
+          count: allData.deliveries?.length || 0,
+          hasData: (allData.deliveries?.length || 0) > 0
+        },
+        stores: {
+          count: allData.stores?.length || 0,
+          hasData: (allData.stores?.length || 0) > 0
+        },
+        appUsers: {
+          count: allData.appUsers?.length || 0,
+          hasData: (allData.appUsers?.length || 0) > 0
+        },
+        userSettings: {
+          count: allData.userSettings?.length || 0,
+          entries: allData.userSettings
+        },
+        pendingActions: this.pendingActions.length,
+        pendingConflicts: this.pendingConflicts.length,
+        lastUpdate: allData.metadata?.lastUpdate
+      };
+    } catch (error) {
+      console.error('❌ [OfflineManager] Error getting statistics:', error);
+      return null;
+    }
+  }
+
+  /**
+   * CROSS-INSTANCE DATA DETECTION & MERGING
+   * Detects if multiple instances created separate databases and merges them
+   */
+
+  // Detect potential duplicate data from multiple instances
+  async detectDuplicateInstances() {
+    try {
+      const stats = await this.getDataStatistics();
+      const issues = [];
+
+      // Check for duplicate UserSettings (same user, different device IDs)
+      if (stats.userSettings?.entries?.length > 1) {
+        const settingsByUser = {};
+        
+        stats.userSettings.entries.forEach(entry => {
+          const userId = entry.data?.user_id;
+          if (userId) {
+            if (!settingsByUser[userId]) {
+              settingsByUser[userId] = [];
+            }
+            settingsByUser[userId].push(entry);
+          }
+        });
+
+        // Check for same user with multiple device IDs
+        Object.keys(settingsByUser).forEach(userId => {
+          const userEntries = settingsByUser[userId];
+          if (userEntries.length > 3) { // Threshold: more than 3 devices seems suspicious
+            issues.push({
+              type: 'multiple_device_ids',
+              userId,
+              count: userEntries.length,
+              entries: userEntries,
+              severity: 'warning'
+            });
+          }
+        });
+      }
+
+      // Check for stale data (data not updated in > 7 days)
+      if (stats.lastUpdate) {
+        const daysSinceUpdate = (Date.now() - stats.lastUpdate) / (1000 * 60 * 60 * 24);
+        if (daysSinceUpdate > 7) {
+          issues.push({
+            type: 'stale_data',
+            daysSinceUpdate: Math.floor(daysSinceUpdate),
+            severity: 'info'
+          });
+        }
+      }
+
+      console.log(`🔍 [OfflineManager] Instance detection complete: ${issues.length} potential issues found`);
+      return { hasIssues: issues.length > 0, issues, stats };
+    } catch (error) {
+      console.error('❌ [OfflineManager] Error detecting duplicate instances:', error);
+      return { hasIssues: false, issues: [], stats: null };
+    }
+  }
+
+  // Merge duplicate UserSettings entries for the same user
+  async mergeDuplicateUserSettings(userId) {
+    try {
+      console.log(`🔄 [OfflineManager] Merging duplicate UserSettings for user: ${userId}`);
+      
+      const db = await this.openDB();
+      let tx = db.transaction('cache', 'readonly');
+      let store = tx.objectStore('cache');
+      
+      const allEntries = await new Promise((resolve, reject) => {
+        const request = store.getAll();
+        request.onsuccess = () => resolve(request.result || []);
+        request.onerror = () => reject(request.error);
+      });
+
+      // Find all UserSettings for this user
+      const userSettingsEntries = allEntries
+        .filter(entry => 
+          entry.id && 
+          entry.id.startsWith('userSettings_') && 
+          entry.data?.user_id === userId
+        );
+
+      if (userSettingsEntries.length <= 1) {
+        console.log('✅ [OfflineManager] No duplicates found for user');
+        return { merged: false, kept: userSettingsEntries[0]?.id };
+      }
+
+      // Sort by timestamp (newest first)
+      userSettingsEntries.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+      // Keep the newest entry, merge settings from others
+      const newestEntry = userSettingsEntries[0];
+      const mergedSettings = { ...newestEntry.data };
+
+      // Merge unique settings from older entries (prefer newer values)
+      for (let i = 1; i < userSettingsEntries.length; i++) {
+        const olderEntry = userSettingsEntries[i];
+        Object.keys(olderEntry.data || {}).forEach(key => {
+          // Only merge if the value is not already set in newest
+          if (mergedSettings[key] === undefined || mergedSettings[key] === null) {
+            mergedSettings[key] = olderEntry.data[key];
+          }
+        });
+      }
+
+      // Save merged settings
+      await this.cacheUserSettings(userId, mergedSettings.device_id, mergedSettings);
+
+      // Delete old duplicate entries
+      const deleteTx = db.transaction('cache', 'readwrite');
+      const deleteStore = deleteTx.objectStore('cache');
+      
+      for (let i = 1; i < userSettingsEntries.length; i++) {
+        await deleteStore.delete(userSettingsEntries[i].id);
+        console.log(`   🗑️ Deleted duplicate: ${userSettingsEntries[i].id}`);
+      }
+
+      console.log(`✅ [OfflineManager] Merged ${userSettingsEntries.length} entries into 1 for user ${userId}`);
+      return { 
+        merged: true, 
+        kept: newestEntry.id, 
+        deletedCount: userSettingsEntries.length - 1 
+      };
+    } catch (error) {
+      console.error('❌ [OfflineManager] Error merging duplicate settings:', error);
+      return { merged: false, error: error.message };
+    }
+  }
+
+  // Clean up all duplicate UserSettings across all users
+  async cleanupAllDuplicateUserSettings() {
+    try {
+      console.log('🧹 [OfflineManager] Starting cleanup of all duplicate UserSettings...');
+      
+      const stats = await this.getDataStatistics();
+      const userIds = [...new Set(
+        stats.userSettings?.entries?.map(e => e.data?.user_id).filter(Boolean) || []
+      )];
+
+      const results = [];
+      for (const userId of userIds) {
+        const result = await this.mergeDuplicateUserSettings(userId);
+        if (result.merged) {
+          results.push({ userId, ...result });
+        }
+      }
+
+      console.log(`✅ [OfflineManager] Cleanup complete: ${results.length} users had duplicates merged`);
+      return { success: true, mergedUsers: results };
+    } catch (error) {
+      console.error('❌ [OfflineManager] Error during cleanup:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Resolve data conflicts by comparing timestamps and keeping newest
+  async resolveDataConflicts(entityType, localData, remoteData) {
+    if (!Array.isArray(localData) || !Array.isArray(remoteData)) {
+      return remoteData; // Default to remote if data structure is invalid
+    }
+
+    const merged = new Map();
+    
+    // Add all remote data first (server is source of truth for existing records)
+    remoteData.forEach(item => {
+      if (item && item.id) {
+        merged.set(item.id, item);
+      }
+    });
+
+    // Merge local data - only if newer or doesn't exist remotely
+    localData.forEach(item => {
+      if (!item || !item.id) return;
+
+      const remoteItem = merged.get(item.id);
+      
+      if (!remoteItem) {
+        // Local-only item (probably created offline) - keep it
+        merged.set(item.id, item);
+      } else {
+        // Compare timestamps - keep newer
+        const localTime = new Date(item.updated_date || item.created_date || 0).getTime();
+        const remoteTime = new Date(remoteItem.updated_date || remoteItem.created_date || 0).getTime();
+        
+        if (localTime > remoteTime) {
+          console.log(`   📱 ${entityType}: Keeping local version of ${item.id} (local newer)`);
+          merged.set(item.id, item);
+        }
+      }
+    });
+
+    return Array.from(merged.values());
+  }
+
+  // Export all offline data for backup/debugging
+  async exportOfflineData() {
+    try {
+      const allData = await this.getAllDataStores();
+      const stats = await this.getDataStatistics();
+      const { getDeviceId } = await import('./userSettingsManager');
+      const deviceId = await getDeviceId();
+      
+      return {
+        exportDate: new Date().toISOString(),
+        deviceId: deviceId,
+        statistics: stats,
+        data: allData,
+        pendingActions: this.pendingActions,
+        pendingConflicts: this.pendingConflicts
+      };
+    } catch (error) {
+      console.error('❌ [OfflineManager] Error exporting data:', error);
+      return null;
+    }
+  }
+
+  // Clear all offline data (nuclear option - use with caution)
+  async clearAllOfflineData() {
+    try {
+      console.warn('⚠️ [OfflineManager] Clearing ALL offline data...');
+      
+      const db = await this.openDB();
+      
+      // Clear all stores
+      const stores = ['cache', 'pending', 'conflicts'];
+      for (const storeName of stores) {
+        const tx = db.transaction(storeName, 'readwrite');
+        const store = tx.objectStore(storeName);
+        await store.clear();
+      }
+      
+      // Reset in-memory cache
+      this.cachedData = {
+        deliveries: null,
+        patients: null,
+        stores: null,
+        drivers: null,
+        users: null,
+        userSettings: null,
+        lastUpdate: null
+      };
+      this.pendingActions = [];
+      this.pendingConflicts = [];
+      
+      console.log('✅ [OfflineManager] All offline data cleared');
+      return { success: true };
+    } catch (error) {
+      console.error('❌ [OfflineManager] Error clearing all data:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
   // Cleanup on destroy
   destroy() {
     this.stopBackgroundSync();
