@@ -479,6 +479,7 @@ export async function loadUserSettings(userId) {
 
 /**
  * Saves a specific setting to the backend
+ * Handles global settings (synced across devices) vs device-specific settings
  * Queues for offline sync if not connected
  * @param {string} userId - The user's ID
  * @param {string} key - The setting key to update
@@ -492,6 +493,9 @@ export async function saveSetting(userId, key, value) {
   }
 
   const deviceId = await getDeviceId();
+  const isGlobal = isGlobalSetting(key);
+  
+  console.log(`💾 [UserSettings] Saving ${isGlobal ? 'GLOBAL' : 'device-specific'} setting: ${key}=${value}`);
   
   // Update local cache immediately for responsive UI
   if (cachedSettings) {
