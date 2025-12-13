@@ -89,18 +89,7 @@ Deno.serve(async (req) => {
         console.log(`📍 [setDriverStatus] Setting isNextDelivery=true for: ${nextDelivery.patient_name || 'Pickup'}`);
         await base44.asServiceRole.entities.Delivery.update(nextDelivery.id, { isNextDelivery: true });
         
-        // Trigger ETA recalculation
-        console.log(`📍 [setDriverStatus] Triggering ETA recalculation after break...`);
-        try {
-          await base44.asServiceRole.functions.invoke('etaOptimizer', {
-            driverId: user.id,
-            deliveryDate: today,
-            triggerFullRecalculation: true
-          });
-          console.log(`✅ [setDriverStatus] ETA recalculation completed`);
-        } catch (etaError) {
-          console.warn(`⚠️ [setDriverStatus] ETA recalculation failed:`, etaError);
-        }
+        // ETAs will be automatically recalculated by ETATracker component
       } else {
         console.log(`ℹ️ [setDriverStatus] No incomplete deliveries to mark as next`);
       }
