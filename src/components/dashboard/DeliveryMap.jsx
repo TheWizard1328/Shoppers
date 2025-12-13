@@ -26,12 +26,12 @@ L.Icon.Default.mergeOptions({
 // Driver color palette for "All Drivers" mode - 6 highly visible, contrasting colors
 const DRIVER_COLORS = [
   '', // Blank color storage for unused 0 index - will be handled by getDriverColor fallback
-  '#0074D9', // Deep Blue (Index 1)
-  '#F012BE', // Hot Pink (Index 2)
-  '#7FDBFF', // Electric Cyan (Index 3)
-  '#B10DC9', // Royal Purple (Index 4)
-  '#001F3F', // Navy Blue (Index 5)
-  '#D946EF'  // Bright Magenta (Index 6)
+  '#F012BE', // Hot Pink (Index 1)
+  '#D946EF', // Bright Magenta (Index 2)
+  '#0074D9', // Deep Blue (Index 3)
+  '#7FDBFF', // Electric Cyan (Index 4)
+  '#B10DC9', // Royal Purple (Index 5)
+  '#001F3F'  // Navy Blue (Index 6)
 ];
 
 // NEW: Simple circle marker for dispatcher view (other stores)
