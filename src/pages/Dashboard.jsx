@@ -350,12 +350,12 @@ function Dashboard() {
       : 20;
     const bottomPadding = cardExpanded 
       ? STOP_CARDS_EXPANDED_HEIGHT 
-      : STOP_CARDS_BASE_HEIGHT + 50;
+      : stopCardsHeight + 50;
     return {
       paddingTopLeft: [50, topPadding],
       paddingBottomRight: [50, bottomPadding]
     };
-  }, [isMobile, isExpanded]);
+  }, [isMobile, isExpanded, stopCardsHeight]);
 
   // Load user settings on mount - PHASE 1: Load backend values FIRST
   useEffect(() => {
@@ -1765,7 +1765,7 @@ function Dashboard() {
           console.log('🗺️ [FAB Click] Phase 1 - Drivers but no stops, centering on drivers + city center');
           allCoordinates.push([currentCity.latitude, currentCity.longitude]);
           console.log('  [FAB Click] Total coordinates:', allCoordinates.length);
-          console.log('  [FAB Click] Bottom padding:', STOP_CARDS_BASE_HEIGHT + 50);
+          console.log('  [FAB Click] Bottom padding:', stopCardsHeight + 50);
           const padding = getMapPadding(false);
           setShouldFitBounds({
             bounds: allCoordinates,
@@ -6092,7 +6092,7 @@ function Dashboard() {
             retractClustersRef={retractClustersRef}
             areStopCardsVisible={deliveriesWithStopOrder.length > 0}
             highlightedDeliveryId={highlightedCardId}
-            stopCardsHeight={selectedCardId ? STOP_CARDS_EXPANDED_HEIGHT : STOP_CARDS_BASE_HEIGHT + 50} />
+            stopCardsHeight={selectedCardId ? STOP_CARDS_EXPANDED_HEIGHT : stopCardsHeight + 50} />
 
         </div>
 
