@@ -6185,6 +6185,23 @@ function Dashboard() {
                   }
                 }
 
+                // CRITICAL: For drivers, mark all deliveries as stripped when route is complete
+                if (isDriver && !isDispatcher && !isAdmin) {
+                  const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+                  const allDriverDeliveries = deliveriesWithStopOrder.filter((d) => 
+                    d && d.driver_id === currentUser.id
+                  );
+                  const routeComplete = allDriverDeliveries.length > 0 && 
+                    allDriverDeliveries.every((d) => finishedStatuses.includes(d.status));
+                  
+                  if (routeComplete) {
+                    return {
+                      ...delivery,
+                      _isStripped: true
+                    };
+                  }
+                }
+
                 return delivery;
               })}
               onCardClick={handleCardClick}
