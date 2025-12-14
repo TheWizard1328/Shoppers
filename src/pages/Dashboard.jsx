@@ -784,14 +784,12 @@ function Dashboard() {
   }, [nextStop, patients, stores]);
 
   const statsCardPositioning = useMemo(() => {
-    const ratio = screenWidth / cardWidth;
-
-    if (ratio < 2) {
+    if (isMobile) {
       return 'absolute top-2 left-1/2 -translate-x-1/2 z-[600]';
     } else {
-      return 'absolute top-2 right-2 z-[600]';
+      return 'absolute top-2 left-2 z-[600]';
     }
-  }, [screenWidth, cardWidth]);
+  }, [isMobile]);
 
   const optimizationMessagePositioning = useMemo(() => {
     const ratio = screenWidth / cardWidth;
@@ -5617,7 +5615,7 @@ function Dashboard() {
       </AnimatePresence>
 
       <div className={statsCardPositioning}>
-        <div className="flex flex-col items-center gap-1 z-[200]"
+        <div className="flex items-start gap-2 z-[200]"
 
         style={{ opacity: statsPanelOpacity, transition: 'opacity 0.5s ease-in-out' }}
         onMouseEnter={() => handleStatsPanelInteraction(true)}
@@ -6014,6 +6012,9 @@ function Dashboard() {
                 </AnimatePresence>
                 </motion.div>
 
+          {/* Desktop: Offline Sync Indicator - positioned next to stats card */}
+          {!isMobile && <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} />}
+
           {/* Driver Legend - positioned directly below stats card */}
           {isAllDriversMode && driverRoutes.length > 0 &&
           <motion.div
@@ -6064,8 +6065,7 @@ function Dashboard() {
           </div>
         }
 
-        {/* Desktop: Offline Sync Indicator */}
-        {!isMobile && <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} />}
+
 
         {/* Real-time ETA Tracker */}
         {realTimeETAEnabled && selectedDriverId && selectedDriverId !== 'all' && (
