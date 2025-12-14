@@ -1053,22 +1053,23 @@ function Dashboard() {
     };
   }, [cardWidth, isExpanded, screenWidth, isMapViewLocked, mapViewPhase]);
 
-  // Capture base height only when cards are definitely not expanded
+  // Measure stop cards height only when they're in non-expanded state
   useEffect(() => {
-    if (deliveriesWithStopOrder.length > 0 && !selectedCardId && stopCardsContainerRef.current) {
-      // Wait for render to complete
+    if (!selectedCardId && stopCardsContainerRef.current) {
+      // Wait for collapse animation to complete
       const timer = setTimeout(() => {
         if (stopCardsContainerRef.current && !selectedCardId) {
           const height = stopCardsContainerRef.current.offsetHeight;
           if (height > 0 && height < 200) {
-            // Only capture if it's clearly the non-expanded height (< 200px)
+            // Only update if it's clearly non-expanded height
             setStopCardsBaseHeight(height);
+            console.log('[Dashboard] Captured non-expanded stop cards height:', height);
           }
         }
-      }, 50);
+      }, 350); // Wait for animation to complete
       return () => clearTimeout(timer);
     }
-  }, [deliveriesWithStopOrder.length]);
+  }, [selectedCardId]);
 
   useEffect(() => {
     const fetchGoogleApiKey = async () => {
