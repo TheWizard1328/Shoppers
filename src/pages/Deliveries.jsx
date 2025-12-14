@@ -3547,15 +3547,15 @@ export default function DeliveriesPage() {
 
                       {/* Action Buttons */}
                       {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
-                    <Button onClick={() => {setEditingDelivery(null);setShowDeliveryForm(true);}} className="gap-2 w-[140px]">
+                      <Button onClick={() => {setEditingDelivery(null);setShowDeliveryForm(true);}} className="gap-2 w-[140px]">
                           <Plus className="w-4 h-4" /> Add Delivery
                         </Button>
-                    }
-                      {canAccessImports(currentUser) &&
-                    <Button onClick={handleOpenRouteImport} variant="outline" className="gap-2 w-[140px]">
+                      }
+                      {canAccessImports(currentUser) && !isMobile &&
+                      <Button onClick={handleOpenRouteImport} variant="outline" className="gap-2 w-[140px]">
                           <FileUp className="w-4 h-4" /> Import Route
                         </Button>
-                    }
+                      }
                     </div>
                   </div>
                 </CardContent>
@@ -3634,8 +3634,8 @@ export default function DeliveriesPage() {
                       {/* Spacer */}
                       <div className="flex-grow"></div>
 
-                      {/* Import Button */}
-                      {canAccessImports(currentUser) &&
+                      {/* Import Button - Hidden on Mobile */}
+                      {canAccessImports(currentUser) && !isMobile &&
                     <Button onClick={handleOpenRouteImport} variant="outline" className="gap-2 w-[140px]">
                           <FileUp className="w-4 h-4" /> Import Route
                         </Button>
