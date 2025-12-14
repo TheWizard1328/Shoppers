@@ -5760,12 +5760,12 @@ function Dashboard() {
                   }
                 }} modal={true}>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="bg-transparent px-3 text-xs font-medium rounded-md inline-flex items-center justify-center whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border border-input shadow-sm hover:bg-accent hover:text-accent-foreground gap-2 h-8" style={{ pointerEvents: 'auto', touchAction: 'manipulation' }}>
+                    <Button variant="outline" size="sm" className="bg-transparent px-3 text-xs font-medium rounded-md inline-flex items-center justify-center whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow-sm gap-2 h-8" style={{ pointerEvents: 'auto', touchAction: 'manipulation', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
                       <CalendarIcon className="w-3.5 h-3.5" />
                       <span className="text-sm">{format(selectedDate, 'EEE MMM dd')}</span>
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 z-[10001]" align="end" style={{ pointerEvents: 'auto', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                  <PopoverContent className="w-auto p-0 z-[10001]" align="end" style={{ pointerEvents: 'auto', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
                     <Calendar
                       mode="single"
                       selected={selectedDate}
@@ -5781,7 +5781,7 @@ function Dashboard() {
                       month={calendarMonth}
                       onMonthChange={setCalendarMonth}
                       footer={
-                      <div className="px-3 pb-2 pt-1 border-t border-slate-100">
+                      <div className="px-3 pb-2 pt-1 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -5792,7 +5792,22 @@ function Dashboard() {
                                   setCalendarMonth(today);
                                   handleDateChange(today);
                                 }}
-                                className="w-full flex items-center justify-center gap-1 p-1.5 rounded hover:bg-slate-100 text-slate-600 hover:text-slate-800 text-xs">
+                                className="w-full flex items-center justify-center gap-1 p-1.5 rounded text-xs"
+                                style={{ 
+                                  color: 'var(--text-slate-600)',
+                                  '&:hover': {
+                                    background: 'var(--bg-slate-100)',
+                                    color: 'var(--text-slate-800)'
+                                  }
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.background = 'var(--bg-slate-100)';
+                                  e.currentTarget.style.color = 'var(--text-slate-800)';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.background = 'transparent';
+                                  e.currentTarget.style.color = 'var(--text-slate-600)';
+                                }}>
                                   <Clock className="w-3 h-3" />
                                   Today
                                 </button>
@@ -5803,7 +5818,7 @@ function Dashboard() {
                             </Tooltip>
                           </TooltipProvider>
                         </div>
-                      } className="rdp p-3" />
+                      } className="rdp p-3" style={{ color: 'var(--text-slate-900)' }} />
 
                   </PopoverContent>
                 </Popover>

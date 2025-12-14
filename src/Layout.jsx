@@ -2604,8 +2604,8 @@ export default function Layout({ children, currentPageName }) {
                             <DropdownMenuLabel>Settings</DropdownMenuLabel>
                             <DropdownMenuSeparator />
 
-                            {/* Import Buttons - App Owner Only */}
-                            {realUser && isAppOwner(realUser) && (
+                            {/* Import Buttons - App Owner Only - Hidden on Mobile */}
+                            {!isMobile && realUser && isAppOwner(realUser) && (
                               <>
                                 <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer">
                                   <FileText className="w-4 h-4 mr-2" />
@@ -2622,7 +2622,7 @@ export default function Layout({ children, currentPageName }) {
                             {/* City Filter - Admin Only */}
                             {userHasRole(currentUser, 'admin') && cities && cities.length > 0 && (
                               <div className="px-2 py-2">
-                                <label className="text-xs font-medium text-slate-700 mb-1.5 block">
+                                <label className="text-xs font-medium mb-1.5 block" style={{ color: 'var(--text-slate-700)' }}>
                                   City Filter
                                 </label>
                                 <Select
@@ -2632,7 +2632,7 @@ export default function Layout({ children, currentPageName }) {
                                     globalFilters.setSelectedCityId(cityId);
                                   }}
                                 >
-                                  <SelectTrigger className="w-full bg-white border-slate-300 h-9">
+                                  <SelectTrigger className="w-full h-9" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                                     <SelectValue placeholder="Select city..." />
                                   </SelectTrigger>
                                   <SelectContent className="max-h-[300px] overflow-y-auto z-[10002]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
@@ -3053,8 +3053,8 @@ export default function Layout({ children, currentPageName }) {
                             </>
                           )}
 
-                          {/* Import Buttons - App Owner Only */}
-                          {realUser && isAppOwner(realUser) && (
+                          {/* Import Buttons - App Owner Only - Hidden on Mobile */}
+                          {!isMobile && realUser && isAppOwner(realUser) && (
                             <>
                               <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer">
                                 <FileText className="w-4 h-4 mr-2" />
@@ -3071,7 +3071,7 @@ export default function Layout({ children, currentPageName }) {
                           {/* City Filter - Admin Only */}
                           {userHasRole(currentUser, 'admin') && cities && cities.length > 0 && (
                             <div className="px-2 py-2">
-                              <label className="text-xs font-medium text-slate-700 mb-1.5 block">
+                              <label className="text-xs font-medium mb-1.5 block" style={{ color: 'var(--text-slate-700)' }}>
                                 City Filter
                               </label>
                               <Select
@@ -3081,12 +3081,12 @@ export default function Layout({ children, currentPageName }) {
                                   globalFilters.setSelectedCityId(cityId);
                                 }}
                               >
-                                <SelectTrigger className="w-full bg-white border-slate-300 h-9">
+                                <SelectTrigger className="w-full h-9" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                                   <SelectValue placeholder="City" />
                                 </SelectTrigger>
-                                <SelectContent className="max-h-[300px] overflow-y-auto z-[10002]">
+                                <SelectContent className="max-h-[300px] overflow-y-auto z-[10002]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                                   {cities.map((city) => (
-                                    <SelectItem key={city.id} value={city.id}>
+                                    <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
                                       {city.name}
                                     </SelectItem>
                                   ))}
