@@ -116,6 +116,30 @@ const syncPatients = async (forceFullSync = false) => {
     const cleanPatients = patients.filter(p => !p.id.startsWith('temp_'));
     console.log(`   Removed ${patients.length - cleanPatients.length} temp records`);
     
+    // CRITICAL: Remove deleted records from IndexedDB (exist locally but not on backend)
+    if (isFullSync) {
+      const localPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+      const backendIds = new Set(cleanPatients.map(p => p.id));
+      const recordsToDelete = localPatients.filter(p => !p.id.startsWith('temp_') && !backendIds.has(p.id));
+      
+      if (recordsToDelete.length > 0) {
+        console.log(`🗑️ [OfflineSync] Removing ${recordsToDelete.length} deleted patients from IndexedDB...`);
+        const db = await offlineDB.openDatabase();
+        const transaction = db.transaction([offlineDB.STORES.PATIENTS], 'readwrite');
+        const store = transaction.objectStore(offlineDB.STORES.PATIENTS);
+        
+        for (const record of recordsToDelete) {
+          await new Promise((resolve, reject) => {
+            const request = store.delete(record.id);
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(request.error);
+          });
+        }
+        
+        console.log(`✅ [OfflineSync] Removed ${recordsToDelete.length} deleted patients from IndexedDB`);
+      }
+    }
+    
     // Save to IndexedDB in batches
     const batches = [];
     for (let i = 0; i < cleanPatients.length; i += BATCH_SIZE) {
@@ -282,6 +306,30 @@ const syncDeliveries = async (selectedDate = null, forceFullSync = false) => {
     console.log(`🧹 [OfflineSync] Filtering out temp IDs from backend data...`);
     const cleanDeliveries = allDeliveries.filter(d => !d.id.startsWith('temp_'));
     console.log(`   Removed ${allDeliveries.length - cleanDeliveries.length} temp records`);
+    
+    // CRITICAL: Remove deleted records from IndexedDB (exist locally but not on backend)
+    if (isFullSync) {
+      const localDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+      const backendIds = new Set(cleanDeliveries.map(d => d.id));
+      const recordsToDelete = localDeliveries.filter(d => !d.id.startsWith('temp_') && !backendIds.has(d.id));
+      
+      if (recordsToDelete.length > 0) {
+        console.log(`🗑️ [OfflineSync] Removing ${recordsToDelete.length} deleted deliveries from IndexedDB...`);
+        const db = await offlineDB.openDatabase();
+        const transaction = db.transaction([offlineDB.STORES.DELIVERIES], 'readwrite');
+        const store = transaction.objectStore(offlineDB.STORES.DELIVERIES);
+        
+        for (const record of recordsToDelete) {
+          await new Promise((resolve, reject) => {
+            const request = store.delete(record.id);
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(request.error);
+          });
+        }
+        
+        console.log(`✅ [OfflineSync] Removed ${recordsToDelete.length} deleted deliveries from IndexedDB`);
+      }
+    }
     
     // Save to IndexedDB in batches
     console.log(`💾 [OfflineSync] Saving ${cleanDeliveries.length} total deliveries to IndexedDB...`);
