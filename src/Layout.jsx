@@ -2054,8 +2054,8 @@ export default function Layout({ children, currentPageName }) {
             --text-slate-600: #cbd5e1;
             --text-slate-500: #94a3b8;
             --text-slate-400: #64748b;
-            --border-slate-200: #475569;
-            --border-slate-300: #334155;
+            --border-slate-200: #cbd5e1;
+            --border-slate-300: #94a3b8;
             --shadow-color: rgba(255, 255, 255, 0.1);
             --image-filter: invert(1) hue-rotate(180deg);
             --menu-border: #e2e8f0;
@@ -2075,8 +2075,8 @@ export default function Layout({ children, currentPageName }) {
               --text-slate-600: #cbd5e1;
               --text-slate-500: #94a3b8;
               --text-slate-400: #64748b;
-              --border-slate-200: #475569;
-              --border-slate-300: #334155;
+              --border-slate-200: #cbd5e1;
+              --border-slate-300: #94a3b8;
               --shadow-color: rgba(255, 255, 255, 0.1);
               --image-filter: invert(1) hue-rotate(180deg);
               --menu-border: #e2e8f0;
