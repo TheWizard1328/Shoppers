@@ -351,7 +351,7 @@ function Dashboard() {
       : 20;
     const bottomPadding = cardExpanded 
       ? STOP_CARDS_EXPANDED_HEIGHT 
-      : stopCardsBaseHeight + 50;
+      : stopCardsBaseHeight + 25;
     return {
       paddingTopLeft: [50, topPadding],
       paddingBottomRight: [50, bottomPadding]
@@ -6119,7 +6119,7 @@ function Dashboard() {
             retractClustersRef={retractClustersRef}
             areStopCardsVisible={deliveriesWithStopOrder.length > 0}
             highlightedDeliveryId={highlightedCardId}
-            stopCardsHeight={selectedCardId ? STOP_CARDS_EXPANDED_HEIGHT : stopCardsBaseHeight + 50} />
+            stopCardsHeight={selectedCardId ? STOP_CARDS_EXPANDED_HEIGHT : stopCardsBaseHeight} />
 
         </div>
 
