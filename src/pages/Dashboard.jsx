@@ -341,7 +341,7 @@ function Dashboard() {
   const STATS_CARD_EXTENDED_HEIGHT = 216;
   
   // Track HorizontalStopCards container base height for FAB positioning
-  const [stopCardsBaseHeight, setStopCardsBaseHeight] = useState(75);
+  const [stopCardsBaseHeight, setStopCardsBaseHeight] = useState(0); // Start at 0 to avoid double render
   const measurementTimeoutRef = useRef(null);
 
   // Computed padding values for consistent map bounds
@@ -6329,10 +6329,10 @@ function Dashboard() {
       <MapViewCycleFAB
         onClick={handleMapViewCycle}
         currentPhase={mapViewPhase}
-        hasVisibleCards={deliveriesWithStopOrder.length > 0}
+        hasVisibleCards={deliveriesWithStopOrder.length > 0 && stopCardsBaseHeight > 0}
         isAIVisible={showAIAssistant && isAIEnabled}
         isLocked={isMapViewLocked}
-        stopCardsHeight={stopCardsBaseHeight} />
+        stopCardsHeight={stopCardsBaseHeight || 75} />
 
       }
 
