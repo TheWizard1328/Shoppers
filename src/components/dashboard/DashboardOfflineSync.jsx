@@ -12,10 +12,9 @@ export default function DashboardOfflineSync({ currentUser, dailyPolylineCount, 
     return <OfflineSyncIndicator inline={true} />;
   }
 
-  // Desktop: show in upper-left corner below polyline counter
-  const hasPolylineCounter = currentUser && isAppOwner(currentUser) && dailyPolylineCount !== null;
+  // Desktop: positioned next to stats card (aligned at top)
   return (
-    <div className={`absolute left-2 z-[999] ${hasPolylineCounter ? 'top-14' : 'top-2'}`}>
+    <div className="absolute top-2 z-[600]" style={{ left: 'calc(2rem + 340px + 0.5rem)' }}>
       <OfflineSyncIndicator inline={true} />
     </div>
   );
