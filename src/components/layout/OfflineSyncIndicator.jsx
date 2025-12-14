@@ -3,12 +3,20 @@ import { Database, RefreshCw, CheckCircle, AlertCircle, ChevronUp, ChevronDown }
 import { Button } from '@/components/ui/button';
 import { subscribeSyncStatus, getSyncStats, forceSyncAll } from '@/components/utils/offlineSync';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useUser } from '@/components/utils/UserContext';
+import { isAppOwner } from '@/components/utils/userRoles';
 
 export default function OfflineSyncIndicator({ embedded = false, inline = false }) {
+  const { currentUser } = useUser();
   const [syncStatus, setSyncStatus] = useState({ status: 'idle' });
   const [stats, setStats] = useState(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+
+  // Only show to app owners
+  if (!currentUser || !isAppOwner(currentUser)) {
+    return null;
+  }
 
   useEffect(() => {
     // Load initial stats
