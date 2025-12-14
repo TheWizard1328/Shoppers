@@ -789,7 +789,7 @@ function Dashboard() {
     if (ratio < 2) {
       return 'absolute top-2 left-1/2 -translate-x-1/2 z-[600]';
     } else {
-      return 'absolute top-2 right-2 z-[600]';
+      return 'absolute top-2 left-2 z-[600]';
     }
   }, [screenWidth, cardWidth]);
 
