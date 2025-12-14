@@ -306,7 +306,7 @@ const UserImpersonation = ({ users = [], onImpersonate, onStopImpersonating, imp
     <div className="mt-2 space-y-2">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button variant="outline" className="w-full gap-2 border-black">
+          <Button variant="outline" className="w-full gap-2" style={{ borderColor: 'var(--border-slate-300)' }}>
             <Eye className="w-4 h-4" /> {impersonatingUser ? 'Switch User' : 'View as User'}
           </Button>
         </PopoverTrigger>
