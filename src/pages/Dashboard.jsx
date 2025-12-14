@@ -6054,7 +6054,7 @@ function Dashboard() {
         {/* Polyline API hits badge - App Owner only - positioned above stop cards like FAB but on left */}
         {currentUser && isAppOwner(currentUser) &&
         <div 
-          className="fixed left-4 z-[140]"
+          className="absolute left-4 z-[140]"
           style={{ 
             bottom: `${deliveriesWithStopOrder.length > 0 && stopCardsBaseHeight > 0 ? stopCardsBaseHeight + 15 : 25}px` 
           }}>
