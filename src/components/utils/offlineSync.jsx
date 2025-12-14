@@ -625,9 +625,9 @@ export const performBidirectionalSync = async () => {
     console.log(`   Removed ${backendPatients.length - cleanBackendPatients.length} temp patients`);
     console.log(`   Removed ${backendDeliveries.length - cleanBackendDeliveries.length} temp deliveries`);
     
-    // Compare and merge
-    const updatedPatients = mergeData(localPatients, cleanBackendPatients);
-    const updatedDeliveries = mergeData(localDeliveries, cleanBackendDeliveries);
+    // Compare and merge (with deletion detection)
+    const updatedPatients = await mergeData(localPatients, cleanBackendPatients, 'Patient');
+    const updatedDeliveries = await mergeData(localDeliveries, cleanBackendDeliveries, 'Delivery');
 
     // Save merged data to local database
     if (updatedPatients.length > 0) {
@@ -669,11 +669,14 @@ export const performBidirectionalSync = async () => {
 
 /**
  * Merge local and backend data - backend wins for conflicts (newer updated_date)
+ * CRITICAL: Also handles deletions by removing records that exist locally but not on backend
  */
-const mergeData = (localRecords, backendRecords) => {
+const mergeData = async (localRecords, backendRecords, entityName) => {
   const localMap = new Map(localRecords.map(r => [r.id, r]));
+  const backendIds = new Set(backendRecords.map(r => r.id));
   const merged = [];
 
+  // STEP 1: Process backend records (new + updated)
   for (const backendRecord of backendRecords) {
     const localRecord = localMap.get(backendRecord.id);
     
@@ -692,6 +695,41 @@ const mergeData = (localRecords, backendRecords) => {
         merged.push(localRecord);
       }
     }
+  }
+
+  // STEP 2: CRITICAL - Delete records that exist locally but NOT on backend
+  // These were deleted by other users/devices and need to be removed locally
+  const recordsToDelete = [];
+  for (const localRecord of localRecords) {
+    // Skip temp records (they're local-only and will be synced later)
+    if (localRecord.id.startsWith('temp_')) {
+      merged.push(localRecord);
+      continue;
+    }
+    
+    // If local record doesn't exist on backend, it was deleted
+    if (!backendIds.has(localRecord.id)) {
+      recordsToDelete.push(localRecord.id);
+      console.log(`🗑️ [OfflineSync] Detected deletion from backend: ${entityName}:${localRecord.id}`);
+    }
+  }
+
+  // Remove deleted records from IndexedDB
+  if (recordsToDelete.length > 0) {
+    const db = await offlineDB.openDatabase();
+    const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : offlineDB.STORES.DELIVERIES;
+    const transaction = db.transaction([storeName], 'readwrite');
+    const store = transaction.objectStore(storeName);
+    
+    for (const id of recordsToDelete) {
+      await new Promise((resolve, reject) => {
+        const request = store.delete(id);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+    }
+    
+    console.log(`✅ [OfflineSync] Removed ${recordsToDelete.length} deleted ${entityName} records from IndexedDB`);
   }
 
   return merged;
