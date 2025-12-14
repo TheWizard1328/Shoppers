@@ -6325,14 +6325,14 @@ function Dashboard() {
         }
       </AnimatePresence>
 
-      {(isDriver || isDispatcher) &&
+      {(isDriver || isDispatcher) && (deliveriesWithStopOrder.length === 0 || stopCardsBaseHeight > 0) &&
       <MapViewCycleFAB
         onClick={handleMapViewCycle}
         currentPhase={mapViewPhase}
-        hasVisibleCards={deliveriesWithStopOrder.length > 0 && stopCardsBaseHeight > 0}
+        hasVisibleCards={deliveriesWithStopOrder.length > 0}
         isAIVisible={showAIAssistant && isAIEnabled}
         isLocked={isMapViewLocked}
-        stopCardsHeight={stopCardsBaseHeight || 75} />
+        stopCardsHeight={stopCardsBaseHeight} />
 
       }
 
