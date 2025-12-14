@@ -351,12 +351,12 @@ function Dashboard() {
       : 20;
     const bottomPadding = cardExpanded 
       ? STOP_CARDS_EXPANDED_HEIGHT 
-      : stopCardsHeight + 50;
+      : stopCardsBaseHeight + 50;
     return {
       paddingTopLeft: [50, topPadding],
       paddingBottomRight: [50, bottomPadding]
     };
-  }, [isMobile, isExpanded, stopCardsHeight]);
+  }, [isMobile, isExpanded, stopCardsBaseHeight]);
 
   // Load user settings on mount - PHASE 1: Load backend values FIRST
   useEffect(() => {
@@ -1036,7 +1036,7 @@ function Dashboard() {
       if (stopCardsContainerRef.current && !selectedCardId) {
         // Only measure when no card is expanded to capture base height
         const height = stopCardsContainerRef.current.offsetHeight;
-        if (height > 0 && height !== stopCardsHeight) {
+        if (height > 0 && height !== stopCardsBaseHeight) {
           setStopCardsHeight(height);
           setStopCardsBaseHeight(height);
         }
@@ -1056,7 +1056,7 @@ function Dashboard() {
       window.removeEventListener('resize', measureStopCards);
       clearTimeout(resizeTimeout);
     };
-  }, [cardWidth, isExpanded, screenWidth, isMapViewLocked, mapViewPhase, stopCardsHeight]);
+  }, [cardWidth, isExpanded, screenWidth, isMapViewLocked, mapViewPhase, stopCardsBaseHeight]);
 
   useEffect(() => {
     const fetchGoogleApiKey = async () => {
@@ -1768,7 +1768,7 @@ function Dashboard() {
           console.log('🗺️ [FAB Click] Phase 1 - Drivers but no stops, centering on drivers + city center');
           allCoordinates.push([currentCity.latitude, currentCity.longitude]);
           console.log('  [FAB Click] Total coordinates:', allCoordinates.length);
-          console.log('  [FAB Click] Bottom padding:', stopCardsHeight + 50);
+          console.log('  [FAB Click] Bottom padding:', stopCardsBaseHeight + 50);
           const padding = getMapPadding(false);
           setShouldFitBounds({
             bounds: allCoordinates,
@@ -6095,7 +6095,7 @@ function Dashboard() {
             retractClustersRef={retractClustersRef}
             areStopCardsVisible={deliveriesWithStopOrder.length > 0}
             highlightedDeliveryId={highlightedCardId}
-            stopCardsHeight={selectedCardId ? STOP_CARDS_EXPANDED_HEIGHT : stopCardsHeight + 50} />
+            stopCardsHeight={selectedCardId ? STOP_CARDS_EXPANDED_HEIGHT : stopCardsBaseHeight + 50} />
 
         </div>
 
