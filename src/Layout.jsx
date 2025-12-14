@@ -1295,40 +1295,40 @@ export default function Layout({ children, currentPageName }) {
   const handleTouchEnd = async () => {
     if (!isPulling || !isMobile) return;
 
+    const shouldRefresh = pullDistance >= pullThreshold;
+
     setIsPulling(false);
 
-    if (pullDistance >= pullThreshold) {
+    if (shouldRefresh) {
       setIsRefreshing(true);
-      setPullDistance(0);
 
-      // CRITICAL: Trigger data reload instead of full page reload
+      // CRITICAL: Keep pullDistance visible until refresh starts
       console.log('🔄 [Pull-to-Refresh] Refreshing data...');
-      
-      setTimeout(async () => {
-        try {
-          const selectedDateStr = globalFilters.getSelectedDate();
-          const selectedDriverId = globalFilters.getSelectedDriverId();
 
-          // Update polyline if we have a valid driver selected
-          if (selectedDriverId && selectedDriverId !== 'all') {
-            await updatePolylineOnRefresh(selectedDriverId, selectedDateStr);
-          }
-          
-          // Clear all caches and reload data
-          invalidate('Delivery');
-          invalidate('Patient');
-          invalidate('AppUser');
-          
-          // Trigger full data load - UI refreshes when selected date completes
-          await triggerFullDataLoadRef.current(true);
-          
-          console.log('✅ [Pull-to-Refresh] Data refresh complete');
-        } catch (error) {
-          console.error('❌ [Pull-to-Refresh] Data refresh failed:', error);
-        } finally {
-          setIsRefreshing(false);
+      try {
+        const selectedDateStr = globalFilters.getSelectedDate();
+        const selectedDriverId = globalFilters.getSelectedDriverId();
+
+        // Update polyline if we have a valid driver selected
+        if (selectedDriverId && selectedDriverId !== 'all') {
+          await updatePolylineOnRefresh(selectedDriverId, selectedDateStr);
         }
-      }, 100);
+
+        // Clear all caches and reload data
+        invalidate('Delivery');
+        invalidate('Patient');
+        invalidate('AppUser');
+
+        // Trigger full data load - UI refreshes when selected date completes
+        await triggerFullDataLoadRef.current(true);
+
+        console.log('✅ [Pull-to-Refresh] Data refresh complete');
+      } catch (error) {
+        console.error('❌ [Pull-to-Refresh] Data refresh failed:', error);
+      } finally {
+        setPullDistance(0);
+        setIsRefreshing(false);
+      }
     } else {
       setPullDistance(0);
     }
