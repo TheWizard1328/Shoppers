@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
@@ -1955,14 +1956,32 @@ export default function DeliveriesPage() {
 
   const handleDeleteDelivery = useCallback(async (deliveryId) => {
     try {
+      console.log('🗑️ [Deliveries] Deleting delivery:', deliveryId);
+      
+      // Delete from offline DB and backend
       await deleteDeliveryLocal(deliveryId);
-      setAllDeliveries(prev => prev.filter(d => d.id !== deliveryId));
+      
+      // Update local state
+      setAllDeliveries(prev => {
+        const filtered = prev.filter(d => d.id !== deliveryId);
+        console.log(`✅ [Deliveries] Local state updated: ${prev.length} → ${filtered.length}`);
+        return filtered;
+      });
+      
+      // Update Layout context
+      if (updateDeliveriesLocally) {
+        const remaining = allDeliveries.filter(d => d.id !== deliveryId);
+        updateDeliveriesLocally(remaining);
+        console.log('✅ [Deliveries] Context updated');
+      }
+      
       invalidate('Delivery');
+      console.log('✅ [Deliveries] Delivery deleted successfully');
     } catch (error) {
       console.error("Error deleting delivery:", error);
       alert("Failed to delete delivery.");
     }
-  }, [setAllDeliveries]);
+  }, [allDeliveries, updateDeliveriesLocally]);
 
   const handleMapView = useCallback(() => {
     setShowRouteMap(true);
