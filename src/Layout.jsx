@@ -1301,34 +1301,24 @@ export default function Layout({ children, currentPageName }) {
 
     if (shouldRefresh) {
       setIsRefreshing(true);
+      console.log('🔄 [Pull-to-Refresh] Triggering smart refresh cycle...');
 
-      // CRITICAL: Keep pullDistance visible until refresh starts
-      console.log('🔄 [Pull-to-Refresh] Refreshing data...');
+      // Reset all smart refresh timers to force immediate refresh
+      smartRefreshManager.lastRefreshTimes = {
+        driverLocation: 0,
+        activeDeliveries: 0,
+        todayDeliveries: 0,
+        appUsers: 0,
+        patients: 0,
+        stores: 0
+      };
 
-      try {
-        const selectedDateStr = globalFilters.getSelectedDate();
-        const selectedDriverId = globalFilters.getSelectedDriverId();
-
-        // Update polyline if we have a valid driver selected
-        if (selectedDriverId && selectedDriverId !== 'all') {
-          await updatePolylineOnRefresh(selectedDriverId, selectedDateStr);
-        }
-
-        // Clear all caches and reload data
-        invalidate('Delivery');
-        invalidate('Patient');
-        invalidate('AppUser');
-
-        // Trigger full data load - UI refreshes when selected date completes
-        await triggerFullDataLoadRef.current(true);
-
-        console.log('✅ [Pull-to-Refresh] Data refresh complete');
-      } catch (error) {
-        console.error('❌ [Pull-to-Refresh] Data refresh failed:', error);
-      } finally {
+      // Let the smart refresh cycle complete (1 second delay for UI feedback)
+      setTimeout(() => {
         setPullDistance(0);
         setIsRefreshing(false);
-      }
+        console.log('✅ [Pull-to-Refresh] Smart refresh triggered');
+      }, 1000);
     } else {
       setPullDistance(0);
     }
