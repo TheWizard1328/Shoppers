@@ -141,7 +141,7 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
 
   // Floating mode for map (desktop)
   return (
-    <div className="fixed top-2 left-2 z-[100000]">
+    <div className="fixed top-2 left-1 z-[100000]">
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
