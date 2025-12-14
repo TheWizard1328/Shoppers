@@ -3196,7 +3196,7 @@ export default function DeliveriesPage() {
                 </p>
               </div>
               <div className="flex gap-3 flex-wrap items-center">
-                {canAccessImports(currentUser) &&
+                {canAccessImports(currentUser) && !isMobile &&
               <Button
                 onClick={() => setShowImportModal(true)}
                 variant="outline"
@@ -3476,7 +3476,7 @@ export default function DeliveriesPage() {
                         <Plus className="w-4 h-4" /> Add Delivery
                       </Button>
                   }
-                    {canAccessImports(currentUser) &&
+                    {canAccessImports(currentUser) && !isMobile &&
                   <Button onClick={handleOpenRouteImport} variant="outline" className="gap-2 w-[140px]">
                         <FileUp className="w-4 h-4" /> Import Route
                       </Button>

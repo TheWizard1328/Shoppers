@@ -1637,7 +1637,7 @@ export default function Patients() {
                   <p className="text-slate-600 mt-1">Manage patient information and delivery preferences</p>
                 </div>
                 <div className="flex gap-3 flex-wrap items-center">
-                  {showImportButton &&
+                  {showImportButton && !isMobile &&
               <Button onClick={() => setShowPatientImport(true)} variant="outline" className="hidden md:inline-flex bg-yellow-200 px-4 py-2 text-sm font-medium rounded-md items-center justify-center whitespace-nowrap ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border border-input hover:bg-accent hover:text-accent-foreground h-10 gap-2">
                       <Upload className="w-4 h-4" />
                       Import Patients
@@ -1675,7 +1675,7 @@ export default function Patients() {
                         </Button>
                   }
                     </div>
-                    {showImportButton &&
+                    {showImportButton && !isMobile &&
                 <Button
                   onClick={() => setShowPatientImport(true)}
                   variant="outline"
@@ -1958,8 +1958,8 @@ export default function Patients() {
                 <h1 className="text-3xl font-bold text-slate-900">Store Overview</h1>
                 <p className="text-slate-600 mt-1">Select a store to view and manage patients</p>
               </div>
-              {/* Import button - ONLY for users with import access */}
-              {showImportButton &&
+              {/* Import button - ONLY for users with import access and not on mobile */}
+              {showImportButton && !isMobile &&
             <div className="flex justify-end md:justify-start">
                   <Button onClick={() => setShowPatientImport(true)} variant="outline" className="hidden md:inline-flex bg-yellow-200 px-4 py-2 text-sm font-medium rounded-md items-center justify-center whitespace-nowrap ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border border-input hover:bg-accent hover:text-accent-foreground h-10 gap-2">
                     <Upload className="w-4 h-4" />
