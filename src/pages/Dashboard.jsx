@@ -340,8 +340,9 @@ function Dashboard() {
   const STATS_CARD_BASE_HEIGHT = 116;
   const STATS_CARD_EXTENDED_HEIGHT = 216;
   
-  // Measure actual stop cards height for FAB positioning
+  // Measure actual stop cards height for FAB positioning (base height only, never expanded)
   const [stopCardsHeight, setStopCardsHeight] = useState(STOP_CARDS_BASE_HEIGHT);
+  const [stopCardsBaseHeight, setStopCardsBaseHeight] = useState(STOP_CARDS_BASE_HEIGHT);
 
   // Computed padding values for consistent map bounds
   const getMapPadding = useCallback((cardExpanded = false) => {
@@ -1032,10 +1033,12 @@ function Dashboard() {
     };
     
     const measureStopCards = () => {
-      if (stopCardsContainerRef.current) {
+      if (stopCardsContainerRef.current && !selectedCardId) {
+        // Only measure when no card is expanded to capture base height
         const height = stopCardsContainerRef.current.offsetHeight;
         if (height > 0 && height !== stopCardsHeight) {
           setStopCardsHeight(height);
+          setStopCardsBaseHeight(height);
         }
       }
     };
@@ -6305,7 +6308,7 @@ function Dashboard() {
         hasVisibleCards={deliveriesWithStopOrder.length > 0}
         isAIVisible={showAIAssistant && isAIEnabled}
         isLocked={isMapViewLocked}
-        stopCardsHeight={stopCardsHeight} />
+        stopCardsHeight={stopCardsBaseHeight} />
 
       }
 
