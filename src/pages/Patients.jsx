@@ -414,7 +414,7 @@ function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, importS
       <div className="flex-1 overflow-y-auto px-6 pb-6">
         <div className="card-container" style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(275px, 375px))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(275px, 1fr))',
           gap: '1rem',
           justifyContent: 'start'
         }}>
@@ -427,7 +427,7 @@ function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, importS
 
             return (
               <Card
-                key={store.id} className="rounded-xl border text-card-foreground shadow cursor-pointer hover:shadow-md transition-all duration-200 bg-white min-w-[250px]"
+                key={store.id} className="rounded-xl border text-card-foreground shadow cursor-pointer hover:shadow-md transition-all duration-200 bg-white"
 
                 style={{
                   borderColor: store.color || '#e2e8f0',
