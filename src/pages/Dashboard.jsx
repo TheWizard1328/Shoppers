@@ -1003,8 +1003,19 @@ function Dashboard() {
 
 
   useEffect(() => {
+    let resizeTimeout;
     const handleResize = () => {
       setScreenWidth(window.innerWidth);
+      
+      // Debounce the map re-center to avoid excessive updates during resize
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+        // Trigger map to re-center based on current FAB phase
+        if (isMapViewLocked && mapViewPhase > 0) {
+          console.log('🔄 [Resize] Viewport changed - re-centering map for phase', mapViewPhase);
+          setMapViewTrigger((prev) => prev + 1);
+        }
+      }, 300);
     };
 
     const measureStatsCard = () => {
@@ -1025,8 +1036,9 @@ function Dashboard() {
     return () => {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('resize', measureStatsCard);
+      clearTimeout(resizeTimeout);
     };
-  }, [cardWidth, isExpanded, screenWidth]);
+  }, [cardWidth, isExpanded, screenWidth, isMapViewLocked, mapViewPhase]);
 
   useEffect(() => {
     const fetchGoogleApiKey = async () => {
