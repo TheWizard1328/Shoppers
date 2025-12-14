@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
@@ -82,9 +83,7 @@ import { isMobileDevice } from "../components/utils/deviceUtils";
 import { useAppData } from '../components/utils/AppDataContext';
 import { smartRefreshManager } from '../components/utils/smartRefreshManager';
 import { updateDeliveryLocal, deleteDeliveryLocal, createDeliveryLocal } from '../components/utils/offlineMutations';
-//import { parseAddress } from '../components/utils/addressParser';
 
-// Utility function to add minutes to a time string
 const addMinutesToTime = (timeString, minutesToAdd) => {
   if (!timeString) return null;
   const [hours, minutes] = timeString.split(':').map(Number);
@@ -95,23 +94,17 @@ const addMinutesToTime = (timeString, minutesToAdd) => {
   return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`;
 };
 
-// Utility function to calculate drive time between two coordinates (simplified)
 const estimateDriveTimeMinutes = (lat1, lng1, lat2, lng2) => {
-  if (!lat1 || !lng1 || !lat2 || !lng2) return 10; // Default 10 minutes
-
-  // Simple distance calculation (Haversine formula)
+  if (!lat1 || !lng1 || !lat2 || !lng2) return 10;
   const toRad = (v) => v * Math.PI / 180;
-  const R = 6371; // Earth's radius in kilometers
+  const R = 6371;
   const dLat = toRad(lat2 - lat1);
   const dLng = toRad(lng2 - lng1);
-
   const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
   Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
   Math.sin(dLng / 2) * Math.sin(dLng / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const distanceKm = R * c;
-
-  // Assume 30 km/h average speed in city, clamped between 5 and 60 minutes
   return Math.max(5, Math.min(Math.round(distanceKm / 30 * 60), 60));
 };
 
@@ -131,7 +124,6 @@ export default function DeliveriesPage() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Get data from AppDataContext for real-time updates
   const {
     deliveries: contextDeliveries = [],
     patients: contextPatients = [],
@@ -144,22 +136,21 @@ export default function DeliveriesPage() {
     setIsEntityUpdating
   } = useAppData();
 
-  // Replaced monolithic 'data' state with individual states
   const [allDeliveries, setAllDeliveries] = useState([]);
   const [allPatients, setAllPatients] = useState([]);
   const [stores, setStores] = useState([]);
   const [cities, setCities] = useState([]);
 
   const [currentUser, setCurrentUser] = useState(null);
-  const [isLoading, setIsLoading] = useState(true); // Initial page load state
-  const [isLoadingData, setIsLoadingData] = useState(false); // Data fetching state
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingData, setIsLoadingData] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
   const [hasAccess, setHasAccess] = useState(false);
 
   const [showImportModal, setShowImportModal] = useState(false);
-  const [allUsers, setAllUsers] = useState([]); // All merged users for RouteImport, driverCards
+  const [allUsers, setAllUsers] = useState([]);
 
-  const [dataLoaded, setDataLoaded] = useState(false); // Indicates initial data load is complete
+  const [dataLoaded, setDataLoaded] = useState(false);
 
   const [showDeliveryForm, setShowDeliveryForm] = useState(false);
   const [editingDelivery, setEditingDelivery] = useState(null);
@@ -170,9 +161,9 @@ export default function DeliveriesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [driverFilter, setDriverFilter] = useState('all');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth()); // 0-indexed month
-  const [selectedOverviewYear, setSelectedOverviewYear] = useState('all'); // Initialize as 'all'
-  const [selectedCityId, setSelectedCityId] = useState('all'); // New: City filter for driver overview
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [selectedOverviewYear, setSelectedOverviewYear] = useState('all');
+  const [selectedCityId, setSelectedCityId] = useState('all');
 
   const isMobile = useMemo(() => isMobileDevice(), []);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -185,16 +176,14 @@ export default function DeliveriesPage() {
   const isMounted = useRef(false);
 
   const isDriverOverviewMode = driverFilter === 'all';
-  // Force re-render of driver overview/cards when data changes without full page reload
   const [refreshKey, setRefreshKey] = React.useState(0);
 
-  // Add refs to track loading state and prevent loops
   const lastLoadTime = useRef(0);
-  const loadInProgress = useRef(0); // Use 0/1 instead of boolean for potential future counts
+  const loadInProgress = useRef(0);
   const initialLoadDone = useRef(false);
-  const yearAutoSelectDone = useRef(false); // NEW: Track if year has been auto-selected
-  const yearManuallySelected = useRef(false); // NEW: Track if user manually changed year
-  const skipContextSyncUntil = useRef(0); // Timestamp to skip context sync until (for drag operations)
+  const yearAutoSelectDone = useRef(false);
+  const yearManuallySelected = useRef(false);
+  const skipContextSyncUntil = useRef(0);
 
   const checkAccess = useCallback(async () => {
     try {
@@ -236,23 +225,19 @@ export default function DeliveriesPage() {
 
 
   const loadData = useCallback(async (forceRefresh = false) => {
-    // AGGRESSIVE GUARDS
     const now = Date.now();
     const timeSinceLastLoad = now - lastLoadTime.current;
 
-    // Prevent calls within 2 seconds of each other (unless force refresh)
     if (!forceRefresh && timeSinceLastLoad < 2000 && loadInProgress.current > 0) {
       console.log(`🛑 [Deliveries] Blocked loadData - only ${timeSinceLastLoad}ms since last load, skipping...`);
       return;
     }
 
-    // Prevent concurrent loads (ref-based)
     if (loadInProgress.current > 0) {
       console.log('🛑 [Deliveries] Load already in progress (ref), skipping...');
       return;
     }
 
-    // Prevent concurrent loads (state-based, for redundancy/UI state)
     if (isLoadingData && !forceRefresh) {
       console.log('🛑 [Deliveries] isLoadingData is true (state), skipping...');
       return;
@@ -261,7 +246,7 @@ export default function DeliveriesPage() {
     console.log('🔄 [Deliveries] Starting loadData...', forceRefresh ? '(FORCE REFRESH)' : '');
     console.log(`🔍 [Deliveries] Mode: ${isDriverOverviewMode ? 'Driver Overview' : 'Route View'}, Year filter: ${selectedOverviewYear}`);
 
-    loadInProgress.current = 1; // Set to 1 to indicate a load is in progress
+    loadInProgress.current = 1;
     lastLoadTime.current = now;
     setIsLoadingData(true);
 
@@ -280,7 +265,6 @@ export default function DeliveriesPage() {
       console.log('App role:', user?.app_roles?.[0]);
       console.log('IS APP OWNER (dual admin):', isAppOwner(user));
 
-      // Batch all non-conditional fetches together to happen in parallel
       const [storesData, appUsersData, citiesData] = await Promise.all([
       getData('Store', '-created_date', null, forceRefresh),
       getData('AppUser', '-created_date', null, forceRefresh),
@@ -291,7 +275,6 @@ export default function DeliveriesPage() {
         setCities(citiesData || []);
       }
 
-      // Only fetch User list if current user is an admin (platform-level)
       let allAuthUsers = [];
       if (user?.role === 'admin' || isAppOwner(user)) {
         console.log('User is admin, fetching all User entities...');
@@ -307,11 +290,9 @@ export default function DeliveriesPage() {
         totalAppUsers: (appUsersData || []).length
       });
 
-      // Build merged users
       let mergedUsers = [];
 
       if (allAuthUsers.length > 0) {
-        // Admin path: merge User + AppUser
         mergedUsers = allAuthUsers.map((authUser) => {
           const appUser = (appUsersData || []).find((au) => au.user_id === authUser.id);
           if (appUser) {
@@ -335,7 +316,6 @@ export default function DeliveriesPage() {
           };
         });
       } else {
-        // Non-admin path: build user objects from AppUser data only
         mergedUsers = (appUsersData || []).map((appUser) => {
           return {
             id: appUser.user_id,
@@ -352,7 +332,6 @@ export default function DeliveriesPage() {
         });
       }
 
-      // Filter out store accounts
       const preFilterCount = mergedUsers.length;
       mergedUsers = mergedUsers.filter((u) => {
         const userNameLower = (u.user_name || '').toLowerCase();
@@ -381,13 +360,9 @@ export default function DeliveriesPage() {
         afterFilter: mergedUsers.length
       });
 
-      // Filter drivers/admins/dispatchers
-      // CRITICAL: Always include ALL drivers (both active and inactive) regardless of mode
-      // This ensures Driver Overview has complete data even if mode changes after initial load
       mergedUsers = mergedUsers.filter((u) => {
         const roles = Array.isArray(u.app_roles) ? u.app_roles : u.app_role ? [u.app_role] : [];
         const hasRole = roles.some((r) => r === 'driver' || r === 'admin' || r === 'dispatcher');
-        // ALWAYS include both active AND inactive users - filtering by status happens in driverCards
         return hasRole;
       });
 
@@ -395,24 +370,18 @@ export default function DeliveriesPage() {
         setAllUsers(sortUsers(mergedUsers));
       }
 
-      // **ADAPTIVE FETCH**: Fetch deliveries based on mode
       let deliveriesData = [];
 
       if (isDriverOverviewMode) {
         console.log('📋 [Deliveries] Fetching ALL deliveries for Driver Overview mode');
-        // CRITICAL: In Driver Overview mode, fetch ALL deliveries without year filter initially
-        // This ensures all drivers appear even if they only have deliveries in other years
-        // Year filtering is done client-side in driverCards useMemo
         deliveriesData = await getData('Delivery', '-delivery_date', {}, forceRefresh);
         console.log(`✅ [Deliveries] Loaded ${deliveriesData?.length || 0} total deliveries for overview`);
         
-        // Log date range for debugging
         if (deliveriesData && deliveriesData.length > 0) {
           const dates = deliveriesData.map(d => d.delivery_date).filter(Boolean).sort();
           console.log(`📅 [Deliveries] Delivery date range: ${dates[0]} to ${dates[dates.length - 1]}`);
         }
       } else {
-        // In daily view mode, fetch deliveries for the selected month
         const currentYear = selectedYear;
         const currentMonth = selectedMonth;
         const startOfMonth = new Date(currentYear, currentMonth, 1);
@@ -436,18 +405,14 @@ export default function DeliveriesPage() {
         setAllDeliveries(deliveriesData || []);
       }
 
-      // OPTIMIZED: Fetch patients based on role - avoid multiple filtered queries
       let patientsData = [];
 
       if (userHasRole(user, 'admin')) {
-        // For admins: Instead of batched filtered queries, just list ALL patients once
-        // This is more efficient and avoids rate limiting
         console.log('Admin - Fetching ALL patients (will filter in memory)');
         try {
           const allPatientsRaw = await getData('Patient', 'full_name', null, forceRefresh);
           console.log('Admin - Fetched all patients:', allPatientsRaw?.length || 0);
 
-          // Filter in memory to only patients with deliveries
           const uniquePatientIds = new Set(
             (deliveriesData || []).filter((d) => d.patient_id).map((d) => d.patient_id)
           );
@@ -461,7 +426,6 @@ export default function DeliveriesPage() {
         const dispatcherStoreIds = user.store_ids || [];
         if (dispatcherStoreIds.length > 0) {
           try {
-            // This query is already efficient with a single $in
             patientsData = await getData('Patient', 'full_name', { store_id: { $in: dispatcherStoreIds } }, forceRefresh);
             console.log('Dispatcher - Fetched patients:', patientsData?.length || 0);
           } catch (error) {
@@ -470,7 +434,6 @@ export default function DeliveriesPage() {
           }
         }
       } else if (userHasRole(user, 'driver')) {
-        // For drivers: List all patients once and filter in memory
         console.log('Driver - Fetching ALL patients (will filter in memory)');
         try {
           const allPatientsRaw = await getData('Patient', 'full_name', null, forceRefresh);
@@ -491,7 +454,7 @@ export default function DeliveriesPage() {
       }
 
       console.log('✅ [Deliveries] Data refresh complete');
-      initialLoadDone.current = true; // Mark initial load as done after successful data fetch
+      initialLoadDone.current = true;
 
     } catch (error) {
       console.error('[Deliveries] Error loading data:', error);
@@ -507,7 +470,7 @@ export default function DeliveriesPage() {
         setIsLoadingData(false);
         setDataLoaded(true);
       }
-      loadInProgress.current = 0; // Reset load in progress flag
+      loadInProgress.current = 0;
     }
   }, [currentUser, selectedYear, selectedMonth, isDriverOverviewMode, selectedOverviewYear]);
 
@@ -518,24 +481,20 @@ export default function DeliveriesPage() {
     };
   }, []);
 
-  // Sync context data to local state for real-time updates
   useEffect(() => {
     if (!contextDataLoaded || !initialLoadDone.current || !dataLoaded) {
       return;
     }
     
-    // CRITICAL: Skip sync if we're in a drag operation window
     if (Date.now() < skipContextSyncUntil.current) {
       console.log('⏸️ [Deliveries] Skipping context sync - drag operation in progress');
       return;
     }
     
-    // Sync deliveries from context (only if we have data)
     if (contextDeliveries.length > 0) {
       setAllDeliveries(contextDeliveries);
     }
 
-    // Sync other entities
     if (contextPatients.length > 0) {
       setAllPatients(contextPatients);
     }
@@ -553,20 +512,12 @@ export default function DeliveriesPage() {
     }
   }, [contextDataLoaded, contextDeliveries, contextPatients, contextStores, contextCities, contextUsers, dataLoaded]);
 
-  // REMOVED: Force smart refresh on Driver Overview load
-  // This was causing data to disappear because it reset refresh timers
-  // which triggered Layout's smart refresh to overwrite freshly loaded data with stale/empty data
-  // The normal smart refresh cycle in Layout handles this correctly now
-
-  // Run checkAccess on mount to set hasAccess state
   useEffect(() => {
     console.log('🔐 [Deliveries] Running checkAccess on mount...');
     checkAccess();
   }, [checkAccess]);
 
-  // Effect to perform initial data load only once after access is granted
   useEffect(() => {
-    // Only run initial load once and if access is granted
     if (!hasAccess || initialLoadDone.current) {
       console.log(`⏩ [Deliveries] Skipping initial loadData (hasAccess: ${hasAccess}, initialLoadDone: ${initialLoadDone.current})`);
       return;
@@ -574,7 +525,6 @@ export default function DeliveriesPage() {
 
     console.log('🚀 [Deliveries] Running initial loadData on page mount...');
 
-    // Mark as done IMMEDIATELY to prevent re-runs
     initialLoadDone.current = true;
 
     setIsLoading(true);
@@ -583,7 +533,7 @@ export default function DeliveriesPage() {
         setIsLoading(false);
       }
     });
-  }, [hasAccess]); // REMOVED loadData from dependencies to prevent loop
+  }, [hasAccess]);
 
 
   const availableOverviewYears = useMemo(() => {
@@ -610,16 +560,13 @@ export default function DeliveriesPage() {
     console.log(`✅ Available overview years (from all deliveries):`, sortedYears);
 
     return sortedYears;
-  }, [allDeliveries.length]); // CHANGED: Only depend on length, not entire array
+  }, [allDeliveries.length]);
 
 
-  // Auto-select most recent year ONLY on initial load if no URL param exists
-  // CRITICAL: This should only run ONCE on initial load, not on every state change
   useEffect(() => {
     if (!isDriverOverviewMode || !dataLoaded || !hasAccess) return;
     if (!availableOverviewYears || availableOverviewYears.length === 0) return;
     
-    // Only run this logic once per page load
     if (yearAutoSelectDone.current) {
       return;
     }
@@ -627,7 +574,6 @@ export default function DeliveriesPage() {
     const params = new URLSearchParams(location.search);
     const yearParam = params.get('overviewYear');
 
-    // If any year param is in URL (including 'all'), respect it and don't auto-select
     if (yearParam) {
       console.log('📅 [Deliveries] URL has year param:', yearParam);
       if (yearParam === 'all') {
@@ -640,7 +586,6 @@ export default function DeliveriesPage() {
       return;
     }
 
-    // No URL param - auto-select current year if available, otherwise most recent
     const currentYear = new Date().getFullYear();
     const targetYear = availableOverviewYears.includes(currentYear) 
       ? currentYear.toString() 
@@ -655,7 +600,6 @@ export default function DeliveriesPage() {
   }, [isDriverOverviewMode, dataLoaded, hasAccess, availableOverviewYears.length, location.search]);
 
 
-  // Ensure mobile date menu is closed when switching to Driver Overview
   useEffect(() => {
     if (isDriverOverviewMode && isMobileMenuOpen) {
       setIsMobileMenuOpen(false);
@@ -678,7 +622,6 @@ export default function DeliveriesPage() {
     const currentMonth = (new Date().getMonth() + 1).toString();
 
     Object.entries(newFilters).forEach(([key, value]) => {
-      // Skip invalid values
       if (value === undefined || value === null || value === '' || value === 'all') {
         params.delete(key);
         return;
@@ -688,7 +631,6 @@ export default function DeliveriesPage() {
         try {
           let dateStr;
 
-          // Convert Date object to string
           if (value instanceof Date) {
             if (isNaN(value.getTime())) {
               console.warn('[updateUrl] Invalid Date object');
@@ -696,7 +638,6 @@ export default function DeliveriesPage() {
             }
             dateStr = format(value, 'yyyy-MM-dd');
           } else if (typeof value === 'string') {
-            // Validate string format
             const [y, m, d] = value.split('-').map(Number);
             if (isNaN(y) || isNaN(m) || isNaN(d)) {
               console.warn('[updateUrl] Invalid date string format:', value);
@@ -708,7 +649,6 @@ export default function DeliveriesPage() {
             return;
           }
 
-          // Only add date param if it's not today
           if (dateStr !== todayString) {
             params.set(key, dateStr);
           } else {
@@ -751,22 +691,18 @@ export default function DeliveriesPage() {
     updateUrl({ status: value });
   }, [updateUrl]);
 
-  // Apply role-based filtering AFTER data is loaded
   const effectiveDeliveries = useMemo(() => {
     if (!currentUser || !allDeliveries || !Array.isArray(allDeliveries)) return [];
     if (userHasRole(currentUser, 'admin')) return allDeliveries;
 
-    // UPDATED: Dispatcher filtering by store_id only (removed dispatcher_id check)
     if (userHasRole(currentUser, 'dispatcher')) {
       const dispatcherStoreIds = currentUser.store_ids || [];
       return allDeliveries.filter((d) => {
         if (!d) return false;
-        // Check if delivery's store_id is in dispatcher's store_ids
         if (d.store_id && dispatcherStoreIds.includes(d.store_id)) {
           return true;
         }
 
-        // Fallback: Check patient's store assignment if delivery itself has no store_id
         if (d.patient_id) {
           const patient = allPatients.find((p) => p && p.id === d.patient_id);
           if (patient && patient.store_id && dispatcherStoreIds.includes(patient.store_id)) {
@@ -778,7 +714,6 @@ export default function DeliveriesPage() {
     }
 
     if (userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) {
-      // CHANGED: compare by driver_id with name fallback
       return allDeliveries.filter((d) =>
       d && (
       d.driver_id && d.driver_id === currentUser.id ||
@@ -818,13 +753,11 @@ export default function DeliveriesPage() {
     console.log('🔍 [Deliveries] Building effectiveDrivers list...');
     console.log('📊 [Deliveries] Total allUsers:', allUsers.length);
 
-    // Filter to only users with driver, admin, or dispatcher roles
     let driversOnly = allUsers.filter((u) => {
       if (!u) {
         return false;
       }
 
-      // ONLY check app_roles - if they have driver, admin, or dispatcher role, include them
       const hasDriverRole = userHasRole(u, 'driver') || userHasRole(u, 'admin') || userHasRole(u, 'dispatcher');
 
       if (!hasDriverRole) {
@@ -885,10 +818,10 @@ export default function DeliveriesPage() {
     const cityParam = params.get("city");
 
     let initialSelectedYear = new Date().getFullYear();
-    let initialSelectedMonth = new Date().getMonth(); // 0-indexed
+    let initialSelectedMonth = new Date().getMonth();
 
     if (yearParam) initialSelectedYear = parseInt(yearParam);
-    if (monthParam) initialSelectedMonth = parseInt(monthParam) - 1; // Convert from 1-indexed URL to 0-indexed
+    if (monthParam) initialSelectedMonth = parseInt(monthParam) - 1;
 
     console.log('📅 [Deliveries] Setting year/month from URL:', {
       year: initialSelectedYear,
@@ -899,7 +832,6 @@ export default function DeliveriesPage() {
     setSelectedYear(initialSelectedYear);
     setSelectedMonth(initialSelectedMonth);
 
-    // Initialize city filter
     let initialSelectedCityId = 'all';
     if (userHasRole(currentUser, 'admin')) {
       initialSelectedCityId = cityParam || 'all';
@@ -1025,7 +957,6 @@ export default function DeliveriesPage() {
     const selectedDriver = (effectiveDrivers || []).find((d) => d.id === driverFilter);
     if (!selectedDriver) return [];
 
-    // CHANGED: compare by driver_id with name fallback
     return effectiveDeliveries.filter((d) =>
     d.driver_id && (d.driver_id === selectedDriver.id || d.driver_id === selectedDriver.appUserId) ||
     !d.driver_id && d.driver_name && (d.driver_name === selectedDriver.full_name || d.driver_name === selectedDriver.user_name)
@@ -1054,7 +985,7 @@ export default function DeliveriesPage() {
   const selectedDateDeliveries = useMemo(() => {
     if (!selectedDate) return [];
     const dateString = format(selectedDate, 'yyyy-MM-dd');
-    return (groupedDeliveries[dateString] || []).filter((d) => !d.isProjected); // Ensure only actual deliveries
+    return (groupedDeliveries[dateString] || []).filter((d) => !d.isProjected);
   }, [selectedDate, groupedDeliveries]);
 
   const availableYears = useMemo(() => {
@@ -1095,17 +1026,14 @@ export default function DeliveriesPage() {
 
     filteredDatesByMonth.forEach((date) => datesSet.add(date));
 
-    // No longer adding projections here, as `projectedRoutes` handles it separately.
-    // The date list only reflects dates with actual deliveries.
-
     const sortedAndFilteredDates = Array.from(datesSet).sort((a, b) => new Date(b.replace(/-/g, '/')) - new Date(a.replace(/-/g, '/')));
 
     return sortedAndFilteredDates.map((date) => {
       const deliveriesOnDate = groupedDeliveries[date] || [];
       const total = deliveriesOnDate.length;
-      const done = deliveriesOnDate.filter((d) => ['completed', 'picked_up', 'in_transit'].includes(d.status)).length; // Updated done status
+      const done = deliveriesOnDate.filter((d) => ['completed', 'picked_up', 'in_transit'].includes(d.status)).length;
       const returnedByStatus = deliveriesOnDate.filter((d) => d.status === 'returned').length;
-      const failedByStatus = deliveriesOnDate.filter((d) => d.status === 'failed').length; // Added failed status
+      const failedByStatus = deliveriesOnDate.filter((d) => d.status === 'failed').length;
 
       const returned = deliveriesOnDate.filter((d) => {
         const patient = patientMap.get(d.patient_id);
@@ -1124,18 +1052,15 @@ export default function DeliveriesPage() {
         displayLabel = format(dateObj, 'EEE MMM d');
       }
 
-      // Projections are handled separately now
       return { date, total, done, failed: failedByStatus, returned, displayLabel, actualDeliveries: deliveriesOnDate.length };
     });
   }, [filteredDatesByMonth, groupedDeliveries, effectivePatients, selectedYear, selectedMonth]);
 
-  // Auto-select topmost date when month/year changes
   useEffect(() => {
     if (isDriverOverviewMode || isLoading || !dateListWithStats.length || isLoadingData) {
       return;
     }
 
-    // IMPORTANT: Don't auto-select if there's a date parameter in the URL
     const params = new URLSearchParams(location.search);
     const dateParam = params.get("date");
     if (dateParam) {
@@ -1143,12 +1068,9 @@ export default function DeliveriesPage() {
       return;
     }
 
-    // Only auto-select if we have dates in the list
     if (dateListWithStats.length > 0) {
       const currentSelectedDateString = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null;
 
-      // CRITICAL: Only auto-select if current date is NOT in the list
-      // Don't force selection to top date if user manually selected a different date
       const isCurrentDateInList = dateListWithStats.some((d) => d.date === currentSelectedDateString);
 
       if (!isCurrentDateInList) {
@@ -1186,19 +1108,14 @@ export default function DeliveriesPage() {
     d.delivery_date === todayString && (d.driver_id && (d.driver_id === activeDriver?.id || d.driver_id === activeDriver?.appUserId) || d.driver_name === activeDriver?.full_name || d.driver_name === activeDriver?.user_name)
     );
     const allTodayCompleteForActiveDriver = todayDeliveriesForActiveDriver.length > 0 &&
-    todayDeliveriesForActiveDriver.every((d) => ['completed', 'returned', 'failed', 'cancelled'].includes(d.status)); // Added failed
+    todayDeliveriesForActiveDriver.every((d) => ['completed', 'returned', 'failed', 'cancelled'].includes(d.status));
 
-    // The logic to advance to tomorrow based on projections is now handled by the separate projection component,
-    // so `dateListWithStats` doesn't need to contain `projections`.
-    // The auto-selection of tomorrow should still work based on actual deliveries.
     const selectedDriverFromFilter = (effectiveDrivers || []).find((d) => d.id === driverFilter);
     const tomorrowHasActualDeliveries = groupedDeliveries[tomorrowString]?.length > 0;
 
 
     let targetDateString = null;
 
-    // This logic relies on actual deliveries and does not use `dateListWithStats.projections` anymore.
-    // It will be triggered if all today's deliveries are complete for the active driver AND there are actual deliveries tomorrow.
     if (currentHour >= 18 && allTodayCompleteForActiveDriver && tomorrowHasActualDeliveries) {
       targetDateString = tomorrowString;
     } else {
@@ -1216,7 +1133,7 @@ export default function DeliveriesPage() {
       const [year, month, day] = targetDateString.split('-').map(Number);
       const newDate = new Date(year, month - 1, day);
       setSelectedDate(newDate);
-      updateUrl({ date: targetDateString }); // Pass string directly
+      updateUrl({ date: targetDateString });
     }
 
   }, [
@@ -1235,18 +1152,14 @@ export default function DeliveriesPage() {
   isLoadingData
   ]);
 
-  // Sort deliveries by time for display - MATCHES DASHBOARD SORTING LOGIC
-  // Extra rule: completed deliveries go to the bottom
   const sortDeliveriesByTime = useCallback((deliveries) => {
     if (!Array.isArray(deliveries)) return [];
 
     const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
 
-    // Separate incomplete and completed
     const incomplete = deliveries.filter((d) => d && !finishedStatuses.includes(d.status));
     const completed = deliveries.filter((d) => d && finishedStatuses.includes(d.status));
 
-    // Sort incomplete by stop_order, then delivery_time_start (Dashboard logic)
     incomplete.sort((a, b) => {
       if (!a || !b) return 0;
       const stopOrderA = a.stop_order ?? Infinity;
@@ -1257,7 +1170,6 @@ export default function DeliveriesPage() {
       return timeA.localeCompare(timeB);
     });
 
-    // Sort completed by stop_order (maintain their original order)
     completed.sort((a, b) => {
       if (!a || !b) return 0;
       const stopOrderA = a.stop_order ?? Infinity;
@@ -1265,19 +1177,16 @@ export default function DeliveriesPage() {
       return stopOrderA - stopOrderB;
     });
 
-    // Incomplete first, completed at bottom
     return [...incomplete, ...completed];
   }, []);
 
   const filteredAndSortedDeliveries = useMemo(() => {
     let filtered = selectedDateDeliveries;
 
-    // Apply status filter
     if (statusFilter && statusFilter !== 'all') {
       filtered = filtered.filter((d) => d.status === statusFilter);
     }
 
-    // Apply search filter
     if (searchTerm) {
       const lowerSearch = searchTerm.toLowerCase();
       filtered = filtered.filter((d) => {
@@ -1294,44 +1203,43 @@ export default function DeliveriesPage() {
       });
     }
 
-    // Sort the filtered deliveries
     const sorted = sortDeliveriesByTime(filtered);
 
     return sorted.map((delivery, index) => ({
       ...delivery,
-      stopOrder: index + 1 // Assign stopOrder based on new order
+      stopOrder: index + 1
     }));
   }, [selectedDateDeliveries, effectivePatients, stores, statusFilter, searchTerm, sortDeliveriesByTime]);
 
   const createDriverPickupStops = useCallback(async (driver, deliveryDate) => {
     try {
       const driverName = driver.full_name;
-      const driverId = driver.id; // Platform User ID
-      const appUserId = driver.appUserId; // AppUser entity ID
+      const driverId = driver.id;
+      const appUserId = driver.appUserId;
 
-      const driverStores = (stores || []).filter((store) => {// Stores are not role-filtered
+      const driverStores = (stores || []).filter((store) => {
         const deliveryDateObj = new Date(deliveryDate);
-        const dayOfWeek = deliveryDateObj.getDay(); // 0 = Sunday, 6 = Saturday
+        const dayOfWeek = deliveryDateObj.getDay();
 
-        if (dayOfWeek === 6) {// Saturday
+        if (dayOfWeek === 6) {
           return store.saturday_am_enabled && store.saturday_am_start && (store.driver_saturday_am_id === driverId || store.driver_saturday_am_id === appUserId || store.driver_saturday_am === driverName) ||
           store.saturday_pm_enabled && store.saturday_pm_start && (store.driver_saturday_pm_id === driverId || store.driver_saturday_pm_id === appUserId || store.driver_saturday_pm === driverName);
-        } else if (dayOfWeek === 0) {// Sunday
+        } else if (dayOfWeek === 0) {
           return store.sunday_am_enabled && store.sunday_am_start && (store.sunday_am_driver_id === driverId || store.sunday_am_driver_id === appUserId || store.sunday_am_driver === driverName) ||
           store.sunday_pm_enabled && store.sunday_pm_start && (store.sunday_pm_driver_id === driverId || store.sunday_pm_driver_id === appUserId || store.sunday_pm_driver === driverName);
-        } else {// Weekday
+        } else {
           return store.weekday_am_enabled && store.weekday_am_start && (store.weekday_am_driver_id === driverId || store.weekday_am_driver_id === appUserId || store.weekday_am_driver === driverName) ||
           store.weekday_pm_enabled && store.weekday_pm_start && (store.weekday_pm_driver_id === driverId || store.weekday_pm_driver_id === appUserId || store.weekday_pm_driver === driverName);
         }
       });
 
-      const storesWithTimes = driverStores.map(async ({ ...store }) => {// Removed destructuring to use `store` object directly
+      const storesWithTimes = driverStores.map(async ({ ...store }) => {
         const deliveryDateObj = new Date(deliveryDate);
         const dayOfWeek = deliveryDateObj.getDay();
         let earliestStorePickupTime = null;
         let earliestStorePickupEndTime = null;
 
-        if (dayOfWeek === 6) {// Saturday
+        if (dayOfWeek === 6) {
           if (store.saturday_am_enabled && store.saturday_am_start && (store.driver_saturday_am_id === driverId || store.driver_saturday_am_id === appUserId || store.driver_saturday_am === driverName)) {
             earliestStorePickupTime = store.saturday_am_start;
             earliestStorePickupEndTime = addMinutesToTime(earliestStorePickupTime, 60);
@@ -1343,26 +1251,26 @@ export default function DeliveriesPage() {
               earliestStorePickupEndTime = addMinutesToTime(pmStart, 60);
             }
           }
-        } else if (dayOfWeek === 0) {// Sunday
+        } else if (dayOfWeek === 0) {
           if (store.sunday_am_enabled && store.sunday_am_start && (store.sunday_am_driver_id === driverId || store.sunday_am_driver_id === appUserId || store.sunday_am_driver === driverName)) {
             earliestStorePickupTime = store.sunday_am_start;
             earliestStorePickupEndTime = addMinutesToTime(earliestStorePickupTime, 60);
           }
           if (store.sunday_pm_enabled && store.sunday_pm_start && (store.sunday_pm_driver_id === driverId || store.sunday_pm_driver_id === appUserId || store.sunday_pm_driver === driverName)) {
             const pmStart = store.sunday_pm_start || '13:00';
-            if (!earliestStorePickupTime || pmStart < earliestStorePickupTime) {// FIX: Changed currentStorePickupTime to earliestStorePickupTime
+            if (!earliestStorePickupTime || pmStart < earliestStorePickupTime) {
               earliestStorePickupTime = pmStart;
               earliestStorePickupEndTime = addMinutesToTime(pmStart, 60);
             }
           }
-        } else {// Weekday
+        } else {
           if (store.weekday_am_enabled && store.weekday_am_start && (store.weekday_am_driver_id === driverId || store.weekday_am_driver_id === appUserId || store.weekday_am_driver === driverName)) {
             earliestStorePickupTime = store.weekday_am_start;
             earliestStorePickupEndTime = addMinutesToTime(earliestStorePickupTime, 60);
           }
           if (store.weekday_pm_enabled && store.weekday_pm_start && (store.weekday_pm_driver_id === driverId || store.weekday_pm_driver_id === appUserId || store.weekday_pm_driver === driverName)) {
             const pmStart = store.weekday_pm_start || '13:00';
-            if (!earliestStorePickupTime || pmStart < earliestStorePickupTime) {// FIX: Changed currentStorePickupTime to earliestStorePickupTime
+            if (!earliestStorePickupTime || pmStart < earliestStorePickupTime) {
               earliestStorePickupTime = pmStart;
               earliestStorePickupEndTime = addMinutesToTime(pmStart, 60);
             }
@@ -1371,7 +1279,7 @@ export default function DeliveriesPage() {
         return { store, pickupTime: earliestStorePickupTime, pickupEndTime: earliestStorePickupEndTime };
       });
 
-      const resolvedStoresWithTimes = (await Promise.all(storesWithTimes)).filter((s) => s.pickupTime); // Only keep stores that have a defined pickup time
+      const resolvedStoresWithTimes = (await Promise.all(storesWithTimes)).filter((s) => s.pickupTime);
 
       resolvedStoresWithTimes.sort((a, b) => (a.pickupTime || '').localeCompare(b.pickupTime || ''));
 
@@ -1380,7 +1288,7 @@ export default function DeliveriesPage() {
         const baseTrackingNumber = storeIndex * 20;
         const pickupTrackingNumber = `${storeAbbr}${String(baseTrackingNumber).padStart(2, '0')}`;
 
-        const allCurrentDeliveries = await getData('Delivery'); // Fetches all deliveries from DB (not filtered effectiveDeliveries)
+        const allCurrentDeliveries = await getData('Delivery');
         const pickupExists = (allCurrentDeliveries || []).some((d) =>
         d.delivery_date === deliveryDate && (
         d.driver_id && (d.driver_id === driverId || d.driver_id === appUserId) || !d.driver_id && d.driver_name === driverName) &&
@@ -1394,7 +1302,7 @@ export default function DeliveriesPage() {
             delivery_date: deliveryDate,
             status: 'pending',
             driver_name: driverName,
-            driver_id: driverId, // Store driver_id (platform User ID)
+            driver_id: driverId,
             tracking_number: pickupTrackingNumber,
             delivery_notes: `Store Pickup for ${store.name}`,
             delivery_address: store.address,
@@ -1429,7 +1337,7 @@ export default function DeliveriesPage() {
     let earliestStorePickupEndTime = null;
 
     if (store) {
-      if (dayOfWeek === 6) {// Saturday
+      if (dayOfWeek === 6) {
         if (store.saturday_am_enabled && store.saturday_am_start) {
           earliestStorePickupTime = store.saturday_am_start;
           earliestStorePickupEndTime = addMinutesToTime(earliestStorePickupTime, 60);
@@ -1441,26 +1349,26 @@ export default function DeliveriesPage() {
             earliestStorePickupEndTime = addMinutesToTime(pmStart, 60);
           }
         }
-      } else if (dayOfWeek === 0) {// Sunday
+      } else if (dayOfWeek === 0) {
         if (store.sunday_am_enabled && store.sunday_am_start) {
           earliestStorePickupTime = store.sunday_am_start;
           earliestStorePickupEndTime = addMinutesToTime(earliestStorePickupTime, 60);
         }
         if (store.sunday_pm_enabled && store.sunday_pm_start) {
           const pmStart = store.sunday_pm_start || '13:00';
-          if (!earliestStorePickupTime || pmStart < earliestStorePickupTime) {// FIX: Changed currentStorePickupTime to earliestStorePickupTime
+          if (!earliestStorePickupTime || pmStart < earliestStorePickupTime) {
             earliestStorePickupTime = pmStart;
             earliestStorePickupEndTime = addMinutesToTime(pmStart, 60);
           }
         }
-      } else {// Weekday
+      } else {
         if (store.weekday_am_enabled && store.weekday_am_start) {
           earliestStorePickupTime = store.weekday_am_start;
           earliestStorePickupEndTime = addMinutesToTime(earliestStorePickupTime, 60);
         }
         if (store.weekday_pm_enabled && store.weekday_pm_start) {
           const pmStart = store.weekday_pm_start || '13:00';
-          if (!earliestStorePickupTime || pmStart < earliestStorePickupTime) {// FIX: Changed currentStorePickupTime to earliestStorePickupTime
+          if (!earliestStorePickupTime || pmStart < earliestStorePickupTime) {
             earliestStorePickupTime = pmStart;
             earliestStorePickupEndTime = addMinutesToTime(pmStart, 60);
           }
@@ -1483,10 +1391,10 @@ export default function DeliveriesPage() {
   }, []);
 
   const optimizeRouteOrder = useCallback(async (storeId, deliveryDate, driver) => {
-    const allDeliveriesRaw = await getData('Delivery'); // Fetch all deliveries from DB for full optimization scope
+    const allDeliveriesRaw = await getData('Delivery');
     const driverName = driver.full_name;
-    const driverId = driver.id; // Platform User ID
-    const appUserId = driver.appUserId; // AppUser ID
+    const driverId = driver.id;
+    const appUserId = driver.appUserId;
 
     const store = (stores || []).find((s) => s.id === storeId);
     if (!store) return;
@@ -1506,7 +1414,7 @@ export default function DeliveriesPage() {
 
     const pickupTrackingBase = pickupDelivery ? pickupDelivery.tracking_number : `${storeAbbr}00`;
 
-    const patientMap = new Map((allPatients || []).map((p) => [p.id, p])); // Use raw patients data for optimization logic
+    const patientMap = new Map((allPatients || []).map((p) => [p.id, p]));
 
     patientDeliveries.sort((a, b) => {
       const patientA = patientMap.get(a.patient_id);
@@ -1560,7 +1468,6 @@ export default function DeliveriesPage() {
     console.log('📊 [Deliveries] Received status:', deliveryData.status);
 
     try {
-      // Handle batch save for staged deliveries
       if (deliveryData._isBatchSave && deliveryData._stagedDeliveries) {
         console.log(`📦 [Deliveries] Processing batch save for ${deliveryData._stagedDeliveries.length} deliveries`);
         console.log('📦 [Deliveries] Staged deliveries:', deliveryData._stagedDeliveries);
@@ -1576,13 +1483,11 @@ export default function DeliveriesPage() {
             continue;
           }
 
-          // Find driver
           let actualDriver = null;
           if (staged.driver_id && staged.driver_id !== 'unassigned') {
             actualDriver = allUsers.find((u) => u.id === staged.driver_id);
           }
 
-          // Assign dispatcher_id based on store
           let dispatcher_id = null;
           if (store.dispatcher_id) {
             dispatcher_id = store.dispatcher_id;
@@ -1597,7 +1502,6 @@ export default function DeliveriesPage() {
             }
           }
 
-          // Create pickup stop if needed
           if (actualDriver) {
             const allCurrentDeliveries = await getData('Delivery');
             const hasPickupForStore = (allCurrentDeliveries || []).some((d) =>
@@ -1612,7 +1516,6 @@ export default function DeliveriesPage() {
             }
           }
 
-          // Prepare final delivery data
           const timeWindows = patient ?
           calculateOptimalTimeWindow(patient, store, [], staged.delivery_date) :
           { delivery_time_start: staged.time_window_start || '09:00', delivery_time_end: staged.time_window_end || '17:00' };
@@ -1629,7 +1532,6 @@ export default function DeliveriesPage() {
             stop_order: 9999
           };
 
-          // Remove temporary fields
           delete finalDeliveryData._tempId;
           delete finalDeliveryData.store_name;
           delete finalDeliveryData.store_abbreviation;
@@ -1639,7 +1541,6 @@ export default function DeliveriesPage() {
           console.log(`✅ [Deliveries] Created delivery for ${staged.patient_name || 'pickup'}`);
           await Delivery.create(finalDeliveryData);
 
-          // Optimize route order for this store
           if (actualDriver) {
             console.log(`🔄 [Deliveries] Optimizing route for store ${store.name}`);
             await optimizeRouteOrder(store.id, staged.delivery_date, actualDriver);
@@ -1671,7 +1572,6 @@ export default function DeliveriesPage() {
         delete deliveryData._patientUpdates;
       }
 
-      // Normalize driver assignment
       let actualDriver = null;
       if (deliveryData.driver_id && deliveryData.driver_id !== 'unassigned') {
         actualDriver = allUsers.find((u) => u.id === deliveryData.driver_id);
@@ -1687,11 +1587,9 @@ export default function DeliveriesPage() {
         deliveryData.driver_name = '';
       }
 
-      // Assign dispatcher_id based on store assignment
       if (deliveryData.store_id && stores) {
         const selectedStore = stores.find((s) => s.id === deliveryData.store_id);
         if (selectedStore) {
-          // PHASE 3 CHANGE: Use store.dispatcher_id directly instead of looking up by name
           if (selectedStore.dispatcher_id) {
             deliveryData.dispatcher_id = selectedStore.dispatcher_id;
             console.log('✅ [Deliveries] Assigned dispatcher_id from store:', {
@@ -1699,7 +1597,6 @@ export default function DeliveriesPage() {
               dispatcher_id: selectedStore.dispatcher_id
             });
           } else if (selectedStore.dispatcher_name) {
-            // Fallback to name-based lookup for legacy data
             console.warn('⚠️ [Deliveries] Store has dispatcher_name but no dispatcher_id, falling back to name lookup');
             const dispatcher = allUsers.find((u) => {
               const userName = (u.user_name || u.full_name || '').toLowerCase().trim();
@@ -1782,31 +1679,27 @@ export default function DeliveriesPage() {
     console.log('✅ [Deliveries] Route import completed, refreshing data...');
 
     try {
-      // Close modal first
       setShowImportModal(false);
 
       console.log('🗑️ [Deliveries] Invalidating all caches...');
 
-      // Invalidate all relevant caches
       invalidate('Delivery');
       invalidate('Patient');
       invalidate('Store');
       invalidate('User');
       invalidate('AppUser');
-      invalidate('City'); // Also invalidate City in case new cities were imported
+      invalidate('City');
 
       console.log('🔄 [Deliveries] Forcing data refresh...');
 
-      // Wait a brief moment for cache invalidation to settle
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      // Fetch fresh data directly without going through loadData to avoid state conflicts
       const [freshDeliveries, freshPatients, freshStores, freshAppUsers, freshCities] = await Promise.all([
       getData('Delivery', '-delivery_date', null, true),
       getData('Patient', 'full_name', null, true),
       getData('Store', '-created_date', null, true),
       getData('AppUser', '-created_date', null, true),
-      getData('City', '-created_date', null, true) // Fetch fresh cities
+      getData('City', '-created_date', null, true)
       ]);
 
       console.log('📊 [Deliveries] Fetched fresh data:', {
@@ -1817,17 +1710,15 @@ export default function DeliveriesPage() {
         cities: freshCities?.length || 0
       });
 
-      // Update state with fresh data
       if (isMounted.current) {
         setAllDeliveries(freshDeliveries || []);
         setAllPatients(freshPatients || []);
         setStores(freshStores || []);
-        setCities(freshCities || []); // Update cities state
+        setCities(freshCities || []);
 
-        // Rebuild merged users, similar to loadData logic
         let allAuthUsers = [];
         if (currentUser?.role === 'admin' || isAppOwner(currentUser)) {
-          const usersData = await getData('User', '-created_date', null, true); // Fetch fresh User entities
+          const usersData = await getData('User', '-created_date', null, true);
           allAuthUsers = (usersData || []).filter((u) => u.role === 'admin' || u.role === 'user');
         }
 
@@ -1872,7 +1763,6 @@ export default function DeliveriesPage() {
           });
         }
 
-        // Filter out store accounts using freshStores
         mergedUsers = mergedUsers.filter((u) => {
           const userNameLower = (u.user_name || '').toLowerCase();
           const storePatterns = [
@@ -1895,7 +1785,6 @@ export default function DeliveriesPage() {
           return !matchesStoreName;
         });
 
-        // Filter drivers/admins/dispatchers
         mergedUsers = mergedUsers.filter((u) => {
           const roles = Array.isArray(u.app_roles) ? u.app_roles : u.app_role ? [u.app_role] : [];
           const hasRole = roles.some((r) => r === 'driver' || r === 'admin' || r === 'dispatcher');
@@ -1905,7 +1794,6 @@ export default function DeliveriesPage() {
 
         setAllUsers(sortUsers(mergedUsers));
 
-        // Force UI refresh
         setRefreshKey((k) => k + 1);
 
         console.log('✅ [Deliveries] Data refresh complete after import');
@@ -1927,7 +1815,7 @@ export default function DeliveriesPage() {
   }, [setEditingDelivery, setShowDeliveryForm]);
 
   const handleEditPatient = useCallback((patientId) => {
-    const patientToEdit = (allPatients || []).find((p) => p && p.id === patientId); // Use raw patients
+    const patientToEdit = (allPatients || []).find((p) => p && p.id === patientId);
     if (patientToEdit) {
       setEditingPatient(patientToEdit);
       alert(`Edit Patient: ${patientToEdit.full_name} (ID: ${patientToEdit.id}) - Form not yet implemented.`);
@@ -1942,7 +1830,6 @@ export default function DeliveriesPage() {
 
       const updateData = { status: newStatus };
 
-      // Define finished statuses - these all get timestamps
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
       const isFinishing = finishedStatuses.includes(newStatus);
       const wasFinished = finishedStatuses.includes(delivery.status);
@@ -1950,7 +1837,6 @@ export default function DeliveriesPage() {
       const todayString = format(new Date(), 'yyyy-MM-dd');
       const isToday = delivery.delivery_date === todayString;
 
-      // Set timestamp for finished deliveries (today only)
       if (isFinishing && isToday && !delivery.actual_delivery_time) {
         const now = new Date();
         if (now && typeof now.toISOString === 'function') {
@@ -1959,7 +1845,6 @@ export default function DeliveriesPage() {
         }
       }
 
-      // Clear timestamp if moving from finished to unfinished
       if (wasFinished && !isFinishing) {
         updateData.actual_delivery_time = null;
         console.log('🗑️ [Deliveries] Cleared timestamp - moving from finished to active');
@@ -1975,15 +1860,12 @@ export default function DeliveriesPage() {
         await invalidate('Patient');
       }
 
-      // CRITICAL: Update local state immediately
       setAllDeliveries(prev => 
         prev.map(d => d.id === deliveryId ? { ...d, ...updateData, updated_date: new Date().toISOString() } : d)
       );
 
-      // Invalidate cache for background sync
       invalidate('Delivery');
 
-      // Handle pickup completion logic
       const isPickup = delivery.patient_id === null;
       if (isPickup && newStatus === 'picked_up') {
         const relatedDeliveries = (effectiveDeliveries || []).filter((d) =>
@@ -2000,7 +1882,6 @@ export default function DeliveriesPage() {
         await Promise.all(updatePromises);
         console.log(`✅ [Deliveries] Updated ${relatedDeliveries.length} deliveries to in_transit after pickup`);
         
-        // Update local state immediately
         setAllDeliveries(prev => 
           prev.map(d => {
             const updated = relatedDeliveries.find(rd => rd.id === d.id);
@@ -2017,7 +1898,6 @@ export default function DeliveriesPage() {
   const handleNotesUpdate = useCallback(async (deliveryId, newNotes) => {
     try {
       await updateDeliveryLocal(deliveryId, { delivery_notes: newNotes });
-      // Update local state immediately
       setAllDeliveries(prev => 
         prev.map(d => d.id === deliveryId ? { ...d, delivery_notes: newNotes, updated_date: new Date().toISOString() } : d)
       );
@@ -2031,7 +1911,6 @@ export default function DeliveriesPage() {
   const handleCODUpdate = useCallback(async (deliveryId, requiresCod) => {
     try {
       await updateDeliveryLocal(deliveryId, { requires_cod: requiresCod });
-      // Update local state immediately
       setAllDeliveries(prev => 
         prev.map(d => d.id === deliveryId ? { ...d, requires_cod: requiresCod, updated_date: new Date().toISOString() } : d)
       );
@@ -2046,7 +1925,6 @@ export default function DeliveriesPage() {
     if (!confirm('Are you sure you want to retry this delivery? It will be marked as pending.')) return;
     try {
       await updateDeliveryLocal(deliveryId, { status: 'pending', actual_delivery_time: null });
-      // Update local state immediately
       setAllDeliveries(prev => 
         prev.map(d => d.id === deliveryId ? { ...d, status: 'pending', actual_delivery_time: null, updated_date: new Date().toISOString() } : d)
       );
@@ -2063,10 +1941,9 @@ export default function DeliveriesPage() {
       const now = new Date();
       const updateData = {
         status: 'returned',
-        actual_delivery_time: now.toISOString() // Mark as finished with timestamp
+        actual_delivery_time: now.toISOString()
       };
       await updateDeliveryLocal(deliveryId, updateData);
-      // Update local state immediately
       setAllDeliveries(prev => 
         prev.map(d => d.id === deliveryId ? { ...d, ...updateData, updated_date: new Date().toISOString() } : d)
       );
@@ -2080,7 +1957,6 @@ export default function DeliveriesPage() {
   const handleDeleteDelivery = useCallback(async (deliveryId) => {
     try {
       await deleteDeliveryLocal(deliveryId);
-      // Update local state immediately
       setAllDeliveries(prev => prev.filter(d => d.id !== deliveryId));
       invalidate('Delivery');
     } catch (error) {
@@ -2096,7 +1972,6 @@ export default function DeliveriesPage() {
   const driverOverviewStats = useMemo(() => {
     if (isDriverOverviewMode || !activeDriver) return null;
 
-    // CHANGED: compare by driver_id with name fallback
     const driverDeliveriesForSelectedDate = (selectedDateDeliveries || []).filter(
       (d) =>
       d.driver_id && (d.driver_id === activeDriver.id || d.driver_id === activeDriver.appUserId) ||
@@ -2106,7 +1981,6 @@ export default function DeliveriesPage() {
     const totalStops = driverDeliveriesForSelectedDate.length;
     const completed = driverDeliveriesForSelectedDate.filter((d) => d.status === 'completed').length;
 
-    // NEW: compute returns (based on notes/address flags)
     const returned = driverDeliveriesForSelectedDate.filter((d) => {
       const patient = (effectivePatients || []).find((p) => p.id === d.patient_id);
       const notesReturn = (d.delivery_notes || '').toLowerCase().includes('return');
@@ -2114,13 +1988,11 @@ export default function DeliveriesPage() {
       return notesReturn || addressReturn;
     }).length;
 
-    // Calculate failed (don't subtract returns) - now counts deliveries with 'failed' status
     const failed = driverDeliveriesForSelectedDate.filter((d) => d.status === 'failed').length;
 
     return { totalStops, completed, failed, returned };
   }, [isDriverOverviewMode, selectedDateDeliveries, activeDriver, effectivePatients]);
 
-  // Equal-width stat cards: measure max width across all and apply it
   const [statCardBaseWidth, setStatCardBaseWidth] = React.useState(0);
   const handleStatMeasure = React.useCallback((w) => {
     setStatCardBaseWidth((prev) => w > prev ? w : prev);
@@ -2146,7 +2018,6 @@ export default function DeliveriesPage() {
 
   }
 
-  // === Projections for routes page (per driver) ===
   const activeDriverDeliveries = React.useMemo(() => {
     if (!activeDriver || !selectedDateDeliveries || !Array.isArray(selectedDateDeliveries)) return [];
     return selectedDateDeliveries.filter((d) =>
@@ -2156,7 +2027,6 @@ export default function DeliveriesPage() {
   }, [selectedDateDeliveries, activeDriver]);
 
   const projectedRoutes = React.useMemo(() => {
-    // Only project if no actual deliveries for this driver on the selected date
     if (!activeDriver || activeDriverDeliveries.length > 0) {
       return { pickups: [], deliveries: [], stopOrderMap: {} };
     }
@@ -2172,12 +2042,10 @@ export default function DeliveriesPage() {
     const driverName = activeDriver.user_name || activeDriver.full_name || '';
     if (!driverName) return { pickups: [], deliveries: [], stopOrderMap: {} };
 
-    // Patients source
     const patientsSource = typeof effectivePatients !== 'undefined' && Array.isArray(effectivePatients) && effectivePatients?.length ?
     effectivePatients :
     typeof allPatients !== 'undefined' && Array.isArray(allPatients) ? allPatients || [] : [];
 
-    // eligibility helpers
     const isPatientDue = (patient) => {
       if (!patient || !patient.last_delivery_date) return false;
       const notes = (patient.notes || '').toLowerCase();
@@ -2192,7 +2060,6 @@ export default function DeliveriesPage() {
 
       const dayOfWeekShort = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][current.getDay()];
 
-      // specific cadence rules
       if (notes.includes('daily')) return daysSince >= 1;
 
       const weeklyMatch = notes.match(/weekly\s*\((mon|tue|wed|thu|fri|sat|sun)\)/i);
@@ -2207,7 +2074,7 @@ export default function DeliveriesPage() {
       if (biWeeklyMatch) {
         const scheduledDay = biWeeklyMatch[1].toLowerCase();
         if (dayOfWeekShort === scheduledDay) {
-          return daysSince >= 13; // Allow a day before/after
+          return daysSince >= 13;
         }
       }
 
@@ -2215,7 +2082,6 @@ export default function DeliveriesPage() {
       if (notes.includes('weekly x4')) return daysSince >= 26 && daysSince <= 31 && daysSince % 28 === 0;
       if (notes.includes('monthly')) return daysSince >= 28 && daysSince <= 31;
       if (notes.includes('weekly')) return daysSince >= 7;
-      // default weekly cadence
       return daysSince > 0 && daysSince % 7 === 0;
     };
 
@@ -2229,7 +2095,6 @@ export default function DeliveriesPage() {
       return 6;
     };
 
-    // Select stores for this driver on the day (AM/PM)
     const relevantStores = (stores || []).filter((store) => {
       if (isSaturday) {
         return store.saturday_am_enabled && (store.driver_saturday_am_id === activeDriver.id || store.driver_saturday_am_id === activeDriver.appUserId || store.driver_saturday_am === driverName) ||
@@ -2281,7 +2146,6 @@ export default function DeliveriesPage() {
         segmentIndex += 1;
         const isAM = period === 'am';
 
-        // candidate patients for this store and period
         const storePatients = (patientsSource || []).
         filter((p) => p?.status === 'active' && p.store_id === store.id).
         filter((p) => {
@@ -2351,7 +2215,6 @@ export default function DeliveriesPage() {
           phone: store.phone
         };
 
-        // Seed route time and position
         let currentTime = pickupCard.delivery_time_end;
         let lastLat = store.latitude;
         let lastLng = store.longitude;
@@ -2378,7 +2241,6 @@ export default function DeliveriesPage() {
       });
     });
 
-    // Order and numbering
     flatDeliveries.sort((a, b) => {
       const tA = a.sortTime || a.delivery_time_start || '00:00';
       const tB = b.sortTime || b.delivery_time_start || '00:00';
@@ -2391,7 +2253,6 @@ export default function DeliveriesPage() {
     return { pickups, deliveries: flatDeliveries, stopOrderMap };
   }, [activeDriver, activeDriverDeliveries.length, stores, effectivePatients, allPatients, selectedDate]);
 
-  // Small subcomponents for projected UI
   const ProjectedDeliveryList = ({ deliveries, stopOrderMap }) =>
   <div className="mt-3">
       <div className="max-h-48 overflow-y-auto border rounded-lg">
@@ -2498,7 +2359,6 @@ export default function DeliveriesPage() {
 
       setSelectedDate(dateObj);
 
-      // IMPORTANT: Pass string to updateUrl, not Date object
       updateUrl({ date: dateString });
     } catch (error) {
       console.error('[handleDateSelect] Error:', error);
@@ -2553,7 +2413,6 @@ export default function DeliveriesPage() {
       setSelectedYear(targetYear);
       setSelectedMonth(targetMonth);
 
-      // IMPORTANT: Pass string date, not Date object
       updateUrl({
         driver: driverId,
         date: dateString,
@@ -2570,7 +2429,6 @@ export default function DeliveriesPage() {
 
     console.log('🎯 [Drag] Starting reorder...', { from: result.source.index, to: result.destination.index });
 
-    // Pause smart refresh
     if (setIsEntityUpdating) {
       setIsEntityUpdating(true);
       console.log('⏸️ [Drag] Paused smart refresh');
@@ -2581,13 +2439,11 @@ export default function DeliveriesPage() {
     reorderedDeliveries.splice(result.destination.index, 0, reorderedItem);
 
     try {
-      // Update database with new stop orders
       await Promise.all(reorderedDeliveries.map((delivery, index) => 
         updateDeliveryLocal(delivery.id, { stop_order: index + 1 })
       ));
       console.log('✅ [Drag] Database updated');
 
-      // Recalculate ETAs
       if (activeDriver && selectedDate) {
         await base44.functions.invoke('optimizeDriverRoute', {
           driverId: activeDriver.id,
@@ -2597,10 +2453,8 @@ export default function DeliveriesPage() {
         console.log('✅ [Drag] ETAs recalculated');
       }
 
-      // Wait for database propagation
       await new Promise(resolve => setTimeout(resolve, 800));
 
-      // Fetch fresh data with updated stop_order and ETAs
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
       const freshDeliveries = await Delivery.filter({
         delivery_date: dateStr,
@@ -2609,13 +2463,11 @@ export default function DeliveriesPage() {
       
       console.log(`✅ [Drag] Fetched ${freshDeliveries.length} fresh deliveries with ETAs`);
       
-      // Update local state
       setAllDeliveries(prev => {
         const others = prev.filter(d => d.delivery_date !== dateStr || d.driver_id !== activeDriver.id);
         return [...others, ...freshDeliveries];
       });
       
-      // CRITICAL: Update context so changes persist on refresh
       if (updateDeliveriesLocally) {
         updateDeliveriesLocally(freshDeliveries);
         console.log('✅ [Drag] Context updated');
@@ -2651,9 +2503,6 @@ export default function DeliveriesPage() {
     console.log(`📊 contextDeliveries count: ${contextDeliveries?.length || 0}`);
     console.log(`📊 allPatients count: ${allPatients?.length || 0}`);
 
-    // Safety check: ensure we have the required data
-    // CRITICAL: ALWAYS use allDeliveries and allPatients directly - they have ALL the data
-    // effectiveDeliveries is role-filtered and will be missing data for other drivers
     const deliveriesToUse = allDeliveries?.length > 0 ? allDeliveries : contextDeliveries;
     const patientsToUse = allPatients?.length > 0 ? allPatients : contextPatients;
     const usersToUse = allUsers?.length > 0 ? allUsers : contextUsers;
@@ -2679,11 +2528,8 @@ export default function DeliveriesPage() {
 
     if (!patientsToUse || !Array.isArray(patientsToUse)) {
       console.warn('⚠️ No patients available');
-      // Don't return empty - patients are only needed for return detection
     }
 
-    // Filter deliveries by selectedOverviewYear
-    // CRITICAL: When 'all' is selected, use ALL deliveries without filtering
     const yearFilteredDeliveries = selectedOverviewYear === 'all' ?
       deliveriesToUse :
       deliveriesToUse.filter((d) => {
@@ -2705,20 +2551,15 @@ export default function DeliveriesPage() {
       console.log(`📊 Sample delivery dates:`, dates.slice(0, 5), '...', dates.slice(-5));
     }
 
-    // Normalize driver names for matching (lowercase, trimmed)
     const driverNamesInDeliveries = [...new Set(yearFilteredDeliveries.map((d) => (d.driver_name || '').toLowerCase().trim()).filter(Boolean))];
     const driverIdsInDeliveries = [...new Set(yearFilteredDeliveries.map((d) => d.driver_id).filter(Boolean))];
     console.log(`📊 Unique driver names in deliveries:`, driverNamesInDeliveries);
     console.log(`📊 Unique driver IDs in deliveries:`, driverIdsInDeliveries);
 
-    // Get all drivers (active AND inactive) who have driver role
-    // Only include users with 'driver' role for the overview - not dispatchers or admins without driver role
     const driversWithRoles = usersToUse.filter((u) => {
       if (!u) return false;
       const roles = Array.isArray(u.app_roles) ? u.app_roles : [];
-      // Must have driver role to appear in Driver Overview
       const hasDriverRole = roles.includes('driver');
-      // Also include admins who may drive (have driver role too)
       const isAdminDriver = roles.includes('admin') && roles.includes('driver');
       
       if (hasDriverRole || isAdminDriver) {
@@ -2729,37 +2570,29 @@ export default function DeliveriesPage() {
     });
     console.log(`👥 Total drivers with driver role: ${driversWithRoles.length}`);
     
-    // Debug: Log unique driver IDs from deliveries for comparison
     const deliveryDriverIds = [...new Set(deliveriesToUse.map(d => d.driver_id).filter(Boolean))];
     console.log(`📊 [Debug] Unique driver_ids in deliveries:`, deliveryDriverIds);
     console.log(`📊 [Debug] Driver IDs from driversWithRoles:`, driversWithRoles.map(d => ({ name: d.user_name, id: d.id, appUserId: d.appUserId })));
 
-    // Filter by city based on user role and selected city
-    let cityFilteredDrivers = driversWithRoles; // Start with drivers that have relevant roles
+    let cityFilteredDrivers = driversWithRoles;
 
     if (userHasRole(currentUser, 'admin')) {
-      // Admins can filter by city if they select one, otherwise see ALL drivers
       if (selectedCityId && selectedCityId !== 'all') {
         cityFilteredDrivers = driversWithRoles.filter((d) => d.city_id === selectedCityId);
         console.log(`👑 Admin - filtered to city ${selectedCityId}: ${cityFilteredDrivers.length} drivers`);
       } else {
         console.log('👑 Admin - showing all drivers from all cities');
-        // No city filtering for admins when 'all' is selected
       }
     } else if (userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) {
-      // Dispatchers and drivers only see drivers from their own city
       if (currentUser.city_id) {
         cityFilteredDrivers = driversWithRoles.filter((d) => d.city_id === currentUser.city_id);
         console.log(`📍 Filtered to user's city ${currentUser.city_id}: ${cityFilteredDrivers.length} drivers`);
       }
     }
 
-    // Find drivers who have deliveries in the filtered set OR are active/inactive drivers
-    // For Driver Overview, we want to show ALL drivers (even those without deliveries in the selected period)
     const driversWithDeliveries = cityFilteredDrivers.filter((u) => {
       if (!u) return false;
       
-      // Check if driver has deliveries in the current filter (case-insensitive name matching)
       const userFullNameLower = (u.full_name || '').toLowerCase().trim();
       const userUserNameLower = (u.user_name || '').toLowerCase().trim();
       
@@ -2768,9 +2601,6 @@ export default function DeliveriesPage() {
       driverNamesInDeliveries.includes(userFullNameLower) ||
       driverNamesInDeliveries.includes(userUserNameLower);
       
-      // CRITICAL: In Driver Overview mode, ALWAYS show ALL drivers regardless of deliveries or status
-      // This ensures inactive drivers and those without recent deliveries still appear
-      // The overview is meant to show a complete picture of all drivers
       console.log(`   ✅ Including driver: ${u.user_name || u.full_name} (has deliveries: ${hasDeliveries}, status: ${u.status})`);
       return true;
     });
@@ -2779,11 +2609,7 @@ export default function DeliveriesPage() {
 
     let driversToShow = [];
 
-    // The outline's `driversToShow` logic was simplified in the original version,
-    // let's restore the more explicit filtering from the original but adapt it to the new `driversWithDeliveries`.
     if (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) {
-      // Admins and Dispatchers see the city-filtered list of drivers that have deliveries.
-      // For dispatchers, this list is already filtered to their city by the `cityFilteredDrivers` step above.
       driversToShow = driversWithDeliveries;
       console.log(`👑 Admin/Dispatcher - showing ${driversToShow.length} drivers`);
     } else {
@@ -2797,22 +2623,18 @@ export default function DeliveriesPage() {
       return [];
     }
 
-    // Get today's date for today stats
     const todayStr = format(new Date(), 'yyyy-MM-dd');
 
     const cards = driversToShow.map((driver) => {
-      // Match deliveries by driver_id (primary) or driver_name (fallback)
       const driverDeliveries = yearFilteredDeliveries.filter((d) => {
         if (!d) return false;
         
-        // Primary: Match by driver_id
         if (d.driver_id) {
           if (d.driver_id === driver.id || d.driver_id === driver.appUserId) {
             return true;
           }
         }
         
-        // Fallback: Match by driver_name (case-insensitive, trimmed)
         if (d.driver_name) {
           const deliveryDriverName = (d.driver_name || '').toLowerCase().trim();
           const driverFullName = (driver.full_name || '').toLowerCase().trim();
@@ -2822,7 +2644,6 @@ export default function DeliveriesPage() {
             return true;
           }
           
-          // Additional fallback: partial match for first name only (handles "lisa" matching "Lisa S")
           const driverFirstName = driverUserName.split(' ')[0];
           if (driverFirstName && deliveryDriverName === driverFirstName) {
             return true;
@@ -2834,7 +2655,6 @@ export default function DeliveriesPage() {
 
       const totalStops = driverDeliveries.length;
 
-      // Debug log for drivers with 0 deliveries to help troubleshoot
       if (totalStops === 0 && yearFilteredDeliveries.length > 0) {
         console.log(`🔍 [Driver Debug] ${driver.user_name || driver.full_name}:`, {
           driverId: driver.id,
@@ -2846,19 +2666,16 @@ export default function DeliveriesPage() {
 
       console.log(`🚗 Processing driver: ${driver.user_name || driver.full_name} - Found ${totalStops} deliveries in selected year`);
 
-      // Pickups: Completed pickups only
       const pickups = driverDeliveries.filter((d) => {
         const isPickup = !d.patient_id || d.patient_id === '';
         return isPickup && (d.status === 'completed' || d.status === 'picked_up');
       }).length;
 
-      // Completed: Completed deliveries only (not pickups)
       const completed = driverDeliveries.filter((d) => {
         const isDelivery = d.patient_id && d.patient_id !== '';
         return isDelivery && d.status === 'completed';
       }).length;
 
-      // Calculate returns (by flag)
       const returned = driverDeliveries.filter((d) => {
         const patient = patientsToUse.find((p) => p && p.id === d.patient_id);
         const notesReturn = (d.delivery_notes || '').toLowerCase().includes('return');
@@ -2866,13 +2683,10 @@ export default function DeliveriesPage() {
         return notesReturn || addressReturn;
       }).length;
 
-      // Calculate failed (deliveries with 'failed' status)
       const failed = driverDeliveries.filter((d) => d.status === 'failed').length;
 
-      // TODAY's stats - filter to today's deliveries only
       const todayDeliveries = driverDeliveries.filter((d) => d.delivery_date === todayStr);
 
-      // Check if delivery is a return (helper for today stats)
       const isReturn = (delivery) => {
         if (!delivery) return false;
         const patient = patientsToUse.find((p) => p && p.id === delivery.patient_id);
@@ -2914,15 +2728,15 @@ export default function DeliveriesPage() {
     return sortedCards;
   }, [
   isDriverOverviewMode,
-  effectiveDeliveries, // Need full array to compute stats
-  effectivePatients, // Need full array for return detection
-  allUsers, // Need full array for driver data
-  allDeliveries, // Fallback when effectiveDeliveries is empty
-  allPatients, // Fallback when effectivePatients is empty
+  effectiveDeliveries,
+  effectivePatients,
+  allUsers,
+  allDeliveries,
+  allPatients,
   currentUser?.id,
   selectedOverviewYear,
   selectedCityId
-  ]); // Simplified dependencies - removed refs and lengths that cause stale closures
+  ]);
 
   const canCreateDeliveries = useMemo(() => {
     return userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher');
@@ -2931,7 +2745,6 @@ export default function DeliveriesPage() {
   const handleDriverCardClick = useCallback((driver) => {
     console.log('🎯 [Deliveries] Driver card clicked:', driver.user_name || driver.full_name);
 
-    // Find the most recent delivery date for this driver
     const driverDeliveries = (effectiveDeliveries || []).filter((d) =>
     d.driver_id && (d.driver_id === driver.id || d.driver_id === driver.appUserId) ||
     !d.driver_id && d.driver_name && (d.driver_name === driver.full_name || d.driver_name === driver.user_name)
@@ -2945,7 +2758,7 @@ export default function DeliveriesPage() {
       if (latest?.delivery_date) {
         const [y, m, d] = latest.delivery_date.split('-').map(Number);
         if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
-          targetDate = new Date(y, m - 1, d); // m-1 because Date constructor takes 0-indexed month
+          targetDate = new Date(y, m - 1, d);
           targetDate.setHours(0, 0, 0, 0);
         } else {
           console.warn('[Deliveries] Invalid date components from latest delivery for driver card click:', latest.delivery_date);
@@ -2960,23 +2773,21 @@ export default function DeliveriesPage() {
     }
 
     const targetYear = targetDate.getFullYear();
-    const targetMonth = targetDate.getMonth(); // 0-indexed: 0=Jan, 9=Oct
+    const targetMonth = targetDate.getMonth();
 
     console.log('🎯 [Deliveries] Switching to driver view:', {
       driverId: driver.id,
       date: format(targetDate, 'yyyy-MM-dd'),
       year: targetYear,
-      month: targetMonth + 1 // Store as 1-indexed in URL for clarity
+      month: targetMonth + 1
     });
 
-    // Build the new URL with all parameters
     const params = new URLSearchParams();
     params.set('driver', driver.id);
     params.set('date', format(targetDate, 'yyyy-MM-dd'));
     params.set('year', targetYear.toString());
-    params.set('month', (targetMonth + 1).toString()); // Store 1-indexed in URL (1=Jan, 10=Oct)
+    params.set('month', (targetMonth + 1).toString());
 
-    // Navigate once with all parameters
     navigate(`${location.pathname}?${params.toString()}`, { replace: false });
   }, [effectiveDeliveries, navigate, location.pathname]);
 
@@ -3018,13 +2829,13 @@ export default function DeliveriesPage() {
 
                       <StopCard
                   delivery={delivery}
-                  patient={(effectivePatients || []).find((p) => p && p.id === delivery.patient_id)} // Use effectivePatients
-                  store={(stores || []).find((s) => s && s.id === delivery.store_id)} // Use raw stores
+                  patient={(effectivePatients || []).find((p) => p && p.id === delivery.patient_id)}
+                  store={(stores || []).find((s) => s && s.id === delivery.store_id)}
                   driver={
                   (effectiveDrivers || []).find((d) => d.id === delivery.driver_id || d.appUserId === delivery.driver_id) ||
                   (effectiveDrivers || []).find((d) => d.full_name === delivery.driver_name) ||
                   (effectiveDrivers || []).find((d) => d.user_name === delivery.driver_name)
-                  } // CHANGED: prefer ID, fallback to names
+                  }
                   currentUser={currentUser}
                   stopOrder={delivery.stopOrder || delivery.stop_order || index + 1}
                   isSelected={selectedDeliveryId === delivery.id}
@@ -3035,7 +2846,7 @@ export default function DeliveriesPage() {
                   onDeleteDelivery={handleDeleteDelivery}
                   showDriverName={false}
                   onRestart={handleRestartDelivery}
-                  allDeliveries={effectiveDeliveries || []} // Use effectiveDeliveries
+                  allDeliveries={effectiveDeliveries || []}
                   selectedDate={selectedDate}
                   onEditPatient={handleEditPatient}
                   onCODUpdate={handleCODUpdate}
@@ -3098,10 +2909,9 @@ export default function DeliveriesPage() {
   selectedDate,
   selectedDeliveryId,
   handleEditPatient,
-  filteredAndSortedDeliveries // Add filteredAndSortedDeliveries to dependencies
+  filteredAndSortedDeliveries
   ]);
 
-  // Small logo component with fallback sources so the real app logo shows instead of a placeholder
   function LogoImage({ className }) {
     const [idx, setIdx] = React.useState(0);
     const candidates = ['/app-logo.png', '/logo.png', '/logo.svg', '/logo192.png', '/favicon.png'];
@@ -3112,7 +2922,6 @@ export default function DeliveriesPage() {
         alt="Routes"
         className={className}
         onError={() => setIdx((i) => i + 1 < candidates.length ? i + 1 : i)} />);
-
 
   }
 
@@ -3149,9 +2958,9 @@ export default function DeliveriesPage() {
   const shouldShowNoDataMessage = !isLoading && (isOffline || effectiveDeliveries.length === 0);
 
   return (
-    <div className="h-screen flex flex-col bg-slate-50 relative">
+    <div className="h-screen flex flex-col bg-slate-50 relative overflow-hidden">
 
-      <div className={`${isMobile ? 'block' : 'hidden'} border-b border-slate-200 bg-white px-4 py-3 sticky top-0 z-20`}>
+      <div className={`${isMobile ? 'block' : 'hidden'} border-b border-slate-200 bg-white px-4 py-3 flex-shrink-0 z-20`}>
         {isDriverOverviewMode ?
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
             <h1 className="text-xl font-bold text-slate-900">Driver Overview</h1>
@@ -3166,7 +2975,7 @@ export default function DeliveriesPage() {
         }
       </div>
 
-      <div className="hidden lg:block border-b border-slate-200 bg-white px-6 py-4 sticky top-0 z-20">
+      <div className="hidden lg:block border-b border-slate-200 bg-white px-6 py-4 flex-shrink-0 z-20">
         {isDriverOverviewMode ?
         <div className="relative">
           {isLoading &&
@@ -3261,7 +3070,7 @@ export default function DeliveriesPage() {
         }
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden min-h-0">
 
         {!isDriverOverviewMode &&
         <div className="hidden lg:flex w-72 bg-white border-r border-slate-200 flex-col h-full">
@@ -3291,15 +3100,12 @@ export default function DeliveriesPage() {
                     await base44.entities.Delivery.delete(delivery.id);
                   }
 
-                  // Clear all delivery caches
                   invalidate('Delivery');
 
-                  // Update local state immediately
                   setAllDeliveries((prev) => prev.filter((d) =>
                   !(d.delivery_date === dateStr && d.driver_id === driverId)
                   ));
 
-                  // CRITICAL: Update context to sync with Dashboard
                   if (updateDeliveriesLocally) {
                     const remainingDeliveries = allDeliveries.filter((d) =>
                     !(d.delivery_date === dateStr && d.driver_id === driverId)
@@ -3317,7 +3123,6 @@ export default function DeliveriesPage() {
           </div>
         }
 
-        {/* Floating mobile sidebar toggle button */}
         {!isDriverOverviewMode && !activeDriver && isMobile &&
         <button
           onClick={() => setIsMobileMenuOpen((v) => !v)}
@@ -3328,7 +3133,6 @@ export default function DeliveriesPage() {
           </button>
         }
 
-        {/* Background overlay to close drawer when tapping outside */}
         {!isDriverOverviewMode && isMobile && isMobileMenuOpen &&
         <div
           className="fixed top-12 left-0 right-0 bottom-0 bg-black/30 z-40"
@@ -3380,15 +3184,12 @@ export default function DeliveriesPage() {
                       await deleteDeliveryLocal(delivery.id);
                     }
 
-                    // Clear all delivery caches
                     invalidate('Delivery');
 
-                    // Update local state immediately
                     setAllDeliveries((prev) => prev.filter((d) =>
                     !(d.delivery_date === dateStr && d.driver_id === driverId)
                     ));
 
-                    // CRITICAL: Update context to sync with Dashboard
                     if (updateDeliveriesLocally) {
                       const remainingDeliveries = allDeliveries.filter((d) =>
                       !(d.delivery_date === dateStr && d.driver_id === driverId)
@@ -3408,15 +3209,13 @@ export default function DeliveriesPage() {
           }
         </AnimatePresence>
 
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
 
           {isDriverOverviewMode ?
-          <div className="flex flex-col flex-1 min-h-0">
-              {/* Desktop Controls Banner - Large Screens (lg+) */}
-              <Card className="bg-white/80 backdrop-blur-sm hidden lg:block flex-shrink-0">
+          <div className="flex flex-col h-full overflow-hidden">
+              <Card className="bg-white/80 backdrop-blur-sm hidden lg:block flex-shrink-0 m-4 mb-2">
                 <CardContent className="p-6">
                   <div className="flex items-center gap-3">
-                    {/* Search */}
                     <div className="relative flex-grow" style={{ minWidth: '200px', maxWidth: '400px' }}>
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
                       <Input
@@ -3426,7 +3225,6 @@ export default function DeliveriesPage() {
                       className="pl-10 w-full bg-slate-100 border-slate-300" />
                     </div>
 
-                    {/* City Selector - Only visible for Admins */}
                     {userHasRole(currentUser, 'admin') && cities && cities.length > 0 &&
                   <Select value={selectedCityId} onValueChange={(value) => {
                     setSelectedCityId(value);
@@ -3444,13 +3242,12 @@ export default function DeliveriesPage() {
                       </Select>
                   }
 
-                    {/* Year Selector */}
                     <Select value={selectedOverviewYear} onValueChange={(year) => {
-                    yearManuallySelected.current = true; // Mark as manually selected
+                    yearManuallySelected.current = true;
                     setSelectedOverviewYear(year);
                     const params = new URLSearchParams(location.search);
                     if (year === 'all') {
-                      params.set('overviewYear', 'all'); // Explicitly set 'all' in URL
+                      params.set('overviewYear', 'all');
                     } else {
                       params.set('overviewYear', year);
                     }
@@ -3467,10 +3264,8 @@ export default function DeliveriesPage() {
                       </SelectContent>
                     </Select>
 
-                    {/* Spacer */}
                     <div className="flex-grow"></div>
 
-                    {/* Action Buttons */}
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
                   <Button onClick={() => {setEditingDelivery(null);setShowDeliveryForm(true);}} className="gap-2 w-[140px]">
                         <Plus className="w-4 h-4" /> Add Delivery
@@ -3485,11 +3280,9 @@ export default function DeliveriesPage() {
                 </CardContent>
               </Card>
 
-              {/* Medium Screens Banner (md) */}
-              <Card className="bg-white/80 backdrop-blur-sm hidden md:block lg:hidden flex-shrink-0">
+              <Card className="bg-white/80 backdrop-blur-sm hidden md:block lg:hidden flex-shrink-0 m-4 mb-2">
                 <CardContent className="p-6">
                   <div className="space-y-3">
-                    {/* Row 1: Search */}
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
                       <Input
@@ -3499,9 +3292,7 @@ export default function DeliveriesPage() {
                       className="pl-10 w-full bg-slate-100 border-slate-300" />
                     </div>
 
-                    {/* Row 2: Cities, Years, Spacer, Buttons */}
                     <div className="flex items-center gap-3">
-                      {/* City Selector - Only visible for Admins */}
                       {userHasRole(currentUser, 'admin') && cities && cities.length > 0 &&
                     <Select value={selectedCityId} onValueChange={(value) => {
                       setSelectedCityId(value);
@@ -3519,13 +3310,12 @@ export default function DeliveriesPage() {
                         </Select>
                     }
 
-                      {/* Year Selector */}
                       <Select value={selectedOverviewYear} onValueChange={(year) => {
-                      yearManuallySelected.current = true; // Mark as manually selected
+                      yearManuallySelected.current = true;
                       setSelectedOverviewYear(year);
                       const params = new URLSearchParams(location.search);
                       if (year === 'all') {
-                        params.set('overviewYear', 'all'); // Explicitly set 'all' in URL
+                        params.set('overviewYear', 'all');
                       } else {
                         params.set('overviewYear', year);
                       }
@@ -3542,10 +3332,8 @@ export default function DeliveriesPage() {
                         </SelectContent>
                       </Select>
 
-                      {/* Spacer */}
                       <div className="flex-grow"></div>
 
-                      {/* Action Buttons */}
                       {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
                       <Button onClick={() => {setEditingDelivery(null);setShowDeliveryForm(true);}} className="gap-2 w-[140px]">
                           <Plus className="w-4 h-4" /> Add Delivery
@@ -3561,11 +3349,9 @@ export default function DeliveriesPage() {
                 </CardContent>
               </Card>
 
-              {/* Mobile Banner (sm and below) */}
-              <Card className="bg-white/80 backdrop-blur-sm md:hidden flex-shrink-0">
+              <Card className="bg-white/80 backdrop-blur-sm md:hidden flex-shrink-0 m-4 mb-2">
                 <CardContent className="p-4">
                   <div className="space-y-3">
-                    {/* Row 1: Search */}
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
                       <Input
@@ -3575,9 +3361,7 @@ export default function DeliveriesPage() {
                       className="pl-10 w-full bg-slate-100 border-slate-300" />
                     </div>
 
-                    {/* Row 2: Cities, Spacer, Add Delivery */}
                     <div className="flex items-center gap-3">
-                      {/* City Selector - Only visible for Admins */}
                       {userHasRole(currentUser, 'admin') && cities && cities.length > 0 &&
                     <Select value={selectedCityId} onValueChange={(value) => {
                       setSelectedCityId(value);
@@ -3595,10 +3379,8 @@ export default function DeliveriesPage() {
                         </Select>
                     }
 
-                      {/* Spacer */}
                       <div className="flex-grow"></div>
 
-                      {/* Add Delivery Button */}
                       {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
                     <Button onClick={() => {setEditingDelivery(null);setShowDeliveryForm(true);}} className="gap-2 w-[140px]">
                           <Plus className="w-4 h-4" /> Add Delivery
@@ -3606,15 +3388,13 @@ export default function DeliveriesPage() {
                     }
                     </div>
 
-                    {/* Row 3: Years, Spacer, Import */}
                     <div className="flex items-center gap-3">
-                      {/* Year Selector */}
                       <Select value={selectedOverviewYear} onValueChange={(year) => {
-                      yearManuallySelected.current = true; // Mark as manually selected
+                      yearManuallySelected.current = true;
                       setSelectedOverviewYear(year);
                       const params = new URLSearchParams(location.search);
                       if (year === 'all') {
-                        params.set('overviewYear', 'all'); // Explicitly set 'all' in URL
+                        params.set('overviewYear', 'all');
                       } else {
                         params.set('overviewYear', year);
                       }
@@ -3631,10 +3411,8 @@ export default function DeliveriesPage() {
                         </SelectContent>
                       </Select>
 
-                      {/* Spacer */}
                       <div className="flex-grow"></div>
 
-                      {/* Import Button - Hidden on Mobile */}
                       {canAccessImports(currentUser) && !isMobile &&
                     <Button onClick={handleOpenRouteImport} variant="outline" className="gap-2 w-[140px]">
                           <FileUp className="w-4 h-4" /> Import Route
@@ -3645,8 +3423,7 @@ export default function DeliveriesPage() {
                 </CardContent>
               </Card>
 
-              {/* Scrollable Cards Container */}
-              <div className="flex-1 overflow-y-auto mt-6">
+              <div className="flex-1 overflow-y-auto px-4 pb-4">
                 {driverCards.length === 0 ?
                   <div className="text-center py-12 text-slate-500">
                     <Package className="w-16 h-16 mx-auto mb-4 opacity-30" />
@@ -3654,7 +3431,7 @@ export default function DeliveriesPage() {
                     <p className="text-sm mt-2">Select a different year or add deliveries</p>
                   </div> :
 
-                  <div key={refreshKey} className="grid gap-3 pb-6" style={{ gridTemplateColumns: 'repeat(auto-fit, 256px)' }}>
+                  <div key={refreshKey} className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, 256px)' }}>
                   {driverCards.map((card) => {
                 const isInactive = card.driver.status === 'inactive';
                 return (
@@ -3687,7 +3464,6 @@ export default function DeliveriesPage() {
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="px-3 py-3">
-                          {/* Today's Stats - single line (fixed height for alignment) */}
                           <div className="mb-3 pb-3 border-b border-slate-100 h-[40px] flex items-center justify-center">
                             {card.todayStats && card.todayStats.total > 0 ?
                             <div className="flex items-center justify-center gap-2 text-xs font-medium flex-wrap">
@@ -3729,7 +3505,6 @@ export default function DeliveriesPage() {
           <>
               {activeDriver &&
             <Card className="mb-6 border-slate-200 shadow-sm relative">
-                  {/* Align the mobile toggle tab with the driver card (vertically centered) */}
                   <button
                 onClick={() => setIsMobileMenuOpen((v) => !v)}
                 className="absolute -left-3 top-1/2 -translate-y-1/2 z-30 bg-white hover:bg-slate-100 text-slate-700 font-semibold py-2 px-1 rounded-r-lg shadow-lg border-y border-r border-slate-200 transition-transform hover:scale-105 flex flex-col items-center gap-2 lg:hidden">
@@ -3789,11 +3564,9 @@ export default function DeliveriesPage() {
             }
 
               <AnimatePresence mode="wait">
-                {/* Actual deliveries list */}
                 {renderDeliveries(filteredAndSortedDeliveries)}
               </AnimatePresence>
 
-              {/* Render projections when there are no actual deliveries for this driver */}
               {activeDriver && activeDriverDeliveries.length === 0 && projectedRoutes.pickups.length > 0 &&
             <div className="mt-4">
                   <h3 className="text-sm font-semibold text-slate-700 mb-2">Projected Route</h3>
@@ -3826,9 +3599,9 @@ export default function DeliveriesPage() {
 
             <DeliveryForm
             delivery={editingDelivery}
-            patients={effectivePatients || []} // Use effectivePatients
-            stores={stores || []} // Use raw stores
-            drivers={effectiveDrivers || []} // Use effectiveDrivers
+            patients={effectivePatients || []}
+            stores={stores || []}
+            drivers={effectiveDrivers || []}
             onSave={handleSaveDelivery}
             onCancel={() => {setShowDeliveryForm(false);setEditingDelivery(null);}}
             suggestedDate={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')}
@@ -3836,7 +3609,7 @@ export default function DeliveriesPage() {
             allDeliveries={effectiveDeliveries || []}
             initialDriverId={
             editingDelivery ?
-            (effectiveDrivers || []).find((d) => d.id === editingDelivery.driver_id || d.appUserId === editingDelivery.driver_id || d.full_name === editingDelivery.driver_name || d.user_name === editingDelivery.driver_name)?.id // Use effectiveDrivers
+            (effectiveDrivers || []).find((d) => d.id === editingDelivery.driver_id || d.appUserId === editingDelivery.driver_id || d.full_name === editingDelivery.driver_name || d.user_name === editingDelivery.driver_name)?.id
             : driverFilter === 'all' ? null : driverFilter
             }
             closeOnSave={true} />
@@ -3847,10 +3620,10 @@ export default function DeliveriesPage() {
         <RouteImport
           onImportComplete={handleImportComplete}
           onCancel={() => setShowImportModal(false)}
-          patients={allPatients || []} // Use raw allPatients for import context
-          stores={stores || []} // Use raw stores for import context
-          drivers={(allUsers || []).filter((u) => userHasRole(u, 'driver')) || []} // All active drivers from allUsers
-          allUsers={allUsers} // All merged users
+          patients={allPatients || []}
+          stores={stores || []}
+          drivers={(allUsers || []).filter((u) => userHasRole(u, 'driver')) || []}
+          allUsers={allUsers}
           currentUser={currentUser} />
 
         }
@@ -3858,9 +3631,9 @@ export default function DeliveriesPage() {
           isOpen={showRouteMap}
           onClose={() => setShowRouteMap(false)}
           deliveries={filteredAndSortedDeliveries}
-          patients={effectivePatients || []} // Use effectivePatients
-          stores={stores || []} // Use raw stores
-          drivers={effectiveDrivers || []} // Use effectiveDrivers
+          patients={effectivePatients || []}
+          stores={stores || []}
+          drivers={effectiveDrivers || []}
           selectedDate={selectedDate}
           currentUser={currentUser} />
 
