@@ -306,11 +306,11 @@ const UserImpersonation = ({ users = [], onImpersonate, onStopImpersonating, imp
     <div className="mt-2 space-y-2">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button variant="outline" className="w-full gap-2" style={{ borderColor: 'var(--border-slate-300)' }}>
+          <Button variant="outline" className="w-full gap-2" style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
             <Eye className="w-4 h-4" /> {impersonatingUser ? 'Switch User' : 'View as User'}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[--radix-popover-trigger-width] p-0 z-[10001]">
+        <PopoverContent className="w-[--radix-popover-trigger-width] p-0 z-[100001]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           <Command>
             <CommandList>
               <CommandGroup>
@@ -322,10 +322,11 @@ const UserImpersonation = ({ users = [], onImpersonate, onStopImpersonating, imp
                       onImpersonate(user.id);
                       setOpen(false);
                     }}
-                    className="flex justify-between">
+                    className="flex justify-between"
+                    style={{ color: 'var(--text-slate-900)' }}>
 
                     <span>{user.user_name || user.full_name}</span>
-                    <span className="text-xs capitalize text-slate-500">{formatRoles(user)}</span>
+                    <span className="text-xs capitalize" style={{ color: 'var(--text-slate-500)' }}>{formatRoles(user)}</span>
                   </CommandItem>
                 )}
               </CommandGroup>
