@@ -3430,7 +3430,7 @@ export default function DeliveriesPage() {
                     <p className="text-sm mt-2">Select a different year or add deliveries</p>
                   </div> :
 
-                  <div key={refreshKey} className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, 256px)' }}>
+                  <div key={refreshKey} className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(256px, 1fr))' }}>
                   {driverCards.map((card) => {
                 const isInactive = card.driver.status === 'inactive';
                 return (
