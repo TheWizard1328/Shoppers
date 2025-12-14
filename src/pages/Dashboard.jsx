@@ -6119,7 +6119,7 @@ function Dashboard() {
             retractClustersRef={retractClustersRef}
             areStopCardsVisible={deliveriesWithStopOrder.length > 0}
             highlightedDeliveryId={highlightedCardId}
-            stopCardsHeight={selectedCardId ? STOP_CARDS_EXPANDED_HEIGHT : stopCardsBaseHeight} />
+            stopCardsHeight={stopCardsBaseHeight} />
 
         </div>
 
