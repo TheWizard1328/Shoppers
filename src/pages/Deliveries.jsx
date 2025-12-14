@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
@@ -3411,9 +3412,9 @@ export default function DeliveriesPage() {
         <div className="flex-1 p-2 sm:p-4">
 
           {isDriverOverviewMode ?
-          <div className="flex flex-col overflow-hidden">
+          <div className="h-full flex flex-col">
               {/* Desktop Controls Banner - Large Screens (lg+) */}
-              <Card className="bg-white/80 backdrop-blur-sm hidden lg:block flex-shrink-0 mb-4">
+              <Card className="bg-white/80 backdrop-blur-sm hidden lg:block flex-shrink-0">
                 <CardContent className="p-6">
                   <div className="flex items-center gap-3">
                     {/* Search */}
@@ -3486,7 +3487,7 @@ export default function DeliveriesPage() {
               </Card>
 
               {/* Medium Screens Banner (md) */}
-              <Card className="bg-white/80 backdrop-blur-sm hidden md:block lg:hidden flex-shrink-0 mb-4">
+              <Card className="bg-white/80 backdrop-blur-sm hidden md:block lg:hidden flex-shrink-0">
                 <CardContent className="p-6">
                   <div className="space-y-3">
                     {/* Row 1: Search */}
@@ -3562,7 +3563,7 @@ export default function DeliveriesPage() {
               </Card>
 
               {/* Mobile Banner (sm and below) */}
-              <Card className="bg-white/80 backdrop-blur-sm md:hidden flex-shrink-0 mb-4">
+              <Card className="bg-white/80 backdrop-blur-sm md:hidden flex-shrink-0">
                 <CardContent className="p-4">
                   <div className="space-y-3">
                     {/* Row 1: Search */}
@@ -3645,7 +3646,8 @@ export default function DeliveriesPage() {
                 </CardContent>
               </Card>
 
-              <div className="flex-1 overflow-y-auto px-2">
+              {/* Scrollable Cards Container */}
+              <div className="flex-1 overflow-y-auto mt-6">
                 {driverCards.length === 0 ?
                   <div className="text-center py-12 text-slate-500">
                     <Package className="w-16 h-16 mx-auto mb-4 opacity-30" />
