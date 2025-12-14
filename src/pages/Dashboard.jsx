@@ -1066,10 +1066,14 @@ function Dashboard() {
       // Wait for render and animations to settle
       measurementTimeoutRef.current = setTimeout(() => {
         if (stopCardsContainerRef.current && !selectedCardId) {
-          const height = stopCardsContainerRef.current.offsetHeight;
-          if (height > 0) {
-            setStopCardsBaseHeight(height);
-            console.log('[Dashboard] Captured HorizontalStopCards base height:', height);
+          // CRITICAL: Measure the inner scroll container, not the outer wrapper
+          const scrollContainer = stopCardsContainerRef.current.querySelector('.overflow-x-auto');
+          if (scrollContainer) {
+            const height = scrollContainer.offsetHeight;
+            if (height > 0) {
+              setStopCardsBaseHeight(height);
+              console.log('[Dashboard] Captured HorizontalStopCards base height from scroll container:', height);
+            }
           }
         }
       }, 400);
