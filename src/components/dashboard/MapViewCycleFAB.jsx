@@ -3,10 +3,9 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Target, Maximize2, Minimize2 } from 'lucide-react';
 
-export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, stopCardsHeight = 145 }) {
-  // FIXED: Always use base (non-expanded) height - don't move when cards expand
-  const STOP_CARDS_BASE_HEIGHT = 135;
-  const bottomPixels = hasVisibleCards ? STOP_CARDS_BASE_HEIGHT + 10 : 25;
+export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, stopCardsHeight = 75 }) {
+  // Use measured stop cards height for accurate FAB positioning
+  const bottomPixels = hasVisibleCards ? stopCardsHeight + 10 : 25;
 
   // Get icon based on current phase (always white icon)
   const getIcon = () => {
