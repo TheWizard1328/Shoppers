@@ -3411,7 +3411,7 @@ export default function DeliveriesPage() {
         <div className="flex-1 overflow-hidden flex flex-col p-2 sm:p-4">
 
           {isDriverOverviewMode ?
-          <div className="flex flex-col h-full">
+          <div className="flex flex-col flex-1 min-h-0">
               {/* Desktop Controls Banner - Large Screens (lg+) */}
               <Card className="bg-white/80 backdrop-blur-sm hidden lg:block flex-shrink-0">
                 <CardContent className="p-6">
