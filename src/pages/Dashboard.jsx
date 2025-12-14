@@ -316,9 +316,6 @@ function Dashboard() {
 
   // Track previous map state for restoring when card is collapsed
   const [previousMapState, setPreviousMapState] = useState(null);
-  
-  // Measure actual stop cards height for FAB positioning
-  const [stopCardsHeight, setStopCardsHeight] = useState(STOP_CARDS_BASE_HEIGHT);
 
   // Track if we've done initial driver selection (prevent re-running on data changes)
   const hasSetInitialDriverDashboard = useRef(false);
@@ -337,11 +334,14 @@ function Dashboard() {
   const isDriver = useMemo(() => currentUser ? userHasRole(currentUser, 'driver') : false, [currentUser]);
   const isAdmin = useMemo(() => currentUser ? userHasRole(currentUser, 'admin') : false, [currentUser]);
 
-  const STOP_CARDS_EXPANDED_HEIGHT = 450; // Expanded card height for map padding
-  const STOP_CARDS_BASE_HEIGHT = 145; // Fixed non-expanded height for map padding
+  // CRITICAL: Define constants BEFORE useState that uses them
+  const STOP_CARDS_EXPANDED_HEIGHT = 450;
+  const STOP_CARDS_BASE_HEIGHT = 145;
+  const STATS_CARD_BASE_HEIGHT = 116;
+  const STATS_CARD_EXTENDED_HEIGHT = 216;
   
-  const STATS_CARD_BASE_HEIGHT = 116; // Fixed non-expanded height for map padding
-  const STATS_CARD_EXTENDED_HEIGHT = 216; // Extended height when expanded
+  // Measure actual stop cards height for FAB positioning
+  const [stopCardsHeight, setStopCardsHeight] = useState(STOP_CARDS_BASE_HEIGHT);
 
   // Computed padding values for consistent map bounds
   const getMapPadding = useCallback((cardExpanded = false) => {
