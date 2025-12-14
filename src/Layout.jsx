@@ -307,13 +307,13 @@ const UserImpersonation = ({ users = [], onImpersonate, onStopImpersonating, imp
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button variant="outline" className="w-full gap-2" style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
-            <Eye className="w-4 h-4" /> {impersonatingUser ? 'Switch User' : 'View as User'}
+            <Eye className="w-4 h-4" style={{ color: 'var(--text-slate-700)' }} /> {impersonatingUser ? 'Switch User' : 'View as User'}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[--radix-popover-trigger-width] p-0 z-[100001]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-          <Command style={{ background: 'var(--bg-white)' }}>
-            <CommandList style={{ background: 'var(--bg-white)' }}>
-              <CommandGroup style={{ background: 'var(--bg-white)' }}>
+        <PopoverContent className="w-[--radix-popover-trigger-width] p-0 z-[100001]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
+          <Command style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
+            <CommandList style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
+              <CommandGroup style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
                 {availableUsers.map((user) =>
                   <CommandItem
                     key={user.id}
