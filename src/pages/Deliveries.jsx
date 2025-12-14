@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
@@ -3412,7 +3411,7 @@ export default function DeliveriesPage() {
         <div className="flex-1 p-2 sm:p-4">
 
           {isDriverOverviewMode ?
-          <div className="h-full flex flex-col">
+          <div className="flex flex-col">
               {/* Desktop Controls Banner - Large Screens (lg+) */}
               <Card className="bg-white/80 backdrop-blur-sm hidden lg:block flex-shrink-0">
                 <CardContent className="p-6">
