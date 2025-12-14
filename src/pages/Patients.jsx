@@ -427,7 +427,7 @@ function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, importS
 
             return (
               <Card
-                key={store.id} className="rounded-xl border text-card-foreground shadow cursor-pointer hover:shadow-md transition-all duration-200 bg-white min-w-[340px]"
+                key={store.id} className="rounded-xl border text-card-foreground shadow cursor-pointer hover:shadow-md transition-all duration-200 bg-white min-w-[320px]"
 
                 style={{
                   borderColor: store.color || '#e2e8f0',
@@ -2062,7 +2062,7 @@ export default function Patients() {
 
       {/* Modals */}
       <AnimatePresence>
-        {showPatientForm && (
+        {showPatientForm &&
         <>
           {console.log('🔍 [Patients] Rendering PatientForm with props:', {
             citiesCount: cities?.length,
@@ -2083,7 +2083,7 @@ export default function Patients() {
             currentUser={currentUser}
             returnPatientOnSave={!!patientFormCallback} />
         </>
-        )}
+        }
       </AnimatePresence>
 
       <AnimatePresence>
