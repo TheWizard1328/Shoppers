@@ -3024,32 +3024,32 @@ export default function Layout({ children, currentPageName }) {
                             <MoreVertical className="w-5 h-5 text-slate-500" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-56 z-[10000]">
-                          <DropdownMenuLabel>Settings</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
+                        <DropdownMenuContent align="end" className="w-56 z-[10002]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
+                          <DropdownMenuLabel style={{ color: 'var(--text-slate-900)' }}>Settings</DropdownMenuLabel>
+                          <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
 
                           {/* Theme Toggle - Mobile Only */}
                           {isMobile && (
                             <>
                               <div className="px-2 py-2">
-                                <label className="text-xs font-medium text-slate-700 mb-1.5 block">
+                                <label className="text-xs font-medium mb-1.5 block" style={{ color: 'var(--text-slate-700)' }}>
                                   Theme
                                 </label>
                                 <Select
                                   value={themePreference}
                                   onValueChange={handleThemeChange}
                                 >
-                                  <SelectTrigger className="w-full bg-white border-slate-300 h-9">
+                                  <SelectTrigger className="w-full h-9" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                                     <SelectValue />
                                   </SelectTrigger>
-                                  <SelectContent className="z-[10002]">
-                                    <SelectItem value="auto">Auto (System)</SelectItem>
-                                    <SelectItem value="light">Light</SelectItem>
-                                    <SelectItem value="dark">Dark</SelectItem>
+                                  <SelectContent className="z-[10003]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                                    <SelectItem value="auto" style={{ color: 'var(--text-slate-900)' }}>Auto (System)</SelectItem>
+                                    <SelectItem value="light" style={{ color: 'var(--text-slate-900)' }}>Light</SelectItem>
+                                    <SelectItem value="dark" style={{ color: 'var(--text-slate-900)' }}>Dark</SelectItem>
                                   </SelectContent>
                                 </Select>
                               </div>
-                              <DropdownMenuSeparator />
+                              <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
                             </>
                           )}
 
