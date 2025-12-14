@@ -3211,7 +3211,7 @@ export default function DeliveriesPage() {
         <div className="flex-1 flex flex-col overflow-hidden min-h-0">
 
           {isDriverOverviewMode ?
-          <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <div className="flex flex-col h-full overflow-hidden">
               <Card className="bg-white/80 backdrop-blur-sm hidden lg:block flex-shrink-0 m-4 mb-2">
                 <CardContent className="p-6">
                   <div className="flex items-center gap-3">
