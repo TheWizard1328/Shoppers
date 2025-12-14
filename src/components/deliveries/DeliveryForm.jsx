@@ -205,6 +205,7 @@ export default function DeliveryForm({
   const [scanMatches, setScanMatches] = useState([]);
   const [showMatchPopup, setShowMatchPopup] = useState(false);
   const [extractedData, setExtractedData] = useState(null);
+  const [hasPendingDeletes, setHasPendingDeletes] = useState(false);
 
   // Camera state
   const videoRef = useRef(null);
@@ -381,9 +382,9 @@ export default function DeliveryForm({
   const buttonState = useMemo(() => {
     if (delivery) return 'update';
     if (editingStagedId) return 'updateStaged';
-    if (stagedDeliveries.length > 0 && !hasFormData) return 'done';
+    if ((stagedDeliveries.length > 0 || hasPendingDeletes) && !hasFormData) return 'done';
     return 'add';
-  }, [delivery, editingStagedId, stagedDeliveries.length, hasFormData]);
+  }, [delivery, editingStagedId, stagedDeliveries.length, hasFormData, hasPendingDeletes]);
 
   const cancelButtonState = useMemo(() => hasFormData ? 'clear' : 'cancel', [hasFormData]);
 
@@ -1954,6 +1955,7 @@ export default function DeliveryForm({
       console.log('[AddToRoute] 🧹 Clearing staged deliveries from state...');
       setStagedDeliveries([]);
       setProjectedDeliveries([]);
+      setHasPendingDeletes(false); // Reset pending deletes flag
       hasLoadedPending.current = false; // Reset flag to allow reload
       console.log('[AddToRoute] ✅ Staged deliveries cleared');
       
@@ -4118,6 +4120,9 @@ export default function DeliveryForm({
 
                     // Remove from staged list completely
                     setStagedDeliveries((prev) => prev.filter((item) => item.id !== staged.id && item._tempId !== staged._tempId));
+
+                    // Mark that we have pending deletes to activate Done button
+                    setHasPendingDeletes(true);
 
                     // Clear editing state if this was the one being edited
                     if (editingStagedId === staged._tempId) {
