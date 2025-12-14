@@ -340,8 +340,9 @@ function Dashboard() {
   const STATS_CARD_BASE_HEIGHT = 116;
   const STATS_CARD_EXTENDED_HEIGHT = 216;
   
-  // Capture non-expanded stop cards height once for FAB positioning
+  // Track HorizontalStopCards container base height for FAB positioning
   const [stopCardsBaseHeight, setStopCardsBaseHeight] = useState(75);
+  const measurementTimeoutRef = useRef(null);
 
   // Computed padding values for consistent map bounds
   const getMapPadding = useCallback((cardExpanded = false) => {
@@ -1053,23 +1054,33 @@ function Dashboard() {
     };
   }, [cardWidth, isExpanded, screenWidth, isMapViewLocked, mapViewPhase]);
 
-  // Measure stop cards height only when they're in non-expanded state
+  // Measure HorizontalStopCards container height when in non-expanded state
   useEffect(() => {
-    if (!selectedCardId && stopCardsContainerRef.current) {
-      // Wait for collapse animation to complete
-      const timer = setTimeout(() => {
+    // Clear any pending measurement
+    if (measurementTimeoutRef.current) {
+      clearTimeout(measurementTimeoutRef.current);
+    }
+
+    // Only measure when no card is expanded
+    if (!selectedCardId && stopCardsContainerRef.current && deliveriesWithStopOrder.length > 0) {
+      // Wait for render and animations to settle
+      measurementTimeoutRef.current = setTimeout(() => {
         if (stopCardsContainerRef.current && !selectedCardId) {
           const height = stopCardsContainerRef.current.offsetHeight;
-          if (height > 0 && height < 200) {
-            // Only update if it's clearly non-expanded height
+          if (height > 0) {
             setStopCardsBaseHeight(height);
-            console.log('[Dashboard] Captured non-expanded stop cards height:', height);
+            console.log('[Dashboard] Captured HorizontalStopCards base height:', height);
           }
         }
-      }, 350); // Wait for animation to complete
-      return () => clearTimeout(timer);
+      }, 400);
     }
-  }, [selectedCardId]);
+
+    return () => {
+      if (measurementTimeoutRef.current) {
+        clearTimeout(measurementTimeoutRef.current);
+      }
+    };
+  }, [selectedCardId, deliveriesWithStopOrder.length, currentUser?.id]);
 
   useEffect(() => {
     const fetchGoogleApiKey = async () => {
