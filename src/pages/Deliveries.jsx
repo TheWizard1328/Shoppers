@@ -3408,7 +3408,7 @@ export default function DeliveriesPage() {
           }
         </AnimatePresence>
 
-        //* <div className="flex-1 overflow-hidden p-2 sm:p-4"> *//
+        {/* <div className="flex-1 overflow-hidden p-2 sm:p-4"> */}
 
           {isDriverOverviewMode ?
           <div className="flex flex-col h-full">
@@ -3811,7 +3811,7 @@ export default function DeliveriesPage() {
             }
             </>
           }
-        //* </div> *//
+        {/* </div> */}
 
       </div>
 
