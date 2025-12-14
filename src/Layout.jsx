@@ -2373,6 +2373,18 @@ export default function Layout({ children, currentPageName }) {
           color: #64748b !important;
         }
 
+        /* Force black text on highlighted menu items (yellow background) */
+        [role="option"][aria-selected="true"],
+        [role="option"][data-selected="true"],
+        [cmdk-item][data-selected="true"] {
+          color: #000000 !important;
+        }
+        [role="option"][aria-selected="true"] span,
+        [role="option"][data-selected="true"] span,
+        [cmdk-item][data-selected="true"] span {
+          color: #000000 !important;
+        }
+
         ${Array.from({ length: 12 }, (_, i) => {
           const colors = [
             '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6',
