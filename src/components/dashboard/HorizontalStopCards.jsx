@@ -182,7 +182,7 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
 
   return (
     <div
-      ref={containerRef} className="flex gap-3 overflow-x-auto overflow-y-visible items-end min-h-[140px] pointer-events-auto z-[200]"
+      ref={containerRef} className="flex gap-3 overflow-x-auto overflow-y-visible items-end min-h-[135px] pointer-events-auto z-[200]"
 
       style={{
         scrollbarWidth: 'thin',
