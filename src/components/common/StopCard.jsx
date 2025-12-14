@@ -136,6 +136,7 @@ export default function StopCard({
   const [isPreparingReturn, setIsPreparingReturn] = useState(false);
   const [showFailureReasonDialog, setShowFailureReasonDialog] = useState(false);
   const [pendingFailureStatus, setPendingFailureStatus] = useState(null);
+  const [isHovered, setIsHovered] = useState(false);
   const codAmountInputRefs = useRef([]);
   const { setIsEntityUpdating, forceRefreshDriverDeliveries } = useAppData();
 
