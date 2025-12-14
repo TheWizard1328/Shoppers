@@ -40,7 +40,6 @@ import MapViewCycleFAB from "@/components/dashboard/MapViewCycleFAB";
 import { getOrGenerateRoutePolyline, getStoredRouteCoordinates } from "@/components/utils/routePolylineManager";
 import { determinePolylineSegment, fetchPolylineForSegment } from "@/components/utils/dynamicPolylineManager";
 import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
 import { driverLocationPoller } from "@/components/utils/driverLocationPoller";
 import { getAvailableDrivers } from "@/components/utils/driverSelectors";
 import RouteSummaryModal from "@/components/dashboard/RouteSummaryModal";
@@ -329,8 +328,6 @@ function Dashboard() {
 
   // Route optimization notification
   const [routeNotification, setRouteNotification] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   // CRITICAL: Calculate isDriver early (before useEffect that needs it)
   const isMobile = useMemo(() => isMobileDevice(), []);
@@ -5980,85 +5977,16 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* Mobile Controls - Search on first row, Date + Driver on second row */}
-      {isMobile && (
-        <div className="absolute top-2 left-2 right-2 z-[500] space-y-2 pointer-events-auto" style={{ touchAction: 'manipulation' }}>
-          {/* First Row: Search Field */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
-            <Input
-              type="text"
-              placeholder="Search deliveries..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 h-9 border-slate-300 text-sm rounded-lg shadow-sm"
-              style={{ background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}
-            />
-          </div>
-
-          {/* Second Row: Date Picker + Driver Dropdown */}
-          <div className="flex gap-2">
-            <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="flex-1 justify-start text-left font-normal border-slate-300 h-9 text-sm shadow-sm"
-                  style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)' }}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {format(selectedDate, 'MMM dd')}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 z-[10001]" align="start" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={(date) => {
-                    if (!date) return;
-                    if (format(date, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd')) {
-                      setDatePickerOpen(false);
-                      return;
-                    }
-                    handleDateChange(date);
-                    setDatePickerOpen(false);
-                  }}
-                  month={calendarMonth}
-                  onMonthChange={setCalendarMonth}
-                  className="rdp p-3"
-                />
-              </PopoverContent>
-            </Popover>
-
-            <Select
-              value={selectedDriverId || 'all'}
-              onValueChange={handleDriverChange}
-              disabled={isDriverDropdownDisabled}
-            >
-              <SelectTrigger className="flex-1 border-slate-300 h-9 text-sm shadow-sm" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)' }}>
-                <SelectValue placeholder="Driver" />
-              </SelectTrigger>
-              <SelectContent className="z-[10001]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Drivers</SelectItem>
-                {driversList.map((driver) => (
-                  <SelectItem key={driver.id} value={driver.id} style={{ color: 'var(--text-slate-900)' }}>
-                    {driver.user_name || driver.full_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      )}
-
       <div className="flex-1 w-full relative min-h-0">
-      {/* Polyline API hits badge - App Owner only (upper-left corner) */}
-      {currentUser && isAppOwner(currentUser) && dailyPolylineCount !== null &&
-      <div className="absolute top-2 left-2 z-[999]">
-          <div className="backdrop-blur-sm rounded-lg px-2 py-1 shadow-sm border text-xs font-medium" style={{ background: 'var(--bg-white)', opacity: 0.9, borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-600)' }}>
-            🛣️ {dailyPolylineCount}
+        {/* Polyline API hits badge - App Owner only */}
+        {/* Polyline API hits badge - App Owner only (upper-left corner) */}
+        {currentUser && isAppOwner(currentUser) && dailyPolylineCount !== null &&
+        <div className="absolute top-2 left-2 z-[999]">
+            <div className="backdrop-blur-sm rounded-lg px-2 py-1 shadow-sm border text-xs font-medium" style={{ background: 'var(--bg-white)', opacity: 0.9, borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-600)' }}>
+              🛣️ {dailyPolylineCount}
+            </div>
           </div>
-        </div>
-      }
+        }
 
         {/* Desktop: Offline Sync Indicator */}
         {!isMobile && <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} />}
