@@ -1453,146 +1453,125 @@ export default function Layout({ children, currentPageName }) {
       const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
       const selectedYear = selectedDate.getFullYear();
 
-      console.log(`📅 [Layout] Starting sequential data loading with rate limit protection...`);
-      console.log(`📋 [Layout] NEW Load order: AppUsers → Cities → Stores → Patients → Deliveries (selected date) → UI Render → Full Month Background`);
-      console.log(`⏱️ [Layout] Adding 200ms delays between entity loads to prevent rate limits`);
+      console.log(`📅 [Layout] OPTIMIZED: Parallel data loading with built-in rate limiting`);
+      console.log(`📋 [Layout] Load order: AppUsers + Cities + Stores (parallel) → Deliveries (selected date) → UI Render → Patients + Full Month Background`);
 
       let workingCities = cities;
       const isAdmin = userHasRole(currentUser, 'admin');
 
-      // Step 1: AppUsers
-      const allAppUsers = await getData('AppUser', null, null, forceRefresh);
-      console.log(`✅ [Layout] Step 1: Loaded ${allAppUsers.length} AppUsers`);
-      await new Promise(resolve => setTimeout(resolve, 200));
+      // OPTIMIZED: Load AppUsers, Cities, and Stores in parallel (dataManager handles rate limiting)
+      const [allAppUsers, citiesData, allStores] = await Promise.all([
+        getData('AppUser', null, null, forceRefresh),
+        workingCities?.length > 0 ? Promise.resolve(workingCities) : City.list(),
+        getData('Store', null, null, forceRefresh)
+      ]);
 
-      // Step 2: Cities
-      if (!workingCities || workingCities.length === 0) {
-        workingCities = await City.list();
-        workingCities.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
-        setCities(workingCities);
-        console.log(`✅ [Layout] Step 2: Loaded ${workingCities.length} Cities`);
-        await new Promise(resolve => setTimeout(resolve, 200));
+      if (citiesData && (!workingCities || workingCities.length === 0)) {
+        citiesData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+        setCities(citiesData);
+        workingCities = citiesData;
       }
 
-      // Step 3: Stores
-      const allStores = await getData('Store', null, null, forceRefresh);
       allStores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
-      console.log(`✅ [Layout] Step 3: Loaded ${allStores.length} Stores`);
-      await new Promise(resolve => setTimeout(resolve, 200));
+      console.log(`✅ [Layout] Parallel load complete: ${allAppUsers.length} AppUsers, ${workingCities.length} Cities, ${allStores.length} Stores`);
 
-      // Step 4: Patients (NO FILTER - dispatchers need all patient coords for map markers)
-      const patientsData = await getData('Patient', null, null, forceRefresh);
-      setPatients(patientsData);
-      console.log(`✅ [Layout] Step 4: Loaded ${patientsData.length} Patients (all - needed for map coordinates)`);
-      await new Promise(resolve => setTimeout(resolve, 200));
-
-      // Step 5: Deliveries - OPTIMIZED: Prioritize selected driver first
-      // Build city store filter (ALWAYS used to restrict to selected city)
+      // CRITICAL: Load deliveries for selected date FIRST (instant UI)
       let cityStoreFilter = {};
       const cityStoreIds = allStores.map(s => s?.id).filter(Boolean);
-      if (cityStoreFilter.length > 0) {
+      if (cityStoreIds.length > 0) {
         cityStoreFilter.store_id = { $in: cityStoreIds };
       }
 
-      // PRIORITY: Load ONLY selected driver's data first for instant UI
       let priorityFilter = { ...cityStoreFilter };
       if (selectedDriverId && selectedDriverId !== 'all') {
         priorityFilter.driver_id = selectedDriverId;
-        console.log(`⚡ [Layout] Priority loading: Driver ${selectedDriverId} only`);
       }
 
-      // BACKGROUND: Load remaining drivers after UI renders
-      let backgroundFilter = { ...cityStoreFilter };
-
+      // Load deliveries with instant UI callback
       await loadDeliveries(
         selectedDateStr,
-        priorityFilter, // PRIORITY: Selected driver only (or all if 'all' selected)
-        backgroundFilter, // BACKGROUND: Full city data
+        priorityFilter,
+        cityStoreFilter,
         forceRefresh,
-        // Initial load callback (selected driver/date - INSTANT UI)
+        // Instant UI callback
         (initialDeliveries) => {
-          console.log(`⚡ [Layout] Step 5a: INSTANT UI update with ${initialDeliveries.length} deliveries for ${selectedDriverId === 'all' ? 'all drivers' : 'selected driver'}`);
+          console.log(`⚡ [Layout] INSTANT: ${initialDeliveries.length} deliveries loaded - UI ready NOW`);
           setDeliveries(initialDeliveries);
-
-          // Update patient cache with missing patients from deliveries
-          const patientIdsInDeliveries = [...new Set(initialDeliveries.filter(d => d?.patient_id).map(d => d.patient_id))];
-          const existingPatientIds = new Set(patientsData.map(p => p.id));
-          const missingPatientIds = patientIdsInDeliveries.filter(pId => !existingPatientIds.has(pId));
-
-          if (missingPatientIds.length > 0) {
-            console.log(`⚡ [Layout] Fetching ${missingPatientIds.length} missing patients...`);
-            Patient.filter({ id: { $in: missingPatientIds } }).then(newPatients => {
-              setPatients(prev => [...prev, ...newPatients]);
-              console.log(`✅ [Layout] Added ${newPatients.length} missing patients`);
-            }).catch(err => {
-              console.warn('⚠️ [Layout] Error fetching missing patients:', err);
-            });
-          }
-
-          // UI is ready to render
           setDataLoaded(true);
-          console.log(`✅ [Layout] === UI READY - Dashboard can render ===`);
+          console.log(`✅ [Layout] === UI READY - Dashboard rendering ===`);
+
+          // BACKGROUND: Load patients after UI is visible
+          setTimeout(async () => {
+            const patientsData = await getData('Patient', null, null, forceRefresh);
+            setPatients(patientsData);
+            console.log(`✅ [Layout] Background: ${patientsData.length} patients loaded`);
+          }, 100);
         },
-        // Background callback - load remaining drivers + full month
+        // Background callback
         (fullMonthDeliveries) => {
-          console.log(`🔄 [Layout] Step 5b: Background loading - merging ${fullMonthDeliveries.length} full dataset`);
           setDeliveries(prevDeliveries => {
             const map = new Map();
             fullMonthDeliveries.forEach(d => map.set(d.id, d));
-            prevDeliveries.forEach(d => map.set(d.id, d)); // Priority data takes precedence
-            const merged = Array.from(map.values());
-            console.log(`✅ [Layout] Background: Merged to ${merged.length} total deliveries`);
-            return merged;
+            prevDeliveries.forEach(d => map.set(d.id, d));
+            return Array.from(map.values());
           });
         }
       );
 
-      await new Promise(resolve => setTimeout(resolve, 200));
-
-      // Step 6: Users (admin only)
+      // Load Users in background (admin only)
       let authUsersData = [];
       if (userHasRole(currentUser, 'admin')) {
-        authUsersData = await getData('User', null, null, forceRefresh);
-        console.log(`✅ [Layout] Step 6: Loaded ${authUsersData.length} Users`);
-      } else {
-        console.log(`ℹ️ [Layout] Step 6: Skipping User.list() - non-admin`);
-      }
-      await new Promise(resolve => setTimeout(resolve, 200));
+        setTimeout(async () => {
+          authUsersData = await getData('User', null, null, forceRefresh);
+          console.log(`✅ [Layout] Background: ${authUsersData.length} Users loaded`);
 
-      console.log('🔀 [Layout] Building merged user list from AppUsers and currentUser...');
+          // Update merged users after Users load
+          const mergedUsersMap = new Map();
+          if (currentUser) mergedUsersMap.set(currentUser.id, currentUser);
+
+          authUsersData.forEach(authUser => {
+            if (!authUser) return;
+            const appUser = allAppUsers.find(au => au && au.user_id === authUser.id);
+            const merged = createMergedUser(authUser, appUser);
+            if (merged) mergedUsersMap.set(merged.id, merged);
+          });
+
+          const mergedUsers = Array.from(mergedUsersMap.values()).filter(Boolean);
+          setUsers(mergedUsers);
+
+          let activeDrivers = mergedUsers.filter(user => {
+            if (!user || !user.app_roles || !Array.isArray(user.app_roles)) return false;
+            if (!user.app_roles.includes('driver') && !user.app_roles.includes('admin')) return false;
+            if (!user.user_name) return false;
+            if (user.status !== 'active') return false;
+            return true;
+          });
+          activeDrivers = sortUsers(activeDrivers);
+          setDrivers(activeDrivers);
+          console.log(`✅ [Layout] Background: ${activeDrivers.length} active drivers`);
+        }, 500);
+      }
+
+      // Build initial user list from AppUsers (non-admins)
+      console.log('🔀 [Layout] Building initial user list from AppUsers...');
       const mergedUsersMap = new Map();
 
-      // Add current user first
       if (currentUser) {
         mergedUsersMap.set(currentUser.id, currentUser);
       }
 
-      // For admins: merge authUsers with appUsers
-      if (authUsersData.length > 0) {
-        authUsersData.forEach(authUser => {
-          if (!authUser) return;
-          const appUser = allAppUsers.find(au => au && au.user_id === authUser.id);
-          const merged = createMergedUser(authUser, appUser);
-          if (merged) {
-            mergedUsersMap.set(merged.id, merged);
-          }
-        });
-      } else {
-        // For non-admins: create users from AppUser data only
-        allAppUsers.forEach(appUser => {
-          if (!appUser || mergedUsersMap.has(appUser.user_id)) return;
-          const pseudoUser = createMergedUser(null, appUser);
-          if (pseudoUser) {
-            mergedUsersMap.set(pseudoUser.id, pseudoUser);
-          }
-        });
-      }
+      // For non-admins: create users from AppUser data only (faster)
+      allAppUsers.forEach(appUser => {
+        if (!appUser || mergedUsersMap.has(appUser.user_id)) return;
+        const pseudoUser = createMergedUser(null, appUser);
+        if (pseudoUser) {
+          mergedUsersMap.set(pseudoUser.id, pseudoUser);
+        }
+      });
 
-      const mergedUsers = Array.from(mergedUsersMap.values()).filter(Boolean);
-      console.log(`✅ [Layout] Merged ${mergedUsers.length} users`);
+      const initialUsers = Array.from(mergedUsersMap.values()).filter(Boolean);
 
-      // Get ALL active drivers - no geographic filtering
-      let activeDrivers = mergedUsers.filter(user => {
+      let activeDrivers = initialUsers.filter(user => {
         if (!user || !user.app_roles || !Array.isArray(user.app_roles)) return false;
         if (!user.app_roles.includes('driver') && !user.app_roles.includes('admin')) return false;
         if (!user.user_name) return false;
@@ -1600,11 +1579,10 @@ export default function Layout({ children, currentPageName }) {
         return true;
       });
       activeDrivers = sortUsers(activeDrivers);
-      console.log(`✅ [Layout] Populated ${activeDrivers.length} active drivers`);
+      console.log(`✅ [Layout] Initial: ${activeDrivers.length} active drivers from AppUsers`);
 
-
-      console.log('💾 [Layout] Updating Layout state (users, drivers, stores, appUsers)...');
-      setUsers(mergedUsers);
+      // Set initial state
+      setUsers(initialUsers);
       setDrivers(activeDrivers);
       setStores(allStores);
       setAppUsers(allAppUsers);
