@@ -311,9 +311,9 @@ const UserImpersonation = ({ users = [], onImpersonate, onStopImpersonating, imp
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[--radix-popover-trigger-width] p-0 z-[100001]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-          <Command>
-            <CommandList>
-              <CommandGroup>
+          <Command style={{ background: 'var(--bg-white)' }}>
+            <CommandList style={{ background: 'var(--bg-white)' }}>
+              <CommandGroup style={{ background: 'var(--bg-white)' }}>
                 {availableUsers.map((user) =>
                   <CommandItem
                     key={user.id}
