@@ -3408,7 +3408,7 @@ export default function DeliveriesPage() {
           }
         </AnimatePresence>
 
-        <div className="flex-1 overflow-hidden flex flex-col p-2 sm:p-4">
+        <div className="flex-1 flex flex-col overflow-hidden">
 
           {isDriverOverviewMode ?
           <div className="flex flex-col flex-1 min-h-0">
