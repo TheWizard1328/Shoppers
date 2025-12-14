@@ -3813,7 +3813,7 @@ export default function DeliveriesPage() {
           }
         </div>
 
-      {/* </div> */}
+      </div>
 
       <AnimatePresence>
         {showDeliveryForm &&
