@@ -206,6 +206,7 @@ export default function DeliveryForm({
   const [showMatchPopup, setShowMatchPopup] = useState(false);
   const [extractedData, setExtractedData] = useState(null);
   const [hasPendingDeletes, setHasPendingDeletes] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
 
   // Camera state
   const videoRef = useRef(null);
@@ -914,6 +915,8 @@ export default function DeliveryForm({
       delivery_address: patient.address || patientStore.address,
       isNextDelivery: false
     }]);
+    
+    setHasChanges(true);
 
     // Remove from projected deliveries if exists
     setProjectedDeliveries((prev) => prev.filter((p) => p.patient_id !== patient.id));
@@ -1464,6 +1467,8 @@ export default function DeliveryForm({
       distanceFromStore: distanceFromStore,
       delivery_address: patient?.address || store.address
     }]);
+    
+    setHasChanges(true);
 
     // Remove matching projected delivery if exists
     setProjectedDeliveries((prev) => prev.filter((p) => p.patient_id !== formData.patient_id));
@@ -1585,6 +1590,7 @@ export default function DeliveryForm({
       return updatedStaged;
     }));
 
+    setHasChanges(true);
     setError(null);
     setEditingStagedId(null);
     setSelectedPatient(null);
@@ -1956,6 +1962,7 @@ export default function DeliveryForm({
       setStagedDeliveries([]);
       setProjectedDeliveries([]);
       setHasPendingDeletes(false); // Reset pending deletes flag
+      setHasChanges(false); // Reset changes flag
       hasLoadedPending.current = false; // Reset flag to allow reload
       console.log('[AddToRoute] ✅ Staged deliveries cleared');
       
@@ -2609,63 +2616,11 @@ export default function DeliveryForm({
     setStagedDeliveries((prev) => [...prev, {
       patient_id: projected.patient_id,
       patient_name: projected.patient_name,
-      patient_phone: patient.phone || '',
-      unit_number: patient.unit_number || '',
-      delivery_date: formData.delivery_date,
-      delivery_time_start: patient.time_window_start || '',
-      delivery_time_end: patient.time_window_end || (patient.time_window_start ? '' : ''),
-      time_window_start: patient.time_window_start || '',
-      time_window_end: patient.time_window_end || (patient.time_window_start ? '' : ''),
-      puid: puid || '',
-      ampm_deliveries: timeSlot,
-      status: 'Ready For Pickup',
-      driver_id: autoSelectedDriverId,
-      driver_name: autoSelectedDriverName,
-      prescription_number: projected.prescription_number || '',
-      delivery_instructions: patient.notes || '',
-      delivery_notes: '',
-      cod_total_amount_required: projected.cod_total_amount_required || 0,
-      cod_payments: [],
-      cod_payment_type: 'No Payment',
-      tracking_number: '',
-      delivery_stop_id: '',
-      stop_id: '',
-      store_id: projected.store_id,
-      store_name: store.name,
-      store_abbreviation: store.abbreviation,
-      store_phone: store.phone || '',
-      mailbox_ok: patient.mailbox_ok || false,
-      call_upon_arrival: patient.call_upon_arrival || false,
-      ring_bell: patient.ring_bell || false,
-      dont_ring_bell: patient.dont_ring_bell || false,
-      back_door: patient.back_door || false,
-      signature_needed: patient.signature_needed || false,
-      fridge_item: patient.fridge_item || false,
-      oversized: patient.oversized || false,
-      after_hours_pickup: false,
-      no_charge: false,
-      extra_time: projected.extra_time || 0,
-      recurring: patient.recurring || false,
-      recurring_daily: patient.recurring_daily || false,
-      recurring_weekly_mon: patient.recurring_weekly_mon || false,
-      recurring_weekly_tue: patient.recurring_weekly_tue || false,
-      recurring_weekly_wed: patient.recurring_weekly_wed || false,
-      recurring_weekly_thu: patient.recurring_weekly_thu || false,
-      recurring_weekly_fri: patient.recurring_weekly_fri || false,
-      recurring_weekly_sat: patient.recurring_weekly_sat || false,
-      recurring_weekly_sun: patient.recurring_weekly_sun || false,
-      recurring_biweekly: patient.recurring_biweekly || false,
-      recurring_weekly_x4: patient.recurring_weekly_x4 || false,
-      recurring_monthly: patient.recurring_monthly || false,
-      recurring_bimonthly: patient.recurring_bimonthly || false,
-      _tempId: Date.now() + Math.random(),
-      _wasProjected: true,
-      _originalProjected: projected,
-      distanceFromStore: distanceFromStore,
-      delivery_address: patient.address || '',
+...
       isNextDelivery: false
     }]);
 
+    setHasChanges(true);
     setProjectedDeliveries((prev) => prev.filter((p) => p.patient_id !== projected.patient_id));
   }, [formData, stores, patients, allDrivers, currentUser]);
 
@@ -3975,7 +3930,7 @@ export default function DeliveryForm({
                     size="sm"
                     onClick={() => handleBatchSave()} className="inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow h-8 rounded-md px-3 text-xs !text-white bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
 
-                    disabled={isSaving || stagedDeliveries.length === 0 || isPatientFormOpen}>
+                    disabled={isSaving || !hasChanges || isPatientFormOpen}>
                     {isSaving ?
                       <>
                         <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
@@ -4121,7 +4076,8 @@ export default function DeliveryForm({
                     // Remove from staged list completely
                     setStagedDeliveries((prev) => prev.filter((item) => item.id !== staged.id && item._tempId !== staged._tempId));
 
-                    // Mark that we have pending deletes to activate Done button
+                    // Mark that we have changes to activate Done button
+                    setHasChanges(true);
                     setHasPendingDeletes(true);
 
                     // Clear editing state if this was the one being edited
