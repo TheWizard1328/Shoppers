@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
@@ -2958,7 +2957,7 @@ export default function DeliveriesPage() {
   const shouldShowNoDataMessage = !isLoading && (isOffline || effectiveDeliveries.length === 0);
 
   return (
-    <div className="h-screen flex flex-col bg-slate-50 relative overflow-hidden">
+    <div className="h-screen h-[100dvh] flex flex-col bg-slate-50 relative overflow-hidden">
 
       <div className={`${isMobile ? 'block' : 'hidden'} border-b border-slate-200 bg-white px-4 py-3 flex-shrink-0 z-20`}>
         {isDriverOverviewMode ?
@@ -3212,7 +3211,7 @@ export default function DeliveriesPage() {
         <div className="flex-1 flex flex-col overflow-hidden min-h-0">
 
           {isDriverOverviewMode ?
-          <div className="flex flex-col h-full overflow-hidden">
+          <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
               <Card className="bg-white/80 backdrop-blur-sm hidden lg:block flex-shrink-0 m-4 mb-2">
                 <CardContent className="p-6">
                   <div className="flex items-center gap-3">
