@@ -336,7 +336,7 @@ function Dashboard() {
 
   // CRITICAL: Define constants BEFORE useState that uses them
   const STOP_CARDS_EXPANDED_HEIGHT = 450;
-  const STOP_CARDS_BASE_HEIGHT = 145;
+  const STOP_CARDS_BASE_HEIGHT = 75;
   const STATS_CARD_BASE_HEIGHT = 116;
   const STATS_CARD_EXTENDED_HEIGHT = 216;
   
