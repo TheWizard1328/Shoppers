@@ -340,8 +340,9 @@ function Dashboard() {
   const STATS_CARD_BASE_HEIGHT = 116;
   const STATS_CARD_EXTENDED_HEIGHT = 216;
   
-  // Measure actual stop cards height for FAB positioning (dynamically measured, not hardcoded)
+  // Measure actual stop cards height for FAB positioning (captured once, stays fixed)
   const [stopCardsBaseHeight, setStopCardsBaseHeight] = useState(75);
+  const baseHeightCaptured = useRef(false);
 
   // Computed padding values for consistent map bounds
   const getMapPadding = useCallback((cardExpanded = false) => {
@@ -1053,24 +1054,21 @@ function Dashboard() {
     };
   }, [cardWidth, isExpanded, screenWidth, isMapViewLocked, mapViewPhase]);
 
-  // Separate effect to measure stop cards only when selection changes
+  // Measure stop cards base height once and keep it stable
   useEffect(() => {
-    const measureStopCards = () => {
-      if (stopCardsContainerRef.current && !selectedCardId) {
-        const height = stopCardsContainerRef.current.offsetHeight;
-        if (height > 0) {
-          setStopCardsBaseHeight(height);
-        }
+    if (!selectedCardId && stopCardsContainerRef.current && !baseHeightCaptured.current) {
+      const height = stopCardsContainerRef.current.offsetHeight;
+      if (height > 0) {
+        setStopCardsBaseHeight(height);
+        baseHeightCaptured.current = true;
       }
-    };
-
-    // Measure immediately
-    measureStopCards();
-    
-    // Also measure after a brief delay to account for animations
-    const timer = setTimeout(measureStopCards, 100);
-    return () => clearTimeout(timer);
+    }
   }, [selectedCardId, deliveriesWithStopOrder.length]);
+
+  // Reset captured flag when deliveries change significantly
+  useEffect(() => {
+    baseHeightCaptured.current = false;
+  }, [deliveriesWithStopOrder.length]);
 
   useEffect(() => {
     const fetchGoogleApiKey = async () => {
