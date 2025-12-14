@@ -3411,9 +3411,9 @@ export default function DeliveriesPage() {
         <div className="flex-1 p-2 sm:p-4">
 
           {isDriverOverviewMode ?
-          <div className="h-full flex flex-col overflow-hidden">
+          <div className="space-y-6">
               {/* Desktop Controls Banner - Large Screens (lg+) */}
-              <Card className="bg-white/80 backdrop-blur-sm hidden lg:block flex-shrink-0">
+              <Card className="bg-white/80 backdrop-blur-sm hidden lg:block">
                 <CardContent className="p-6">
                   <div className="flex items-center gap-3">
                     {/* Search */}
@@ -3486,7 +3486,7 @@ export default function DeliveriesPage() {
               </Card>
 
               {/* Medium Screens Banner (md) */}
-              <Card className="bg-white/80 backdrop-blur-sm hidden md:block lg:hidden flex-shrink-0">
+              <Card className="bg-white/80 backdrop-blur-sm hidden md:block lg:hidden">
                 <CardContent className="p-6">
                   <div className="space-y-3">
                     {/* Row 1: Search */}
@@ -3562,7 +3562,7 @@ export default function DeliveriesPage() {
               </Card>
 
               {/* Mobile Banner (sm and below) */}
-              <Card className="bg-white/80 backdrop-blur-sm md:hidden flex-shrink-0">
+              <Card className="bg-white/80 backdrop-blur-sm md:hidden">
                 <CardContent className="p-4">
                   <div className="space-y-3">
                     {/* Row 1: Search */}
@@ -3645,15 +3645,14 @@ export default function DeliveriesPage() {
                 </CardContent>
               </Card>
 
-              <div className="flex-1 overflow-y-auto">
-                {driverCards.length === 0 ?
-                  <div className="text-center py-12 text-slate-500">
-                    <Package className="w-16 h-16 mx-auto mb-4 opacity-30" />
-                    <p className="text-lg font-medium">No drivers with deliveries for this period</p>
-                    <p className="text-sm mt-2">Select a different year or add deliveries</p>
-                  </div> :
+              {driverCards.length === 0 ?
+            <div className="text-center py-12 text-slate-500">
+                  <Package className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                  <p className="text-lg font-medium">No drivers with deliveries for this period</p>
+                  <p className="text-sm mt-2">Select a different year or add deliveries</p>
+                </div> :
 
-                  <div key={refreshKey} className="grid gap-3 pb-6" style={{ gridTemplateColumns: 'repeat(auto-fit, 256px)' }}>
+            <div key={refreshKey} className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, 256px)' }}>
                   {driverCards.map((card) => {
                 const isInactive = card.driver.status === 'inactive';
                 return (
@@ -3720,9 +3719,8 @@ export default function DeliveriesPage() {
                       </Card>);
 
               })}
-                  </div>
-                }
-              </div>
+                </div>
+            }
             </div> :
 
           <>
