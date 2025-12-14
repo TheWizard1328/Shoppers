@@ -3,17 +3,9 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Target, Maximize2, Minimize2 } from 'lucide-react';
 
-export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, stopCardsHeight = 0 }) {
-  // Dynamic bottom position based on AI visibility and visible cards
-  const getBottomPosition = () => {
-    if (isAIVisible) {
-      // AI panel is open - position above it
-      return hasVisibleCards ? `bottom-[${stopCardsHeight + 20}px]` : 'bottom-[25px]';
-    } else {
-      // AI is hidden (only FAB showing) - position ABOVE the AI FAB
-      return hasVisibleCards ? `bottom-[${stopCardsHeight + 20}px]` : 'bottom-[25px]';
-    }
-  };
+export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, stopCardsHeight = 145 }) {
+  // Dynamic bottom position based on measured stop cards height
+  const bottomPixels = hasVisibleCards ? stopCardsHeight + 20 : 25;
 
   // Get icon based on current phase (always white icon)
   const getIcon = () => {
@@ -54,7 +46,8 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
       animate={{ scale: 1, opacity: 1 }}
       exit={{ scale: 0, opacity: 0 }}
       transition={{ type: "spring", stiffness: 260, damping: 20 }}
-      className={`fixed ${getBottomPosition()} right-4 z-[100]`}>
+      className="fixed right-4 z-[100]"
+      style={{ bottom: `${bottomPixels}px` }}>
       
       <Button
         onClick={onClick}

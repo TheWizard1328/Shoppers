@@ -316,6 +316,9 @@ function Dashboard() {
 
   // Track previous map state for restoring when card is collapsed
   const [previousMapState, setPreviousMapState] = useState(null);
+  
+  // Measure actual stop cards height for FAB positioning
+  const [stopCardsHeight, setStopCardsHeight] = useState(STOP_CARDS_BASE_HEIGHT);
 
   // Track if we've done initial driver selection (prevent re-running on data changes)
   const hasSetInitialDriverDashboard = useRef(false);
@@ -1027,18 +1030,30 @@ function Dashboard() {
         }
       }
     };
+    
+    const measureStopCards = () => {
+      if (stopCardsContainerRef.current) {
+        const height = stopCardsContainerRef.current.offsetHeight;
+        if (height > 0 && height !== stopCardsHeight) {
+          setStopCardsHeight(height);
+        }
+      }
+    };
 
     // Measure on mount and when expanded state changes
     measureStatsCard();
+    measureStopCards();
 
     window.addEventListener('resize', handleResize);
     window.addEventListener('resize', measureStatsCard);
+    window.addEventListener('resize', measureStopCards);
     return () => {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('resize', measureStatsCard);
+      window.removeEventListener('resize', measureStopCards);
       clearTimeout(resizeTimeout);
     };
-  }, [cardWidth, isExpanded, screenWidth, isMapViewLocked, mapViewPhase]);
+  }, [cardWidth, isExpanded, screenWidth, isMapViewLocked, mapViewPhase, stopCardsHeight]);
 
   useEffect(() => {
     const fetchGoogleApiKey = async () => {
@@ -6272,7 +6287,8 @@ function Dashboard() {
         currentPhase={mapViewPhase}
         hasVisibleCards={deliveriesWithStopOrder.length > 0}
         isAIVisible={showAIAssistant && isAIEnabled}
-        isLocked={isMapViewLocked} />
+        isLocked={isMapViewLocked}
+        stopCardsHeight={stopCardsHeight} />
 
       }
 
