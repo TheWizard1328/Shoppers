@@ -631,6 +631,9 @@ export default function StopCard({
     setReturnPatient(null);
   };
 
+  // Determine if card should be faded (completed + not expanded + not hovered)
+  const shouldFade = delivery.status === 'completed' && !isExpanded && !isHovered;
+
   return (
     <motion.div
       id={`stop-card-${delivery.id}`}
@@ -638,7 +641,9 @@ export default function StopCard({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       className={`w-full cursor-pointer transition-all ${isSelected && !isStrippedDelivery ? 'ring-2 ring-blue-500' : ''}`}
-      style={{ scrollSnapAlign: 'center' }}>
+      style={{ scrollSnapAlign: 'center' }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}>
       <Card className={`rounded-xl border bg-card text-card-foreground shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 min-w-[340px] max-w-[340px] ${
       isNextDelivery ? 'border-emerald-500 border-2' : 'border-blue-500'}`
       }
@@ -648,7 +653,12 @@ export default function StopCard({
           onClick && onClick(delivery);
         }
       }}
-      style={{ background: 'var(--bg-white)', borderColor: isNextDelivery ? '#10B981' : '#3B82F6' }}>
+      style={{ 
+        background: 'var(--bg-white)', 
+        borderColor: isNextDelivery ? '#10B981' : '#3B82F6',
+        opacity: shouldFade ? 0.4 : 1,
+        transition: 'opacity 0.2s ease-in-out'
+      }}>
         <CardContent className="mt-1 mb-1 px-3 py-0 flex flex-col">
           {/* HEADER SECTION - Always Visible */}
           <div className="flex items-start gap-1">
