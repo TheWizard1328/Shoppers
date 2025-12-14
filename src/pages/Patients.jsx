@@ -414,7 +414,7 @@ function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, importS
       <div className="flex-1 overflow-y-auto px-6 pb-6">
         <div className="card-container" style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(275px, 375px))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
           gap: '1rem',
           justifyContent: 'start'
         }}>
