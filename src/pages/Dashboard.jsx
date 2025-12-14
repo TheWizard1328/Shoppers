@@ -340,9 +340,8 @@ function Dashboard() {
   const STATS_CARD_BASE_HEIGHT = 116;
   const STATS_CARD_EXTENDED_HEIGHT = 216;
   
-  // Measure actual stop cards height for FAB positioning (base height only, never expanded)
-  const [stopCardsHeight, setStopCardsHeight] = useState(STOP_CARDS_BASE_HEIGHT);
-  const [stopCardsBaseHeight, setStopCardsBaseHeight] = useState(STOP_CARDS_BASE_HEIGHT);
+  // Measure actual stop cards height for FAB positioning (dynamically measured, not hardcoded)
+  const [stopCardsBaseHeight, setStopCardsBaseHeight] = useState(75);
 
   // Computed padding values for consistent map bounds
   const getMapPadding = useCallback((cardExpanded = false) => {
@@ -1034,29 +1033,44 @@ function Dashboard() {
     
     const measureStopCards = () => {
       if (stopCardsContainerRef.current && !selectedCardId) {
-        // Only measure when no card is expanded to capture base height
+        // Only measure when no card is expanded to capture actual rendered base height
         const height = stopCardsContainerRef.current.offsetHeight;
-        if (height > 0 && height !== stopCardsBaseHeight) {
-          setStopCardsHeight(height);
+        if (height > 0) {
           setStopCardsBaseHeight(height);
         }
       }
     };
 
-    // Measure on mount and when expanded state changes
+    // Measure on mount and when card selection changes
     measureStatsCard();
-    measureStopCards();
-
+    
     window.addEventListener('resize', handleResize);
     window.addEventListener('resize', measureStatsCard);
-    window.addEventListener('resize', measureStopCards);
     return () => {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('resize', measureStatsCard);
-      window.removeEventListener('resize', measureStopCards);
       clearTimeout(resizeTimeout);
     };
-  }, [cardWidth, isExpanded, screenWidth, isMapViewLocked, mapViewPhase, stopCardsBaseHeight]);
+  }, [cardWidth, isExpanded, screenWidth, isMapViewLocked, mapViewPhase]);
+
+  // Separate effect to measure stop cards only when selection changes
+  useEffect(() => {
+    const measureStopCards = () => {
+      if (stopCardsContainerRef.current && !selectedCardId) {
+        const height = stopCardsContainerRef.current.offsetHeight;
+        if (height > 0) {
+          setStopCardsBaseHeight(height);
+        }
+      }
+    };
+
+    // Measure immediately
+    measureStopCards();
+    
+    // Also measure after a brief delay to account for animations
+    const timer = setTimeout(measureStopCards, 100);
+    return () => clearTimeout(timer);
+  }, [selectedCardId, deliveriesWithStopOrder.length]);
 
   useEffect(() => {
     const fetchGoogleApiKey = async () => {
