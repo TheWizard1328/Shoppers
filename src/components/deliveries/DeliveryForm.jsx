@@ -2781,9 +2781,9 @@ export default function DeliveryForm({
           <CardContent className="p-4 flex-1 relative overflow-hidden">
             <div className="space-y-3 h-full flex flex-col">
               {/* Section 1: Patient Search - STATIC */}
-              <div className={`flex gap-3 ${useMobileLayout ? 'flex-wrap' : ''} ${!delivery && !useMobileLayout ? 'flex-shrink-0' : ''}`}>
+              <div className={`flex gap-3 ${useMobileLayout ? 'flex-col' : ''} ${!delivery && !useMobileLayout ? 'flex-shrink-0' : ''}`}>
                 {!delivery && !isPickupMode &&
-                  <div className="relative flex-[2] space-y-1 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                  <div className={`relative ${useMobileLayout ? 'w-full' : 'flex-[2]'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                     <div className="flex items-center justify-between mb-1">
                       <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Patient Search</Label>
                       {selectedPatient &&
@@ -3010,6 +3010,7 @@ export default function DeliveryForm({
                 }
 
                 {/* Section 2: Pickup Location (for pickup mode) - STATIC */}
+                <div className={`flex gap-3 ${useMobileLayout ? 'flex-row' : 'contents'}`}>
                 {isPickupMode && !delivery &&
                   <div className={`${useMobileLayout ? 'w-full' : 'flex-[2]'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                     <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Pickup Location *</Label>
@@ -3064,7 +3065,7 @@ export default function DeliveryForm({
                 </div>
 
                 {/* Section 3: Driver Selection - STATIC */}
-                <div className={`${useMobileLayout ? 'w-[calc(50%-0.375rem)]' : 'flex-1'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+                <div className={`${useMobileLayout ? 'flex-1' : 'flex-1'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                   <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver *</Label>
                   <Select
                     value={formData.driver_id || ''}
@@ -3088,6 +3089,7 @@ export default function DeliveryForm({
                       )}
                     </SelectContent>
                   </Select>
+                </div>
                 </div>
               </div>
 
