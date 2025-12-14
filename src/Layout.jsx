@@ -1270,10 +1270,11 @@ export default function Layout({ children, currentPageName }) {
   const handleTouchStart = (e) => {
     if (!isMobile || isRefreshing) return;
 
-    const mainContent = document.querySelector('main');
+    const mainContent = e.currentTarget;
     if (mainContent && mainContent.scrollTop === 0) {
       setTouchStartY(e.touches[0].clientY);
       setIsPulling(true);
+      console.log('📱 [Pull-to-Refresh] Touch start at y:', e.touches[0].clientY);
     }
   };
 
@@ -1284,7 +1285,10 @@ export default function Layout({ children, currentPageName }) {
     const distance = touchY - touchStartY;
 
     if (distance > 0) {
-      e.preventDefault();
+      // Prevent default scrolling behavior
+      if (e.cancelable) {
+        e.preventDefault();
+      }
 
       const resistance = 0.5;
       const resistedDistance = Math.min(distance * resistance, pullThreshold * 1.5);
@@ -2927,10 +2931,7 @@ export default function Layout({ children, currentPageName }) {
 
                 <header
                   className="mobile-header border-b px-4 py-3 sticky top-0"
-                  style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
-                  onTouchStart={handleTouchStart}
-                  onTouchMove={handleTouchMove}
-                  onTouchEnd={handleTouchEnd}>
+                  style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
 
                   {(isPulling || isRefreshing) && pullDistance > 0 &&
                     <div
@@ -3123,7 +3124,12 @@ export default function Layout({ children, currentPageName }) {
                   }
                 </header>
 
-                <main className="flex-1 overflow-y-auto relative" style={{ background: 'var(--bg-slate-50)' }}>
+                <main 
+                  className="flex-1 overflow-y-auto relative" 
+                  style={{ background: 'var(--bg-slate-50)' }}
+                  onTouchStart={handleTouchStart}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}>
                   {children}
                 </main>
               </div>
