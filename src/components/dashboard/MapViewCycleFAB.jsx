@@ -3,15 +3,15 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Target, Maximize2, Minimize2 } from 'lucide-react';
 
-export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false }) {
+export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, stopCardsHeight = 0 }) {
   // Dynamic bottom position based on AI visibility and visible cards
   const getBottomPosition = () => {
     if (isAIVisible) {
       // AI panel is open - position above it
-      return hasVisibleCards ? 'bottom-[200px]' : 'bottom-[25px]';
+      return hasVisibleCards ? `bottom-[${stopCardsHeight + 20}px]` : 'bottom-[25px]';
     } else {
       // AI is hidden (only FAB showing) - position ABOVE the AI FAB
-      return hasVisibleCards ? 'bottom-[200px]' : 'bottom-[25px]';
+      return hasVisibleCards ? `bottom-[${stopCardsHeight + 20}px]` : 'bottom-[25px]';
     }
   };
 
