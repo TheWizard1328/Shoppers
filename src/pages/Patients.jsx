@@ -427,7 +427,7 @@ function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, importS
 
             return (
               <Card
-                key={store.id} className="rounded-xl border text-card-foreground shadow cursor-pointer hover:shadow-md transition-all duration-200 bg-white min-w-[320px]"
+                key={store.id} className="rounded-xl border text-card-foreground shadow cursor-pointer hover:shadow-md transition-all duration-200 bg-white min-w-[310px]"
 
                 style={{
                   borderColor: store.color || '#e2e8f0',
