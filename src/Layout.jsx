@@ -2068,6 +2068,7 @@ export default function Layout({ children, currentPageName }) {
             --border-slate-300: #cbd5e1;
             --shadow-color: rgba(0, 0, 0, 0.1);
             --image-filter: none;
+            --menu-border: #000000;
           }
 
           /* Dark mode via class (explicit user selection) */
@@ -2088,6 +2089,7 @@ export default function Layout({ children, currentPageName }) {
             --border-slate-300: #334155;
             --shadow-color: rgba(255, 255, 255, 0.1);
             --image-filter: invert(1) hue-rotate(180deg);
+            --menu-border: #e2e8f0;
           }
 
           /* Auto mode - respect system preference */
@@ -2108,6 +2110,7 @@ export default function Layout({ children, currentPageName }) {
               --border-slate-300: #334155;
               --shadow-color: rgba(255, 255, 255, 0.1);
               --image-filter: invert(1) hue-rotate(180deg);
+              --menu-border: #e2e8f0;
             }
           }
 
