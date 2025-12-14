@@ -19,6 +19,7 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [currentDisplayIndex, setCurrentDisplayIndex] = useState(0);
+  const [hasError, setHasError] = useState(false);
 
   // Track which entities were updated and reset index
   useEffect(() => {
@@ -53,6 +54,22 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       setIsOnline(online);
     });
     return unsubscribe;
+  }, []);
+
+  // Subscribe to rate limit errors from smartRefreshManager
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const handleRateLimitError = (event) => {
+        setHasError(event.detail.hasError);
+        // Clear error after 5 seconds
+        if (event.detail.hasError) {
+          setTimeout(() => setHasError(false), 5000);
+        }
+      };
+      
+      window.addEventListener('rateLimitError', handleRateLimitError);
+      return () => window.removeEventListener('rateLimitError', handleRateLimitError);
+    }
   }, []);
 
   // Show for all users (removed app owner restriction)
@@ -125,17 +142,24 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
         <button
           onClick={handleManualRefresh}
           disabled={isPaused}
-          className="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110 bg-slate-200 hover:bg-slate-300 relative"
-          title={!isOnline ? 'Offline' : isPaused ? 'Refresh paused' : 'Click to refresh'}>
+          className={`w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110 relative ${
+            hasError ? 'bg-red-500' : 
+            isActive && !isPaused ? 'bg-emerald-500' : 
+            isPaused ? 'bg-yellow-100' : 
+            'bg-slate-200 hover:bg-slate-300'
+          }`}
+          title={hasError ? 'Refresh error' : !isOnline ? 'Offline' : isPaused ? 'Refresh paused' : 'Click to refresh'}>
           
           {isActive && !isPaused ? (
             <motion.div
               animate={{ rotate: 360 }}
               transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
-              <RefreshCw className="w-3 h-3 text-slate-500" />
+              <RefreshCw className="w-3 h-3 text-white" />
             </motion.div>
           ) : isPaused ? (
             <div className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
+          ) : hasError ? (
+            <RefreshCw className="w-3 h-3 text-white" />
           ) : (
             <RefreshCw className={`w-3 h-3 ${!isOnline ? 'text-white' : 'text-slate-500'}`} />
           )}
@@ -169,11 +193,17 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
         onClick={handleManualRefresh}
         disabled={isPaused}
         className={`w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110 relative ${
-        !isOnline ? 'bg-red-500' : isPaused ? 'bg-yellow-100 cursor-not-allowed' : isActive ? 'bg-emerald-500' : 'bg-slate-100 hover:bg-slate-200'}`
-        }
-        title={!isOnline ? 'Offline - changes will sync when online' : isPaused ? 'Smart refresh paused' : 'Click to refresh'}>
+          hasError ? 'bg-red-500' : 
+          isActive && !isPaused ? 'bg-emerald-500' : 
+          isPaused ? 'bg-yellow-100 cursor-not-allowed' : 
+          !isOnline ? 'bg-red-500' : 
+          'bg-slate-100 hover:bg-slate-200'
+        }`}
+        title={hasError ? 'Refresh error - click to retry' : !isOnline ? 'Offline - changes will sync when online' : isPaused ? 'Smart refresh paused' : 'Click to refresh'}>
 
-        {!isOnline ? (
+        {hasError ? (
+          <RefreshCw className="w-3.5 h-3.5 text-white" />
+        ) : !isOnline ? (
           <motion.div
             animate={{ rotate: 360 }}
             transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
