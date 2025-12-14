@@ -150,7 +150,8 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       console.log('📱 Calling setDriverStatus backend function...');
       const result = await base44.functions.invoke('setDriverStatus', {
         newStatus,
-        deviceId
+        deviceId,
+        disableLocationTracking: newStatus !== 'on_duty' // Disable tracking when off duty or on break
       });
       
       console.log('✅ Backend status update result:', result.data);
