@@ -3408,10 +3408,10 @@ export default function DeliveriesPage() {
           }
         </AnimatePresence>
 
-        <div className="flex-1 overflow-hidden p-2 sm:p-4">
+        <div className="flex-1 overflow-hidden p-2 sm:p-4 h-full">
 
           {isDriverOverviewMode ?
-          <div className="flex flex-col h-full">
+          <div className="flex flex-col">
               {/* Desktop Controls Banner - Large Screens (lg+) */}
               <Card className="bg-white/80 backdrop-blur-sm hidden lg:block flex-shrink-0">
                 <CardContent className="p-6">
