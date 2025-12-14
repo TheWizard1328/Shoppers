@@ -302,16 +302,27 @@ export default function StopCard({
 
   const shouldRedact = useMemo(() => {
     if (!delivery || !currentUser) return false;
-    return isCompleted && !isPickup &&
-    !userHasRole(currentUser, 'admin') &&
-    !userHasRole(currentUser, 'dispatcher') &&
-    userHasRole(currentUser, 'driver');
-  }, [isCompleted, isPickup, currentUser, delivery]);
+    // Redact completed deliveries for drivers (not admins/dispatchers)
+    if (isCompleted && !isPickup &&
+        !userHasRole(currentUser, 'admin') &&
+        !userHasRole(currentUser, 'dispatcher') &&
+        userHasRole(currentUser, 'driver')) {
+      return true;
+    }
+    // Redact when route is complete for drivers
+    if (isRouteCompleted && !isPickup &&
+        !userHasRole(currentUser, 'admin') &&
+        !userHasRole(currentUser, 'dispatcher') &&
+        userHasRole(currentUser, 'driver')) {
+      return true;
+    }
+    return false;
+  }, [isCompleted, isPickup, currentUser, delivery, isRouteCompleted]);
 
   const shouldShowStoreBadge = useMemo(() => shouldShowStoreBadges(currentUser), [currentUser]);
 
   const finalDisplayName = useMemo(() => {
-    if (isStrippedDelivery) {
+    if (isStrippedDelivery && !shouldRedact) {
       if (store?.name) {
         return `${store.name} ${isPickup ? 'Pickup' : 'Delivery'}`;
       }
