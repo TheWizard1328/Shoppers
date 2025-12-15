@@ -122,20 +122,12 @@ export default function ETATracker({
         const data = response?.data || response;
 
         if (data?.success && data?.durationUpdates?.length > 0) {
-          // Calculate local ETAs from durations on device
-          const nowTime = new Date();
-          const currentHours = nowTime.getHours();
-          const currentMinutes = nowTime.getMinutes();
-          const currentTotalMinutes = currentHours * 60 + currentMinutes;
-
+          // CRITICAL: Backend now returns actual clock time ETAs - use them directly
           const etaUpdates = [];
           
-          // Apply durations to current local time
           for (const update of data.durationUpdates) {
-            const etaTotalMinutes = currentTotalMinutes + update.cumulativeMinutes;
-            const etaHours = Math.floor(etaTotalMinutes / 60) % 24;
-            const etaMinutes = etaTotalMinutes % 60;
-            const etaString = `${etaHours.toString().padStart(2, '0')}:${etaMinutes.toString().padStart(2, '0')}`;
+            // Backend returns eta as HH:mm clock time, not cumulative minutes
+            const etaString = update.eta;
 
             etaUpdates.push({
               deliveryId: update.deliveryId,
@@ -145,7 +137,7 @@ export default function ETATracker({
               serviceMinutes: update.serviceMinutes
             });
 
-            // Update database with calculated local ETA
+            // Update database with backend-calculated ETA
             await base44.entities.Delivery.update(update.deliveryId, {
               delivery_time_eta: etaString
             });
