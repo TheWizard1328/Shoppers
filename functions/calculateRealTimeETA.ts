@@ -147,9 +147,12 @@ Deno.serve(async (req) => {
 
       if (directionsData.status === 'OK' && directionsData.routes?.[0]) {
         const route = directionsData.routes[0];
-        let cumulativeMinutes = 0;
+        
+        // CRITICAL: Start from current time in minutes, not from 0
+        const now = new Date();
+        let cumulativeMinutes = now.getHours() * 60 + now.getMinutes();
 
-        // Process each leg of the route - return durations only
+        // Process each leg of the route - calculate actual clock time ETAs
         for (let i = 0; i < route.legs.length; i++) {
           const leg = route.legs[i];
           const delivery = deliveriesWithCoords[i].delivery;
@@ -158,12 +161,29 @@ Deno.serve(async (req) => {
           const travelMinutes = Math.ceil(durationSeconds / 60);
           const serviceTime = delivery.extra_time || 5;
           
-          cumulativeMinutes += travelMinutes + serviceTime;
+          cumulativeMinutes += travelMinutes;
+          
+          // Apply time window waiting if applicable
+          if (delivery.time_window_start && !delivery.puid) {
+            const [windowHours, windowMinutes] = delivery.time_window_start.split(':').map(Number);
+            const windowStartMinutes = windowHours * 60 + windowMinutes;
+            if (cumulativeMinutes < windowStartMinutes) {
+              cumulativeMinutes = windowStartMinutes;
+            }
+          }
+          
+          // Calculate ETA as HH:mm (handle midnight wraparound)
+          const etaHours = Math.floor(cumulativeMinutes / 60) % 24;
+          const etaMinutes = cumulativeMinutes % 60;
+          const etaString = `${String(etaHours).padStart(2, '0')}:${String(etaMinutes).padStart(2, '0')}`;
+          
+          // Add service time for next iteration
+          cumulativeMinutes += serviceTime;
 
           etaUpdates.push({
             deliveryId: delivery.id,
             delivery_id: delivery.delivery_id,
-            cumulativeMinutes: cumulativeMinutes,
+            eta: etaString, // NEW: Return actual clock time
             travelMinutes: travelMinutes,
             serviceMinutes: serviceTime,
             distanceMeters: leg.distance?.value || 0,
@@ -173,7 +193,7 @@ Deno.serve(async (req) => {
           });
         }
 
-        console.log(`✅ Calculated ${etaUpdates.length} travel durations with ONE API call`);
+        console.log(`✅ Calculated ${etaUpdates.length} ETAs starting from current time with ONE API call`);
       }
     } catch (error) {
       console.error('Error calculating route ETAs:', error);
