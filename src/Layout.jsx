@@ -2161,12 +2161,8 @@ export default function Layout({ children, currentPageName }) {
                                       delete window.__routeImportStartCallback;
                                     }
                                   }}
-                                  ref={() => {
-                                    if (typeof window !== 'undefined') {
-                                      window.__routeImportStartCallback = () => {
-                                        setIsFormOverlayOpen(true);
-                                      };
-                                    }
+                                  onImportStart={() => {
+                                    setIsFormOverlayOpen(true);
                                   }}
                                   onImportComplete={async () => {
                                                                                                         setShowDeliveryImport(false);
