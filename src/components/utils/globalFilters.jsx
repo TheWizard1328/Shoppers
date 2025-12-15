@@ -35,17 +35,14 @@ const initializeGlobalFilters = () => {
       // Use saved date if it's within the last 30 days, otherwise use today
       if (daysDiff >= 0 && daysDiff <= 30) {
         globalState.selectedDate = savedDate;
-        console.log(`📅 [GlobalFilters Init] Using saved date: ${savedDate} (${daysDiff} days ago)`);
       } else {
         globalState.selectedDate = today;
         localStorage.setItem(STORAGE_KEYS.selectedDate, today);
-        console.log(`📅 [GlobalFilters Init] Saved date too old or in future, using today: ${today}`);
       }
     } else {
       // No saved date - use today and save it
       globalState.selectedDate = today;
       localStorage.setItem(STORAGE_KEYS.selectedDate, today);
-      console.log(`📅 [GlobalFilters Init] No saved date, defaulting to today: ${today}`);
     }
     
     // Load other filters with their defaults
@@ -53,14 +50,7 @@ const initializeGlobalFilters = () => {
     globalState.selectedCityId = localStorage.getItem(STORAGE_KEYS.selectedCityId) || 'all';
     globalState.selectedStoreId = localStorage.getItem(STORAGE_KEYS.selectedStoreId) || 'all';
     
-    console.log('✅ [GlobalFilters Init] Initialized with:', {
-      date: globalState.selectedDate,
-      driver: globalState.selectedDriverId,
-      city: globalState.selectedCityId,
-      store: globalState.selectedStoreId
-    });
   } catch (error) {
-    console.warn('⚠️ [GlobalFilters Init] Failed to load from localStorage:', error);
     // Set defaults if localStorage fails
     const today = format(new Date(), 'yyyy-MM-dd');
     globalState.selectedDate = today;
@@ -90,11 +80,8 @@ const updateAndSave = (key, value) => {
   
   // GUARD: Don't update if value is the same
   if (currentValue === value) {
-    console.log(`⏭️ [GlobalFilters] Skipping ${key} update - value unchanged: ${value}`);
     return false; // Indicate no change
   }
-  
-  console.log(`✏️ [GlobalFilters] Updating ${key}: ${currentValue} → ${value}`);
   
   globalState[key] = value;
   try {
@@ -246,18 +233,6 @@ export const globalFilters = {
 
     notifyListeners();
   },
-
-  // Debug helper
-  debug: () => {
-    console.log('Global Filter State:', {
-      selectedDate: globalState.selectedDate,
-      selectedDriverId: globalState.selectedDriverId,
-      selectedCityId: globalState.selectedCityId,
-      selectedStoreId: globalState.selectedStoreId,
-      listeners: globalState.listeners.size,
-      isReadyForDataFetch: globalFilters.isReadyForDataFetch()
-    });
-  }
 };
 
 // React hook for easy integration
