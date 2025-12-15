@@ -3146,6 +3146,7 @@ function Dashboard() {
               driverId: driverId,
               deliveryDate: deliveryDate,
               currentLocalTime: format(new Date(), 'HH:mm'),
+              deviceTime: new Date().toISOString(),
               startLocation: currentLocation
             });
             console.log('✅ [AddToRoute] Route optimization complete');
@@ -4850,6 +4851,7 @@ function Dashboard() {
           driverId: driverId,
           deliveryDate: deliveryDate,
           currentLocalTime: format(new Date(), 'HH:mm'),
+          deviceTime: new Date().toISOString(),
           startLocation: currentLocation
         });
         console.log('✅ [START] Route optimization complete - stops re-sequenced');

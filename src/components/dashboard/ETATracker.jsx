@@ -113,10 +113,11 @@ export default function ETATracker({
 
         console.log('🔄 [ETATracker] Updating ETAs...');
 
-        // Get travel durations from backend
+        // Get travel durations from backend - pass device local time
         const response = await base44.functions.invoke('calculateRealTimeETA', {
           driverId: selectedDriverId,
-          deliveryDate: selectedDate
+          deliveryDate: selectedDate,
+          deviceTime: new Date().toISOString()
         });
 
         const data = response?.data || response;
