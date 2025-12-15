@@ -67,9 +67,12 @@ export const calculateInitialDeliveryTimeStart = (patient, store, deliveryDate, 
 };
 
 /**
- * Determine AM or PM based on a time string (HH:mm format)
+ * Determine AM or PM based on PICKUP time string (HH:mm format)
+ * CRITICAL: This is for PICKUPS ONLY - based on their scheduled time
  * AM: before 14:00 (2:00 PM)
  * PM: 14:00 (2:00 PM) and after
+ * 
+ * For DELIVERIES, use determineDeliveryAMPM which looks at their pickup's time slot
  */
 export const determineAMPMFromTime = (timeString) => {
   if (!timeString) return null;
