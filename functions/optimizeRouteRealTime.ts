@@ -406,21 +406,45 @@ Deno.serve(async (req) => {
         cumulativeTime += serviceTime;
         currentPos = bestIdx + 1;
 
-        // Insert this pickup's deliveries
+        // Insert this pickup's deliveries using nearest-neighbor from pickup location
         const pickupStoreId = stops[bestIdx].delivery.store_id;
         const pickupDeliveries = deliveriesByPickup.get(pickupStoreId) || [];
         const unvisitedDeliveries = pickupDeliveries.filter(d => !optimizedRoute.includes(d.idx));
         
-        for (const deliv of unvisitedDeliveries) {
-          optimizedRoute.push(deliv.idx);
-          const travelTime = Math.ceil(crowFliesMatrix[currentPos][deliv.idx].duration / 60);
-          const serviceTime = deliv.delivery.extra_time || 5;
+        // Optimize delivery sequence from this pickup using nearest-neighbor
+        let pickupPos = currentPos; // Start from pickup location
+        const remainingDelivs = [...unvisitedDeliveries];
+        
+        while (remainingDelivs.length > 0) {
+          // Find nearest unvisited delivery from current position
+          let nearestDeliv = null;
+          let shortestTime = Infinity;
+          
+          for (const deliv of remainingDelivs) {
+            const travelTime = crowFliesMatrix[pickupPos][deliv.idx].duration / 60;
+            if (travelTime < shortestTime) {
+              shortestTime = travelTime;
+              nearestDeliv = deliv;
+            }
+          }
+          
+          if (!nearestDeliv) break;
+          
+          // Add nearest delivery to route
+          optimizedRoute.push(nearestDeliv.idx);
+          const travelTime = Math.ceil(crowFliesMatrix[pickupPos][nearestDeliv.idx].duration / 60);
+          const serviceTime = nearestDeliv.delivery.extra_time || 5;
           cumulativeTime += travelTime;
-          if (stops[deliv.idx].timeWindow && !stops[deliv.idx].delivery.puid && cumulativeTime < stops[deliv.idx].timeWindow.start) {
-            cumulativeTime = stops[deliv.idx].timeWindow.start;
+          if (stops[nearestDeliv.idx].timeWindow && !stops[nearestDeliv.idx].delivery.puid && cumulativeTime < stops[nearestDeliv.idx].timeWindow.start) {
+            cumulativeTime = stops[nearestDeliv.idx].timeWindow.start;
           }
           cumulativeTime += serviceTime;
-          currentPos = deliv.idx + 1;
+          pickupPos = nearestDeliv.idx + 1;
+          currentPos = pickupPos;
+          
+          // Remove from remaining
+          const idx = remainingDelivs.indexOf(nearestDeliv);
+          if (idx > -1) remainingDelivs.splice(idx, 1);
         }
       } else if (bestType === 'isp') {
         unvisitedISP.delete(bestIdx);
