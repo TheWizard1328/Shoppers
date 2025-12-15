@@ -1351,7 +1351,7 @@ export default function DeliveryMap({
     const isCurrentUserDriver = userHasRole(currentUser, 'driver');
     const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
 
-    // Get drivers with active (unfinished) stops
+    // Get drivers with active (unfinished) stops - ONLY from current user's deliveries
     const driversWithActiveStops = new Set();
 
     safeDeliveries.forEach((delivery) => {
@@ -1364,6 +1364,12 @@ export default function DeliveryMap({
     // Create home markers based on user permissions
     const homeMarkers = [];
     driversWithActiveStops.forEach((driverId) => {
+      // NEW: Skip other drivers' homes when viewing self today
+      if (isDriverViewingSelfToday && driverId !== currentUser.id) {
+        console.log('🏠 [Home Markers] Skipping other driver home:', driverId);
+        return;
+      }
+
       // FIXED: Find driver by ID only, don't require user_name in find condition
       const driver = safeUsers.find((u) => u && typeof u === 'object' && u.id === driverId);
 
@@ -1394,7 +1400,7 @@ export default function DeliveryMap({
     });
 
     return homeMarkers;
-  }, [safeDeliveries, safeUsers, showRoutes, currentUser, isViewingCurrentDate]);
+  }, [safeDeliveries, safeUsers, showRoutes, currentUser, isViewingCurrentDate, isDriverViewingSelfToday]);
 
   // Generate routes for each driver - NOW WITH ZOOM-BASED STYLING, CURRENT DATE ONLY for polylines
   const driverRoutes = useMemo(() => {
