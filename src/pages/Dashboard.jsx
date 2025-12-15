@@ -2954,7 +2954,7 @@ function Dashboard() {
             }
           }
 
-          // First, set AM/PM on all pickups and assign their stop_id as PUID
+          // First, set AM/PM on all pickups based on their scheduled time
           for (const stop of optimizedRoute) {
             if (!stop) continue;
 
@@ -2967,28 +2967,27 @@ function Dashboard() {
             }
           }
 
-          // Then, set AM/PM on all deliveries and assign their PUID based on matching pickup
+          // Then, set AM/PM on all deliveries based on their PICKUP's time slot (not their own time)
           for (const stop of optimizedRoute) {
             if (!stop) continue;
 
             if (stop.patient_id !== null) {
-              // Determine AM/PM based on delivery start time
-              const ampm = determineAMPMFromTime(stop.delivery_time_start);
-              stop.ampm_deliveries = ampm;
-
-              // Find the corresponding pickup for this store + AM/PM combination
-              if (!stop.puid) {
-                const correspondingPickup = optimizedRoute.find((p) =>
-                p && !p.patient_id &&
-                p.store_id === stop.store_id &&
-                p.ampm_deliveries === ampm &&
-                p.stop_id
-                );
-                if (correspondingPickup) {
+              // Find the corresponding pickup for this store
+              const correspondingPickup = optimizedRoute.find((p) =>
+                p && !p.patient_id && p.store_id === stop.store_id
+              );
+              
+              if (correspondingPickup && correspondingPickup.ampm_deliveries) {
+                // CRITICAL: Use pickup's AM/PM designation, not delivery's own time
+                stop.ampm_deliveries = correspondingPickup.ampm_deliveries;
+                if (!stop.puid && correspondingPickup.stop_id) {
                   stop.puid = correspondingPickup.stop_id;
-                } else {
-                  console.warn(`[AddToRoute]   ⚠️ No matching ${ampm} pickup found for ${patients.find((pt) => pt.id === stop.patient_id)?.full_name}`);
                 }
+              } else {
+                // Fallback: if no pickup found, determine from delivery time
+                const ampm = determineAMPMFromTime(stop.delivery_time_start);
+                stop.ampm_deliveries = ampm;
+                console.warn(`[AddToRoute]   ⚠️ No pickup found for ${patients.find((pt) => pt.id === stop.patient_id)?.full_name}, using delivery time for AM/PM`);
               }
             }
           }
