@@ -9,21 +9,34 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
  * - Estimated travel times
  */
 Deno.serve(async (req) => {
+  console.log('🚀 [optimizeRouteRealTime] Function called');
+  
   try {
+    console.log('🔐 [optimizeRouteRealTime] Creating client from request...');
     const base44 = createClientFromRequest(req);
+    
+    console.log('🔐 [optimizeRouteRealTime] Checking auth...');
     const user = await base44.auth.me();
 
     if (!user) {
+      console.error('❌ [optimizeRouteRealTime] Unauthorized - no user');
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    
+    console.log('✅ [optimizeRouteRealTime] User authenticated:', user.email);
 
+    console.log('📦 [optimizeRouteRealTime] Parsing request body...');
     const { driverId, deliveryDate, currentLocalTime } = await req.json();
+    console.log('📦 [optimizeRouteRealTime] Request params:', { driverId, deliveryDate, currentLocalTime });
 
     if (!driverId || !deliveryDate) {
+      console.error('❌ [optimizeRouteRealTime] Missing parameters:', { driverId, deliveryDate });
       return Response.json({ 
         error: 'Missing required parameters: driverId, deliveryDate' 
       }, { status: 400 });
     }
+    
+    console.log('✅ [optimizeRouteRealTime] Parameters validated');
 
     // Use client's local time if provided, otherwise fall back to server UTC time
     let currentMinutes;
@@ -37,30 +50,36 @@ Deno.serve(async (req) => {
       console.warn(`⚠️ No local time provided, using server time (may be UTC)`);
     }
 
-    console.log(`🔄 Optimizing route for driver ${driverId} on ${deliveryDate}`);
+    console.log(`🔄 [optimizeRouteRealTime] Optimizing route for driver ${driverId} on ${deliveryDate}`);
 
-    // Get driver's current location
+    console.log('📍 [optimizeRouteRealTime] Fetching driver location...');
     const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
     const driverAppUser = appUsers?.[0];
+    console.log('📍 [optimizeRouteRealTime] AppUser found:', !!driverAppUser);
 
     if (!driverAppUser || !driverAppUser.current_latitude || !driverAppUser.current_longitude) {
+      console.error('❌ [optimizeRouteRealTime] Driver location not available');
       return Response.json({ 
         error: 'Driver location not available' 
       }, { status: 404 });
     }
+    
+    console.log('✅ [optimizeRouteRealTime] Driver location:', { lat: driverAppUser.current_latitude, lng: driverAppUser.current_longitude });
 
     const driverLocation = {
       lat: driverAppUser.current_latitude,
       lng: driverAppUser.current_longitude
     };
 
-    // Get ALL deliveries for this driver (completed AND incomplete)
+    console.log('📦 [optimizeRouteRealTime] Fetching deliveries...');
     const allDeliveries = await base44.asServiceRole.entities.Delivery.filter({
       driver_id: driverId,
       delivery_date: deliveryDate
     });
+    console.log('📦 [optimizeRouteRealTime] Deliveries found:', allDeliveries?.length || 0);
 
     if (!allDeliveries || allDeliveries.length === 0) {
+      console.warn('⚠️ [optimizeRouteRealTime] No deliveries found');
       return Response.json({ 
         message: 'No deliveries found',
         routeChanged: false
@@ -335,10 +354,14 @@ Deno.serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('❌ Error optimizing route:', error);
+    console.error('❌❌❌ [optimizeRouteRealTime] FATAL ERROR:', error);
+    console.error('Error type:', error.constructor?.name);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
     return Response.json({ 
       error: error.message,
-      stack: error.stack 
+      stack: error.stack,
+      type: error.constructor?.name
     }, { status: 500 });
   }
 });
