@@ -124,15 +124,16 @@ Deno.serve(async (req) => {
       return new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time);
     });
 
-    // Update completed deliveries with sequential stop_order (preserve completion order)
+    // Update completed deliveries with sequential stop_order + display_stop_order
     for (let i = 0; i < completedDeliveries.length; i++) {
       const delivery = completedDeliveries[i];
       const sequentialOrder = i + 1;
       
-      // Only update if stop_order changed
-      if (delivery.stop_order !== sequentialOrder) {
+      // Update both stop_order and display_stop_order if either changed
+      if (delivery.stop_order !== sequentialOrder || delivery.display_stop_order !== sequentialOrder) {
         await base44.asServiceRole.entities.Delivery.update(delivery.id, {
-          stop_order: sequentialOrder
+          stop_order: sequentialOrder,
+          display_stop_order: sequentialOrder
         });
         console.log(`✅ Reordered completed stop #${sequentialOrder}: ${delivery.patient_name || 'Pickup'}`);
       }
@@ -164,6 +165,39 @@ Deno.serve(async (req) => {
       : [];
     const storeMap = new Map(stores.map(s => [s.id, s]));
 
+    // Build stops array with coordinates and time windows
+    const stops = deliveries.map((delivery, idx) => {
+      let lat, lng;
+      
+      if (delivery.patient_id) {
+        const patient = patientMap.get(delivery.patient_id);
+        lat = patient?.latitude;
+        lng = patient?.longitude;
+      } else {
+        const store = storeMap.get(delivery.store_id);
+        lat = store?.latitude;
+        lng = store?.longitude;
+      }
+
+      let timeWindow = null;
+      if (delivery.time_window_start && delivery.time_window_end) {
+        const [startHours, startMinutes] = delivery.time_window_start.split(':').map(Number);
+        const [endHours, endMinutes] = delivery.time_window_end.split(':').map(Number);
+        timeWindow = {
+          start: startHours * 60 + startMinutes,
+          end: endHours * 60 + endMinutes
+        };
+      }
+
+      return {
+        delivery,
+        lat,
+        lng,
+        timeWindow,
+        currentOrder: delivery.stop_order
+      };
+    }).filter(s => s.lat && s.lng);
+
     // Separate pickups and deliveries for constraint-based optimization
     const pickupStops = [];
     const deliveryStops = [];
@@ -177,13 +211,10 @@ Deno.serve(async (req) => {
                     patientName.includes('interstore pickup') || patientName.includes('(isp)');
       
       if (stop.delivery.puid && !stop.delivery.patient_id) {
-        // This is a pickup
         pickupStops.push({ ...stop, idx: i, isISP: false });
       } else if (isISP) {
-        // ISP deliveries can go anywhere
         ispDeliveryStops.push({ ...stop, idx: i, isISP: true });
       } else {
-        // Regular delivery
         deliveryStops.push({ ...stop, idx: i, isISP: false });
       }
     }
@@ -214,8 +245,9 @@ Deno.serve(async (req) => {
 
     // Use Google Distance Matrix API to get real-time travel times
     const googleMapsKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
-    const origins = [driverLocation, ...stops.map(s => ({ lat: s.lat, lng: s.lng }))];
-    const destinations = stops.map(s => ({ lat: s.lat, lng: s.lng }));
+    const allStopCoords = stops.map(s => ({ lat: s.lat, lng: s.lng }));
+    const origins = [driverLocation, ...allStopCoords];
+    const destinations = allStopCoords;
 
     const originsStr = origins.map(o => `${o.lat},${o.lng}`).join('|');
     const destinationsStr = destinations.map(d => `${d.lat},${d.lng}`).join('|');
@@ -230,11 +262,12 @@ Deno.serve(async (req) => {
     const matrixResponse = await fetch(matrixUrl);
     const matrixData = await matrixResponse.json();
 
-    // Increment API counter
-    await base44.asServiceRole.entities.DriverRoutePolyline.update(polylineRecord.id, {
+    // Increment API counter and refresh polylineRecord
+    const updatedPolylineRecord = await base44.asServiceRole.entities.DriverRoutePolyline.update(polylineRecord.id, {
       daily_generation_count: (polylineRecord.daily_generation_count || 0) + 1,
       last_generated_at: new Date().toISOString()
     });
+    polylineRecord = updatedPolylineRecord;
 
     if (matrixData.status !== 'OK') {
       return Response.json({ 
@@ -272,12 +305,12 @@ Deno.serve(async (req) => {
     while (unvisitedPickups.size > 0 || unvisitedISP.size > 0) {
       let bestIdx = -1;
       let bestScore = Infinity;
-      let bestType = null; // 'pickup' or 'isp'
+      let bestType = null;
 
       // Consider all unvisited pickups
       for (const idx of unvisitedPickups) {
         const travelTime = Math.ceil(matrix[currentPos][idx].duration / 60);
-        const score = travelTime; // Shortest distance priority
+        const score = travelTime;
         
         if (score < bestScore) {
           bestScore = score;
@@ -290,13 +323,12 @@ Deno.serve(async (req) => {
       for (const idx of unvisitedISP) {
         const stop = stops[idx];
         const travelTime = Math.ceil(matrix[currentPos][idx].duration / 60);
-        const serviceTime = stop.delivery.extra_time || 5;
         const arrivalTime = cumulativeTime + travelTime;
         
         let score = travelTime;
         
-        // Apply time window penalties for ISP
-        if (stop.timeWindow) {
+        // RULE 1 & 4: Time window constraints - only for deliveries
+        if (stop.timeWindow && !stop.delivery.puid) {
           if (arrivalTime < stop.timeWindow.start) {
             score += (stop.timeWindow.start - arrivalTime) * 0.3;
           } else if (arrivalTime > stop.timeWindow.end) {
@@ -322,21 +354,27 @@ Deno.serve(async (req) => {
         
         const travelTime = Math.ceil(matrix[currentPos][bestIdx].duration / 60);
         const serviceTime = stops[bestIdx].delivery.extra_time || 15;
-        cumulativeTime += travelTime + serviceTime;
+        cumulativeTime += travelTime;
+        if (stops[bestIdx].timeWindow && !stops[bestIdx].delivery.puid && cumulativeTime < stops[bestIdx].timeWindow.start) {
+          cumulativeTime = stops[bestIdx].timeWindow.start;
+        }
+        cumulativeTime += serviceTime;
         currentPos = bestIdx + 1;
 
-        // Now insert this pickup's deliveries optimally
+        // Insert this pickup's deliveries
         const pickupStoreId = stops[bestIdx].delivery.store_id;
         const pickupDeliveries = deliveriesByPickup.get(pickupStoreId) || [];
-        
-        // Sort deliveries by time window urgency and distance
         const unvisitedDeliveries = pickupDeliveries.filter(d => !optimizedRoute.includes(d.idx));
         
         for (const deliv of unvisitedDeliveries) {
           optimizedRoute.push(deliv.idx);
           const travelTime = Math.ceil(matrix[currentPos][deliv.idx].duration / 60);
           const serviceTime = deliv.delivery.extra_time || 5;
-          cumulativeTime += travelTime + serviceTime;
+          cumulativeTime += travelTime;
+          if (stops[deliv.idx].timeWindow && !stops[deliv.idx].delivery.puid && cumulativeTime < stops[deliv.idx].timeWindow.start) {
+            cumulativeTime = stops[deliv.idx].timeWindow.start;
+          }
+          cumulativeTime += serviceTime;
           currentPos = deliv.idx + 1;
         }
       } else if (bestType === 'isp') {
@@ -345,7 +383,11 @@ Deno.serve(async (req) => {
         
         const travelTime = Math.ceil(matrix[currentPos][bestIdx].duration / 60);
         const serviceTime = stops[bestIdx].delivery.extra_time || 5;
-        cumulativeTime += travelTime + serviceTime;
+        cumulativeTime += travelTime;
+        if (stops[bestIdx].timeWindow && !stops[bestIdx].delivery.puid && cumulativeTime < stops[bestIdx].timeWindow.start) {
+          cumulativeTime = stops[bestIdx].timeWindow.start;
+        }
+        cumulativeTime += serviceTime;
         currentPos = bestIdx + 1;
       }
     }
@@ -359,14 +401,13 @@ Deno.serve(async (req) => {
     console.log('📋 New order:', newOrder);
     console.log('📋 Route changed:', routeChanged);
 
-    // Update stop_order and display_stop_order for ALL deliveries in optimized sequence
+    // Update stop_order and display_stop_order for ALL deliveries
     const updates = [];
     for (let i = 0; i < optimizedRoute.length; i++) {
       const stopIdx = optimizedRoute[i];
       const stop = stops[stopIdx];
-      const newStopOrder = startingStopOrder + i + 1; // Continue from completed stops
+      const newStopOrder = startingStopOrder + i + 1;
 
-      // CRITICAL: Update both stop_order AND display_stop_order to match
       const updateData = {
         stop_order: newStopOrder,
         display_stop_order: newStopOrder
@@ -385,7 +426,7 @@ Deno.serve(async (req) => {
       console.log(`✅ Updated stop #${newStopOrder}: ${stop.delivery.patient_name || 'Pickup'} (was #${stop.delivery.stop_order})`);
     }
 
-    console.log(`✅ Route optimization complete - ${routeChanged ? 'CHANGED' : 'UNCHANGED'} (${updates.length} updates with durations)`);
+    console.log(`✅ Route optimization complete - ${routeChanged ? 'CHANGED' : 'UNCHANGED'} (${updates.length} updates)`);
 
     return Response.json({
       success: true,
@@ -394,7 +435,7 @@ Deno.serve(async (req) => {
       routeChanged,
       durationUpdates: updates,
       totalStops: stops.length,
-      apiCallsMade: 1,
+      apiCallsMade: polylineRecord.daily_generation_count,
       locationSource
     });
 
