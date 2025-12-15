@@ -1422,12 +1422,6 @@ export default function DeliveryMap({
 
     deliveryMarkers.forEach((delivery) => {
     if (!delivery) return;
-    
-    // NEW: Skip other drivers' routes completely when viewing self today
-    if (isDriverViewingSelfToday && delivery.driver_id !== currentUser?.id) {
-      return;
-    }
-    
     const driverId = delivery.driver_id || 'unassigned';
     if (!routesByDriver[driverId]) {
       const driverForRoute = safeUsers.find((u) => u && typeof u === 'object' && u.id === driverId);
@@ -1555,8 +1549,8 @@ export default function DeliveryMap({
         if (allStops.length > 0) {
           const lastStop = allStops[allStops.length - 1];
           lastStopCoordinates = [lastStop.latitude, lastStop.longitude];
-          // NEW: Only show home route if route is NOT completed AND user is not a dispatcher
-          shouldShowHomeRoute = !isRouteCompleted && !isDispatcherNonAdmin;
+          // NEW: Only show home route if route is NOT completed AND user is not a dispatcher AND not other driver when viewing self today
+          shouldShowHomeRoute = !isRouteCompleted && !isDispatcherNonAdmin && !(isDriverViewingSelfToday && route.driverId !== currentUser?.id);
           console.log(`  📍 Last stop: ${lastStop.type === 'pickup' ? lastStop.store : lastStop.patient} at [${lastStop.latitude?.toFixed(4)}, ${lastStop.longitude?.toFixed(4)}]`);
           console.log(`  🏠 Show home route: ${shouldShowHomeRoute} (dispatcher blocked: ${isDispatcherNonAdmin})`);
         }
