@@ -164,10 +164,10 @@ Deno.serve(async (req) => {
       : [];
     const storeMap = new Map(stores.map(s => [s.id, s]));
 
-    // Build list of stops with coordinates
+    // Build list of stops with coordinates and ISP detection
     const stops = [];
     for (const delivery of deliveries) {
-      let lat, lng, timeWindow;
+      let lat, lng, timeWindow, isISP = false;
 
       if (delivery.puid) {
         // Pickup - use store coordinates
@@ -182,6 +182,12 @@ Deno.serve(async (req) => {
         if (!patient || !patient.latitude || !patient.longitude) continue;
         lat = patient.latitude;
         lng = patient.longitude;
+        
+        // Check for InterStore Pickup (ISP) exception
+        const notes = (delivery.delivery_notes || '').toLowerCase();
+        const patientName = (delivery.patient_name || patient.full_name || '').toLowerCase();
+        isISP = notes.includes('interstore pickup') || notes.includes('(isp)') || 
+                patientName.includes('interstore pickup') || patientName.includes('(isp)');
         
         // Parse time window if available
         if (delivery.time_window_start && delivery.time_window_end) {
@@ -199,6 +205,7 @@ Deno.serve(async (req) => {
         lat,
         lng,
         timeWindow,
+        isISP,
         currentOrder: delivery.stop_order || 999
       });
     }
@@ -264,9 +271,10 @@ Deno.serve(async (req) => {
       }))
     );
 
-    // Optimize route using nearest neighbor with time window constraints
+    // Optimize route using nearest neighbor with enhanced constraints
     const optimizedRoute = [];
     const unvisited = new Set(stops.map((_, i) => i));
+    const visitedPickups = new Set(); // Track which store pickups have been visited
     let currentPos = 0; // Start from driver location (index 0 in origins)
     let cumulativeTime = currentMinutes;
 
@@ -280,30 +288,41 @@ Deno.serve(async (req) => {
         const serviceTime = stop.delivery.extra_time || 5;
         const arrivalTime = cumulativeTime + travelTime;
 
-        // Calculate score (lower is better)
+        // Calculate base score (lower is better)
         let score = travelTime;
 
-        // CRITICAL: Heavy penalties for time window violations
-        if (stop.timeWindow) {
+        // RULE 2 & 3: Deliveries must come after their pickup (unless ISP)
+        if (!stop.delivery.puid && stop.delivery.patient_id) {
+          // This is a patient delivery - check if its pickup has been visited
+          const pickupStoreKey = `${stop.delivery.store_id}`;
+          if (!visitedPickups.has(pickupStoreKey) && !stop.isISP) {
+            // Pickup hasn't been visited yet and this isn't an ISP delivery - MASSIVE penalty
+            score += 10000; // Make it essentially impossible to select
+          }
+        }
+
+        // RULE 1 & 4: Time window constraints with penalties
+        if (stop.timeWindow && !stop.delivery.puid) {
+          // Only enforce time windows for deliveries, not pickups (Rule 5)
           if (arrivalTime < stop.timeWindow.start) {
             // Arriving too early - minor wait penalty
             const waitTime = stop.timeWindow.start - arrivalTime;
             score += waitTime * 0.3;
           } else if (arrivalTime > stop.timeWindow.end) {
-            // Arriving too late - VERY HEAVY penalty to avoid
+            // Arriving too late - VERY HEAVY penalty
             const lateTime = arrivalTime - stop.timeWindow.end;
-            score += lateTime * 5; // 5x multiplier for late arrivals
+            score += lateTime * 5;
           } else {
             // Within window - small bonus
             score -= 10;
           }
         }
 
-        // Additional bonus for stops with urgent time windows (ending soon)
-        if (stop.timeWindow && stop.timeWindow.end) {
+        // Additional bonus for urgent time windows (ending soon)
+        if (stop.timeWindow && stop.timeWindow.end && !stop.delivery.puid) {
           const timeUntilDeadline = stop.timeWindow.end - cumulativeTime;
           if (timeUntilDeadline > 0 && timeUntilDeadline < 60) {
-            // Urgent delivery (less than 60 min remaining) - prioritize
+            // Urgent delivery - prioritize
             score -= (60 - timeUntilDeadline) * 0.5;
           }
         }
@@ -316,11 +335,18 @@ Deno.serve(async (req) => {
 
       if (bestIdx === -1) break;
 
+      const selectedStop = stops[bestIdx];
+      
+      // Track visited pickups
+      if (selectedStop.delivery.puid && !selectedStop.delivery.patient_id) {
+        visitedPickups.add(`${selectedStop.delivery.store_id}`);
+      }
+
       optimizedRoute.push(bestIdx);
       unvisited.delete(bestIdx);
       
       const travelTime = Math.ceil(matrix[currentPos][bestIdx].duration / 60);
-      const serviceTime = stops[bestIdx].delivery.extra_time || 5;
+      const serviceTime = selectedStop.delivery.extra_time || 5;
       cumulativeTime += travelTime + serviceTime;
       currentPos = bestIdx + 1; // +1 because driver location is index 0
     }
