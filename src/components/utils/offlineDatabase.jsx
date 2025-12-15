@@ -29,30 +29,21 @@ const openDatabase = () => {
 
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-    request.onerror = () => {
-      console.error('❌ [OfflineDB] Failed to open database:', request.error);
-      reject(request.error);
-    };
-
+    request.onerror = () => reject(request.error);
     request.onsuccess = () => {
       dbInstance = request.result;
-      console.log('✅ [OfflineDB] Database opened successfully');
       resolve(dbInstance);
     };
 
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
-      console.log('🔧 [OfflineDB] Upgrading database schema...');
 
-      // Create Patients store
       if (!db.objectStoreNames.contains(STORES.PATIENTS)) {
         const patientStore = db.createObjectStore(STORES.PATIENTS, { keyPath: 'id' });
         patientStore.createIndex('store_id', 'store_id', { unique: false });
         patientStore.createIndex('updated_date', 'updated_date', { unique: false });
-        console.log('✅ [OfflineDB] Created Patients store');
       }
 
-      // Create Deliveries store
       if (!db.objectStoreNames.contains(STORES.DELIVERIES)) {
         const deliveryStore = db.createObjectStore(STORES.DELIVERIES, { keyPath: 'id' });
         deliveryStore.createIndex('delivery_date', 'delivery_date', { unique: false });
@@ -60,22 +51,17 @@ const openDatabase = () => {
         deliveryStore.createIndex('store_id', 'store_id', { unique: false });
         deliveryStore.createIndex('updated_date', 'updated_date', { unique: false });
         deliveryStore.createIndex('date_driver', ['delivery_date', 'driver_id'], { unique: false });
-        console.log('✅ [OfflineDB] Created Deliveries store');
       }
 
-      // Create Sync Status store (tracks last sync times)
       if (!db.objectStoreNames.contains(STORES.SYNC_STATUS)) {
         db.createObjectStore(STORES.SYNC_STATUS, { keyPath: 'entity' });
-        console.log('✅ [OfflineDB] Created Sync Status store');
       }
 
-      // Create Pending Mutations store (queues local changes for backend sync)
       if (!db.objectStoreNames.contains(STORES.PENDING_MUTATIONS)) {
         const mutationStore = db.createObjectStore(STORES.PENDING_MUTATIONS, { keyPath: 'mutationId', autoIncrement: true });
         mutationStore.createIndex('entity', 'entity', { unique: false });
         mutationStore.createIndex('recordId', 'recordId', { unique: false });
         mutationStore.createIndex('timestamp', 'timestamp', { unique: false });
-        console.log('✅ [OfflineDB] Created Pending Mutations store');
       }
     };
   });
@@ -107,11 +93,8 @@ const bulkSave = async (storeName, records) => {
     });
 
     await Promise.all(promises);
-    
-    console.log(`✅ [OfflineDB] Bulk saved ${successCount}/${records.length} records to ${storeName}`);
     return { success: true, count: successCount };
   } catch (error) {
-    console.error(`❌ [OfflineDB] Bulk save failed for ${storeName}:`, error);
     return { success: false, error: error.message };
   }
 };
@@ -127,14 +110,10 @@ const getAll = async (storeName) => {
 
     return new Promise((resolve, reject) => {
       const request = store.getAll();
-      request.onsuccess = () => {
-        console.log(`📦 [OfflineDB] Retrieved ${request.result.length} records from ${storeName}`);
-        resolve(request.result);
-      };
+      request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
-    console.error(`❌ [OfflineDB] Failed to get all from ${storeName}:`, error);
     return [];
   }
 };
@@ -151,14 +130,10 @@ const getByIndex = async (storeName, indexName, value) => {
 
     return new Promise((resolve, reject) => {
       const request = index.getAll(value);
-      request.onsuccess = () => {
-        console.log(`📦 [OfflineDB] Retrieved ${request.result.length} records from ${storeName} by ${indexName}=${value}`);
-        resolve(request.result);
-      };
+      request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
-    console.error(`❌ [OfflineDB] Failed to get by index ${indexName} from ${storeName}:`, error);
     return [];
   }
 };
@@ -175,14 +150,10 @@ const getByCompoundIndex = async (storeName, indexName, values) => {
 
     return new Promise((resolve, reject) => {
       const request = index.getAll(values);
-      request.onsuccess = () => {
-        console.log(`📦 [OfflineDB] Retrieved ${request.result.length} records from ${storeName} by compound index`);
-        resolve(request.result);
-      };
+      request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
-    console.error(`❌ [OfflineDB] Failed to get by compound index from ${storeName}:`, error);
     return [];
   }
 };
@@ -205,15 +176,10 @@ const clearStore = async (storeName) => {
 
     return new Promise((resolve, reject) => {
       const request = store.clear();
-      request.onsuccess = () => {
-        console.log(`🗑️ [OfflineDB] Cleared ${storeName}`);
-        resolve();
-      };
+      request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
     });
-  } catch (error) {
-    console.error(`❌ [OfflineDB] Failed to clear ${storeName}:`, error);
-  }
+  } catch (error) {}
 };
 
 /**
@@ -231,7 +197,6 @@ const getSyncStatus = async (entityName) => {
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
-    console.error(`❌ [OfflineDB] Failed to get sync status for ${entityName}:`, error);
     return null;
   }
 };
@@ -255,15 +220,10 @@ const updateSyncStatus = async (entityName, status) => {
 
     return new Promise((resolve, reject) => {
       const request = store.put(syncRecord);
-      request.onsuccess = () => {
-        console.log(`✅ [OfflineDB] Updated sync status for ${entityName}`);
-        resolve();
-      };
+      request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
     });
-  } catch (error) {
-    console.error(`❌ [OfflineDB] Failed to update sync status for ${entityName}:`, error);
-  }
+  } catch (error) {}
 };
 
 /**
@@ -271,20 +231,9 @@ const updateSyncStatus = async (entityName, status) => {
  */
 const needsInitialSync = async (entityName) => {
   const syncStatus = await getSyncStatus(entityName);
-  
-  if (!syncStatus) {
-    console.log(`🔄 [OfflineDB] ${entityName} needs initial sync (no status found)`);
-    return true;
-  }
-
+  if (!syncStatus) return true;
   const daysSinceSync = (Date.now() - syncStatus.lastSyncTime) / (1000 * 60 * 60 * 24);
-  
-  if (daysSinceSync > 7) {
-    console.log(`🔄 [OfflineDB] ${entityName} needs resync (last sync: ${daysSinceSync.toFixed(1)} days ago)`);
-    return true;
-  }
-
-  console.log(`✅ [OfflineDB] ${entityName} is up to date (synced ${daysSinceSync.toFixed(1)} days ago, ${syncStatus.recordCount} records)`);
+  if (daysSinceSync > 7) return true;
   return false;
 };
 
@@ -311,7 +260,6 @@ const getStats = async () => {
       }
     };
   } catch (error) {
-    console.error('❌ [OfflineDB] Failed to get stats:', error);
     return null;
   }
 };
@@ -335,14 +283,10 @@ const addPendingMutation = async (mutation) => {
 
     return new Promise((resolve, reject) => {
       const request = store.add(mutationRecord);
-      request.onsuccess = () => {
-        console.log(`✅ [OfflineDB] Added pending ${mutation.operation} for ${mutation.entity}:${mutation.recordId}`);
-        resolve(request.result);
-      };
+      request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
-    console.error('❌ [OfflineDB] Failed to add pending mutation:', error);
     throw error;
   }
 };
@@ -362,7 +306,6 @@ const getPendingMutations = async () => {
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
-    console.error('❌ [OfflineDB] Failed to get pending mutations:', error);
     return [];
   }
 };
@@ -378,15 +321,10 @@ const removePendingMutation = async (mutationId) => {
 
     return new Promise((resolve, reject) => {
       const request = store.delete(mutationId);
-      request.onsuccess = () => {
-        console.log(`✅ [OfflineDB] Removed pending mutation ${mutationId}`);
-        resolve();
-      };
+      request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
     });
-  } catch (error) {
-    console.error('❌ [OfflineDB] Failed to remove pending mutation:', error);
-  }
+  } catch (error) {}
 };
 
 /**
@@ -414,9 +352,7 @@ const updateMutationRetry = async (mutationId, retryCount) => {
       };
       getRequest.onerror = () => reject(getRequest.error);
     });
-  } catch (error) {
-    console.error('❌ [OfflineDB] Failed to update mutation retry:', error);
-  }
+  } catch (error) {}
 };
 
 export const offlineDB = {

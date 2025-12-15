@@ -800,37 +800,25 @@ export default function DeliveryMap({
     ['in_transit', ...FINISHED_STATUSES].includes(d.status)
   );
 
-      // CRITICAL: For routes that have started, ALWAYS clear the pre-route polyline
-      // We only show currentToNextPolyline (blue dotted line) for active routes
       if (hasStarted) {
-        console.log('⏭️ [DeliveryMap] Route already started - clearing pre-route polyline (only blue dotted currentToNextPolyline should show)');
         setGoogleRouteCoordinates(null);
         return;
       }
 
       try {
-        console.log('🗺️ [DeliveryMap] Fetching stored route polyline:', {
-          driverId,
-          deliveryDate
-        });
-
         const coordinates = await getStoredRouteCoordinates(
           driverId,
           deliveryDate,
-          'to_first_stop' // This parameter is ignored now - we fetch by driver_id + date
+          'to_first_stop'
         );
 
         if (coordinates && coordinates.length > 0) {
-          console.log('✅ [DeliveryMap] Google route loaded:', coordinates.length, 'points');
-          // Convert {lat, lng} to [lat, lng] for Leaflet
           const leafletCoords = coordinates.map((coord) => [coord.lat, coord.lng]);
           setGoogleRouteCoordinates(leafletCoords);
         } else {
-          console.log('📍 [DeliveryMap] No Google route available yet (no encoded_polyline in record)');
           setGoogleRouteCoordinates(null);
         }
       } catch (error) {
-        console.error('❌ [DeliveryMap] Error fetching Google route:', error);
         setGoogleRouteCoordinates(null);
       }
     };
@@ -996,27 +984,14 @@ export default function DeliveryMap({
     };
   }, [patientDeliveries, pickups, safePatients, safeStores, safeUsers, isSingleDriverMode, currentUser, safeDeliveries, isDriverViewingSelfToday]);
 
-  // NEW: Calculate fanned-out positions with corrected linear radius scaling
   const calculateFannedPosition = useCallback((originalLat, originalLng, markerIndex, totalMarkers, stopOrder) => {
-    // Only fan between zoom levels 11-18
     if (currentZoom < 11 || currentZoom > 18) {
       return [originalLat, originalLng];
     }
 
-    // Base radius at maximum zoom level 18
-    const baseRadius = 0.0008; // ~80 meters at max zoom
-    const dynamicRadius = 0.0008; // Multiplier per zoom level
-    
-    // Calculate radius using the formula: Radius = BaseRadius + (18 - Zoom level) * DynamicRadius
+    const baseRadius = 0.0008;
+    const dynamicRadius = 0.0008;
     const radius = baseRadius + (18 - currentZoom) * dynamicRadius;
-
-    // DEBUG: Log calculation
-    console.log('🎯 [Fanning] Calculation:', {
-      currentZoom,
-      zoomDelta: 18 - currentZoom,
-      radius: radius.toFixed(6),
-      totalMarkers
-    });
 
     // Calculate arc width based on number of markers
     // More markers = wider arc (up to -90 to +90 degrees from vertical)
@@ -1060,42 +1035,22 @@ export default function DeliveryMap({
   const handleMarkerClickForFanning = useCallback((marker, markerType) => {
     const locationKey = `${marker.latitude.toFixed(6)},${marker.longitude.toFixed(6)}`;
     
-    // If this marker is part of a cluster (duplicateCount > 1)
     if (marker.duplicateCount > 1) {
-      console.log('🎯 [Cluster Click] Detected cluster at:', locationKey);
+      if (onMapInteraction) onMapInteraction();
       
-      // CRITICAL: Notify parent IMMEDIATELY to lock map view (before ANY checks)
-      if (onMapInteraction) {
-        console.log('🔒 [Cluster Click] Calling onMapInteraction to lock FAB');
-        onMapInteraction();
-      }
-      
-      // If already fanned, retract and select card
       if (fannedLocationKey === locationKey) {
-        console.log('✅ Fanned marker clicked - retracting cluster and selecting card');
-        setFannedLocationKey(null); // Retract
-        if (onMarkerClick) {
-          onMarkerClick(marker);
-        }
+        setFannedLocationKey(null);
+        if (onMarkerClick) onMarkerClick(marker);
         return;
       }
       
-      console.log('🎯 [Cluster Click] Proceeding to zoom/center/fan at:', locationKey);
-      
-      // FIXED: Get ALL markers at this location (both pickups AND deliveries)
       const deliveriesAtLocation = groupedDeliveryMarkers.get(locationKey) || [];
       const pickupsAtLocation = groupedPickupMarkers.get(locationKey) || [];
       const markersAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation];
       
-      console.log('📍 Found', markersAtLocation.length, 'markers at location (', pickupsAtLocation.length, 'pickups +', deliveriesAtLocation.length, 'deliveries)');
-      
-      // Sort markers by stop_order for consistent fanning
       markersAtLocation.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-      
-      // Calculate bounds to include center point and all fanned positions
       const bounds = L.latLngBounds([marker.latitude, marker.longitude]);
       
-      // Calculate fanned positions and extend bounds
       markersAtLocation.forEach((m, index) => {
         const [fannedLat, fannedLng] = calculateFannedPosition(
           marker.latitude,
@@ -1105,14 +1060,9 @@ export default function DeliveryMap({
           m.stop_order
         );
         bounds.extend([fannedLat, fannedLng]);
-        console.log(`  Fan ${index + 1}/${markersAtLocation.length} (${m.markerType}):`, [fannedLat, fannedLng]);
       });
       
-      console.log('📐 Bounds calculated:', bounds.toBBoxString());
-      
-      // Zoom and center on the ORIGINAL cluster location (not fanned positions)
       if (map) {
-        console.log('🗺️ Centering map on original cluster location:', [marker.latitude, marker.longitude]);
         
         // Center on original cluster location with padding for stop cards
         const fitOptions = { 
@@ -1131,13 +1081,10 @@ export default function DeliveryMap({
         
         map.fitBounds(clusterBounds, fitOptions);
         
-        // Fan out the markers after centering
         setTimeout(() => {
           setFannedLocationKey(locationKey);
-          console.log('✅ Fanned location key set:', locationKey);
         }, 650);
       } else {
-        console.warn('⚠️ Map not available - skipping zoom/pan but fanning markers');
         setFannedLocationKey(locationKey);
       }
       
@@ -1173,12 +1120,7 @@ export default function DeliveryMap({
 
   // Process driver locations - Show shared location markers for on-duty drivers with location sharing enabled
   const driverLocationMarkers = useMemo(() => {
-    // Only show driver markers when viewing current date
-    if (!isViewingCurrentDate) {
-      return [];
-    }
-
-    console.log('🗺️ [DeliveryMap] Processing shared driver locations:', safeDriverLocations.length);
+    if (!isViewingCurrentDate) return [];
 
     const isAdmin = currentUser && userHasRole(currentUser, 'admin');
     const currentUserCityId = currentUser?.city_id;
@@ -1197,23 +1139,9 @@ export default function DeliveryMap({
 
       const isCurrentUser = driverId === currentUser?.id;
 
-      // CRITICAL: On mobile, hide shared location marker for current user (blue dot shows instead)
-      if (isMobile && isCurrentUser) {
-        console.log(`  ⏭️ Skipping ${driver.user_name || driver.full_name}: current user on mobile (blue dot shows instead)`);
-        return null;
-      }
-
-      // CRITICAL: Must be on_duty to show shared location
-      if (location.driver_status !== 'on_duty') {
-        console.log(`  ⏭️ Skipping ${driver.user_name || driver.full_name}: not on_duty`);
-        return null;
-      }
-
-      // CRITICAL: Must have location tracking enabled
-      if (location.location_tracking_enabled !== true) {
-        console.log(`  ⏭️ Skipping ${driver.user_name || driver.full_name}: location sharing disabled`);
-        return null;
-      }
+      if (isMobile && isCurrentUser) return null;
+      if (location.driver_status !== 'on_duty') return null;
+      if (location.location_tracking_enabled !== true) return null;
 
       // Permission filtering
       if (!isAdmin && currentUserCityId !== driver.city_id) {
@@ -1237,8 +1165,6 @@ export default function DeliveryMap({
       const driverColor = getDriverColor(driver);
       const driverName = driver.user_name || driver.full_name || 'Unknown Driver';
       const driverInitial = driverName.charAt(0).toUpperCase();
-
-      console.log(`  ✅ ${driverName}: Shared location marker (on_duty, tracking enabled)${isCurrentUser ? ' [SELF]' : ''}`);
 
       return {
         ...location,
@@ -1288,12 +1214,6 @@ export default function DeliveryMap({
       return null;
     }
 
-    console.log('✅ [DeliveryMap] RENDERING BLUE DOT (mobile only):', {
-      lat: currentDriverLocation.latitude,
-      lon: currentDriverLocation.longitude,
-      timestamp: currentDriverLocation.timestamp
-    });
-
     return {
       ...currentDriverLocation,
       driver: currentUser
@@ -1313,7 +1233,6 @@ export default function DeliveryMap({
     const isCurrentUserDriver = userHasRole(currentUser, 'driver');
     const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
 
-    // Get drivers with active (unfinished) stops - ONLY from current user's deliveries
     const driversWithActiveStops = new Set();
 
     safeDeliveries.forEach((delivery) => {
@@ -1323,14 +1242,9 @@ export default function DeliveryMap({
       }
     });
 
-    // Create home markers based on user permissions
     const homeMarkers = [];
     driversWithActiveStops.forEach((driverId) => {
-      // NEW: Skip other drivers' homes when viewing self today
-      if (isDriverViewingSelfToday && driverId !== currentUser.id) {
-        console.log('🏠 [Home Markers] Skipping other driver home:', driverId);
-        return;
-      }
+      if (isDriverViewingSelfToday && driverId !== currentUser.id) return;
 
       // FIXED: Find driver by ID only, don't require user_name in find condition
       const driver = safeUsers.find((u) => u && typeof u === 'object' && u.id === driverId);
@@ -1368,13 +1282,8 @@ export default function DeliveryMap({
   const driverRoutes = useMemo(() => {
     if (!showRoutes || currentZoom < ZOOM_LEVELS.HIDE_ROUTES) return [];
     
-    // For live route polylines (origin lines, pre-routes), only show on current date
     const showLivePolylines = isViewingCurrentDate;
     const isDispatcherNonAdmin = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
-
-    console.log('🗺️ Building driver routes...');
-    console.log('📍 Pickup markers:', pickupMarkers.length);
-    console.log('📦 Delivery markers:', deliveryMarkers.length);
 
     // Use shared finished statuses
     const activeStatuses = ['in_transit']; // NEW
@@ -1394,13 +1303,6 @@ export default function DeliveryMap({
         : driverForRoute && typeof driverForRoute === 'object' ? getDriverColor(driverForRoute) : '#607D8B';
 
       const driverDisplayName = driverForRoute ? (driverForRoute.user_name || driverForRoute.full_name || 'Unknown') : 'Unassigned';
-
-      console.log(`🗺️ Creating route for driver ${driverId}:`, {
-        found: !!driverForRoute,
-        displayName: driverDisplayName,
-        user_name: driverForRoute?.user_name,
-        full_name: driverForRoute?.full_name
-      });
 
       routesByDriver[driverId] = {
         driverId,
@@ -1428,34 +1330,18 @@ export default function DeliveryMap({
     const allPickupsFinished = driverPickups.every((p) => FINISHED_STATUSES.includes(p.status));
     const isRouteCompleted = allDeliveriesFinished && allPickupsFinished;
 
-    // NEW: Check if route has started (has any in_transit or completed stops)
     const hasActiveStops = route.stops.some((delivery) => delivery && activeStatuses.includes(delivery.status)) ||
       driverPickups.some((p) => p && activeStatuses.includes(p.status));
     const hasCompletedStops = route.stops.some((d) => FINISHED_STATUSES.includes(d.status)) ||
       driverPickups.some((p) => p && FINISHED_STATUSES.includes(p.status));
     const isRouteStarted = hasActiveStops || hasCompletedStops;
 
-      console.log(`🚗 Route for ${route.driverName}:`, {
-        driverId: route.driverId,
-        pickupCount: driverPickups.length,
-        deliveryStops: route.stops.length,
-        isRouteCompleted,
-        isRouteStarted,
-        allDeliveriesFinished,
-        allPickupsFinished
-      });
-
-      // Filter stops based on route completion status
       let deliveriesToRoute = route.stops;
       let pickupsToRoute = driverPickups;
 
       if (!isRouteCompleted) {
-        // Route is in-progress: only show unfinished stops (excluding pending)
         deliveriesToRoute = route.stops.filter((delivery) => delivery && !FINISHED_STATUSES.includes(delivery.status) && delivery.status !== 'pending');
         pickupsToRoute = driverPickups.filter((p) => p && !FINISHED_STATUSES.includes(p.status) && p.status !== 'pending');
-        console.log(`  🔄 In-progress route: showing ${deliveriesToRoute.length} unfinished deliveries and ${pickupsToRoute.length} unfinished pickups (excluding pending)`);
-      } else {
-        console.log(`  ✅ Completed route: showing all ${deliveriesToRoute.length} deliveries and ${pickupsToRoute.length} pickups in stop order`);
       }
 
       // Use isRouteStarted that's already defined above
@@ -1490,31 +1376,18 @@ export default function DeliveryMap({
             time: delivery.delivery_time_start
           }))];
 
-        // Sort by stop order
         allStops.sort((a, b) => a.stop_order - b.stop_order);
-
-        console.log(`  📋 Combined stops (sorted by stop order):`, allStops.map((s) =>
-          `#${s.stop_order} ${s.type === 'pickup' ? `🏪 ${s.store}` : `📦 ${s.patient}`} at ${s.time}`
-        ));
-
-        // Extract coordinates in stop order
         coordinates = allStops.map((stop) => [stop.latitude, stop.longitude]);
 
-        // Get first stop coordinates
         if (allStops.length > 0) {
           const firstStop = allStops[0];
           firstStopCoordinates = [firstStop.latitude, firstStop.longitude];
-          console.log(`  🏁 First stop: ${firstStop.type === 'pickup' ? firstStop.store : firstStop.patient}`);
         }
 
-        // Get last stop coordinates and determine if home route should show
         if (allStops.length > 0) {
           const lastStop = allStops[allStops.length - 1];
           lastStopCoordinates = [lastStop.latitude, lastStop.longitude];
-          // NEW: Only show home route if route is NOT completed AND user is not a dispatcher
           shouldShowHomeRoute = !isRouteCompleted && !isDispatcherNonAdmin;
-          console.log(`  📍 Last stop: ${lastStop.type === 'pickup' ? lastStop.store : lastStop.patient} at [${lastStop.latitude?.toFixed(4)}, ${lastStop.longitude?.toFixed(4)}]`);
-          console.log(`  🏠 Show home route: ${shouldShowHomeRoute} (dispatcher blocked: ${isDispatcherNonAdmin})`);
         }
 
         // NEW: Determine starting point for visualization (routeHasActuallyStarted defined above)
@@ -1524,25 +1397,18 @@ export default function DeliveryMap({
         if (routeHasActuallyStarted && firstStopCoordinates && route.driver && !isOtherDriverRoute) {
           let startPoint = null;
 
-          // CRITICAL: Priority 1 - Use currentDriverLocation if this is the current user (live GPS on mobile)
           if (currentUser && route.driver.id === currentUser.id && currentDriverLocation?.latitude && currentDriverLocation?.longitude) {
             startPoint = [currentDriverLocation.latitude, currentDriverLocation.longitude];
-            console.log(`  📍 Origin from currentDriverLocation (live GPS)`);
           }
-          // Priority 2: Use driver's stored GPS location from AppUser if available and recent
           else if (route.driver.current_latitude && route.driver.current_longitude && route.driver.location_updated_at) {
             const locationAge = Date.now() - new Date(route.driver.location_updated_at).getTime();
             const fiveMinutesInMs = 5 * 60 * 1000;
 
             if (locationAge < fiveMinutesInMs) {
               startPoint = [route.driver.current_latitude, route.driver.current_longitude];
-              console.log(`  📍 Origin from driver's stored GPS location (${Math.round(locationAge / 1000)}s old)`);
-            } else {
-              console.log(`  ⚠️ Driver's stored GPS too old (${Math.round(locationAge / 1000)}s), using last completed`);
             }
           }
 
-          // Priority 3: Use last completed stop location (fallback only if no GPS)
           if (!startPoint && hasCompletedStops) {
             const completedStopsForDriver = [...route.stops, ...driverPickups]
               .filter((s) => s && FINISHED_STATUSES.includes(s.status) && s.actual_delivery_time)
@@ -1551,38 +1417,27 @@ export default function DeliveryMap({
             if (completedStopsForDriver.length > 0) {
               const lastCompleted = completedStopsForDriver[0];
               startPoint = [lastCompleted.latitude, lastCompleted.longitude];
-              console.log(`  📍 Origin from last completed stop (fallback - no GPS)`);
             }
           }
 
-          // Draw bright red solid line from origin to first incomplete stop
           if (startPoint) {
             startToFirstStopCoordinates = [startPoint, firstStopCoordinates];
-            console.log(`  ✅ Will draw BLUE DASHED origin line from start to first incomplete stop`);
           }
         } else if (!isRouteStarted && firstStopCoordinates && route.driver && !isDispatcherNonAdmin && !isOtherDriverRoute) {
-          // Route hasn't started - use home or current location (NOT for dispatchers or other drivers)
           let startPoint = null;
 
-          // Priority 1: Use current driver location if this is the current user and available
           if (currentUser && route.driver.id === currentUser.id && currentDriverLocation) {
             startPoint = [currentDriverLocation.latitude, currentDriverLocation.longitude];
-            console.log(`  🚀 Pre-route from current location to first stop`);
           }
-          // Priority 2: Use driver's home location
           else if (route.driver.home_latitude && route.driver.home_longitude) {
             startPoint = [route.driver.home_latitude, route.driver.home_longitude];
-            console.log(`  🏠 Pre-route from home to first stop`);
           }
 
           if (startPoint) {
             startToFirstStopCoordinates = [startPoint, firstStopCoordinates];
-            console.log(`  ✅ Will draw pre-route line from start to first stop`);
           }
         }
       }
-
-      console.log(`  📍 Total route points: ${coordinates.length}`);
 
       // NEW: Determine route styling based on zoom
       let routeWeight = 2;
@@ -1625,11 +1480,7 @@ export default function DeliveryMap({
       };
     });
     
-    // CRITICAL: Don't filter out drivers without coordinates - keep them for the legend
     const sortedRoutes = routes.sort((a, b) => a.sortOrder - b.sortOrder);
-
-    console.log(`✅ Generated ${sortedRoutes.length} routes (including drivers without coordinates for legend)`);
-
     return sortedRoutes;
   }, [deliveryMarkers, pickupMarkers, showRoutes, isSingleDriverMode, safeUsers, currentZoom, currentUser, currentDriverLocation, isViewingCurrentDate, safeDeliveries, otherDriverDeliveries, safeStores]);
   
@@ -1679,7 +1530,6 @@ export default function DeliveryMap({
     }
 
     try {
-      console.log('[MapCenter] EXECUTING fitBounds with', shouldFitBounds.bounds.length, 'coordinates');
       const bounds = L.latLngBounds(shouldFitBounds.bounds);
       
       // CRITICAL FIX: Use stopCardsHeight directly as bottom padding
@@ -1696,32 +1546,19 @@ export default function DeliveryMap({
         ];
       }
       
-      console.log('[MapCenter] Calling map.fitBounds with smooth animation');
       map.fitBounds(bounds, modifiedOptions);
-      console.log('[MapCenter] fitBounds completed');
 
       if (onBoundsFitted && typeof onBoundsFitted === 'function') {
         onBoundsFitted();
       }
-    } catch (error) {
-      console.error('[MapCenter] DYNAMIC VIEW error:', error);
-    }
+    } catch (error) {}
   }, [map, shouldFitBounds, stopCardsHeight, onBoundsFitted]);
 
   // Handle marker drag end
   const handleMarkerDragEnd = useCallback((markerId, event, type) => {
     try {
       const newLatLng = event.target.getLatLng();
-      console.log(`📍 Marker dragged - ${type} #${markerId}:`, {
-        lat: newLatLng.lat,
-        lng: newLatLng.lng
-      });
-
-      // You can emit this to parent or save to database here
-      // For now, just log it. Add your save logic here if needed.
-    } catch (error) {
-      console.error('Error handling marker drag:', error);
-    }
+    } catch (error) {}
   }, []);
 
   // CRITICAL FIX: Simplified MapController - only sets map reference, no conditional hooks
@@ -1732,34 +1569,20 @@ export default function DeliveryMap({
     
     const mapInstance = useMapEvents({
       zoomstart: () => {
-        // Only unlock if NOT triggered by programmatic map movement (within 300ms)
-        // After initial programmatic move, clear the flag so subsequent user interactions work
         const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
         if (timeSinceProgrammatic > 300) {
-          console.log('🗺️ [Map] User zoom detected - calling onMapInteraction');
-          if (onMapInteraction) {
-            onMapInteraction();
-          }
+          if (onMapInteraction) onMapInteraction();
         } else {
-          console.log('🗺️ [Map] Ignoring programmatic zoom (within 300ms window)');
-          // Clear the flag after first programmatic event so user can interact
           setTimeout(() => {
             window._lastProgrammaticMapMove = 0;
           }, 350);
         }
       },
       movestart: () => {
-        // Only unlock if NOT triggered by programmatic map movement (within 300ms)
-        // After initial programmatic move, clear the flag so subsequent user interactions work
         const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
         if (timeSinceProgrammatic > 300) {
-          console.log('🗺️ [Map] User pan detected - calling onMapInteraction');
-          if (onMapInteraction) {
-            onMapInteraction();
-          }
+          if (onMapInteraction) onMapInteraction();
         } else {
-          console.log('🗺️ [Map] Ignoring programmatic pan (within 300ms window)');
-          // Clear the flag after first programmatic event so user can interact
           setTimeout(() => {
             window._lastProgrammaticMapMove = 0;
           }, 350);
@@ -1804,19 +1627,13 @@ export default function DeliveryMap({
         setVisibleBounds(bounds);
       },
       click: () => {
-        // Retract clusters on map click
         setFannedLocationKey(null);
         
-        // Double-tap detection for FAB activation
         const now = Date.now();
         const timeSinceLastTap = now - lastTapRef.current;
         
         if (timeSinceLastTap < 300) {
-          // Double-tap detected - trigger FAB reactivation
-          console.log('🗺️ [Double-Tap] Detected on map, triggering FAB reactivation');
-          if (onDoubleTap) {
-            onDoubleTap();
-          }
+          if (onDoubleTap) onDoubleTap();
         }
         
         lastTapRef.current = now;
@@ -2128,23 +1945,8 @@ export default function DeliveryMap({
           });
         })()}
 
-        {/* MOVED: Current Driver's Live Location - BLUE DOT - RENDER FIRST for lower priority */}
         {(() => {
-          console.log('🔵 [DeliveryMap RENDER] Blue dot render check:', {
-            hasCurrentDriverMarker: !!currentDriverMarker,
-            markerData: currentDriverMarker ? {
-              lat: currentDriverMarker.latitude,
-              lon: currentDriverMarker.longitude,
-              hasDriver: !!currentDriverMarker.driver
-            } : null
-          });
-          
-          if (!currentDriverMarker) {
-            console.log('⏭️ [DeliveryMap RENDER] Blue dot NOT rendered - currentDriverMarker is null');
-            return null;
-          }
-          
-          console.log('✅ [DeliveryMap RENDER] RENDERING BLUE DOT at:', [currentDriverMarker.latitude, currentDriverMarker.longitude]);
+          if (!currentDriverMarker) return null;
           
           return (
             <Marker
