@@ -355,25 +355,21 @@ Deno.serve(async (req) => {
     const newOrder = optimizedRoute.map(i => i + 1).join(',');
     const routeChanged = oldOrder !== newOrder;
 
-    // Calculate ETAs based on optimized route
-    let currentPosition = 0; // Driver location
-    let accumulatedMinutes = currentMinutes;
-    
-    // Update stop_order and ETAs in database (continuing from completed stops)
+    console.log('📋 Old order:', oldOrder);
+    console.log('📋 New order:', newOrder);
+    console.log('📋 Route changed:', routeChanged);
+
+    // Update stop_order and display_stop_order for ALL deliveries in optimized sequence
     const updates = [];
     for (let i = 0; i < optimizedRoute.length; i++) {
       const stopIdx = optimizedRoute[i];
       const stop = stops[stopIdx];
       const newStopOrder = startingStopOrder + i + 1; // Continue from completed stops
 
-      // Calculate travel duration (don't calculate ETA on backend)
-      const travelTime = Math.ceil(matrix[currentPosition][stopIdx].duration / 60);
-      const serviceTime = stop.delivery.extra_time || 5;
-      accumulatedMinutes += travelTime + serviceTime;
-
-      // Update delivery with new stop_order only (no ETA)
+      // CRITICAL: Update both stop_order AND display_stop_order to match
       const updateData = {
-        stop_order: newStopOrder
+        stop_order: newStopOrder,
+        display_stop_order: newStopOrder
       };
 
       await base44.asServiceRole.entities.Delivery.update(stop.delivery.id, updateData);
@@ -381,14 +377,12 @@ Deno.serve(async (req) => {
       updates.push({
         deliveryId: stop.delivery.id,
         delivery_id: stop.delivery.delivery_id,
+        patient_name: stop.delivery.patient_name || 'Pickup',
         oldOrder: stop.delivery.stop_order,
-        newOrder: newStopOrder,
-        cumulativeMinutes: accumulatedMinutes - currentMinutes,
-        travelMinutes: travelTime,
-        serviceMinutes: serviceTime
+        newOrder: newStopOrder
       });
 
-      currentPosition = stopIdx + 1; // Move to next position in matrix
+      console.log(`✅ Updated stop #${newStopOrder}: ${stop.delivery.patient_name || 'Pickup'} (was #${stop.delivery.stop_order})`);
     }
 
     console.log(`✅ Route optimization complete - ${routeChanged ? 'CHANGED' : 'UNCHANGED'} (${updates.length} updates with durations)`);
