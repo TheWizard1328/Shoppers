@@ -162,7 +162,7 @@ export default function PatientForm({
         };
       }
     }
-    
+
     return null;
   }, [currentUser, cities, stores, formData.store_id]);
 
@@ -278,7 +278,7 @@ export default function PatientForm({
     let distanceFromStore = null;
     if (formData.store_id && stores) {
       const assignedStore = stores.find((s) => s && s.id === formData.store_id);
-      
+
       if (assignedStore?.latitude && assignedStore?.longitude && addressData.latitude && addressData.longitude) {
         // Haversine formula for distance
         const R = 6371; // Earth's radius in km
@@ -438,7 +438,7 @@ export default function PatientForm({
         return;
       }
     }
-    
+
     // Invalidate cache for UI refresh
     const { invalidate } = await import('../utils/dataManager');
     invalidate('Patient');
@@ -694,7 +694,7 @@ export default function PatientForm({
                   </div>
 
                   <div className="col-span-3 space-y-1">
-                    <Label htmlFor="phone_secondary" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Secondary Phone</Label>
+                    <Label htmlFor="phone_secondary" className="peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Alt. Phone</Label>
                     <PhoneInput
                       id="phone_secondary"
                       value={formData.phone_secondary}
