@@ -64,7 +64,6 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
       let offlineData = await offlineDB.getAll(storeName);
       
       if (offlineData && offlineData.length > 0) {
-        console.log(`📱 [dataManager] Using offline ${entityName} data (${offlineData.length} records)`);
         cache.set(cacheKey, offlineData);
         cacheTimestamps.set(cacheKey, Date.now());
         return offlineData;
@@ -77,15 +76,8 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
   if (!forceRefresh && cache.has(cacheKey)) {
     const timestamp = cacheTimestamps.get(cacheKey);
     if (timestamp && Date.now() - timestamp < CACHE_DURATION) {
-      console.log(`✅ [dataManager] Using cached ${entityName} data for key: ${cacheKey}`);
       return cache.get(cacheKey);
     }
-  }
-
-  if (forceRefresh) {
-    console.log(`🔄 [dataManager] Forcing refresh for ${entityName} (bypassing cache for key: ${cacheKey})`);
-  } else if (cache.has(cacheKey)) {
-    console.log(`⚠️ [dataManager] Cache for ${entityName} (key: ${cacheKey}) expired or invalid, refetching.`);
   }
 
   let retries = 3;
@@ -99,13 +91,11 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
       if (attempt > 0) {
         // Exponential backoff: 1s, 2s, 4s
         const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
-        console.log(`⏳ [dataManager] Retry attempt ${attempt + 1}/${retries} for ${entityName} after ${delay}ms delay`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
 
       const Entity = entities[entityName];
       if (!Entity) {
-        console.error(`[dataManager] Entity ${entityName} not found`);
         return [];
       }
 
@@ -142,11 +132,9 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
       if (entityName === 'Patient' || entityName === 'Delivery') {
         const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : offlineDB.STORES.DELIVERIES;
         offlineDB.bulkSave(storeName, data).catch(err => {
-          console.warn(`⚠️ [dataManager] Failed to save ${entityName} to IndexedDB:`, err);
         });
       }
 
-      console.log(`✅ [dataManager] Fetched ${data?.length || 0} ${entityName} records for key: ${cacheKey}`);
       return data;
       
     } catch (error) {
@@ -154,9 +142,7 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
 
         // Handle WebSocket errors gracefully (return cached data if available)
         if (error.message?.includes('WebSocket') || error.message?.includes('closed without opened')) {
-          console.warn(`⚠️ [dataManager] WebSocket connection issue for ${entityName}, using cached data`);
           if (cache.has(cacheKey)) {
-            console.log(`   ↩️ Returning cached ${entityName} (from key: ${cacheKey})`);
             return cache.get(cacheKey);
           }
           cache.set(cacheKey, []);
@@ -166,13 +152,10 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
 
         // CRITICAL: Handle 403 Forbidden gracefully (user doesn't have permission)
         if (error.response?.status === 403 || error.message?.includes('403')) {
-          console.warn(`🔒 [dataManager] Access forbidden for ${entityName} (user lacks permission) - returning empty array`);
           cache.set(cacheKey, []);
           cacheTimestamps.set(cacheKey, Date.now());
           return [];
         }
-
-        console.error(`❌ [dataManager] Error fetching ${entityName} (attempt ${attempt + 1}/${retries}):`, error.message);
 
         if (attempt < retries - 1 && (error.message?.includes('Network Error') || error.code === 'NETWORK_ERROR')) {
           continue;
@@ -181,7 +164,6 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
         if (error.response?.status === 429 || error.message?.includes('429')) {
           // Exponential backoff for rate limits: 2s, 4s, 8s
           const backoffDelay = Math.min(2000 * Math.pow(2, attempt), 10000);
-          console.warn(`⏰ [dataManager] Rate limited (429), waiting ${backoffDelay}ms before retry`);
           await new Promise(resolve => setTimeout(resolve, backoffDelay));
           if (attempt < retries - 1) continue;
         }
@@ -190,13 +172,10 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
       }
   }
   
-  console.warn(`⚠️ [dataManager] All attempts failed for ${entityName} (key: ${cacheKey}), checking for stale cache`);
   if (cache.has(cacheKey)) {
-    console.warn(`⚠️ [dataManager] Returning stale cached data for ${entityName} (key: ${cacheKey})`);
     return cache.get(cacheKey);
   }
   
-  console.error(`❌ [dataManager] No data available for ${entityName} (key: ${cacheKey})`);
   return [];
 };
 
@@ -212,9 +191,6 @@ export const invalidate = (entityName) => {
       cache.delete(key);
       cacheTimestamps.delete(key);
     });
-    console.log(`🗑️ [dataManager] Invalidated cache for ${entityName} (${keysToDelete.length} keys deleted)`);
-  } else {
-    console.log(`ℹ️ [dataManager] No cache entries found to invalidate for ${entityName}`);
   }
   
   // Also invalidate delivery range cache for Delivery entities
@@ -238,7 +214,6 @@ export const setCached = (entityName, data) => {
   const cacheKey = `${entityName}_default_noquery_all`;
   cache.set(cacheKey, data);
   cacheTimestamps.set(cacheKey, Date.now());
-  console.log(`💾 [dataManager] Cached ${data?.length || 0} ${entityName} records for key: ${cacheKey}`);
 };
 
 /**
@@ -258,7 +233,6 @@ export const getDeliveriesForDateRange = async (startDate, endDate, filters = {}
     const cachedTimestamp = deliveryRangeCacheTimestamps.get(cacheKey);
     
     if (cachedData && cachedTimestamp && (Date.now() - cachedTimestamp < DELIVERY_RANGE_CACHE_DURATION)) {
-      console.log(`📦 [dataManager] Using cached deliveries for ${startDate} to ${endDate} (${cachedData.length} records)`);
       return cachedData;
     }
   }
@@ -271,8 +245,6 @@ export const getDeliveriesForDateRange = async (startDate, endDate, filters = {}
     }
   };
   
-  console.log(`🔄 [dataManager] Fetching deliveries for ${startDate} to ${endDate}...`);
-  
   try {
     // CRITICAL: Wait for rate limit before making API call
     await waitForRateLimit();
@@ -284,19 +256,16 @@ export const getDeliveriesForDateRange = async (startDate, endDate, filters = {}
     deliveryRangeCache.set(cacheKey, deliveries);
     deliveryRangeCacheTimestamps.set(cacheKey, Date.now());
     
-    console.log(`✅ [dataManager] Loaded ${deliveries.length} deliveries for ${startDate} to ${endDate}`);
     return deliveries;
   } catch (error) {
     // Handle WebSocket errors gracefully
     if (error.message?.includes('WebSocket') || error.message?.includes('closed without opened')) {
-      console.warn(`⚠️ [dataManager] WebSocket connection issue for ${startDate} to ${endDate}, using cached data`);
       if (deliveryRangeCache.has(cacheKey)) {
         return deliveryRangeCache.get(cacheKey);
       }
       return [];
     }
     
-    console.error(`❌ [dataManager] Error fetching deliveries for ${startDate} to ${endDate}:`, error);
     throw error;
   }
 };
@@ -328,7 +297,6 @@ export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh 
       }
       
       if (offlineData && offlineData.length > 0) {
-        console.log(`📱 [dataManager] Using offline deliveries for ${dateStr} (${offlineData.length} records)`);
         deliveryRangeCache.set(cacheKey, offlineData);
         deliveryRangeCacheTimestamps.set(cacheKey, Date.now());
         return offlineData;
@@ -344,7 +312,6 @@ export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh 
     const cachedTimestamp = deliveryRangeCacheTimestamps.get(cacheKey);
     
     if (cachedData && cachedTimestamp && (Date.now() - cachedTimestamp < DELIVERY_RANGE_CACHE_DURATION)) {
-      console.log(`📦 [dataManager] Using cached deliveries for ${dateStr} (${cachedData.length} records)`);
       return cachedData;
     }
   }
@@ -354,7 +321,6 @@ export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh 
     delivery_date: dateStr
   };
   
-  console.log(`🚀 [dataManager] PRIORITY: Loading deliveries for ${dateStr}...`);
   
   try {
     await waitForRateLimit();
@@ -368,14 +334,11 @@ export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh 
 
     // BACKGROUND: Save to IndexedDB
     offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries).catch(err => {
-      console.warn('⚠️ [dataManager] Failed to save deliveries to IndexedDB:', err);
     });
 
-    console.log(`✅ [dataManager] PRIORITY: Loaded ${deliveries.length} deliveries for ${dateStr}`);
     return deliveries;
   } catch (error) {
     if (error.message?.includes('WebSocket') || error.message?.includes('closed without opened')) {
-      console.warn(`⚠️ [dataManager] WebSocket issue for ${dateStr}, using cached data`);
       if (deliveryRangeCache.has(cacheKey)) {
         return deliveryRangeCache.get(cacheKey);
       }
@@ -396,9 +359,7 @@ export const loadFullMonthDeliveries = async (filters = {}, forceRefresh = false
   const last30Days = subDays(today, 30);
   const last30DaysStr = format(last30Days, 'yyyy-MM-dd');
 
-  console.log(`🚀 [dataManager] Background: Loading full 30 days of deliveries (${last30DaysStr} to ${todayStr})`);
   const deliveries = await getDeliveriesForDateRange(last30DaysStr, todayStr, filters, forceRefresh);
-  console.log(`✅ [dataManager] Background: Loaded ${deliveries.length} deliveries for full month`);
   return deliveries;
 };
 
@@ -422,13 +383,11 @@ export const loadDeliveries = async (
   const today = new Date();
   
   // 1. Load selected date's deliveries FIRST (highest priority) - ALL drivers for city
-  console.log(`🚀 [dataManager] PRIORITY 1: Loading selected date deliveries (${selectedDateStr}) - ALL drivers for city`);
   
   // OFFLINE-FIRST: Try to load from IndexedDB immediately for instant UI
   try {
     const offlineDeliveries = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr);
     if (offlineDeliveries && offlineDeliveries.length > 0 && !forceRefresh) {
-      console.log(`⚡ [dataManager] INSTANT: ${offlineDeliveries.length} deliveries from offline DB`);
       onInitialLoadComplete(offlineDeliveries);
     }
   } catch (err) {
@@ -436,21 +395,17 @@ export const loadDeliveries = async (
   }
   
   const selectedDateDeliveries = await loadDeliveriesForDate(selectedDateStr, priorityFilters, forceRefresh);
-  console.log(`✅ [dataManager] PRIORITY 1 Complete: ${selectedDateDeliveries.length} deliveries for selected date`);
   
   // CRITICAL: Immediately refresh UI with fresh data from server
-  console.log(`⚡ [dataManager] Calling onInitialLoadComplete to refresh UI NOW`);
   onInitialLoadComplete(selectedDateDeliveries);
   
   // BACKGROUND: Load future + past data after UI is ready
   setTimeout(async () => {
     try {
       // Wait 1 second before starting background loads
-      console.log(`⏱️ [dataManager] Waiting 1 second before background loads...`);
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Load next 7 days with 500ms pause between dates
-      console.log(`🚀 [dataManager] BACKGROUND: Loading next 7 days - ALL drivers...`);
       const futureDeliveries = [];
       for (let i = 1; i <= 7; i++) {
         const futureDate = new Date(today);
@@ -460,20 +415,17 @@ export const loadDeliveries = async (
         try {
           const dayDeliveries = await loadDeliveriesForDate(futureDateStr, priorityFilters, forceRefresh);
           futureDeliveries.push(...dayDeliveries);
-          console.log(`  ✅ Loaded ${dayDeliveries.length} deliveries for ${futureDateStr}`);
           
           if (i < 7) {
             await new Promise(resolve => setTimeout(resolve, 500));
           }
         } catch (error) {
-          console.error(`  ❌ Error loading ${futureDateStr}:`, error);
           if (error.response?.status === 429 || error.message?.includes('429')) {
             console.warn(`⏰ Rate limit - waiting 3s before continuing...`);
             await new Promise(resolve => setTimeout(resolve, 3000));
           }
         }
       }
-      console.log(`✅ [dataManager] BACKGROUND: Loaded ${futureDeliveries.length} future deliveries`);
       
       // Wait 1 second before loading past data
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -481,7 +433,6 @@ export const loadDeliveries = async (
       // Load past 30 days with 500ms pause between dates
       const last30Days = subDays(today, 30);
       const yesterdayStr = format(subDays(today, 1), 'yyyy-MM-dd');
-      console.log(`🚀 [dataManager] BACKGROUND: Loading past 30 days (${format(last30Days, 'yyyy-MM-dd')} to ${yesterdayStr})`);
       
       const pastDeliveries = [];
       for (let i = 29; i >= 1; i--) {
@@ -491,7 +442,6 @@ export const loadDeliveries = async (
         try {
           const dayDeliveries = await loadDeliveriesForDate(dateStr, backgroundFilters, forceRefresh);
           pastDeliveries.push(...dayDeliveries);
-          console.log(`  ✅ Loaded ${dayDeliveries.length} deliveries for ${dateStr} (${i} days ago)`);
           
           if (i > 1) {
             await new Promise(resolve => setTimeout(resolve, 500));
@@ -504,12 +454,10 @@ export const loadDeliveries = async (
           }
         }
       }
-      console.log(`✅ [dataManager] BACKGROUND: Loaded ${pastDeliveries.length} past deliveries`);
       
       // Combine all: past + selected + future
       const allDeliveries = [...pastDeliveries, ...selectedDateDeliveries, ...futureDeliveries];
       onFullMonthLoadComplete(allDeliveries);
-      console.log(`✅ [dataManager] BACKGROUND COMPLETE: Total ${allDeliveries.length} deliveries loaded`);
     } catch (error) {
       console.error('❌ [dataManager] Error in background load:', error);
     }
@@ -524,7 +472,6 @@ export const loadDeliveries = async (
 export const invalidateDeliveryRangeCache = () => {
   deliveryRangeCache.clear();
   deliveryRangeCacheTimestamps.clear();
-  console.log(`🗑️ [dataManager] Invalidated all delivery range caches`);
 };
 
 /**
@@ -534,7 +481,6 @@ export const invalidateDeliveryRangeCache = () => {
  */
 export const invalidateDeliveriesForDate = (dateString) => {
   if (!dateString) {
-    console.warn('⚠️ [dataManager] invalidateDeliveriesForDate called without date');
     return;
   }
   
@@ -558,7 +504,6 @@ export const invalidateDeliveriesForDate = (dateString) => {
     }
   }
   
-  console.log(`🗑️ [dataManager] Invalidated ${keysDeleted} cache entries for date: ${dateString}`);
 };
 
 /**
