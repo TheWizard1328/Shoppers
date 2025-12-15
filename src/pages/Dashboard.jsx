@@ -1724,9 +1724,11 @@ function Dashboard() {
         }
         
         // 5. CRITICAL: Include other drivers' markers when viewing self today (faded markers)
+        // Use raw deliveries from context, not deliveriesWithStopOrder (which is filtered)
         if (isDriverViewingSelfToday) {
           console.log('📍 [FAB Click] Checking for other drivers deliveries to include...');
-          // Fetch other drivers' deliveries for today (these show as faded markers)
+          let otherDriverCount = 0;
+          
           deliveries.forEach((delivery) => {
             if (!delivery) return;
             if (delivery.delivery_date !== selectedDateStr) return;
@@ -1737,17 +1739,19 @@ function Dashboard() {
               if (patient?.latitude && patient?.longitude) {
                 allCoordinates.push([patient.latitude, patient.longitude]);
                 hasStopMarkers = true;
-                console.log('📍 [FAB Click] Including other driver delivery');
+                otherDriverCount++;
               }
             } else if (delivery.store_id) {
               const store = stores.find((s) => s && s.id === delivery.store_id);
               if (store?.latitude && store?.longitude) {
                 allCoordinates.push([store.latitude, store.longitude]);
                 hasStopMarkers = true;
-                console.log('📍 [FAB Click] Including other driver pickup');
+                otherDriverCount++;
               }
             }
           });
+          
+          console.log(`📍 [FAB Click] Included ${otherDriverCount} other driver markers`);
         }
 
         // Get current city center
