@@ -4749,6 +4749,94 @@ function Dashboard() {
         status: newStatus
       });
 
+      // STEP 3.5: Calculate and update ETA for the started delivery
+      try {
+        const nowTime = new Date();
+        const currentTotalMinutes = nowTime.getHours() * 60 + nowTime.getMinutes();
+        
+        // Get driver's current location
+        const driverAppUser = appUsers.find(u => u && u.user_id === driverId);
+        let startLat, startLon, baseMinutes = currentTotalMinutes;
+        
+        // Priority 1: Driver's current GPS location
+        if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
+          startLat = driverAppUser.current_latitude;
+          startLon = driverAppUser.current_longitude;
+          baseMinutes = currentTotalMinutes;
+          console.log('📍 [START] Using driver current location for ETA');
+        } else {
+          // Fallback 1: Last completed delivery location + its completion time
+          const allDriverDeliveries = deliveriesWithStopOrder.filter((d) =>
+            d && d.driver_id === driverId && d.delivery_date === deliveryDate
+          );
+          const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+          const completedStops = allDriverDeliveries
+            .filter((d) => finishedStatuses.includes(d.status) && d.actual_delivery_time)
+            .sort((a, b) => new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time));
+          
+          if (completedStops.length > 0) {
+            const lastCompleted = completedStops[0];
+            const completionDate = new Date(lastCompleted.actual_delivery_time);
+            baseMinutes = completionDate.getHours() * 60 + completionDate.getMinutes();
+            
+            // Get location of last completed stop
+            if (lastCompleted.patient_id) {
+              const patient = patients.find((p) => p && p.id === lastCompleted.patient_id);
+              startLat = patient?.latitude;
+              startLon = patient?.longitude;
+            } else if (lastCompleted.store_id) {
+              const store = stores.find((s) => s && s.id === lastCompleted.store_id);
+              startLat = store?.latitude;
+              startLon = store?.longitude;
+            }
+            console.log('📍 [START] Using last completed stop location for ETA');
+          } else if (driverAppUser?.home_latitude && driverAppUser?.home_longitude) {
+            // Fallback 2: Driver's home location + current time
+            startLat = driverAppUser.home_latitude;
+            startLon = driverAppUser.home_longitude;
+            baseMinutes = currentTotalMinutes;
+            console.log('📍 [START] Using driver home location for ETA');
+          }
+        }
+        
+        // Calculate ETA for the started delivery
+        if (startLat && startLon) {
+          let destLat, destLon;
+          
+          if (deliveryFromUI.patient_id) {
+            const patient = patients.find((p) => p && p.id === deliveryFromUI.patient_id);
+            destLat = patient?.latitude;
+            destLon = patient?.longitude;
+          } else if (deliveryFromUI.store_id) {
+            const store = stores.find((s) => s && s.id === deliveryFromUI.store_id);
+            destLat = store?.latitude;
+            destLon = store?.longitude;
+          }
+          
+          if (destLat && destLon) {
+            // Call backend to get travel duration
+            const etaResponse = await base44.functions.invoke('calculateRealTimeETA', {
+              driverId: driverId,
+              deliveryDate: deliveryDate
+            });
+            
+            const etaData = etaResponse?.data || etaResponse;
+            if (etaData?.success && etaData?.durationUpdates?.length > 0) {
+              // Find ETA for this specific delivery
+              const thisDeliveryETA = etaData.durationUpdates.find((u) => u.deliveryId === deliveryId);
+              if (thisDeliveryETA?.eta) {
+                await updateDeliveryLocal(deliveryId, {
+                  delivery_time_eta: thisDeliveryETA.eta
+                });
+                console.log(`✅ [START] Updated ETA to ${thisDeliveryETA.eta}`);
+              }
+            }
+          }
+        }
+      } catch (etaError) {
+        console.warn('⚠️ [START] ETA calculation failed:', etaError);
+      }
+
       // STEP 4: Run route optimizer - it will handle stop_order sequencing and ETAs
       try {
         const driverAppUser = appUsers.find(u => u && u.user_id === driverId);
