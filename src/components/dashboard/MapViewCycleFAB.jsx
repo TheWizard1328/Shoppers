@@ -38,8 +38,6 @@ export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards
     }
   };
 
-  console.log('[MapViewCycleFAB] Render - Phase:', currentPhase, 'Locked:', isLocked);
-
   return (
     <motion.div
       initial={{ scale: 0, opacity: 0 }}
