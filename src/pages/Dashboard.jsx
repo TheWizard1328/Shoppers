@@ -4818,7 +4818,8 @@ function Dashboard() {
             // Call backend to get travel duration
             const etaResponse = await base44.functions.invoke('calculateRealTimeETA', {
               driverId: driverId,
-              deliveryDate: deliveryDate
+              deliveryDate: deliveryDate,
+              deviceTime: new Date().toISOString()
             });
             
             const etaData = etaResponse?.data || etaResponse;
