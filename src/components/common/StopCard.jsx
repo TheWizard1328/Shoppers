@@ -1921,14 +1921,23 @@ export default function StopCard({
                       fabControlEvents.deactivateFAB();
 
                       setIsStarting(true);
-                      console.log('⏸️ [START] Pausing smart refresh...');
+                      
+                      // Step 1: Run smart refresh
+                      console.log('🟢 [START] Step 1: Running smart refresh...');
+                      smartRefreshManager.lastRefreshTimes = {
+                        driverLocation: 0,
+                        activeDeliveries: 0,
+                        todayDeliveries: 0,
+                        appUsers: 0,
+                        patients: 0,
+                        stores: 0
+                      };
+                      await new Promise(resolve => setTimeout(resolve, 200));
+
+                      // Step 2: Pause smart refresh
+                      console.log('🟢 [START] Step 2: Pausing smart refresh...');
                       setIsEntityUpdating(true);
-
-                      // CRITICAL: Register pending update IMMEDIATELY
-                      smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
-
-                      await new Promise((resolve) => setTimeout(resolve, 100));
-                      console.log('✅ [START] Smart refresh paused');
+                      await new Promise(resolve => setTimeout(resolve, 100));
 
                       try {
                         // Step 1 already done above
