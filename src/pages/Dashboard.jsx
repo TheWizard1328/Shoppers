@@ -6100,7 +6100,6 @@ function Dashboard() {
         <div className="absolute inset-0 overflow-hidden">
           <DeliveryMap
             deliveries={deliveriesWithStopOrder}
-            allDeliveriesForDate={deliveries.filter(d => d && d.delivery_date === format(selectedDate, 'yyyy-MM-dd'))}
             selectedDriverId={selectedDriverId}
             patients={patients}
             stores={stores}
