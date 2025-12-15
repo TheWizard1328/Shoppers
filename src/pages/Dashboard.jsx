@@ -1,3 +1,4 @@
+
 // Dashboard.js - Delivery Management Dashboard
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -20,8 +21,12 @@ import PatientForm from "@/components/patients/PatientForm";
 import {
   createDeliveryLocal,
   updateDeliveryLocal,
-  batchCreateDeliveriesLocal } from
+  batchCreateDeliveriesLocal,
+  pauseOfflineMutations,
+  resumeOfflineMutations
+} from
 "@/components/utils/offlineMutations";
+import { pauseOfflineSync, resumeOfflineSync } from "@/components/utils/offlineSync";
 import RouteOptimizationSettings, { getRouteOptimizationSettings } from "@/components/dashboard/RouteOptimizationSettings";
 import { sortUsers } from "@/components/utils/sorting";
 import { AnimatePresence, motion } from "framer-motion";
@@ -878,67 +883,61 @@ function Dashboard() {
       }
 
       if (newFilters.selectedDriverId !== undefined) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         // This subscription handles changes from other components
-      }});return unsubscribe;}, []); // Listen for driver status break/resume events from DriverStatusToggle
-  useEffect(() => {const unsubscribe = fabControlEvents.subscribe((event) => {if (event.type === 'BREAK_START') {console.log('🗺️ [Dashboard] Driver going on break - unlocking FAB and zooming to phase 1'); // Save current phase for later restoration
-            phaseBeforeBreakRef.current = event.previousPhase; // Clear any timers
-            if (mapLockTimeoutRef.current) {clearTimeout(mapLockTimeoutRef.current);mapLockTimeoutRef.current = null;}mapLockExpiresAtRef.current = null;
-            // Unlock FAB and set to phase 1
-            setIsMapViewLocked(false);
-            setMapViewPhase(1);
-            setMapViewTrigger((prev) => prev + 1); // Trigger zoom out to all markers
+      }
+    });
+    return unsubscribe;
+  }, []); // Listen for driver status break/resume events from DriverStatusToggle
+  useEffect(() => {
+    const unsubscribe = fabControlEvents.subscribe((event) => {
+      if (event.type === 'BREAK_START') {
+        console.log('🗺️ [Dashboard] Driver going on break - unlocking FAB and zooming to phase 1');
+        // Save current phase for later restoration
+        phaseBeforeBreakRef.current = event.previousPhase;
+        // Clear any timers
+        if (mapLockTimeoutRef.current) {
+          clearTimeout(mapLockTimeoutRef.current);
+          mapLockTimeoutRef.current = null;
+        }
+        mapLockExpiresAtRef.current = null;
 
-          } else if (event.type === 'BREAK_END') {
+        // Unlock FAB and set to phase 1
+        setIsMapViewLocked(false);
+        setMapViewPhase(1);
+        setMapViewTrigger((prev) => prev + 1); // Trigger zoom out to all markers
 
-            // Restore the saved phase
-            const phaseToRestore = event.phaseToRestore || 1;
-            setMapViewPhase(phaseToRestore);
+      } else if (event.type === 'BREAK_END') {
 
-            // Lock the FAB and trigger map view
-            setIsMapViewLocked(true);
-            setMapViewTrigger((prev) => prev + 1);
+        // Restore the saved phase
+        const phaseToRestore = event.phaseToRestore || 1;
+        setMapViewPhase(phaseToRestore);
 
-            // Set up appropriate timer based on restored phase
-            if (phaseToRestore === 1 || phaseToRestore === 3) {
-              const lockDuration = 3000;
-              const expiresAt = Date.now() + lockDuration;
-              mapLockExpiresAtRef.current = expiresAt;
+        // Lock the FAB and trigger map view
+        setIsMapViewLocked(true);
+        setMapViewTrigger((prev) => prev + 1);
 
-              mapLockTimeoutRef.current = window.setTimeout(() => {
-                if (mapLockExpiresAtRef.current === expiresAt) {
-                  setIsMapViewLocked(false);
-                  mapLockExpiresAtRef.current = null;
-                  mapLockTimeoutRef.current = null;
-                }
-              }, lockDuration);
+        // Set up appropriate timer based on restored phase
+        if (phaseToRestore === 1 || phaseToRestore === 3) {
+          const lockDuration = 3000;
+          const expiresAt = Date.now() + lockDuration;
+          mapLockExpiresAtRef.current = expiresAt;
+
+          mapLockTimeoutRef.current = window.setTimeout(() => {
+            if (mapLockExpiresAtRef.current === expiresAt) {
+              setIsMapViewLocked(false);
+              mapLockExpiresAtRef.current = null;
+              mapLockTimeoutRef.current = null;
             }
-            // Phase 2 stays locked permanently
+          }, lockDuration);
+        }
+        // Phase 2 stays locked permanently
 
-            phaseBeforeBreakRef.current = null;
-          }
-        });
+        phaseBeforeBreakRef.current = null;
+      }
+    });
 
-      return unsubscribe;
-    }, [deliveriesWithStopOrder, mapViewPhase]);
+    return unsubscribe;
+  }, [deliveriesWithStopOrder, mapViewPhase]);
 
   useEffect(() => {
     return () => {
@@ -1234,50 +1233,38 @@ function Dashboard() {
     }
 
     driverLocationPoller.start(() => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       // Callback provided for future use, but not actively calling refreshData
       // to prevent triggering auto-selection every 15 seconds
-    });const unsubscribe = driverLocationPoller.subscribe((locations) => {if (!locations || !Array.isArray(locations)) return;setAllDriverLocations(locations);});return () => {unsubscribe();driverLocationPoller.stop();};}, [isDataLoaded, currentUser, deliveries, drivers]);useEffect(() => {if (!isDataLoaded || !currentUser || !deliveries || !drivers) {return;}const appUsers = users?.filter((u) => u.user_id) || [];driverLocationPoller.processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate);}, [isDataLoaded, currentUser, deliveries, drivers, stores, users, selectedDate]); // Fetch and display current-to-next polyline for display
+    });
+    const unsubscribe = driverLocationPoller.subscribe((locations) => {
+      if (!locations || !Array.isArray(locations)) return;
+      setAllDriverLocations(locations);
+    });
+    return () => {
+      unsubscribe();
+      driverLocationPoller.stop();
+    };
+  }, [isDataLoaded, currentUser, deliveries, drivers]);
+  useEffect(() => {
+    if (!isDataLoaded || !currentUser || !deliveries || !drivers) {
+      return;
+    }
+    const appUsers = users?.filter((u) => u.user_id) || [];
+    driverLocationPoller.processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate);
+  }, [isDataLoaded, currentUser, deliveries, drivers, stores, users, selectedDate]); // Fetch and display current-to-next polyline for display
   // This polyline is generated by the backend (optimizeDriverRoute) and stored in DriverRoutePolyline entity
   // It shows the route from last completed stop (or home) to the next stop
-  useEffect(() => {if (!currentUser || !selectedDriverId) {setCurrentToNextPolyline(null);return;}const todayStr = format(new Date(), 'yyyy-MM-dd');const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');if (todayStr !== selectedDateStr) {setCurrentToNextPolyline(null);return;}
+  useEffect(() => {
+    if (!currentUser || !selectedDriverId) {
+      setCurrentToNextPolyline(null);
+      return;
+    }
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+    if (todayStr !== selectedDateStr) {
+      setCurrentToNextPolyline(null);
+      return;
+    }
       const driverIdToFetch = selectedDriverId !== 'all' ? selectedDriverId : currentUser?.id;
       if (!driverIdToFetch) {
         setCurrentToNextPolyline(null);
@@ -2959,7 +2946,7 @@ function Dashboard() {
               if (stopPatient?.time_window_end) {
                 stop.delivery_time_end = stopPatient.time_window_end;
               } else if (stop.isNew && !stop.delivery_time_end) {
-                // Only set default end time for NEW deliveries
+                // Only set default end time for NEW deliveries that don't have one
                 stop.delivery_time_end = stop.delivery_time_start ?
                 addMinutesToTime(stop.delivery_time_start, 60) : '21:00';
               }
@@ -3547,7 +3534,7 @@ function Dashboard() {
 
         if (stop.patient_id !== null) {
           const stopPatient = patients.find((p) => p.id === stop.patient_id);
-          const correspondingPickup = optimizedRoute.find((s) => {
+          const correspondingPickup = stopsToProcess.find((s) => {
             if (!s) return false; // Defensive check
             return s.store_id === stop.store_id && s.patient_id === null;
           });
@@ -3636,7 +3623,7 @@ function Dashboard() {
             const stopPatient = patients.find((p) => p.id === stop.patient_id);
           } else {
             stop.tracking_number = '99';
-            console.warn(`   ⚠️ No pickup found for delivery, using TR#99`);
+            console.warn(`   ⚠️ No pickup found for delivery, keeping/using TR#${stop.tracking_number}`);
           }
         }
       }
@@ -4011,7 +3998,7 @@ function Dashboard() {
           totalTime += routeStats.totalTime;
 
           optimizedRoute.forEach((stop, index) => {
-            if (!stop) return; // Defensive check
+            if (!stop) continue; // Defensive check
             const stopPatient = latestPatients.find((p) => p && p.id === stop.patient_id);
             const stopStore = latestStores.find((s) => s && s.id === stop.store_id);
             const stopName = stop.patient_id ? stopPatient?.full_name : `${stopStore?.name} Pickup`;
@@ -4736,6 +4723,11 @@ function Dashboard() {
 
   const handleStartDelivery = async (deliveryId) => {
     setIsEntityUpdating(true);
+    
+    // CRITICAL: Pause offline database operations during route optimization
+    pauseOfflineMutations();
+    pauseOfflineSync();
+    
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     try {
@@ -4781,12 +4773,14 @@ function Dashboard() {
           longitude: driverAppUser.current_longitude
         } : null;
 
+        console.log('🔄 [START] Calling optimizeRouteRealTime...');
         await base44.functions.invoke('optimizeRouteRealTime', {
           driverId: driverId,
           deliveryDate: deliveryDate,
-          generatePolyline: true,
-          currentLocation: currentLocation
+          currentLocalTime: format(new Date(), 'HH:mm'),
+          startLocation: currentLocation
         });
+        console.log('✅ [START] Route optimization complete');
       } catch (optimizeError) {
         console.warn('⚠️ [START STEP 4.5] Route optimization failed, falling back to ETA update only:', optimizeError);
         // Fallback to just ETA update if optimization fails
@@ -4853,6 +4847,10 @@ function Dashboard() {
 
       alert(`Failed to start delivery: ${error.message}`);
     } finally {
+      // CRITICAL: Resume offline database operations after optimization
+      resumeOfflineMutations();
+      resumeOfflineSync();
+      
       setIsEntityUpdating(false);
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
@@ -5321,7 +5319,6 @@ function Dashboard() {
                 </motion.div>
                 }
                 </AnimatePresence>
-                </motion.div>
 
           {/* Driver Legend - positioned directly below stats card */}
           {isAllDriversMode && driverRoutes.length > 0 &&
@@ -5330,7 +5327,7 @@ function Dashboard() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
             onMouseEnter={() => handleCardInteraction(true)}
-            onMouseLeave={() => handleCardInteraction(false)} className="backdrop-blur-sm rounded-lg shadow-lg border px-2 py-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', opacity: 0.95 }}>
+            onMouseLeave={() => handleCardInteraction(false)} className="backdrop-blur-sm rounded-lg shadow-lg border px-2 py-2" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)' }}>
 
 
               <div className="flex flex-wrap gap-x-2 gap-y-1.5 items-center justify-center">
