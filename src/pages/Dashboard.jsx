@@ -1630,37 +1630,45 @@ function Dashboard() {
         const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
         const isViewingToday = todayStr === selectedDateStr;
 
-        // CRITICAL: Match DeliveryMap's exact rendering conditions
-        // Only include markers that will ACTUALLY be rendered on the map
-        
-        // 1. BLUE DOT: Match DeliveryMap lines 1294-1339
+        // CRITICAL: Check if driver is viewing their own route specifically
+        const isDriverViewingSelfToday = 
+          isDriver && 
+          !isAdmin && 
+          !isDispatcher && 
+          selectedDriverId === currentUser?.id && 
+          isViewingToday;
+
+        // 1. BLUE DOT: Only include if actually rendering (NOT in all-drivers mode)
         const shouldRenderBlueDot = 
           isMobile && 
           isDriver && 
-          !isDispatcher && // Not for pure dispatchers
+          !isDispatcher && 
           isViewingToday && 
           driverLocation?.latitude && 
-          driverLocation?.longitude;
+          driverLocation?.longitude &&
+          selectedDriverId === currentUser?.id; // CRITICAL: Only when viewing self, not "all"
         
         if (shouldRenderBlueDot) {
           allCoordinates.push([driverLocation.latitude, driverLocation.longitude]);
           hasDriverMarkers = true;
           console.log('📍 [FAB Click] Including blue dot (current driver GPS)');
+        } else {
+          console.log('⏭️ [FAB Click] Skipping blue dot - not viewing own route');
         }
 
-        // 2. SHARED DRIVER LOCATIONS: Match DeliveryMap lines 1213-1291
+        // 2. SHARED DRIVER LOCATIONS: Only visible in all-drivers mode or admin/dispatcher
         if (isViewingToday && allDriverLocations && Array.isArray(allDriverLocations)) {
           allDriverLocations.forEach((location) => {
             if (!location?.latitude || !location?.longitude || !location?.driver_id) return;
             
-            // Skip current user on mobile (blue dot shows instead)
+            // Skip current user on mobile (blue dot shows instead when viewing self)
             if (isMobile && location.driver_id === currentUser?.id) return;
             
             // Must be on_duty and have tracking enabled
             if (location.driver_status !== 'on_duty') return;
             if (location.location_tracking_enabled !== true) return;
             
-            // Dispatcher filtering - only show drivers with deliveries in dispatcher's stores
+            // Dispatcher filtering
             if (isDispatcher && !isAdmin) {
               const dispatcherStoreIds = new Set(currentUser?.store_ids || []);
               const hasDeliveryInDispatcherStore = deliveriesWithStopOrder.some(delivery =>
@@ -1677,40 +1685,24 @@ function Dashboard() {
           });
         }
 
-        // 3. HOME LOCATIONS: Match DeliveryMap lines 1342-1403
+        // 3. HOME LOCATIONS: Only when viewing own route as driver
         const isDispatcherNonAdmin = isDispatcher && !isAdmin;
-        if (isViewingToday && !isDispatcherNonAdmin) {
-          const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-          
-          // Get drivers with active stops from safeDeliveries (current view)
-          const driversWithActiveStops = new Set();
-          deliveriesWithStopOrder.forEach((d) => {
-            if (d && !finishedStatuses.includes(d.status) && d.driver_id) {
-              driversWithActiveStops.add(d.driver_id);
-            }
-          });
-          
-          driversWithActiveStops.forEach((driverId) => {
-            // Skip other drivers when viewing self today
-            const isDriverViewingSelfToday = isDriver && !isAdmin && !isDispatcher && selectedDriverId === currentUser?.id && isViewingToday;
-            if (isDriverViewingSelfToday && driverId !== currentUser.id) {
-              return;
-            }
+        if (isViewingToday && !isDispatcherNonAdmin && isDriverViewingSelfToday) {
+          // Only include current driver's home when viewing their own route
+          if (currentUser?.home_latitude && currentUser?.home_longitude) {
+            const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+            const hasActiveStops = deliveriesWithStopOrder.some((d) => 
+              d && !finishedStatuses.includes(d.status) && d.driver_id === currentUser.id
+            );
             
-            const driver = users.find((u) => u && u.id === driverId);
-            if (!driver?.home_latitude || !driver?.home_longitude) return;
-            
-            // App owner sees all homes, drivers see only their own
-            const shouldIncludeHome = isAdmin || (isDriver && driver.id === currentUser?.id);
-            
-            if (shouldIncludeHome) {
-              allCoordinates.push([driver.home_latitude, driver.home_longitude]);
-              console.log(`🏠 [FAB Click] Including ${driver.user_name || 'driver'} home location`);
+            if (hasActiveStops) {
+              allCoordinates.push([currentUser.home_latitude, currentUser.home_longitude]);
+              console.log(`🏠 [FAB Click] Including current driver's home location`);
             }
-          });
+          }
         }
 
-        // Add all delivery/pickup markers
+        // 4. Add all VISIBLE delivery/pickup markers (including other drivers when viewing self)
         if (deliveriesWithStopOrder && Array.isArray(deliveriesWithStopOrder)) {
           deliveriesWithStopOrder.forEach((delivery) => {
             if (!delivery) return;
@@ -1726,6 +1718,33 @@ function Dashboard() {
               if (store?.latitude && store?.longitude) {
                 allCoordinates.push([store.latitude, store.longitude]);
                 hasStopMarkers = true;
+              }
+            }
+          });
+        }
+        
+        // 5. CRITICAL: Include other drivers' markers when viewing self today (faded markers)
+        if (isDriverViewingSelfToday) {
+          console.log('📍 [FAB Click] Checking for other drivers deliveries to include...');
+          // Fetch other drivers' deliveries for today (these show as faded markers)
+          deliveries.forEach((delivery) => {
+            if (!delivery) return;
+            if (delivery.delivery_date !== selectedDateStr) return;
+            if (delivery.driver_id === currentUser?.id) return; // Skip own deliveries (already included)
+            
+            if (delivery.patient_id) {
+              const patient = patients.find((p) => p && p.id === delivery.patient_id);
+              if (patient?.latitude && patient?.longitude) {
+                allCoordinates.push([patient.latitude, patient.longitude]);
+                hasStopMarkers = true;
+                console.log('📍 [FAB Click] Including other driver delivery');
+              }
+            } else if (delivery.store_id) {
+              const store = stores.find((s) => s && s.id === delivery.store_id);
+              if (store?.latitude && store?.longitude) {
+                allCoordinates.push([store.latitude, store.longitude]);
+                hasStopMarkers = true;
+                console.log('📍 [FAB Click] Including other driver pickup');
               }
             }
           });
