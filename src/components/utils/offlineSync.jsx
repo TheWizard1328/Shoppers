@@ -16,6 +16,7 @@ const SYNC_DELAY_BETWEEN_BATCHES = 1500; // 1500ms delay between batches to avoi
 const FULL_SYNC_CHECK_INTERVAL = 24 * 60 * 60 * 1000; // Check for full sync every 24 hours
 
 let syncInProgress = false;
+let syncPaused = false; // CRITICAL: Pause sync during route optimization
 let syncListeners = [];
 
 // Track full sync completion state
@@ -24,6 +25,27 @@ let fullSyncCompleted = {
   deliveries: false,
   lastFullSyncDate: null
 };
+
+/**
+ * Pause offline sync (during route optimization)
+ */
+export const pauseOfflineSync = () => {
+  console.log('⏸️ [OfflineSync] Paused');
+  syncPaused = true;
+};
+
+/**
+ * Resume offline sync
+ */
+export const resumeOfflineSync = () => {
+  console.log('▶️ [OfflineSync] Resumed');
+  syncPaused = false;
+};
+
+/**
+ * Check if offline sync is paused
+ */
+export const isOfflineSyncPaused = () => syncPaused;
 
 /**
  * Subscribe to sync status changes
@@ -60,6 +82,12 @@ const needsFullSync = async (entity) => {
  * Sync Patients to IndexedDB - FULL or INCREMENTAL
  */
 const syncPatients = async (forceFullSync = false) => {
+  // CRITICAL: Check if sync is paused
+  if (syncPaused) {
+    console.log('⏸️ [OfflineSync] syncPatients skipped - sync is paused');
+    return { success: true, skipped: true };
+  }
+
   const isFullSync = forceFullSync || await needsFullSync('Patient');
   notifySyncStatus({ entity: 'Patient', status: 'syncing', progress: 0, syncType: isFullSync ? 'full' : 'incremental' });
 
@@ -112,6 +140,12 @@ const syncPatients = async (forceFullSync = false) => {
 
     let totalSaved = 0;
     for (let i = 0; i < batches.length; i++) {
+      // Check pause state before each batch
+      if (syncPaused) {
+        console.log('⏸️ [OfflineSync] syncPatients interrupted - sync paused mid-operation');
+        return { success: true, partial: true, count: totalSaved };
+      }
+
       const batch = batches[i];
       const result = await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batch);
       totalSaved += result.count;
@@ -151,6 +185,12 @@ const syncPatients = async (forceFullSync = false) => {
  * INCREMENTAL SYNC: Priority dates + changed dates only
  */
 const syncDeliveries = async (selectedDate = null, forceFullSync = false) => {
+  // CRITICAL: Check if sync is paused
+  if (syncPaused) {
+    console.log('⏸️ [OfflineSync] syncDeliveries skipped - sync is paused');
+    return { success: true, skipped: true };
+  }
+
   const isFullSync = forceFullSync || await needsFullSync('Delivery');
   notifySyncStatus({ entity: 'Delivery', status: 'syncing', progress: 0, syncType: isFullSync ? 'full' : 'incremental' });
 
@@ -205,6 +245,12 @@ const syncDeliveries = async (selectedDate = null, forceFullSync = false) => {
     const earlyExitThreshold = isFullSync ? Infinity : 10;
 
     for (let i = 0; i < datesToSync.length; i++) {
+      // Check pause state before each date
+      if (syncPaused) {
+        console.log('⏸️ [OfflineSync] syncDeliveries interrupted - sync paused mid-operation');
+        break;
+      }
+
       const dateStr = datesToSync[i];
       const localDeliveriesForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
       const backendDeliveriesForDate = await Delivery.filter({ delivery_date: dateStr });
@@ -241,7 +287,7 @@ const syncDeliveries = async (selectedDate = null, forceFullSync = false) => {
     console.log(`   Removed ${allDeliveries.length - cleanDeliveries.length} temp records`);
     
     // CRITICAL: Remove deleted records from IndexedDB (exist locally but not on backend)
-    if (isFullSync) {
+    if (isFullSync && !syncPaused) {
       const localDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
       const backendIds = new Set(cleanDeliveries.map(d => d.id));
       const recordsToDelete = localDeliveries.filter(d => !d.id.startsWith('temp_') && !backendIds.has(d.id));
@@ -272,6 +318,12 @@ const syncDeliveries = async (selectedDate = null, forceFullSync = false) => {
     }
 
     for (let i = 0; i < batches.length; i++) {
+      // Check pause state before each batch
+      if (syncPaused) {
+        console.log('⏸️ [OfflineSync] syncDeliveries batch interrupted - sync paused');
+        return { success: true, partial: true, count: totalSaved };
+      }
+
       const batch = batches[i];
       const result = await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, batch);
       totalSaved += result.count;
@@ -347,7 +399,10 @@ const checkForChanges = (localRecords, backendRecords) => {
  * Perform initial sync if needed - FULL or INCREMENTAL based on last sync time
  */
 export const performInitialSync = async (selectedDate = null) => {
-  if (syncInProgress) return;
+  if (syncInProgress || syncPaused) {
+    console.log(`⏸️ [OfflineSync] performInitialSync skipped - ${syncInProgress ? 'in progress' : 'paused'}`);
+    return;
+  }
 
   syncInProgress = true;
   notifySyncStatus({ status: 'starting' });
@@ -366,8 +421,8 @@ export const performInitialSync = async (selectedDate = null) => {
     results.deliveries = await syncDeliveries(selectedDate, needsDeliveryFullSync);
 
     const syncSummary = {
-      patients: `${results.patients.syncType.toUpperCase()} - ${results.patients.count} records`,
-      deliveries: `${results.deliveries.syncType.toUpperCase()} - ${results.deliveries.count} records`
+      patients: `${results.patients.syncType?.toUpperCase() || 'SKIPPED'} - ${results.patients.count || 0} records`,
+      deliveries: `${results.deliveries.syncType?.toUpperCase() || 'SKIPPED'} - ${results.deliveries.count || 0} records`
     };
 
     notifySyncStatus({ status: 'complete', results: syncSummary });
@@ -384,7 +439,10 @@ export const performInitialSync = async (selectedDate = null) => {
  * Force FULL sync (clear and re-sync all data)
  */
 export const forceSyncAll = async () => {
-  if (syncInProgress) return;
+  if (syncInProgress || syncPaused) {
+    console.log(`⏸️ [OfflineSync] forceSyncAll skipped - ${syncInProgress ? 'in progress' : 'paused'}`);
+    return;
+  }
 
   syncInProgress = true;
   notifySyncStatus({ status: 'force_syncing' });
@@ -405,6 +463,12 @@ export const forceSyncAll = async () => {
  * Process pending mutations (sync local changes to backend)
  */
 export const processPendingMutations = async () => {
+  // CRITICAL: Check if sync is paused
+  if (syncPaused) {
+    console.log('⏸️ [OfflineSync] processPendingMutations skipped - sync is paused');
+    return { success: true, skipped: true };
+  }
+
   const mutations = await offlineDB.getPendingMutations();
   if (mutations.length === 0) return { success: true, processed: 0 };
 
@@ -414,6 +478,12 @@ export const processPendingMutations = async () => {
   let failCount = 0;
 
   for (const mutation of mutations) {
+    // Check pause state before each mutation
+    if (syncPaused) {
+      console.log('⏸️ [OfflineSync] processPendingMutations interrupted - sync paused');
+      break;
+    }
+
     try {
       if ((mutation.operation === 'update' || mutation.operation === 'delete') && mutation.recordId.startsWith('temp_')) {
         await offlineDB.removePendingMutation(mutation.mutationId);
@@ -462,7 +532,10 @@ export const processPendingMutations = async () => {
  * Bidirectional sync - compare local vs online and update both sides
  */
 export const performBidirectionalSync = async () => {
-  if (syncInProgress) return;
+  if (syncInProgress || syncPaused) {
+    console.log(`⏸️ [OfflineSync] performBidirectionalSync skipped - ${syncInProgress ? 'in progress' : 'paused'}`);
+    return;
+  }
 
   syncInProgress = true;
   notifySyncStatus({ status: 'bidirectional_syncing' });
@@ -504,6 +577,12 @@ export const performBidirectionalSync = async () => {
     }
     
     for (const dateStr of datesToCheck) {
+      // Check pause state
+      if (syncPaused) {
+        console.log('⏸️ [OfflineSync] performBidirectionalSync interrupted - sync paused');
+        break;
+      }
+
       const localForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
       const backendForDate = await Delivery.filter({ delivery_date: dateStr });
       

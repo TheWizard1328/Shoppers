@@ -10,6 +10,28 @@ import { AppUser } from '@/entities/AppUser';
 
 // Listeners for UI updates
 let mutationListeners = [];
+let mutationsPaused = false; // CRITICAL: Pause mutations during route optimization
+
+/**
+ * Pause offline mutations (during route optimization)
+ */
+export const pauseOfflineMutations = () => {
+  console.log('⏸️ [OfflineMutations] Paused');
+  mutationsPaused = true;
+};
+
+/**
+ * Resume offline mutations
+ */
+export const resumeOfflineMutations = () => {
+  console.log('▶️ [OfflineMutations] Resumed');
+  mutationsPaused = false;
+};
+
+/**
+ * Check if offline mutations are paused
+ */
+export const areOfflineMutationsPaused = () => mutationsPaused;
 
 /**
  * Subscribe to mutation events
@@ -25,6 +47,12 @@ export const subscribeMutations = (callback) => {
  * Notify all listeners of a mutation
  */
 const notifyMutation = (mutation) => {
+  // CRITICAL: Don't notify if mutations are paused
+  if (mutationsPaused) {
+    console.log('⏸️ [OfflineMutations] Notification skipped - mutations paused');
+    return;
+  }
+
   mutationListeners.forEach(callback => {
     try {
       callback(mutation);
@@ -38,6 +66,12 @@ const notifyMutation = (mutation) => {
  * Trigger smart refresh after mutation
  */
 const triggerSmartRefresh = async () => {
+  // CRITICAL: Don't trigger if mutations are paused
+  if (mutationsPaused) {
+    console.log('⏸️ [OfflineMutations] Smart refresh skipped - mutations paused');
+    return;
+  }
+
   try {
     // Dynamically import to avoid circular dependencies
     const { smartRefreshManager } = await import('./smartRefreshManager');
@@ -62,6 +96,12 @@ const triggerSmartRefresh = async () => {
  * Create a new Patient (local-first)
  */
 export const createPatientLocal = async (patientData) => {
+  // CRITICAL: Check if mutations are paused
+  if (mutationsPaused) {
+    console.log('⏸️ [OfflineMutations] createPatientLocal skipped - mutations paused');
+    throw new Error('Mutations are paused during route optimization');
+  }
+
   try {
     console.log('📝 [OfflineMutations] Creating patient locally...');
     
@@ -142,6 +182,12 @@ export const createPatientLocal = async (patientData) => {
  * Update a Patient (local-first)
  */
 export const updatePatientLocal = async (patientId, updates) => {
+  // CRITICAL: Check if mutations are paused
+  if (mutationsPaused) {
+    console.log('⏸️ [OfflineMutations] updatePatientLocal skipped - mutations paused');
+    throw new Error('Mutations are paused during route optimization');
+  }
+
   try {
     console.log('📝 [OfflineMutations] Updating patient locally:', patientId);
     
@@ -203,6 +249,12 @@ export const updatePatientLocal = async (patientId, updates) => {
  * Delete a Patient (local-first)
  */
 export const deletePatientLocal = async (patientId) => {
+  // CRITICAL: Check if mutations are paused
+  if (mutationsPaused) {
+    console.log('⏸️ [OfflineMutations] deletePatientLocal skipped - mutations paused');
+    throw new Error('Mutations are paused during route optimization');
+  }
+
   try {
     console.log('📝 [OfflineMutations] Deleting patient locally:', patientId);
 
@@ -256,6 +308,12 @@ export const deletePatientLocal = async (patientId) => {
  * Create a new Delivery (local-first)
  */
 export const createDeliveryLocal = async (deliveryData) => {
+  // CRITICAL: Check if mutations are paused
+  if (mutationsPaused) {
+    console.log('⏸️ [OfflineMutations] createDeliveryLocal skipped - mutations paused');
+    throw new Error('Mutations are paused during route optimization');
+  }
+
   try {
     console.log('📝 [OfflineMutations] Creating delivery locally...');
     
@@ -336,6 +394,12 @@ export const createDeliveryLocal = async (deliveryData) => {
  * Update a Delivery (local-first)
  */
 export const updateDeliveryLocal = async (deliveryId, updates) => {
+  // CRITICAL: Check if mutations are paused
+  if (mutationsPaused) {
+    console.log('⏸️ [OfflineMutations] updateDeliveryLocal skipped - mutations paused');
+    throw new Error('Mutations are paused during route optimization');
+  }
+
   try {
     console.log('📝 [OfflineMutations] Updating delivery:', deliveryId);
     
@@ -420,6 +484,12 @@ export const updateDeliveryLocal = async (deliveryId, updates) => {
  * Delete a Delivery (local-first)
  */
 export const deleteDeliveryLocal = async (deliveryId) => {
+  // CRITICAL: Check if mutations are paused
+  if (mutationsPaused) {
+    console.log('⏸️ [OfflineMutations] deleteDeliveryLocal skipped - mutations paused');
+    throw new Error('Mutations are paused during route optimization');
+  }
+
   try {
     console.log('📝 [OfflineMutations] Deleting delivery locally:', deliveryId);
 
@@ -473,6 +543,12 @@ export const deleteDeliveryLocal = async (deliveryId) => {
  * Batch create multiple deliveries (local-first)
  */
 export const batchCreateDeliveriesLocal = async (deliveriesData) => {
+  // CRITICAL: Check if mutations are paused
+  if (mutationsPaused) {
+    console.log('⏸️ [OfflineMutations] batchCreateDeliveriesLocal skipped - mutations paused');
+    throw new Error('Mutations are paused during route optimization');
+  }
+
   try {
     console.log('📝 [OfflineMutations] Batch creating deliveries locally:', deliveriesData.length);
     
