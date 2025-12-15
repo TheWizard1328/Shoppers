@@ -37,7 +37,6 @@ class LocationTracker {
       if (settings.minMovementDistanceMeters) {
         this.minDistanceChange = settings.minMovementDistanceMeters;
       }
-      console.log(`📍 LocationTracker settings loaded: interval=${this.updateInterval}ms, minDistance=${this.minDistanceChange}m`);
     } catch (error) {
       console.warn('⚠️ Could not load route optimization settings, using defaults');
     }
@@ -49,11 +48,9 @@ class LocationTracker {
   setDriverStatus(status) {
     const previousStatus = this.driverStatus;
     this.driverStatus = status;
-    console.log(`🔄 Driver status changed: ${previousStatus} -> ${status}`);
     
     // If going off duty or on break, stop tracking
     if (status !== 'on_duty' && this.isTracking) {
-      console.log('🛑 Stopping tracking due to status change');
       this.stopTracking();
     }
     
@@ -85,7 +82,6 @@ class LocationTracker {
     }
 
     if (!navigator.geolocation) {
-      console.log('❌ No geolocation API available');
       this.deviceCapabilities = {
         hasGeolocation: false,
         hasHighAccuracy: false,
@@ -95,10 +91,8 @@ class LocationTracker {
     }
 
     return new Promise((resolve) => {
-      console.log('🔍 Testing GPS capabilities...');
       
       const timeoutId = setTimeout(() => {
-        console.log('⏱️ GPS capability test timed out');
         this.deviceCapabilities = {
           hasGeolocation: true,
           hasHighAccuracy: false,
@@ -113,8 +107,6 @@ class LocationTracker {
           const accuracy = position.coords.accuracy;
           const hasHighAccuracy = accuracy && accuracy < 100; // < 100m is considered "high accuracy"
           
-          console.log(`✅ GPS capabilities detected: accuracy ${accuracy?.toFixed(1)}m`);
-          
           this.deviceCapabilities = {
             hasGeolocation: true,
             hasHighAccuracy: hasHighAccuracy,
@@ -125,7 +117,6 @@ class LocationTracker {
         },
         (error) => {
           clearTimeout(timeoutId);
-          console.log('❌ GPS capability test failed:', error.message);
           
           this.deviceCapabilities = {
             hasGeolocation: true,
@@ -163,19 +154,16 @@ class LocationTracker {
     
     // Check if driver is on duty - if not, don't update
     if (!this.shouldTrack()) {
-      console.log('⏭️ Skipping location update - driver not on duty');
       return;
     }
     
     // Check if we're in backoff period
     if (this.backoffTime > 0 && (now - this.lastUpdate) < this.backoffTime) {
-      console.log(`⏳ In backoff period, skipping update. Next update in ${Math.round((this.backoffTime - (now - this.lastUpdate)) / 1000)}s`);
       return;
     }
 
     // Check if enough time has passed since last heartbeat update
     if (now - this.lastUpdate < this.updateInterval) {
-      console.log('⏭️ Skipping heartbeat update - too soon since last update');
       return;
     }
 
@@ -194,12 +182,6 @@ class LocationTracker {
       // Update coordinates if: significant movement OR 5 minutes since last coordinate update
       const timeSinceCoordinateUpdate = now - this.lastCoordinateUpdate;
       shouldUpdateCoordinates = distance >= this.minDistanceChange || timeSinceCoordinateUpdate >= this.coordinateUpdateInterval;
-      
-      if (!shouldUpdateCoordinates) {
-        console.log(`📍 Heartbeat update only - movement ${distance.toFixed(1)}m < ${this.minDistanceChange}m and ${Math.round(timeSinceCoordinateUpdate / 1000)}s < ${this.coordinateUpdateInterval / 1000}s`);
-      } else {
-        console.log(`📍 Coordinate update - movement ${distance.toFixed(1)}m or time ${Math.round(timeSinceCoordinateUpdate / 1000)}s`);
-      }
     } else {
       // First update - always update coordinates
       shouldUpdateCoordinates = true;
@@ -208,18 +190,14 @@ class LocationTracker {
     try {
       // Check if online before attempting update
       if (!navigator.onLine) {
-        console.warn('⚠️ Device is offline, skipping location update');
         return;
       }
 
       // CRITICAL: Ensure we have AppUser ID
       if (!this.appUserId) {
-        console.error('❌ No AppUser ID available, cannot update location');
         return;
       }
 
-      console.log(`📤 Updating location in database (${shouldUpdateCoordinates ? 'coordinates + timestamp' : 'timestamp only'})...`);
-      
       // Build update object
       const updateData = {
         location_updated_at: new Date().toISOString() // Always update timestamp for heartbeat
@@ -244,8 +222,6 @@ class LocationTracker {
       this.failedUpdateCount = 0;
       this.backoffTime = 0; // Reset backoff on success
 
-      console.log(`✅ Location ${shouldUpdateCoordinates ? 'coordinates and timestamp' : 'timestamp'} updated successfully in AppUser database`);
-
       window.dispatchEvent(new CustomEvent('driverLocationUpdated', {
         detail: {
           userId: this.currentUser?.id,
@@ -260,7 +236,6 @@ class LocationTracker {
 
     } catch (error) {
       this.failedUpdateCount++;
-      console.error(`❌ Failed to update location (attempt ${this.failedUpdateCount}/${this.maxFailedUpdates}):`, error);
 
       // Implement exponential backoff
       if (error.response?.status === 429 || error.message?.includes('429') || error.message?.includes('Rate limit')) {
@@ -305,8 +280,6 @@ class LocationTracker {
   handleLocationSuccess(position) {
     const { latitude, longitude, accuracy } = position.coords;
     
-    console.log(`📍 Location obtained: ${latitude.toFixed(6)}, ${longitude.toFixed(6)} (±${accuracy?.toFixed(1)}m)`);
-
     this.updateLocationInDatabase(latitude, longitude, accuracy);
   }
 
@@ -344,7 +317,6 @@ class LocationTracker {
     }
 
     if (this.isTracking) {
-      console.log('⚠️ Already tracking location');
       return;
     }
 
@@ -362,20 +334,16 @@ class LocationTracker {
     // Get or find AppUser ID
     if (user.appUserId) {
       this.appUserId = user.appUserId;
-      console.log('✅ Using appUserId from user object:', this.appUserId);
     } else {
       // Try to find AppUser record
       try {
         const appUsers = await base44.entities.AppUser.filter({ user_id: user.id });
         if (appUsers && appUsers.length > 0) {
           this.appUserId = appUsers[0].id;
-          console.log('✅ Found AppUser ID:', this.appUserId);
         } else {
-          console.error('❌ No AppUser record found for user:', user.id);
           throw new Error('User profile not properly configured. Please contact support.');
         }
       } catch (error) {
-        console.error('❌ Failed to fetch AppUser:', error);
         throw new Error('Failed to load user profile. Please try again.');
       }
     }
@@ -395,16 +363,13 @@ class LocationTracker {
     }
 
     return new Promise((resolve, reject) => {
-      console.log('🎯 Starting watchPosition...');
       
       this.watchId = navigator.geolocation.watchPosition(
         (position) => {
-          console.log('✅ watchPosition success callback triggered');
           this.handleLocationSuccess(position);
           
           if (!this.isTracking) {
             this.isTracking = true;
-            console.log('✅ First location acquired, tracking now active');
             resolve();
           }
         },
@@ -423,14 +388,12 @@ class LocationTracker {
         }
       );
 
-      console.log('🎯 watchPosition registered with ID:', this.watchId);
     });
   }
 
   stopTracking() {
     if (this.watchId !== null) {
       navigator.geolocation.clearWatch(this.watchId);
-      console.log('🛑 Cleared watch ID:', this.watchId);
       this.watchId = null;
     }
     this.isTracking = false;
@@ -442,11 +405,9 @@ class LocationTracker {
     this.failedUpdateCount = 0;
     this.backoffTime = 0;
     
-    console.log('🛑 Location tracking stopped');
   }
 
   async restartTracking(user) {
-    console.log('🔄 Restarting location tracking...');
     this.stopTracking();
     
     // Small delay to ensure clean restart
@@ -454,7 +415,6 @@ class LocationTracker {
     
     try {
       await this.startTracking(user);
-      console.log('✅ Location tracking restarted successfully');
     } catch (error) {
       console.error('❌ Failed to restart tracking:', error);
       throw error;
@@ -464,12 +424,9 @@ class LocationTracker {
   async toggleTracking(user) {
     const newStatus = !user?.location_tracking_enabled;
     
-    console.log(`🔄 Toggling location tracking: ${user?.location_tracking_enabled} -> ${newStatus} for`, user?.user_name || user?.full_name);
-    
     try {
       if (newStatus) {
         // Turning ON
-        console.log('🟢 Enabling location tracking...');
         
         // Check if online first
         if (!navigator.onLine) {
@@ -479,28 +436,22 @@ class LocationTracker {
         // Get or find AppUser ID first
         let appUserId = user.appUserId;
         if (!appUserId) {
-          console.log('🔍 Looking up AppUser ID for user:', user.id);
           const appUsers = await base44.entities.AppUser.filter({ user_id: user.id });
           if (appUsers && appUsers.length > 0) {
             appUserId = appUsers[0].id;
-            console.log('✅ Found AppUser ID:', appUserId);
           } else {
             throw new Error('User profile not found. Please contact support.');
           }
         }
         
         // FIRST: Update AppUser entity to set location_tracking_enabled = true
-        console.log('💾 Saving location_tracking_enabled = true to AppUser database...');
         await base44.entities.AppUser.update(appUserId, {
           location_tracking_enabled: true
         });
-        console.log('✅ AppUser database updated: location_tracking_enabled = true');
         
         // THEN: Try to start tracking
         try {
-          console.log('🎯 Starting location tracking...');
           await this.startTracking(user);
-          console.log('✅ Location tracking started successfully');
         } catch (trackingError) {
           console.error('❌ Failed to start tracking:', trackingError);
           
@@ -535,12 +486,10 @@ class LocationTracker {
           throw trackingError;
         }
         
-        console.log('✅ Location tracking enabled successfully');
         return true;
         
       } else {
         // Turning OFF
-        console.log('🔴 Disabling location tracking...');
         
         // Stop tracking first
         this.stopTracking();
@@ -548,7 +497,6 @@ class LocationTracker {
         // Get AppUser ID
         let appUserId = user.appUserId;
         if (!appUserId) {
-          console.log('🔍 Looking up AppUser ID for user:', user.id);
           const appUsers = await base44.entities.AppUser.filter({ user_id: user.id });
           if (appUsers && appUsers.length > 0) {
             appUserId = appUsers[0].id;
@@ -557,14 +505,12 @@ class LocationTracker {
         
         // Then update AppUser entity AND clear location data
         if (navigator.onLine && appUserId) {
-          console.log('💾 Saving location_tracking_enabled = false and clearing location data in AppUser...');
           await base44.entities.AppUser.update(appUserId, {
             location_tracking_enabled: false,
             current_latitude: null,
             current_longitude: null,
             location_updated_at: null
           });
-          console.log('✅ AppUser database updated: tracking disabled and location cleared');
         } else {
           console.warn('⚠️ Device offline or no AppUser ID, tracking stopped locally only');
         }
@@ -574,7 +520,6 @@ class LocationTracker {
           detail: { userId: user.id }
         }));
         
-        console.log('✅ Location tracking disabled and location data cleared');
         return false;
       }
     } catch (error) {
