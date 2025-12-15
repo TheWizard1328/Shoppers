@@ -3,11 +3,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { MapPin, Navigation, AlertTriangle, CheckCircle, RefreshCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export default function RouteNotification({ notification, onDismiss, onNavigate }) {
+export default function RouteNotification({ notification, onDismiss, onNavigate, isOptimizing = false }) {
   const [isVisible, setIsVisible] = useState(false);
   
   useEffect(() => {
-    if (notification) {
+    // Don't show notifications while route optimization is in progress
+    if (notification && !isOptimizing) {
       setIsVisible(true);
       
       // Auto-dismiss after 8 seconds
@@ -17,8 +18,11 @@ export default function RouteNotification({ notification, onDismiss, onNavigate 
       }, 8000);
       
       return () => clearTimeout(timer);
+    } else if (isOptimizing && isVisible) {
+      // Hide notification immediately when optimization starts
+      setIsVisible(false);
     }
-  }, [notification, onDismiss]);
+  }, [notification, onDismiss, isOptimizing]);
   
   if (!notification) return null;
   

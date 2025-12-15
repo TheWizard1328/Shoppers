@@ -109,6 +109,9 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       } else if (refreshData) {
         await refreshData(true);
       }
+
+      // Trigger route re-optimization event for Dashboard
+      window.dispatchEvent(new CustomEvent('triggerRouteReoptimization'));
     } catch (error) {
       console.error('❌ [SmartRefreshIndicator] Manual refresh failed:', error);
     } finally {
