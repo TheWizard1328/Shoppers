@@ -1900,12 +1900,12 @@ export default function StopCard({
                           let startLat, startLng;
                           if (delivery.puid) {
                             // Pickup - use store location
-                            const store = allStores.find(s => s.id === delivery.store_id);
+                            const store = stores.find(s => s.id === delivery.store_id);
                             startLat = store?.latitude;
                             startLng = store?.longitude;
                           } else {
                             // Delivery - use patient location
-                            const patient = allPatients.find(p => p.id === delivery.patient_id);
+                            const patient = patients.find(p => p.id === delivery.patient_id);
                             startLat = patient?.latitude;
                             startLng = patient?.longitude;
                           }
