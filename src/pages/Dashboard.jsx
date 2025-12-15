@@ -3134,8 +3134,28 @@ function Dashboard() {
             }
           }
 
+          // CRITICAL: Run route optimizer to properly sequence new deliveries after their pickups
           try {
-            // Get all deliveries for this driver/date after save
+            console.log('🔄 [AddToRoute] Running route optimizer...');
+            const driverAppUser = appUsers.find(u => u && u.user_id === driverId);
+            const currentLocation = driverAppUser?.current_latitude && driverAppUser?.current_longitude ? {
+              lat: driverAppUser.current_latitude,
+              lng: driverAppUser.current_longitude
+            } : null;
+
+            await base44.functions.invoke('optimizeRouteRealTime', {
+              driverId: driverId,
+              deliveryDate: deliveryDate,
+              currentLocalTime: format(new Date(), 'HH:mm'),
+              startLocation: currentLocation
+            });
+            console.log('✅ [AddToRoute] Route optimization complete');
+          } catch (optimizeError) {
+            console.warn('⚠️ [AddToRoute] Route optimization failed:', optimizeError);
+          }
+
+          // Update isNextDelivery flags after optimization
+          try {
             const allDriverDeliveries = await base44.entities.Delivery.filter({
               driver_id: driverId,
               delivery_date: deliveryDate
@@ -3158,16 +3178,6 @@ function Dashboard() {
             }
           } catch (flagError) {
             console.warn('⚠️ [AddToRoute] isNextDelivery flag update failed:', flagError);
-          }
-
-          try {
-            await base44.functions.invoke('etaOptimizer', {
-              driverId: driverId,
-              deliveryDate: deliveryDate,
-              deviceTime: new Date().toISOString()
-            });
-          } catch (etaError) {
-            console.warn('⚠️ [AddToRoute] ETA recalculation failed:', etaError);
           }
 
         }
