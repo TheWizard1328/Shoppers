@@ -1,4 +1,3 @@
-
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, Circle } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -2284,8 +2283,8 @@ export default function DeliveryMap({
                 pickup.isOtherDriver // NEW
               )}
               zIndexOffset={dynamicZIndex}
-              draggable={!pickup.useSimpleCircle && !pickup.isOtherDriver} {/* NEW: Disable drag for other driver markers */}
-              eventHandlers={pickup.isOtherDriver ? { // NEW: Simplified interaction for other drivers' markers
+              draggable={!pickup.useSimpleCircle && !pickup.isOtherDriver}
+              eventHandlers={pickup.isOtherDriver ? {
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
                   e.target.openPopup();
@@ -2468,8 +2467,8 @@ export default function DeliveryMap({
                 delivery.isOtherDriver // NEW
               )}
               zIndexOffset={dynamicZIndex}
-              draggable={!delivery.useSimpleCircle && !delivery.isOtherDriver} {/* NEW: Disable drag for other driver markers */}
-              eventHandlers={delivery.isOtherDriver ? { // NEW: Simplified interaction for other drivers' markers
+              draggable={!delivery.useSimpleCircle && !delivery.isOtherDriver}
+              eventHandlers={delivery.isOtherDriver ? {
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
                   e.target.openPopup();
