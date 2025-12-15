@@ -1916,7 +1916,13 @@ export default function StopCard({
                             currentLocalTime: currentLocalTime,
                             startLocation: startLat && startLng ? { lat: startLat, lng: startLng } : null
                           });
-                          console.log('  ✅ Route optimized');
+                          console.log('  ✅ Route optimized - refreshing stop orders and ETAs');
+                          
+                          // Refresh deliveries to get updated stop_order values
+                          invalidate('Delivery');
+                          if (refreshData) {
+                            await refreshData(true);
+                          }
                         } catch (optimizeError) {
                           console.warn('⚠️ Route optimizer failed, continuing without optimization:', optimizeError);
                         }
