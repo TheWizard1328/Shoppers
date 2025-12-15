@@ -57,39 +57,36 @@ Deno.serve(async (req) => {
     const driverAppUser = appUsers?.[0];
     console.log('📍 [optimizeRouteRealTime] AppUser found:', !!driverAppUser);
     
-    if (driverAppUser) {
-      console.log('📍 [optimizeRouteRealTime] Driver location data:', {
-        has_latitude: !!driverAppUser.current_latitude,
-        has_longitude: !!driverAppUser.current_longitude,
-        latitude_value: driverAppUser.current_latitude,
-        longitude_value: driverAppUser.current_longitude,
-        location_updated_at: driverAppUser.location_updated_at,
-        driver_status: driverAppUser.driver_status
-      });
-    }
-
-    if (!driverAppUser || !driverAppUser.current_latitude || !driverAppUser.current_longitude) {
-      console.error('❌ [optimizeRouteRealTime] Driver location not available - AppUser:', {
-        exists: !!driverAppUser,
-        has_lat: !!driverAppUser?.current_latitude,
-        has_lng: !!driverAppUser?.current_longitude
-      });
+    if (!driverAppUser) {
+      console.error('❌ [optimizeRouteRealTime] Driver AppUser not found');
       return Response.json({ 
-        error: 'Driver location not available - driver must be on duty with location tracking enabled',
-        details: {
-          driverFound: !!driverAppUser,
-          hasLatitude: !!driverAppUser?.current_latitude,
-          hasLongitude: !!driverAppUser?.current_longitude
-        }
+        error: 'Driver not found'
       }, { status: 404 });
     }
     
-    console.log('✅ [optimizeRouteRealTime] Driver location:', { lat: driverAppUser.current_latitude, lng: driverAppUser.current_longitude });
-
-    const driverLocation = {
-      lat: driverAppUser.current_latitude,
-      lng: driverAppUser.current_longitude
-    };
+    // Use current GPS location if available, otherwise fall back to home location
+    let driverLocation;
+    let usingHomeLocation = false;
+    
+    if (driverAppUser.current_latitude && driverAppUser.current_longitude) {
+      driverLocation = {
+        lat: driverAppUser.current_latitude,
+        lng: driverAppUser.current_longitude
+      };
+      console.log('✅ [optimizeRouteRealTime] Using current GPS location:', driverLocation);
+    } else if (driverAppUser.home_latitude && driverAppUser.home_longitude) {
+      driverLocation = {
+        lat: driverAppUser.home_latitude,
+        lng: driverAppUser.home_longitude
+      };
+      usingHomeLocation = true;
+      console.log('🏠 [optimizeRouteRealTime] Using home location as fallback:', driverLocation);
+    } else {
+      console.error('❌ [optimizeRouteRealTime] No location available (neither GPS nor home)');
+      return Response.json({ 
+        error: 'Driver location not available - no GPS or home location set'
+      }, { status: 404 });
+    }
 
     console.log('📦 [optimizeRouteRealTime] Fetching deliveries...');
     const allDeliveries = await base44.asServiceRole.entities.Delivery.filter({
@@ -370,7 +367,8 @@ Deno.serve(async (req) => {
       routeChanged,
       durationUpdates: updates,
       totalStops: stops.length,
-      apiCallsMade: 1
+      apiCallsMade: 1,
+      usingHomeLocation
     });
 
   } catch (error) {
