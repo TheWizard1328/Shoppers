@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, Fragment, useMemo, useCallback, useRef } from "react";
 import "./components/utils/globalErrorHandler";
 import { Link, useLocation } from "react-router-dom";
@@ -875,22 +876,26 @@ export default function Layout({ children, currentPageName }) {
   const needsDataReload = useRef(false);
 
   // Granular delivery update function for immediate UI synchronization
-  const updateDeliveriesLocally = useCallback((updates) => {
-    console.log('🔄 [Layout] updateDeliveriesLocally called with', updates.length, 'updates');
-    
-    setDeliveries(prevDeliveries => {
-      const updatesMap = new Map(updates.map(u => [u.id, u]));
-      
-      return prevDeliveries.map(delivery => {
-        if (!delivery) return delivery;
-        const update = updatesMap.get(delivery.id);
-        if (update) {
-          console.log(`  ✅ Applying update to delivery ${delivery.id}`);
-          return { ...delivery, ...update };
-        }
-        return delivery;
+  const updateDeliveriesLocally = useCallback((newDeliveries, isFullReplacement = false) => {
+    if (isFullReplacement) {
+      console.log('🔄 [Layout] updateDeliveriesLocally: Full replacement with', newDeliveries.length, 'deliveries');
+      setDeliveries(newDeliveries.filter(Boolean));
+    } else {
+      console.log('🔄 [Layout] updateDeliveriesLocally: Merging', newDeliveries.length, 'updates');
+      setDeliveries(prevDeliveries => {
+        const updatesMap = new Map(newDeliveries.map(u => [u.id, u]));
+        
+        return prevDeliveries.map(delivery => {
+          if (!delivery) return delivery;
+          const update = updatesMap.get(delivery.id);
+          if (update) {
+            console.log(`  ✅ Applying update to delivery ${delivery.id}`);
+            return { ...delivery, ...update };
+          }
+          return delivery;
+        });
       });
-    });
+    }
   }, []);
 
   // Callback to update state from smartRefreshManager
@@ -2581,7 +2586,7 @@ export default function Layout({ children, currentPageName }) {
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                              <MoreVertical className="w-4 h-4 text-slate-500" />
+                              <MoreVertical className="w-4 h-4 mr-2 text-slate-500" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-56 z-[10000]">

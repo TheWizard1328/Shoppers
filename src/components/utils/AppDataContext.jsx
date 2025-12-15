@@ -6,14 +6,12 @@ const AppDataContext = createContext(null);
 
 export const AppDataProvider = ({ children, value }) => {
   // Wrap updateDeliveriesLocally to register pending updates with driver/date context
-  const wrappedUpdateDeliveriesLocally = (updates) => {
+  const wrappedUpdateDeliveriesLocally = (updates, isFullReplacement = false) => {
     if (value.updateDeliveriesLocally) {
-      // CRITICAL: Check if updates is an array of delivery objects or just IDs
-      if (Array.isArray(updates)) {
-        // Register all updated delivery IDs as pending with driver/date info
+      // CRITICAL: Only register pending updates when NOT doing full replacement
+      if (!isFullReplacement && Array.isArray(updates)) {
         updates.forEach(update => {
           if (update && update.id) {
-            // Use driver_id and delivery_date if available, otherwise use empty strings
             const driverId = update.driver_id || '';
             const deliveryDate = update.delivery_date || '';
             smartRefreshManager.registerPendingUpdate(update.id, driverId, deliveryDate);
@@ -21,8 +19,8 @@ export const AppDataProvider = ({ children, value }) => {
         });
       }
       
-      // Call the original function
-      value.updateDeliveriesLocally(updates);
+      // Call the original function with isFullReplacement flag
+      value.updateDeliveriesLocally(updates, isFullReplacement);
     }
   };
   
@@ -31,31 +29,29 @@ export const AppDataProvider = ({ children, value }) => {
     console.log(`🔄 [Force Refresh] Fetching latest deliveries for driver ${driverId} on ${deliveryDate}...`);
     
     try {
-      const freshDeliveries = await base44.entities.Delivery.filter({
+      const freshDeliveriesForDriver = await base44.entities.Delivery.filter({
         driver_id: driverId,
         delivery_date: deliveryDate
       });
       
-      console.log(`✅ [Force Refresh] Got ${freshDeliveries.length} deliveries from database`);
+      console.log(`✅ [Force Refresh] Got ${freshDeliveriesForDriver.length} deliveries from database`);
       
       // CRITICAL: Clear ALL pending updates for this driver/route FIRST
-      // This ensures the fresh server data takes precedence
       smartRefreshManager.clearPendingUpdatesForDriver(driverId, deliveryDate);
       
-      // CRITICAL: ALWAYS update state, even if freshDeliveries is empty
-      // This ensures removed deliveries are properly cleared from UI
+      // Construct the new overall deliveries array
       const otherDeliveries = (value.deliveries || []).filter(d => 
         d && (d.delivery_date !== deliveryDate || d.driver_id !== driverId)
       );
-      const mergedDeliveries = [...otherDeliveries, ...freshDeliveries];
+      const mergedDeliveries = [...otherDeliveries, ...freshDeliveriesForDriver].filter(Boolean);
       
       if (value.updateDeliveriesLocally) {
-        // Call directly without wrapper to bypass pending update registration
-        value.updateDeliveriesLocally(mergedDeliveries);
+        // Full replacement to ensure deletions are reflected
+        value.updateDeliveriesLocally(mergedDeliveries, true);
         console.log(`✅ [Force Refresh] Updated context with ${mergedDeliveries.length} total deliveries`);
       }
       
-      return freshDeliveries;
+      return freshDeliveriesForDriver;
     } catch (error) {
       console.error('❌ [Force Refresh] Failed to fetch deliveries:', error);
       throw error;
@@ -66,7 +62,6 @@ export const AppDataProvider = ({ children, value }) => {
     ...value,
     updateDeliveriesLocally: wrappedUpdateDeliveriesLocally,
     forceRefreshDriverDeliveries,
-    // Expose a way for Dashboard to know when data for selected date is ready
     onSelectedDateDataReady: value.onSelectedDateDataReady,
     setOnSelectedDateDataReady: value.setOnSelectedDateDataReady
   };
