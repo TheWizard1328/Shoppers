@@ -4751,57 +4751,55 @@ function Dashboard() {
       const isPickup = !deliveryFromUI.patient_id;
       const newStatus = isPickup ? 'en_route' : 'in_transit';
 
-      const allDriverDeliveriesForDate = deliveriesWithStopOrder.filter((d) =>
-        d && d.driver_id === driverId && d.delivery_date === deliveryDate
-      );
-
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-      const completedCount = allDriverDeliveriesForDate.filter((d) => finishedStatuses.includes(d.status)).length;
-      const newStopOrder = completedCount + 1;
-
-      // STEP 3: Reset ALL isNextDelivery flags
-      for (const d of allDriverDeliveriesForDate) {
-        if (d.isNextDelivery) {
-          await updateDeliveryLocal(d.id, { isNextDelivery: false });
-        }
-      }
-
-      // STEP 4: Update selected stop with new stop_order and isNextDelivery=true
+      // STEP 3: Update status to active (in_transit/en_route)
       await updateDeliveryLocal(deliveryId, {
-        status: newStatus,
-        stop_order: newStopOrder,
-        isNextDelivery: true
+        status: newStatus
       });
 
-      // STEP 4.5: Run route optimizer (optimizes order AND calculates ETAs)
+      // STEP 4: Run route optimizer - it will handle stop_order sequencing and ETAs
       try {
-        // Get driver's current location for route optimization
         const driverAppUser = appUsers.find(u => u && u.user_id === driverId);
         const currentLocation = driverAppUser?.current_latitude && driverAppUser?.current_longitude ? {
           latitude: driverAppUser.current_latitude,
           longitude: driverAppUser.current_longitude
         } : null;
 
-        console.log('🔄 [START] Calling optimizeRouteRealTime...');
+        console.log('🔄 [START] Running route optimizer to sequence stops...');
         await base44.functions.invoke('optimizeRouteRealTime', {
           driverId: driverId,
           deliveryDate: deliveryDate,
           currentLocalTime: format(new Date(), 'HH:mm'),
           startLocation: currentLocation
         });
-        console.log('✅ [START] Route optimization complete');
+        console.log('✅ [START] Route optimization complete - stops re-sequenced');
       } catch (optimizeError) {
-        console.warn('⚠️ [START STEP 4.5] Route optimization failed, falling back to ETA update only:', optimizeError);
-        // Fallback to just ETA update if optimization fails
-        try {
-          await base44.functions.invoke('etaOptimizer', {
-            driverId: driverId,
-            deliveryDate: deliveryDate,
-            deviceTime: new Date().toISOString()
-          });
-        } catch (etaError) {
-          console.warn('⚠️ [START STEP 4.5] ETA fallback also failed:', etaError);
+        console.warn('⚠️ [START] Route optimization failed:', optimizeError);
+      }
+
+      // STEP 5: Update isNextDelivery flags after optimization
+      try {
+        const allDriverDeliveries = await base44.entities.Delivery.filter({
+          driver_id: driverId,
+          delivery_date: deliveryDate
+        }, 'stop_order');
+
+        // Reset all flags
+        const resetPromises = allDriverDeliveries
+          .filter((d) => d.isNextDelivery)
+          .map((d) => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
+        await Promise.all(resetPromises);
+
+        // Find first incomplete and mark as next (SKIP PENDING)
+        const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+        const firstIncomplete = allDriverDeliveries
+          .filter((d) => !finishedStatuses.includes(d.status) && d.status !== 'pending')
+          .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
+
+        if (firstIncomplete) {
+          await base44.entities.Delivery.update(firstIncomplete.id, { isNextDelivery: true });
         }
+      } catch (flagError) {
+        console.warn('⚠️ [START] isNextDelivery flag update failed:', flagError);
       }
 
       // STEP 6: Full data refresh to update UI
