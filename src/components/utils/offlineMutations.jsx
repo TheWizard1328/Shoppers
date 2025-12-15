@@ -35,6 +35,30 @@ const notifyMutation = (mutation) => {
 };
 
 /**
+ * Trigger smart refresh after mutation
+ */
+const triggerSmartRefresh = async () => {
+  try {
+    // Dynamically import to avoid circular dependencies
+    const { smartRefreshManager } = await import('./smartRefreshManager');
+    
+    // Reset all refresh timers to force immediate refresh
+    smartRefreshManager.lastRefreshTimes = {
+      driverLocation: 0,
+      activeDeliveries: 0,
+      todayDeliveries: 0,
+      appUsers: 0,
+      patients: 0,
+      stores: 0
+    };
+    
+    console.log('🔄 [OfflineMutations] Smart refresh triggered after mutation');
+  } catch (error) {
+    console.warn('⚠️ [OfflineMutations] Failed to trigger smart refresh:', error);
+  }
+};
+
+/**
  * Create a new Patient (local-first)
  */
 export const createPatientLocal = async (patientData) => {
@@ -93,6 +117,9 @@ export const createPatientLocal = async (patientData) => {
       });
       
       console.log('✅ [Sync] Temp patient replaced with backend patient in IndexedDB');
+      
+      // Trigger smart refresh to pull data from other users
+      await triggerSmartRefresh();
     } catch (error) {
       console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
       // Queue for backend sync if immediate sync fails
@@ -151,6 +178,9 @@ export const updatePatientLocal = async (patientId, updates) => {
       const { base44 } = await import('@/api/base44Client');
       await base44.entities.Patient.update(patientId, updates);
       console.log('✅ [Sync] Patient synced to backend immediately:', patientId);
+      
+      // Trigger smart refresh to pull data from other users
+      await triggerSmartRefresh();
     } catch (error) {
       console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
       // Queue for backend sync if immediate sync fails
@@ -202,6 +232,9 @@ export const deletePatientLocal = async (patientId) => {
       const { base44 } = await import('@/api/base44Client');
       await base44.entities.Patient.delete(patientId);
       console.log('✅ [Sync] Patient deletion synced to backend immediately:', patientId);
+      
+      // Trigger smart refresh to pull data from other users
+      await triggerSmartRefresh();
     } catch (error) {
       console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
       // Queue for backend sync if immediate sync fails
@@ -278,6 +311,9 @@ export const createDeliveryLocal = async (deliveryData) => {
       });
       
       console.log('✅ [Sync] Temp delivery replaced with backend delivery in IndexedDB');
+      
+      // Trigger smart refresh to pull data from other users
+      await triggerSmartRefresh();
     } catch (error) {
       console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
       // Queue for backend sync if immediate sync fails
@@ -328,6 +364,9 @@ export const updateDeliveryLocal = async (deliveryId, updates) => {
         data: backendDelivery 
       });
       
+      // Trigger smart refresh to pull data from other users
+      await triggerSmartRefresh();
+      
       return backendDelivery;
     }
 
@@ -356,6 +395,9 @@ export const updateDeliveryLocal = async (deliveryId, updates) => {
       const { base44 } = await import('@/api/base44Client');
       await base44.entities.Delivery.update(deliveryId, updates);
       console.log('✅ [Sync] Delivery synced to backend immediately:', deliveryId);
+      
+      // Trigger smart refresh to pull data from other users
+      await triggerSmartRefresh();
     } catch (error) {
       console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
       // Queue for backend sync if immediate sync fails
@@ -407,6 +449,9 @@ export const deleteDeliveryLocal = async (deliveryId) => {
       const { base44 } = await import('@/api/base44Client');
       await base44.entities.Delivery.delete(deliveryId);
       console.log('✅ [Sync] Delivery deletion synced to backend immediately:', deliveryId);
+      
+      // Trigger smart refresh to pull data from other users
+      await triggerSmartRefresh();
     } catch (error) {
       console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
       // Queue for backend sync if immediate sync fails
@@ -488,6 +533,9 @@ export const batchCreateDeliveriesLocal = async (deliveriesData) => {
       });
       
       console.log('✅ [Sync] All temp deliveries replaced with backend deliveries in IndexedDB');
+      
+      // Trigger smart refresh to pull data from other users
+      await triggerSmartRefresh();
     } catch (error) {
       console.warn('⚠️ [Sync] Immediate bulk sync failed, queuing for later:', error.message);
       // Queue all for backend sync if immediate sync fails
