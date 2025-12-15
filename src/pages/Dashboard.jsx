@@ -1630,22 +1630,36 @@ function Dashboard() {
         const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
         const isViewingToday = todayStr === selectedDateStr;
 
-        // BLUE DOT: Add current driver's live GPS location (mobile only, today only)
+        // NEW: Check if driver markers will actually be visible BEFORE including them
+        let willShowBlueDoc = false;
+        let willShowSharedLocations = false;
+
+        // BLUE DOT: Check if it will be visible (mobile only, today only, driver with location)
         if (isMobile && isDriver && isViewingToday && driverLocation?.latitude && driverLocation?.longitude) {
+          willShowBlueDot = true;
+        }
+
+        // SHARED LOCATIONS: Check if any will be visible (today only, on_duty + tracking enabled)
+        if (isViewingToday && allDriverLocations && Array.isArray(allDriverLocations)) {
+          const visibleLocations = allDriverLocations.filter((location) => {
+            if (!location?.latitude || !location?.longitude || !location?.driver_id) return false;
+            if (isMobile && location.driver_id === currentUser?.id) return false; // Blue dot shows instead
+            return location.driver_status === 'on_duty' && location.location_tracking_enabled === true;
+          });
+          willShowSharedLocations = visibleLocations.length > 0;
+        }
+
+        // Only include driver markers in bounds if they will actually be visible
+        if (willShowBlueDot) {
           allCoordinates.push([driverLocation.latitude, driverLocation.longitude]);
           hasDriverMarkers = true;
           console.log('📍 [FAB Click] Including blue dot (current driver GPS)');
         }
 
-        // SHARED LOCATIONS: Add all visible shared driver locations (today only, on_duty + tracking enabled)
-        if (isViewingToday && allDriverLocations && Array.isArray(allDriverLocations)) {
+        if (willShowSharedLocations && allDriverLocations && Array.isArray(allDriverLocations)) {
           allDriverLocations.forEach((location) => {
             if (!location?.latitude || !location?.longitude || !location?.driver_id) return;
-            
-            // Skip current user on mobile (blue dot already shows)
             if (isMobile && location.driver_id === currentUser?.id) return;
-            
-            // Must be on_duty and have tracking enabled
             if (location.driver_status === 'on_duty' && location.location_tracking_enabled === true) {
               allCoordinates.push([location.latitude, location.longitude]);
               hasDriverMarkers = true;
