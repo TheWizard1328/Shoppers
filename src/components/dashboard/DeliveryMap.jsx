@@ -748,33 +748,50 @@ export default function DeliveryMap({
 
   // NEW: Check if the current user is a driver and viewing their own route for today
   const isDriverViewingSelfToday = useMemo(() => {
-    if (!currentUser || !userHasRole(currentUser, 'driver')) return false;
-    if (!selectedDriverId || selectedDriverId === 'all') return false;
-    if (selectedDriverId !== currentUser.id) return false;
+    if (!currentUser || !userHasRole(currentUser, 'driver')) {
+      console.log('🗺️ [isDriverViewingSelfToday] FALSE: Not a driver');
+      return false;
+    }
+    if (!selectedDriverId || selectedDriverId === 'all') {
+      console.log('🗺️ [isDriverViewingSelfToday] FALSE: selectedDriverId is', selectedDriverId);
+      return false;
+    }
+    if (selectedDriverId !== currentUser.id) {
+      console.log('🗺️ [isDriverViewingSelfToday] FALSE: selectedDriverId', selectedDriverId, '!== currentUser.id', currentUser.id);
+      return false;
+    }
     const today = format(new Date(), 'yyyy-MM-dd');
-    return selectedDate === today;
+    const result = selectedDate === today;
+    console.log('🗺️ [isDriverViewingSelfToday]', result ? 'TRUE' : 'FALSE', '- selectedDate:', selectedDate, 'today:', today);
+    return result;
   }, [currentUser, selectedDriverId, selectedDate]);
 
   const [otherDriverDeliveries, setOtherDriverDeliveries] = useState([]);
 
   useEffect(() => {
     const fetchOtherDrivers = async () => {
+      console.log('🗺️ [fetchOtherDrivers] Called with:', { isDriverViewingSelfToday, selectedDate });
+      
       if (!isDriverViewingSelfToday || !selectedDate) {
+        console.log('🗺️ [fetchOtherDrivers] Clearing - not viewing self or no date');
         setOtherDriverDeliveries([]);
         return;
       }
 
       try {
+        console.log('🗺️ [fetchOtherDrivers] Fetching all deliveries for', selectedDate);
         const { base44 } = await import('@/api/base44Client');
         const allDeliveries = await base44.entities.Delivery.filter({
           delivery_date: selectedDate
         });
         
+        console.log('🗺️ [fetchOtherDrivers] Total deliveries fetched:', allDeliveries.length);
         const others = allDeliveries.filter(d => d && d.driver_id && d.driver_id !== currentUser.id);
-        console.log(`🗺️ Loaded ${others.length} other driver deliveries (faded)`);
+        console.log(`🗺️ [fetchOtherDrivers] Filtered to ${others.length} other driver deliveries`);
+        console.log('🗺️ [fetchOtherDrivers] Other drivers:', [...new Set(others.map(d => d.driver_id))]);
         setOtherDriverDeliveries(others);
       } catch (error) {
-        console.error('Error fetching other drivers:', error);
+        console.error('🗺️ [fetchOtherDrivers] Error:', error);
         setOtherDriverDeliveries([]);
       }
     };
