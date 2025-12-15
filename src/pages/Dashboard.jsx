@@ -5001,30 +5001,43 @@ function Dashboard() {
 
   const handleDeleteDelivery = async (deliveryId) => {
     try {
-      const { deleteDeliveryLocal } = await import('../components/utils/offlineMutations');
-
-      // Get delivery info before deleting for ETA update
+      console.log('🗑️ [DELETE Handler] Step 1: Getting delivery info before deletion...');
       const targetDelivery = deliveriesWithStopOrder.find((d) => d && d.id === deliveryId);
-      const driverId = targetDelivery?.driver_id;
-      const deliveryDate = targetDelivery?.delivery_date;
-
-      await deleteDeliveryLocal(deliveryId);
-
-      // Update local state immediately
-      if (updateDeliveriesLocally) {
-        const updatedDeliveries = deliveries.filter((d) => d.id !== deliveryId);
-        updateDeliveriesLocally(updatedDeliveries);
+      
+      if (!targetDelivery) {
+        console.error('❌ [DELETE Handler] Delivery not found');
+        throw new Error('Delivery not found');
       }
 
-      invalidate('Delivery');
+      const driverId = targetDelivery.driver_id;
+      const deliveryDate = targetDelivery.delivery_date;
+      console.log(`📦 [DELETE Handler] Deleting: ${targetDelivery.patient_name || 'Pickup'}`);
 
+      console.log('🗑️ [DELETE Handler] Step 2: Deleting from offline DB and backend...');
+      const { deleteDeliveryLocal } = await import('../components/utils/offlineMutations');
+      await deleteDeliveryLocal(deliveryId);
+      console.log('✅ [DELETE Handler] Deleted from offline DB and backend');
+
+      console.log('🗑️ [DELETE Handler] Step 3: Updating UI state immediately...');
+      // CRITICAL: Update local state immediately by filtering out deleted delivery
+      if (updateDeliveriesLocally) {
+        const updatedDeliveries = deliveries.filter((d) => d && d.id !== deliveryId);
+        updateDeliveriesLocally(updatedDeliveries);
+        console.log(`✅ [DELETE Handler] UI state updated (removed 1 delivery, ${updatedDeliveries.length} remaining)`);
+      }
+
+      // Clear selection if this card was selected
       if (selectedCardId === deliveryId) {
         setSelectedCardId(null);
       }
 
-      // CRITICAL: Trigger full ETA recalculation when deleting deliveries (ALL users)
+      // Invalidate cache
+      invalidateDeliveriesForDate(deliveryDate);
+      invalidate('Delivery');
+
+      console.log('🗑️ [DELETE Handler] Step 4: Triggering ETA recalculation...');
+      // CRITICAL: Trigger full ETA recalculation after deletion
       if (driverId && deliveryDate) {
-        console.log('🗑️ [DELETE] Triggering full ETA recalculation after deletion...');
         try {
           await base44.functions.invoke('etaOptimizer', {
             driverId: driverId,
@@ -5032,14 +5045,17 @@ function Dashboard() {
             triggerFullRecalculation: true,
             deviceTime: new Date().toISOString()
           });
-          console.log('✅ [DELETE] Full ETA recalculation completed');
+          console.log('✅ [DELETE Handler] ETAs recalculated');
         } catch (etaError) {
-          console.warn('⚠️ [DELETE] ETA recalculation failed:', etaError);
+          console.warn('⚠️ [DELETE Handler] ETA recalculation failed:', etaError);
         }
       }
+
+      console.log('✅ [DELETE Handler] Delete complete');
     } catch (error) {
-      console.error('Error deleting delivery:', error);
+      console.error('❌ [DELETE Handler] Error:', error);
       alert('Failed to delete delivery. Please try again.');
+      throw error;
     }
   };
 
