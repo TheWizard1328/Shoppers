@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, Fragment, useMemo, useCallback, useRef } from "react";
 import "./components/utils/globalErrorHandler";
 import { Link, useLocation } from "react-router-dom";
@@ -213,7 +212,6 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
             window.addEventListener('refreshDeliveryStats', fetchStats);
 
             // Delay initial fetch slightly to avoid competing with layout init
-            console.log('🔄 [QuickStats] Scheduling stats fetch for date:', selectedDateStr);
             const initialTimer = setTimeout(fetchStats, 1000);
             // Refresh stats every 60 seconds
             const interval = setInterval(fetchStats, 60000);
@@ -506,15 +504,12 @@ export default function Layout({ children, currentPageName }) {
 
   useEffect(() => {
     const init = async () => {
-      console.log("📦 [Layout] === PHASE 2: STARTING INITIAL DATA LOAD ===");
       setIsLoadingLayout(true);
 
       try {
-        console.log('🔐 [Layout] Step 2.1: Fetching currentUser...');
         const fetchedUser = await getEffectiveUser();
 
         if (!fetchedUser) {
-          console.warn('⚠️ [Layout] Step 2.2: No user found during initialization');
           setHasAccess(false);
           setCurrentUser(null);
           setIsLoadingLayout(false);
@@ -522,13 +517,8 @@ export default function Layout({ children, currentPageName }) {
           return;
         }
 
-        console.log(`✅ [Layout] Step 2.1 Complete: User loaded - ${fetchedUser.user_name || fetchedUser.full_name}`);
-
-      // Load user settings for this user and device
-      console.log('📋 [Layout] Step 2.1b: Loading user settings...');
       try {
         const settings = await loadUserSettings(fetchedUser.id);
-        console.log('✅ [Layout] User settings loaded:', settings);
 
         // Apply sidebar width
         if (settings.sidebar_width) {
@@ -544,12 +534,10 @@ export default function Layout({ children, currentPageName }) {
 
         setUserSettingsLoaded(true);
       } catch (settingsError) {
-        console.warn('⚠️ [Layout] Error loading user settings:', settingsError);
         setUserSettingsLoaded(true);
       }
 
       // Load app-wide settings (smart refresh toggle and version)
-      console.log('⚙️ [Layout] Step 2.1c: Loading app settings...');
       try {
         const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
 
@@ -558,7 +546,6 @@ export default function Layout({ children, currentPageName }) {
           const smartRefreshEnabled = settings[0].setting_value.smartRefreshEnabled !== false;
           smartRefreshManager._enabled = smartRefreshEnabled;
           smartRefreshManager._initialized = true;
-          console.log(`⚙️ [Layout] Smart refresh initialized: ${smartRefreshEnabled ? 'ENABLED' : 'DISABLED'}`);
 
           // Load app version
           if (settings[0].setting_value.appVersion) {
@@ -566,24 +553,18 @@ export default function Layout({ children, currentPageName }) {
             setAppVersion(`v${version.major}.${version.minor}.${version.build}`);
           }
         } else {
-          // Default to enabled on error
           smartRefreshManager._enabled = true;
           smartRefreshManager._initialized = true;
         }
       } catch (appSettingsError) {
-        console.warn('⚠️ [Layout] Error loading app settings:', appSettingsError);
-        // Default to enabled on error
         smartRefreshManager._enabled = true;
         smartRefreshManager._initialized = true;
       }
-
-        console.log('🔐 [Layout] Step 2.2: Checking access permissions...');
 
         const isDispatcher = userHasRole(fetchedUser, 'dispatcher');
         const isInactive = fetchedUser.status === 'inactive';
 
         if (isDispatcher && isInactive) {
-          console.error('🚫 [Layout] INACTIVE DISPATCHER detected - ACCESS DENIED');
 
           sessionStorage.clear();
           clearUserCache();
@@ -601,24 +582,15 @@ export default function Layout({ children, currentPageName }) {
           return;
         }
 
-        console.log('✅ [Layout] Step 2.2 Complete: Access granted');
-
-
         setCurrentUser(fetchedUser);
         setHasAccess(true);
 
-        console.log('🏙️ [Layout] Step 2.3: Loading all City entities...');
         const citiesData = await City.list();
-        console.log(`✅ [Layout] Step 2.3 Complete: Loaded ${citiesData?.length || 0} cities`);
 
         citiesData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
         setCities(citiesData || []);
 
-        console.log('🏪 [Layout] Step 2.3b: Pre-loading Stores for dispatcher logic...');
         const storesData = await getData('Store');
-        console.log(`✅ [Layout] Step 2.3b Complete: Loaded ${storesData?.length || 0} stores`);
-
-        console.log('🎯 [Layout] Step 2.4: Determining initial selectedCityId...');
         let initialCityId = null;
 
         if (fetchedUser.city_id) {
@@ -626,25 +598,19 @@ export default function Layout({ children, currentPageName }) {
 
           if (userCity) {
             initialCityId = fetchedUser.city_id;
-            console.log(`✅ [Layout] Step 2.4: Using currentUser.city_id: ${initialCityId} (${userCity.name})`);
           } else {
-            console.warn(`⚠️ [Layout] Step 2.4: currentUser.city_id (${fetchedUser.city_id}) does not match any loaded City entity`);
             initialCityId = null;
           }
-        } else {
-          console.warn('⚠️ [Layout] Step 2.4: currentUser.city_id is missing');
         }
 
         if (userHasRole(fetchedUser, 'admin')) {
           if (!initialCityId && citiesData.length > 0) {
             initialCityId = citiesData[0].id;
-            console.log(`✅ [Layout] Step 2.4: Admin with no city_id, defaulting to first city: ${initialCityId} (${citiesData[0].name})`);
           }
         }
 
 
         if (!initialCityId) {
-          console.log('🚨 [Layout] Step 2.4: EDGE CASE - No valid city for user, showing city selection popup');
           setShowCitySelectionPopup(true);
           globalFilters.setSelectedCityId('waiting-for-selection');
           setIsLoadingLayout(false);
@@ -653,50 +619,27 @@ export default function Layout({ children, currentPageName }) {
 
         globalFilters.setSelectedCityId(initialCityId);
 
-        console.log('⚙️ [Layout] Step 2.5: Setting other global filters...');
-
         const today = new Date();
 
-        // CRITICAL: Only set date to today if no saved date exists
         const savedDate = globalFilters.getSelectedDate();
         let effectiveDateForDriverAssignment;
         if (!savedDate) {
           globalFilters.setSelectedDate(today);
           effectiveDateForDriverAssignment = today;
-          console.log(`📅 [Layout] Set selectedDate to today: ${format(today, 'yyyy-MM-dd')} (no saved date)`);
         } else {
           effectiveDateForDriverAssignment = new Date(savedDate + 'T00:00:00');
-          console.log(`📅 [Layout] Keeping saved selectedDate: ${savedDate}`);
         }
 
-        // CRITICAL: Do NOT auto-select driver here - let Dashboard handle it from user settings
-        // Layout only ensures globalFilters has a value (defaults to 'all' if not set)
         const currentDriverFilter = globalFilters.getSelectedDriverId();
         if (!currentDriverFilter) {
-          console.log('🎯 [Layout] No driver filter set, defaulting to "all" (Dashboard will override from settings)');
           globalFilters.setSelectedDriverId('all');
-        } else {
-          console.log(`🎯 [Layout] Driver filter already set: ${currentDriverFilter}`);
         }
 
-        console.log('✅ [Layout] Step 2.5 Complete: All global filters initialized');
-
-        console.log('🚪 [Layout] Step 2.6: Setting initialGlobalFiltersSet gate to TRUE');
         setInitialGlobalFiltersSet(true);
 
-        const isReady = globalFilters.isReadyForDataFetch();
-        console.log(`🔍 [Layout] globalFilters.isReadyForDataFetch(): ${isReady}`);
-
-        if (!isReady) {
-          console.error('❌ [Layout] CRITICAL: Gate should be ready but isReadyForDataFetch() returned false!');
-          globalFilters.debug();
-        }
-
         setIsLoadingLayout(false);
-        console.log("✅ [Layout] === PHASE 2: INITIAL DATA LOAD COMPLETE ===");
 
       } catch (error) {
-        console.error("❌ [Layout] Error during initial data load:", error);
         setHasAccess(false);
         setIsLoadingLayout(false);
         setDataLoaded(true);
@@ -715,32 +658,23 @@ export default function Layout({ children, currentPageName }) {
     useEffect(() => {
       if (!currentUser) return;
 
-      console.log('🚀 [Layout] Initializing offline database sync...');
-
       // Start background sync after 5 seconds to avoid blocking initial load
       const syncTimer = setTimeout(() => {
         const selectedDateStr = globalFilters.getSelectedDate();
         const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
 
-        performInitialSync(selectedDate).catch(error => {
-          console.error('❌ [Layout] Initial offline sync failed:', error);
-        });
+        performInitialSync(selectedDate).catch(() => {});
       }, 5000);
 
       // Set up periodic mutation processing (every 30 seconds)
       const mutationSyncInterval = setInterval(() => {
-        processPendingMutations().catch(error => {
-          console.error('❌ [Layout] Mutation processing failed:', error);
-        });
+        processPendingMutations().catch(() => {});
       }, 30000);
 
       // Subscribe to local mutations and refresh UI IMMEDIATELY
       const unsubscribeMutations = subscribeMutations(async (mutation) => {
-        console.log('🔄 [Layout] Local mutation detected:', mutation);
-
         // CRITICAL: Handle 'replace' mutations to swap temp IDs with real backend IDs
         if (mutation.type === 'replace') {
-          console.log(`🔄 [Layout] Replace mutation: ${mutation.oldId} → ${mutation.newId}`);
           
           if (mutation.entity === 'Patient') {
             setPatients(prevPatients => 
@@ -761,32 +695,25 @@ export default function Layout({ children, currentPageName }) {
             setPatients(prevPatients => {
               const map = new Map();
               prevPatients.forEach(p => p && map.set(p.id, p));
-              freshPatients.forEach(p => p && map.set(p.id, p)); // Fresh data overwrites
+              freshPatients.forEach(p => p && map.set(p.id, p));
               return Array.from(map.values());
             });
-            console.log('✅ [Layout] Patients state updated and deduplicated from local mutation');
-          } catch (error) {
-            console.error('❌ [Layout] Error updating patients from local mutation:', error);
-          }
+          } catch (error) {}
         } else if (mutation.entity === 'Delivery') {
           try {
             const freshDeliveries = await getData('Delivery', null, null, false);
             setDeliveries(prevDeliveries => {
               const map = new Map();
               prevDeliveries.forEach(d => d && map.set(d.id, d));
-              freshDeliveries.forEach(d => d && map.set(d.id, d)); // Fresh data overwrites
+              freshDeliveries.forEach(d => d && map.set(d.id, d));
               return Array.from(map.values());
             });
-            console.log('✅ [Layout] Deliveries state updated and deduplicated from local mutation');
-          } catch (error) {
-            console.error('❌ [Layout] Error updating deliveries from local mutation:', error);
-          }
+          } catch (error) {}
         }
       });
 
       // Listen for offline sync completion to refresh UI
       const handleSyncComplete = () => {
-        console.log('🔄 [Layout] Offline sync complete - refreshing data...');
         invalidate('Patient');
         invalidate('Delivery');
         triggerFullDataLoadRef.current(true);
@@ -878,20 +805,14 @@ export default function Layout({ children, currentPageName }) {
   // Granular delivery update function for immediate UI synchronization
   const updateDeliveriesLocally = useCallback((newDeliveries, isFullReplacement = false) => {
     if (isFullReplacement) {
-      console.log('🔄 [Layout] updateDeliveriesLocally: Full replacement with', newDeliveries.length, 'deliveries');
       setDeliveries(newDeliveries.filter(Boolean));
     } else {
-      console.log('🔄 [Layout] updateDeliveriesLocally: Merging', newDeliveries.length, 'updates');
       setDeliveries(prevDeliveries => {
         const updatesMap = new Map(newDeliveries.map(u => [u.id, u]));
-        
         return prevDeliveries.map(delivery => {
           if (!delivery) return delivery;
           const update = updatesMap.get(delivery.id);
-          if (update) {
-            console.log(`  ✅ Applying update to delivery ${delivery.id}`);
-            return { ...delivery, ...update };
-          }
+          if (update) return { ...delivery, ...update };
           return delivery;
         });
       });
@@ -900,42 +821,19 @@ export default function Layout({ children, currentPageName }) {
 
   // Callback to update state from smartRefreshManager
   const updateAppDataState = useCallback(async (updates) => {
-    // CRITICAL: Don't update state if a form is open to prevent unwanted re-renders
-    if (isFormOverlayOpen) {
-      console.log('⏸️ [Layout] Skipping state update - form overlay is open');
-      return;
-    }
+    if (isFormOverlayOpen) return;
 
-    // CRITICAL: Don't apply empty updates - this causes data to disappear
-    if (updates.deliveries && updates.deliveries.length === 0 && deliveries.length > 0) {
-      console.warn('⚠️ [Layout] Ignoring empty deliveries update - would clear existing data');
-      return;
-    }
-    if (updates.patients && updates.patients.length === 0 && patients.length > 0) {
-      console.warn('⚠️ [Layout] Ignoring empty patients update - would clear existing data');
-      return;
-    }
+    if (updates.deliveries && updates.deliveries.length === 0 && deliveries.length > 0) return;
+    if (updates.patients && updates.patients.length === 0 && patients.length > 0) return;
 
-    if (updates.deliveries) {
-      console.log('🔄 [Layout] Updating deliveries from smart refresh');
-      setDeliveries(updates.deliveries);
-    }
-    if (updates.patients) {
-      console.log('🔄 [Layout] Updating patients from smart refresh');
-      setPatients(updates.patients);
-    }
+    if (updates.deliveries) setDeliveries(updates.deliveries);
+    if (updates.patients) setPatients(updates.patients);
     if (updates.appUsers) {
-      console.log('🔄 [Layout] Updating appUsers from smart refresh');
-      console.log('   📊 AppUsers updated - checking for driver_status changes...');
-      const onDutyDrivers = updates.appUsers.filter(u => u && u.driver_status === 'on_duty');
-      console.log(`   🚗 On-duty drivers: ${onDutyDrivers.length}`, onDutyDrivers.map(d => d.user_name || d.user_id));
 
-      // CRITICAL: Check if current user's AppUser changed BEFORE updating state
       if (currentUser && !currentUser._isImpersonating && !isReloadingFromAppUserChange.current) {
         const updatedAppUserForCurrentUser = updates.appUsers.find(au => au && au.user_id === currentUser.id);
 
         if (updatedAppUserForCurrentUser) {
-          // Compare against currentUser's store_ids, not stale appUsers state
           const oldStoreIds = JSON.stringify(currentUser.store_ids || []);
           const newStoreIds = JSON.stringify(updatedAppUserForCurrentUser.store_ids || []);
 
@@ -943,54 +841,36 @@ export default function Layout({ children, currentPageName }) {
           const newStatus = updatedAppUserForCurrentUser.status;
 
           if (newStoreIds !== oldStoreIds || newStatus !== oldStatus) {
-            console.log('🔄 [Layout] Current user AppUser changed - old stores:', currentUser.store_ids, 'new stores:', updatedAppUserForCurrentUser.store_ids);
-            console.log('🛑 [Layout] Pausing smart refresh for full data reload...');
-
             isReloadingFromAppUserChange.current = true;
-
-            // Update appUsers state first
             setAppUsers(updates.appUsers);
-
-            // Refresh currentUser and wait for it
             clearUserCache();
             invalidate('AppUser');
             const refreshedUser = await getEffectiveUser();
 
             if (refreshedUser) {
-              console.log('✅ [Layout] currentUser refreshed with new store assignments:', refreshedUser.store_ids);
-
-              // Invalidate all caches
               invalidate('Store');
               invalidate('Patient');
               invalidate('Delivery');
               invalidate('User');
-
-              // Update currentUser - this will trigger the useEffect to reload data
               setCurrentUser(refreshedUser);
               needsDataReload.current = true;
             }
 
             isReloadingFromAppUserChange.current = false;
-            return; // Exit early since we already updated appUsers
+            return;
           }
         }
       }
 
-      // If no currentUser change detected, just update appUsers
       setAppUsers(updates.appUsers);
     }
-    if (updates.users) {
-      console.log('🔄 [Layout] Updating users from smart refresh');
-      setUsers(updates.users);
-    }
+    if (updates.users) setUsers(updates.users);
   }, [currentUser, isFormOverlayOpen, deliveries, patients]);
 
-  // Unified real-time refresh system - single 5s interval handles all entity types
-  // Each entity has its own refresh interval managed by smartRefreshManager
+  // Unified real-time refresh system
   useEffect(() => {
     if (!initialGlobalFiltersSet || !currentUser || isFormOverlayOpen || isEntityUpdating || !dataLoaded) {
       if (refreshIntervalRef.current) {
-        console.log('🛑 [Layout] Stopping smart refresh (conditions not met)', { isFormOverlayOpen, isEntityUpdating });
         clearInterval(refreshIntervalRef.current);
         refreshIntervalRef.current = null;
       }
@@ -1005,25 +885,13 @@ export default function Layout({ children, currentPageName }) {
       }
     });
 
-    // Add delay to ensure all connections are established
     const startupTimer = setTimeout(() => {
-      console.log('🚀 [Layout] Starting unified real-time refresh (20s tick, staggered intervals per entity)');
-
-    // Unified refresh function - runs every 30s, each entity checks its own interval
     const performUnifiedRefresh = async () => {
-      // CRITICAL: Check if smart refresh is disabled
-      // When disabled, skip automatic background polling entirely
-      if (!smartRefreshManager._enabled) {
-        return;
-      }
+      if (!smartRefreshManager._enabled) return;
 
       const updatedEntities = [];
       try {
         setSmartRefreshActivity(prev => ({ ...prev, active: true }));
-        console.log('');
-        console.log('═══════════════════════════════════════════════════');
-        console.log('🔄 [UNIFIED REFRESH] Starting refresh cycle');
-        console.log('═══════════════════════════════════════════════════');
 
         const selectedDateStr = globalFilters.getSelectedDate();
         const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
@@ -1063,105 +931,56 @@ export default function Layout({ children, currentPageName }) {
           filters.deliveryFilter.driver_id = selectedDriverId;
         }
 
-        console.log(`📊 Current State: ${deliveries.length} deliveries, ${appUsers.length} appUsers, ${patients.length} patients, ${stores.length} stores`);
-        console.log(`🎯 Entity Update Flag: ${isEntityUpdating ? 'PAUSED' : 'ACTIVE'}`);
+        if (isEntityUpdating) return;
 
-        // CRITICAL: Skip all refreshes if entity update in progress
-        if (isEntityUpdating) {
-          console.log('⏸️ [Layout] Smart refresh SKIPPED - entity update in progress');
-          console.log('═══════════════════════════════════════════════════');
-          return;
-        }
-
-        // FAST: Driver locations (20s) - highest priority for real-time map
-        console.log('');
-        console.log('📍 [1/3] Driver Locations Refresh...');
         const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers);
         if (locationUpdates?.hasChanges) {
-          console.log('   ✅ Updating appUsers state with new locations');
           setAppUsers(locationUpdates.appUsers);
           updatedEntities.push('locations');
-        } else {
-          console.log('   ⏭️ No location changes');
         }
 
-        // FAST: Active delivery statuses (30s) - for real-time map markers
-        console.log('');
-        console.log('📦 [2/3] Active Delivery Statuses Refresh...');
         const activeDeliveryUpdates = await smartRefreshManager.refreshActiveDeliveryStatuses(deliveries, selectedDate, filters);
         if (activeDeliveryUpdates?.hasChanges) {
-          console.log('   ✅ Updating deliveries state with active status changes');
           setDeliveries(activeDeliveryUpdates.deliveries);
           if (!updatedEntities.includes('deliveries')) updatedEntities.push('deliveries');
-        } else {
-          console.log('   ⏭️ No active delivery changes');
         }
 
-        // STAGGERED: Full entity refresh - each entity checks its own interval
-        console.log('');
-        console.log('🔄 [3/3] Full Entity Refresh (staggered intervals)...');
-
-        // CRITICAL: Check stores separately to prevent unnecessary re-renders
         const storesUpdate = await smartRefreshManager.refreshStores(stores);
         if (storesUpdate?.hasChanges) {
-          console.log('   ✅ Updating stores state');
           setStores(storesUpdate.stores);
           updatedEntities.push('stores');
         }
 
         const updates = await smartRefreshManager.performSmartRefresh(currentData, filters, isEntityUpdating);
         if (updates) {
-          console.log('   ✅ Applying updates to state:', Object.keys(updates).join(', '));
           updateAppDataState(updates);
-          // Track which entities were updated
           if (updates.deliveries) updatedEntities.push('deliveries');
           if (updates.patients) updatedEntities.push('patients');
           if (updates.appUsers) updatedEntities.push('appUsers');
-        } else {
-          console.log('   ⏭️ No entity updates needed');
         }
 
-        // Notify map of any updates and reactivate FAB phase
         const hasAnyUpdates = locationUpdates?.hasChanges || activeDeliveryUpdates?.hasChanges || updates;
         if (hasAnyUpdates) {
-          console.log('');
-          console.log('🔔 Notifying map of updates and reactivating FAB phase');
           if (onSmartRefreshCompleteRef.current) {
             onSmartRefreshCompleteRef.current();
           }
         }
-
-        console.log('');
-        console.log('✅ [UNIFIED REFRESH] Cycle complete');
-        console.log('═══════════════════════════════════════════════════');
         
-        // Update activity state with which entities changed
         const uniqueUpdates = [...new Set(updatedEntities)];
         setSmartRefreshActivity({ active: false, updatedEntities: uniqueUpdates });
       } catch (error) {
         if (error.response?.status === 429 || error.message?.includes('429')) {
-          console.error('🚨 [Layout] RATE LIMIT ERROR:', error.message);
           smartRefreshManager.notifyRateLimit(true);
-        } else {
-          console.warn('⚠️ [Layout] Refresh error:', error.message);
         }
-        console.log('═══════════════════════════════════════════════════');
         setSmartRefreshActivity({ active: false, updatedEntities: [] });
       }
     };
 
-      // CRITICAL: Don't run initial refresh immediately - wait for data to be fully loaded
-      // The normal interval will handle the first refresh after data is stable
-      console.log('🚀 [Layout] Smart refresh started - checking every 15 seconds for incremental updates');
-
-      // Single unified interval - 15 seconds for real-time incremental updates
-      // Individual entity intervals are managed by smartRefreshManager (only fetches changed data)
       refreshIntervalRef.current = setInterval(performUnifiedRefresh, 15000);
     }, 500);
 
     return () => {
       clearTimeout(startupTimer);
-      console.log('🛑 [Layout] Stopping real-time refresh');
       if (refreshIntervalRef.current) {
         clearInterval(refreshIntervalRef.current);
         refreshIntervalRef.current = null;
@@ -1177,13 +996,8 @@ export default function Layout({ children, currentPageName }) {
         if ('wakeLock' in navigator && document.visibilityState === 'visible') {
           try {
             wakeLockRef.current = await navigator.wakeLock.request('screen');
-            console.log('🔆 [Layout] Wake Lock acquired');
-            wakeLockRef.current.addEventListener('release', () => {
-              console.log('🔅 [Layout] Wake Lock released');
-            });
-          } catch (err) {
-            // Silently fail - wake lock not critical
-          }
+            wakeLockRef.current.addEventListener('release', () => {});
+          } catch (err) {}
         }
       };
 
@@ -1194,15 +1008,10 @@ export default function Layout({ children, currentPageName }) {
         }
       };
 
-      // Handle visibility change - force immediate refresh on focus
       const handleVisibilityChange = async () => {
         if (document.visibilityState === 'visible') {
-          console.log('👁️ [Layout] App regained focus - forcing immediate refresh');
           await requestWakeLock();
-
-          // Force immediate refresh by resetting all interval timers
           if (initialGlobalFiltersSet && currentUser && dataLoaded && !isFormOverlayOpen) {
-            // Reset smartRefreshManager timers to force immediate refresh
             smartRefreshManager.lastRefreshTimes = {
               driverLocation: 0,
               activeDeliveries: 0,
@@ -1229,26 +1038,11 @@ export default function Layout({ children, currentPageName }) {
       };
     }, [initialGlobalFiltersSet, currentUser, dataLoaded, isFormOverlayOpen]);
 
-    // Trigger smart refresh when navigating between pages
-    // CRITICAL: Only depend on currentPageName to prevent loops
+    // Trigger smart refresh when navigating to Dashboard
     useEffect(() => {
-      if (!initialGlobalFiltersSet || !currentUser || !dataLoaded) {
-        console.log('⏸️ [Layout] Skipping page navigation refresh - not ready');
-        return;
-      }
-
-      console.log(`📄 [Layout] ===== PAGE NAVIGATION DETECTED =====`);
-      console.log(`📄 [Layout] Switched to: ${currentPageName}`);
+      if (!initialGlobalFiltersSet || !currentUser || !dataLoaded) return;
+      if (currentPageName !== 'Dashboard') return;
       
-      // CRITICAL: Only trigger immediate refresh when returning to Dashboard
-      if (currentPageName !== 'Dashboard') {
-        console.log(`📄 [Layout] Non-dashboard page - skipping immediate refresh`);
-        return;
-      }
-      
-      console.log(`📄 [Layout] Dashboard detected - forcing IMMEDIATE smart refresh...`);
-
-      // CRITICAL: Reset all smart refresh timers to force immediate data sync
       smartRefreshManager.lastRefreshTimes = {
         driverLocation: 0,
         activeDeliveries: 0,
@@ -1307,9 +1101,6 @@ export default function Layout({ children, currentPageName }) {
 
     if (shouldRefresh) {
       setIsRefreshing(true);
-      console.log('🔄 [Pull-to-Refresh] Triggering smart refresh cycle...');
-
-      // Reset all smart refresh timers to force immediate refresh
       smartRefreshManager.lastRefreshTimes = {
         driverLocation: 0,
         activeDeliveries: 0,
@@ -1319,11 +1110,9 @@ export default function Layout({ children, currentPageName }) {
         stores: 0
       };
 
-      // Let the smart refresh cycle complete (1 second delay for UI feedback)
       setTimeout(() => {
         setPullDistance(0);
         setIsRefreshing(false);
-        console.log('✅ [Pull-to-Refresh] Smart refresh triggered');
       }, 1000);
     } else {
       setPullDistance(0);
@@ -1340,10 +1129,7 @@ export default function Layout({ children, currentPageName }) {
       const appUsers = await base44.entities.AppUser.filter({ user_id: driverId });
       const driverAppUser = appUsers?.[0];
 
-      if (!driverAppUser?.current_latitude || !driverAppUser?.current_longitude) {
-        console.log('⚠️ [Pull-to-Refresh] No driver GPS location available');
-        return;
-      }
+      if (!driverAppUser?.current_latitude || !driverAppUser?.current_longitude) return;
 
       await base44.functions.invoke('optimizeDriverRoute', {
         driverId: driverId,
@@ -1373,43 +1159,20 @@ export default function Layout({ children, currentPageName }) {
   const impersonatingUser = currentUser && currentUser._isImpersonating ? currentUser : null;
 
   const handleCitySelected = useCallback(async (cityId) => {
-    console.log('🎉 [Layout] === PHASE 6: CITY SELECTED FROM POPUP ===');
-    console.log('🏙️ [Layout] Selected city:', cityId);
-
     try {
       globalFilters.setSelectedCityId(cityId);
-
       const today = new Date();
       globalFilters.setSelectedDate(today);
-      console.log(`📅 [Layout] Set selectedDate to today: ${format(today, 'yyyy-MM-dd')}`);
 
       const refreshedUser = await getEffectiveUser();
       if (refreshedUser) {
         setCurrentUser(refreshedUser);
-
-        // After city change, reset driver to 'all' - Dashboard will load from settings
-        console.log('🎯 [Layout] City changed - resetting driver to "all" (Dashboard will override from settings)');
         globalFilters.setSelectedDriverId('all');
       }
 
-      console.log('✅ [Layout] All global filters initialized after city selection');
-
       setShowCitySelectionPopup(false);
-
-      console.log('🚪 [Layout] Setting initialGlobalFiltersSet gate to TRUE');
       setInitialGlobalFiltersSet(true);
-
-      const isReady = globalFilters.isReadyForDataFetch();
-      console.log(`🔍 [Layout] globalFilters.isReadyForDataFetch(): ${isReady}`);
-
-      if (!isReady) {
-        console.error('❌ [Layout] CRITICAL: Gate should be ready but isReadyForDataFetch() returned false!');
-        globalFilters.debug();
-      }
-
-      console.log("✅ [Layout] === PHASE 6: CITY SELECTION COMPLETE ===");
     } catch (error) {
-      console.error('❌ [Layout] Error handling city selection:', error);
       alert('Failed to save city selection. Please try again.');
       setShowCitySelectionPopup(true);
     }
@@ -1418,18 +1181,8 @@ export default function Layout({ children, currentPageName }) {
   const triggerFullDataLoadRef = useRef();
   
   const triggerFullDataLoad = useCallback(async (forceRefresh = false) => {
-    if (isFormOverlayOpen) {
-      console.log('⏸️ [Layout] Form overlay is open, skipping data refresh');
-      return;
-    }
-
-    if (triggerFullDataLoad.isRunning) {
-      console.log('⏸️ [Layout] Data load already in progress, skipping...');
-      return;
-    }
-
-    console.log("🚀 [Layout] === PHASE 3: STARTING FULL DATA LOAD ===");
-    console.log("🔍 [Layout] Global filters state:", globalFilters.getAllFilters());
+    if (isFormOverlayOpen) return;
+    if (triggerFullDataLoad.isRunning) return;
 
     triggerFullDataLoad.isRunning = true;
 
@@ -1439,18 +1192,12 @@ export default function Layout({ children, currentPageName }) {
       const selectedDriverId = globalFilters.getSelectedDriverId();
 
       if (!currentUser || !selectedCityId || selectedCityId === 'waiting-for-selection') {
-        console.warn('⚠️ [Layout] Cannot load full data: currentUser or selectedCityId is missing/pending.');
         setDataLoaded(false);
         return;
       }
 
-      console.log(`📍 [Layout] Loading data for City: ${selectedCityId}, Driver: ${selectedDriverId}, Date: ${selectedDateStr}`);
-
       const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
       const selectedYear = selectedDate.getFullYear();
-
-      console.log(`📅 [Layout] OPTIMIZED: Parallel data loading with built-in rate limiting`);
-      console.log(`📋 [Layout] Load order: AppUsers + Cities + Stores (parallel) → Deliveries (selected date) → UI Render → Patients + Full Month Background`);
 
       let workingCities = cities;
       const isAdmin = userHasRole(currentUser, 'admin');
@@ -1469,7 +1216,6 @@ export default function Layout({ children, currentPageName }) {
       }
 
       allStores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
-      console.log(`✅ [Layout] Parallel load complete: ${allAppUsers.length} AppUsers, ${workingCities.length} Cities, ${allStores.length} Stores`);
 
       // CRITICAL: Load deliveries for selected date FIRST (instant UI)
       let cityStoreFilter = {};
@@ -1491,16 +1237,12 @@ export default function Layout({ children, currentPageName }) {
         forceRefresh,
         // Instant UI callback
         (initialDeliveries) => {
-          console.log(`⚡ [Layout] INSTANT: ${initialDeliveries.length} deliveries loaded - UI ready NOW`);
           setDeliveries(initialDeliveries);
           setDataLoaded(true);
-          console.log(`✅ [Layout] === UI READY - Dashboard rendering ===`);
 
-          // BACKGROUND: Load patients after UI is visible
           setTimeout(async () => {
             const patientsData = await getData('Patient', null, null, forceRefresh);
             setPatients(patientsData);
-            console.log(`✅ [Layout] Background: ${patientsData.length} patients loaded`);
           }, 100);
         },
         // Background callback
@@ -1519,9 +1261,7 @@ export default function Layout({ children, currentPageName }) {
       if (userHasRole(currentUser, 'admin')) {
         setTimeout(async () => {
           authUsersData = await getData('User', null, null, forceRefresh);
-          console.log(`✅ [Layout] Background: ${authUsersData.length} Users loaded`);
 
-          // Update merged users after Users load
           const mergedUsersMap = new Map();
           if (currentUser) mergedUsersMap.set(currentUser.id, currentUser);
 
@@ -1544,12 +1284,8 @@ export default function Layout({ children, currentPageName }) {
           });
           activeDrivers = sortUsers(activeDrivers);
           setDrivers(activeDrivers);
-          console.log(`✅ [Layout] Background: ${activeDrivers.length} active drivers`);
         }, 500);
       }
-
-      // Build initial user list from AppUsers (non-admins)
-      console.log('🔀 [Layout] Building initial user list from AppUsers...');
       const mergedUsersMap = new Map();
 
       if (currentUser) {
@@ -1575,18 +1311,13 @@ export default function Layout({ children, currentPageName }) {
         return true;
       });
       activeDrivers = sortUsers(activeDrivers);
-      console.log(`✅ [Layout] Initial: ${activeDrivers.length} active drivers from AppUsers`);
 
-      // Set initial state
       setUsers(initialUsers);
       setDrivers(activeDrivers);
       setStores(allStores);
       setAppUsers(allAppUsers);
 
-      console.log("✅ [Layout] === PHASE 3: ALL DATA LOAD COMPLETE ===")
-
       } catch (error) {
-      console.error("❌ [Layout] Error during full data load:", error);
       setUsers([]);
       setDrivers([]);
       setStores([]);
@@ -1603,44 +1334,19 @@ export default function Layout({ children, currentPageName }) {
   triggerFullDataLoadRef.current = triggerFullDataLoad;
 
   useEffect(() => {
-    if (!initialGlobalFiltersSet || !currentUser) {
-      console.log('⏸️ [Layout] Waiting for initial filters or currentUser to be ready...');
-      return;
-    }
-
+    if (!initialGlobalFiltersSet || !currentUser) return;
     const isReady = globalFilters.isReadyForDataFetch();
+    if (!isReady) return;
 
-    if (!isReady) {
-      console.log('⏸️ [Layout] Global filters not ready for data fetch yet');
-      return;
-    }
-
-    console.log('✅ [Layout] Gate is open - triggering full data load');
     const forceRefresh = needsDataReload.current;
-    if (forceRefresh) {
-      console.log('🔄 [Layout] Force refresh requested due to currentUser change');
-      needsDataReload.current = false;
-    }
+    if (forceRefresh) needsDataReload.current = false;
     triggerFullDataLoadRef.current(forceRefresh);
 
   }, [initialGlobalFiltersSet, currentUser]);
 
   useEffect(() => {
-    if (!dataLoaded) {
-      console.log('⏸️ [Layout] Data not yet loaded, skipping filter change reload');
-      return;
-    }
-
-    const unsubscribe = globalFilters.subscribe((newFilters) => {
-      console.log('🔄 [Layout] Global filters changed:', newFilters);
-
-      // CRITICAL: Don't reload data on date/driver changes - Dashboard filters deliveries locally
-      // Only reload on CITY changes which require fresh store/patient data
-      if (globalFilters.isReadyForDataFetch()) {
-        console.log('⏭️ [Layout] Filter change detected - letting Dashboard handle local filtering (no full reload)');
-      }
-    });
-
+    if (!dataLoaded) return;
+    const unsubscribe = globalFilters.subscribe(() => {});
     return unsubscribe;
   }, [dataLoaded]);
 
@@ -1813,26 +1519,18 @@ export default function Layout({ children, currentPageName }) {
           storeIds: filteredStoreIds.length > 0 ? filteredStoreIds : null
         });
 
-        // Handle both response.data (axios-style) and direct response
         const data = response?.data || response;
 
-        console.log('📊 [NavStats] Parsed data:', data);
-
-        // FIXED: Map the backend response structure correctly
         if (data?.deliveries && data?.drivers) {
           setRouteCounts({
             monthly: data.deliveries.monthly,
             yearly: data.deliveries.yearly
           });
-          console.log('✅ [NavStats] Route counts updated:', { monthly: data.deliveries.monthly, yearly: data.deliveries.yearly });
         }
         if (data?.entityCounts) {
           setEntityCounts(data.entityCounts);
-          console.log('✅ [NavStats] Entity counts updated:', data.entityCounts);
         }
-      } catch (error) {
-        console.error('❌ [NavStats] Error:', error.message);
-      }
+      } catch (error) {}
     };
 
     const timer = setTimeout(fetchStats, 2000);
@@ -2415,19 +2113,14 @@ export default function Layout({ children, currentPageName }) {
                           setIsFormOverlayOpen(false);
                         }}
                         onImportStart={() => {
-                          console.log('⏸️ [Layout] Pausing smart refresh for patient import...');
                           setIsFormOverlayOpen(true);
                         }}
                         onImportComplete={async () => {
                                                         setShowPatientImport(false);
                                                         setIsFormOverlayOpen(false);
-                                                        console.log('▶️ [Layout] Resuming smart refresh after patient import');
-                                                        // Background refresh - invalidate cache and fetch fresh data without full reload
                                                         invalidate('Patient');
                                                         const freshPatients = await getData('Patient', null, null, true);
                                                         setPatients(freshPatients);
-                                                        console.log('✅ [Layout] Patient import complete - background refreshed', freshPatients.length, 'patients');
-                                                        // Trigger stats refresh
                                                         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
                                                       }}
                       />
@@ -2469,10 +2162,8 @@ export default function Layout({ children, currentPageName }) {
                                     }
                                   }}
                                   ref={() => {
-                                    // Set up global callback for RouteImport to call
                                     if (typeof window !== 'undefined') {
                                       window.__routeImportStartCallback = () => {
-                                        console.log('⏸️ [Layout] Pausing smart refresh for route import...');
                                         setIsFormOverlayOpen(true);
                                       };
                                     }
@@ -2480,18 +2171,12 @@ export default function Layout({ children, currentPageName }) {
                                   onImportComplete={async () => {
                                                                                                         setShowDeliveryImport(false);
                                                                                                         setIsFormOverlayOpen(false);
-                                                                                                        // Clean up global callback
                                                                                                         if (typeof window !== 'undefined') {
                                                                                                           delete window.__routeImportStartCallback;
                                                                                                         }
-                                                                                                        console.log('▶️ [Layout] Resuming smart refresh after route import');
-                                                                                                        // Background refresh - invalidate cache and fetch fresh data without full reload
-                                                                                                        console.log('🔄 [Layout] Route import complete - triggering full data refresh...');
                                                                                                         invalidate('Delivery');
                                                                                                         invalidate('Patient');
                                                                                                         await triggerFullDataLoadRef.current(true);
-                                                                                                        console.log('✅ [Layout] Route import complete - full data refreshed');
-                                                                                                        // Trigger stats refresh
                                                                                                         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
                                                                                                       }}
                         stores={stores}
@@ -2617,8 +2302,7 @@ export default function Layout({ children, currentPageName }) {
                                 <Select
                                   value={globalFilters.getSelectedCityId()}
                                   onValueChange={(cityId) => {
-                                    console.log('🏙️ [Layout] Admin changed city filter to:', cityId);
-                                    globalFilters.setSelectedCityId(cityId);
+                                   globalFilters.setSelectedCityId(cityId);
                                   }}
                                 >
                                   <SelectTrigger className="w-full h-9" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
@@ -3066,7 +2750,6 @@ export default function Layout({ children, currentPageName }) {
                               <Select
                                 value={globalFilters.getSelectedCityId()}
                                 onValueChange={(cityId) => {
-                                  console.log('🏙️ [Layout] Admin changed city filter (mobile) to:', cityId);
                                   globalFilters.setSelectedCityId(cityId);
                                 }}
                               >
@@ -3094,8 +2777,6 @@ export default function Layout({ children, currentPageName }) {
                       <DriverStatusToggle 
                         currentUser={currentUser}
                         onStatusChange={async (newStatus) => {
-                          console.log('Driver status changed to:', newStatus);
-                          // Refresh user data to sync location tracking toggle
                           clearUserCache();
                           const refreshedUser = await getEffectiveUser();
                           if (refreshedUser) {
