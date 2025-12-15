@@ -4381,20 +4381,14 @@ function Dashboard() {
       const deliveryDate = targetDelivery.delivery_date;
       const { deleteDeliveryLocal } = await import('../components/utils/offlineMutations');
       await deleteDeliveryLocal(deliveryId);
-      // CRITICAL: Update local state immediately by filtering out deleted delivery
-      if (updateDeliveriesLocally) {
-        const updatedDeliveries = deliveries.filter((d) => d && d.id !== deliveryId);
-        updateDeliveriesLocally(updatedDeliveries);
-      }
 
       // Clear selection if this card was selected
       if (selectedCardId === deliveryId) {
         setSelectedCardId(null);
       }
 
-      // Invalidate cache
-      invalidateDeliveriesForDate(deliveryDate);
-      invalidate('Delivery');
+      // CRITICAL: Force refresh to sync UI immediately
+      await forceRefreshDriverDeliveries(driverId, deliveryDate);
 
       // CRITICAL: Trigger full ETA recalculation after deletion
       if (driverId && deliveryDate) {
