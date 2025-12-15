@@ -152,7 +152,6 @@ class SmartRefreshManager {
    * Setter for enabled state - only allow changes after initialization or from settings
    */
   set enabled(value) {
-    console.log(`⚙️ [SmartRefresh] Setting enabled = ${value} (initialized: ${this._initialized})`);
     this._enabled = value;
   }
   
@@ -162,7 +161,6 @@ class SmartRefreshManager {
    */
   async initializeFromSettings() {
     try {
-      console.log('⚙️ [SmartRefresh] Loading settings from AppSettings...');
       const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
       
       if (settings && settings.length > 0 && settings[0].setting_value) {
@@ -170,17 +168,13 @@ class SmartRefreshManager {
         const savedEnabled = settings[0].setting_value.smartRefreshEnabled;
         const enabled = savedEnabled !== false;
         
-        console.log(`⚙️ [SmartRefresh] Found setting: smartRefreshEnabled = ${savedEnabled} (interpreted as ${enabled})`);
-        
         this._enabled = enabled;
         this._initialized = true;
         
-        console.log(`✅ [SmartRefresh] Initialized from settings: ${enabled ? 'ENABLED' : 'DISABLED'}`);
         return enabled;
       }
       
       // Default to enabled if no setting exists
-      console.log('⚙️ [SmartRefresh] No settings found, defaulting to ENABLED');
       this._enabled = true;
       this._initialized = true;
       return true;
@@ -302,7 +296,6 @@ class SmartRefreshManager {
       try {
         const { offlineManager } = await import('./offlineManager');
         await offlineManager.cacheDeliveries(finalDeliveries, selectedDate);
-        console.log('✅ [SmartRefresh] Synced deliveries to offline DB');
       } catch (offlineError) {
         console.warn('⚠️ [SmartRefresh] Failed to sync deliveries to offline DB:', offlineError);
       }
@@ -359,7 +352,6 @@ class SmartRefreshManager {
   async fetchAllAppUsers() {
     try {
       const appUsers = await base44.entities.AppUser.list();
-      console.log(`🔍 [SmartRefresh] Fetched ${appUsers?.length || 0} AppUsers`);
       return appUsers || [];
     } catch (error) {
       if (error.message?.includes('WebSocket') || error.message?.includes('closed')) {
@@ -511,7 +503,6 @@ class SmartRefreshManager {
                   }
                   
                   if (changedFields.length > 0) {
-                      console.log(`   • ${update.user_name || update.user_id}: ${changedFields.join(', ')}`);
                   }
               });
           }
@@ -522,7 +513,6 @@ class SmartRefreshManager {
       try {
         const { offlineManager } = await import('./offlineManager');
         await offlineManager.cacheEntities('AppUser', mergedAppUsers);
-        console.log('✅ [SmartRefresh] Synced AppUsers to offline DB');
       } catch (offlineError) {
         console.warn('⚠️ [SmartRefresh] Failed to sync AppUsers to offline DB:', offlineError);
       }
@@ -594,7 +584,6 @@ class SmartRefreshManager {
       try {
         const { offlineManager } = await import('./offlineManager');
         await offlineManager.cacheEntities('AppUser', updatedAppUsers);
-        console.log('✅ [SmartRefresh] Synced AppUsers (locations) to offline DB');
       } catch (offlineError) {
         console.warn('⚠️ [SmartRefresh] Failed to sync AppUsers to offline DB:', offlineError);
       }
@@ -672,7 +661,6 @@ class SmartRefreshManager {
           if (serverTime > localTime) {
             return serverVersion; // Server is newer
           } else {
-            console.log(`   📱 Keeping local patient: ${p.full_name} (local: ${p.updated_date}, server: ${serverVersion.updated_date})`);
             return p; // Local is newer or equal
           }
         }
@@ -683,7 +671,6 @@ class SmartRefreshManager {
       updatedPatients.forEach(up => {
         if (!mergedPatients.find(p => p.id === up.id)) {
           mergedPatients.push(up);
-          console.log(`   🆕 New patient from server: ${up.full_name}`);
         }
       });
       
@@ -691,7 +678,6 @@ class SmartRefreshManager {
       try {
         const { offlineManager } = await import('./offlineManager');
         await offlineManager.cacheEntities('Patient', mergedPatients);
-        console.log('✅ [SmartRefresh] Synced patients to offline DB');
       } catch (offlineError) {
         console.warn('⚠️ [SmartRefresh] Failed to sync patients to offline DB:', offlineError);
       }
@@ -719,7 +705,6 @@ class SmartRefreshManager {
       const lastTimestamp = getLatestUpdateTimestamp(currentPatients);
       
       if (!lastTimestamp) {
-        console.log('⏭️ [SmartRefresh] Skipping patient refresh - no existing data (wait for initial load)');
         return null;
       }
       
@@ -846,10 +831,8 @@ class SmartRefreshManager {
       let authUsers = currentUsers || [];
       try {
         authUsers = await base44.entities.User.list();
-        console.log('✅ [SmartRefresh] Fetched updated User list (admin access)');
       } catch (userError) {
         if (userError.response?.status === 403 || userError.message?.includes('403')) {
-          console.log('🔒 [SmartRefresh] Cannot fetch User.list() - using current users (non-admin)');
           authUsers = currentUsers || [];
         } else {
           throw userError;
@@ -870,7 +853,6 @@ class SmartRefreshManager {
         return null;
       }
       if (error.response?.status === 403 || error.message?.includes('403')) {
-        console.log('🔒 [SmartRefresh] Access forbidden for User entity - skipping user refresh');
         return null;
       }
       console.error('❌ [SmartRefresh] Error refreshing users:', error);
@@ -949,7 +931,6 @@ class SmartRefreshManager {
             return fetchedVersion;
           } else {
             // Local is newer or equal - keep local data
-            console.log(`   📱 Keeping local data for ${d.patient_name || 'delivery'} (local: ${d.updated_date}, server: ${fetchedVersion.updated_date})`);
             return d;
           }
         }
@@ -968,7 +949,6 @@ class SmartRefreshManager {
             status: fd.status
           });
           updatedCurrentDateDeliveries.push(fd);
-          console.log(`   🆕 New delivery from server: ${fd.patient_name || 'Pickup'}`);
         }
       });
       
@@ -1006,7 +986,6 @@ class SmartRefreshManager {
     }
     
     if (isEntityUpdating) {
-      console.log('🔄 [Smart Refresh] ⏸️ PAUSED - Entity update in progress');
       return null;
     }
     
@@ -1027,7 +1006,6 @@ class SmartRefreshManager {
     try {
       // PRIORITY 1: Refresh selected date deliveries FIRST
       if (this.shouldRefresh('todayDeliveries')) {
-        console.log('📦 [SmartRefresh Priority] Step 1: Checking deliveries for selected date...');
         this.markRefreshed('todayDeliveries');
         
         const deliveryUpdate = await this.refreshCurrentDayDeliveries(
@@ -1041,13 +1019,11 @@ class SmartRefreshManager {
         
         if (deliveryUpdate?.hasChanges) {
           updates.deliveries = deliveryUpdate.deliveries;
-          console.log('✅ [SmartRefresh Priority] Deliveries updated - will apply to UI');
         }
       }
       
       // PRIORITY 2: Refresh patients on selected date route SECOND
       if (this.shouldRefresh('todayPatients') && updates.deliveries) {
-        console.log('👥 [SmartRefresh Priority] Step 2: Checking patients for selected date deliveries...');
         this.markRefreshed('todayPatients');
         
         const dateStr = format(filters.selectedDate, 'yyyy-MM-dd');
@@ -1060,7 +1036,6 @@ class SmartRefreshManager {
         
         if (patientUpdate?.hasChanges) {
           updates.patients = patientUpdate.patients;
-          console.log('✅ [SmartRefresh Priority] Patients updated - will apply to UI');
         }
       }
       
@@ -1068,7 +1043,6 @@ class SmartRefreshManager {
       
       const hasAnyUpdates = Object.keys(updates).length > 0;
       if (hasAnyUpdates) {
-        console.log('✅ [SmartRefresh Priority] Returning updates:', Object.keys(updates).join(', '));
       }
       return hasAnyUpdates ? updates : null;
       
