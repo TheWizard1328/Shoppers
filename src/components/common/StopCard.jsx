@@ -1878,21 +1878,8 @@ export default function StopCard({
                         await updateDeliveryLocal(delivery.id, { stop_order: newStopOrder });
                         console.log(`  ✅ Stop order set to ${newStopOrder}`);
 
-                        // Step 5: Resort stops (Finished, Selected, Incomplete)
-                        console.log('🟢 [START] Step 5: Resorting stops...');
-                        const incomplete = driverDeliveries.filter(d => 
-                          d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status)
-                        );
-                        
-                        for (let i = 0; i < incomplete.length; i++) {
-                          await updateDeliveryLocal(incomplete[i].id, { 
-                            stop_order: newStopOrder + i + 1 
-                          });
-                        }
-                        console.log('  ✅ Stops resorted');
-
-                        // Step 6: Run Route Optimizer (with current local time and this stop's location)
-                        console.log('🟢 [START] Step 6: Running route optimizer...');
+                        // Step 5: Run Route Optimizer (with current local time and this stop's location)
+                        console.log('🟢 [START] Step 5: Running route optimizer...');
                         try {
                           const now = new Date();
                           const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -1917,9 +1904,10 @@ export default function StopCard({
                             currentLocalTime: currentLocalTime,
                             startLocation: startLat && startLng ? { lat: startLat, lng: startLng } : null
                           });
-                          console.log('  ✅ Route optimized - applying stop order updates');
+                          console.log('  ✅ Route optimized');
                           
-                          // Immediately update local delivery state with new stop orders
+                          // Step 6: Apply optimized stop orders
+                          console.log('🟢 [START] Step 6: Resorting optimized stops...');
                           const responseData = optimizeResponse?.data || optimizeResponse;
                           if (responseData?.durationUpdates && updateDeliveriesLocally) {
                             const updates = responseData.durationUpdates.map(update => ({
@@ -1927,12 +1915,7 @@ export default function StopCard({
                               stop_order: update.newOrder
                             }));
                             updateDeliveriesLocally(updates, false);
-                          }
-                          
-                          // Background refresh for full consistency
-                          invalidate('Delivery');
-                          if (refreshData) {
-                            setTimeout(() => refreshData(true), 500);
+                            console.log('  ✅ Stop orders updated from optimizer');
                           }
                         } catch (optimizeError) {
                           console.warn('⚠️ Route optimizer failed, continuing without optimization:', optimizeError);
