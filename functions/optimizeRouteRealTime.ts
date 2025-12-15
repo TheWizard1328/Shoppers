@@ -1,6 +1,22 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
 /**
+ * Calculate crow-flies distance between two coordinates (Haversine formula)
+ */
+const calculateCrowFliesDistance = (lat1, lng1, lat2, lng2) => {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c; // Distance in kilometers
+};
+
+/**
  * Real-time route optimization
  * Dynamically re-sequences delivery stops based on:
  * - Current traffic conditions
@@ -243,46 +259,25 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Use Google Distance Matrix API to get real-time travel times
-    const googleMapsKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
+    // OPTIMIZATION: Use crow-flies distance for initial route optimization
+    console.log('📐 [optimizeRouteRealTime] Building crow-flies distance matrix...');
     const allStopCoords = stops.map(s => ({ lat: s.lat, lng: s.lng }));
     const origins = [driverLocation, ...allStopCoords];
     const destinations = allStopCoords;
 
-    const originsStr = origins.map(o => `${o.lat},${o.lng}`).join('|');
-    const destinationsStr = destinations.map(d => `${d.lat},${d.lng}`).join('|');
-
-    const matrixUrl = `https://maps.googleapis.com/maps/api/distancematrix/json?` +
-      `origins=${originsStr}&` +
-      `destinations=${destinationsStr}&` +
-      `departure_time=now&` +
-      `traffic_model=best_guess&` +
-      `key=${googleMapsKey}`;
-
-    const matrixResponse = await fetch(matrixUrl);
-    const matrixData = await matrixResponse.json();
-
-    // Increment API counter and refresh polylineRecord
-    const updatedPolylineRecord = await base44.asServiceRole.entities.DriverRoutePolyline.update(polylineRecord.id, {
-      daily_generation_count: (polylineRecord.daily_generation_count || 0) + 1,
-      last_generated_at: new Date().toISOString()
-    });
-    polylineRecord = updatedPolylineRecord;
-
-    if (matrixData.status !== 'OK') {
-      return Response.json({ 
-        error: 'Failed to get distance matrix',
-        status: matrixData.status
-      }, { status: 500 });
-    }
-
-    // Build distance/time matrix
-    const matrix = matrixData.rows.map(row => 
-      row.elements.map(el => ({
-        duration: el.duration_in_traffic?.value || el.duration?.value || 999999,
-        distance: el.distance?.value || 999999
-      }))
+    // Build crow-flies distance/time matrix
+    const crowFliesMatrix = origins.map(origin => 
+      destinations.map(dest => {
+        const distanceKm = calculateCrowFliesDistance(origin.lat, origin.lng, dest.lat, dest.lng);
+        // Estimate duration: 40 km/h average speed = 1.5 minutes per km
+        const durationSeconds = (distanceKm / 40) * 60 * 60;
+        return {
+          duration: durationSeconds,
+          distance: distanceKm * 1000 // Convert to meters for consistency
+        };
+      })
     );
+    console.log('✅ [optimizeRouteRealTime] Crow-flies matrix built (no API calls used)');
 
     // Group deliveries by their pickup store
     const deliveriesByPickup = new Map();
@@ -294,7 +289,7 @@ Deno.serve(async (req) => {
       deliveriesByPickup.get(key).push(d);
     });
 
-    // Constraint-based optimization algorithm
+    // Constraint-based optimization algorithm using crow-flies distance
     const optimizedRoute = [];
     const unvisitedPickups = new Set(pickupStops.map(p => p.idx));
     const unvisitedISP = new Set(ispDeliveryStops.map(p => p.idx));
@@ -309,7 +304,7 @@ Deno.serve(async (req) => {
 
       // Consider all unvisited pickups
       for (const idx of unvisitedPickups) {
-        const travelTime = Math.ceil(matrix[currentPos][idx].duration / 60);
+        const travelTime = Math.ceil(crowFliesMatrix[currentPos][idx].duration / 60);
         const score = travelTime;
         
         if (score < bestScore) {
@@ -322,7 +317,7 @@ Deno.serve(async (req) => {
       // Consider ISP deliveries (can go anywhere)
       for (const idx of unvisitedISP) {
         const stop = stops[idx];
-        const travelTime = Math.ceil(matrix[currentPos][idx].duration / 60);
+        const travelTime = Math.ceil(crowFliesMatrix[currentPos][idx].duration / 60);
         const arrivalTime = cumulativeTime + travelTime;
         
         let score = travelTime;
@@ -352,7 +347,7 @@ Deno.serve(async (req) => {
         unvisitedPickups.delete(bestIdx);
         optimizedRoute.push(bestIdx);
         
-        const travelTime = Math.ceil(matrix[currentPos][bestIdx].duration / 60);
+        const travelTime = Math.ceil(crowFliesMatrix[currentPos][bestIdx].duration / 60);
         const serviceTime = stops[bestIdx].delivery.extra_time || 15;
         cumulativeTime += travelTime;
         if (stops[bestIdx].timeWindow && !stops[bestIdx].delivery.puid && cumulativeTime < stops[bestIdx].timeWindow.start) {
@@ -368,7 +363,7 @@ Deno.serve(async (req) => {
         
         for (const deliv of unvisitedDeliveries) {
           optimizedRoute.push(deliv.idx);
-          const travelTime = Math.ceil(matrix[currentPos][deliv.idx].duration / 60);
+          const travelTime = Math.ceil(crowFliesMatrix[currentPos][deliv.idx].duration / 60);
           const serviceTime = deliv.delivery.extra_time || 5;
           cumulativeTime += travelTime;
           if (stops[deliv.idx].timeWindow && !stops[deliv.idx].delivery.puid && cumulativeTime < stops[deliv.idx].timeWindow.start) {
@@ -381,7 +376,7 @@ Deno.serve(async (req) => {
         unvisitedISP.delete(bestIdx);
         optimizedRoute.push(bestIdx);
         
-        const travelTime = Math.ceil(matrix[currentPos][bestIdx].duration / 60);
+        const travelTime = Math.ceil(crowFliesMatrix[currentPos][bestIdx].duration / 60);
         const serviceTime = stops[bestIdx].delivery.extra_time || 5;
         cumulativeTime += travelTime;
         if (stops[bestIdx].timeWindow && !stops[bestIdx].delivery.puid && cumulativeTime < stops[bestIdx].timeWindow.start) {
@@ -401,16 +396,86 @@ Deno.serve(async (req) => {
     console.log('📋 New order:', newOrder);
     console.log('📋 Route changed:', routeChanged);
 
-    // Update stop_order and display_stop_order for ALL deliveries
+    // NOW use Google Distance Matrix API for the final optimized route only
+    console.log('🌐 [optimizeRouteRealTime] Calling Google API for final route distances...');
+    const googleMapsKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
+    const finalRouteCoords = optimizedRoute.map(idx => allStopCoords[idx]);
+    const finalOrigins = [driverLocation, ...finalRouteCoords];
+    const finalDestinations = finalRouteCoords;
+
+    const finalOriginsStr = finalOrigins.map(o => `${o.lat},${o.lng}`).join('|');
+    const finalDestinationsStr = finalDestinations.map(d => `${d.lat},${d.lng}`).join('|');
+
+    const finalMatrixUrl = `https://maps.googleapis.com/maps/api/distancematrix/json?` +
+      `origins=${finalOriginsStr}&` +
+      `destinations=${finalDestinationsStr}&` +
+      `departure_time=now&` +
+      `traffic_model=best_guess&` +
+      `key=${googleMapsKey}`;
+
+    const finalMatrixResponse = await fetch(finalMatrixUrl);
+    const finalMatrixData = await finalMatrixResponse.json();
+
+    // Increment API counter (only 1 call now instead of N calls)
+    const updatedPolylineRecord = await base44.asServiceRole.entities.DriverRoutePolyline.update(polylineRecord.id, {
+      daily_generation_count: (polylineRecord.daily_generation_count || 0) + 1,
+      last_generated_at: new Date().toISOString()
+    });
+    polylineRecord = updatedPolylineRecord;
+
+    if (finalMatrixData.status !== 'OK') {
+      console.error('❌ [optimizeRouteRealTime] Google API failed:', finalMatrixData.status);
+      return Response.json({ 
+        error: 'Failed to get final distance matrix',
+        status: finalMatrixData.status
+      }, { status: 500 });
+    }
+
+    // Build final distance/time matrix from Google API
+    const finalMatrix = finalMatrixData.rows.map(row => 
+      row.elements.map(el => ({
+        duration: el.duration_in_traffic?.value || el.duration?.value || 999999,
+        distance: el.distance?.value || 999999
+      }))
+    );
+    console.log('✅ [optimizeRouteRealTime] Google API results received');
+
+    // Update stop_order, display_stop_order, and ETAs with real Google distances
     const updates = [];
+    let realCumulativeTime = currentMinutes;
+
     for (let i = 0; i < optimizedRoute.length; i++) {
       const stopIdx = optimizedRoute[i];
       const stop = stops[stopIdx];
       const newStopOrder = startingStopOrder + i + 1;
 
+      // Get real travel time from Google API
+      const realTravelTimeSeconds = i === 0 
+        ? finalMatrix[0][i].duration 
+        : finalMatrix[i][i].duration;
+      const realTravelTimeMinutes = Math.ceil(realTravelTimeSeconds / 60);
+      const realDistanceKm = i === 0 
+        ? finalMatrix[0][i].distance / 1000 
+        : finalMatrix[i][i].distance / 1000;
+
+      // Calculate real ETA
+      realCumulativeTime += realTravelTimeMinutes;
+      
+      // Apply time window waiting
+      if (stop.timeWindow && !stop.delivery.puid && realCumulativeTime < stop.timeWindow.start) {
+        realCumulativeTime = stop.timeWindow.start;
+      }
+      
+      const estimatedArrivalHHMM = `${String(Math.floor(realCumulativeTime / 60) % 24).padStart(2, '0')}:${String(realCumulativeTime % 60).padStart(2, '0')}`;
+      
+      // Add service time for next iteration
+      const serviceTime = stop.delivery.extra_time || (stop.delivery.patient_id ? 5 : 15);
+      realCumulativeTime += serviceTime;
+
       const updateData = {
         stop_order: newStopOrder,
-        display_stop_order: newStopOrder
+        display_stop_order: newStopOrder,
+        delivery_time_eta: estimatedArrivalHHMM
       };
 
       await base44.asServiceRole.entities.Delivery.update(stop.delivery.id, updateData);
@@ -420,10 +485,11 @@ Deno.serve(async (req) => {
         delivery_id: stop.delivery.delivery_id,
         patient_name: stop.delivery.patient_name || 'Pickup',
         oldOrder: stop.delivery.stop_order,
-        newOrder: newStopOrder
+        newOrder: newStopOrder,
+        newETA: estimatedArrivalHHMM
       });
 
-      console.log(`✅ Updated stop #${newStopOrder}: ${stop.delivery.patient_name || 'Pickup'} (was #${stop.delivery.stop_order})`);
+      console.log(`✅ Updated stop #${newStopOrder}: ${stop.delivery.patient_name || 'Pickup'} (was #${stop.delivery.stop_order}) ETA: ${estimatedArrivalHHMM}`);
     }
 
     console.log(`✅ Route optimization complete - ${routeChanged ? 'CHANGED' : 'UNCHANGED'} (${updates.length} updates)`);
