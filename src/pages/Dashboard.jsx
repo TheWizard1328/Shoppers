@@ -4757,7 +4757,7 @@ function Dashboard() {
 
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
       const completedCount = allDriverDeliveriesForDate.filter((d) => finishedStatuses.includes(d.status)).length;
-      const newStopOrder = completedCount;
+      const newStopOrder = completedCount + 1;
 
       // STEP 3: Reset ALL isNextDelivery flags
       for (const d of allDriverDeliveriesForDate) {
