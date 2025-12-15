@@ -692,35 +692,21 @@ export default function DeliveryMap({
   const [currentZoom, setCurrentZoom] = useState(zoom);
   const isMobile = useMemo(() => isMobileDevice(), []); // MODIFIED: Use isMobileDevice utility function
   const [googleRouteCoordinates, setGoogleRouteCoordinates] = useState(null);
-
-  // NEW: State for interactive route highlighting
   const [highlightedRouteId, setHighlightedRouteId] = useState(null);
-  
-  // NEW: State for fanning out markers
   const [fannedLocationKey, setFannedLocationKey] = useState(null);
-  
-  // NEW: Ref and state for legend positioning
   const legendRef = useRef(null);
   const [legendLeft, setLegendLeft] = useState(null);
 
-  // NEW: Expose retract function to parent via ref
   useEffect(() => {
     if (retractClustersRef) {
       retractClustersRef.current = () => setFannedLocationKey(null);
     }
   }, [retractClustersRef]);
 
-  // NEW: State for zoom level overlay - only shows on manual zoom, not FAB programmatic zoom
   const [showZoomOverlay, setShowZoomOverlay] = useState(false);
   const zoomOverlayTimeoutRef = useRef(null);
-
-  // NEW: State for delayed popups
   const popupTimeoutRef = useRef(null);
-
-  // NEW: State for map center coordinates (for app owner crosshair)
   const [mapCenter, setMapCenter] = useState(center);
-  
-  // NEW: State for visible bounds debug box
   const [visibleBounds, setVisibleBounds] = useState(null);
   
 
@@ -732,61 +718,38 @@ export default function DeliveryMap({
   const safeUsers = Array.isArray(users) ? users : [];
   const safeDriverLocations = Array.isArray(driverLocations) ? driverLocations : [];
 
-  // Determine if we're in single driver mode
   const isSingleDriverMode = useMemo(() => {
     if (!safeDeliveries || safeDeliveries.length === 0) return false;
     const uniqueDriverIds = new Set(safeDeliveries.map((delivery) => delivery?.driver_id).filter(Boolean));
     return uniqueDriverIds.size === 1;
   }, [safeDeliveries]);
 
-  // Use selectedDate from props (passed from Dashboard)
-
-  // NEW: Check if the current user is a driver and viewing their own route for today
   const isDriverViewingSelfToday = useMemo(() => {
-    if (!currentUser || !userHasRole(currentUser, 'driver')) {
-      console.log('🗺️ [isDriverViewingSelfToday] FALSE: Not a driver');
-      return false;
-    }
-    if (!selectedDriverId || selectedDriverId === 'all') {
-      console.log('🗺️ [isDriverViewingSelfToday] FALSE: selectedDriverId is', selectedDriverId);
-      return false;
-    }
-    if (selectedDriverId !== currentUser.id) {
-      console.log('🗺️ [isDriverViewingSelfToday] FALSE: selectedDriverId', selectedDriverId, '!== currentUser.id', currentUser.id);
-      return false;
-    }
+    if (!currentUser || !userHasRole(currentUser, 'driver')) return false;
+    if (!selectedDriverId || selectedDriverId === 'all') return false;
+    if (selectedDriverId !== currentUser.id) return false;
     const today = format(new Date(), 'yyyy-MM-dd');
-    const result = selectedDate === today;
-    console.log('🗺️ [isDriverViewingSelfToday]', result ? 'TRUE' : 'FALSE', '- selectedDate:', selectedDate, 'today:', today);
-    return result;
+    return selectedDate === today;
   }, [currentUser, selectedDriverId, selectedDate]);
 
   const [otherDriverDeliveries, setOtherDriverDeliveries] = useState([]);
 
   useEffect(() => {
     const fetchOtherDrivers = async () => {
-      console.log('🗺️ [fetchOtherDrivers] Called with:', { isDriverViewingSelfToday, selectedDate });
-      
       if (!isDriverViewingSelfToday || !selectedDate) {
-        console.log('🗺️ [fetchOtherDrivers] Clearing - not viewing self or no date');
         setOtherDriverDeliveries([]);
         return;
       }
 
       try {
-        console.log('🗺️ [fetchOtherDrivers] Fetching all deliveries for', selectedDate);
         const { base44 } = await import('@/api/base44Client');
         const allDeliveries = await base44.entities.Delivery.filter({
           delivery_date: selectedDate
         });
         
-        console.log('🗺️ [fetchOtherDrivers] Total deliveries fetched:', allDeliveries.length);
         const others = allDeliveries.filter(d => d && d.driver_id && d.driver_id !== currentUser.id);
-        console.log(`🗺️ [fetchOtherDrivers] Filtered to ${others.length} other driver deliveries`);
-        console.log('🗺️ [fetchOtherDrivers] Other drivers:', [...new Set(others.map(d => d.driver_id))]);
         setOtherDriverDeliveries(others);
       } catch (error) {
-        console.error('🗺️ [fetchOtherDrivers] Error:', error);
         setOtherDriverDeliveries([]);
       }
     };
@@ -798,7 +761,6 @@ export default function DeliveryMap({
     let deliveriesToShow = safeDeliveries;
     
     if (isDriverViewingSelfToday && otherDriverDeliveries.length > 0) {
-      console.log(`🗺️ Adding ${otherDriverDeliveries.length} other driver deliveries (faded)`);
       deliveriesToShow = [...safeDeliveries, ...otherDriverDeliveries];
     }
     

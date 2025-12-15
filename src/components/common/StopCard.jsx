@@ -78,8 +78,7 @@ const formatTime12Hour = (timeString) => {
     const displayHours = hours % 12 || 12; // Convert 0 to 12 for midnight
     return `${displayHours}:${String(minutes).padStart(2, '0')} ${period}`;
   } catch (error) {
-    console.error("Error formatting time:", error, "Input:", timeString);
-    return timeString; // Return original if parsing fails
+    return timeString;
   }
 };
 
@@ -492,11 +491,7 @@ export default function StopCard({
     return nextAvailableStatuses.length > 0;
   }, [isRouteCompleted, nextAvailableStatuses]);
 
-  // NOW safe to return null AFTER all hooks
-  if (!delivery) {
-    console.warn('[StopCard] Received undefined delivery, rendering null.');
-    return null;
-  }
+  if (!delivery) return null;
 
   const handleNotesBlur = () => {
     if (notesInput !== delivery.delivery_notes && onNotesUpdate) {
@@ -807,21 +802,13 @@ export default function StopCard({
                                 return;
                               }
 
-                              // CRITICAL: Deactivate FAB before action
                               fabControlEvents.deactivateFAB();
-
-                              console.log('⏸️ [STATUS BUTTON] Pausing smart refresh...');
                               setIsEntityUpdating(true);
-
                               smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
-
                               await new Promise((resolve) => setTimeout(resolve, 100));
-                              console.log('✅ [STATUS BUTTON] Smart refresh paused');
 
                               try {
-                                console.log('🔄 [STATUS BUTTON] Force refreshing driver deliveries...');
                                 await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                                console.log('✅ [STATUS BUTTON] Fresh data loaded');
 
                                 await onStatusUpdate(delivery.id, status, {}, false);
 
@@ -837,12 +824,8 @@ export default function StopCard({
                                   });
                                 }
                               } finally {
-                                console.log('▶️ [STATUS BUTTON] Resuming smart refresh');
                                 setIsEntityUpdating(false);
                                 await new Promise((resolve) => setTimeout(resolve, 100));
-                                console.log('✅ [STATUS BUTTON] Status change cycle complete');
-
-                                // CRITICAL: Reactivate FAB after action (skip card scroll - FAB handles it)
                                 fabControlEvents.reactivateFAB(true);
                               }
                             }}
@@ -863,19 +846,12 @@ export default function StopCard({
                           className="capitalize text-base"
                           onClick={async (e) => {
                             e.stopPropagation();
-
-                            console.log('⏸️ [STATUS MENU] Pausing smart refresh...');
                             setIsEntityUpdating(true);
-
                             smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
-
                             await new Promise((resolve) => setTimeout(resolve, 100));
-                            console.log('✅ [STATUS MENU] Smart refresh paused');
 
                             try {
-                              console.log('🔄 [STATUS MENU] Force refreshing driver deliveries...');
                               await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                              console.log('✅ [STATUS MENU] Fresh data loaded');
 
                               const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
                               const skipAutoCenter = !finishedStatuses.includes(status);
@@ -1061,18 +1037,13 @@ export default function StopCard({
                     <Button
                     className="flex-1 bg-red-600 hover:bg-red-700"
                     onClick={async () => {
-                      console.log('🗑️ [DELETE] Step 1: Pausing smart refresh...');
                       setIsEntityUpdating(true);
                       await new Promise(resolve => setTimeout(resolve, 100));
 
                       try {
-                        console.log('🗑️ [DELETE] Step 2: Deleting delivery...');
                         await onDeleteDelivery(delivery.id);
-                        console.log('✅ [DELETE] Step 3: Delivery deleted from DB and UI');
                       } finally {
                         setShowDeleteConfirm(false);
-                        
-                        console.log('🔄 [DELETE] Step 4: Resetting smart refresh timers (not running immediately)');
                         smartRefreshManager.lastRefreshTimes = {
                           driverLocation: 0,
                           activeDeliveries: 0,
@@ -1081,9 +1052,7 @@ export default function StopCard({
                           patients: 0,
                           stores: 0
                         };
-                        
                         setIsEntityUpdating(false);
-                        console.log('✅ [DELETE] Delete cycle complete - smart refresh timers reset');
                       }
                     }}>
                       <Trash2 className="w-4 h-4 mr-2" />
@@ -1107,21 +1076,13 @@ export default function StopCard({
               const status = pendingFailureStatus;
               setPendingFailureStatus(null);
 
-              // CRITICAL: Deactivate FAB before action
               fabControlEvents.deactivateFAB();
-
-              console.log('⏸️ [FAILURE] Pausing smart refresh...');
               setIsEntityUpdating(true);
-
               smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
-
               await new Promise((resolve) => setTimeout(resolve, 100));
-              console.log('✅ [FAILURE] Smart refresh paused');
 
               try {
-                console.log('🔄 [FAILURE] Force refreshing driver deliveries...');
                 await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                console.log('✅ [FAILURE] Fresh data loaded');
 
                 // Add reason to delivery notes
                 const existingNotes = delivery.delivery_notes || '';
@@ -1138,8 +1099,6 @@ export default function StopCard({
                   deliveryDate: delivery.delivery_date
                 });
 
-                // Trigger route optimization to recalculate ETAs
-                console.log('🔄 [FAILURE] Triggering route optimization...');
                 try {
                   const now = new Date();
                   const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -1148,10 +1107,7 @@ export default function StopCard({
                     deliveryDate: delivery.delivery_date,
                     currentLocalTime: currentLocalTime
                   });
-                  console.log('✅ [FAILURE] Route optimized');
-                } catch (optimizeError) {
-                  console.warn('⚠️ Route optimizer failed:', optimizeError);
-                }
+                } catch (optimizeError) {}
 
                 // Notify dispatchers
                 if (userHasRole(currentUser, 'driver')) {
@@ -1170,12 +1126,8 @@ export default function StopCard({
                 });
 
               } finally {
-                console.log('▶️ [FAILURE] Resuming smart refresh');
                 setIsEntityUpdating(false);
                 await new Promise((resolve) => setTimeout(resolve, 100));
-                console.log('✅ [FAILURE] Failure marking cycle complete');
-
-                // CRITICAL: Reactivate FAB after action (skip card scroll - FAB handles it)
                 fabControlEvents.reactivateFAB(true);
               }
             }}
@@ -1734,23 +1686,14 @@ export default function StopCard({
                     <Button
                       onClick={async (e) => {
                         e.stopPropagation();
-
-                        // CRITICAL: Deactivate FAB before action
                         fabControlEvents.deactivateFAB();
-
                         setIsRetrying(true);
-                        console.log('⏸️ [RETRY] Pausing smart refresh...');
                         setIsEntityUpdating(true);
-
                         smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
-
                         await new Promise((resolve) => setTimeout(resolve, 100));
-                        console.log('✅ [RETRY] Smart refresh paused');
 
                         try {
-                          console.log('🔄 [RETRY] Force refreshing driver deliveries...');
                           await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                          console.log('✅ [RETRY] Fresh data loaded');
 
                           await ensureDriverOnline();
                           await onStatusUpdate(delivery.id, isPickup ? 'en_route' : 'in_transit');
@@ -1786,23 +1729,14 @@ export default function StopCard({
                     <Button
                       onClick={async (e) => {
                         e.stopPropagation();
-
-                        // CRITICAL: Deactivate FAB before action
                         fabControlEvents.deactivateFAB();
-
                         setIsCompleting(true);
-                        console.log('⏸️ [COMPLETE] Pausing smart refresh...');
                         setIsEntityUpdating(true);
-
                         smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
-
                         await new Promise((resolve) => setTimeout(resolve, 100));
-                        console.log('✅ [COMPLETE] Smart refresh paused');
 
                         try {
-                          console.log('🔄 [COMPLETE] Force refreshing driver deliveries...');
                           await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                          console.log('✅ [COMPLETE] Fresh data loaded');
 
                           // Auto-toggle driver online if offline
                           await ensureDriverOnline();
@@ -1878,16 +1812,10 @@ export default function StopCard({
                           }).catch((err) => console.warn('Route optimization failed:', err));
 
                         } catch (error) {
-                          console.error('Complete delivery error:', error);
                         } finally {
-                          // CRITICAL: Always reset isCompleting to allow button to be clickable again
                           setIsCompleting(false);
-                          console.log('▶️ [COMPLETE] Resuming smart refresh');
                           setIsEntityUpdating(false);
                           await new Promise((resolve) => setTimeout(resolve, 100));
-                          console.log('✅ [COMPLETE] Complete cycle finished');
-
-                          // CRITICAL: Reactivate FAB after action (skip card scroll - FAB handles it)
                           fabControlEvents.reactivateFAB(true);
                         }
                       }}
