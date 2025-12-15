@@ -1910,18 +1910,28 @@ export default function StopCard({
                             startLng = patient?.longitude;
                           }
                           
-                          await base44.functions.invoke('optimizeRouteRealTime', {
+                          const optimizeResponse = await base44.functions.invoke('optimizeRouteRealTime', {
                             driverId: delivery.driver_id,
                             deliveryDate: delivery.delivery_date,
                             currentLocalTime: currentLocalTime,
                             startLocation: startLat && startLng ? { lat: startLat, lng: startLng } : null
                           });
-                          console.log('  ✅ Route optimized - refreshing stop orders and ETAs');
+                          console.log('  ✅ Route optimized - applying stop order updates');
                           
-                          // Refresh deliveries to get updated stop_order values
+                          // Immediately update local delivery state with new stop orders
+                          const responseData = optimizeResponse?.data || optimizeResponse;
+                          if (responseData?.durationUpdates && updateDeliveriesLocally) {
+                            const updates = responseData.durationUpdates.map(update => ({
+                              id: update.deliveryId,
+                              stop_order: update.newOrder
+                            }));
+                            updateDeliveriesLocally(updates, false);
+                          }
+                          
+                          // Background refresh for full consistency
                           invalidate('Delivery');
                           if (refreshData) {
-                            await refreshData(true);
+                            setTimeout(() => refreshData(true), 500);
                           }
                         } catch (optimizeError) {
                           console.warn('⚠️ Route optimizer failed, continuing without optimization:', optimizeError);
