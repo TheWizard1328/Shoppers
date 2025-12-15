@@ -749,30 +749,51 @@ export default function DeliveryMap({
   // NEW: Check if the current user is a driver and viewing their own route for today
   const isDriverViewingSelfToday = useMemo(() => {
     if (!currentUser || !userHasRole(currentUser, 'driver')) return false;
-    if (!selectedDriverId || selectedDriverId === 'all') return false; // If 'all' is selected, they are not viewing their own specific route
-    if (selectedDriverId !== currentUser.id) return false; // Not viewing their own route
+    if (!selectedDriverId || selectedDriverId === 'all') return false;
+    if (selectedDriverId !== currentUser.id) return false;
     const today = format(new Date(), 'yyyy-MM-dd');
     return selectedDate === today;
   }, [currentUser, selectedDriverId, selectedDate]);
 
-  // Separate pickups from patient deliveries
-  const { pickups, patientDeliveries } = useMemo(() => {
-  let deliveriesToShow = safeDeliveries;
-  
-  // NEW: If driver is viewing self for today, and we have allDeliveriesForDate,
-  // add other drivers' deliveries to the map data for display.
-  if (isDriverViewingSelfToday && safeAllDeliveriesForDate.length > 0) {
-    const otherDriversDeliveries = safeAllDeliveriesForDate.filter(d => 
-      d && d.driver_id && d.driver_id !== currentUser.id
-    );
-    console.log(`🗺️ Driver viewing self - adding ${otherDriversDeliveries.length} other driver deliveries (faded)`);
-    deliveriesToShow = [...safeDeliveries, ...otherDriversDeliveries];
-  }
+  const [otherDriverDeliveries, setOtherDriverDeliveries] = useState([]);
 
-  const pickups = deliveriesToShow.filter((d) => d && !d.patient_id && d.store_id);
-  const patientDeliveries = deliveriesToShow.filter((d) => d && d.patient_id);
-  return { pickups, patientDeliveries };
-  }, [safeDeliveries, isDriverViewingSelfToday, safeAllDeliveriesForDate, currentUser]);
+  useEffect(() => {
+    const fetchOtherDrivers = async () => {
+      if (!isDriverViewingSelfToday || !selectedDate) {
+        setOtherDriverDeliveries([]);
+        return;
+      }
+
+      try {
+        const { base44 } = await import('@/api/base44Client');
+        const allDeliveries = await base44.entities.Delivery.filter({
+          delivery_date: selectedDate
+        });
+        
+        const others = allDeliveries.filter(d => d && d.driver_id && d.driver_id !== currentUser.id);
+        console.log(`🗺️ Loaded ${others.length} other driver deliveries (faded)`);
+        setOtherDriverDeliveries(others);
+      } catch (error) {
+        console.error('Error fetching other drivers:', error);
+        setOtherDriverDeliveries([]);
+      }
+    };
+
+    fetchOtherDrivers();
+  }, [isDriverViewingSelfToday, selectedDate, currentUser]);
+
+  const { pickups, patientDeliveries } = useMemo(() => {
+    let deliveriesToShow = safeDeliveries;
+    
+    if (isDriverViewingSelfToday && otherDriverDeliveries.length > 0) {
+      console.log(`🗺️ Adding ${otherDriverDeliveries.length} other driver deliveries (faded)`);
+      deliveriesToShow = [...safeDeliveries, ...otherDriverDeliveries];
+    }
+    
+    const pickups = deliveriesToShow.filter((d) => d && !d.patient_id && d.store_id);
+    const patientDeliveries = deliveriesToShow.filter((d) => d && d.patient_id);
+    return { pickups, patientDeliveries };
+  }, [safeDeliveries, isDriverViewingSelfToday, otherDriverDeliveries]);
 
   // NEW: Fetch Google route polyline for display
   useEffect(() => {
@@ -1416,7 +1437,8 @@ export default function DeliveryMap({
     // Sort stops by stop_order and create route lines
     const routes = Object.values(routesByDriver).map((route) => {
     // CRITICAL: Count ALL stops for this driver for legend (including those without coordinates)
-    const totalDriverStops = safeAllDeliveriesForDate.filter(d => d && d.driver_id === route.driverId).length; // Using safeAllDeliveriesForDate here
+    const allDeliveriesForDriver = [...safeDeliveries, ...otherDriverDeliveries];
+    const totalDriverStops = allDeliveriesForDriver.filter(d => d && d.driver_id === route.driverId).length;
 
     // Find ALL pickup locations for this driver
     const driverPickups = pickupMarkers.filter((p) => p.driver_id === route.driverId);
@@ -1626,7 +1648,7 @@ export default function DeliveryMap({
     console.log(`✅ Generated ${sortedRoutes.length} routes (including drivers without coordinates for legend)`);
 
     return sortedRoutes;
-  }, [deliveryMarkers, pickupMarkers, showRoutes, isSingleDriverMode, safeUsers, currentZoom, currentUser, currentDriverLocation, isViewingCurrentDate, safeDeliveries, safeAllDeliveriesForDate, safeStores]);
+  }, [deliveryMarkers, pickupMarkers, showRoutes, isSingleDriverMode, safeUsers, currentZoom, currentUser, currentDriverLocation, isViewingCurrentDate, safeDeliveries, otherDriverDeliveries, safeStores]);
   
   // Pass driver routes to parent component
   useEffect(() => {
