@@ -93,20 +93,9 @@ export const determinePolylineSegment = (filteredDeliveries, driver, patients, s
 
 /**
  * Fetch polyline from Google Directions API
+ * DISABLED: Function removed to reduce API calls
  */
 export const fetchPolylineForSegment = async (originLat, originLon, destLat, destLon) => {
-  try {
-    const response = await base44.functions.invoke('getGoogleDirections', {
-      origin: { lat: originLat, lon: originLon },
-      destination: { lat: destLat, lon: destLon }
-    });
-
-    if (response?.data?.polyline) {
-      return response.data.polyline;
-    }
-    return null;
-  } catch (error) {
-    console.error('❌ [Polyline Fetch] Error:', error);
-    return null;
-  }
+  // Polyline fetching disabled - using straight lines instead
+  return null;
 };
