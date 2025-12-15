@@ -683,7 +683,7 @@ export default function PatientForm({
                       className="h-10 md:h-9 text-sm border-slate-300 bg-white" />
                   </div>
 
-                  <div className="col-span-3 space-y-1">
+                  <div className="col-span-2 space-y-1">
                     <Label htmlFor="phone" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Phone Number</Label>
                     <PhoneInput
                       id="phone"
@@ -693,7 +693,7 @@ export default function PatientForm({
                       className="h-10 md:h-9 text-sm border-slate-300 bg-white" />
                   </div>
 
-                  <div className="col-span-3 space-y-1">
+                  <div className="col-span-2 space-y-1">
                     <Label htmlFor="phone_secondary" className="peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Alt. Phone</Label>
                     <PhoneInput
                       id="phone_secondary"
