@@ -40,6 +40,7 @@ import { smartRefreshManager } from "../utils/smartRefreshManager";
 import FailureReasonDialog from "../deliveries/FailureReasonDialog";
 import { updateDeliveryLocal } from '../utils/offlineMutations';
 import { fabControlEvents } from '../utils/fabControlEvents';
+import { invalidate } from '../utils/dataManager';
 
 // Global statusConfig
 const statusConfig = {
@@ -137,7 +138,7 @@ export default function StopCard({
   const [pendingFailureStatus, setPendingFailureStatus] = useState(null);
   const [isHovered, setIsHovered] = useState(false);
   const codAmountInputRefs = useRef([]);
-  const { setIsEntityUpdating, forceRefreshDriverDeliveries } = useAppData();
+  const { setIsEntityUpdating, forceRefreshDriverDeliveries, refreshData, updateDeliveriesLocally } = useAppData();
 
   // Detect if this is a stripped delivery (from other store)
   // For dispatchers: strip deliveries that aren't from their assigned stores
