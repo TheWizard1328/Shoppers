@@ -1978,22 +1978,8 @@ export default function StopCard({
                         }
                         console.log('  ✅ Stops resorted');
 
-                        // Step 6: Run Route Optimizer (without reordering)
-                        console.log('🟢 [START] Step 6: Running route optimizer...');
-                        try {
-                          await base44.functions.invoke('optimizeRouteRealTime', {
-                            driverId: delivery.driver_id,
-                            deliveryDate: delivery.delivery_date,
-                            generatePolyline: true,
-                            preserveOrder: true
-                          });
-                          console.log('  ✅ Route optimized');
-                        } catch (optimizeError) {
-                          console.warn('⚠️ Route optimizer failed:', optimizeError);
-                        }
-
-                        // Step 7: Run ETA updater
-                        console.log('🟢 [START] Step 7: Updating ETAs...');
+                        // Step 6-7: Run ETA updater only (stop order already set)
+                        console.log('🟢 [START] Step 6-7: Running ETA updater...');
                         await base44.functions.invoke('etaOptimizer', {
                           driverId: delivery.driver_id,
                           deliveryDate: delivery.delivery_date,
