@@ -1070,9 +1070,31 @@ export default function StopCard({
                     </Button>
                     <Button
                     className="flex-1 bg-red-600 hover:bg-red-700"
-                    onClick={() => {
-                      onDeleteDelivery(delivery.id);
-                      setShowDeleteConfirm(false);
+                    onClick={async () => {
+                      console.log('🗑️ [DELETE] Step 1: Pausing smart refresh...');
+                      setIsEntityUpdating(true);
+                      await new Promise(resolve => setTimeout(resolve, 100));
+
+                      try {
+                        console.log('🗑️ [DELETE] Step 2: Deleting delivery...');
+                        await onDeleteDelivery(delivery.id);
+                        console.log('✅ [DELETE] Step 3: Delivery deleted from DB and UI');
+                      } finally {
+                        setShowDeleteConfirm(false);
+                        
+                        console.log('🔄 [DELETE] Step 4: Resetting smart refresh timers (not running immediately)');
+                        smartRefreshManager.lastRefreshTimes = {
+                          driverLocation: 0,
+                          activeDeliveries: 0,
+                          todayDeliveries: 0,
+                          appUsers: 0,
+                          patients: 0,
+                          stores: 0
+                        };
+                        
+                        setIsEntityUpdating(false);
+                        console.log('✅ [DELETE] Delete cycle complete - smart refresh timers reset');
+                      }
                     }}>
                       <Trash2 className="w-4 h-4 mr-2" />
                       Delete
