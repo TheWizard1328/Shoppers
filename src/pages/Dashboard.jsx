@@ -1631,11 +1631,10 @@ function Dashboard() {
         const isViewingToday = todayStr === selectedDateStr;
 
         // CRITICAL: Check if driver is viewing their own route specifically
+        // FIXED: Allow any user (even admin/dispatcher) when they select themselves
         const isDriverViewingSelfToday = 
-          isDriver && 
-          !isAdmin && 
-          !isDispatcher && 
           selectedDriverId === currentUser?.id && 
+          selectedDriverId !== 'all' &&
           isViewingToday;
 
         // 1. BLUE DOT: Only include if actually rendering (NOT in all-drivers mode)
