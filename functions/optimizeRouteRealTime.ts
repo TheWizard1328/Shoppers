@@ -289,6 +289,11 @@ Deno.serve(async (req) => {
       deliveriesByPickup.get(key).push(d);
     });
 
+    // Get driver's home location for end-of-route optimization
+    const driverHomeLocation = (driverAppUser.home_latitude && driverAppUser.home_longitude) 
+      ? { lat: driverAppUser.home_latitude, lng: driverAppUser.home_longitude }
+      : null;
+
     // Constraint-based optimization algorithm using crow-flies distance
     const optimizedRoute = [];
     const unvisitedPickups = new Set(pickupStops.map(p => p.idx));
@@ -302,10 +307,43 @@ Deno.serve(async (req) => {
       let bestScore = Infinity;
       let bestType = null;
 
+      // Calculate remaining stops count for end-of-route optimization
+      const totalRemainingStops = unvisitedPickups.size + unvisitedISP.size;
+
       // Consider all unvisited pickups
       for (const idx of unvisitedPickups) {
         const travelTime = Math.ceil(crowFliesMatrix[currentPos][idx].duration / 60);
-        const score = travelTime;
+        let score = travelTime;
+        
+        // LOOK-AHEAD: If this is one of the last few stops, consider distance to driver's home
+        if (driverHomeLocation && totalRemainingStops <= 3) {
+          const distanceToHome = calculateCrowFliesDistance(
+            stops[idx].lat, 
+            stops[idx].lng, 
+            driverHomeLocation.lat, 
+            driverHomeLocation.lng
+          );
+          const timeToHome = (distanceToHome / 40) * 60; // Minutes
+          score += timeToHome * 0.5; // Weight: prefer stops closer to home as final stops
+        }
+        
+        // LOOK-AHEAD: Evaluate impact on remaining deliveries from this pickup
+        if (totalRemainingStops > 3) {
+          const pickupStoreId = stops[idx].delivery.store_id;
+          const pickupDeliveries = deliveriesByPickup.get(pickupStoreId) || [];
+          const unvisitedDeliveries = pickupDeliveries.filter(d => !optimizedRoute.includes(d.idx));
+          
+          if (unvisitedDeliveries.length > 0) {
+            // Calculate average distance from this pickup to its deliveries
+            const avgDeliveryDistance = unvisitedDeliveries.reduce((sum, deliv) => {
+              const dist = calculateCrowFliesDistance(stops[idx].lat, stops[idx].lng, stops[deliv.idx].lat, stops[deliv.idx].lng);
+              return sum + dist;
+            }, 0) / unvisitedDeliveries.length;
+            
+            // Penalize pickups with deliveries far from the pickup location (inefficient clusters)
+            score += (avgDeliveryDistance / 40) * 60 * 0.2;
+          }
+        }
         
         if (score < bestScore) {
           bestScore = score;
@@ -331,6 +369,18 @@ Deno.serve(async (req) => {
           } else {
             score -= 10;
           }
+        }
+        
+        // LOOK-AHEAD: If this is one of the last few stops, consider distance to driver's home
+        if (driverHomeLocation && totalRemainingStops <= 3) {
+          const distanceToHome = calculateCrowFliesDistance(
+            stops[idx].lat, 
+            stops[idx].lng, 
+            driverHomeLocation.lat, 
+            driverHomeLocation.lng
+          );
+          const timeToHome = (distanceToHome / 40) * 60; // Minutes
+          score += timeToHome * 0.5; // Weight: prefer stops closer to home as final stops
         }
         
         if (score < bestScore) {
