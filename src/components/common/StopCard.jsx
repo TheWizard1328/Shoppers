@@ -1912,10 +1912,14 @@ export default function StopCard({
                           if (responseData?.durationUpdates && updateDeliveriesLocally) {
                             const updates = responseData.durationUpdates.map(update => ({
                               id: update.deliveryId,
-                              stop_order: update.newOrder
+                              stop_order: update.newOrder,
+                              display_stop_order: update.newOrder
                             }));
                             updateDeliveriesLocally(updates, false);
                             console.log('  ✅ Stop orders updated from optimizer');
+                            
+                            // Invalidate cache to force map and UI refresh
+                            invalidate('Delivery');
                           }
                         } catch (optimizeError) {
                           console.warn('⚠️ Route optimizer failed, continuing without optimization:', optimizeError);
