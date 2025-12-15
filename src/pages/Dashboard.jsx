@@ -1668,30 +1668,22 @@ function Dashboard() {
           });
         }
 
-        // HOME LOCATIONS: Add home markers for drivers with active stops (today only, not for dispatchers)
+        // HOME LOCATIONS: Only include if they will actually be visible on the map
+        // Visibility rules from DeliveryMap: only current driver's home when viewing their own route
         const isDispatcherNonAdmin = isDispatcher && !isAdmin;
-        if (isViewingToday && !isDispatcherNonAdmin) {
-          const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-          const driversWithActiveStops = new Set();
-          
-          deliveriesWithStopOrder.forEach((d) => {
-            if (d && !finishedStatuses.includes(d.status) && d.driver_id) {
-              driversWithActiveStops.add(d.driver_id);
-            }
-          });
-          
-          driversWithActiveStops.forEach((driverId) => {
-            const driver = users.find((u) => u && u.id === driverId);
-            if (!driver?.home_latitude || !driver?.home_longitude) return;
+        if (isViewingToday && !isDispatcherNonAdmin && isDriver && selectedDriverId === currentUser?.id) {
+          // Only include current driver's home when viewing their own route
+          if (currentUser?.home_latitude && currentUser?.home_longitude) {
+            const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+            const hasActiveStops = deliveriesWithStopOrder.some((d) => 
+              d && !finishedStatuses.includes(d.status) && d.driver_id === currentUser.id
+            );
             
-            // App owner sees all homes, drivers see only their own
-            const shouldIncludeHome = isAdmin || (isDriver && driver.id === currentUser?.id);
-            
-            if (shouldIncludeHome) {
-              allCoordinates.push([driver.home_latitude, driver.home_longitude]);
-              console.log(`🏠 [FAB Click] Including ${driver.user_name || 'driver'} home location`);
+            if (hasActiveStops) {
+              allCoordinates.push([currentUser.home_latitude, currentUser.home_longitude]);
+              console.log(`🏠 [FAB Click] Including current driver's home location`);
             }
-          });
+          }
         }
 
         // Add all delivery/pickup markers
