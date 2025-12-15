@@ -1978,29 +1978,21 @@ export default function StopCard({
                         }
                         console.log('  ✅ Stops resorted');
 
-                        // Step 6: Run Route Optimizer (preserves started stop position)
+                        // Step 6: Run Route Optimizer (with current local time)
                         console.log('🟢 [START] Step 6: Running route optimizer...');
                         try {
+                          const now = new Date();
+                          const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                          
                           await base44.functions.invoke('optimizeRouteRealTime', {
                             driverId: delivery.driver_id,
                             deliveryDate: delivery.delivery_date,
-                            generatePolyline: true,
-                            preserveOrder: true
+                            currentLocalTime: currentLocalTime
                           });
                           console.log('  ✅ Route optimized');
                         } catch (optimizeError) {
                           console.warn('⚠️ Route optimizer failed, continuing without optimization:', optimizeError);
                         }
-
-                        // Step 7: Run ETA updater
-                        console.log('🟢 [START] Step 7: Updating ETAs...');
-                        await base44.functions.invoke('etaOptimizer', {
-                          driverId: delivery.driver_id,
-                          deliveryDate: delivery.delivery_date,
-                          triggerFullRecalculation: true,
-                          deviceTime: new Date().toISOString()
-                        });
-                        console.log('  ✅ ETAs updated');
 
                         // Step 8-9: Update UI and sync DBs
                         console.log('🟢 [START] Step 8-9: Refreshing data...');
