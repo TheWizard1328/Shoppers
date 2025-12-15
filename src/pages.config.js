@@ -2,7 +2,6 @@ import AdminUtilities from './pages/AdminUtilities';
 import AppUsers from './pages/AppUsers';
 import Cities from './pages/Cities';
 import Dashboard from './pages/Dashboard';
-import dashboardTemp from './pages/Dashboard_temp';
 import Deliveries from './pages/Deliveries';
 import DeliveryMetrics from './pages/DeliveryMetrics';
 import DiagnosticsPage from './pages/DiagnosticsPage';
@@ -18,7 +17,6 @@ export const PAGES = {
     "AppUsers": AppUsers,
     "Cities": Cities,
     "Dashboard": Dashboard,
-    "Dashboard_temp": dashboardTemp,
     "Deliveries": Deliveries,
     "DeliveryMetrics": DeliveryMetrics,
     "DiagnosticsPage": DiagnosticsPage,
