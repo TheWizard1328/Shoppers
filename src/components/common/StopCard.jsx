@@ -825,12 +825,7 @@ export default function StopCard({
 
                                 await onStatusUpdate(delivery.id, status, {}, false);
 
-                                // Update next delivery flag
-                                await base44.functions.invoke('updateNextDeliveryFlag', {
-                                  deliveryId: delivery.id,
-                                  driverId: delivery.driver_id,
-                                  deliveryDate: delivery.delivery_date
-                                });
+                                // Next delivery flag handled by route optimizer
 
                                 if (status === 'completed' && userHasRole(currentUser, 'driver')) {
                                   await notifyDriverCompleted({
@@ -886,12 +881,7 @@ export default function StopCard({
                               const skipAutoCenter = !finishedStatuses.includes(status);
                               await onStatusUpdate(delivery.id, status, {}, skipAutoCenter);
 
-                              // Update next delivery flag
-                              await base44.functions.invoke('updateNextDeliveryFlag', {
-                                deliveryId: delivery.id,
-                                driverId: delivery.driver_id,
-                                deliveryDate: delivery.delivery_date
-                              });
+                              // Next delivery flag handled by route optimizer
                             } finally {
                               console.log('▶️ [STATUS MENU] Resuming smart refresh');
                               setIsEntityUpdating(false);
@@ -1148,13 +1138,20 @@ export default function StopCard({
                   deliveryDate: delivery.delivery_date
                 });
 
-                // Trigger fullRouteOptimizer to recalculate ETAs
+                // Trigger route optimization to recalculate ETAs
                 console.log('🔄 [FAILURE] Triggering route optimization...');
-                await base44.functions.invoke('fullRouteOptimizer', {
-                  driverId: delivery.driver_id,
-                  deliveryDate: delivery.delivery_date
-                });
-                console.log('✅ [FAILURE] Route optimized');
+                try {
+                  const now = new Date();
+                  const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                  await base44.functions.invoke('optimizeRouteRealTime', {
+                    driverId: delivery.driver_id,
+                    deliveryDate: delivery.delivery_date,
+                    currentLocalTime: currentLocalTime
+                  });
+                  console.log('✅ [FAILURE] Route optimized');
+                } catch (optimizeError) {
+                  console.warn('⚠️ Route optimizer failed:', optimizeError);
+                }
 
                 // Notify dispatchers
                 if (userHasRole(currentUser, 'driver')) {
@@ -1499,15 +1496,7 @@ export default function StopCard({
                             });
                             console.log('  ✅ Route optimized and ETAs updated');
                           } catch (optimizeError) {
-                            console.warn('⚠️ Route optimizer failed, trying ETA updater only:', optimizeError);
-                            // Fallback to just ETA update
-                            await base44.functions.invoke('etaOptimizer', {
-                              driverId: delivery.driver_id,
-                              deliveryDate: delivery.delivery_date,
-                              triggerFullRecalculation: true,
-                              deviceTime: new Date().toISOString()
-                            });
-                            console.log('  ✅ ETAs updated (fallback)');
+                            console.warn('⚠️ Route optimizer failed, continuing without ETA update:', optimizeError);
                           }
 
                           // Step 6 & 7: Update UI and sync offline/online DBs
@@ -1859,12 +1848,7 @@ export default function StopCard({
                             await onStatusUpdate(delivery.id, 'completed');
                           }
 
-                          // Update next delivery flag
-                          await base44.functions.invoke('updateNextDeliveryFlag', {
-                            deliveryId: delivery.id,
-                            driverId: delivery.driver_id,
-                            deliveryDate: delivery.delivery_date
-                          });
+                          // Next delivery flag handled by route optimizer
 
                           // Send notification to dispatchers (don't await - fire and forget)
                           if (userHasRole(currentUser, 'driver')) {
