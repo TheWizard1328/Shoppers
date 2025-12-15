@@ -1731,7 +1731,7 @@ export default function DeliveryForm({
           console.log(`[AddToRoute] 📍 Found pickup TR# ${groups[groupKey].pickupTR} for group ${groupKey} (raw: "${existingPickup.tracking_number}")`);
         }
 
-        // Count existing deliveries for this group (already saved, not in new deliveries)
+        // Count existing deliveries for this group (from both database AND staged list)
         const existingDeliveriesForGroup = allDeliveries?.filter((d) =>
           d &&
           d.patient_id && // Is a delivery, not pickup
@@ -1741,8 +1741,19 @@ export default function DeliveryForm({
           (d.ampm_deliveries || 'AM') === ampm
         ) || [];
 
-        groups[groupKey].existingDeliveryCount = existingDeliveriesForGroup.length;
-        console.log(`[AddToRoute] 📊 Group ${groupKey} has ${existingDeliveriesForGroup.length} existing deliveries`);
+        // CRITICAL: Also count staged deliveries for this group (already in staging list)
+        const stagedDeliveriesForGroup = stagedDeliveries.filter((d) =>
+          d &&
+          d.patient_id && // Is a delivery, not pickup
+          d.store_id === storeId &&
+          d.driver_id === driverId &&
+          d.delivery_date === formData.delivery_date &&
+          (d.ampm_deliveries || 'AM') === ampm &&
+          !d.id // Only count NEW staged items (not pending ones already in DB)
+        );
+
+        groups[groupKey].existingDeliveryCount = existingDeliveriesForGroup.length + stagedDeliveriesForGroup.length;
+        console.log(`[AddToRoute] 📊 Group ${groupKey} has ${existingDeliveriesForGroup.length} DB deliveries + ${stagedDeliveriesForGroup.length} staged = ${groups[groupKey].existingDeliveryCount} total`);
 
         // If no pickup TR found, check staged deliveries for a pickup
         if (groups[groupKey].pickupTR === null) {
