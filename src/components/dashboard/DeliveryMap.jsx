@@ -1422,6 +1422,12 @@ export default function DeliveryMap({
 
     deliveryMarkers.forEach((delivery) => {
     if (!delivery) return;
+    
+    // NEW: Skip other drivers' routes completely when viewing self today
+    if (isDriverViewingSelfToday && delivery.driver_id !== currentUser?.id) {
+      return;
+    }
+    
     const driverId = delivery.driver_id || 'unassigned';
     if (!routesByDriver[driverId]) {
       const driverForRoute = safeUsers.find((u) => u && typeof u === 'object' && u.id === driverId);
