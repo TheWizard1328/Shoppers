@@ -699,7 +699,7 @@ export default function PatientForm({
                       id="phone_secondary"
                       value={formData.phone_secondary}
                       onChange={(value) => setFormData((prev) => ({ ...prev, phone_secondary: value }))}
-                      placeholder="Secondary phone"
+                      placeholder="Alt. phone"
                       className="h-10 md:h-9 text-sm border-slate-300 bg-white" />
                   </div>
                 </div>
