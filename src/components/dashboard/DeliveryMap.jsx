@@ -1549,14 +1549,17 @@ export default function DeliveryMap({
         if (allStops.length > 0) {
           const lastStop = allStops[allStops.length - 1];
           lastStopCoordinates = [lastStop.latitude, lastStop.longitude];
-          // NEW: Only show home route if route is NOT completed AND user is not a dispatcher AND not other driver when viewing self today
-          shouldShowHomeRoute = !isRouteCompleted && !isDispatcherNonAdmin && !(isDriverViewingSelfToday && route.driverId !== currentUser?.id);
+          // NEW: Only show home route if route is NOT completed AND user is not a dispatcher
+          shouldShowHomeRoute = !isRouteCompleted && !isDispatcherNonAdmin;
           console.log(`  📍 Last stop: ${lastStop.type === 'pickup' ? lastStop.store : lastStop.patient} at [${lastStop.latitude?.toFixed(4)}, ${lastStop.longitude?.toFixed(4)}]`);
           console.log(`  🏠 Show home route: ${shouldShowHomeRoute} (dispatcher blocked: ${isDispatcherNonAdmin})`);
         }
 
         // NEW: Determine starting point for visualization (routeHasActuallyStarted defined above)
-        if (routeHasActuallyStarted && firstStopCoordinates && route.driver) {
+        // CRITICAL: Skip home-to-first-stop lines for other drivers when viewing self today
+        const isOtherDriverRoute = isDriverViewingSelfToday && route.driverId !== currentUser?.id;
+        
+        if (routeHasActuallyStarted && firstStopCoordinates && route.driver && !isOtherDriverRoute) {
           let startPoint = null;
 
           // CRITICAL: Priority 1 - Use currentDriverLocation if this is the current user (live GPS on mobile)
@@ -1595,8 +1598,8 @@ export default function DeliveryMap({
             startToFirstStopCoordinates = [startPoint, firstStopCoordinates];
             console.log(`  ✅ Will draw BLUE DASHED origin line from start to first incomplete stop`);
           }
-        } else if (!isRouteStarted && firstStopCoordinates && route.driver && !isDispatcherNonAdmin) {
-          // Route hasn't started - use home or current location (NOT for dispatchers)
+        } else if (!isRouteStarted && firstStopCoordinates && route.driver && !isDispatcherNonAdmin && !isOtherDriverRoute) {
+          // Route hasn't started - use home or current location (NOT for dispatchers or other drivers)
           let startPoint = null;
 
           // Priority 1: Use current driver location if this is the current user and available
@@ -2035,8 +2038,8 @@ export default function DeliveryMap({
             // CRITICAL: This internal origin line is now DEPRECATED - we use currentToNextPolyline from backend instead
             null,
 
-            // Pre-route line - DASHED for unstarted routes
-            route.startToFirstStopCoordinates && !route.isOriginLine && !googleRouteCoordinates &&
+            // Pre-route line - DASHED for unstarted routes - HIDE for other drivers when viewing self today
+            route.startToFirstStopCoordinates && !route.isOriginLine && !googleRouteCoordinates && !isOtherDriverRoute &&
             <Polyline
               key={`pre-route-${route.driverId}`}
               positions={route.startToFirstStopCoordinates}
@@ -2099,9 +2102,12 @@ export default function DeliveryMap({
 
             }).filter(Boolean) : []),
 
-            // Home route line - INTERACTIVE
+            // Home route line - INTERACTIVE - HIDE for other drivers when viewing self today
             (() => {
               if (!route.shouldShowHomeRoute || !route.lastStopCoordinates || !route.driver?.home_latitude || !route.driver?.home_longitude) return null;
+              
+              // NEW: Skip home route for other drivers when viewing self today
+              if (isOtherDriverRoute) return null;
 
               const homeCoordinates = [route.driver.home_latitude, route.driver.home_longitude];
               return (
