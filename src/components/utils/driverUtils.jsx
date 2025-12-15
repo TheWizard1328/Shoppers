@@ -146,13 +146,6 @@ export const createMergedUser = (authUser, appUser) => {
   // DO NOT default, DO NOT override, DO NOT modify
   const preservedAppRoles = Array.isArray(appUser.app_roles) ? appUser.app_roles : [];
   
-  console.log(`[driverUtils] createMergedUser for ${appUser.user_name || authUser.full_name}:`, {
-    authUserId: authUser.id,
-    appUserId: appUser.id,
-    app_roles_from_database: appUser.app_roles,
-    app_roles_after_merge: preservedAppRoles
-  });
-  
   const mergedUser = {
     ...authUser,
     ...appUser,
@@ -182,24 +175,14 @@ export const createMergedUser = (authUser, appUser) => {
  * @returns {Array} - Array of merged user objects (filtered to remove null entries)
  */
 export const mergeUsersWithAppUsers = (authUsers = [], appUsers = []) => {
-  console.log(`[driverUtils] mergeUsersWithAppUsers: Merging ${authUsers.length} authUsers with ${appUsers.length} appUsers`);
   
   // SAFETY: Filter out any null/undefined results
   const merged = authUsers.map(authUser => {
     const appUser = appUsers.find(au => au && au.user_id === authUser.id);
     const result = createMergedUser(authUser, appUser);
     
-    if (result) {
-      console.log(`[driverUtils] Merged user ${result.user_name}:`, {
-        id: result.id,
-        app_roles: result.app_roles,
-        status: result.status
-      });
-    }
-    
     return result;
   }).filter(user => user && user.user_name); // Only keep valid users with user_name
   
-  console.log(`[driverUtils] mergeUsersWithAppUsers: Successfully merged ${merged.length} users`);
   return merged;
 };
