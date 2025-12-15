@@ -67,7 +67,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       
       try {
         // Fetch fresh AppUser data directly
-        const appUsers = await base64.entities.AppUser.filter({ user_id: currentUser.id });
+        const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
         if (appUsers && appUsers.length > 0) {
           const freshStatus = appUsers[0].driver_status;
           if (freshStatus && freshStatus !== status && !pendingStatus) {

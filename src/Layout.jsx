@@ -397,16 +397,35 @@ class ErrorBoundary extends React.Component {
       console.warn('Leaflet error caught and neutralized by ErrorBoundary');
       return;
     }
-    console.error('Unhandled error:', error, errorInfo);
+    console.error('═══════════════════════════════════════════════════');
+    console.error('❌ CRITICAL ERROR CAUGHT BY ERROR BOUNDARY');
+    console.error('Error:', error);
+    console.error('Error message:', error?.message);
+    console.error('Error stack:', error?.stack);
+    console.error('Component stack:', errorInfo?.componentStack);
+    console.error('═══════════════════════════════════════════════════');
+    
+    // Show error details in alert for debugging
+    alert(`Error: ${error?.message || 'Unknown error'}\n\nCheck console for details.`);
   }
 
   render() {
     if (this.state.hasError) {
       return (
         <div className="h-screen flex items-center justify-center bg-slate-50">
-          <div className="text-center">
+          <div className="text-center max-w-2xl mx-auto p-6">
             <h1 className="text-xl font-semibold text-slate-900 mb-2">Something went wrong</h1>
             <p className="text-slate-600 mb-4">Please refresh the page to continue.</p>
+            {this.state.error && (
+              <details className="text-left mb-4 p-4 bg-red-50 rounded-lg border border-red-200">
+                <summary className="cursor-pointer font-semibold text-red-900 mb-2">Error Details</summary>
+                <pre className="text-xs text-red-800 overflow-auto max-h-60">
+                  {this.state.error.message || 'Unknown error'}
+                  {'\n\n'}
+                  {this.state.error.stack || ''}
+                </pre>
+              </details>
+            )}
             <Button onClick={() => window.location.reload()}>Refresh Page</Button>
           </div>
         </div>);
