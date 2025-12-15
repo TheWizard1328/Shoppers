@@ -1906,27 +1906,25 @@ export default function StopCard({
                           });
                           console.log('  ✅ Route optimized');
                           
-                          // Step 6: Apply optimized stop orders
+                          // Step 6: Apply optimized stop orders to local state immediately
                           console.log('🟢 [START] Step 6: Resorting optimized stops...');
                           const responseData = optimizeResponse?.data || optimizeResponse;
-                          if (responseData?.durationUpdates && updateDeliveriesLocally) {
-                            const updates = responseData.durationUpdates.map(update => ({
-                              id: update.deliveryId,
-                              stop_order: update.newOrder,
-                              display_stop_order: update.newOrder
-                            }));
-                            updateDeliveriesLocally(updates, false);
+                          if (responseData?.durationUpdates) {
+                            // Update backend with new stop orders
+                            for (const update of responseData.durationUpdates) {
+                              await updateDeliveryLocal(update.deliveryId, {
+                                stop_order: update.newOrder
+                              });
+                            }
                             console.log('  ✅ Stop orders updated from optimizer');
-                            
-                            // Invalidate cache to force map and UI refresh
-                            invalidate('Delivery');
                           }
                         } catch (optimizeError) {
                           console.warn('⚠️ Route optimizer failed, continuing without optimization:', optimizeError);
                         }
 
-                        // Step 8-9: Update UI and sync DBs
+                        // Step 8-9: Invalidate and refresh UI to sync everything
                         console.log('🟢 [START] Step 8-9: Refreshing data...');
+                        invalidate('Delivery');
                         await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
                         console.log('  ✅ UI and DBs synced');
 
