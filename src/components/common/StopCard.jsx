@@ -1427,74 +1427,88 @@ export default function StopCard({
                         await new Promise(resolve => setTimeout(resolve, 100));
 
                         try {
-                          // Step 3: Change all pending stops to in_transit
-                          console.log('🟢 [Assign All] Step 3: Changing pending stops to in_transit...');
+                          // Step 3: Change all pending stops to in_transit AND insert directly after pickup
+                          console.log('🟢 [Assign All] Step 3: Changing pending stops to in_transit and sequencing...');
                           const allPendingDeliveries = pendingPickups.filter((p) => p.status === 'pending');
                           console.log(`  Found ${allPendingDeliveries.length} pending deliveries`);
 
-                          for (const pendingDelivery of allPendingDeliveries) {
+                          // Get pickup's stop_order
+                          const pickupStopOrder = delivery.stop_order || 0;
+                          console.log(`  Pickup stop order: ${pickupStopOrder}`);
+
+                          // Get all other driver deliveries to adjust their stop orders
+                          const allDriverDeliveries = allDeliveries.filter((d) =>
+                            d && d.driver_id === delivery.driver_id && 
+                            d.delivery_date === delivery.delivery_date &&
+                            d.id !== delivery.id &&
+                            !allPendingDeliveries.find(p => p.id === d.id)
+                          );
+
+                          // Identify incomplete stops that come after the pickup and need to be pushed down
+                          const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+                          const incompleteAfterPickup = allDriverDeliveries.filter((d) =>
+                            !finishedStatuses.includes(d.status) &&
+                            (d.stop_order || 0) > pickupStopOrder
+                          );
+
+                          console.log(`  Found ${incompleteAfterPickup.length} incomplete stops after pickup to push down`);
+
+                          // Sort pending by patient name for consistent ordering
+                          const sortedPending = [...allPendingDeliveries].sort((a, b) =>
+                            (a.patient_name || '').localeCompare(b.patient_name || '')
+                          );
+
+                          // Update pending stops with sequential stop orders right after pickup
+                          for (let i = 0; i < sortedPending.length; i++) {
+                            const pendingDelivery = sortedPending[i];
+                            const newStopOrder = pickupStopOrder + i + 1;
+                            
                             await updateDeliveryLocal(pendingDelivery.id, {
-                              status: 'in_transit'
+                              status: 'in_transit',
+                              stop_order: newStopOrder
                             });
-                            console.log(`    ✅ ${pendingDelivery.patient_name} → in_transit`);
+                            console.log(`    ✅ ${pendingDelivery.patient_name} → in_transit, stop_order: ${newStopOrder}`);
                           }
 
-                          // Step 4: Run route optimizer (handles both optimization and ETA calculation)
-                          console.log('🟢 [Assign All] Step 4: Running route optimizer with ETA updates...');
+                          // Push down incomplete stops that were after the pickup
+                          for (const d of incompleteAfterPickup) {
+                            const newStopOrder = d.stop_order + sortedPending.length;
+                            await updateDeliveryLocal(d.id, {
+                              stop_order: newStopOrder
+                            });
+                            console.log(`    ✅ Pushed ${d.patient_name || 'Stop'} to stop_order: ${newStopOrder}`);
+                          }
+
+                          // Step 4: Run route optimizer to calculate ETAs (keep new sequence)
+                          console.log('🟢 [Assign All] Step 4: Running route optimizer for ETA updates...');
                           try {
                             await base44.functions.invoke('optimizeRouteRealTime', {
                               driverId: delivery.driver_id,
                               deliveryDate: delivery.delivery_date,
                               generatePolyline: false
                             });
-                            console.log('  ✅ Route optimized and ETAs updated');
+                            console.log('  ✅ ETAs updated');
                           } catch (optimizeError) {
                             console.warn('⚠️ Route optimizer failed, continuing without ETA update:', optimizeError);
                           }
 
-                          // Step 5: Update TR#s based on stop_order (after route optimization)
-                          console.log('🟢 [Assign All] Step 5: Updating TR#s based on optimized stop orders...');
+                          // Step 5: Update TR#s sequentially for newly accepted stops
+                          console.log('🟢 [Assign All] Step 5: Assigning sequential TR#s...');
                           
-                          // Get pickup TR# as base
                           const pickupTR = parseInt(delivery.tracking_number, 10);
                           const baseTR = isNaN(pickupTR) ? 0 : pickupTR;
                           console.log(`  Using pickup TR# ${baseTR} as base`);
                           
-                          // Get all in_transit deliveries for this pickup (just updated in Step 3)
-                          const inTransitDeliveries = allPendingDeliveries.map(d => ({
-                            id: d.id,
-                            patient_name: d.patient_name,
-                            stop_order: d.stop_order // Will be updated by optimizer
-                          }));
-                          
-                          // Wait a moment for optimizer updates to propagate
-                          await new Promise(resolve => setTimeout(resolve, 200));
-                          
-                          // Fetch fresh stop_order values from database
-                          const freshDeliveries = await base44.entities.Delivery.filter({
-                            driver_id: delivery.driver_id,
-                            delivery_date: delivery.delivery_date,
-                            status: 'in_transit',
-                            patient_id: { $ne: null } // Only patient deliveries, not pickups
-                          });
-                          
-                          // Sort by stop_order to get sequential TR#s
-                          freshDeliveries.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-                          
-                          // Assign sequential TR#s starting from pickup TR# + 1
-                          for (let i = 0; i < freshDeliveries.length; i++) {
-                            const freshDelivery = freshDeliveries[i];
+                          // Assign sequential TR#s to sorted pending deliveries
+                          for (let i = 0; i < sortedPending.length; i++) {
                             const newTR = String(baseTR + i + 1);
                             
-                            // Only update if TR# changed
-                            if (freshDelivery.tracking_number !== newTR) {
-                              await updateDeliveryLocal(freshDelivery.id, {
-                                tracking_number: newTR
-                              });
-                              console.log(`  ✅ ${freshDelivery.patient_name}: TR# ${newTR} (stop order: ${freshDelivery.stop_order})`);
-                            }
+                            await updateDeliveryLocal(sortedPending[i].id, {
+                              tracking_number: newTR
+                            });
+                            console.log(`  ✅ ${sortedPending[i].patient_name}: TR# ${newTR}`);
                           }
-                          console.log('  ✅ TR#s updated based on optimized route');
+                          console.log('  ✅ TR#s assigned sequentially');
 
                           // Step 6 & 7: Update UI and sync offline/online DBs
                           console.log('🟢 [Assign All] Step 6-7: Force refreshing data...');
