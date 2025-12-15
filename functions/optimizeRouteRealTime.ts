@@ -56,11 +56,31 @@ Deno.serve(async (req) => {
     const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
     const driverAppUser = appUsers?.[0];
     console.log('📍 [optimizeRouteRealTime] AppUser found:', !!driverAppUser);
+    
+    if (driverAppUser) {
+      console.log('📍 [optimizeRouteRealTime] Driver location data:', {
+        has_latitude: !!driverAppUser.current_latitude,
+        has_longitude: !!driverAppUser.current_longitude,
+        latitude_value: driverAppUser.current_latitude,
+        longitude_value: driverAppUser.current_longitude,
+        location_updated_at: driverAppUser.location_updated_at,
+        driver_status: driverAppUser.driver_status
+      });
+    }
 
     if (!driverAppUser || !driverAppUser.current_latitude || !driverAppUser.current_longitude) {
-      console.error('❌ [optimizeRouteRealTime] Driver location not available');
+      console.error('❌ [optimizeRouteRealTime] Driver location not available - AppUser:', {
+        exists: !!driverAppUser,
+        has_lat: !!driverAppUser?.current_latitude,
+        has_lng: !!driverAppUser?.current_longitude
+      });
       return Response.json({ 
-        error: 'Driver location not available' 
+        error: 'Driver location not available - driver must be on duty with location tracking enabled',
+        details: {
+          driverFound: !!driverAppUser,
+          hasLatitude: !!driverAppUser?.current_latitude,
+          hasLongitude: !!driverAppUser?.current_longitude
+        }
       }, { status: 404 });
     }
     
