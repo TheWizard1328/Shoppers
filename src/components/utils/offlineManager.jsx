@@ -58,7 +58,6 @@ class OfflineManager {
   }
 
   handleOnline() {
-    console.log('🟢 [OfflineManager] Online');
     this.isOnline = true;
     this.syncRetryCount = 0; // Reset retry count when coming online
     this.notifyListeners();
@@ -66,14 +65,12 @@ class OfflineManager {
   }
 
   handleOffline() {
-    console.log('🔴 [OfflineManager] Offline');
     this.isOnline = false;
     this.notifyListeners();
   }
 
   handleVisibilityChange() {
     if (document.visibilityState === 'visible' && this.isOnline) {
-      console.log('👁️ [OfflineManager] App became visible - triggering sync');
       this.syncPendingActions();
     }
   }
@@ -114,7 +111,6 @@ class OfflineManager {
   setConflictStrategy(strategy) {
     if (Object.values(ConflictResolution).includes(strategy)) {
       this.conflictStrategy = strategy;
-      console.log(`⚙️ [OfflineManager] Conflict strategy set to: ${strategy}`);
     }
   }
 
@@ -126,19 +122,16 @@ class OfflineManager {
     
     this.backgroundSyncInterval = setInterval(() => {
       if (this.isOnline && this.pendingActions.length > 0 && !this.isSyncing) {
-        console.log('⏰ [OfflineManager] Background sync triggered');
         this.syncPendingActions();
       }
     }, this.backgroundSyncPeriod);
     
-    console.log(`🔄 [OfflineManager] Background sync started (every ${this.backgroundSyncPeriod / 1000}s)`);
   }
 
   stopBackgroundSync() {
     if (this.backgroundSyncInterval) {
       clearInterval(this.backgroundSyncInterval);
       this.backgroundSyncInterval = null;
-      console.log('⏹️ [OfflineManager] Background sync stopped');
     }
   }
 
@@ -149,11 +142,10 @@ class OfflineManager {
         const registration = await navigator.serviceWorker.ready;
         if (registration && 'sync' in registration) {
           await registration.sync.register('offline-sync');
-          console.log('📡 [OfflineManager] Service worker background sync registered');
         }
       }
     } catch (error) {
-      console.log('ℹ️ [OfflineManager] Service worker background sync not available');
+      console.error('ℹ️ [OfflineManager] Service worker background sync not available');
     }
   }
 
@@ -184,7 +176,6 @@ class OfflineManager {
       this.cachedData[entityType] = data;
       this.cachedData.lastUpdate = Date.now();
       
-      console.log(`💾 [OfflineManager] Cached ${entityType}:`, Array.isArray(data) ? data.length + ' records' : 'object');
     } catch (error) {
       console.error('❌ [OfflineManager] Error caching data:', error);
     }
@@ -204,7 +195,6 @@ class OfflineManager {
       });
       
       this.cachedData.userSettings = settings;
-      console.log(`💾 [OfflineManager] Cached user settings for: ${userId} on device: ${deviceId}`);
     } catch (error) {
       console.error('❌ [OfflineManager] Error caching user settings:', error);
     }
@@ -287,7 +277,6 @@ class OfflineManager {
       const store = tx.objectStore('pending');
       await store.add(queuedAction);
       
-      console.log('📝 [OfflineManager] Queued action:', action.type, queuedAction.id);
     } catch (error) {
       console.error('❌ [OfflineManager] Error queuing action:', error);
     }
@@ -312,7 +301,6 @@ class OfflineManager {
     }
 
     this.isSyncing = true;
-    console.log('🔄 [OfflineManager] Syncing', this.pendingActions.length, 'pending actions...');
     
     const actionsToSync = [...this.pendingActions];
     const successfulSyncs = [];
@@ -328,13 +316,11 @@ class OfflineManager {
           const resolution = await this.resolveConflict(action, result.serverData);
           if (resolution.resolved) {
             successfulSyncs.push(action.id);
-            console.log('✅ [OfflineManager] Conflict resolved:', action.type);
           } else {
             conflicts.push({ action, serverData: result.serverData });
           }
         } else {
           successfulSyncs.push(action.id);
-          console.log('✅ [OfflineManager] Synced:', action.type);
         }
         
         // Reset retry count on success
@@ -379,7 +365,6 @@ class OfflineManager {
     if (this.pendingActions.length > 0 && this.syncRetryCount < this.maxRetries) {
       this.syncRetryCount++;
       const delay = this.calculateBackoffDelay();
-      console.log(`⏳ [OfflineManager] Scheduling retry in ${delay}ms (attempt ${this.syncRetryCount}/${this.maxRetries})`);
       setTimeout(() => this.syncPendingActions(), delay);
     } else if (this.pendingActions.length === 0) {
       this.syncRetryCount = 0; // Reset on complete success
@@ -446,7 +431,6 @@ class OfflineManager {
       this.pendingActions = this.pendingActions.filter(a => a.id !== conflictId);
       await this.clearSyncedActions([conflictId]);
       
-      console.log(`✅ [OfflineManager] Conflict resolved manually: ${resolution} wins`);
       return true;
     } catch (error) {
       console.error('❌ [OfflineManager] Error resolving conflict:', error);
@@ -514,7 +498,6 @@ class OfflineManager {
         tx.onerror = () => reject(tx.error);
       });
       
-      console.log('✅ [OfflineManager] Cleared', actionIds.length, 'synced actions from queue');
     } catch (error) {
       console.error('❌ [OfflineManager] Error clearing synced actions:', error);
     }
@@ -584,7 +567,6 @@ class OfflineManager {
         
         pendingRequest.onsuccess = () => {
           this.pendingActions = pendingRequest.result || [];
-          console.log('📦 [OfflineManager] Loaded', this.pendingActions.length, 'pending actions');
           
           // Try to sync immediately if online
           if (this.isOnline && this.pendingActions.length > 0) {
@@ -627,7 +609,6 @@ class OfflineManager {
         lastUpdate: null
       };
       
-      console.log('🧹 [OfflineManager] Cache cleared');
     } catch (error) {
       console.error('❌ [OfflineManager] Error clearing cache:', error);
     }
@@ -672,7 +653,6 @@ class OfflineManager {
               _timestamp: entry.timestamp
             }));
           
-          console.log(`📦 [OfflineManager] Found ${userSettingsEntries.length} cached UserSettings entries`);
           resolve(userSettingsEntries);
         };
         request.onerror = () => reject(request.error);
@@ -692,7 +672,6 @@ class OfflineManager {
       
       await store.delete(cacheId);
       
-      console.log(`🗑️ [OfflineManager] Deleted cached UserSettings: ${cacheId}`);
       return true;
     } catch (error) {
       console.error('❌ [OfflineManager] Error deleting cached UserSettings:', error);
@@ -825,7 +804,6 @@ class OfflineManager {
         }
       }
 
-      console.log(`🔍 [OfflineManager] Instance detection complete: ${issues.length} potential issues found`);
       return { hasIssues: issues.length > 0, issues, stats };
     } catch (error) {
       console.error('❌ [OfflineManager] Error detecting duplicate instances:', error);
@@ -836,7 +814,6 @@ class OfflineManager {
   // Merge duplicate UserSettings entries for the same user
   async mergeDuplicateUserSettings(userId) {
     try {
-      console.log(`🔄 [OfflineManager] Merging duplicate UserSettings for user: ${userId}`);
       
       const db = await this.openDB();
       let tx = db.transaction('cache', 'readonly');
@@ -857,7 +834,6 @@ class OfflineManager {
         );
 
       if (userSettingsEntries.length <= 1) {
-        console.log('✅ [OfflineManager] No duplicates found for user');
         return { merged: false, kept: userSettingsEntries[0]?.id };
       }
 
@@ -888,10 +864,8 @@ class OfflineManager {
       
       for (let i = 1; i < userSettingsEntries.length; i++) {
         await deleteStore.delete(userSettingsEntries[i].id);
-        console.log(`   🗑️ Deleted duplicate: ${userSettingsEntries[i].id}`);
       }
 
-      console.log(`✅ [OfflineManager] Merged ${userSettingsEntries.length} entries into 1 for user ${userId}`);
       return { 
         merged: true, 
         kept: newestEntry.id, 
@@ -906,7 +880,6 @@ class OfflineManager {
   // Clean up all duplicate UserSettings across all users
   async cleanupAllDuplicateUserSettings() {
     try {
-      console.log('🧹 [OfflineManager] Starting cleanup of all duplicate UserSettings...');
       
       const stats = await this.getDataStatistics();
       const userIds = [...new Set(
@@ -921,7 +894,6 @@ class OfflineManager {
         }
       }
 
-      console.log(`✅ [OfflineManager] Cleanup complete: ${results.length} users had duplicates merged`);
       return { success: true, mergedUsers: results };
     } catch (error) {
       console.error('❌ [OfflineManager] Error during cleanup:', error);
@@ -1018,7 +990,6 @@ class OfflineManager {
       this.pendingActions = [];
       this.pendingConflicts = [];
       
-      console.log('✅ [OfflineManager] All offline data cleared');
       return { success: true };
     } catch (error) {
       console.error('❌ [OfflineManager] Error clearing all data:', error);
