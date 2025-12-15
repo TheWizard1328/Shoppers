@@ -310,39 +310,16 @@ Deno.serve(async (req) => {
       // Calculate remaining stops count for end-of-route optimization
       const totalRemainingStops = unvisitedPickups.size + unvisitedISP.size;
 
-      // Consider all unvisited pickups
+      // Consider all unvisited pickups - PRIORITY: Shortest distance
       for (const idx of unvisitedPickups) {
         const travelTime = Math.ceil(crowFliesMatrix[currentPos][idx].duration / 60);
-        let score = travelTime;
+        let score = travelTime; // Base score is pure travel time/distance
         
-        // LOOK-AHEAD: Consider distance to driver's home throughout (expanded threshold)
-        if (driverHomeLocation && totalRemainingStops <= 7) {
-          const distanceToHome = calculateCrowFliesDistance(
-            stops[idx].lat, 
-            stops[idx].lng, 
-            driverHomeLocation.lat, 
-            driverHomeLocation.lng
-          );
-          const timeToHome = (distanceToHome / 40) * 60; // Minutes
-          score += timeToHome * 1.5; // Increased weight: prefer stops closer to home as final stops
-        }
-        
-        // LOOK-AHEAD: Evaluate impact on remaining deliveries from this pickup (improved clustering)
-        if (totalRemainingStops > 0) {
-          const pickupStoreId = stops[idx].delivery.store_id;
-          const pickupDeliveries = deliveriesByPickup.get(pickupStoreId) || [];
-          const unvisitedDeliveries = pickupDeliveries.filter(d => !optimizedRoute.includes(d.idx));
-          
-          if (unvisitedDeliveries.length > 0) {
-            // Calculate average distance from this pickup to its deliveries
-            const avgDeliveryDistance = unvisitedDeliveries.reduce((sum, deliv) => {
-              const dist = calculateCrowFliesDistance(stops[idx].lat, stops[idx].lng, stops[deliv.idx].lat, stops[deliv.idx].lng);
-              return sum + dist;
-            }, 0) / unvisitedDeliveries.length;
-            
-            // Penalize pickups with deliveries far from the pickup location (inefficient clusters)
-            score += (avgDeliveryDistance / 40) * 60 * 1.0; // Increased weight for better local clustering
-          }
+        // Time window penalty (light) - only if we'd arrive VERY late
+        const stop = stops[idx];
+        const arrivalTime = cumulativeTime + travelTime;
+        if (stop.timeWindow && arrivalTime > stop.timeWindow.end + 60) {
+          score += (arrivalTime - stop.timeWindow.end - 60) * 0.2; // Very light penalty, only for extreme lateness
         }
         
         if (score < bestScore) {
@@ -352,35 +329,21 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Consider ISP deliveries (can go anywhere)
+      // Consider ISP deliveries (can go anywhere) - PRIORITY: Shortest distance
       for (const idx of unvisitedISP) {
         const stop = stops[idx];
         const travelTime = Math.ceil(crowFliesMatrix[currentPos][idx].duration / 60);
         const arrivalTime = cumulativeTime + travelTime;
         
-        let score = travelTime;
+        let score = travelTime; // Base score is pure travel time/distance
         
-        // RULE 1 & 4: Time window constraints - only for deliveries
-        if (stop.timeWindow && !stop.delivery.puid) {
+        // Time window penalty (moderate) - penalize arriving outside window
+        if (stop.timeWindow) {
           if (arrivalTime < stop.timeWindow.start) {
-            score += (stop.timeWindow.start - arrivalTime) * 0.3;
+            score += (stop.timeWindow.start - arrivalTime) * 0.1; // Light penalty for early arrival (wait time)
           } else if (arrivalTime > stop.timeWindow.end) {
-            score += (arrivalTime - stop.timeWindow.end) * 5;
-          } else {
-            score -= 10;
+            score += (arrivalTime - stop.timeWindow.end) * 0.5; // Moderate penalty for late arrival
           }
-        }
-        
-        // LOOK-AHEAD: Consider distance to driver's home throughout (expanded threshold)
-        if (driverHomeLocation && totalRemainingStops <= 7) {
-          const distanceToHome = calculateCrowFliesDistance(
-            stops[idx].lat, 
-            stops[idx].lng, 
-            driverHomeLocation.lat, 
-            driverHomeLocation.lng
-          );
-          const timeToHome = (distanceToHome / 40) * 60; // Minutes
-          score += timeToHome * 1.5; // Increased weight: prefer stops closer to home as final stops
         }
         
         if (score < bestScore) {
