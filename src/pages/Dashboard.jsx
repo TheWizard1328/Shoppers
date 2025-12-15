@@ -6101,6 +6101,7 @@ function Dashboard() {
           <DeliveryMap
             deliveries={deliveriesWithStopOrder}
             selectedDriverId={selectedDriverId}
+            selectedDate={format(selectedDate, 'yyyy-MM-dd')}
             patients={patients}
             stores={stores}
             users={drivers}

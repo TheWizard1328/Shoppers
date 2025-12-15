@@ -652,6 +652,7 @@ export default function DeliveryMap({
   deliveries = [],
   allDeliveriesForDate = [], // NEW PROP: All deliveries for the selected date, regardless of driver
   selectedDriverId = null, // NEW PROP: The ID of the currently selected driver for filtering
+  selectedDate = null, // NEW PROP: The selected date (yyyy-MM-dd)
   patients = [],
   stores = [],
   users = [], // This `users` prop is crucial, it contains merged AppUser data
@@ -738,13 +739,7 @@ export default function DeliveryMap({
     return uniqueDriverIds.size === 1;
   }, [safeDeliveries]);
 
-  // Get the selected date from deliveries
-  const selectedDate = useMemo(() => {
-    if (!safeDeliveries || safeDeliveries.length === 0) return null;
-    // Assuming all deliveries in 'deliveries' prop are for the same date.
-    // Or we can take the first one's date as a reference.
-    return safeDeliveries[0]?.delivery_date;
-  }, [safeDeliveries]);
+  // Use selectedDate from props (passed from Dashboard)
 
   // NEW: Check if the current user is a driver and viewing their own route for today
   const isDriverViewingSelfToday = useMemo(() => {
