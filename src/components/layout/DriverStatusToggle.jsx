@@ -53,24 +53,24 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
   }, [currentUser?.id]);
 
   // Sync status from currentUser prop and poll AppUser directly for real-time updates
-  // CRITICAL: Skip polling when isUpdating to prevent bouncing during status changes
+  // CRITICAL: Skip polling when isUpdating OR when pendingStatus is set
   useEffect(() => {
-    // Don't poll during updates - this was causing the bounce issue
-    if (isUpdating) {
-      console.log('⏸️ [DriverStatusToggle] Skipping sync - update in progress');
+    // Don't poll during updates or when a status change is pending
+    if (isUpdating || pendingStatus) {
+      console.log('⏸️ [DriverStatusToggle] Skipping sync - update in progress or pending');
       return;
     }
     
     const syncStatus = async () => {
-      // Double-check isUpdating hasn't changed
-      if (isUpdating || !currentUser?.id) return;
+      // Triple-check no update is happening
+      if (isUpdating || pendingStatus || !currentUser?.id) return;
       
       try {
         // Fetch fresh AppUser data directly
-        const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
+        const appUsers = await base64.entities.AppUser.filter({ user_id: currentUser.id });
         if (appUsers && appUsers.length > 0) {
           const freshStatus = appUsers[0].driver_status;
-          if (freshStatus && freshStatus !== status) {
+          if (freshStatus && freshStatus !== status && !pendingStatus) {
             console.log(`🔄 [DriverStatusToggle] Detected status change: ${status} → ${freshStatus}`);
             setStatus(freshStatus);
             // Update locationTracker's status if it changes externally
@@ -84,16 +84,31 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
     };
     
     syncStatus(); // Initial sync
-    const interval = setInterval(syncStatus, 3000); // Poll every 3 seconds
+    const interval = setInterval(syncStatus, 5000); // Poll every 5 seconds (less aggressive)
     
     return () => clearInterval(interval);
-  }, [currentUser?.id, status, isUpdating]);
+  }, [currentUser?.id, status, isUpdating, pendingStatus]);
 
   // Track pending status to prevent race conditions
   const [pendingStatus, setPendingStatus] = useState(null);
   
   const handleStatusChange = useCallback(async (newStatus) => {
-    if (isUpdating || newStatus === status || !appUserId) return;
+    // Don't allow changes while updating OR if already pending
+    if (isUpdating || pendingStatus) {
+      console.log('⏸️ [DriverStatusToggle] Change blocked - update in progress');
+      return;
+    }
+    
+    // Don't allow if clicking same status
+    if (newStatus === status) {
+      console.log('⏸️ [DriverStatusToggle] Already on status:', newStatus);
+      return;
+    }
+    
+    if (!appUserId) {
+      console.error('❌ [DriverStatusToggle] No AppUser ID available');
+      return;
+    }
     
     const today = format(new Date(), 'yyyy-MM-dd');
     const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
@@ -296,13 +311,13 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
     } finally {
       console.log('▶️ [DRIVER STATUS] Resuming smart refresh');
       
-      // CRITICAL: Add delay before clearing isUpdating to prevent sync from overwriting
+      // CRITICAL: Add delay before clearing flags to ensure status propagates
       setTimeout(() => {
-        setIsUpdating(false);
         setPendingStatus(null);
+        setIsUpdating(false);
         setIsEntityUpdating(false);
         console.log('✅ [DRIVER STATUS] Driver status change cycle complete');
-      }, 500);
+      }, 1000);
     }
   }, [status, isUpdating, appUserId, currentUser, onStatusChange, setIsEntityUpdating]);
 
