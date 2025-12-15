@@ -154,11 +154,13 @@ class LocationTracker {
     
     // Check if driver is on duty - if not, don't update
     if (!this.shouldTrack()) {
+      console.log('⏸️ [LocationTracker] Skipping update - driver not on duty');
       return;
     }
     
     // Check if we're in backoff period
     if (this.backoffTime > 0 && (now - this.lastUpdate) < this.backoffTime) {
+      console.log('⏸️ [LocationTracker] Skipping update - in backoff period');
       return;
     }
 
@@ -182,9 +184,16 @@ class LocationTracker {
       // Update coordinates if: significant movement OR 5 minutes since last coordinate update
       const timeSinceCoordinateUpdate = now - this.lastCoordinateUpdate;
       shouldUpdateCoordinates = distance >= this.minDistanceChange || timeSinceCoordinateUpdate >= this.coordinateUpdateInterval;
+      
+      if (shouldUpdateCoordinates) {
+        console.log(`📍 [LocationTracker] Updating coordinates - moved ${distance.toFixed(0)}m or ${Math.floor(timeSinceCoordinateUpdate/1000)}s since last coordinate update`);
+      } else {
+        console.log(`⏱️ [LocationTracker] Heartbeat only - moved ${distance.toFixed(0)}m (threshold: ${this.minDistanceChange}m)`);
+      }
     } else {
       // First update - always update coordinates
       shouldUpdateCoordinates = true;
+      console.log('🚀 [LocationTracker] First location update');
     }
 
     try {
@@ -221,6 +230,8 @@ class LocationTracker {
       
       this.failedUpdateCount = 0;
       this.backoffTime = 0; // Reset backoff on success
+      
+      console.log(`✅ [LocationTracker] Location updated - Coords: ${shouldUpdateCoordinates ? 'YES' : 'NO (heartbeat only)'}, Accuracy: ${accuracy?.toFixed(0)}m`);
 
       window.dispatchEvent(new CustomEvent('driverLocationUpdated', {
         detail: {
