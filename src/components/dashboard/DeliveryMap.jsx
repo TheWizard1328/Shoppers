@@ -2012,7 +2012,7 @@ export default function DeliveryMap({
         }
 
         {/* NEW: Current-to-Next-Stop Google Polyline - BLUE DASHED - HIGHEST Z-INDEX - CURRENT DATE ONLY */}
-        {isViewingCurrentDate && currentToNextPolyline && currentToNextPolyline.length > 1 &&
+        {isViewingCurrentDate && currentToNextPolyline && Array.isArray(currentToNextPolyline) && currentToNextPolyline.length > 1 &&
           <Polyline
             positions={currentToNextPolyline.map(coord => [coord.lat, coord.lng])}
             pathOptions={{
