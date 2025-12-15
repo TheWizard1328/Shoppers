@@ -1724,34 +1724,60 @@ function Dashboard() {
         }
         
         // 5. CRITICAL: Include other drivers' markers when viewing self today (faded markers)
-        // Use raw deliveries from context, not deliveriesWithStopOrder (which is filtered)
+        // These are fetched by DeliveryMap and shown as faded markers - we must include them
         if (isDriverViewingSelfToday) {
-          console.log('📍 [FAB Click] Checking for other drivers deliveries to include...');
+          console.log('📍 [FAB Click] isDriverViewingSelfToday = TRUE, looking for other drivers...');
+          console.log('📍 [FAB Click] Total deliveries in context:', deliveries?.length || 0);
           let otherDriverCount = 0;
           
-          deliveries.forEach((delivery) => {
-            if (!delivery) return;
-            if (delivery.delivery_date !== selectedDateStr) return;
-            if (delivery.driver_id === currentUser?.id) return; // Skip own deliveries (already included)
-            
-            if (delivery.patient_id) {
-              const patient = patients.find((p) => p && p.id === delivery.patient_id);
-              if (patient?.latitude && patient?.longitude) {
-                allCoordinates.push([patient.latitude, patient.longitude]);
-                hasStopMarkers = true;
-                otherDriverCount++;
+          // Use deliveries from AppDataContext (contains ALL deliveries for the date)
+          if (deliveries && Array.isArray(deliveries)) {
+            deliveries.forEach((delivery) => {
+              if (!delivery) return;
+              
+              // CRITICAL: Only include deliveries for the selected date
+              if (delivery.delivery_date !== selectedDateStr) {
+                return;
               }
-            } else if (delivery.store_id) {
-              const store = stores.find((s) => s && s.id === delivery.store_id);
-              if (store?.latitude && store?.longitude) {
-                allCoordinates.push([store.latitude, store.longitude]);
-                hasStopMarkers = true;
-                otherDriverCount++;
+              
+              // Skip own deliveries (already included in deliveriesWithStopOrder)
+              if (delivery.driver_id === currentUser?.id) {
+                return;
               }
-            }
-          });
+              
+              // CRITICAL: Skip if no driver assigned
+              if (!delivery.driver_id) return;
+              
+              console.log(`📍 [FAB Click] Found other driver delivery:`, {
+                id: delivery.id,
+                driver_id: delivery.driver_id,
+                patient_id: delivery.patient_id,
+                store_id: delivery.store_id
+              });
+              
+              if (delivery.patient_id) {
+                const patient = patients.find((p) => p && p.id === delivery.patient_id);
+                if (patient?.latitude && patient?.longitude) {
+                  allCoordinates.push([patient.latitude, patient.longitude]);
+                  hasStopMarkers = true;
+                  otherDriverCount++;
+                  console.log('  ✅ Added patient delivery marker');
+                }
+              } else if (delivery.store_id) {
+                const store = stores.find((s) => s && s.id === delivery.store_id);
+                if (store?.latitude && store?.longitude) {
+                  allCoordinates.push([store.latitude, store.longitude]);
+                  hasStopMarkers = true;
+                  otherDriverCount++;
+                  console.log('  ✅ Added pickup marker');
+                }
+              }
+            });
+          }
           
-          console.log(`📍 [FAB Click] Included ${otherDriverCount} other driver markers`);
+          console.log(`📍 [FAB Click] Total other driver markers included: ${otherDriverCount}`);
+        } else {
+          console.log('📍 [FAB Click] isDriverViewingSelfToday = FALSE, skipping other drivers');
         }
 
         // Get current city center
