@@ -1630,10 +1630,22 @@ export default function DeliveryForm({
     setIsLoadingPredictions(true);
     setProjectedDeliveries([]);
 
-    if (stagedDeliveries.length === 0) {
+    if (stagedDeliveries.length === 0 && !hasPendingDeletes) {
       console.warn('[AddToRoute] ⚠️ No staged deliveries to save');
       hasLoadedPending.current = false; // Reset flag when closing without saves
       setIsLoadingPredictions(false); // Resume predictions
+      return;
+    }
+    
+    // CRITICAL: If only pending deletes (no staged items), close form
+    if (stagedDeliveries.length === 0 && hasPendingDeletes) {
+      console.log('[AddToRoute] ✅ All deletions synced, closing form...');
+      setStagedDeliveries([]);
+      setProjectedDeliveries([]);
+      setHasPendingDeletes(false);
+      setHasChanges(false);
+      hasLoadedPending.current = false;
+      onCancel();
       return;
     }
 
