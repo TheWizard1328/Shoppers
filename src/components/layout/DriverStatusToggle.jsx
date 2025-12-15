@@ -19,6 +19,7 @@ import { loadUserSettings, getSetting } from "../utils/userSettingsManager";
 export default function DriverStatusToggle({ currentUser, onStatusChange, onBreakStart, onBreakEnd }) {
   const [status, setStatus] = useState(currentUser?.driver_status || 'off_duty');
   const [isUpdating, setIsUpdating] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState(null);
   const [appUserId, setAppUserId] = useState(null);
   const [savedPhaseBeforeBreak, setSavedPhaseBeforeBreak] = useState(null);
   const appDataContext = useAppData();
@@ -89,9 +90,6 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
     return () => clearInterval(interval);
   }, [currentUser?.id, status, isUpdating, pendingStatus]);
 
-  // Track pending status to prevent race conditions
-  const [pendingStatus, setPendingStatus] = useState(null);
-  
   const handleStatusChange = useCallback(async (newStatus) => {
     // Don't allow changes while updating OR if already pending
     if (isUpdating || pendingStatus) {
