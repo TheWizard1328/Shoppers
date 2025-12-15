@@ -206,7 +206,7 @@ const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
 // Helper for checking if user is an app owner (platform admin role)
 // MODIFIED: Create icons with zoom-aware sizing - REMOVED duplicateCount badge
-const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, number = null, zoomLevel = 12, duplicateCount = 0, isMobile = false, isHighlighted = false, isNextDelivery = false, hasIncompleteStops = true) => {
+const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, number = null, zoomLevel = 12, duplicateCount = 0, isMobile = false, isHighlighted = false, isNextDelivery = false, hasIncompleteStops = true, isOtherDriver = false) => {
   // CRITICAL: Failed/cancelled/completed takes precedence over next delivery blue
   const isFinished = FINISHED_STATUSES.includes(status);
   const shouldShowNextBlue = isNextDelivery && !isFinished && hasIncompleteStops;
@@ -313,7 +313,7 @@ const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, numbe
 };
 
 // Helper function to create delivery pin markers with circle/square based on PM status
-const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, number = null, isFirstTime = false, duplicateCount = 0, zoomLevel = 12, isMobile = false, isNextInLine = false, isHighlighted = false, hasIncompleteStops = true, isPM = false) => {
+const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, number = null, isFirstTime = false, duplicateCount = 0, zoomLevel = 12, isMobile = false, isNextInLine = false, isHighlighted = false, hasIncompleteStops = true, isPM = false, isOtherDriver = false) => {
   // CRITICAL: Failed/cancelled/completed takes precedence over next delivery blue
   const isFinished = FINISHED_STATUSES.includes(status);
   const shouldShowNextBlue = isNextInLine && !isFinished && hasIncompleteStops;
