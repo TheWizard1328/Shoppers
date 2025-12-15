@@ -1631,7 +1631,7 @@ function Dashboard() {
         const isViewingToday = todayStr === selectedDateStr;
 
         // NEW: Check if driver markers will actually be visible BEFORE including them
-        let willShowBlueDoc = false;
+        let willShowBlueDot = false;
         let willShowSharedLocations = false;
 
         // BLUE DOT: Check if it will be visible (mobile only, today only, driver with location)
