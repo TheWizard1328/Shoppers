@@ -1931,14 +1931,76 @@ export default function StopCard({
                       console.log('✅ [START] Smart refresh paused');
 
                       try {
-                        // CRITICAL: Force refresh driver deliveries before starting
-                        console.log('🔄 [START] Force refreshing driver deliveries...');
+                        // Step 1 already done above
+                        
+                        // Step 3: Clear all isNextDelivery and set selected stop to true
+                        console.log('🟢 [START] Step 3: Setting isNextDelivery...');
+                        const driverDeliveries = allDeliveries.filter(d => 
+                          d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+                        );
+                        
+                        for (const d of driverDeliveries) {
+                          if (d.id !== delivery.id && d.isNextDelivery) {
+                            await updateDeliveryLocal(d.id, { isNextDelivery: false });
+                          }
+                        }
+                        await updateDeliveryLocal(delivery.id, { isNextDelivery: true });
+                        console.log('  ✅ isNextDelivery flags updated');
+
+                        // Step 4: Set stop order to total finished stops + 1
+                        console.log('🟢 [START] Step 4: Setting stop order...');
+                        const finishedStops = driverDeliveries.filter(d => 
+                          FINISHED_STATUSES.includes(d.status)
+                        ).length;
+                        const newStopOrder = finishedStops + 1;
+                        await updateDeliveryLocal(delivery.id, { stop_order: newStopOrder });
+                        console.log(`  ✅ Stop order set to ${newStopOrder}`);
+
+                        // Step 5: Resort stops (Finished, Selected, Incomplete)
+                        console.log('🟢 [START] Step 5: Resorting stops...');
+                        const incomplete = driverDeliveries.filter(d => 
+                          d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status)
+                        );
+                        
+                        for (let i = 0; i < incomplete.length; i++) {
+                          await updateDeliveryLocal(incomplete[i].id, { 
+                            stop_order: newStopOrder + i + 1 
+                          });
+                        }
+                        console.log('  ✅ Stops resorted');
+
+                        // Step 6: Run Route Optimizer (without reordering)
+                        console.log('🟢 [START] Step 6: Running route optimizer...');
+                        try {
+                          await base44.functions.invoke('optimizeRouteRealTime', {
+                            driverId: delivery.driver_id,
+                            deliveryDate: delivery.delivery_date,
+                            generatePolyline: true,
+                            preserveOrder: true
+                          });
+                          console.log('  ✅ Route optimized');
+                        } catch (optimizeError) {
+                          console.warn('⚠️ Route optimizer failed:', optimizeError);
+                        }
+
+                        // Step 7: Run ETA updater
+                        console.log('🟢 [START] Step 7: Updating ETAs...');
+                        await base44.functions.invoke('etaOptimizer', {
+                          driverId: delivery.driver_id,
+                          deliveryDate: delivery.delivery_date,
+                          triggerFullRecalculation: true,
+                          deviceTime: new Date().toISOString()
+                        });
+                        console.log('  ✅ ETAs updated');
+
+                        // Step 8-9: Update UI and sync DBs
+                        console.log('🟢 [START] Step 8-9: Refreshing data...');
                         await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                        console.log('✅ [START] Fresh data loaded');
+                        console.log('  ✅ UI and DBs synced');
 
                         await ensureDriverOnline();
 
-                        // Send notification to dispatchers BEFORE updating the delivery
+                        // Send notification
                         if (userHasRole(currentUser, 'driver')) {
                           await notifyDriverStarted({
                             driver: currentUser,
@@ -1949,23 +2011,25 @@ export default function StopCard({
                           });
                         }
 
-                        // CRITICAL: Call onStartDelivery and WAIT for it to complete
-                        // This ensures the backend optimizer runs and updates all ETAs
-                        await onStartDelivery(delivery.id);
-
-                        console.log('✅ [Start Button] onStartDelivery completed successfully');
+                        console.log('✅ [START] Complete');
                       } catch (error) {
-                        console.error('❌ [Start Button] Error:', error);
+                        console.error('❌ [START] Error:', error);
                         alert('Failed to start delivery. Please try again.');
                       } finally {
-                        setIsStarting(false);
-                        console.log('▶️ [START] Resuming smart refresh');
+                        // Step 10: Reset and resume smart refresh
+                        console.log('🟢 [START] Step 10: Resetting smart refresh...');
+                        smartRefreshManager.lastRefreshTimes = {
+                          driverLocation: 0,
+                          activeDeliveries: 0,
+                          todayDeliveries: 0,
+                          appUsers: 0,
+                          patients: 0,
+                          stores: 0
+                        };
                         setIsEntityUpdating(false);
-                        await new Promise((resolve) => setTimeout(resolve, 100));
-                        console.log('✅ [START] Start cycle complete');
-
-                        // CRITICAL: Reactivate FAB after action
+                        setIsStarting(false);
                         fabControlEvents.reactivateFAB();
+                        console.log('  ✅ Smart refresh resumed');
                       }
                     }} size="sm" disabled={isStarting} className="bg-blue-600 px-3 text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-8 border-r border-blue-500 !text-white">
                               {isStarting ? <Loader2 className="w-3 h-3 mr-1 !text-white animate-spin" /> : <Clock className="w-3 h-3 mr-1 !text-white" />}
