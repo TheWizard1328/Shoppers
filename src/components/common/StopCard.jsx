@@ -1890,16 +1890,31 @@ export default function StopCard({
                         }
                         console.log('  ✅ Stops resorted');
 
-                        // Step 6: Run Route Optimizer (with current local time)
+                        // Step 6: Run Route Optimizer (with current local time and this stop's location)
                         console.log('🟢 [START] Step 6: Running route optimizer...');
                         try {
                           const now = new Date();
                           const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
                           
+                          // Use this stop's location as starting point
+                          let startLat, startLng;
+                          if (delivery.puid) {
+                            // Pickup - use store location
+                            const store = allStores.find(s => s.id === delivery.store_id);
+                            startLat = store?.latitude;
+                            startLng = store?.longitude;
+                          } else {
+                            // Delivery - use patient location
+                            const patient = allPatients.find(p => p.id === delivery.patient_id);
+                            startLat = patient?.latitude;
+                            startLng = patient?.longitude;
+                          }
+                          
                           await base44.functions.invoke('optimizeRouteRealTime', {
                             driverId: delivery.driver_id,
                             deliveryDate: delivery.delivery_date,
-                            currentLocalTime: currentLocalTime
+                            currentLocalTime: currentLocalTime,
+                            startLocation: startLat && startLng ? { lat: startLat, lng: startLng } : null
                           });
                           console.log('  ✅ Route optimized');
                         } catch (optimizeError) {

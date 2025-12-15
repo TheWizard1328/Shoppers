@@ -26,8 +26,8 @@ Deno.serve(async (req) => {
     console.log('✅ [optimizeRouteRealTime] User authenticated:', user.email);
 
     console.log('📦 [optimizeRouteRealTime] Parsing request body...');
-    const { driverId, deliveryDate, currentLocalTime } = await req.json();
-    console.log('📦 [optimizeRouteRealTime] Request params:', { driverId, deliveryDate, currentLocalTime });
+    const { driverId, deliveryDate, currentLocalTime, startLocation } = await req.json();
+    console.log('📦 [optimizeRouteRealTime] Request params:', { driverId, deliveryDate, currentLocalTime, startLocation });
 
     if (!driverId || !deliveryDate) {
       console.error('❌ [optimizeRouteRealTime] Missing parameters:', { driverId, deliveryDate });
@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
 
     console.log(`🔄 [optimizeRouteRealTime] Optimizing route for driver ${driverId} on ${deliveryDate}`);
 
-    console.log('📍 [optimizeRouteRealTime] Fetching driver location...');
+    console.log('📍 [optimizeRouteRealTime] Determining starting location...');
     const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
     const driverAppUser = appUsers?.[0];
     console.log('📍 [optimizeRouteRealTime] AppUser found:', !!driverAppUser);
@@ -64,25 +64,33 @@ Deno.serve(async (req) => {
       }, { status: 404 });
     }
     
-    // Use current GPS location if available, otherwise fall back to home location
+    // Priority: 1) Provided start location (from Start button), 2) GPS location, 3) Home location
     let driverLocation;
-    let usingHomeLocation = false;
+    let locationSource;
     
-    if (driverAppUser.current_latitude && driverAppUser.current_longitude) {
+    if (startLocation?.lat && startLocation?.lng) {
+      driverLocation = {
+        lat: startLocation.lat,
+        lng: startLocation.lng
+      };
+      locationSource = 'start_button';
+      console.log('📍 [optimizeRouteRealTime] Using Start button location:', driverLocation);
+    } else if (driverAppUser.current_latitude && driverAppUser.current_longitude) {
       driverLocation = {
         lat: driverAppUser.current_latitude,
         lng: driverAppUser.current_longitude
       };
-      console.log('✅ [optimizeRouteRealTime] Using current GPS location:', driverLocation);
+      locationSource = 'gps';
+      console.log('📍 [optimizeRouteRealTime] Using current GPS location:', driverLocation);
     } else if (driverAppUser.home_latitude && driverAppUser.home_longitude) {
       driverLocation = {
         lat: driverAppUser.home_latitude,
         lng: driverAppUser.home_longitude
       };
-      usingHomeLocation = true;
+      locationSource = 'home';
       console.log('🏠 [optimizeRouteRealTime] Using home location as fallback:', driverLocation);
     } else {
-      console.error('❌ [optimizeRouteRealTime] No location available (neither GPS nor home)');
+      console.error('❌ [optimizeRouteRealTime] No location available');
       return Response.json({ 
         error: 'Driver location not available - no GPS or home location set'
       }, { status: 404 });
@@ -368,7 +376,7 @@ Deno.serve(async (req) => {
       durationUpdates: updates,
       totalStops: stops.length,
       apiCallsMade: 1,
-      usingHomeLocation
+      locationSource
     });
 
   } catch (error) {
