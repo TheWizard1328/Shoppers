@@ -1,3 +1,4 @@
+
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, Circle } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -34,13 +35,25 @@ const DRIVER_COLORS = [
   '#001F3F'  // Navy Blue (Index 6)
 ];
 
+// NEW: Zoom level thresholds for dynamic display
+const ZOOM_LEVELS = {
+  HIDE_ROUTES: 10, // Below this, hide routes completely
+  SIMPLIFY_ROUTES: 12, // Below this, simplify route lines
+  HIDE_NUMBERS: 11, // Below this, hide stop numbers
+  HIDE_CIRCLES: 11, // Below this, hide pickup circles
+  FULL_DETAIL: 13 // At or above this, show full detail
+};
+
+// Shared finished statuses array
+const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
+
 // NEW: Simple circle marker for dispatcher view (other stores)
 // CRITICAL: Memoized icon cache to prevent re-creation on every render
 const simpleCircleIconCache = new Map();
 
-const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, borderColor = 'white') => {
+const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, borderColor = 'white', isOtherDriver = false) => {
   // Create cache key based on all parameters that affect the icon
-  const cacheKey = `${status}_${number}_${zoomLevel}_${isMobile}_${borderColor}`;
+  const cacheKey = `${status}_${number}_${zoomLevel}_${isMobile}_${borderColor}_${isOtherDriver}`;
   
   // Return cached icon if it exists
   if (simpleCircleIconCache.has(cacheKey)) {
@@ -75,6 +88,11 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
     baseSize *= 0.75;
   }
   
+  // NEW: Reduce size further for other drivers' faded markers
+  if (isOtherDriver) {
+    baseSize *= 0.75;
+  }
+  
   if (isMobile) {
     baseSize *= 1.25;
   }
@@ -98,6 +116,7 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
         color: white;
         box-shadow: 0 2px 5px rgba(0,0,0,0.3);
         border: 2px solid ${statusColor};
+        opacity: ${isOtherDriver ? 0.75 : 1};
       ">
         ${number || ''}
       </div>
@@ -192,19 +211,6 @@ const getContrastColor = (backgroundColor) => {
   return luminance > 0.5 ? '#000000' : '#FFFFFF';
 };
 
-// NEW: Zoom level thresholds for dynamic display
-const ZOOM_LEVELS = {
-  HIDE_ROUTES: 10, // Below this, hide routes completely
-  SIMPLIFY_ROUTES: 12, // Below this, simplify route lines
-  HIDE_NUMBERS: 11, // Below this, hide stop numbers
-  HIDE_CIRCLES: 11, // Below this, hide pickup circles
-  FULL_DETAIL: 13 // At or above this, show full detail
-};
-
-// Shared finished statuses array
-const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
-
-// Helper for checking if user is an app owner (platform admin role)
 // MODIFIED: Create icons with zoom-aware sizing - REMOVED duplicateCount badge
 const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, number = null, zoomLevel = 12, duplicateCount = 0, isMobile = false, isHighlighted = false, isNextDelivery = false, hasIncompleteStops = true, isOtherDriver = false) => {
   // CRITICAL: Failed/cancelled/completed takes precedence over next delivery blue
@@ -228,6 +234,11 @@ const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, numbe
     baseSize *= 0.75;
   }
   
+  // NEW: Reduce size further for other drivers' faded markers
+  if (isOtherDriver) {
+    baseSize *= 0.75;
+  }
+
   // Increase size for mobile devices
   if (isMobile) {
     baseSize *= 1.25;
@@ -245,6 +256,7 @@ const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, numbe
         height: ${size * 1.4}px;
         position: relative;
         cursor: pointer;
+        opacity: ${isOtherDriver ? 0.75 : 1};
       ">
         <svg width="${size}" height="${size * 1.4}" viewBox="0 0 24 34" xmlns="http://www.w3.org/2000/svg">
           <!-- Pin shape - rounder, more compact -->
@@ -335,6 +347,11 @@ const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, nu
   if (status === 'pending') {
     baseSize *= 0.75;
   }
+
+  // NEW: Reduce size further for other drivers' faded markers
+  if (isOtherDriver) {
+    baseSize *= 0.75;
+  }
   
   // Increase size for mobile devices
   if (isMobile) {
@@ -353,6 +370,7 @@ const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, nu
         height: ${size * 1.4}px;
         position: relative;
         cursor: pointer;
+        opacity: ${isOtherDriver ? 0.75 : 1};
       ">
         <svg width="${size}" height="${size * 1.4}" viewBox="0 0 24 34" xmlns="http://www.w3.org/2000/svg">
           <!-- Pin shape with STORE COLOR - rounder, more compact -->
@@ -633,6 +651,8 @@ const createHomeIcon = (color = '#10B981') => {
 
 export default function DeliveryMap({
   deliveries = [],
+  allDeliveriesForDate = [], // NEW PROP: All deliveries for the selected date, regardless of driver
+  selectedDriverId = null, // NEW PROP: The ID of the currently selected driver for filtering
   patients = [],
   stores = [],
   users = [], // This `users` prop is crucial, it contains merged AppUser data
@@ -704,11 +724,9 @@ export default function DeliveryMap({
   const [visibleBounds, setVisibleBounds] = useState(null);
   
 
-
-  // REMOVED: useEffect for window resize listener for isMobile, as useMemo handles it once.
-
   // Add safety checks for required props
   const safeDeliveries = Array.isArray(deliveries) ? deliveries : [];
+  const safeAllDeliveriesForDate = Array.isArray(allDeliveriesForDate) ? allDeliveriesForDate : []; // NEW
   const safePatients = Array.isArray(patients) ? patients : [];
   const safeStores = Array.isArray(stores) ? stores : [];
   const safeUsers = Array.isArray(users) ? users : [];
@@ -729,12 +747,33 @@ export default function DeliveryMap({
     return safeDeliveries[0]?.delivery_date;
   }, [safeDeliveries]);
 
+  // NEW: Check if the current user is a driver and viewing their own route for today
+  const isDriverViewingSelfToday = useMemo(() => {
+    if (!currentUser || !userHasRole(currentUser, 'driver')) return false;
+    if (!selectedDriverId || selectedDriverId === 'all') return false; // If 'all' is selected, they are not viewing their own specific route
+    if (selectedDriverId !== currentUser.id) return false; // Not viewing their own route
+    const today = format(new Date(), 'yyyy-MM-dd');
+    return selectedDate === today;
+  }, [currentUser, selectedDriverId, selectedDate]);
+
   // Separate pickups from patient deliveries
   const { pickups, patientDeliveries } = useMemo(() => {
-  const pickups = safeDeliveries.filter((d) => d && !d.patient_id && d.store_id);
-  const patientDeliveries = safeDeliveries.filter((d) => d && d.patient_id);
+  let deliveriesToShow = safeDeliveries;
+  
+  // NEW: If driver is viewing self for today, and we have allDeliveriesForDate,
+  // add other drivers' deliveries to the map data for display.
+  if (isDriverViewingSelfToday && safeAllDeliveriesForDate.length > 0) {
+    const otherDriversDeliveries = safeAllDeliveriesForDate.filter(d => 
+      d && d.driver_id && d.driver_id !== currentUser.id
+    );
+    console.log(`🗺️ Driver viewing self - adding ${otherDriversDeliveries.length} other driver deliveries (faded)`);
+    deliveriesToShow = [...safeDeliveries, ...otherDriversDeliveries];
+  }
+
+  const pickups = deliveriesToShow.filter((d) => d && !d.patient_id && d.store_id);
+  const patientDeliveries = deliveriesToShow.filter((d) => d && d.patient_id);
   return { pickups, patientDeliveries };
-  }, [safeDeliveries]);
+  }, [safeDeliveries, isDriverViewingSelfToday, safeAllDeliveriesForDate, currentUser]);
 
   // NEW: Fetch Google route polyline for display
   useEffect(() => {
@@ -831,6 +870,9 @@ export default function DeliveryMap({
 
       const hasNoPickup = delivery.patient_id && (!delivery.puid || delivery.puid.trim() === '');
 
+      // NEW: Determine if this marker belongs to another driver when viewing self
+      const isOtherDriver = isDriverViewingSelfToday && delivery.driver_id !== currentUser?.id;
+
       let pinColor;
       if (hasNoPickup) {
         pinColor = '#FBBF24';
@@ -852,7 +894,8 @@ export default function DeliveryMap({
         isFirstTime,
         isNextInLine,
         markerType: 'delivery',
-        useSimpleCircle
+        useSimpleCircle,
+        isOtherDriver // NEW
       };
     }).filter(Boolean);
 
@@ -872,6 +915,9 @@ export default function DeliveryMap({
       // Store pickups ALWAYS use store colors (both modes)
       const pinColor = getStoreColor(store);
 
+      // NEW: Determine if this marker belongs to another driver when viewing self
+      const isOtherDriver = isDriverViewingSelfToday && pickup.driver_id !== currentUser?.id;
+
       return {
         ...pickup,
         latitude: store.latitude,
@@ -881,7 +927,8 @@ export default function DeliveryMap({
         driver,
         number: pickup.display_stop_order || pickup.stop_order || 0,
         markerType: 'pickup',
-        useSimpleCircle
+        useSimpleCircle,
+        isOtherDriver // NEW
       };
     }).filter(Boolean);
     
@@ -953,7 +1000,7 @@ export default function DeliveryMap({
       groupedPickupMarkers: groupedPickups,
       hasIncompleteStops
     };
-  }, [patientDeliveries, pickups, safePatients, safeStores, safeUsers, isSingleDriverMode, currentUser, safeDeliveries]);
+  }, [patientDeliveries, pickups, safePatients, safeStores, safeUsers, isSingleDriverMode, currentUser, safeDeliveries, isDriverViewingSelfToday]);
 
   // NEW: Calculate fanned-out positions with corrected linear radius scaling
   const calculateFannedPosition = useCallback((originalLat, originalLng, markerIndex, totalMarkers, stopOrder) => {
@@ -1113,7 +1160,7 @@ export default function DeliveryMap({
     if (onMapInteraction) {
       onMapInteraction();
     }
-  }, [fannedLocationKey, onMarkerClick, currentZoom, map, groupedDeliveryMarkers, groupedPickupMarkers, calculateFannedPosition, onMapInteraction]);
+  }, [fannedLocationKey, onMarkerClick, currentZoom, map, groupedDeliveryMarkers, groupedPickupMarkers, calculateFannedPosition, onMapInteraction, stopCardsHeight]);
 
   // NEW: Auto-unfan when zooming below level 11
   useEffect(() => {
@@ -1370,8 +1417,8 @@ export default function DeliveryMap({
     // Sort stops by stop_order and create route lines
     const routes = Object.values(routesByDriver).map((route) => {
     // CRITICAL: Count ALL stops for this driver for legend (including those without coordinates)
-    const totalDriverStops = safeDeliveries.filter(d => d && d.driver_id === route.driverId).length;
-    
+    const totalDriverStops = safeAllDeliveriesForDate.filter(d => d && d.driver_id === route.driverId).length; // Using safeAllDeliveriesForDate here
+
     // Find ALL pickup locations for this driver
     const driverPickups = pickupMarkers.filter((p) => p.driver_id === route.driverId);
 
@@ -1580,7 +1627,7 @@ export default function DeliveryMap({
     console.log(`✅ Generated ${sortedRoutes.length} routes (including drivers without coordinates for legend)`);
 
     return sortedRoutes;
-  }, [deliveryMarkers, pickupMarkers, showRoutes, isSingleDriverMode, safeUsers, currentZoom, currentUser, currentDriverLocation, isViewingCurrentDate, safeDeliveries, safeStores]);
+  }, [deliveryMarkers, pickupMarkers, showRoutes, isSingleDriverMode, safeUsers, currentZoom, currentUser, currentDriverLocation, isViewingCurrentDate, safeDeliveries, safeAllDeliveriesForDate, safeStores]);
   
   // Pass driver routes to parent component
   useEffect(() => {
@@ -1609,9 +1656,6 @@ export default function DeliveryMap({
       setLegendLeft(statsCardCenterX);
     }
   }, [statsCardRect, driverRoutes.length, isStatsCardExpanded]);
-
-  // REMOVED: Auto-fit logic that was interfering with FAB-controlled map positioning
-  // The FAB (via Dashboard's shouldFitBounds prop) now controls ALL map positioning
 
   // Handle dynamic map center and zoom changes - ONLY when shouldFitBounds is explicitly set
   useEffect(() => {
@@ -1943,8 +1987,9 @@ export default function DeliveryMap({
         {/* Draw Routes - NOW WITH INTERACTIVE HIGHLIGHTING */}
         {showRoutes && driverRoutes.map((route, index) => {
           const isHighlighted = highlightedRouteId === route.driverId;
+          const isOtherDriverRoute = isDriverViewingSelfToday && route.driverId !== currentUser?.id; // NEW
           const routeWeight = isHighlighted ? route.routeWeight * 2 : route.routeWeight;
-          const routeOpacity = isHighlighted ? 1 : route.routeOpacity;
+          const routeOpacity = isOtherDriverRoute ? 0.75 : (isHighlighted ? 1 : route.routeOpacity); // NEW: Fade other driver routes
 
           return [
             // Origin to first stop line - HIDDEN if currentToNextPolyline exists or route is completed
@@ -1979,7 +2024,7 @@ export default function DeliveryMap({
                 color: route.color,
                 weight: routeWeight,
                 opacity: routeOpacity,
-                dashArray: route.hasPickup ? '10, 5' : '10, 10',
+                dashArray: isOtherDriverRoute ? '5, 5' : (route.hasPickup ? '10, 5' : '10, 10'), // NEW: Dashed for other drivers
                 lineJoin: 'round',
                 lineCap: 'round'
               }}
@@ -2225,7 +2270,7 @@ export default function DeliveryMap({
             <Marker
               key={`pickup-${pickup.id}`}
               position={markerPosition}
-              icon={pickup.useSimpleCircle ? createSimpleCircleIcon(pickup.status, pickup.status === 'pending' ? null : pickup.number, currentZoom, isMobile, pickup.pinColor) : createStoreIcon(
+              icon={pickup.useSimpleCircle ? createSimpleCircleIcon(pickup.status, pickup.status === 'pending' ? null : pickup.number, currentZoom, isMobile, pickup.pinColor, pickup.isOtherDriver) : createStoreIcon(
                 pickup.status, 
                 pickup.pinColor, 
                 isFanned, 
@@ -2235,11 +2280,21 @@ export default function DeliveryMap({
                 isMobile,
                 highlightedDeliveryId === pickup.id,
                 pickup.isNextDelivery,
-                hasIncompleteStops
+                hasIncompleteStops,
+                pickup.isOtherDriver // NEW
               )}
               zIndexOffset={dynamicZIndex}
-              draggable={!pickup.useSimpleCircle}
-              eventHandlers={pickup.useSimpleCircle ? {
+              draggable={!pickup.useSimpleCircle && !pickup.isOtherDriver} {/* NEW: Disable drag for other driver markers */}
+              eventHandlers={pickup.isOtherDriver ? { // NEW: Simplified interaction for other drivers' markers
+                click: (e) => {
+                  L.DomEvent.stopPropagation(e);
+                  e.target.openPopup();
+                  // Close popup after a short delay
+                  setTimeout(() => e.target.closePopup(), 3000);
+                },
+                mouseover: (e) => e.target.openPopup(),
+                mouseout: (e) => e.target.closePopup()
+              } : pickup.useSimpleCircle ? {
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
                 }
@@ -2270,13 +2325,28 @@ export default function DeliveryMap({
               }}>
 
               {/* Only show popup for non-clustered markers or expanded cluster markers - HIDE for simple circles */}
-              {!pickup.useSimpleCircle && (!isClustered || isFanned) && (
+              {!pickup.useSimpleCircle && (!isClustered || isFanned) && !pickup.isOtherDriver && ( // NEW: Don't show detailed popup for other drivers
                 <Popup
                   autoPan={false}
                   closeButton={false}
                   offset={[0, -20]}
                   className="custom-popup">
                   <DeliveryPopup delivery={pickup} isPickup={true} />
+                </Popup>
+              )}
+              {/* NEW: Simple popup for other drivers' deliveries */}
+              {pickup.isOtherDriver && (
+                <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
+                  <div className="min-w-[150px] space-y-1">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                      <Truck className="w-3.5 h-3.5" />
+                      {pickup.driver?.user_name || 'Unknown'}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-slate-600)' }}>
+                      <Home className="w-3.5 h-3.5" />
+                      {pickup.store?.name || 'Store'}
+                    </div>
+                  </div>
                 </Popup>
               )}
             </Marker>
@@ -2382,7 +2452,7 @@ export default function DeliveryMap({
             <Marker
               key={`delivery-${delivery.id}`}
               position={markerPosition}
-              icon={delivery.useSimpleCircle ? createSimpleCircleIcon(delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, isMobile, delivery.pinColor) : createDeliveryIcon(
+              icon={delivery.useSimpleCircle ? createSimpleCircleIcon(delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, isMobile, delivery.pinColor, delivery.isOtherDriver) : createDeliveryIcon(
                 delivery.status,
                 delivery.pinColor,
                 isFanned,
@@ -2394,11 +2464,21 @@ export default function DeliveryMap({
                 delivery.isNextInLine,
                 isHighlighted,
                 hasIncompleteStops,
-                delivery.ampm_deliveries === 'PM' // CRITICAL: Pass PM flag
+                delivery.ampm_deliveries === 'PM', // CRITICAL: Pass PM flag
+                delivery.isOtherDriver // NEW
               )}
               zIndexOffset={dynamicZIndex}
-              draggable={!delivery.useSimpleCircle}
-              eventHandlers={delivery.useSimpleCircle ? {
+              draggable={!delivery.useSimpleCircle && !delivery.isOtherDriver} {/* NEW: Disable drag for other driver markers */}
+              eventHandlers={delivery.isOtherDriver ? { // NEW: Simplified interaction for other drivers' markers
+                click: (e) => {
+                  L.DomEvent.stopPropagation(e);
+                  e.target.openPopup();
+                  // Close popup after a short delay
+                  setTimeout(() => e.target.closePopup(), 3000);
+                },
+                mouseover: (e) => e.target.openPopup(),
+                mouseout: (e) => e.target.closePopup()
+              } : delivery.useSimpleCircle ? {
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
                 }
@@ -2429,13 +2509,28 @@ export default function DeliveryMap({
               }}>
 
               {/* Only show popup for non-clustered markers or expanded cluster markers - HIDE for simple circles */}
-              {!delivery.useSimpleCircle && (!isClustered || isFanned) && (
+              {!delivery.useSimpleCircle && (!isClustered || isFanned) && !delivery.isOtherDriver && ( // NEW: Don't show detailed popup for other drivers
                 <Popup
                   autoPan={false}
                   closeButton={false}
                   offset={[0, -20]}
                   className="custom-popup">
                   <DeliveryPopup delivery={delivery} isPickup={false} />
+                </Popup>
+              )}
+              {/* NEW: Simple popup for other drivers' deliveries */}
+              {delivery.isOtherDriver && (
+                <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
+                  <div className="min-w-[150px] space-y-1">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                      <Truck className="w-3.5 h-3.5" />
+                      {delivery.driver?.user_name || 'Unknown'}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-slate-600)' }}>
+                      <Home className="w-3.5 h-3.5" />
+                      {delivery.patient?.full_name || 'Patient'}
+                    </div>
+                  </div>
                 </Popup>
               )}
             </Marker>
