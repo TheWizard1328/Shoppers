@@ -1458,88 +1458,96 @@ export default function StopCard({
 
                       onClick={async (e) => {
                         e.stopPropagation();
-                        console.log('🟢 [Assign All Button] Clicked - using local-first mutations');
-
-                        // Filter to ALL pending deliveries
-                        const allPendingDeliveries = pendingPickups.filter((p) => p.status === 'pending');
-                        console.log('  All pending deliveries:', allPendingDeliveries.length);
-
-                        // Sort by existing TR# to maintain order
-                        const sortedPending = [...allPendingDeliveries].sort((a, b) => {
-                          const trA = parseInt(a.tracking_number, 10) || 999;
-                          const trB = parseInt(b.tracking_number, 10) || 999;
-                          return trA - trB;
-                        });
-
-                        // CRITICAL: Get the pickup's current ETA as the base time
-                        const pickupETA = delivery.delivery_time_eta || delivery.delivery_time_start || delivery.time_window_start;
-                        console.log('  Pickup ETA:', pickupETA);
-
-                        // Helper to add minutes to time
-                        const addMinutesToTime = (timeStr, minutes) => {
-                          if (!timeStr) return null;
-                          const [hours, mins] = timeStr.split(':').map(Number);
-                          const totalMinutes = hours * 60 + mins + minutes;
-                          const newHours = Math.floor(totalMinutes / 60) % 24;
-                          const newMins = totalMinutes % 60;
-                          return `${String(newHours).padStart(2, '0')}:${String(newMins).padStart(2, '0')}`;
+                        console.log('🟢 [Assign All] Step 1: Running smart refresh...');
+                        
+                        // Step 1: Run smart refresh
+                        smartRefreshManager.lastRefreshTimes = {
+                          driverLocation: 0,
+                          activeDeliveries: 0,
+                          todayDeliveries: 0,
+                          appUsers: 0,
+                          patients: 0,
+                          stores: 0
                         };
+                        await new Promise(resolve => setTimeout(resolve, 200));
 
-                        // Update ALL pending deliveries to 'in_transit' status with optimized ETAs
-                        const extraTimeBuffer = 5; // 5 minutes buffer between stops
+                        // Step 2: Pause smart refresh
+                        console.log('🟢 [Assign All] Step 2: Pausing smart refresh...');
+                        setIsEntityUpdating(true);
+                        await new Promise(resolve => setTimeout(resolve, 100));
 
-                        for (let i = 0; i < sortedPending.length; i++) {
-                          const pendingDelivery = sortedPending[i];
-
-                          // Calculate ETA for this stop (pickup ETA + buffer for each stop)
-                          const minutesFromPickup = (i + 1) * extraTimeBuffer;
-                          const newETA = addMinutesToTime(pickupETA, minutesFromPickup);
-
-                          console.log(`  Accepting: ${pendingDelivery.patient_name} → in_transit, ETA: ${newETA} (local)`);
-
-                          // Update status with optimized ETA using local-first mutation
-                          await updateDeliveryLocal(pendingDelivery.id, {
-                            status: 'in_transit',
-                            delivery_time_eta: newETA
-                          });
-                        }
-
-                        console.log('✅ [Assign All Button] All pending deliveries accepted locally');
-
-                        // Trigger route optimization after accepting all stops
                         try {
-                          console.log('🔄 [Assign All] Triggering route optimization...');
+                          // Step 3: Change all pending stops to in_transit
+                          console.log('🟢 [Assign All] Step 3: Changing pending stops to in_transit...');
+                          const allPendingDeliveries = pendingPickups.filter((p) => p.status === 'pending');
+                          console.log(`  Found ${allPendingDeliveries.length} pending deliveries`);
+
+                          for (const pendingDelivery of allPendingDeliveries) {
+                            await updateDeliveryLocal(pendingDelivery.id, {
+                              status: 'in_transit'
+                            });
+                            console.log(`    ✅ ${pendingDelivery.patient_name} → in_transit`);
+                          }
+
+                          // Step 4: Run route optimizer
+                          console.log('🟢 [Assign All] Step 4: Running route optimizer...');
                           await base44.functions.invoke('optimizeDriverRoute', {
                             driverId: delivery.driver_id,
                             deliveryDate: delivery.delivery_date,
-                            generatePolyline: false
+                            generatePolyline: true
                           });
-                          console.log('✅ [Assign All] Route optimized');
-                        } catch (error) {
-                          console.warn('⚠️ [Assign All] Route optimization failed:', error);
-                        }
+                          console.log('  ✅ Route optimized');
 
-                        // Send notification message
-                        const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher');
-                        if (isDriverAction) {
-                          // Driver accepted all - notify dispatchers
-                          await notifyDriverAcceptedAll({
-                            driver: currentUser,
-                            store,
-                            appUsers
+                          // Step 5: Run ETA updater
+                          console.log('🟢 [Assign All] Step 5: Running ETA updater...');
+                          await base44.functions.invoke('etaOptimizer', {
+                            driverId: delivery.driver_id,
+                            deliveryDate: delivery.delivery_date,
+                            triggerFullRecalculation: true,
+                            deviceTime: new Date().toISOString()
                           });
-                        } else {
-                          // Dispatcher/Admin assigned all - notify driver
-                          const assignedDriver = drivers.find((d) => d?.id === delivery.driver_id);
-                          if (assignedDriver) {
-                            await notifyDispatcherAssignedAll({
-                              dispatcher: currentUser,
-                              driver: assignedDriver,
+                          console.log('  ✅ ETAs updated');
+
+                          // Step 6 & 7: Update UI and sync offline/online DBs
+                          console.log('🟢 [Assign All] Step 6-7: Force refreshing data...');
+                          await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                          console.log('  ✅ Data refreshed and synced');
+
+                          // Send notifications
+                          const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher');
+                          if (isDriverAction) {
+                            await notifyDriverAcceptedAll({
+                              driver: currentUser,
                               store,
-                              deliveries: sortedPending,
-                              patients
+                              appUsers
                             });
+                          } else {
+                            const assignedDriver = drivers.find((d) => d?.id === delivery.driver_id);
+                            if (assignedDriver) {
+                              await notifyDispatcherAssignedAll({
+                                dispatcher: currentUser,
+                                driver: assignedDriver,
+                                store,
+                                deliveries: allPendingDeliveries,
+                                patients
+                              });
+                            }
                           }
+
+                          console.log('✅ [Assign All] Complete');
+                        } finally {
+                          // Step 8: Reset and resume smart refresh
+                          console.log('🟢 [Assign All] Step 8: Resetting smart refresh...');
+                          smartRefreshManager.lastRefreshTimes = {
+                            driverLocation: 0,
+                            activeDeliveries: 0,
+                            todayDeliveries: 0,
+                            appUsers: 0,
+                            patients: 0,
+                            stores: 0
+                          };
+                          setIsEntityUpdating(false);
+                          console.log('  ✅ Smart refresh resumed');
                         }
                       }}>
                             {acceptButtonText}
