@@ -1489,24 +1489,26 @@ export default function StopCard({
                             console.log(`    ✅ ${pendingDelivery.patient_name} → in_transit`);
                           }
 
-                          // Step 4: Run route optimizer
-                          console.log('🟢 [Assign All] Step 4: Running route optimizer...');
-                          await base44.functions.invoke('optimizeDriverRoute', {
-                            driverId: delivery.driver_id,
-                            deliveryDate: delivery.delivery_date,
-                            generatePolyline: true
-                          });
-                          console.log('  ✅ Route optimized');
-
-                          // Step 5: Run ETA updater
-                          console.log('🟢 [Assign All] Step 5: Running ETA updater...');
-                          await base44.functions.invoke('etaOptimizer', {
-                            driverId: delivery.driver_id,
-                            deliveryDate: delivery.delivery_date,
-                            triggerFullRecalculation: true,
-                            deviceTime: new Date().toISOString()
-                          });
-                          console.log('  ✅ ETAs updated');
+                          // Step 4: Run route optimizer (handles both optimization and ETA calculation)
+                          console.log('🟢 [Assign All] Step 4-5: Running route optimizer with ETA updates...');
+                          try {
+                            await base44.functions.invoke('optimizeRouteRealTime', {
+                              driverId: delivery.driver_id,
+                              deliveryDate: delivery.delivery_date,
+                              generatePolyline: false
+                            });
+                            console.log('  ✅ Route optimized and ETAs updated');
+                          } catch (optimizeError) {
+                            console.warn('⚠️ Route optimizer failed, trying ETA updater only:', optimizeError);
+                            // Fallback to just ETA update
+                            await base44.functions.invoke('etaOptimizer', {
+                              driverId: delivery.driver_id,
+                              deliveryDate: delivery.delivery_date,
+                              triggerFullRecalculation: true,
+                              deviceTime: new Date().toISOString()
+                            });
+                            console.log('  ✅ ETAs updated (fallback)');
+                          }
 
                           // Step 6 & 7: Update UI and sync offline/online DBs
                           console.log('🟢 [Assign All] Step 6-7: Force refreshing data...');
