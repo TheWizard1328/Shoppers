@@ -375,7 +375,7 @@ const CollapsibleSidebarLink = ({ title, icon: Icon, children, open, onToggle, c
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, errorInfo: null };
   }
 
   static getDerivedStateFromError(error) {
@@ -386,6 +386,18 @@ class ErrorBoundary extends React.Component {
       console.warn('Leaflet error caught by ErrorBoundary, continuing normally');
       return { hasError: false };
     }
+    
+    // Cache error to localStorage for debugging (survives refresh)
+    try {
+      localStorage.setItem('rxdeliver_last_error', JSON.stringify({
+        message: error?.message || 'Unknown error',
+        stack: error?.stack || '',
+        timestamp: new Date().toISOString()
+      }));
+    } catch (e) {
+      // Ignore localStorage errors
+    }
+    
     return { hasError: true, error };
   }
 
@@ -397,6 +409,10 @@ class ErrorBoundary extends React.Component {
       console.warn('Leaflet error caught and neutralized by ErrorBoundary');
       return;
     }
+    
+    // Store errorInfo in state for display
+    this.setState({ errorInfo });
+    
     console.error('═══════════════════════════════════════════════════');
     console.error('❌ CRITICAL ERROR CAUGHT BY ERROR BOUNDARY');
     console.error('Error:', error);
@@ -404,29 +420,73 @@ class ErrorBoundary extends React.Component {
     console.error('Error stack:', error?.stack);
     console.error('Component stack:', errorInfo?.componentStack);
     console.error('═══════════════════════════════════════════════════');
-    
-    // Show error details in alert for debugging
-    alert(`Error: ${error?.message || 'Unknown error'}\n\nCheck console for details.`);
   }
 
   render() {
     if (this.state.hasError) {
+      // Get cached error from previous session if available
+      let cachedError = null;
+      try {
+        const cached = localStorage.getItem('rxdeliver_last_error');
+        if (cached) {
+          cachedError = JSON.parse(cached);
+        }
+      } catch (e) {
+        // Ignore
+      }
+      
+      const errorToShow = this.state.error || cachedError;
+      
       return (
-        <div className="h-screen flex items-center justify-center bg-slate-50">
-          <div className="text-center max-w-2xl mx-auto p-6">
+        <div className="h-screen flex items-center justify-center bg-slate-50 p-4">
+          <div className="text-center max-w-2xl mx-auto">
             <h1 className="text-xl font-semibold text-slate-900 mb-2">Something went wrong</h1>
-            <p className="text-slate-600 mb-4">Please refresh the page to continue.</p>
-            {this.state.error && (
-              <details className="text-left mb-4 p-4 bg-red-50 rounded-lg border border-red-200">
-                <summary className="cursor-pointer font-semibold text-red-900 mb-2">Error Details</summary>
-                <pre className="text-xs text-red-800 overflow-auto max-h-60">
-                  {this.state.error.message || 'Unknown error'}
-                  {'\n\n'}
-                  {this.state.error.stack || ''}
-                </pre>
-              </details>
+            <p className="text-slate-600 mb-4">An error occurred while loading the app.</p>
+            
+            {/* ALWAYS show error details - expanded by default */}
+            {errorToShow && (
+              <div className="text-left mb-4 p-4 bg-red-50 rounded-lg border-2 border-red-300">
+                <div className="font-bold text-red-900 mb-3 text-lg">Error Details:</div>
+                <div className="mb-2 p-2 bg-white rounded border border-red-200">
+                  <div className="font-semibold text-red-900 text-sm mb-1">Message:</div>
+                  <div className="text-sm text-red-800 break-words">
+                    {errorToShow.message || 'Unknown error'}
+                  </div>
+                </div>
+                {errorToShow.stack && (
+                  <div className="p-2 bg-white rounded border border-red-200">
+                    <div className="font-semibold text-red-900 text-sm mb-1">Stack Trace:</div>
+                    <pre className="text-xs text-red-800 overflow-auto max-h-40 whitespace-pre-wrap break-words">
+                      {errorToShow.stack}
+                    </pre>
+                  </div>
+                )}
+                {cachedError && (
+                  <div className="mt-2 text-xs text-red-600">
+                    Error occurred at: {new Date(cachedError.timestamp).toLocaleString()}
+                  </div>
+                )}
+              </div>
             )}
-            <Button onClick={() => window.location.reload()}>Refresh Page</Button>
+            
+            <div className="flex gap-3 justify-center">
+              <Button 
+                onClick={() => {
+                  localStorage.removeItem('rxdeliver_last_error');
+                  sessionStorage.clear();
+                  window.location.reload();
+                }}
+                className="bg-emerald-600 hover:bg-emerald-700"
+              >
+                Clear Cache & Refresh
+              </Button>
+              <Button 
+                onClick={() => window.location.reload()}
+                variant="outline"
+              >
+                Refresh Page
+              </Button>
+            </div>
           </div>
         </div>);
 
