@@ -53,10 +53,6 @@ export const getEffectiveUser = async () => {
     // Return cached data if still valid
     if (userCache.data && (now - userCache.timestamp) < userCache.ttl) {
         const age = Math.round((now - userCache.timestamp) / 1000);
-        console.log(`✅ [auth.js] Using cached user data (age: ${age}s):`, {
-          name: userCache.data.user_name,
-          app_roles: userCache.data.app_roles
-        });
         return userCache.data;
     }
 
@@ -75,8 +71,6 @@ export const getEffectiveUser = async () => {
                 return userCache.data;
             }
 
-            console.log(`🔐 [auth.js] Fetching FRESH user data (cache expired or not present)...`);
-
             // Get the authenticated user (from User entity - auth data only)
             const authUser = await withTimeout(User.me(), 10000);
             
@@ -86,61 +80,31 @@ export const getEffectiveUser = async () => {
                 return null;
             }
 
-            console.log(`✅ [auth.js] Got authUser:`, {
-              id: authUser.id,
-              email: authUser.email,
-              full_name: authUser.full_name,
-              role: authUser.role
-            });
-
             // Use cached AppUser list if available to prevent rate limits
             let appUserList;
             const appUserCacheAge = now - appUserListCache.timestamp;
             
             if (appUserListCache.data && appUserCacheAge < appUserListCache.ttl) {
-              console.log(`✅ [auth.js] Using CACHED AppUser list (${appUserListCache.data.length} records, age: ${Math.round(appUserCacheAge / 1000)}s)`);
               appUserList = appUserListCache.data;
             } else {
-              console.log(`🔄 [auth.js] Fetching FRESH AppUser list (cache expired or not present)...`);
               appUserList = await withTimeout(AppUser.list(), 8000);
               appUserListCache.data = appUserList;
               appUserListCache.timestamp = now;
-              console.log(`✅ [auth.js] Got ${appUserList.length} AppUser records (cached for ${appUserListCache.ttl / 1000}s)`);
             }
             
             const appUser = appUserList.find(au => au && au.user_id === authUser.id);
             
-            if (appUser) {
-              console.log(`✅ [auth.js] Found AppUser record for ${appUser.user_name}:`, {
-                id: appUser.id,
-                user_id: appUser.user_id,
-                user_name: appUser.user_name,
-                app_roles_RAW: appUser.app_roles,
-                app_roles_type: typeof appUser.app_roles,
-                app_roles_is_array: Array.isArray(appUser.app_roles),
-                app_roles_stringified: JSON.stringify(appUser.app_roles)
-              });
-            } else {
-              console.error(`❌ [auth.js] NO AppUser record found for authUser.id:`, authUser.id);
-            }
-
             // Check for impersonation BEFORE merging the real user data
             const impersonationId = sessionStorage.getItem('impersonationId');
             
             // Only admins can impersonate and they cannot impersonate themselves
             if (impersonationId && authUser.role === 'admin' && impersonationId !== authUser.id) {
-                console.log('🎭 [auth.js] Impersonation detected:', impersonationId);
                 try {
                     const impersonatedAppUser = appUserList.find(au => au && au.user_id === impersonationId);
-                    
-                    console.log(`🔄 [auth.js] Fetching User list for impersonation...`);
                     const allAuthUsers = await withTimeout(User.list(), 8000);
-                    
                     const impersonatedAuthUser = allAuthUsers.find(u => u && u.id === impersonationId);
                     
                     if (impersonatedAuthUser && impersonatedAppUser) {
-                        console.log(`✅ [auth.js] Found impersonation target - AppUser app_roles:`, impersonatedAppUser.app_roles);
-                        
                         const impersonatedMerged = createMergedUser(impersonatedAuthUser, impersonatedAppUser);
                         
                         if (impersonatedMerged) {
@@ -151,10 +115,6 @@ export const getEffectiveUser = async () => {
                           userCache.timestamp = now;
                           userCache.backoffTime = 0;
                           
-                          console.log(`✅ [auth.js] Impersonated user loaded:`, {
-                            name: impersonatedMerged.user_name,
-                            app_roles: impersonatedMerged.app_roles
-                          });
                           return impersonatedMerged;
                         }
                     } else {
@@ -175,22 +135,12 @@ export const getEffectiveUser = async () => {
             }
 
             // Merge auth user + app user data
-            console.log(`🔀 [auth.js] Merging authUser with appUser for ${authUser.full_name}...`);
             const mergedUser = createMergedUser(authUser, appUser);
 
             if (!mergedUser) {
               console.error(`❌ [auth.js] createMergedUser returned null for ${authUser.full_name}!`);
               return null;
             }
-
-            console.log(`✅ [auth.js] Final merged user for ${mergedUser.user_name}:`, {
-              id: mergedUser.id,
-              app_roles_FINAL: mergedUser.app_roles,
-              app_roles_type: typeof mergedUser.app_roles,
-              app_roles_is_array: Array.isArray(mergedUser.app_roles),
-              app_roles_stringified: JSON.stringify(mergedUser.app_roles),
-              status: mergedUser.status
-            });
 
             // Update cache on successful fetch
             userCache.data = mergedUser;
@@ -214,7 +164,6 @@ export const getEffectiveUser = async () => {
               }
             }
             
-            console.log(`✅ [auth.js] User data cached successfully with TTL of ${userCache.ttl}ms`);
             return mergedUser;
 
         } catch (error) {
@@ -244,7 +193,6 @@ export const getEffectiveUser = async () => {
                 
                 // If no cached data, wait before retry
                 const waitTime = Math.min(5000 * retryCount, 15000);
-                console.log(`⏳ [auth.js] Waiting ${waitTime}ms before retry...`);
                 await new Promise(resolve => setTimeout(resolve, waitTime));
             }
             
@@ -271,7 +219,6 @@ export const getEffectiveUser = async () => {
                 }
                 
                 const delay = baseDelay * retryCount;
-                console.log(`🔄 [auth.js] Retrying in ${delay}ms...`);
                 await new Promise(resolve => setTimeout(resolve, delay));
                 continue;
             }
@@ -318,13 +265,11 @@ export const clearUserCache = () => {
         ttl: 900000 // 15 minutes
     };
     sessionStorage.removeItem('impersonationId');
-    console.log(`🗑️ [auth.js] User cache cleared`);
 };
 
 // Function to extend cache TTL when user is active (prevents session timeout during idle)
 export const touchUserCache = () => {
     if (userCache.data) {
         userCache.timestamp = Date.now();
-        console.log(`🔄 [auth.js] User cache TTL extended`);
     }
 };
