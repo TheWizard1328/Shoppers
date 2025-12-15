@@ -1440,7 +1440,7 @@ export default function StopCard({
                           }
 
                           // Step 4: Run route optimizer (handles both optimization and ETA calculation)
-                          console.log('🟢 [Assign All] Step 4-5: Running route optimizer with ETA updates...');
+                          console.log('🟢 [Assign All] Step 4: Running route optimizer with ETA updates...');
                           try {
                             await base44.functions.invoke('optimizeRouteRealTime', {
                               driverId: delivery.driver_id,
@@ -1451,6 +1451,50 @@ export default function StopCard({
                           } catch (optimizeError) {
                             console.warn('⚠️ Route optimizer failed, continuing without ETA update:', optimizeError);
                           }
+
+                          // Step 5: Update TR#s based on stop_order (after route optimization)
+                          console.log('🟢 [Assign All] Step 5: Updating TR#s based on optimized stop orders...');
+                          
+                          // Get pickup TR# as base
+                          const pickupTR = parseInt(delivery.tracking_number, 10);
+                          const baseTR = isNaN(pickupTR) ? 0 : pickupTR;
+                          console.log(`  Using pickup TR# ${baseTR} as base`);
+                          
+                          // Get all in_transit deliveries for this pickup (just updated in Step 3)
+                          const inTransitDeliveries = allPendingDeliveries.map(d => ({
+                            id: d.id,
+                            patient_name: d.patient_name,
+                            stop_order: d.stop_order // Will be updated by optimizer
+                          }));
+                          
+                          // Wait a moment for optimizer updates to propagate
+                          await new Promise(resolve => setTimeout(resolve, 200));
+                          
+                          // Fetch fresh stop_order values from database
+                          const freshDeliveries = await base44.entities.Delivery.filter({
+                            driver_id: delivery.driver_id,
+                            delivery_date: delivery.delivery_date,
+                            status: 'in_transit',
+                            patient_id: { $ne: null } // Only patient deliveries, not pickups
+                          });
+                          
+                          // Sort by stop_order to get sequential TR#s
+                          freshDeliveries.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+                          
+                          // Assign sequential TR#s starting from pickup TR# + 1
+                          for (let i = 0; i < freshDeliveries.length; i++) {
+                            const freshDelivery = freshDeliveries[i];
+                            const newTR = String(baseTR + i + 1);
+                            
+                            // Only update if TR# changed
+                            if (freshDelivery.tracking_number !== newTR) {
+                              await updateDeliveryLocal(freshDelivery.id, {
+                                tracking_number: newTR
+                              });
+                              console.log(`  ✅ ${freshDelivery.patient_name}: TR# ${newTR} (stop order: ${freshDelivery.stop_order})`);
+                            }
+                          }
+                          console.log('  ✅ TR#s updated based on optimized route');
 
                           // Step 6 & 7: Update UI and sync offline/online DBs
                           console.log('🟢 [Assign All] Step 6-7: Force refreshing data...');
