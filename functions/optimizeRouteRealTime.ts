@@ -164,51 +164,31 @@ Deno.serve(async (req) => {
       : [];
     const storeMap = new Map(stores.map(s => [s.id, s]));
 
-    // Build list of stops with coordinates and ISP detection
-    const stops = [];
-    for (const delivery of deliveries) {
-      let lat, lng, timeWindow, isISP = false;
-
-      if (delivery.puid) {
-        // Pickup - use store coordinates
-        const store = storeMap.get(delivery.store_id);
-        if (!store || !store.latitude || !store.longitude) continue;
-        lat = store.latitude;
-        lng = store.longitude;
-        timeWindow = null; // Pickups are flexible
+    // Separate pickups and deliveries for constraint-based optimization
+    const pickupStops = [];
+    const deliveryStops = [];
+    const ispDeliveryStops = [];
+    
+    for (let i = 0; i < stops.length; i++) {
+      const stop = stops[i];
+      const notes = (stop.delivery.delivery_notes || '').toLowerCase();
+      const patientName = (stop.delivery.patient_name || '').toLowerCase();
+      const isISP = notes.includes('interstore pickup') || notes.includes('isp') || 
+                    patientName.includes('interstore pickup') || patientName.includes('(isp)');
+      
+      if (stop.delivery.puid && !stop.delivery.patient_id) {
+        // This is a pickup
+        pickupStops.push({ ...stop, idx: i, isISP: false });
+      } else if (isISP) {
+        // ISP deliveries can go anywhere
+        ispDeliveryStops.push({ ...stop, idx: i, isISP: true });
       } else {
-        // Delivery - use patient coordinates
-        const patient = patientMap.get(delivery.patient_id);
-        if (!patient || !patient.latitude || !patient.longitude) continue;
-        lat = patient.latitude;
-        lng = patient.longitude;
-        
-        // Check for InterStore Pickup (ISP) exception
-        const notes = (delivery.delivery_notes || '').toLowerCase();
-        const patientName = (delivery.patient_name || patient.full_name || '').toLowerCase();
-        isISP = notes.includes('interstore pickup') || notes.includes('(isp)') || 
-                patientName.includes('interstore pickup') || patientName.includes('(isp)');
-        
-        // Parse time window if available
-        if (delivery.time_window_start && delivery.time_window_end) {
-          const [startH, startM] = delivery.time_window_start.split(':').map(Number);
-          const [endH, endM] = delivery.time_window_end.split(':').map(Number);
-          timeWindow = {
-            start: startH * 60 + startM,
-            end: endH * 60 + endM
-          };
-        }
+        // Regular delivery
+        deliveryStops.push({ ...stop, idx: i, isISP: false });
       }
-
-      stops.push({
-        delivery,
-        lat,
-        lng,
-        timeWindow,
-        isISP,
-        currentOrder: delivery.stop_order || 999
-      });
     }
+
+    console.log(`📊 Stops breakdown: ${pickupStops.length} pickups, ${deliveryStops.length} deliveries, ${ispDeliveryStops.length} ISP deliveries`);
 
     if (stops.length === 0) {
       return Response.json({ 
@@ -271,84 +251,103 @@ Deno.serve(async (req) => {
       }))
     );
 
-    // Optimize route using nearest neighbor with enhanced constraints
+    // Group deliveries by their pickup store
+    const deliveriesByPickup = new Map();
+    deliveryStops.forEach(d => {
+      const key = d.delivery.store_id;
+      if (!deliveriesByPickup.has(key)) {
+        deliveriesByPickup.set(key, []);
+      }
+      deliveriesByPickup.get(key).push(d);
+    });
+
+    // Constraint-based optimization algorithm
     const optimizedRoute = [];
-    const unvisited = new Set(stops.map((_, i) => i));
-    const visitedPickups = new Set(); // Track which store pickups have been visited
-    let currentPos = 0; // Start from driver location (index 0 in origins)
+    const unvisitedPickups = new Set(pickupStops.map(p => p.idx));
+    const unvisitedISP = new Set(ispDeliveryStops.map(p => p.idx));
+    let currentPos = 0; // Start from driver location
     let cumulativeTime = currentMinutes;
 
-    while (unvisited.size > 0) {
+    // Build route: pickups with their deliveries + ISP deliveries inserted optimally
+    while (unvisitedPickups.size > 0 || unvisitedISP.size > 0) {
       let bestIdx = -1;
       let bestScore = Infinity;
+      let bestType = null; // 'pickup' or 'isp'
 
-      for (const idx of unvisited) {
-        const stop = stops[idx];
-        const travelTime = Math.ceil(matrix[currentPos][idx].duration / 60); // Convert to minutes
-        const serviceTime = stop.delivery.extra_time || 5;
-        const arrivalTime = cumulativeTime + travelTime;
-
-        // Calculate base score (lower is better)
-        let score = travelTime;
-
-        // RULE 2 & 3: Deliveries must come after their pickup (unless ISP)
-        if (!stop.delivery.puid && stop.delivery.patient_id) {
-          // This is a patient delivery - check if its pickup has been visited
-          const pickupStoreKey = `${stop.delivery.store_id}`;
-          if (!visitedPickups.has(pickupStoreKey) && !stop.isISP) {
-            // Pickup hasn't been visited yet and this isn't an ISP delivery - MASSIVE penalty
-            score += 10000; // Make it essentially impossible to select
-          }
-        }
-
-        // RULE 1 & 4: Time window constraints with penalties
-        if (stop.timeWindow && !stop.delivery.puid) {
-          // Only enforce time windows for deliveries, not pickups (Rule 5)
-          if (arrivalTime < stop.timeWindow.start) {
-            // Arriving too early - minor wait penalty
-            const waitTime = stop.timeWindow.start - arrivalTime;
-            score += waitTime * 0.3;
-          } else if (arrivalTime > stop.timeWindow.end) {
-            // Arriving too late - VERY HEAVY penalty
-            const lateTime = arrivalTime - stop.timeWindow.end;
-            score += lateTime * 5;
-          } else {
-            // Within window - small bonus
-            score -= 10;
-          }
-        }
-
-        // Additional bonus for urgent time windows (ending soon)
-        if (stop.timeWindow && stop.timeWindow.end && !stop.delivery.puid) {
-          const timeUntilDeadline = stop.timeWindow.end - cumulativeTime;
-          if (timeUntilDeadline > 0 && timeUntilDeadline < 60) {
-            // Urgent delivery - prioritize
-            score -= (60 - timeUntilDeadline) * 0.5;
-          }
-        }
-
+      // Consider all unvisited pickups
+      for (const idx of unvisitedPickups) {
+        const travelTime = Math.ceil(matrix[currentPos][idx].duration / 60);
+        const score = travelTime; // Shortest distance priority
+        
         if (score < bestScore) {
           bestScore = score;
           bestIdx = idx;
+          bestType = 'pickup';
+        }
+      }
+
+      // Consider ISP deliveries (can go anywhere)
+      for (const idx of unvisitedISP) {
+        const stop = stops[idx];
+        const travelTime = Math.ceil(matrix[currentPos][idx].duration / 60);
+        const serviceTime = stop.delivery.extra_time || 5;
+        const arrivalTime = cumulativeTime + travelTime;
+        
+        let score = travelTime;
+        
+        // Apply time window penalties for ISP
+        if (stop.timeWindow) {
+          if (arrivalTime < stop.timeWindow.start) {
+            score += (stop.timeWindow.start - arrivalTime) * 0.3;
+          } else if (arrivalTime > stop.timeWindow.end) {
+            score += (arrivalTime - stop.timeWindow.end) * 5;
+          } else {
+            score -= 10;
+          }
+        }
+        
+        if (score < bestScore) {
+          bestScore = score;
+          bestIdx = idx;
+          bestType = 'isp';
         }
       }
 
       if (bestIdx === -1) break;
 
-      const selectedStop = stops[bestIdx];
-      
-      // Track visited pickups
-      if (selectedStop.delivery.puid && !selectedStop.delivery.patient_id) {
-        visitedPickups.add(`${selectedStop.delivery.store_id}`);
-      }
+      // Add the selected stop
+      if (bestType === 'pickup') {
+        unvisitedPickups.delete(bestIdx);
+        optimizedRoute.push(bestIdx);
+        
+        const travelTime = Math.ceil(matrix[currentPos][bestIdx].duration / 60);
+        const serviceTime = stops[bestIdx].delivery.extra_time || 15;
+        cumulativeTime += travelTime + serviceTime;
+        currentPos = bestIdx + 1;
 
-      optimizedRoute.push(bestIdx);
-      unvisited.delete(bestIdx);
-      
-      const travelTime = Math.ceil(matrix[currentPos][bestIdx].duration / 60);
-      const serviceTime = selectedStop.delivery.extra_time || 5;
-      cumulativeTime += travelTime + serviceTime;
-      currentPos = bestIdx + 1; // +1 because driver location is index 0
+        // Now insert this pickup's deliveries optimally
+        const pickupStoreId = stops[bestIdx].delivery.store_id;
+        const pickupDeliveries = deliveriesByPickup.get(pickupStoreId) || [];
+        
+        // Sort deliveries by time window urgency and distance
+        const unvisitedDeliveries = pickupDeliveries.filter(d => !optimizedRoute.includes(d.idx));
+        
+        for (const deliv of unvisitedDeliveries) {
+          optimizedRoute.push(deliv.idx);
+          const travelTime = Math.ceil(matrix[currentPos][deliv.idx].duration / 60);
+          const serviceTime = deliv.delivery.extra_time || 5;
+          cumulativeTime += travelTime + serviceTime;
+          currentPos = deliv.idx + 1;
+        }
+      } else if (bestType === 'isp') {
+        unvisitedISP.delete(bestIdx);
+        optimizedRoute.push(bestIdx);
+        
+        const travelTime = Math.ceil(matrix[currentPos][bestIdx].duration / 60);
+        const serviceTime = stops[bestIdx].delivery.extra_time || 5;
+        cumulativeTime += travelTime + serviceTime;
+        currentPos = bestIdx + 1;
+      }
     }
 
     // Check if route changed
