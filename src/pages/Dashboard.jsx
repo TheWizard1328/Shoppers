@@ -267,9 +267,6 @@ function Dashboard() {
   });
   const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [driverLocation, setDriverLocation] = useState(null);
-
-  // Debug: Log driverLocation changes
-  useEffect(() => [driverLocation]);
   const [hasUnreadAIAlerts, setHasUnreadAIAlerts] = useState(false);
   const [showPatientForm, setShowPatientForm] = useState(false);
   const [editingPatient, setEditingPatient] = useState(null);
