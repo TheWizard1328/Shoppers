@@ -1102,7 +1102,7 @@ export default function StopCard({
                 try {
                   const now = new Date();
                   const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                  await base44.functions.invoke('optimizeRouteRealTime', {
+                  await base44.functions.invoke('optimizeDriverRoute', {
                     driverId: delivery.driver_id,
                     deliveryDate: delivery.delivery_date,
                     currentLocalTime: currentLocalTime
@@ -1896,7 +1896,7 @@ export default function StopCard({
                           const now = new Date();
                           const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
                           
-                          await base44.functions.invoke('optimizeRouteRealTime', {
+                          await base44.functions.invoke('optimizeDriverRoute', {
                             driverId: delivery.driver_id,
                             deliveryDate: delivery.delivery_date,
                             currentLocalTime: currentLocalTime
