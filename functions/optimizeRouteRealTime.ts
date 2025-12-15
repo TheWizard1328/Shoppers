@@ -315,8 +315,8 @@ Deno.serve(async (req) => {
         const travelTime = Math.ceil(crowFliesMatrix[currentPos][idx].duration / 60);
         let score = travelTime;
         
-        // LOOK-AHEAD: If this is one of the last few stops, consider distance to driver's home
-        if (driverHomeLocation && totalRemainingStops <= 3) {
+        // LOOK-AHEAD: Consider distance to driver's home throughout (expanded threshold)
+        if (driverHomeLocation && totalRemainingStops <= 7) {
           const distanceToHome = calculateCrowFliesDistance(
             stops[idx].lat, 
             stops[idx].lng, 
@@ -324,11 +324,11 @@ Deno.serve(async (req) => {
             driverHomeLocation.lng
           );
           const timeToHome = (distanceToHome / 40) * 60; // Minutes
-          score += timeToHome * 0.5; // Weight: prefer stops closer to home as final stops
+          score += timeToHome * 1.5; // Increased weight: prefer stops closer to home as final stops
         }
         
-        // LOOK-AHEAD: Evaluate impact on remaining deliveries from this pickup
-        if (totalRemainingStops > 3) {
+        // LOOK-AHEAD: Evaluate impact on remaining deliveries from this pickup (improved clustering)
+        if (totalRemainingStops > 0) {
           const pickupStoreId = stops[idx].delivery.store_id;
           const pickupDeliveries = deliveriesByPickup.get(pickupStoreId) || [];
           const unvisitedDeliveries = pickupDeliveries.filter(d => !optimizedRoute.includes(d.idx));
@@ -341,7 +341,7 @@ Deno.serve(async (req) => {
             }, 0) / unvisitedDeliveries.length;
             
             // Penalize pickups with deliveries far from the pickup location (inefficient clusters)
-            score += (avgDeliveryDistance / 40) * 60 * 0.2;
+            score += (avgDeliveryDistance / 40) * 60 * 1.0; // Increased weight for better local clustering
           }
         }
         
@@ -371,8 +371,8 @@ Deno.serve(async (req) => {
           }
         }
         
-        // LOOK-AHEAD: If this is one of the last few stops, consider distance to driver's home
-        if (driverHomeLocation && totalRemainingStops <= 3) {
+        // LOOK-AHEAD: Consider distance to driver's home throughout (expanded threshold)
+        if (driverHomeLocation && totalRemainingStops <= 7) {
           const distanceToHome = calculateCrowFliesDistance(
             stops[idx].lat, 
             stops[idx].lng, 
@@ -380,7 +380,7 @@ Deno.serve(async (req) => {
             driverHomeLocation.lng
           );
           const timeToHome = (distanceToHome / 40) * 60; // Minutes
-          score += timeToHome * 0.5; // Weight: prefer stops closer to home as final stops
+          score += timeToHome * 1.5; // Increased weight: prefer stops closer to home as final stops
         }
         
         if (score < bestScore) {
