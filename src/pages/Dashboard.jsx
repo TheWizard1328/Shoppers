@@ -1,4 +1,3 @@
-
 // Dashboard.js - Delivery Management Dashboard
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -3998,7 +3997,7 @@ function Dashboard() {
           totalTime += routeStats.totalTime;
 
           optimizedRoute.forEach((stop, index) => {
-            if (!stop) continue; // Defensive check
+            if (!stop) return; // Defensive check
             const stopPatient = latestPatients.find((p) => p && p.id === stop.patient_id);
             const stopStore = latestStores.find((s) => s && s.id === stop.store_id);
             const stopName = stop.patient_id ? stopPatient?.full_name : `${stopStore?.name} Pickup`;
@@ -5319,6 +5318,7 @@ function Dashboard() {
                 </motion.div>
                 }
                 </AnimatePresence>
+          </motion.div>
 
           {/* Driver Legend - positioned directly below stats card */}
           {isAllDriversMode && driverRoutes.length > 0 &&
