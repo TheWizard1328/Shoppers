@@ -14,7 +14,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { driverId, deliveryDate } = await req.json();
+    const { driverId, deliveryDate, deviceTime } = await req.json();
 
     if (!driverId || !deliveryDate) {
       return Response.json({ 
@@ -148,9 +148,17 @@ Deno.serve(async (req) => {
       if (directionsData.status === 'OK' && directionsData.routes?.[0]) {
         const route = directionsData.routes[0];
         
-        // CRITICAL: Start from current time in minutes, not from 0
-        const now = new Date();
-        let cumulativeMinutes = now.getHours() * 60 + now.getMinutes();
+        // CRITICAL: Use device's local time, not server UTC time
+        let cumulativeMinutes;
+        if (deviceTime) {
+          const deviceDate = new Date(deviceTime);
+          cumulativeMinutes = deviceDate.getHours() * 60 + deviceDate.getMinutes();
+          console.log(`🕐 Using device local time: ${deviceDate.toLocaleTimeString()} (${cumulativeMinutes} minutes)`);
+        } else {
+          const now = new Date();
+          cumulativeMinutes = now.getHours() * 60 + now.getMinutes();
+          console.warn(`⚠️ No device time provided, using server time (may be UTC)`);
+        }
 
         // Process each leg of the route - calculate actual clock time ETAs
         for (let i = 0; i < route.legs.length; i++) {

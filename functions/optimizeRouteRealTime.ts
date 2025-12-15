@@ -42,8 +42,8 @@ Deno.serve(async (req) => {
     console.log('✅ [optimizeRouteRealTime] User authenticated:', user.email);
 
     console.log('📦 [optimizeRouteRealTime] Parsing request body...');
-    const { driverId, deliveryDate, currentLocalTime, startLocation } = await req.json();
-    console.log('📦 [optimizeRouteRealTime] Request params:', { driverId, deliveryDate, currentLocalTime, startLocation });
+    const { driverId, deliveryDate, currentLocalTime, startLocation, deviceTime } = await req.json();
+    console.log('📦 [optimizeRouteRealTime] Request params:', { driverId, deliveryDate, currentLocalTime, startLocation, deviceTime });
 
     if (!driverId || !deliveryDate) {
       console.error('❌ [optimizeRouteRealTime] Missing parameters:', { driverId, deliveryDate });
@@ -54,12 +54,16 @@ Deno.serve(async (req) => {
     
     console.log('✅ [optimizeRouteRealTime] Parameters validated');
 
-    // Use client's local time if provided, otherwise fall back to server UTC time
+    // CRITICAL: Use device's local time - ALWAYS prefer deviceTime over currentLocalTime
     let currentMinutes;
-    if (currentLocalTime) {
+    if (deviceTime) {
+      const deviceDate = new Date(deviceTime);
+      currentMinutes = deviceDate.getHours() * 60 + deviceDate.getMinutes();
+      console.log(`🕐 Using device local time: ${deviceDate.toLocaleTimeString()} (${currentMinutes} minutes)`);
+    } else if (currentLocalTime) {
       const [hours, minutes] = currentLocalTime.split(':').map(Number);
       currentMinutes = hours * 60 + minutes;
-      console.log(`🕐 Using client local time: ${currentLocalTime} (${currentMinutes} minutes)`);
+      console.log(`🕐 Using client local time string: ${currentLocalTime} (${currentMinutes} minutes)`);
     } else {
       const now = new Date();
       currentMinutes = now.getHours() * 60 + now.getMinutes();
