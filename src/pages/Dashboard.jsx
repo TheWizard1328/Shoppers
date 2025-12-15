@@ -364,14 +364,11 @@ function Dashboard() {
 
     const loadSettings = async () => {
       try {
-        console.log('📋 [Dashboard] PHASE 1: Loading user settings from backend...');
         const settings = await loadUserSettings(currentUser.id);
-        console.log('📋 [Dashboard] Loaded user settings:', settings);
 
         // Apply saved date selection FIRST (before FAB phase)
         if (settings.selected_date) {
           const savedDate = new Date(settings.selected_date + 'T00:00:00');
-          console.log(`📅 [Dashboard] Restoring date from settings: ${settings.selected_date}`);
           setSelectedDate(savedDate);
           globalFilters.setSelectedDate(savedDate);
           setCalendarMonth(savedDate);
@@ -379,7 +376,6 @@ function Dashboard() {
 
         // CRITICAL: Store FAB phase from settings but DON'T apply until deliveries are loaded
         if (settings.fab_map_cycle_phase) {
-          console.log(`🗺️ [Dashboard] Found FAB phase in settings: ${settings.fab_map_cycle_phase} (will apply after data loads)`);
           // Don't set phase yet - will be applied in initial load effect when data is ready
           // Store in ref to access later
           savedFabPhaseRef.current = settings.fab_map_cycle_phase;
@@ -405,7 +401,6 @@ function Dashboard() {
           );
           if (hasActiveRoute) {
             driverToSelect = currentUser.id;
-            console.log(`👤 [Dashboard] Mobile driver with active route - prioritizing self selection`);
           }
         }
 
@@ -432,34 +427,27 @@ function Dashboard() {
               // DISPATCHERS: Use "All Drivers" if multiple drivers share the same store
               if (hasSharedStore) {
                 driverToSelect = 'all';
-                console.log(`👥 [Dashboard] Dispatcher - Multiple drivers share same store - selecting "All Drivers"`);
               } else {
                 // Single driver per store - select the first driver
                 const allDriverIds = new Set(todayDeliveries.map((d) => d.driver_id).filter(Boolean));
                 if (allDriverIds.size === 1) {
                   driverToSelect = Array.from(allDriverIds)[0];
-                  console.log(`👤 [Dashboard] Dispatcher - Single driver detected - selecting ${driverToSelect}`);
                 } else {
                   driverToSelect = settings.selected_driver_id || 'all';
-                  console.log(`👤 [Dashboard] Dispatcher - Multiple drivers, no shared stores - using saved/default: ${driverToSelect}`);
                 }
               }
             } else if (userHasRole(currentUser, 'driver')) {
               // DRIVERS: Always select their own name
               driverToSelect = currentUser.id;
-              console.log(`👤 [Dashboard] Driver - Always selecting self: ${driverToSelect}`);
             } else {
               // Other roles - use saved or default
               driverToSelect = settings.selected_driver_id || 'all';
-              console.log(`👤 [Dashboard] Other role - using saved/default: ${driverToSelect}`);
             }
           } else {
             // No deliveries today - use saved setting or 'all'
             driverToSelect = settings.selected_driver_id || 'all';
-            console.log(`👤 [Dashboard] No deliveries today - using saved/default: ${driverToSelect}`);
           }
         }
-        console.log(`👤 [Dashboard] PHASE 1 Complete: Setting driver to: ${driverToSelect}`);
         setSelectedDriverId(driverToSelect);
         globalFilters.setSelectedDriverId(driverToSelect);
 
@@ -953,9 +941,7 @@ function Dashboard() {
             setMapViewPhase(1);
             setMapViewTrigger((prev) => prev + 1); // Trigger zoom out to all markers
 
-            console.log(`💾 [Dashboard] Saved phase ${event.previousPhase} for restoration after break`);
           } else if (event.type === 'BREAK_END') {
-            console.log('🗺️ [Dashboard] Driver back on duty - restoring FAB phase:', event.phaseToRestore);
 
             // Restore the saved phase
             const phaseToRestore = event.phaseToRestore || 1;
@@ -982,7 +968,6 @@ function Dashboard() {
             }
             // Phase 2 stays locked permanently
 
-            console.log(`✅ [Dashboard] Restored FAB to phase ${phaseToRestore}`);
             phaseBeforeBreakRef.current = null;
           }
         });
@@ -1072,7 +1057,6 @@ function Dashboard() {
             const height = scrollContainer.offsetHeight;
             if (height > 0) {
               setStopCardsBaseHeight(height);
-              console.log('[Dashboard] Captured HorizontalStopCards base height from scroll container:', height);
             }
           }
         }
@@ -1145,8 +1129,6 @@ function Dashboard() {
         return;
       }
 
-      console.log('📍 [Dashboard] Starting GPS watch for driver location...');
-
       watchId = navigator.geolocation.watchPosition(
         (position) => {
           const newLocation = {
@@ -1156,12 +1138,6 @@ function Dashboard() {
             accuracy: position.coords.accuracy,
             source: 'device_gps' // Always from device for drivers
           };
-
-          console.log('📍 [Dashboard] GPS location updated:', {
-            lat: newLocation.latitude,
-            lon: newLocation.longitude,
-            accuracy: newLocation.accuracy
-          });
 
           setDriverLocation(newLocation);
 
@@ -2300,7 +2276,6 @@ function Dashboard() {
 
         // CRITICAL: Don't run optimizer if no deliveries loaded yet
         if (!filteredDeliveries || filteredDeliveries.length === 0) {
-          console.log('⏭️ [Dashboard] No deliveries loaded yet - skipping ETA optimizer');
           return;
         }
 
@@ -2311,11 +2286,8 @@ function Dashboard() {
         );
 
         if (!hasIncompleteStops) {
-          console.log('⏭️ [Dashboard] Route complete - skipping ETA optimizer');
           return;
         }
-
-        console.log('⏰ [Dashboard] Running periodic ETA optimizer...');
 
         await base44.functions.invoke('etaOptimizer', {
           driverId: selectedDriverId,
@@ -2323,7 +2295,6 @@ function Dashboard() {
           deviceTime: new Date().toISOString()
         });
 
-        console.log('✅ [Dashboard] Periodic ETA optimizer completed');
       } catch (error) {
         console.warn('⚠️ [Dashboard] Periodic ETA optimizer failed:', error);
       }
@@ -2426,18 +2397,14 @@ function Dashboard() {
 
     // Skip if already initialized from settings
     if (hasSetInitialDriverDashboard.current) {
-      console.log('⏭️ [Dashboard] PHASE 4: Skipping - driver already set from settings');
       return;
     }
-
-    console.log('🎯 [Dashboard] PHASE 4: Checking if pure driver needs forced self-selection...');
 
     const isPureDriver = userHasRole(currentUser, 'driver') &&
     !userHasRole(currentUser, 'admin') &&
     !userHasRole(currentUser, 'dispatcher');
 
     if (isPureDriver) {
-      console.log('🚗 [Dashboard] Pure driver detected - forcing self-selection (ignoring saved settings)');
       const isInDriversList = driversList.some((d) => d && d.id === currentUser.id);
 
       if (isInDriversList) {
@@ -2474,7 +2441,6 @@ function Dashboard() {
 
     // Save to user settings (async, don't wait)
     if (currentUser?.id) {
-      console.log('💾 [Dashboard] Saving date selection to user settings:', dateStr);
       saveSetting(currentUser.id, 'selected_date', dateStr);
     }
 
@@ -2600,19 +2566,16 @@ function Dashboard() {
   };
 
   const handleDriverChange = async (driverId) => {
-    console.log('👤 [Dashboard] Driver changed to:', driverId);
     setSelectedDriverId(driverId);
     globalFilters.setSelectedDriverId(driverId);
     setIsExpanded(false);
 
     // Save to user settings
     if (currentUser?.id) {
-      console.log('💾 [Dashboard] Saving driver selection to user settings:', driverId);
       saveSetting(currentUser.id, 'selected_driver_id', driverId);
     }
 
     // CRITICAL: Instant refresh when driver changes
-    console.log('🔄 [Dashboard] Driver changed - triggering instant refresh');
     setIsEntityUpdating(true);
 
     try {
@@ -2633,8 +2596,6 @@ function Dashboard() {
         smartRefreshManager.clearPendingUpdates();
       }
 
-      console.log(`✅ [Dashboard] Instant refresh: loaded ${freshDeliveries.length} deliveries for ${dateStr}`);
-
       // Update context with fresh deliveries
       if (updateDeliveriesLocally) {
         const otherDeliveries = deliveries.filter((d) =>
@@ -2646,7 +2607,6 @@ function Dashboard() {
 
       // CRITICAL: Lock FAB and trigger map view after data loads
       setTimeout(() => {
-        console.log('🗺️ [Dashboard] Locking FAB and triggering map view after driver change');
 
         // Clear existing timers
         if (mapLockTimeoutRef.current) {
@@ -5662,7 +5622,6 @@ function Dashboard() {
     const hasDataForDate = deliveries.some((d) => d && d.delivery_date === selectedDateStr);
 
     if (hasDataForDate) {
-      console.log('✅ [Dashboard] Data ready for selected date, forcing UI refresh');
       // Force a re-render to update stats and cards immediately
       setForceRender((prev) => prev + 1);
     }
@@ -6374,7 +6333,6 @@ function Dashboard() {
           drivers={drivers}
           onSave={handleSaveDelivery}
           onCancel={() => {
-            console.log('🚪 [Dashboard] DeliveryForm onCancel called - just closing form');
             setShowDeliveryForm(false);
             setEditingDelivery(null);
           }}
@@ -6480,7 +6438,6 @@ function Dashboard() {
         driverLocation={driverLocation}
         isEnabled={isAIEnabled}
         onAlert={(alerts) => {
-          console.log('🚨 [Dashboard] Received proactive alerts:', alerts.length);
         }} />
 
       }
