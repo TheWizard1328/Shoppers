@@ -54,30 +54,26 @@ Deno.serve(async (req) => {
     
     console.log('✅ [optimizeRouteRealTime] Parameters validated');
 
-    // CRITICAL: Use device's local time - extract directly from ISO string to avoid timezone conversion
+    // CRITICAL: Use device's local time - prefer HH:mm string to avoid timezone conversion
     let currentMinutes;
-    if (deviceTime) {
-      // deviceTime format: "2025-01-16T14:30:00.000Z" (but represents LOCAL time, not UTC)
-      // Extract hours and minutes directly without Date conversion
+    if (currentLocalTime) {
+      // currentLocalTime format: "14:30" (already in local time)
+      const [hours, minutes] = currentLocalTime.split(':').map(Number);
+      currentMinutes = hours * 60 + minutes;
+      console.log(`🕐 Using device local time: ${currentLocalTime} (${currentMinutes} minutes)`);
+    } else if (deviceTime) {
+      // Fallback: extract from ISO string
       const timeMatch = deviceTime.match(/T(\d{2}):(\d{2})/);
       if (timeMatch) {
         const hours = parseInt(timeMatch[1], 10);
         const minutes = parseInt(timeMatch[2], 10);
         currentMinutes = hours * 60 + minutes;
-        console.log(`🕐 Using device local time: ${hours}:${String(minutes).padStart(2, '0')} (${currentMinutes} minutes)`);
-      } else if (currentLocalTime) {
-        const [hours, minutes] = currentLocalTime.split(':').map(Number);
-        currentMinutes = hours * 60 + minutes;
-        console.log(`🕐 Using client local time string: ${currentLocalTime} (${currentMinutes} minutes)`);
+        console.log(`🕐 Using device time from ISO: ${hours}:${String(minutes).padStart(2, '0')} (${currentMinutes} minutes)`);
       } else {
         const now = new Date();
         currentMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
         console.warn(`⚠️ Could not parse device time, using server UTC time`);
       }
-    } else if (currentLocalTime) {
-      const [hours, minutes] = currentLocalTime.split(':').map(Number);
-      currentMinutes = hours * 60 + minutes;
-      console.log(`🕐 Using client local time string: ${currentLocalTime} (${currentMinutes} minutes)`);
     } else {
       const now = new Date();
       currentMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();

@@ -14,7 +14,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { driverId, deliveryDate, deviceTime } = await req.json();
+    const { driverId, deliveryDate, currentLocalTime, deviceTime } = await req.json();
 
     if (!driverId || !deliveryDate) {
       return Response.json({ 
@@ -148,17 +148,21 @@ Deno.serve(async (req) => {
       if (directionsData.status === 'OK' && directionsData.routes?.[0]) {
         const route = directionsData.routes[0];
         
-        // CRITICAL: Use device's local time - extract directly from ISO string to avoid timezone conversion
+        // CRITICAL: Use device's local time - prefer HH:mm string to avoid timezone conversion
         let cumulativeMinutes;
-        if (deviceTime) {
-          // deviceTime format: "2025-01-16T14:30:00.000Z" (but represents LOCAL time, not UTC)
-          // Extract hours and minutes directly without Date conversion
+        if (currentLocalTime) {
+          // currentLocalTime format: "14:30" (already in local time)
+          const [hours, minutes] = currentLocalTime.split(':').map(Number);
+          cumulativeMinutes = hours * 60 + minutes;
+          console.log(`🕐 Using device local time: ${currentLocalTime} (${cumulativeMinutes} minutes)`);
+        } else if (deviceTime) {
+          // Fallback: extract from ISO string
           const timeMatch = deviceTime.match(/T(\d{2}):(\d{2})/);
           if (timeMatch) {
             const hours = parseInt(timeMatch[1], 10);
             const minutes = parseInt(timeMatch[2], 10);
             cumulativeMinutes = hours * 60 + minutes;
-            console.log(`🕐 Using device local time: ${hours}:${String(minutes).padStart(2, '0')} (${cumulativeMinutes} minutes)`);
+            console.log(`🕐 Using device time from ISO: ${hours}:${String(minutes).padStart(2, '0')} (${cumulativeMinutes} minutes)`);
           } else {
             const now = new Date();
             cumulativeMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
