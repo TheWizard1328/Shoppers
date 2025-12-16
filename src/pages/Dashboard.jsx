@@ -340,13 +340,15 @@ function Dashboard() {
   const measurementTimeoutRef = useRef(null);
 
   // Computed padding values for consistent map bounds
+  // Note: paddingTopLeft = [horizontal, vertical from top]
+  //       paddingBottomRight = [horizontal, vertical from bottom]
   const getMapPadding = useCallback((cardExpanded = false) => {
     const topPadding = isMobile 
       ? (isExpanded ? STATS_CARD_EXTENDED_HEIGHT + 10 : STATS_CARD_BASE_HEIGHT + 10) 
-      : +20;
+      : 140; // Desktop: account for stats card
     const bottomPadding = isMobile 
       ? (cardExpanded ? STOP_CARDS_EXPANDED_HEIGHT + 20 : STOP_CARDS_BASE_HEIGHT + 40)
-      : -25;
+      : (cardExpanded ? 500 : 160); // Desktop: account for stop cards
     return {
       paddingTopLeft: [25, topPadding],
       paddingBottomRight: [25, bottomPadding]
