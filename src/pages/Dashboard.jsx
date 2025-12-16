@@ -347,65 +347,19 @@ function Dashboard() {
       ? (isExpanded ? STATS_CARD_EXTENDED_HEIGHT + 10 : STATS_CARD_BASE_HEIGHT + 10) 
       : 140; // Desktop: account for stats card
     
-    // CRITICAL: Check if blue dot is actually rendered on screen AND is the lowest point
-    // The blue dot is only visible when: mobile + driver + viewing today + has location
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
-    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-    const isViewingToday = todayStr === selectedDateStr;
-    const hasBlueDotRendered = isMobile && 
-                               isDriver && 
-                               isViewingToday && 
-                               driverLocation?.latitude && 
-                               driverLocation?.longitude;
-    
-    // CRITICAL: Dynamically calculate if blue dot is the lowest marker on the map
-    // This determines if we need extra padding to prevent it from being hidden
-    let isBlueDotLowestMarker = false;
-    if (hasBlueDotRendered && (mapViewPhase === 1 || mapViewPhase === 2)) {
-      // Get all visible marker coordinates
-      const allMarkerLatitudes = [];
-      
-      // Add blue dot latitude
-      allMarkerLatitudes.push(driverLocation.latitude);
-      
-      // Add all delivery/pickup latitudes for current view
-      deliveriesWithStopOrder.forEach(d => {
-        if (!d) return;
-        
-        if (d.patient_id) {
-          const patient = patients.find(p => p?.id === d.patient_id);
-          if (patient?.latitude) allMarkerLatitudes.push(patient.latitude);
-        } else if (d.store_id) {
-          const store = stores.find(s => s?.id === d.store_id);
-          if (store?.latitude) allMarkerLatitudes.push(store.latitude);
-        }
-      });
-      
-      // Check if blue dot has the lowest (southernmost) latitude
-      if (allMarkerLatitudes.length > 1) {
-        const minLatitude = Math.min(...allMarkerLatitudes);
-        isBlueDotLowestMarker = Math.abs(driverLocation.latitude - minLatitude) < 0.0001;
-      }
-    }
-    
-    // CRITICAL: Add extra bottom padding ONLY when blue dot is the lowest marker
-    let blueDotExtraPadding = 0;
-    if (isBlueDotLowestMarker) {
-      if (mapViewPhase === 1) {
-        // Phase 1 needs MAXIMUM padding when blue dot is lowest
-        blueDotExtraPadding = 150;
-      } else if (mapViewPhase === 2) {
-        // Phase 2 needs padding when blue dot is lowest
-        blueDotExtraPadding = 130;
-      }
-    }
+    // CRITICAL: Add 30px to top padding to match crosshair shift
+    const adjustedTopPadding = topPadding + 30;
     
     const bottomPadding = isMobile 
-      ? (cardExpanded ? STOP_CARDS_EXPANDED_HEIGHT + 20 : STOP_CARDS_BASE_HEIGHT + 40 + blueDotExtraPadding)
+      ? (cardExpanded ? STOP_CARDS_EXPANDED_HEIGHT + 20 : STOP_CARDS_BASE_HEIGHT + 40)
       : (cardExpanded ? 500 : 160); // Desktop: account for stop cards
+    
+    // CRITICAL: Subtract 30px from bottom padding to balance the top shift
+    const adjustedBottomPadding = Math.max(bottomPadding - 30, 20);
+    
     return {
-      paddingTopLeft: [25, topPadding],
-      paddingBottomRight: [25, bottomPadding]
+      paddingTopLeft: [25, adjustedTopPadding],
+      paddingBottomRight: [25, adjustedBottomPadding]
     };
   }, [isMobile, isExpanded, stopCardsBaseHeight, isDriver, driverLocation, selectedDate, mapViewPhase]);
 
