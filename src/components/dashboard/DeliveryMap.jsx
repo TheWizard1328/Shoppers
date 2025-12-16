@@ -1805,47 +1805,51 @@ export default function DeliveryMap({
 
         }
 
-        {/* STRAIGHT BLUE DASHED LINES - From driver location to ALL remaining stops */}
+        {/* STRAIGHT BLUE DASHED LINE - From driver location to NEXT stop only */}
         {isViewingCurrentDate && currentDriverLocation?.latitude && currentDriverLocation?.longitude && (() => {
           const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
           
-          // Get all incomplete deliveries for the current driver
+          // Get all incomplete deliveries for the current driver, sorted by stop_order
           const incompleteDeliveries = deliveryMarkers.filter(d => 
             d && 
             d.driver_id === currentUser?.id &&
             !finishedStatuses.includes(d.status) &&
             d.status !== 'pending'
-          );
+          ).sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
           
           const incompletePickups = pickupMarkers.filter(p => 
             p && 
             p.driver_id === currentUser?.id &&
             !finishedStatuses.includes(p.status) &&
             p.status !== 'pending'
-          );
+          ).sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
           
-          const allIncompleteStops = [...incompletePickups, ...incompleteDeliveries];
+          // Combine and get the first (next) stop
+          const allIncompleteStops = [...incompletePickups, ...incompleteDeliveries]
+            .sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
           
-          if (allIncompleteStops.length === 0) return null;
+          const nextStop = allIncompleteStops[0];
           
-          return allIncompleteStops.map((stop, idx) => (
+          if (!nextStop) return null;
+          
+          return (
             <Polyline
-              key={`driver-to-stop-${stop.id}`}
+              key={`driver-to-next-stop-${nextStop.id}`}
               positions={[
                 [currentDriverLocation.latitude, currentDriverLocation.longitude],
-                [stop.latitude, stop.longitude]
+                [nextStop.latitude, nextStop.longitude]
               ]}
               pathOptions={{
                 color: '#3B82F6', // Blue
-                weight: 3,
-                opacity: 0.6,
+                weight: 4,
+                opacity: 0.7,
                 dashArray: '10, 5', // Dashed line
                 lineJoin: 'round',
                 lineCap: 'round'
               }}
               pane="overlayPane"
             />
-          ));
+          );
         })()}
 
         {/* Draw Routes - NOW WITH INTERACTIVE HIGHLIGHTING */}
