@@ -113,10 +113,14 @@ export default function ETATracker({
 
         console.log('🔄 [ETATracker] Updating ETAs...');
 
-        // Get travel durations from backend
+        // Get travel durations from backend - CRITICAL: Pass local time as HH:mm string
+        const currentTime = new Date();
+        const localTimeString = `${String(currentTime.getHours()).padStart(2, '0')}:${String(currentTime.getMinutes()).padStart(2, '0')}`;
+
         const response = await base44.functions.invoke('calculateRealTimeETA', {
           driverId: selectedDriverId,
-          deliveryDate: selectedDate
+          deliveryDate: selectedDate,
+          currentLocalTime: localTimeString // Send as HH:mm to avoid UTC conversion
         });
 
         const data = response?.data || response;

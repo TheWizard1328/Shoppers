@@ -42,8 +42,8 @@ Deno.serve(async (req) => {
     console.log('✅ [optimizeRouteRealTime] User authenticated:', user.email);
 
     console.log('📦 [optimizeRouteRealTime] Parsing request body...');
-    const { driverId, deliveryDate, currentLocalTime, startLocation } = await req.json();
-    console.log('📦 [optimizeRouteRealTime] Request params:', { driverId, deliveryDate, currentLocalTime, startLocation });
+    const { driverId, deliveryDate, currentLocalTime, startLocation, deviceTime } = await req.json();
+    console.log('📦 [optimizeRouteRealTime] Request params:', { driverId, deliveryDate, currentLocalTime, startLocation, deviceTime });
 
     if (!driverId || !deliveryDate) {
       console.error('❌ [optimizeRouteRealTime] Missing parameters:', { driverId, deliveryDate });
@@ -54,16 +54,30 @@ Deno.serve(async (req) => {
     
     console.log('✅ [optimizeRouteRealTime] Parameters validated');
 
-    // Use client's local time if provided, otherwise fall back to server UTC time
+    // CRITICAL: Use device's local time - prefer HH:mm string to avoid timezone conversion
     let currentMinutes;
     if (currentLocalTime) {
+      // currentLocalTime format: "14:30" (already in local time)
       const [hours, minutes] = currentLocalTime.split(':').map(Number);
       currentMinutes = hours * 60 + minutes;
-      console.log(`🕐 Using client local time: ${currentLocalTime} (${currentMinutes} minutes)`);
+      console.log(`🕐 Using device local time: ${currentLocalTime} (${currentMinutes} minutes)`);
+    } else if (deviceTime) {
+      // Fallback: extract from ISO string
+      const timeMatch = deviceTime.match(/T(\d{2}):(\d{2})/);
+      if (timeMatch) {
+        const hours = parseInt(timeMatch[1], 10);
+        const minutes = parseInt(timeMatch[2], 10);
+        currentMinutes = hours * 60 + minutes;
+        console.log(`🕐 Using device time from ISO: ${hours}:${String(minutes).padStart(2, '0')} (${currentMinutes} minutes)`);
+      } else {
+        const now = new Date();
+        currentMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+        console.warn(`⚠️ Could not parse device time, using server UTC time`);
+      }
     } else {
       const now = new Date();
-      currentMinutes = now.getHours() * 60 + now.getMinutes();
-      console.warn(`⚠️ No local time provided, using server time (may be UTC)`);
+      currentMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+      console.warn(`⚠️ No local time provided, using server UTC time`);
     }
 
     console.log(`🔄 [optimizeRouteRealTime] Optimizing route for driver ${driverId} on ${deliveryDate}`);
