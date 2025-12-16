@@ -1692,122 +1692,72 @@ export default function DeliveryForm({
     // Get delivery date from form data for use in TR# calculation
     const deliveryDate = formData.delivery_date;
 
-    // Calculate sequential TR#s based on store's base TR# for each store/driver/AMPM group
+    // Calculate sequential TR#s based on store's base TR# for each store
     const calculateSequentialTRs = (deliveries) => {
-      // Group by store_id + driver_id + ampm_deliveries (pickup group key)
+      // Group by store_id (each store has its own base TR#)
       const groups = {};
 
       deliveries.forEach((del) => {
-        const groupKey = `${del.store_id}_${del.driver_id}_${del.ampm_deliveries || 'AM'}`;
-        if (!groups[groupKey]) {
-          groups[groupKey] = {
-            pickupTR: null,
-            existingDeliveryCount: 0,
+        const storeId = del.store_id;
+        if (!groups[storeId]) {
+          const store = stores?.find((s) => s && s.id === storeId);
+          const storeBaseTR = store?.base_tracking_number !== undefined ? store.base_tracking_number : 0;
+          const storeAbbrev = store?.abbreviation || '';
+          
+          groups[storeId] = {
+            baseTR: storeBaseTR,
+            abbreviation: storeAbbrev,
             deliveries: []
           };
+          console.log(`[AddToRoute] 🏪 Store ${store?.name} - Base TR: ${storeBaseTR}, Abbrev: ${storeAbbrev}`);
         }
-        groups[groupKey].deliveries.push(del);
+        groups[storeId].deliveries.push(del);
       });
 
-      // For each group, find the pickup's TR# and count existing deliveries
-      Object.keys(groups).forEach((groupKey) => {
-        const [storeId, driverId, ampm] = groupKey.split('_');
-
-        // CRITICAL: Get store's base_tracking_number FIRST
-        const store = stores?.find((s) => s && s.id === storeId);
-        const storeBaseTR = store?.base_tracking_number !== undefined ? store.base_tracking_number : 0;
-        console.log(`[AddToRoute] 🏪 Store ${store?.name} has base TR# ${storeBaseTR}`);
-
-        // Find the pickup for this group in allDeliveries
-        const existingPickup = allDeliveries?.find((d) =>
+      // Count existing deliveries for each store on this date
+      Object.keys(groups).forEach((storeId) => {
+        const existingCount = allDeliveries?.filter((d) =>
           d &&
-          !d.patient_id &&
+          d.patient_id && // Only count deliveries, not pickups
           d.store_id === storeId &&
-          d.driver_id === driverId &&
-          d.delivery_date === formData.delivery_date &&
-          (d.ampm_deliveries || 'AM') === ampm
-        );
+          d.delivery_date === formData.delivery_date
+        ).length || 0;
 
-        if (existingPickup && existingPickup.tracking_number !== undefined && existingPickup.tracking_number !== null && existingPickup.tracking_number !== '') {
-          // Use existing pickup's TR# if it exists
-          const baseTR = parseInt(existingPickup.tracking_number, 10);
-          groups[groupKey].pickupTR = isNaN(baseTR) ? storeBaseTR : baseTR;
-          console.log(`[AddToRoute] 📍 Found pickup TR# ${groups[groupKey].pickupTR} for group ${groupKey} (raw: "${existingPickup.tracking_number}")`);
-        } else {
-          // No pickup found - use store's base_tracking_number
-          groups[groupKey].pickupTR = storeBaseTR;
-          console.log(`[AddToRoute] 🏪 No pickup found for group ${groupKey}, using store base TR# ${storeBaseTR}`);
-        }
-
-        // Count existing deliveries for this group (from both database AND staged list)
-        const existingDeliveriesForGroup = allDeliveries?.filter((d) =>
+        // Also count NEW staged deliveries (not already in DB)
+        const stagedCount = stagedDeliveries.filter((d) =>
           d &&
-          d.patient_id && // Is a delivery, not pickup
+          d.patient_id &&
           d.store_id === storeId &&
-          d.driver_id === driverId &&
           d.delivery_date === formData.delivery_date &&
-          (d.ampm_deliveries || 'AM') === ampm
-        ) || [];
+          !d.id
+        ).length;
 
-        // CRITICAL: Also count staged deliveries for this group (already in staging list)
-        const stagedDeliveriesForGroup = stagedDeliveries.filter((d) =>
-          d &&
-          d.patient_id && // Is a delivery, not pickup
-          d.store_id === storeId &&
-          d.driver_id === driverId &&
-          d.delivery_date === formData.delivery_date &&
-          (d.ampm_deliveries || 'AM') === ampm &&
-          !d.id // Only count NEW staged items (not pending ones already in DB)
-        );
-
-        groups[groupKey].existingDeliveryCount = existingDeliveriesForGroup.length + stagedDeliveriesForGroup.length;
-        console.log(`[AddToRoute] 📊 Group ${groupKey} has ${existingDeliveriesForGroup.length} DB deliveries + ${stagedDeliveriesForGroup.length} staged = ${groups[groupKey].existingDeliveryCount} total`);
-
-        // If no pickup TR found in allDeliveries, check staged deliveries for a pickup
-        if (!existingPickup || !existingPickup.tracking_number) {
-          const stagedPickup = stagedDeliveries.find((d) =>
-            d &&
-            !d.patient_id &&
-            d.store_id === storeId &&
-            d.driver_id === driverId &&
-            (d.ampm_deliveries || 'AM') === ampm
-          );
-          if (stagedPickup && stagedPickup.tracking_number !== undefined && stagedPickup.tracking_number !== null && stagedPickup.tracking_number !== '') {
-            const baseTR = parseInt(stagedPickup.tracking_number, 10);
-            groups[groupKey].pickupTR = isNaN(baseTR) ? storeBaseTR : baseTR;
-            console.log(`[AddToRoute] 📍 Found staged pickup TR# ${groups[groupKey].pickupTR} for group ${groupKey}`);
-          }
-        }
+        groups[storeId].existingCount = existingCount + stagedCount;
+        console.log(`[AddToRoute] 📊 Store ${storeId}: ${existingCount} DB + ${stagedCount} staged = ${groups[storeId].existingCount} existing deliveries`);
       });
 
-      // Assign sequential TR#s starting from pickup TR# + existing count + 1
-      const updatedDeliveries = deliveries.map((del) => {
-        const groupKey = `${del.store_id}_${del.driver_id}_${del.ampm_deliveries || 'AM'}`;
-        const group = groups[groupKey];
+      // Assign sequential TR#s: abbreviation + (base + existing + index + 1)
+      const updatedDeliveries = deliveries.map((del, index) => {
+        if (!del.patient_id) return del; // Skip pickups
 
-        // Only assign TR# to patient deliveries (not pickups)
-        if (del.patient_id) {
-          // Use group's pickupTR (either from existing pickup or store's base_tracking_number)
-          const baseTR = group.pickupTR !== null && group.pickupTR !== undefined ? group.pickupTR : 0;
+        const group = groups[del.store_id];
+        if (!group) return del;
 
-          // Find this delivery's index within NEW deliveries for this group (sorted by patient name)
-          const newDeliveriesInGroup = [...group.deliveries].
-            filter((d) => d.patient_id) // Only patient deliveries
-            .sort((a, b) => (a.patient_name || '').localeCompare(b.patient_name || ''));
+        // Sort this group's new deliveries by patient name for consistent ordering
+        const newDeliveriesInGroup = [...group.deliveries]
+          .filter((d) => d.patient_id)
+          .sort((a, b) => (a.patient_name || '').localeCompare(b.patient_name || ''));
 
-          const indexInNewDeliveries = newDeliveriesInGroup.findIndex((d) => d._tempId === del._tempId);
-          // TR# = store base TR + existing deliveries count + new delivery index + 1
-          const newTR = baseTR + group.existingDeliveryCount + indexInNewDeliveries + 1;
+        const indexInGroup = newDeliveriesInGroup.findIndex((d) => d._tempId === del._tempId);
+        const trNumber = group.baseTR + group.existingCount + indexInGroup + 1;
+        const trString = `${group.abbreviation}${trNumber}`;
 
-          console.log(`[AddToRoute] 🔢 ${del.patient_name}: TR# ${newTR} (store base: ${baseTR}, existing: ${group.existingDeliveryCount}, newIndex: ${indexInNewDeliveries})`);
+        console.log(`[AddToRoute] 🔢 ${del.patient_name}: ${trString} (base: ${group.baseTR}, existing: ${group.existingCount}, index: ${indexInGroup})`);
 
-          return {
-            ...del,
-            tracking_number: String(newTR)
-          };
-        }
-
-        return del;
+        return {
+          ...del,
+          tracking_number: trString
+        };
       });
 
       return updatedDeliveries;
