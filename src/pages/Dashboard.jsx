@@ -5932,6 +5932,16 @@ function Dashboard() {
                 setIsReoptimizing(true);
                 setOptimizationMessage('Re-optimizing route with Google Maps...');
                 
+                // STEP 0: Unlock FAB if it's on phase 2 (permanently locked)
+                if (mapViewPhase === 2 && isMapViewLocked) {
+                  if (mapLockTimeoutRef.current) {
+                    clearTimeout(mapLockTimeoutRef.current);
+                    mapLockTimeoutRef.current = null;
+                  }
+                  mapLockExpiresAtRef.current = null;
+                  setIsMapViewLocked(false);
+                }
+                
                 // STEP 1: Zoom out to show all incomplete/pending stops
                 const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
                 const incompleteStops = deliveriesWithStopOrder.filter(d => 
