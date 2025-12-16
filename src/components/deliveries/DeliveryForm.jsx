@@ -3585,7 +3585,7 @@ export default function DeliveryForm({
                 {!delivery && !useMobileLayout &&
                   <div className="w-[21rem] flex-shrink-0 p-3 rounded-lg border-2 flex flex-col h-full" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                     <Label className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>Staged: (S: {stagedDeliveries.length} P: {projectedDeliveries.length})</Label>
-                    <div className="space-y-1 flex-1 overflow-y-auto min-h-0">
+                    <div className="space-y-1 flex-1 overflow-y-auto min-h-0 custom-scrollbar">
                       {sortedStagedDeliveries.map((staged) => {
                         const stagedStore = stores?.find((s) => s && s.id === staged.store_id);
                         const storeColor = stagedStore ? getStoreColor(stagedStore) : '#64748b';
@@ -3678,7 +3678,13 @@ export default function DeliveryForm({
 
                       })}
 
-                      {projectedDeliveries.map((projected) => {
+                      {projectedDeliveries.filter(proj => {
+                        // Filter by driver if a specific driver is selected
+                        if (formData.driver_id && formData.driver_id !== '') {
+                          return proj.driver_id === formData.driver_id;
+                        }
+                        return true;
+                      }).map((projected) => {
                         const projectedStore = stores?.find((s) => s && s.id === projected.store_id);
                         const storeColor = projectedStore ? getStoreColor(projectedStore) : '#64748b';
 
@@ -3724,7 +3730,12 @@ export default function DeliveryForm({
                         </div>
                       }
 
-                      {!isLoadingPredictions && stagedDeliveries.length === 0 && projectedDeliveries.length === 0 &&
+                      {!isLoadingPredictions && stagedDeliveries.length === 0 && projectedDeliveries.filter(proj => {
+                        if (formData.driver_id && formData.driver_id !== '') {
+                          return proj.driver_id === formData.driver_id;
+                        }
+                        return true;
+                      }).length === 0 &&
                         <div className="p-4 text-center text-slate-400 text-xs">
                           No deliveries staged yet
                         </div>
