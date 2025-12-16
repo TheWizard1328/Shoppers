@@ -126,9 +126,9 @@ const optimizeStoreRoute = (stops, storeLocation, pickupTime, startLocation = nu
       }
       
       // CRITICAL: Check pickup-before-delivery constraint using PUID
+      // This is an ABSOLUTE constraint - deliveries CANNOT come before their pickups
       if (stop.patient_id) { // This is a delivery
         // Check if this is an interstore delivery (exempt from constraint)
-        // Check both delivery notes and patient name for "interstore"
         const patient = patients.find(p => p && p.id === stop.patient_id);
         const patientName = patient?.full_name || '';
         const deliveryNotes = stop.delivery_notes || '';
@@ -141,12 +141,13 @@ const optimizeStoreRoute = (stops, storeLocation, pickupTime, startLocation = nu
           // Regular delivery with PUID - check if its pickup has been completed
           if (!completedPickups.has(stop.puid)) {
             // Pickup not done yet - find the pickup in remaining stops
-            const pickupIndex = remaining.findIndex(stopItem => 
+            const pickupExists = remaining.some(stopItem => 
               stopItem && !stopItem.patient_id && stopItem.stop_id === stop.puid
             );
             
-            if (pickupIndex !== -1) {
-              // Pickup exists but hasn't been done - SKIP this delivery for now
+            if (pickupExists) {
+              // Pickup exists but hasn't been done - ABSOLUTELY SKIP this delivery
+              // console.log(`    🚫 Skipping delivery ${stop.patient_name || stop.patient_id} - pickup not done yet`);
               continue;
             }
           }
@@ -169,8 +170,8 @@ const optimizeStoreRoute = (stops, storeLocation, pickupTime, startLocation = nu
       // Lower distance = higher score
       const distanceScore = Math.max(0, 200 - distanceToStop * 20);
       
-      // SECONDARY SCORE: Time window compliance (CRITICAL for ordering)
-      // Time windows MUST be respected - stops with earlier windows should come first
+      // SECONDARY SCORE: Time window compliance
+      // Time windows should guide ordering but NOT override distance for same-window stops
       let timeWindowScore = 0;
       const isPickup = !stop.patient_id;
       
@@ -178,44 +179,50 @@ const optimizeStoreRoute = (stops, storeLocation, pickupTime, startLocation = nu
         const windowStart = timeToMinutes(stop.time_window_start);
         const windowEnd = timeToMinutes(stop.time_window_end);
         
-        // Pickups: Time windows are a priority.
+        // Pickups: Time windows are CRITICAL - must arrive within window
         if (isPickup) {
-          // Heavy penalty for arriving after the pickup window ends.
           if (arrivalTime > windowEnd) {
-            timeWindowScore = -500;
-          }
-          // Smaller penalty for arriving too early (e.g., > 15 mins before).
-          else if (arrivalTime < windowStart - 15) {
-            timeWindowScore = -50;
-          }
-          // Strong bonus for being on time.
-          else {
-            timeWindowScore = 150;
+            // Heavy penalty for arriving after the pickup window ends
+            timeWindowScore = -1000;
+          } else if (arrivalTime < windowStart - 15) {
+            // Small penalty for arriving very early
+            timeWindowScore = -30;
+          } else {
+            // Bonus for being on time
+            timeWindowScore = 100;
           }
         } else {
-          // Deliveries: Time windows are CRITICAL for ordering
-          // CRITICAL: Stops with earlier time windows should be prioritized
-          // Add a bonus based on how soon the window starts (earlier = higher priority)
-          const windowUrgency = Math.max(0, 300 - windowStart); // Earlier windows get higher scores
+          // Deliveries: Time windows matter but distance is primary
+          // KEY FIX: Don't give bonus based on window start time - that was causing late windows to get deprioritized incorrectly
           
           if (arrivalTime >= windowStart && arrivalTime <= windowEnd) {
             // Perfect - within the acceptable window
-            timeWindowScore = 100 + windowUrgency;
+            timeWindowScore = 50;
           } else if (arrivalTime < windowStart) {
-            // Arriving early - still good, but slight penalty for waiting
-            const waitTime = windowStart - arrivalTime;
-            timeWindowScore = 80 + windowUrgency - (waitTime * 0.5);
+            // Arriving early is fine - no penalty for being early to a delivery
+            // The customer prefers early over late
+            timeWindowScore = 30;
           } else {
             // Arriving after windowEnd - this is truly late
             // Heavy penalty that increases as we get further past the end time
             const lateness = arrivalTime - windowEnd;
-            timeWindowScore = -100 - (lateness * 2);
+            timeWindowScore = -200 - (lateness * 3);
           }
         }
-      } else if (!isPickup) {
-        // Deliveries without time windows get neutral score
-        // They can be optimized purely by distance
-        timeWindowScore = 0;
+      } else if (isPickup) {
+        // Pickups without explicit time windows - check delivery_time_start/end
+        if (stop.delivery_time_start && stop.delivery_time_end) {
+          const windowStart = timeToMinutes(stop.delivery_time_start);
+          const windowEnd = timeToMinutes(stop.delivery_time_end);
+          
+          if (arrivalTime > windowEnd) {
+            timeWindowScore = -1000; // Must not miss pickup window
+          } else if (arrivalTime >= windowStart) {
+            timeWindowScore = 100; // On time
+          } else {
+            timeWindowScore = 50; // Early is okay
+          }
+        }
       }
       
       // LOOKAHEAD SCORE: How does this choice position us for remaining stops?
