@@ -42,8 +42,10 @@ Deno.serve(async (req) => {
     console.log('✅ [optimizeRouteRealTime] User authenticated:', user.email);
 
     console.log('📦 [optimizeRouteRealTime] Parsing request body...');
-    const { driverId, deliveryDate, startLocation } = await req.json();
-    console.log('📦 [optimizeRouteRealTime] Request params:', { driverId, deliveryDate, currentLocalTime, startLocation, deviceTime });
+    const body = await req.json();
+    const { driverId, deliveryDate, startLocation, excludeDeliveryIds, currentLocalTime, deviceTime } = body;
+    const excludedIds = excludeDeliveryIds || [];
+    console.log('📦 [optimizeRouteRealTime] Request params:', { driverId, deliveryDate, currentLocalTime, startLocation, deviceTime, excludeDeliveryIds: excludedIds.length });
 
     if (!driverId || !deliveryDate) {
       console.error('❌ [optimizeRouteRealTime] Missing parameters:', { driverId, deliveryDate });
@@ -151,17 +153,20 @@ Deno.serve(async (req) => {
     );
     
     // Filter incomplete deliveries based on route status
+    // CRITICAL: Also exclude any deliveries that are in excludedIds (user started them)
     let incompleteDeliveries;
     if (routeHasStarted) {
-      // Route has started: exclude finished statuses but INCLUDE all non-finished stops (including pending)
-      incompleteDeliveries = allDeliveries.filter(d => !finishedStatuses.includes(d.status));
-      console.log(`📊 Route HAS started - including all non-finished stops (${incompleteDeliveries.length})`);
-    } else {
-      // Route has NOT started: exclude BOTH pending AND finished statuses (only Ready For Pickup, en_route)
+      // Route has started: exclude finished statuses and excluded IDs
       incompleteDeliveries = allDeliveries.filter(d => 
-        !finishedStatuses.includes(d.status) && d.status !== 'pending'
+        !finishedStatuses.includes(d.status) && !excludedIds.includes(d.id)
       );
-      console.log(`📊 Route NOT started - excluding pending and finished (${incompleteDeliveries.length})`);
+      console.log(`📊 Route HAS started - including all non-finished, non-excluded stops (${incompleteDeliveries.length})`);
+    } else {
+      // Route has NOT started: exclude BOTH pending AND finished statuses AND excluded IDs
+      incompleteDeliveries = allDeliveries.filter(d => 
+        !finishedStatuses.includes(d.status) && d.status !== 'pending' && !excludedIds.includes(d.id)
+      );
+      console.log(`📊 Route NOT started - excluding pending, finished, and excluded (${incompleteDeliveries.length})`);
     }
 
     console.log(`📊 Route breakdown: ${completedDeliveries.length} completed, ${incompleteDeliveries.length} incomplete`);
@@ -188,14 +193,19 @@ Deno.serve(async (req) => {
     }
 
     // CRITICAL: Find excluded deliveries (already positioned - don't optimize)
-    const excludedDeliveries = allDeliveries.filter(d => excludedIds.includes(d.id) && !finishedStatuses.includes(d.status));
+    // These are deliveries that user explicitly started - they should keep their position
+    const excludedDeliveries = excludedIds.length > 0 
+      ? allDeliveries.filter(d => excludedIds.includes(d.id) && !finishedStatuses.includes(d.status))
+      : [];
+    
+    console.log(`📌 Found ${excludedDeliveries.length} excluded deliveries (user started)`);
     
     // Assign them sequential stop_order right after completed stops
     for (let i = 0; i < excludedDeliveries.length; i++) {
       const delivery = excludedDeliveries[i];
       const sequentialOrder = completedDeliveries.length + i + 1;
       
-      if (delivery.stop_order !== sequentialOrder) {
+      if (delivery.stop_order !== sequentialOrder || delivery.display_stop_order !== sequentialOrder) {
         await base44.asServiceRole.entities.Delivery.update(delivery.id, {
           stop_order: sequentialOrder,
           display_stop_order: sequentialOrder
