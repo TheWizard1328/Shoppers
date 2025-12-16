@@ -346,7 +346,7 @@ function Dashboard() {
       : 20;
     const bottomPadding = isMobile 
       ? (cardExpanded ? STOP_CARDS_EXPANDED_HEIGHT + 50 : STOP_CARDS_BASE_HEIGHT - 20)
-      : 50;
+      : 75;
     return {
       paddingTopLeft: [25, topPadding],
       paddingBottomRight: [25, bottomPadding]
