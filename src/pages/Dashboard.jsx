@@ -1275,6 +1275,12 @@ function Dashboard() {
         try {
           const driverDeliveries = filteredDeliveries.filter((d) => d && d.driver_id === driverIdToFetch);
           const driver = users.find((u) => u && u.id === driverIdToFetch);
+          
+          // CRITICAL: Only fetch polyline if driver is on_duty with location tracking enabled
+          if (!driver || driver.driver_status !== 'on_duty' || driver.location_tracking_enabled !== true) {
+            setCurrentToNextPolyline(null);
+            return;
+          }
 
           const segment = determinePolylineSegment(driverDeliveries, driver, patients, stores);
 
