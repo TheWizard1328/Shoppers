@@ -1805,11 +1805,6 @@ function Dashboard() {
             const isHomeNextStop =
             Math.abs(nextStopCoordinates.lat - viewedUserPhase2.home_latitude) < 0.0001 &&
             Math.abs(nextStopCoordinates.lon - viewedUserPhase2.home_longitude) < 0.0001;
-
-            if (isHomeNextStop) {
-              // Home is already included via nextStopCoordinates, no need to add again
-            } else {
-            }
           }
 
           const padding = getMapPadding(false);
@@ -1817,7 +1812,7 @@ function Dashboard() {
             bounds,
             options: {
               ...padding,
-              maxZoom: 17
+              maxZoom: 17.5
             }
           });
           setMapCenter(null);
