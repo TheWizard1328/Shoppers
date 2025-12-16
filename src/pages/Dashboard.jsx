@@ -4897,16 +4897,14 @@ function Dashboard() {
       // Next stop order is simply completedCount + 1
       const nextStopOrder = completedStops.length + 1;
 
-      console.log(`📊 [START] ${completedStops.length} completed stops, assigning stop_order ${nextStopOrder} to started delivery`);
+      console.log(`📊 [START] ${completedStops.length} completed stops, will assign stop_order ${nextStopOrder} to started delivery`);
 
-      // STEP 2: Update status and assign next sequential stop_order
+      // STEP 2: Update status ONLY (don't assign stop_order yet - let backend optimizer do it)
       await updateDeliveryLocal(deliveryId, {
-        status: newStatus,
-        stop_order: nextStopOrder,
-        display_stop_order: nextStopOrder
+        status: newStatus
       });
 
-      // STEP 3: Calculate ETA for this specific stop
+      // STEP 3: Immediately run optimization which will assign proper stop_order
       try {
         const nowTime = new Date();
         const currentTotalMinutes = nowTime.getHours() * 60 + nowTime.getMinutes();
@@ -5000,9 +4998,9 @@ function Dashboard() {
             optimizationStartLon = store?.longitude;
           }
 
-          console.log(`📍 [START] Optimization will start from started delivery's location and exclude it from re-sequencing`);
+          console.log(`📍 [START] Backend will assign stop_order=${nextStopOrder} to started delivery and optimize remaining from that point`);
 
-          // CRITICAL: Pass excludeDeliveryIds to backend - started delivery keeps its position
+          // CRITICAL: Pass excludeDeliveryIds to backend - it will handle stop_order assignment
           const optimizeResponse = await base44.functions.invoke('optimizeRouteRealTime', {
             driverId: driverId,
             deliveryDate: deliveryDate,
@@ -5012,16 +5010,26 @@ function Dashboard() {
               lat: optimizationStartLat,
               lng: optimizationStartLon
             } : null,
-            excludeDeliveryIds: [deliveryId] // CRITICAL: Exclude started delivery from optimization
+            excludeDeliveryIds: [deliveryId] // Backend assigns stop_order to excluded delivery
           });
           
           const optimizeData = optimizeResponse?.data || optimizeResponse;
-          console.log('✅ [START] Backend optimization complete:', optimizeData?.success ? 'success' : 'no changes');
+          console.log('✅ [START] Backend optimization complete - stop_order assigned:', optimizeData?.success ? 'success' : 'error');
         } else {
-          console.log('ℹ️ [START] No remaining stops to optimize');
+          console.log('ℹ️ [START] No remaining stops - assigning stop_order directly');
+          // No remaining stops - just assign the stop_order directly
+          await updateDeliveryLocal(deliveryId, {
+            stop_order: nextStopOrder,
+            display_stop_order: nextStopOrder
+          });
         }
       } catch (optimizeError) {
-        console.warn('⚠️ [START] Route optimization failed:', optimizeError);
+        console.error('❌ [START] Route optimization failed:', optimizeError);
+        // Fallback: assign stop_order manually if optimization fails
+        await updateDeliveryLocal(deliveryId, {
+          stop_order: nextStopOrder,
+          display_stop_order: nextStopOrder
+        });
       }
 
       // STEP 5: Update isNextDelivery flags after optimization
@@ -5044,25 +5052,19 @@ function Dashboard() {
         console.warn('⚠️ [START] isNextDelivery flag update failed:', flagError);
       }
 
-      // STEP 6: Full data refresh to update UI
+      // STEP 7: Full data refresh to update UI with newly optimized route
       invalidateDeliveriesForDate(deliveryDate);
       await refreshData();
 
-      // 7. Scroll to first incomplete delivery
-      const remainingIncomplete = deliveries.
-      filter((d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate && !finishedStatuses.includes(d.status)).
-      sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+      console.log('✅ [START] Start delivery complete - UI refreshed');
 
-      if (remainingIncomplete.length > 0) {
-        const nextCard = remainingIncomplete[0];
-        setTimeout(() => {
-          const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
-          if (cardElement) {
-            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-          }
-        }, 300);
-      } else {
-      }
+      // STEP 8: Scroll to started delivery
+      setTimeout(() => {
+        const cardElement = document.getElementById(`stop-card-${deliveryId}`);
+        if (cardElement) {
+          cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        }
+      }, 300);
 
       // Check if route is complete after starting
       const allDriverDeliveriesForStart = deliveries.filter((d) => 
