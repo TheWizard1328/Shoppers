@@ -1048,25 +1048,24 @@ function Dashboard() {
     fetchGoogleApiKey();
   }, []);
 
-  // Fetch daily polyline count for app owner badge
+  // Fetch daily API call count from GoogleAPILog for app owner badge
   const fetchPolylineCount = useCallback(async () => {
     if (!currentUser || !isAppOwner(currentUser)) return;
 
     try {
       const todayStr = format(new Date(), 'yyyy-MM-dd');
-      const polylines = await base44.entities.DriverRoutePolyline.filter({
-        delivery_date: todayStr
+      const todayStart = new Date(todayStr + 'T00:00:00').toISOString();
+      const todayEnd = new Date(todayStr + 'T23:59:59').toISOString();
+      
+      // Fetch all Google API calls for today
+      const apiLogs = await base44.entities.GoogleAPILog.filter({
+        timestamp: { $gte: todayStart, $lte: todayEnd }
       });
 
-      if (polylines && polylines.length > 0) {
-        // Find the highest daily_generation_count
-        const maxCount = Math.max(...polylines.map((p) => p.daily_generation_count || 0));
-        setDailyPolylineCount(maxCount);
-      } else {
-        setDailyPolylineCount(0);
-      }
+      setDailyPolylineCount(apiLogs?.length || 0);
     } catch (error) {
-      console.error('Error fetching polyline count:', error);
+      console.error('Error fetching API call count:', error);
+      setDailyPolylineCount(0);
     }
   }, [currentUser]);
 
