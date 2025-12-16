@@ -1797,8 +1797,8 @@ export default function DeliveryMap({
 
         }
 
-        {/* STRAIGHT BLUE DASHED LINE - From driver location to NEXT stop only */}
-        {isViewingCurrentDate && currentDriverLocation?.latitude && currentDriverLocation?.longitude && (() => {
+        {/* STRAIGHT BLUE DASHED LINE - From driver location (or fallback) to NEXT stop only */}
+        {isViewingCurrentDate && (() => {
           const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
           
           // Get all incomplete deliveries for the current driver, sorted by stop_order
@@ -1824,11 +1824,51 @@ export default function DeliveryMap({
           
           if (!nextStop) return null;
           
+          // CRITICAL: Determine the starting point for the blue dashed line
+          // Priority: 1) Live driver location, 2) Last completed stop, 3) Driver's home location
+          let startPoint = null;
+          
+          // 1) Check for live driver location (blue dot)
+          if (currentDriverLocation?.latitude && currentDriverLocation?.longitude) {
+            startPoint = [currentDriverLocation.latitude, currentDriverLocation.longitude];
+          }
+          
+          // 2) If no live location, check for shared driver marker (driverLocationMarkers)
+          if (!startPoint) {
+            const sharedDriverMarker = driverLocationMarkers.find(m => m.driver?.id === currentUser?.id);
+            if (sharedDriverMarker?.latitude && sharedDriverMarker?.longitude) {
+              startPoint = [sharedDriverMarker.latitude, sharedDriverMarker.longitude];
+            }
+          }
+          
+          // 3) If still no location, check for completed stops (use last completed)
+          if (!startPoint) {
+            const allDriverStops = [...deliveryMarkers, ...pickupMarkers].filter(d => 
+              d && d.driver_id === currentUser?.id
+            );
+            const completedStops = allDriverStops
+              .filter(s => finishedStatuses.includes(s.status) && s.actual_delivery_time)
+              .sort((a, b) => new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time));
+            
+            if (completedStops.length > 0) {
+              const lastCompleted = completedStops[0];
+              startPoint = [lastCompleted.latitude, lastCompleted.longitude];
+            }
+          }
+          
+          // 4) If no completed stops, use driver's home location
+          if (!startPoint && currentUser?.home_latitude && currentUser?.home_longitude) {
+            startPoint = [currentUser.home_latitude, currentUser.home_longitude];
+          }
+          
+          // If we still don't have a start point, don't draw the line
+          if (!startPoint) return null;
+          
           return (
             <Polyline
               key={`driver-to-next-stop-${nextStop.id}`}
               positions={[
-                [currentDriverLocation.latitude, currentDriverLocation.longitude],
+                startPoint,
                 [nextStop.latitude, nextStop.longitude]
               ]}
               pathOptions={{
