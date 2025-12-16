@@ -342,16 +342,24 @@ function Dashboard() {
   // Computed padding values for consistent map bounds
   // Note: paddingTopLeft = [horizontal, vertical from top]
   //       paddingBottomRight = [horizontal, vertical from bottom]
-  // CRITICAL: When blue dot is visible on mobile, add extra bottom padding so it's not hidden behind stop cards
-  const hasBlueDotVisible = isMobile && isDriver && driverLocation?.latitude && driverLocation?.longitude;
-  
   const getMapPadding = useCallback((cardExpanded = false) => {
     const topPadding = isMobile 
       ? (isExpanded ? STATS_CARD_EXTENDED_HEIGHT + 10 : STATS_CARD_BASE_HEIGHT + 10) 
       : 140; // Desktop: account for stats card
     
-    // Mobile: Add extra 80px bottom padding when blue dot is visible to ensure it's not hidden
-    const blueDotExtraPadding = hasBlueDotVisible ? 80 : 0;
+    // CRITICAL: Check if blue dot is actually rendered on screen
+    // The blue dot is only visible when: mobile + driver + viewing today + has location
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+    const isViewingToday = todayStr === selectedDateStr;
+    const hasBlueDotRendered = isMobile && 
+                               isDriver && 
+                               isViewingToday && 
+                               driverLocation?.latitude && 
+                               driverLocation?.longitude;
+    
+    // Mobile: Add extra 80px bottom padding when blue dot is rendered to ensure it's not hidden
+    const blueDotExtraPadding = hasBlueDotRendered ? 80 : 0;
     const bottomPadding = isMobile 
       ? (cardExpanded ? STOP_CARDS_EXPANDED_HEIGHT + 20 : STOP_CARDS_BASE_HEIGHT + 40 + blueDotExtraPadding)
       : (cardExpanded ? 500 : 160); // Desktop: account for stop cards
@@ -359,7 +367,7 @@ function Dashboard() {
       paddingTopLeft: [25, topPadding],
       paddingBottomRight: [25, bottomPadding]
     };
-  }, [isMobile, isExpanded, stopCardsBaseHeight, hasBlueDotVisible]);
+  }, [isMobile, isExpanded, stopCardsBaseHeight, isDriver, driverLocation, selectedDate]);
 
   // Load user settings on mount - PHASE 1: Load backend values FIRST
   useEffect(() => {
