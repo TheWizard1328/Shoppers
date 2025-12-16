@@ -1585,22 +1585,14 @@ export default function DeliveryMap({
     const mapInstance = useMapEvents({
       zoomstart: () => {
         const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
-        if (timeSinceProgrammatic > 300) {
+        if (timeSinceProgrammatic > 1000) {
           if (onMapInteraction) onMapInteraction();
-        } else {
-          setTimeout(() => {
-            window._lastProgrammaticMapMove = 0;
-          }, 350);
         }
       },
       movestart: () => {
         const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
-        if (timeSinceProgrammatic > 300) {
+        if (timeSinceProgrammatic > 1000) {
           if (onMapInteraction) onMapInteraction();
-        } else {
-          setTimeout(() => {
-            window._lastProgrammaticMapMove = 0;
-          }, 350);
         }
       },
       zoomend: () => {
