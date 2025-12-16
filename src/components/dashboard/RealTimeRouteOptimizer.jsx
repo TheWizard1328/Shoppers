@@ -43,14 +43,9 @@ export default function RealTimeRouteOptimizer({
     console.log('🔄 [RealTimeRouteOptimizer] Triggering route optimization for driver:', selectedDriverId);
 
     try {
-      // Get current device local time
-      const now = new Date();
-      const currentLocalTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-      
       const response = await base44.functions.invoke('optimizeRouteRealTime', {
         driverId: selectedDriverId,
         deliveryDate: selectedDate,
-        currentLocalTime: currentLocalTime
       });
 
       const data = response?.data || response;
@@ -58,49 +53,39 @@ export default function RealTimeRouteOptimizer({
       if (data?.success) {
         console.log(`✅ [RealTimeRouteOptimizer] Route ${data.routeChanged ? 'OPTIMIZED' : 'unchanged'}`);
         
-        if (data.routeChanged && data.durationUpdates?.length > 0) {
-          // Calculate ETAs locally using device time
+        if (data.routeChanged && data.optimizedRoute?.length > 0) {
           const now = new Date();
-          const currentHours = now.getHours();
-          const currentMinutes = now.getMinutes();
-          const currentTotalMinutes = currentHours * 60 + currentMinutes;
+          let cumulativeMinutes = now.getHours() * 60 + now.getMinutes();
 
-          // Calculate and save ETAs locally
-          for (const update of data.durationUpdates) {
-            const etaTotalMinutes = currentTotalMinutes + update.cumulativeMinutes;
-            const etaHours = Math.floor(etaTotalMinutes / 60) % 24;
-            const etaMinutes = etaTotalMinutes % 60;
+          for (const stop of data.optimizedRoute) {
+            cumulativeMinutes += stop.travelMinutes;
+            const etaHours = Math.floor(cumulativeMinutes / 60) % 24;
+            const etaMinutes = cumulativeMinutes % 60;
             const etaString = `${etaHours.toString().padStart(2, '0')}:${etaMinutes.toString().padStart(2, '0')}`;
 
-            // Save ETA to database
-            await base44.entities.Delivery.update(update.deliveryId, {
+            await base44.entities.Delivery.update(stop.deliveryId, {
               delivery_time_eta: etaString
             });
-
-            console.log(`⏰ [RealTimeRouteOptimizer] Updated ETA for ${update.delivery_id}: ${etaString} (${update.cumulativeMinutes} min from now)`);
+            
+            cumulativeMinutes += stop.serviceMinutes;
           }
 
-          // Show notification
           setNotification({
             id: Date.now(),
-            updates: data.durationUpdates,
-            totalStops: data.totalStops
+            updates: data.optimizedRoute,
+            totalStops: data.optimizedRoute.length
           });
 
-          // Auto-dismiss after 6 seconds
-          setTimeout(() => {
-            setNotification(null);
-          }, 6000);
+          setTimeout(() => setNotification(null), 6000);
 
           if (onRouteOptimized) {
-            onRouteOptimized(data.durationUpdates);
+            onRouteOptimized(data.optimizedRoute);
           }
 
-          // Dispatch event for other components
           window.dispatchEvent(new CustomEvent('routeOptimized', {
             detail: {
               driverId: selectedDriverId,
-              updates: data.durationUpdates
+              updates: data.optimizedRoute
             }
           }));
         }

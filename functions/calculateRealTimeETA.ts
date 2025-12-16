@@ -14,7 +14,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { driverId, deliveryDate, currentLocalTime, deviceTime } = await req.json();
+    const { driverId, deliveryDate } = await req.json();
 
     if (!driverId || !deliveryDate) {
       return Response.json({ 
@@ -194,20 +194,15 @@ Deno.serve(async (req) => {
             }
           }
           
-          // Calculate ETA as HH:mm (handle midnight wraparound)
-          const etaHours = Math.floor(cumulativeMinutes / 60) % 24;
-          const etaMinutes = cumulativeMinutes % 60;
-          const etaString = `${String(etaHours).padStart(2, '0')}:${String(etaMinutes).padStart(2, '0')}`;
-          
-          // Add service time for next iteration
+          // Track cumulative time for time window logic
           cumulativeMinutes += serviceTime;
 
           etaUpdates.push({
             deliveryId: delivery.id,
             delivery_id: delivery.delivery_id,
-            eta: etaString, // NEW: Return actual clock time
             travelMinutes: travelMinutes,
             serviceMinutes: serviceTime,
+            stopOrder: delivery.stop_order,
             distanceMeters: leg.distance?.value || 0,
             trafficDelay: leg.duration_in_traffic?.value 
               ? (leg.duration_in_traffic.value - leg.duration.value) / 60

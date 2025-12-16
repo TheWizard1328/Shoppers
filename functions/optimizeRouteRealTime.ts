@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
     console.log('✅ [optimizeRouteRealTime] User authenticated:', user.email);
 
     console.log('📦 [optimizeRouteRealTime] Parsing request body...');
-    const { driverId, deliveryDate, currentLocalTime, startLocation, deviceTime } = await req.json();
+    const { driverId, deliveryDate, startLocation } = await req.json();
     console.log('📦 [optimizeRouteRealTime] Request params:', { driverId, deliveryDate, currentLocalTime, startLocation, deviceTime });
 
     if (!driverId || !deliveryDate) {
@@ -550,7 +550,13 @@ Deno.serve(async (req) => {
       driverId,
       deliveryDate,
       routeChanged,
-      durationUpdates: updates,
+      optimizedRoute: updates.map(u => ({ 
+        deliveryId: u.deliveryId, 
+        delivery_id: u.delivery_id, 
+        travelMinutes: u.travelMinutes, 
+        serviceMinutes: u.serviceMinutes, 
+        stopOrder: u.stopOrder 
+      })),
       totalStops: stops.length,
       apiCallsMade: polylineRecord.daily_generation_count,
       locationSource

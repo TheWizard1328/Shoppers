@@ -2117,11 +2117,22 @@ function Dashboard() {
           return;
         }
 
-        await base44.functions.invoke('etaOptimizer', {
+        const response = await base44.functions.invoke('calculateRealTimeETA', {
           driverId: selectedDriverId,
           deliveryDate: dateStr,
-          deviceTime: new Date().toISOString()
         });
+        const data = response?.data || response;
+        if (data?.success && data?.durationUpdates) {
+          const now = new Date();
+          let cumulativeMinutes = now.getHours() * 60 + now.getMinutes();
+          const sorted = data.durationUpdates.sort((a,b) => (a.stopOrder || 0) - (b.stopOrder || 0));
+          for (const update of sorted) {
+            cumulativeMinutes += update.travelMinutes;
+            const eta = `${String(Math.floor(cumulativeMinutes / 60) % 24).padStart(2, '0')}:${String(cumulativeMinutes % 60).padStart(2, '0')}`;
+            await base44.entities.Delivery.update(update.deliveryId, { delivery_time_eta: eta });
+            cumulativeMinutes += update.serviceMinutes;
+          }
+        }
 
       } catch (error) {
         console.warn('⚠️ [Dashboard] Periodic ETA optimizer failed:', error);
@@ -2794,12 +2805,21 @@ function Dashboard() {
 
           // CRITICAL: Trigger full ETA recalculation when adding deliveries (ALL users)
           try {
-            await base44.functions.invoke('etaOptimizer', {
+            const response = await base44.functions.invoke('optimizeRouteRealTime', {
               driverId: driverId,
-              deliveryDate: deliveryDate,
-              triggerFullRecalculation: true,
-              deviceTime: new Date().toISOString()
+              deliveryDate: deliveryDate
             });
+            const data = response?.data || response;
+            if (data?.success && data?.optimizedRoute) {
+              const now = new Date();
+              let cumulativeMinutes = now.getHours() * 60 + now.getMinutes();
+              for (const stop of data.optimizedRoute) {
+                cumulativeMinutes += stop.travelMinutes;
+                const eta = `${String(Math.floor(cumulativeMinutes / 60) % 24).padStart(2, '0')}:${String(cumulativeMinutes % 60).padStart(2, '0')}`;
+                await base44.entities.Delivery.update(stop.deliveryId, { delivery_time_eta: eta });
+                cumulativeMinutes += stop.serviceMinutes;
+              }
+            }
           } catch (etaError) {
             console.warn('⚠️ [AddToRoute] ETA recalculation failed:', etaError);
           }
@@ -3149,13 +3169,22 @@ function Dashboard() {
               lng: driverAppUser.current_longitude
             } : null;
 
-            await base44.functions.invoke('optimizeRouteRealTime', {
+            const response = await base44.functions.invoke('optimizeRouteRealTime', {
               driverId: driverId,
               deliveryDate: deliveryDate,
-              currentLocalTime: format(new Date(), 'HH:mm'),
-              deviceTime: new Date().toISOString(),
               startLocation: currentLocation
             });
+            const data = response?.data || response;
+            if (data?.success && data?.optimizedRoute) {
+              const now = new Date();
+              let cumulativeMinutes = now.getHours() * 60 + now.getMinutes();
+              for (const stop of data.optimizedRoute) {
+                cumulativeMinutes += stop.travelMinutes;
+                const eta = `${String(Math.floor(cumulativeMinutes / 60) % 24).padStart(2, '0')}:${String(cumulativeMinutes % 60).padStart(2, '0')}`;
+                await base44.entities.Delivery.update(stop.deliveryId, { delivery_time_eta: eta });
+                cumulativeMinutes += stop.serviceMinutes;
+              }
+            }
             console.log('✅ [AddToRoute] Route optimization complete');
           } catch (optimizeError) {
             console.warn('⚠️ [AddToRoute] Route optimization failed:', optimizeError);
@@ -4606,12 +4635,22 @@ function Dashboard() {
 
       if (shouldUpdateETAs) {
         try {
-          await base44.functions.invoke('etaOptimizer', {
+          const response = await base44.functions.invoke('calculateRealTimeETA', {
             driverId: targetDelivery.driver_id,
             deliveryDate: deliveryDate,
-            triggerFullRecalculation: false,
-            deviceTime: new Date().toISOString()
           });
+          const data = response?.data || response;
+          if (data?.success && data?.durationUpdates) {
+            const now = new Date();
+            let cumulativeMinutes = now.getHours() * 60 + now.getMinutes();
+            const sorted = data.durationUpdates.sort((a,b) => (a.stopOrder || 0) - (b.stopOrder || 0));
+            for (const update of sorted) {
+              cumulativeMinutes += update.travelMinutes;
+              const eta = `${String(Math.floor(cumulativeMinutes / 60) % 24).padStart(2, '0')}:${String(cumulativeMinutes % 60).padStart(2, '0')}`;
+              await base44.entities.Delivery.update(update.deliveryId, { delivery_time_eta: eta });
+              cumulativeMinutes += update.serviceMinutes;
+            }
+          }
         } catch (etaError) {
           console.warn('⚠️ [STATUS UPDATE] ETA update failed:', etaError);
         }
@@ -5149,11 +5188,22 @@ function Dashboard() {
                     });
                     // STEP 3: Update ETAs for active driver
                     try {
-                      await base44.functions.invoke('etaOptimizer', {
+                      const response = await base44.functions.invoke('calculateRealTimeETA', {
                         driverId: activeDriverId,
                         deliveryDate: selectedDateStr,
-                        deviceTime: new Date().toISOString()
                       });
+                      const data = response?.data || response;
+                      if (data?.success && data?.durationUpdates) {
+                        const now = new Date();
+                        let cumulativeMinutes = now.getHours() * 60 + now.getMinutes();
+                        const sorted = data.durationUpdates.sort((a,b) => (a.stopOrder || 0) - (b.stopOrder || 0));
+                        for (const update of sorted) {
+                          cumulativeMinutes += update.travelMinutes;
+                          const eta = `${String(Math.floor(cumulativeMinutes / 60) % 24).padStart(2, '0')}:${String(cumulativeMinutes % 60).padStart(2, '0')}`;
+                          await base44.entities.Delivery.update(update.deliveryId, { delivery_time_eta: eta });
+                          cumulativeMinutes += update.serviceMinutes;
+                        }
+                      }
                     } catch (etaError) {
                       console.warn(`   ⚠️ ETA update failed:`, etaError);
                     }
