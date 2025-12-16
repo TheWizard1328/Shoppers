@@ -35,6 +35,7 @@ import { loadUserSettings, saveSetting } from '../components/utils/userSettingsM
 import DeliveryForm from '../components/deliveries/DeliveryForm';
 import MessageRulesManager from '../components/admin/MessageRulesManager';
 import PolylineViewer from '../components/admin/PolylineViewer';
+import GoogleAPILogViewer from '../components/admin/GoogleAPILogViewer';
 
 // Custom Confirmation Dialog Component
 const ConfirmationDialog = ({ open, onOpenChange, title, description, onConfirm, confirmText = "Delete", variant = "destructive" }) => {
@@ -3980,12 +3981,13 @@ export default function AdminUtilities() {
         </div>
 
         <Tabs value={activeUtilityTab} onValueChange={setActiveUtilityTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="data">Data Management</TabsTrigger>
             <TabsTrigger value="user-settings">User Settings</TabsTrigger>
             <TabsTrigger value="app-settings">App Settings</TabsTrigger>
             <TabsTrigger value="message-rules">Message Rules</TabsTrigger>
             <TabsTrigger value="polylines">Polylines</TabsTrigger>
+            <TabsTrigger value="api-logs">API Logs</TabsTrigger>
           </TabsList>
 
           <TabsContent value="data">
@@ -4161,6 +4163,10 @@ export default function AdminUtilities() {
 
           <TabsContent value="polylines">
             <PolylineViewer users={mergedUsers} />
+          </TabsContent>
+
+          <TabsContent value="api-logs">
+            <GoogleAPILogViewer />
           </TabsContent>
         </Tabs>
       </div>
