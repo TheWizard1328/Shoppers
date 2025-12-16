@@ -3863,13 +3863,7 @@ export default function DeliveryForm({
 
                       })}
 
-                      {projectedDeliveries.filter(proj => {
-                        // Filter by driver if a specific driver is selected
-                        if (formData.driver_id && formData.driver_id !== '') {
-                          return proj.driver_id === formData.driver_id;
-                        }
-                        return true;
-                      }).map((projected) => {
+                      {projectedDeliveries.map((projected) => {
                         const projectedStore = stores?.find((s) => s && s.id === projected.store_id);
                         const storeColor = projectedStore ? getStoreColor(projectedStore) : '#64748b';
 
@@ -3913,17 +3907,23 @@ export default function DeliveryForm({
                         </div>
                       }
 
-                      {!isLoadingPredictions && sortedStagedDeliveries.length === 0 && projectedDeliveries.filter(proj => {
-                        if (formData.driver_id && formData.driver_id !== '') {
-                          return proj.driver_id === formData.driver_id;
-                        }
-                        return true;
-                      }).length === 0 &&
+                      {!isLoadingPredictions && sortedStagedDeliveries.length === 0 && projectedDeliveries.length === 0 &&
                         <div className="p-4 text-center text-slate-400 text-xs">
                           No deliveries staged yet
                         </div>
                       }
                     </div>
+
+                    {/* Refresh Projections Button */}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full mt-2 text-xs"
+                      onClick={() => setPredictionTrigger((prev) => prev + 1)}
+                      disabled={isLoadingPredictions}>
+                      {isLoadingPredictions ? 'Analyzing...' : 'Refresh Projections'}
+                    </Button>
                   </motion.div>
                 </motion.div>
               }
