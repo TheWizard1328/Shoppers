@@ -1959,7 +1959,11 @@ function Dashboard() {
     setMapViewTrigger((prev) => prev + 1);
 
     // Set timer based on phase
-    if (phaseToApply === 1 || phaseToApply === 3) {
+    if (phaseToApply === 2) {
+      // Phase 2 stays locked permanently - no timer
+      console.log('🔵 [FAB Initial] Phase 2 locked - no auto-unlock');
+    } else if (phaseToApply === 1 || phaseToApply === 3) {
+      // Phase 1 or 3: Set up 3-second auto-unlock timer
       const lockDuration = 3000;
       const expiresAt = Date.now() + lockDuration;
       mapLockExpiresAtRef.current = expiresAt;
@@ -1971,8 +1975,6 @@ function Dashboard() {
           mapLockTimeoutRef.current = null;
         }
       }, lockDuration);
-    } else if (phaseToApply === 2) {
-      // Phase 2 stays locked - no timer
     }
 
     // Scroll to card with isNextDelivery=true for phase 2
