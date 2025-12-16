@@ -1816,9 +1816,11 @@ export default function DeliveryForm({
       // Sort by patient name for consistent ordering
       existingDeliveriesInGroup.sort((a, b) => (a.patient_name || '').localeCompare(b.patient_name || ''));
 
-      // Re-assign sequential TR#s starting from pickup TR + 1
+      const storeAbbrev = store?.abbreviation || '';
+
+      // Re-assign sequential TR#s: abbreviation + (base + index + 1)
       existingDeliveriesInGroup.forEach((delivery, index) => {
-        const correctTR = String(effectivePickupTR + index + 1);
+        const correctTR = `${storeAbbrev}${storeBaseTR + index + 1}`;
         if (delivery.tracking_number !== correctTR) {
           console.log(`[AddToRoute] 🔧 Fixing existing TR#: ${delivery.patient_name} from ${delivery.tracking_number} to ${correctTR}`);
           existingDeliveriesToUpdate.push({
