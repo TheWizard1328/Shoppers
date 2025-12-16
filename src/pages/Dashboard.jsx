@@ -291,7 +291,7 @@ function Dashboard() {
   const [isMapViewLocked, setIsMapViewLocked] = useState(false);
   const retractClustersRef = useRef(null);
   const [showRouteSummary, setShowRouteSummary] = useState(false);
-  const hasShownSummaryRef = useRef(false);
+  const hasShownSummaryRef = useRef(new Set()); // Track which driver-date combinations have shown summary
   const stopCardsContainerRef = useRef(null);
 
   const mapLockTimeoutRef = useRef(null);
@@ -4614,7 +4614,7 @@ function Dashboard() {
       // CRITICAL: Recalculate stop orders after status change
       await recalculateStopOrders(targetDelivery.driver_id, deliveryDate);
 
-      // Check if route is complete
+      // Check if route is complete - ALL statuses that finish a delivery (not just completed)
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
       const allDriverDeliveries = deliveriesWithStopOrder.filter((d) =>
       d && d.driver_id === driverId && d.delivery_date === targetDelivery.delivery_date
@@ -4622,10 +4622,12 @@ function Dashboard() {
       const routeComplete = allDriverDeliveries.length > 0 &&
       allDriverDeliveries.every((d) => finishedStatuses.includes(d.status));
 
-      if (routeComplete && newStatus === 'completed') {
-        if (!hasShownSummaryRef.current) {
+      if (routeComplete && finishedStatuses.includes(newStatus)) {
+        const summaryKey = `${driverId}_${targetDelivery.delivery_date}`;
+        if (!hasShownSummaryRef.current.has(summaryKey)) {
+          console.log('🎉 [STATUS UPDATE] Route complete - showing summary');
           setShowRouteSummary(true);
-          hasShownSummaryRef.current = true;
+          hasShownSummaryRef.current.add(summaryKey);
         }
       }
 
@@ -4906,14 +4908,19 @@ function Dashboard() {
       } else {
       }
 
-      // Check if route is complete
-      const routeComplete = deliveries.
-      filter((d) => d.driver_id === driverId && d.delivery_date === deliveryDate).
-      every((d) => finishedStatuses.includes(d.status));
+      // Check if route is complete after starting
+      const allDriverDeliveriesForStart = deliveries.filter((d) => 
+        d && d.driver_id === driverId && d.delivery_date === deliveryDate
+      );
+      const routeComplete = allDriverDeliveriesForStart.length > 0 && 
+        allDriverDeliveriesForStart.every((d) => finishedStatuses.includes(d.status));
+      
       if (routeComplete) {
-        if (!hasShownSummaryRef.current) {
+        const summaryKey = `${driverId}_${deliveryDate}`;
+        if (!hasShownSummaryRef.current.has(summaryKey)) {
+          console.log('🎉 [START] Route complete - showing summary');
           setShowRouteSummary(true);
-          hasShownSummaryRef.current = true;
+          hasShownSummaryRef.current.add(summaryKey);
         }
       }
 
@@ -5746,9 +5753,9 @@ function Dashboard() {
           deliveries={filteredDeliveries}
           patients={patients}
           stores={stores}
+          driver={currentUser}
           onClose={() => {
             setShowRouteSummary(false);
-            hasShownSummaryRef.current = false;
           }} />
         }
       </AnimatePresence>
