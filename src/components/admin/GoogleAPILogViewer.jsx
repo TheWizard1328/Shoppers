@@ -32,8 +32,8 @@ export default function GoogleAPILogViewer() {
     byType: {}
   });
 
-  const loadLogs = async () => {
-    setIsLoading(true);
+  const loadLogs = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     try {
       // Fetch logs sorted by timestamp (newest first), limit to 500 most recent
       const allLogs = await base44.entities.GoogleAPILog.filter({}, '-timestamp', 500);
@@ -65,6 +65,10 @@ export default function GoogleAPILogViewer() {
 
   useEffect(() => {
     loadLogs();
+    
+    // Auto-refresh every 10 seconds to show new API calls in real-time
+    const interval = setInterval(() => loadLogs(true), 10000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleClearLogs = async () => {
@@ -164,6 +168,7 @@ export default function GoogleAPILogViewer() {
                     <th className="text-left p-3 text-sm font-semibold text-slate-700">Purpose</th>
                     <th className="text-left p-3 text-sm font-semibold text-slate-700">Function</th>
                     <th className="text-left p-3 text-sm font-semibold text-slate-700">User</th>
+                    <th className="text-left p-3 text-sm font-semibold text-slate-700">Details</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -188,6 +193,23 @@ export default function GoogleAPILogViewer() {
                         </td>
                         <td className="p-3 text-sm text-slate-700">
                           {log.user_name || 'Unknown'}
+                        </td>
+                        <td className="p-3 text-xs text-slate-600">
+                          {log.metadata?.driver_id && (
+                            <div>Driver: {log.metadata.driver_id.substring(0, 8)}...</div>
+                          )}
+                          {log.metadata?.stops_count && (
+                            <div>Stops: {log.metadata.stops_count}</div>
+                          )}
+                          {log.metadata?.route_changed !== undefined && (
+                            <div>Changed: {log.metadata.route_changed ? 'Yes' : 'No'}</div>
+                          )}
+                          {log.metadata?.input && (
+                            <div>Search: "{log.metadata.input.substring(0, 30)}..."</div>
+                          )}
+                          {log.metadata?.place_id && (
+                            <div>PlaceID: {log.metadata.place_id.substring(0, 15)}...</div>
+                          )}
                         </td>
                       </tr>
                     );
