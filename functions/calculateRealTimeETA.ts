@@ -14,7 +14,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { driverId, deliveryDate } = await req.json();
+    const { driverId, deliveryDate, deviceTime, currentLocalTime } = await req.json();
 
     if (!driverId || !deliveryDate) {
       return Response.json({ 
@@ -209,12 +209,18 @@ Deno.serve(async (req) => {
             }
           }
           
+          // Calculate ETA in HH:mm format
+          const etaHours = Math.floor(cumulativeMinutes / 60) % 24;
+          const etaMinutes = cumulativeMinutes % 60;
+          const eta = `${String(etaHours).padStart(2, '0')}:${String(etaMinutes).padStart(2, '0')}`;
+          
           // Track cumulative time for time window logic
           cumulativeMinutes += serviceTime;
 
           etaUpdates.push({
             deliveryId: delivery.id,
             delivery_id: delivery.delivery_id,
+            eta: eta,
             travelMinutes: travelMinutes,
             serviceMinutes: serviceTime,
             stopOrder: delivery.stop_order,
@@ -224,6 +230,15 @@ Deno.serve(async (req) => {
               : 0
           });
         }
+        
+        // CRITICAL: Update all delivery ETAs in the database
+        console.log(`💾 Saving ${etaUpdates.length} ETAs to database...`);
+        for (const update of etaUpdates) {
+          await base44.asServiceRole.entities.Delivery.update(update.deliveryId, {
+            delivery_time_eta: update.eta
+          });
+        }
+        console.log(`✅ All ETAs saved to database`);
 
         console.log(`✅ Calculated ${etaUpdates.length} ETAs starting from current time with ONE API call`);
       }
