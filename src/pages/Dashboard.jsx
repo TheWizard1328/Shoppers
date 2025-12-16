@@ -292,6 +292,7 @@ function Dashboard() {
   const retractClustersRef = useRef(null);
   const [showRouteSummary, setShowRouteSummary] = useState(false);
   const hasShownSummaryRef = useRef(new Set()); // Track which driver-date combinations have shown summary
+  const [summaryDriver, setSummaryDriver] = useState(null); // Store which driver's summary to show
   const stopCardsContainerRef = useRef(null);
 
   const mapLockTimeoutRef = useRef(null);
@@ -2248,6 +2249,9 @@ function Dashboard() {
     // CRITICAL: Pause smart refresh immediately
     setIsEntityUpdating(true);
     
+    // Reset route summary tracking when date changes
+    hasShownSummaryRef.current.clear();
+    
     setSelectedDate(date);
     globalFilters.setSelectedDate(date);
     setIsCalendarOpen(false);
@@ -2372,6 +2376,9 @@ function Dashboard() {
   };
 
   const handleDriverChange = async (driverId) => {
+    // Reset route summary tracking when driver changes
+    hasShownSummaryRef.current.clear();
+    
     setSelectedDriverId(driverId);
     globalFilters.setSelectedDriverId(driverId);
     setIsExpanded(false);
@@ -4626,6 +4633,8 @@ function Dashboard() {
         const summaryKey = `${driverId}_${targetDelivery.delivery_date}`;
         if (!hasShownSummaryRef.current.has(summaryKey)) {
           console.log('🎉 [STATUS UPDATE] Route complete - showing summary');
+          const completedDriver = users.find(u => u && u.id === driverId) || currentUser;
+          setSummaryDriver(completedDriver);
           setShowRouteSummary(true);
           hasShownSummaryRef.current.add(summaryKey);
         }
@@ -4919,6 +4928,8 @@ function Dashboard() {
         const summaryKey = `${driverId}_${deliveryDate}`;
         if (!hasShownSummaryRef.current.has(summaryKey)) {
           console.log('🎉 [START] Route complete - showing summary');
+          const completedDriver = users.find(u => u && u.id === driverId) || currentUser;
+          setSummaryDriver(completedDriver);
           setShowRouteSummary(true);
           hasShownSummaryRef.current.add(summaryKey);
         }
@@ -5753,9 +5764,10 @@ function Dashboard() {
           deliveries={filteredDeliveries}
           patients={patients}
           stores={stores}
-          driver={currentUser}
+          driver={summaryDriver || currentUser}
           onClose={() => {
             setShowRouteSummary(false);
+            setSummaryDriver(null);
           }} />
         }
       </AnimatePresence>
