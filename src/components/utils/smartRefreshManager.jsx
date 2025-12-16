@@ -578,7 +578,14 @@ class SmartRefreshManager {
         return null;
       }
       
-
+      console.log('📍 [SmartRefresh] Driver location changes detected - dispatching event for map update');
+      
+      // Dispatch custom event for DeliveryMap to listen to
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+          detail: { appUsers: updatedAppUsers }
+        }));
+      }
       
       // CRITICAL: Sync to offline database after changes
       try {
