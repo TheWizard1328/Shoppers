@@ -10,13 +10,16 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { base64Image, selectedCityId } = body;
+    const { base64Image, fileUrl, selectedCityId } = body;
 
-    if (!base64Image) {
+    if (!base64Image && !fileUrl) {
       return Response.json({ error: 'No image data provided' }, { status: 400 });
     }
 
-    console.log('📸 [scanPrescriptionLabel] Processing base64 image (first 50 chars):', base64Image.substring(0, 50) + '...');
+    // Use fileUrl if provided, otherwise use base64Image
+    const imageSource = fileUrl || base64Image;
+
+    console.log('📸 [scanPrescriptionLabel] Processing image...');
 
     // Extract data using Vision LLM
     console.log('🔍 [scanPrescriptionLabel] Extracting data from image using Vision LLM...');
@@ -33,7 +36,7 @@ Deno.serve(async (req) => {
           phone_number: { type: "string" }
         }
       },
-      file_urls: [base64Image]
+      file_urls: [imageSource]
     });
 
     console.log('📊 [scanPrescriptionLabel] LLM extraction result:', extractionResult);
