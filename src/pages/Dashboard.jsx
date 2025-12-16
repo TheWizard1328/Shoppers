@@ -5352,6 +5352,15 @@ function Dashboard() {
                       updateDeliveriesLocally(mergedDeliveries);
                     }
 
+                    // CRITICAL: Update offline database with fresh deliveries
+                    try {
+                      const { offlineDB } = await import('../components/utils/offlineDatabase');
+                      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, finalDeliveries);
+                      console.log('✅ [Refresh] Updated offline database with fresh deliveries');
+                    } catch (dbError) {
+                      console.warn('⚠️ [Refresh] Failed to update offline database:', dbError);
+                    }
+
                     // Apply any smart refresh updates
                     if (updates) {
                       if (updates.patients) {
