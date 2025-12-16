@@ -1487,20 +1487,19 @@ function Dashboard() {
 
     // Handle timer based on phase
     if (newMapViewPhase === 2) {
-      // Phase 2 stays locked - no timer
+      // Phase 2 stays locked permanently - no timer, no unlock
+      console.log('🔵 [FAB] Phase 2 locked - no auto-unlock timer');
     } else if (shouldStartTimer) {
       // Phase 1 or 3: Set up 3-second auto-unlock timer
       const lockDuration = 3000;
       const expiresAt = Date.now() + lockDuration;
       mapLockExpiresAtRef.current = expiresAt;
 
-
       mapLockTimeoutRef.current = window.setTimeout(() => {
         if (mapLockExpiresAtRef.current === expiresAt) {
           setIsMapViewLocked(false);
           mapLockExpiresAtRef.current = null;
           mapLockTimeoutRef.current = null;
-        } else {
         }
       }, lockDuration);
     }
