@@ -342,16 +342,25 @@ Deno.serve(async (req) => {
       // Calculate remaining stops count for end-of-route optimization
       const totalRemainingStops = unvisitedPickups.size + unvisitedISP.size;
 
-      // Consider all unvisited pickups - PRIORITY: Shortest distance
+      // Consider all unvisited pickups - PRIORITY: Time window first, then distance
       for (const idx of unvisitedPickups) {
         const travelTime = Math.ceil(crowFliesMatrix[currentPos][idx].duration / 60);
-        let score = travelTime; // Base score is pure travel time/distance
-        
-        // Time window penalty (light) - only if we'd arrive VERY late
         const stop = stops[idx];
         const arrivalTime = cumulativeTime + travelTime;
-        if (stop.timeWindow && arrivalTime > stop.timeWindow.end + 60) {
-          score += (arrivalTime - stop.timeWindow.end - 60) * 0.2; // Very light penalty, only for extreme lateness
+        
+        // Base score starts with travel time
+        let score = travelTime;
+        
+        // Time window handling for pickups
+        if (stop.timeWindow) {
+          // CRITICAL: Pickups with earlier time windows should be prioritized
+          // Add urgency bonus based on window start time (earlier = lower score = higher priority)
+          score += stop.timeWindow.start * 0.5;
+          
+          // Heavy penalty for arriving after the pickup window ends
+          if (arrivalTime > stop.timeWindow.end) {
+            score += (arrivalTime - stop.timeWindow.end) * 5;
+          }
         }
         
         if (score < bestScore) {
@@ -361,20 +370,28 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Consider ISP deliveries (can go anywhere) - PRIORITY: Shortest distance
+      // Consider ISP deliveries (can go anywhere) - PRIORITY: Time window first, then distance
       for (const idx of unvisitedISP) {
         const stop = stops[idx];
         const travelTime = Math.ceil(crowFliesMatrix[currentPos][idx].duration / 60);
         const arrivalTime = cumulativeTime + travelTime;
         
-        let score = travelTime; // Base score is pure travel time/distance
+        // Base score starts with travel time
+        let score = travelTime;
         
-        // Time window penalty (moderate) - penalize arriving outside window
+        // Time window handling - CRITICAL for correct ordering
         if (stop.timeWindow) {
+          // CRITICAL: Deliveries with earlier time windows should be prioritized
+          // Add urgency bonus based on window start time (earlier = lower score = higher priority)
+          score += stop.timeWindow.start * 0.3;
+          
+          // Penalty for arriving outside the window
           if (arrivalTime < stop.timeWindow.start) {
-            score += (stop.timeWindow.start - arrivalTime) * 0.1; // Light penalty for early arrival (wait time)
+            // Early arrival - add wait time as penalty
+            score += (stop.timeWindow.start - arrivalTime) * 0.3;
           } else if (arrivalTime > stop.timeWindow.end) {
-            score += (arrivalTime - stop.timeWindow.end) * 0.5; // Moderate penalty for late arrival
+            // Late arrival - heavy penalty
+            score += (arrivalTime - stop.timeWindow.end) * 3;
           }
         }
         
@@ -406,39 +423,62 @@ Deno.serve(async (req) => {
         const pickupDeliveries = deliveriesByPickup.get(pickupStoreId) || [];
         const unvisitedDeliveries = pickupDeliveries.filter(d => !optimizedRoute.includes(d.idx));
         
-        // Optimize delivery sequence from this pickup using nearest-neighbor
+        // Optimize delivery sequence from this pickup - TIME WINDOW FIRST, then nearest-neighbor
         let pickupPos = currentPos; // Start from pickup location
         const remainingDelivs = [...unvisitedDeliveries];
         
         while (remainingDelivs.length > 0) {
-          // Find nearest unvisited delivery from current position
-          let nearestDeliv = null;
-          let shortestTime = Infinity;
+          // Find best delivery considering TIME WINDOWS first, then distance
+          let bestDeliv = null;
+          let bestDelivScore = Infinity;
           
           for (const deliv of remainingDelivs) {
             const travelTime = crowFliesMatrix[pickupPos][deliv.idx].duration / 60;
-            if (travelTime < shortestTime) {
-              shortestTime = travelTime;
-              nearestDeliv = deliv;
+            const arrivalTime = cumulativeTime + travelTime;
+            
+            // Base score is travel time
+            let score = travelTime;
+            
+            // CRITICAL: Time window handling - prioritize stops with earlier windows
+            if (stops[deliv.idx].timeWindow) {
+              const windowStart = stops[deliv.idx].timeWindow.start;
+              const windowEnd = stops[deliv.idx].timeWindow.end;
+              
+              // Add urgency based on window start (earlier windows = lower score = higher priority)
+              score += windowStart * 0.3;
+              
+              // Penalty for arriving outside window
+              if (arrivalTime < windowStart) {
+                // Early - add wait time
+                score += (windowStart - arrivalTime) * 0.2;
+              } else if (arrivalTime > windowEnd) {
+                // Late - heavy penalty
+                score += (arrivalTime - windowEnd) * 3;
+              }
+            }
+            
+            if (score < bestDelivScore) {
+              bestDelivScore = score;
+              bestDeliv = deliv;
             }
           }
           
-          if (!nearestDeliv) break;
+          if (!bestDeliv) break;
           
-          // Add nearest delivery to route
-          optimizedRoute.push(nearestDeliv.idx);
-          const travelTime = Math.ceil(crowFliesMatrix[pickupPos][nearestDeliv.idx].duration / 60);
-          const serviceTime = nearestDeliv.delivery.extra_time || 5;
+          // Add best delivery to route
+          optimizedRoute.push(bestDeliv.idx);
+          const travelTime = Math.ceil(crowFliesMatrix[pickupPos][bestDeliv.idx].duration / 60);
+          const serviceTime = bestDeliv.delivery.extra_time || 5;
           cumulativeTime += travelTime;
-          if (stops[nearestDeliv.idx].timeWindow && !stops[nearestDeliv.idx].delivery.puid && cumulativeTime < stops[nearestDeliv.idx].timeWindow.start) {
-            cumulativeTime = stops[nearestDeliv.idx].timeWindow.start;
+          if (stops[bestDeliv.idx].timeWindow && !stops[bestDeliv.idx].delivery.puid && cumulativeTime < stops[bestDeliv.idx].timeWindow.start) {
+            cumulativeTime = stops[bestDeliv.idx].timeWindow.start;
           }
           cumulativeTime += serviceTime;
-          pickupPos = nearestDeliv.idx + 1;
+          pickupPos = bestDeliv.idx + 1;
           currentPos = pickupPos;
           
           // Remove from remaining
-          const idx = remainingDelivs.indexOf(nearestDeliv);
+          const idx = remainingDelivs.indexOf(bestDeliv);
           if (idx > -1) remainingDelivs.splice(idx, 1);
         }
       } else if (bestType === 'isp') {

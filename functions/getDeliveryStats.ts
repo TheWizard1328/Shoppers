@@ -217,13 +217,17 @@ Deno.serve(async (req) => {
     // HELPER FUNCTIONS
     // ===========================================
     
-    // Helper: Check if delivery is a return (based on notes/name with "return" or "rtn")
+    // Helper: Check if delivery is a return (based on notes/name with "(RTN)" or "Return")
+    // CRITICAL: Only match explicit return markers, not partial matches like "returned" in other contexts
     const isReturn = (d) => {
       if (!d) return false;
-      const notes = (d.delivery_notes || '').toLowerCase();
-      const patientName = (d.patient_name || '').toLowerCase();
-      return notes.includes('return') || notes.includes('rtn') || 
-             patientName.includes('return') || patientName.includes('rtn');
+      const notes = (d.delivery_notes || '');
+      const patientName = (d.patient_name || '');
+      // Check for "(RTN)" marker (case-insensitive)
+      if (notes.toLowerCase().includes('(rtn)') || patientName.toLowerCase().includes('(rtn)')) return true;
+      // Check for "Return" as a word (case-insensitive) - look for word boundaries
+      const returnRegex = /\breturn\b/i;
+      return returnRegex.test(notes) || returnRegex.test(patientName);
     };
     
     // Helper: Check if delivery is failed OR a cancelled pickup (EXCLUDE returns from failed count)

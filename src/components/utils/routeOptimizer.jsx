@@ -169,9 +169,8 @@ const optimizeStoreRoute = (stops, storeLocation, pickupTime, startLocation = nu
       // Lower distance = higher score
       const distanceScore = Math.max(0, 200 - distanceToStop * 20);
       
-      // SECONDARY SCORE: Time window compliance (moderate weight)
-      // Deliveries are "on time" if they arrive between windowStart and windowEnd
-      // Only considered "late" if after windowEnd
+      // SECONDARY SCORE: Time window compliance (CRITICAL for ordering)
+      // Time windows MUST be respected - stops with earlier windows should come first
       let timeWindowScore = 0;
       const isPickup = !stop.patient_id;
       
@@ -194,18 +193,29 @@ const optimizeStoreRoute = (stops, storeLocation, pickupTime, startLocation = nu
             timeWindowScore = 150;
           }
         } else {
-          // Deliveries: As long as arrival is after windowStart and before windowEnd, it's on time
+          // Deliveries: Time windows are CRITICAL for ordering
+          // CRITICAL: Stops with earlier time windows should be prioritized
+          // Add a bonus based on how soon the window starts (earlier = higher priority)
+          const windowUrgency = Math.max(0, 300 - windowStart); // Earlier windows get higher scores
+          
           if (arrivalTime >= windowStart && arrivalTime <= windowEnd) {
-            timeWindowScore = 30; // Perfect - within the acceptable window
+            // Perfect - within the acceptable window
+            timeWindowScore = 100 + windowUrgency;
           } else if (arrivalTime < windowStart) {
-            // Arriving early - slight bonus (ready before window)
-            timeWindowScore = 20;
+            // Arriving early - still good, but slight penalty for waiting
+            const waitTime = windowStart - arrivalTime;
+            timeWindowScore = 80 + windowUrgency - (waitTime * 0.5);
           } else {
             // Arriving after windowEnd - this is truly late
-            // Penalty increases as we get further past the end time
-            timeWindowScore = -Math.min(50, (arrivalTime - windowEnd) / 3);
+            // Heavy penalty that increases as we get further past the end time
+            const lateness = arrivalTime - windowEnd;
+            timeWindowScore = -100 - (lateness * 2);
           }
         }
+      } else if (!isPickup) {
+        // Deliveries without time windows get neutral score
+        // They can be optimized purely by distance
+        timeWindowScore = 0;
       }
       
       // LOOKAHEAD SCORE: How does this choice position us for remaining stops?
