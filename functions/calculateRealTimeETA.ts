@@ -134,6 +134,21 @@ Deno.serve(async (req) => {
 
     // ONE API call for the entire route
     try {
+      // Log API call
+      await base44.asServiceRole.entities.GoogleAPILog.create({
+        timestamp: new Date().toISOString(),
+        api_type: 'Directions',
+        purpose: `Calculating real-time ETAs for driver ${driverAppUser.user_name || driverId}`,
+        function_name: 'calculateRealTimeETA',
+        user_id: user.id,
+        user_name: user.full_name,
+        metadata: {
+          driver_id: driverId,
+          delivery_date: deliveryDate,
+          stops_count: deliveriesWithCoords.length
+        }
+      });
+
       const directionsUrl = `https://maps.googleapis.com/maps/api/directions/json?` +
         `origin=${driverLocation.lat},${driverLocation.lng}&` +
         `destination=${lastStop.lat},${lastStop.lng}&` +

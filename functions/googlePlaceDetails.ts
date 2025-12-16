@@ -21,6 +21,19 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'API key not configured' }, { status: 500 });
     }
 
+    // Log API call
+    await base44.asServiceRole.entities.GoogleAPILog.create({
+      timestamp: new Date().toISOString(),
+      api_type: 'Place Details',
+      purpose: 'Fetching address details for place autocomplete',
+      function_name: 'googlePlaceDetails',
+      user_id: user.id,
+      user_name: user.full_name,
+      metadata: {
+        place_id: place_id
+      }
+    });
+
     // Call Google Places API (New) v1 to get full address details
     const url = `https://places.googleapis.com/v1/places/${place_id}?fields=addressComponents,formattedAddress,location&key=${apiKey}`;
     

@@ -22,6 +22,20 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Google Maps API key not set' }, { status: 500 });
     }
 
+    // Log API call
+    await base44.asServiceRole.entities.GoogleAPILog.create({
+      timestamp: new Date().toISOString(),
+      api_type: 'Directions',
+      purpose: 'Fetching route polyline for map display',
+      function_name: 'getGoogleDirections',
+      user_id: user.id,
+      user_name: user.full_name,
+      metadata: {
+        origin: `${origin.lat},${origin.lon}`,
+        destination: `${destination.lat},${destination.lon}`
+      }
+    });
+
     const directionsUrl = `https://maps.googleapis.com/maps/api/directions/json?` +
       `origin=${origin.lat},${origin.lon}&` +
       `destination=${destination.lat},${destination.lon}&` +

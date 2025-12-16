@@ -475,6 +475,22 @@ Deno.serve(async (req) => {
     const finalOriginsStr = finalOrigins.map(o => `${o.lat},${o.lng}`).join('|');
     const finalDestinationsStr = finalDestinations.map(d => `${d.lat},${d.lng}`).join('|');
 
+    // Log API call
+    await base44.asServiceRole.entities.GoogleAPILog.create({
+      timestamp: new Date().toISOString(),
+      api_type: 'Distance Matrix',
+      purpose: `Optimizing route for driver ${driverAppUser.user_name || driverId}`,
+      function_name: 'optimizeRouteRealTime',
+      user_id: user.id,
+      user_name: user.full_name,
+      metadata: {
+        driver_id: driverId,
+        delivery_date: deliveryDate,
+        stops_count: optimizedRoute.length,
+        route_changed: routeChanged
+      }
+    });
+
     const finalMatrixUrl = `https://maps.googleapis.com/maps/api/distancematrix/json?` +
       `origins=${finalOriginsStr}&` +
       `destinations=${finalDestinationsStr}&` +

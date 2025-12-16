@@ -61,6 +61,20 @@ Deno.serve(async (req) => {
       console.log('[googlePlacesAutocomplete]    Full requestBody:', JSON.stringify(requestBody, null, 2));
     }
     
+    // Log API call
+    await base44.asServiceRole.entities.GoogleAPILog.create({
+      timestamp: new Date().toISOString(),
+      api_type: 'Places Autocomplete',
+      purpose: 'Address autocomplete search',
+      function_name: 'googlePlacesAutocomplete',
+      user_id: user.id,
+      user_name: user.full_name,
+      metadata: {
+        input: input,
+        has_location_bias: !!(latitude && longitude)
+      }
+    });
+
     console.log('[googlePlacesAutocomplete] Calling Google API (NEW)...');
     const response = await fetch(url, {
       method: 'POST',
@@ -99,6 +113,20 @@ Deno.serve(async (req) => {
         let distance = null;
         if (latitude && longitude) {
           try {
+            // Log place details API call (for distance calculation)
+            await base44.asServiceRole.entities.GoogleAPILog.create({
+              timestamp: new Date().toISOString(),
+              api_type: 'Place Details',
+              purpose: 'Fetching coordinates for autocomplete distance sorting',
+              function_name: 'googlePlacesAutocomplete',
+              user_id: user.id,
+              user_name: user.full_name,
+              metadata: {
+                place_id: place_id,
+                parent_search: input
+              }
+            });
+
             const detailsUrl = `https://places.googleapis.com/v1/places/${place_id}`;
             const detailsResponse = await fetch(detailsUrl, {
               method: 'GET',
