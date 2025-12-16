@@ -42,8 +42,8 @@ Deno.serve(async (req) => {
     console.log('✅ [optimizeRouteRealTime] User authenticated:', user.email);
 
     console.log('📦 [optimizeRouteRealTime] Parsing request body...');
-    const { driverId, deliveryDate, startLocation, excludeDeliveryIds, currentLocalTime, deviceTime } = await req.json();
-    console.log('📦 [optimizeRouteRealTime] Request params:', { driverId, deliveryDate, currentLocalTime, startLocation, deviceTime, excludeDeliveryIds });
+    const { driverId, deliveryDate, startLocation } = await req.json();
+    console.log('📦 [optimizeRouteRealTime] Request params:', { driverId, deliveryDate, currentLocalTime, startLocation, deviceTime });
 
     if (!driverId || !deliveryDate) {
       console.error('❌ [optimizeRouteRealTime] Missing parameters:', { driverId, deliveryDate });
@@ -141,17 +141,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    // CRITICAL: Exclude specified deliveries from optimization (e.g., just-started delivery)
-    const excludedIds = excludeDeliveryIds || [];
-    const optimizableDeliveries = excludedIds.length > 0 
-      ? allDeliveries.filter(d => !excludedIds.includes(d.id))
-      : allDeliveries;
-
-    console.log(`📊 [optimizeRouteRealTime] Excluding ${excludedIds.length} deliveries from optimization`);
-
     // Separate completed and incomplete deliveries
     const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-    const completedDeliveries = optimizableDeliveries.filter(d => finishedStatuses.includes(d.status));
+    const completedDeliveries = allDeliveries.filter(d => finishedStatuses.includes(d.status));
     
     // CRITICAL: Determine if route has started (has in_transit or finished stops)
     const routeHasStarted = allDeliveries.some(d => 
@@ -162,11 +154,11 @@ Deno.serve(async (req) => {
     let incompleteDeliveries;
     if (routeHasStarted) {
       // Route has started: exclude finished statuses but INCLUDE all non-finished stops (including pending)
-      incompleteDeliveries = optimizableDeliveries.filter(d => !finishedStatuses.includes(d.status));
+      incompleteDeliveries = allDeliveries.filter(d => !finishedStatuses.includes(d.status));
       console.log(`📊 Route HAS started - including all non-finished stops (${incompleteDeliveries.length})`);
     } else {
       // Route has NOT started: exclude BOTH pending AND finished statuses (only Ready For Pickup, en_route)
-      incompleteDeliveries = optimizableDeliveries.filter(d => 
+      incompleteDeliveries = allDeliveries.filter(d => 
         !finishedStatuses.includes(d.status) && d.status !== 'pending'
       );
       console.log(`📊 Route NOT started - excluding pending and finished (${incompleteDeliveries.length})`);
@@ -195,8 +187,25 @@ Deno.serve(async (req) => {
       }
     }
 
-    const startingStopOrder = completedDeliveries.length;
-    console.log(`🎯 Incomplete stops will start from stop_order ${startingStopOrder + 1}`);
+    // CRITICAL: Find excluded deliveries (already positioned - don't optimize)
+    const excludedDeliveries = allDeliveries.filter(d => excludedIds.includes(d.id) && !finishedStatuses.includes(d.status));
+    
+    // Assign them sequential stop_order right after completed stops
+    for (let i = 0; i < excludedDeliveries.length; i++) {
+      const delivery = excludedDeliveries[i];
+      const sequentialOrder = completedDeliveries.length + i + 1;
+      
+      if (delivery.stop_order !== sequentialOrder) {
+        await base44.asServiceRole.entities.Delivery.update(delivery.id, {
+          stop_order: sequentialOrder,
+          display_stop_order: sequentialOrder
+        });
+        console.log(`✅ Fixed position for excluded stop #${sequentialOrder}: ${delivery.patient_name || 'Pickup'}`);
+      }
+    }
+
+    const startingStopOrder = completedDeliveries.length + excludedDeliveries.length;
+    console.log(`🎯 Optimizable stops will start from stop_order ${startingStopOrder + 1}`);
 
     if (incompleteDeliveries.length === 0) {
       return Response.json({ 
@@ -573,9 +582,26 @@ Deno.serve(async (req) => {
     );
     console.log('✅ [optimizeRouteRealTime] Google API results received');
 
+    // CRITICAL: Calculate start time and location for remaining stops optimization
+    // If there are excluded deliveries, start from their location and ETA
+    let realCumulativeTime = currentMinutes;
+    if (excludedDeliveries.length > 0) {
+      const lastExcluded = excludedDeliveries[excludedDeliveries.length - 1];
+      
+      // Use excluded delivery's ETA as starting time
+      if (lastExcluded.delivery_time_eta) {
+        const [hours, minutes] = lastExcluded.delivery_time_eta.split(':').map(Number);
+        realCumulativeTime = hours * 60 + minutes;
+        console.log(`⏰ Starting optimization from excluded delivery's ETA: ${lastExcluded.delivery_time_eta}`);
+      }
+      
+      // Add service time for the excluded delivery
+      const serviceTime = lastExcluded.extra_time || (lastExcluded.patient_id ? 5 : 15);
+      realCumulativeTime += serviceTime;
+    }
+
     // Update stop_order, display_stop_order, and ETAs with real Google distances
     const updates = [];
-    let realCumulativeTime = currentMinutes;
 
     for (let i = 0; i < optimizedRoute.length; i++) {
       const stopIdx = optimizedRoute[i];
