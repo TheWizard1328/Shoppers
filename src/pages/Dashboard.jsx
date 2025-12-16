@@ -4881,62 +4881,64 @@ function Dashboard() {
       const isPickup = !deliveryFromUI.patient_id;
       const newStatus = isPickup ? 'en_route' : 'in_transit';
 
-      // STEP 3: Update status to active (in_transit/en_route)
-      await updateDeliveryLocal(deliveryId, {
-        status: newStatus
+      console.log('🚀 [START] Starting delivery:', deliveryFromUI.patient_name || 'Pickup');
+
+      // STEP 1: Get all deliveries for this driver/date to determine next stop order
+      const allDriverDeliveries = await base44.entities.Delivery.filter({
+        driver_id: driverId,
+        delivery_date: deliveryDate
       });
 
-      // STEP 3.5: Calculate and update ETA for the started delivery
+      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+      
+      // Find highest completed stop_order
+      const completedStops = allDriverDeliveries
+        .filter((d) => finishedStatuses.includes(d.status))
+        .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+      
+      const nextStopOrder = completedStops.length > 0 
+        ? Math.max(...completedStops.map(d => d.stop_order || 0)) + 1 
+        : 1;
+
+      console.log(`📊 [START] Assigning stop_order ${nextStopOrder} to started delivery`);
+
+      // STEP 2: Update status and assign next sequential stop_order
+      await updateDeliveryLocal(deliveryId, {
+        status: newStatus,
+        stop_order: nextStopOrder
+      });
+
+      // STEP 3: Calculate ETA for this specific stop
       try {
         const nowTime = new Date();
         const currentTotalMinutes = nowTime.getHours() * 60 + nowTime.getMinutes();
         
         // Get driver's current location
         const driverAppUser = appUsers.find(u => u && u.user_id === driverId);
-        let startLat, startLon, baseMinutes = currentTotalMinutes;
+        let startLat, startLon;
         
-        // Priority 1: Driver's current GPS location
         if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
           startLat = driverAppUser.current_latitude;
           startLon = driverAppUser.current_longitude;
-          baseMinutes = currentTotalMinutes;
           console.log('📍 [START] Using driver current location for ETA');
-        } else {
-          // Fallback 1: Last completed delivery location + its completion time
-          const allDriverDeliveries = deliveriesWithStopOrder.filter((d) =>
-            d && d.driver_id === driverId && d.delivery_date === deliveryDate
-          );
-          const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-          const completedStops = allDriverDeliveries
-            .filter((d) => finishedStatuses.includes(d.status) && d.actual_delivery_time)
-            .sort((a, b) => new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time));
-          
-          if (completedStops.length > 0) {
-            const lastCompleted = completedStops[0];
-            const completionDate = new Date(lastCompleted.actual_delivery_time);
-            baseMinutes = completionDate.getHours() * 60 + completionDate.getMinutes();
-            
-            // Get location of last completed stop
-            if (lastCompleted.patient_id) {
-              const patient = patients.find((p) => p && p.id === lastCompleted.patient_id);
-              startLat = patient?.latitude;
-              startLon = patient?.longitude;
-            } else if (lastCompleted.store_id) {
-              const store = stores.find((s) => s && s.id === lastCompleted.store_id);
-              startLat = store?.latitude;
-              startLon = store?.longitude;
-            }
-            console.log('📍 [START] Using last completed stop location for ETA');
-          } else if (driverAppUser?.home_latitude && driverAppUser?.home_longitude) {
-            // Fallback 2: Driver's home location + current time
-            startLat = driverAppUser.home_latitude;
-            startLon = driverAppUser.home_longitude;
-            baseMinutes = currentTotalMinutes;
-            console.log('📍 [START] Using driver home location for ETA');
+        } else if (completedStops.length > 0) {
+          const lastCompleted = completedStops[completedStops.length - 1];
+          if (lastCompleted.patient_id) {
+            const patient = patients.find((p) => p && p.id === lastCompleted.patient_id);
+            startLat = patient?.latitude;
+            startLon = patient?.longitude;
+          } else if (lastCompleted.store_id) {
+            const store = stores.find((s) => s && s.id === lastCompleted.store_id);
+            startLat = store?.latitude;
+            startLon = store?.longitude;
           }
+          console.log('📍 [START] Using last completed stop location');
+        } else if (driverAppUser?.home_latitude && driverAppUser?.home_longitude) {
+          startLat = driverAppUser.home_latitude;
+          startLon = driverAppUser.home_longitude;
+          console.log('📍 [START] Using driver home location');
         }
         
-        // Calculate ETA for the started delivery
         if (startLat && startLon) {
           let destLat, destLon;
           
@@ -4951,47 +4953,67 @@ function Dashboard() {
           }
           
           if (destLat && destLon) {
-            // Call backend to get travel duration
-            const etaResponse = await base44.functions.invoke('calculateRealTimeETA', {
-              driverId: driverId,
-              deliveryDate: deliveryDate,
-              deviceTime: new Date().toISOString()
-            });
+            // Simple distance-based ETA calculation
+            const distanceKm = calculateDistance(startLat, startLon, destLat, destLon);
+            const travelMinutes = Math.ceil((distanceKm / 40) * 60); // 40 km/h average
+            const etaMinutes = currentTotalMinutes + travelMinutes;
+            const eta = `${String(Math.floor(etaMinutes / 60) % 24).padStart(2, '0')}:${String(etaMinutes % 60).padStart(2, '0')}`;
             
-            const etaData = etaResponse?.data || etaResponse;
-            if (etaData?.success && etaData?.durationUpdates?.length > 0) {
-              // Find ETA for this specific delivery
-              const thisDeliveryETA = etaData.durationUpdates.find((u) => u.deliveryId === deliveryId);
-              if (thisDeliveryETA?.eta) {
-                await updateDeliveryLocal(deliveryId, {
-                  delivery_time_eta: thisDeliveryETA.eta
-                });
-                console.log(`✅ [START] Updated ETA to ${thisDeliveryETA.eta}`);
-              }
-            }
+            await updateDeliveryLocal(deliveryId, {
+              delivery_time_eta: eta
+            });
+            console.log(`✅ [START] Updated ETA to ${eta} (${travelMinutes} min travel)`);
           }
         }
       } catch (etaError) {
         console.warn('⚠️ [START] ETA calculation failed:', etaError);
       }
 
-      // STEP 4: Run route optimizer - it will handle stop_order sequencing and ETAs
+      // STEP 4: Optimize ONLY remaining stops (exclude the started delivery)
       try {
-        const driverAppUser = appUsers.find(u => u && u.user_id === driverId);
-        const currentLocation = driverAppUser?.current_latitude && driverAppUser?.current_longitude ? {
-          latitude: driverAppUser.current_latitude,
-          longitude: driverAppUser.current_longitude
-        } : null;
-
-        console.log('🔄 [START] Running route optimizer to sequence stops...');
-        await base44.functions.invoke('optimizeRouteRealTime', {
-          driverId: driverId,
-          deliveryDate: deliveryDate,
-          currentLocalTime: format(new Date(), 'HH:mm'),
-          deviceTime: new Date().toISOString(),
-          startLocation: currentLocation
+        console.log('🔄 [START] Optimizing remaining stops...');
+        
+        // Get fresh deliveries to ensure we have latest data
+        const freshDeliveries = await base44.entities.Delivery.filter({
+          driver_id: driverId,
+          delivery_date: deliveryDate
         });
-        console.log('✅ [START] Route optimization complete - stops re-sequenced');
+
+        // Separate started delivery from remaining stops
+        const startedDelivery = freshDeliveries.find(d => d.id === deliveryId);
+        const remainingStops = freshDeliveries.filter(d => 
+          d.id !== deliveryId && 
+          !finishedStatuses.includes(d.status)
+        );
+
+        if (remainingStops.length > 0) {
+          // Get coordinates for optimization
+          let optimizationStartLat, optimizationStartLon;
+          
+          if (startedDelivery.patient_id) {
+            const patient = patients.find((p) => p && p.id === startedDelivery.patient_id);
+            optimizationStartLat = patient?.latitude;
+            optimizationStartLon = patient?.longitude;
+          } else if (startedDelivery.store_id) {
+            const store = stores.find((s) => s && s.id === startedDelivery.store_id);
+            optimizationStartLat = store?.latitude;
+            optimizationStartLon = store?.longitude;
+          }
+
+          // Optimize remaining stops from the started delivery's location
+          await base44.functions.invoke('optimizeRouteRealTime', {
+            driverId: driverId,
+            deliveryDate: deliveryDate,
+            currentLocalTime: format(new Date(), 'HH:mm'),
+            deviceTime: new Date().toISOString(),
+            startLocation: optimizationStartLat && optimizationStartLon ? {
+              lat: optimizationStartLat,
+              lng: optimizationStartLon
+            } : null,
+            excludeDeliveryIds: [deliveryId] // Exclude the started delivery from optimization
+          });
+          console.log('✅ [START] Remaining stops optimized');
+        }
       } catch (optimizeError) {
         console.warn('⚠️ [START] Route optimization failed:', optimizeError);
       }
@@ -5009,15 +5031,9 @@ function Dashboard() {
           .map((d) => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
         await Promise.all(resetPromises);
 
-        // Find first incomplete and mark as next (SKIP PENDING)
-        const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-        const firstIncomplete = allDriverDeliveries
-          .filter((d) => !finishedStatuses.includes(d.status) && d.status !== 'pending')
-          .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
-
-        if (firstIncomplete) {
-          await base44.entities.Delivery.update(firstIncomplete.id, { isNextDelivery: true });
-        }
+        // Mark the started delivery as next
+        await base44.entities.Delivery.update(deliveryId, { isNextDelivery: true });
+        console.log('✅ [START] Marked started delivery as isNextDelivery');
       } catch (flagError) {
         console.warn('⚠️ [START] isNextDelivery flag update failed:', flagError);
       }

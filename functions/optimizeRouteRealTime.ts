@@ -42,8 +42,8 @@ Deno.serve(async (req) => {
     console.log('✅ [optimizeRouteRealTime] User authenticated:', user.email);
 
     console.log('📦 [optimizeRouteRealTime] Parsing request body...');
-    const { driverId, deliveryDate, startLocation } = await req.json();
-    console.log('📦 [optimizeRouteRealTime] Request params:', { driverId, deliveryDate, currentLocalTime, startLocation, deviceTime });
+    const { driverId, deliveryDate, startLocation, excludeDeliveryIds, currentLocalTime, deviceTime } = await req.json();
+    console.log('📦 [optimizeRouteRealTime] Request params:', { driverId, deliveryDate, currentLocalTime, startLocation, deviceTime, excludeDeliveryIds });
 
     if (!driverId || !deliveryDate) {
       console.error('❌ [optimizeRouteRealTime] Missing parameters:', { driverId, deliveryDate });
@@ -141,9 +141,17 @@ Deno.serve(async (req) => {
       });
     }
 
+    // CRITICAL: Exclude specified deliveries from optimization (e.g., just-started delivery)
+    const excludedIds = excludeDeliveryIds || [];
+    const optimizableDeliveries = excludedIds.length > 0 
+      ? allDeliveries.filter(d => !excludedIds.includes(d.id))
+      : allDeliveries;
+
+    console.log(`📊 [optimizeRouteRealTime] Excluding ${excludedIds.length} deliveries from optimization`);
+
     // Separate completed and incomplete deliveries
     const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-    const completedDeliveries = allDeliveries.filter(d => finishedStatuses.includes(d.status));
+    const completedDeliveries = optimizableDeliveries.filter(d => finishedStatuses.includes(d.status));
     
     // CRITICAL: Determine if route has started (has in_transit or finished stops)
     const routeHasStarted = allDeliveries.some(d => 
@@ -154,11 +162,11 @@ Deno.serve(async (req) => {
     let incompleteDeliveries;
     if (routeHasStarted) {
       // Route has started: exclude finished statuses but INCLUDE all non-finished stops (including pending)
-      incompleteDeliveries = allDeliveries.filter(d => !finishedStatuses.includes(d.status));
+      incompleteDeliveries = optimizableDeliveries.filter(d => !finishedStatuses.includes(d.status));
       console.log(`📊 Route HAS started - including all non-finished stops (${incompleteDeliveries.length})`);
     } else {
       // Route has NOT started: exclude BOTH pending AND finished statuses (only Ready For Pickup, en_route)
-      incompleteDeliveries = allDeliveries.filter(d => 
+      incompleteDeliveries = optimizableDeliveries.filter(d => 
         !finishedStatuses.includes(d.status) && d.status !== 'pending'
       );
       console.log(`📊 Route NOT started - excluding pending and finished (${incompleteDeliveries.length})`);
