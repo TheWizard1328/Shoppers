@@ -4573,6 +4573,21 @@ function Dashboard() {
   };
 
   const handleStatusUpdate = async (deliveryId, newStatus, extraData = {}, skipAutoCenter = false) => {
+    // CRITICAL: Capture current FAB state BEFORE setting entity updating
+    const wasPhase2Locked = mapViewPhase === 2 && isMapViewLocked;
+    const currentPhase = mapViewPhase;
+    
+    // CRITICAL: Unlock FAB if in Phase 2 (will be re-locked after status update)
+    if (wasPhase2Locked) {
+      console.log('🔓 [STATUS] Phase 2 detected - unlocking FAB temporarily');
+      if (mapLockTimeoutRef.current) {
+        clearTimeout(mapLockTimeoutRef.current);
+        mapLockTimeoutRef.current = null;
+      }
+      mapLockExpiresAtRef.current = null;
+      setIsMapViewLocked(false);
+    }
+    
     setIsEntityUpdating(true);
 
     // Wait 100ms to ensure smart refresh has paused before proceeding
