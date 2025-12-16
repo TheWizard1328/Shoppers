@@ -708,14 +708,33 @@ export default function DeliveryMap({
   const popupTimeoutRef = useRef(null);
   const [mapCenter, setMapCenter] = useState(center);
   const [visibleBounds, setVisibleBounds] = useState(null);
-  
+  const [realtimeAppUsers, setRealtimeAppUsers] = useState(users);
+
+  // Listen for real-time driver location updates from SmartRefreshManager
+  useEffect(() => {
+    const handleDriverLocationUpdate = (event) => {
+      const { appUsers } = event.detail;
+      if (appUsers && appUsers.length > 0) {
+        console.log('📍 [DeliveryMap] Received driver location update event - updating markers');
+        setRealtimeAppUsers(appUsers);
+      }
+    };
+
+    window.addEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
+    return () => window.removeEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
+  }, []);
+
+  // Sync realtimeAppUsers with users prop when it changes
+  useEffect(() => {
+    setRealtimeAppUsers(users);
+  }, [users]);
 
   // Add safety checks for required props
   const safeDeliveries = Array.isArray(deliveries) ? deliveries : [];
   const safeAllDeliveriesForDate = Array.isArray(allDeliveriesForDate) ? allDeliveriesForDate : []; // NEW
   const safePatients = Array.isArray(patients) ? patients : [];
   const safeStores = Array.isArray(stores) ? stores : [];
-  const safeUsers = Array.isArray(users) ? users : [];
+  const safeUsers = Array.isArray(realtimeAppUsers) ? realtimeAppUsers : []; // UPDATED: Use real-time appUsers
   const safeDriverLocations = Array.isArray(driverLocations) ? driverLocations : [];
 
   const isSingleDriverMode = useMemo(() => {
