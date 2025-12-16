@@ -775,14 +775,9 @@ function Dashboard() {
   }, [screenWidth, cardWidth]);
 
   const optimizationMessagePositioning = useMemo(() => {
-    const ratio = screenWidth / cardWidth;
-
-    if (ratio < 2) {
-      return 'absolute left-1/2 -translate-x-1/2 z-[9998] min-w-[340px]';
-    } else {
-      return 'absolute right-2 z-[9998] min-w-[340px]';
-    }
-  }, [screenWidth, cardWidth]);
+    // Always center below stats card
+    return 'absolute left-1/2 -translate-x-1/2 z-[9998] max-w-[90vw]';
+  }, []);
 
   const handleCardInteraction = useCallback((show) => {
     if (fadeTimeoutRef.current) {
