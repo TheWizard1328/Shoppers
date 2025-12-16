@@ -1485,7 +1485,6 @@ export default function StopCard({
                             await base44.functions.invoke('optimizeRouteRealTime', {
                               driverId: delivery.driver_id,
                               deliveryDate: delivery.delivery_date,
-                              deviceTime: new Date().toISOString(),
                               generatePolyline: false
                             });
                             console.log('  ✅ ETAs updated');
