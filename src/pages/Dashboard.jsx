@@ -4773,6 +4773,33 @@ function Dashboard() {
           }
         }, lockDuration);
       }
+
+      // CRITICAL: Scroll to next delivery card after status update (completion)
+      if (['completed', 'failed', 'cancelled', 'returned'].includes(newStatus)) {
+        setTimeout(() => {
+          // Find the card with isNextDelivery=true from updated deliveries
+          const nextCardElement = document.querySelector('[data-is-next-delivery="true"]');
+          if (nextCardElement) {
+            nextCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            console.log('📍 [STATUS] Scrolled to next delivery card after completion');
+          } else {
+            // Fallback: find by querying deliveries that were just updated
+            const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+            const incompleteDeliveries = deliveriesWithStopOrder.filter((d) => 
+              d && d.id !== deliveryId && !finishedStatuses.includes(d.status) && d.status !== 'pending'
+            ).sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+            
+            if (incompleteDeliveries.length > 0) {
+              const nextDelivery = incompleteDeliveries[0];
+              const cardElement = document.getElementById(`stop-card-${nextDelivery.id}`);
+              if (cardElement) {
+                cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                console.log('📍 [STATUS] Scrolled to next delivery card (fallback) after completion');
+              }
+            }
+          }
+        }, 500); // Wait for UI to update with new isNextDelivery flags
+      }
     } catch (error) {
       console.error('');
       console.error('❌❌❌ ERROR ❌❌❌');
