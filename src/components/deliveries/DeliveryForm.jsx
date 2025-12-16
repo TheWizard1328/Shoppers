@@ -3678,13 +3678,7 @@ export default function DeliveryForm({
 
                       })}
 
-                      {projectedDeliveries.filter(proj => {
-                        // Filter by driver if a specific driver is selected
-                        if (formData.driver_id && formData.driver_id !== '') {
-                          return proj.driver_id === formData.driver_id;
-                        }
-                        return true;
-                      }).map((projected) => {
+                      {projectedDeliveries.map((projected) => {
                         const projectedStore = stores?.find((s) => s && s.id === projected.store_id);
                         const storeColor = projectedStore ? getStoreColor(projectedStore) : '#64748b';
 
