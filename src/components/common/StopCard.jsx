@@ -57,7 +57,7 @@ const statusConfig = {
 };
 
 // MOVED OUTSIDE COMPONENT: Define finished statuses as a constant
-const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
+const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
 
 // Helper function to format time to 12-hour format with AM/PM
 const formatTime12Hour = (timeString) => {
@@ -470,8 +470,8 @@ export default function StopCard({
     const canChangeStatus = userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver');
     if (!canChangeStatus) return [];
 
-    // No status changes for completed/cancelled/returned
-    if (['completed', 'cancelled', 'returned'].includes(delivery.status)) {
+    // No status changes for finished deliveries (completed, failed, cancelled, returned)
+    if (FINISHED_STATUSES.includes(delivery.status)) {
       return [];
     }
 
@@ -768,7 +768,7 @@ export default function StopCard({
 
             <div className="flex flex-col py-0.5 gap-0.5 items-center">
               <div className="flex items-center gap-1">
-                {showStatusDropdown ?
+                {showStatusDropdown && !FINISHED_STATUSES.includes(delivery.status) ?
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button className={`inline-flex items-center gap-1 rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-sm font-bold px-2 py-0.5 cursor-pointer hover:opacity-80 ${
