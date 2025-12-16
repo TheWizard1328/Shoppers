@@ -256,20 +256,17 @@ export default function StopCard({
   const isCODComplete = useMemo(() => codTotalCollected >= codTotalRequired, [codTotalCollected, codTotalRequired]);
   const isCompleted = useMemo(() => delivery ? FINISHED_STATUSES.includes(delivery.status) : false, [delivery?.status]);
 
-  // Detect if this is a return delivery (check patient name/notes for "return" or "rtn")
+  // Detect if this is a return delivery (check patient name/notes for "(RTN)" specifically)
   const isReturnDelivery = useMemo(() => {
     if (!delivery || isPickup) return false;
     
-    const patientName = (patient?.full_name || delivery.patient_name || '').toLowerCase();
-    const deliveryNotes = (delivery.delivery_notes || '').toLowerCase();
-    const patientNotes = (patient?.notes || '').toLowerCase();
+    const patientName = (patient?.full_name || delivery.patient_name || '').toUpperCase();
+    const deliveryNotes = (delivery.delivery_notes || '').toUpperCase();
+    const patientNotes = (patient?.notes || '').toUpperCase();
     
-    return patientName.includes('return') || 
-           patientName.includes('rtn') || 
-           deliveryNotes.includes('return') || 
-           deliveryNotes.includes('rtn') ||
-           patientNotes.includes('return') || 
-           patientNotes.includes('rtn');
+    return patientName.includes('(RTN)') || 
+           deliveryNotes.includes('(RTN)') ||
+           patientNotes.includes('(RTN)');
   }, [delivery, patient, isPickup]);
 
   // Check if this is a first delivery based on patient's last_delivery_date
