@@ -2382,7 +2382,10 @@ function Dashboard() {
         setIsMapViewLocked(true);
         setMapViewTrigger((prev) => prev + 1);
 
-        if (mapViewPhase === 1 || mapViewPhase === 3) {
+        if (mapViewPhase === 2) {
+          // Phase 2 stays locked permanently - no timer
+          console.log('🔵 [FAB Date Change] Phase 2 locked - no auto-unlock');
+        } else if (mapViewPhase === 1 || mapViewPhase === 3) {
           const lockDuration = 3000;
           const expiresAt = Date.now() + lockDuration;
           mapLockExpiresAtRef.current = expiresAt;
