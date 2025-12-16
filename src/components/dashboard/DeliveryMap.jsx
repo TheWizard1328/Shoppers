@@ -44,7 +44,7 @@ const ZOOM_LEVELS = {
 };
 
 // Shared finished statuses array
-const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
+const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
 
 // NEW: Simple circle marker for dispatcher view (other stores)
 // CRITICAL: Memoized icon cache to prevent re-creation on every render

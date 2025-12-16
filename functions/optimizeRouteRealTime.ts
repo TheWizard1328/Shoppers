@@ -144,7 +144,25 @@ Deno.serve(async (req) => {
     // Separate completed and incomplete deliveries
     const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
     const completedDeliveries = allDeliveries.filter(d => finishedStatuses.includes(d.status));
-    const incompleteDeliveries = allDeliveries.filter(d => !finishedStatuses.includes(d.status));
+    
+    // CRITICAL: Determine if route has started (has in_transit or finished stops)
+    const routeHasStarted = allDeliveries.some(d => 
+      d.status === 'in_transit' || finishedStatuses.includes(d.status)
+    );
+    
+    // Filter incomplete deliveries based on route status
+    let incompleteDeliveries;
+    if (routeHasStarted) {
+      // Route has started: exclude finished statuses but INCLUDE all non-finished stops (including pending)
+      incompleteDeliveries = allDeliveries.filter(d => !finishedStatuses.includes(d.status));
+      console.log(`📊 Route HAS started - including all non-finished stops (${incompleteDeliveries.length})`);
+    } else {
+      // Route has NOT started: exclude BOTH pending AND finished statuses (only Ready For Pickup, en_route)
+      incompleteDeliveries = allDeliveries.filter(d => 
+        !finishedStatuses.includes(d.status) && d.status !== 'pending'
+      );
+      console.log(`📊 Route NOT started - excluding pending and finished (${incompleteDeliveries.length})`);
+    }
 
     console.log(`📊 Route breakdown: ${completedDeliveries.length} completed, ${incompleteDeliveries.length} incomplete`);
 
