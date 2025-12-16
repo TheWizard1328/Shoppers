@@ -4734,6 +4734,9 @@ function Dashboard() {
 
       // CRITICAL: Re-trigger map view for Phase 2 after status change
       if (mapViewPhase === 2 && isMapViewLocked) {
+        // Mark as programmatic movement
+        lastProgrammaticMapMoveRef.current = Date.now();
+        window._lastProgrammaticMapMove = Date.now();
         setMapViewTrigger((prev) => prev + 1);
       }
     } catch (error) {
