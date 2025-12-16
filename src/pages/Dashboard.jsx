@@ -1302,6 +1302,15 @@ function Dashboard() {
         }
       };
 
+      // Only set up periodic fetch if we actually have active deliveries
+      const hasActiveDeliveries = filteredDeliveries.some((d) => 
+        d && !['completed', 'failed', 'cancelled', 'returned'].includes(d.status)
+      );
+      
+      if (!hasActiveDeliveries) {
+        return; // Don't fetch polylines if no active deliveries
+      }
+      
       fetchPolyline();
       const interval = setInterval(fetchPolyline, 30000);
       return () => clearInterval(interval);
