@@ -4787,12 +4787,36 @@ function Dashboard() {
         hasAutoSelectedRef.current = false;
       }
 
-      // CRITICAL: Re-trigger map view for Phase 2 after status change
-      if (mapViewPhase === 2 && isMapViewLocked) {
-        // Mark as programmatic movement
+      // CRITICAL: Re-lock and re-trigger FAB based on original phase
+      if (wasPhase2Locked) {
+        // Was Phase 2 and locked - re-lock to Phase 2 and re-trigger map view
+        console.log('🔒 [STATUS] Re-locking FAB to Phase 2 after status update');
+        setIsMapViewLocked(true);
         lastProgrammaticMapMoveRef.current = Date.now();
         window._lastProgrammaticMapMove = Date.now();
         setMapViewTrigger((prev) => prev + 1);
+        // Phase 2 stays locked permanently - no timer needed
+      } else if (currentPhase === 1 || currentPhase === 3) {
+        // Was Phase 1 or 3 - activate for 500ms then deactivate
+        console.log(`🔄 [STATUS] Phase ${currentPhase} detected - activating FAB for 500ms`);
+        setIsMapViewLocked(true);
+        lastProgrammaticMapMoveRef.current = Date.now();
+        window._lastProgrammaticMapMove = Date.now();
+        setMapViewTrigger((prev) => prev + 1);
+        
+        // Auto-unlock after 500ms
+        const lockDuration = 500;
+        const expiresAt = Date.now() + lockDuration;
+        mapLockExpiresAtRef.current = expiresAt;
+        
+        mapLockTimeoutRef.current = window.setTimeout(() => {
+          if (mapLockExpiresAtRef.current === expiresAt) {
+            setIsMapViewLocked(false);
+            mapLockExpiresAtRef.current = null;
+            mapLockTimeoutRef.current = null;
+            console.log(`⏱️ [STATUS] Phase ${currentPhase} - unlocking FAB after 500ms`);
+          }
+        }, lockDuration);
       }
     } catch (error) {
       console.error('');
