@@ -40,11 +40,11 @@ Deno.serve(async (req) => {
       lng: driverAppUser.current_longitude
     };
 
-    // Get all active deliveries for this driver on this date
+    // Get only in_transit deliveries and en_route pickups (not pending)
     const deliveries = await base44.asServiceRole.entities.Delivery.filter({
       driver_id: driverId,
       delivery_date: deliveryDate,
-      status: { $in: ['pending', 'Ready For Pickup', 'in_transit', 'en_route'] }
+      status: { $in: ['in_transit', 'en_route'] }
     });
 
     if (!deliveries || deliveries.length === 0) {
