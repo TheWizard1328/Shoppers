@@ -18,8 +18,8 @@ export default function MapCrosshair({ stopCardsHeight = 0, statsCardHeight = 0,
   
   // Net shift = (bottomObscured - topObscured) / 2
   // Positive = shift up, Negative = shift down
-  // CRITICAL: Add extra 30px shift up to better center blue dot and markers
-  const verticalShift = Math.round((bottomObscured - topObscured) / 2) + 30;
+  // CRITICAL: Add extra 15px shift up to better center blue dot and markers
+  const verticalShift = Math.round((bottomObscured - topObscured) / 2) + 15;
 
   return (
     <div 
