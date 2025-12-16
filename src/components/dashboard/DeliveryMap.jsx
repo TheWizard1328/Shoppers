@@ -1761,7 +1761,7 @@ export default function DeliveryMap({
         maxZoom={18}
         zoomSnap={0}
         zoomDelta={0.1}
-        style={{ height: 'calc(100% + 15px)', width: '100%', marginTop: '-15px' }}
+        style={{ height: 'calc(100% + 30px)', width: '100%', marginTop: '-30px' }}
         zoomControl={false}
         onClick={() => setFannedLocationKey(null)}
         whenReady={(mapInstance) => {
