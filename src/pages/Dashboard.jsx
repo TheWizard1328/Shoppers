@@ -1544,17 +1544,17 @@ function Dashboard() {
           selectedDriverId !== 'all' &&
           isViewingToday;
 
-        // 1. BLUE DOT: Only include if actually rendering (NOT in all-drivers mode)
-        const shouldRenderBlueDot = 
+        // 1. BLUE DOT: Include driver's live location when visible on mobile
+        // The blue dot is rendered when: mobile + driver + viewing today + viewing self
+        const shouldIncludeBlueDot = 
           isMobile && 
           isDriver && 
-          !isDispatcher && 
           isViewingToday && 
           driverLocation?.latitude && 
           driverLocation?.longitude &&
-          selectedDriverId === currentUser?.id; // CRITICAL: Only when viewing self, not "all"
+          (selectedDriverId === currentUser?.id || selectedDriverId === 'all');
         
-        if (shouldRenderBlueDot) {
+        if (shouldIncludeBlueDot) {
           allCoordinates.push([driverLocation.latitude, driverLocation.longitude]);
           hasDriverMarkers = true;
         }
