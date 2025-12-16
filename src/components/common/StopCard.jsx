@@ -652,8 +652,8 @@ export default function StopCard({
     setReturnPatient(null);
   };
 
-  // Determine if card should be faded (completed + not expanded + not hovered)
-  const shouldFade = delivery.status === 'completed' && !isExpanded && !isHovered;
+  // Determine if card should be faded (finished + not expanded + not hovered)
+  const shouldFade = (FINISHED_STATUSES.includes(delivery.status) || isReturnDelivery) && !isExpanded && !isHovered;
 
   return (
     <motion.div
