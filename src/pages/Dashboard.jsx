@@ -4891,21 +4891,19 @@ function Dashboard() {
 
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
       
-      // Find highest completed stop_order
-      const completedStops = allDriverDeliveries
-        .filter((d) => finishedStatuses.includes(d.status))
-        .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+      // Count completed stops (not by stop_order value, but by actual count)
+      const completedStops = allDriverDeliveries.filter((d) => finishedStatuses.includes(d.status));
       
-      const nextStopOrder = completedStops.length > 0 
-        ? Math.max(...completedStops.map(d => d.stop_order || 0)) + 1 
-        : 1;
+      // Next stop order is simply completedCount + 1
+      const nextStopOrder = completedStops.length + 1;
 
-      console.log(`📊 [START] Assigning stop_order ${nextStopOrder} to started delivery`);
+      console.log(`📊 [START] ${completedStops.length} completed stops, assigning stop_order ${nextStopOrder} to started delivery`);
 
       // STEP 2: Update status and assign next sequential stop_order
       await updateDeliveryLocal(deliveryId, {
         status: newStatus,
-        stop_order: nextStopOrder
+        stop_order: nextStopOrder,
+        display_stop_order: nextStopOrder
       });
 
       // STEP 3: Calculate ETA for this specific stop
