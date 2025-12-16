@@ -4969,7 +4969,7 @@ function Dashboard() {
 
       // STEP 4: Optimize ONLY remaining stops (exclude the started delivery)
       try {
-        console.log('🔄 [START] Optimizing remaining stops...');
+        console.log('🔄 [START] Optimizing remaining stops after the started delivery...');
         
         // Get fresh deliveries to ensure we have latest data
         const freshDeliveries = await base44.entities.Delivery.filter({
@@ -4984,8 +4984,10 @@ function Dashboard() {
           !finishedStatuses.includes(d.status)
         );
 
+        console.log(`📊 [START] Found ${remainingStops.length} remaining stops to optimize after started delivery`);
+
         if (remainingStops.length > 0) {
-          // Get coordinates for optimization
+          // Get coordinates for optimization starting point (started delivery's location)
           let optimizationStartLat, optimizationStartLon;
           
           if (startedDelivery.patient_id) {
@@ -4998,8 +5000,10 @@ function Dashboard() {
             optimizationStartLon = store?.longitude;
           }
 
-          // Optimize remaining stops from the started delivery's location
-          await base44.functions.invoke('optimizeRouteRealTime', {
+          console.log(`📍 [START] Optimization will start from started delivery's location and exclude it from re-sequencing`);
+
+          // CRITICAL: Pass excludeDeliveryIds to backend - started delivery keeps its position
+          const optimizeResponse = await base44.functions.invoke('optimizeRouteRealTime', {
             driverId: driverId,
             deliveryDate: deliveryDate,
             currentLocalTime: format(new Date(), 'HH:mm'),
@@ -5008,9 +5012,13 @@ function Dashboard() {
               lat: optimizationStartLat,
               lng: optimizationStartLon
             } : null,
-            excludeDeliveryIds: [deliveryId] // Exclude the started delivery from optimization
+            excludeDeliveryIds: [deliveryId] // CRITICAL: Exclude started delivery from optimization
           });
-          console.log('✅ [START] Remaining stops optimized');
+          
+          const optimizeData = optimizeResponse?.data || optimizeResponse;
+          console.log('✅ [START] Backend optimization complete:', optimizeData?.success ? 'success' : 'no changes');
+        } else {
+          console.log('ℹ️ [START] No remaining stops to optimize');
         }
       } catch (optimizeError) {
         console.warn('⚠️ [START] Route optimization failed:', optimizeError);
