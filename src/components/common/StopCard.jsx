@@ -1728,9 +1728,63 @@ export default function StopCard({
               <div className="mt-2 mx-auto pb-1 flex justify-between items-center">
                 {(isAssignedDriverOrAppOwner || canEdit) &&
                 <>
-                    {/* Start/Complete button - right aligned */}
+                    {/* Return button for failed deliveries - creates new return delivery */}
+                    {delivery.status === 'failed' && !isPickup &&
+                  <Button
+                    onClick={handleReturnClick}
+                    size="sm" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow rounded-md px-3 text-xs bg-orange-600 hover:bg-orange-700 !text-white h-8"
+
+                    disabled={isPreparingReturn || hasFutureReturn}>
+                        {isPreparingReturn ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Undo2 className="w-3 h-3 mr-1 !text-white" />}
+                        Return
+                      </Button>
+                  }
+
+                    {/* Start/Complete/Retry button and menu - right aligned */}
                     <div className="flex items-center ml-auto">
-                      {!FINISHED_STATUSES.includes(delivery.status) && (
+                      {delivery.status === 'failed' && onStatusUpdate ?
+                    <Button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        fabControlEvents.deactivateFAB();
+                        setIsRetrying(true);
+                        setIsEntityUpdating(true);
+                        smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
+                        await new Promise((resolve) => setTimeout(resolve, 100));
+
+                        try {
+                          await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+
+                          await ensureDriverOnline();
+                          await onStatusUpdate(delivery.id, isPickup ? 'en_route' : 'in_transit');
+                          // Send notification to dispatchers
+                          if (userHasRole(currentUser, 'driver')) {
+                            await notifyDriverRetry({
+                              driver: currentUser,
+                              patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
+                              delivery,
+                              store,
+                              appUsers
+                            });
+                          }
+                        } finally {
+                          setIsRetrying(false);
+                          console.log('▶️ [RETRY] Resuming smart refresh');
+                          setIsEntityUpdating(false);
+                          await new Promise((resolve) => setTimeout(resolve, 100));
+                          console.log('✅ [RETRY] Retry cycle complete');
+
+                          // CRITICAL: Reactivate FAB after action (skip card scroll - FAB handles it)
+                          fabControlEvents.reactivateFAB(true);
+                        }
+                      }}
+                      size="sm"
+                      className="bg-blue-600 hover:bg-blue-700 h-8 rounded-r-none border-r border-blue-500 !text-white"
+                      disabled={isRetrying || !canRetry || hasFutureRetry}>
+                          {isRetrying ? <Loader2 className="w-3 h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-3 h-3 mr-1 !text-white" />}
+                          <span className="text-white">Retry</span>
+                        </Button> :
+                    delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'returned' && (
                     isNextDelivery ?
                     <Button
                       onClick={async (e) => {
