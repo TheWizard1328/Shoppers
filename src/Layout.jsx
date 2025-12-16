@@ -1055,7 +1055,7 @@ export default function Layout({ children, currentPageName }) {
       }
     };
 
-      refreshIntervalRef.current = setInterval(performUnifiedRefresh, 15000);
+      refreshIntervalRef.current = setInterval(performUnifiedRefresh, 300000); // 5 minutes
     }, 500);
 
     return () => {
