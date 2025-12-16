@@ -148,16 +148,26 @@ Deno.serve(async (req) => {
       if (directionsData.status === 'OK' && directionsData.routes?.[0]) {
         const route = directionsData.routes[0];
         
-        // CRITICAL: Use device's local time, not server UTC time
+        // CRITICAL: Use device's local time - extract hours/minutes WITHOUT timezone conversion
         let cumulativeMinutes;
         if (deviceTime) {
-          const deviceDate = new Date(deviceTime);
-          cumulativeMinutes = deviceDate.getHours() * 60 + deviceDate.getMinutes();
-          console.log(`🕐 Using device local time: ${deviceDate.toLocaleTimeString()} (${cumulativeMinutes} minutes)`);
+          // Parse ISO string and extract local hours/minutes (no UTC conversion)
+          const timeMatch = deviceTime.match(/T(\d{2}):(\d{2})/);
+          if (timeMatch) {
+            const hours = parseInt(timeMatch[1], 10);
+            const minutes = parseInt(timeMatch[2], 10);
+            cumulativeMinutes = hours * 60 + minutes;
+            console.log(`🕐 Using device local time from ISO: ${hours}:${String(minutes).padStart(2, '0')} (${cumulativeMinutes} minutes)`);
+          } else {
+            // Fallback: parse as Date and get UTC hours/minutes (which are actually local)
+            const deviceDate = new Date(deviceTime);
+            cumulativeMinutes = deviceDate.getUTCHours() * 60 + deviceDate.getUTCMinutes();
+            console.log(`🕐 Using device time (UTC components as local): ${deviceDate.toISOString()} (${cumulativeMinutes} minutes)`);
+          }
         } else {
           const now = new Date();
-          cumulativeMinutes = now.getHours() * 60 + now.getMinutes();
-          console.warn(`⚠️ No device time provided, using server time (may be UTC)`);
+          cumulativeMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+          console.warn(`⚠️ No device time provided, using server UTC time: (${cumulativeMinutes} minutes)`);
         }
 
         // Process each leg of the route - calculate actual clock time ETAs

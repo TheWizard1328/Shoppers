@@ -54,20 +54,30 @@ Deno.serve(async (req) => {
     
     console.log('✅ [optimizeRouteRealTime] Parameters validated');
 
-    // CRITICAL: Use device's local time - ALWAYS prefer deviceTime over currentLocalTime
+    // CRITICAL: Use device's local time - extract hours/minutes WITHOUT timezone conversion
     let currentMinutes;
     if (deviceTime) {
-      const deviceDate = new Date(deviceTime);
-      currentMinutes = deviceDate.getHours() * 60 + deviceDate.getMinutes();
-      console.log(`🕐 Using device local time: ${deviceDate.toLocaleTimeString()} (${currentMinutes} minutes)`);
+      // Parse ISO string and extract local hours/minutes (no UTC conversion)
+      const timeMatch = deviceTime.match(/T(\d{2}):(\d{2})/);
+      if (timeMatch) {
+        const hours = parseInt(timeMatch[1], 10);
+        const minutes = parseInt(timeMatch[2], 10);
+        currentMinutes = hours * 60 + minutes;
+        console.log(`🕐 Using device local time from ISO: ${hours}:${String(minutes).padStart(2, '0')} (${currentMinutes} minutes)`);
+      } else {
+        // Fallback: parse as Date and get UTC hours/minutes (which are actually local)
+        const deviceDate = new Date(deviceTime);
+        currentMinutes = deviceDate.getUTCHours() * 60 + deviceDate.getUTCMinutes();
+        console.log(`🕐 Using device time (UTC components as local): ${deviceDate.toISOString()} (${currentMinutes} minutes)`);
+      }
     } else if (currentLocalTime) {
       const [hours, minutes] = currentLocalTime.split(':').map(Number);
       currentMinutes = hours * 60 + minutes;
       console.log(`🕐 Using client local time string: ${currentLocalTime} (${currentMinutes} minutes)`);
     } else {
       const now = new Date();
-      currentMinutes = now.getHours() * 60 + now.getMinutes();
-      console.warn(`⚠️ No local time provided, using server time (may be UTC)`);
+      currentMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+      console.warn(`⚠️ No local time provided, using server UTC time: (${currentMinutes} minutes)`);
     }
 
     console.log(`🔄 [optimizeRouteRealTime] Optimizing route for driver ${driverId} on ${deliveryDate}`);
