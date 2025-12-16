@@ -93,8 +93,14 @@ export const determinePolylineSegment = (filteredDeliveries, driver, patients, s
 
 /**
  * Fetch polyline from Google Directions API
+ * DISABLED: Currently using straight dotted line while testing route optimization
+ * Re-enable by removing the early return below
  */
 export const fetchPolylineForSegment = async (originLat, originLon, destLat, destLon) => {
+  // DISABLED: Return null to use straight dotted line instead of Google Directions polyline
+  // Remove this return statement to re-enable actual route polylines
+  return null;
+  
   try {
     const response = await base44.functions.invoke('getGoogleDirections', {
       origin: { lat: originLat, lon: originLon },
