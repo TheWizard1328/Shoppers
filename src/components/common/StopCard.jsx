@@ -45,19 +45,17 @@ import { invalidate } from '../utils/dataManager';
 // Global statusConfig
 const statusConfig = {
   'pending': { label: 'Pending', color: 'bg-slate-100 text-slate-800' },
-  'Ready For Pickup': { label: 'Ready', color: 'bg-amber-100 text-amber-800' },
   'in_transit': { label: 'In Transit', color: 'bg-blue-100 text-blue-800' },
   'en_route': { label: 'En Route', color: 'bg-cyan-100 text-cyan-800' },
   'next': { label: 'Next', color: 'bg-lime-100 text-lime-800' },
   'completed': { label: 'Complete', color: 'bg-emerald-100 text-emerald-800' },
   'delivered': { label: 'Complete', color: 'bg-emerald-100 text-emerald-800' },
   'failed': { label: 'Failed', color: 'bg-red-100 text-red-800' },
-  'cancelled': { label: 'Cancelled', color: 'bg-red-100 text-red-800' },
-  'returned': { label: 'Returned', color: 'bg-orange-100 text-orange-800' }
+  'cancelled': { label: 'Cancelled', color: 'bg-red-100 text-red-800' }
 };
 
 // MOVED OUTSIDE COMPONENT: Define finished statuses as a constant
-const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
+const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
 // Helper function to format time to 12-hour format with AM/PM
 const formatTime12Hour = (timeString) => {
@@ -257,6 +255,22 @@ export default function StopCard({
   const hasCODRequired = useMemo(() => codTotalRequired > 0, [codTotalRequired]);
   const isCODComplete = useMemo(() => codTotalCollected >= codTotalRequired, [codTotalCollected, codTotalRequired]);
   const isCompleted = useMemo(() => delivery ? FINISHED_STATUSES.includes(delivery.status) : false, [delivery?.status]);
+
+  // Detect if this is a return delivery (check patient name/notes for "return" or "rtn")
+  const isReturnDelivery = useMemo(() => {
+    if (!delivery || isPickup) return false;
+    
+    const patientName = (patient?.full_name || delivery.patient_name || '').toLowerCase();
+    const deliveryNotes = (delivery.delivery_notes || '').toLowerCase();
+    const patientNotes = (patient?.notes || '').toLowerCase();
+    
+    return patientName.includes('return') || 
+           patientName.includes('rtn') || 
+           deliveryNotes.includes('return') || 
+           deliveryNotes.includes('rtn') ||
+           patientNotes.includes('return') || 
+           patientNotes.includes('rtn');
+  }, [delivery, patient, isPickup]);
 
   // Check if this is a first delivery based on patient's last_delivery_date
   // If patient has no last_delivery_date, they are a new patient
@@ -470,18 +484,18 @@ export default function StopCard({
     const canChangeStatus = userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver');
     if (!canChangeStatus) return [];
 
-    // No status changes for finished deliveries (completed, failed, cancelled, returned)
+    // No status changes for finished deliveries
     if (FINISHED_STATUSES.includes(delivery.status)) {
       return [];
     }
 
     let statuses = [];
     if (isPickup) {
-      // Pickup statuses: Pending, Ready For Pickup, En Route, Completed, Cancelled
-      statuses = ['pending', 'Ready For Pickup', 'en_route', 'completed', 'cancelled'];
+      // Pickup statuses: En Route (default), Completed, Cancelled
+      statuses = ['en_route', 'completed', 'cancelled'];
     } else {
-      // Delivery statuses: Pending, Ready For Pickup, In Transit, Completed, Failed
-      statuses = ['pending', 'Ready For Pickup', 'in_transit', 'completed', 'failed'];
+      // Delivery statuses: Pending, In Transit, Completed, Failed
+      statuses = ['pending', 'in_transit', 'completed', 'failed'];
     }
     return statuses.filter((s) => s !== delivery.status);
   }, [delivery?.status, onStatusUpdate, currentUser, isPickup, isAssignedDriverOrAppOwner]);
@@ -876,13 +890,13 @@ export default function StopCard({
 
                 <Badge
                   variant="secondary" className={`border-transparent inline-flex items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-sm font-bold px-2 py-0.5 ${
+                  isReturnDelivery ? 'bg-orange-500 !text-white' :
                   delivery.status === 'failed' ? 'bg-red-500 !text-white' :
                   delivery.status === 'cancelled' ? 'bg-red-500 !text-white' :
-                  delivery.status === 'returned' ? 'bg-orange-500 !text-white' :
                   'bg-emerald-500 !text-white'}`
                   }>
 
-                    {delivery.status === 'returned' ? 'Returned' : statusConfig[delivery.status]?.label || delivery.status}
+                    {isReturnDelivery ? 'Return' : statusConfig[delivery.status]?.label || delivery.status}
                   </Badge>
                 }
               </div>
