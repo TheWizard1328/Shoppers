@@ -345,8 +345,8 @@ function Dashboard() {
       ? (isExpanded ? STATS_CARD_EXTENDED_HEIGHT + 25 : STATS_CARD_BASE_HEIGHT + 25) 
       : 25;
     const bottomPadding = cardExpanded 
-      ? STOP_CARDS_EXPANDED_HEIGHT + 25
-      : stopCardsBaseHeight + 25;
+      ? STOP_CARDS_EXPANDED_HEIGHT + 50
+      : stopCardsBaseHeight + 50;
     return {
       paddingTopLeft: [25, topPadding],
       paddingBottomRight: [25, bottomPadding]
