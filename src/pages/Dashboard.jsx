@@ -5932,6 +5932,55 @@ function Dashboard() {
                 setIsReoptimizing(true);
                 setOptimizationMessage('Re-optimizing route with Google Maps...');
                 
+                // STEP 1: Zoom out to show all incomplete/pending stops
+                const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+                const incompleteStops = deliveriesWithStopOrder.filter(d => 
+                  d && !finishedStatuses.includes(d.status)
+                );
+                
+                if (incompleteStops.length > 0) {
+                  const allCoordinates = [];
+                  
+                  // Add driver's current location if available
+                  if (driverLocation?.latitude && driverLocation?.longitude) {
+                    allCoordinates.push([driverLocation.latitude, driverLocation.longitude]);
+                  }
+                  
+                  // Add driver's home location
+                  if (currentUser?.home_latitude && currentUser?.home_longitude) {
+                    allCoordinates.push([currentUser.home_latitude, currentUser.home_longitude]);
+                  }
+                  
+                  // Add all incomplete stop coordinates
+                  incompleteStops.forEach(stop => {
+                    if (stop.patient_id) {
+                      const patient = patients.find(p => p && p.id === stop.patient_id);
+                      if (patient?.latitude && patient?.longitude) {
+                        allCoordinates.push([patient.latitude, patient.longitude]);
+                      }
+                    } else if (stop.store_id) {
+                      const store = stores.find(s => s && s.id === stop.store_id);
+                      if (store?.latitude && store?.longitude) {
+                        allCoordinates.push([store.latitude, store.longitude]);
+                      }
+                    }
+                  });
+                  
+                  if (allCoordinates.length > 0) {
+                    const padding = getMapPadding(false);
+                    setShouldFitBounds({
+                      bounds: allCoordinates,
+                      options: {
+                        ...padding,
+                        maxZoom: 14,
+                        animate: true
+                      }
+                    });
+                    setMapCenter(null);
+                    setMapZoom(null);
+                  }
+                }
+                
                 try {
                   const deliveryDate = format(selectedDate, 'yyyy-MM-dd');
                   
