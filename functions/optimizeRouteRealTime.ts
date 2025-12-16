@@ -369,24 +369,25 @@ Deno.serve(async (req) => {
       // Calculate remaining stops count for end-of-route optimization
       const totalRemainingStops = unvisitedPickups.size + unvisitedISP.size;
 
-      // Consider all unvisited pickups - PRIORITY: Time window first, then distance
+      // Consider all unvisited pickups - PRIORITY: Time window compliance, then distance
       for (const idx of unvisitedPickups) {
         const travelTime = Math.ceil(crowFliesMatrix[currentPos][idx].duration / 60);
         const stop = stops[idx];
         const arrivalTime = cumulativeTime + travelTime;
         
-        // Base score starts with travel time
+        // Base score starts with travel time (lower is better)
         let score = travelTime;
         
-        // Time window handling for pickups
+        // Time window handling for pickups - MUST arrive within window
         if (stop.timeWindow) {
-          // CRITICAL: Pickups with earlier time windows should be prioritized
-          // Add urgency bonus based on window start time (earlier = lower score = higher priority)
-          score += stop.timeWindow.start * 0.5;
-          
           // Heavy penalty for arriving after the pickup window ends
           if (arrivalTime > stop.timeWindow.end) {
-            score += (arrivalTime - stop.timeWindow.end) * 5;
+            score += 1000 + (arrivalTime - stop.timeWindow.end) * 10;
+          }
+          // Penalty for arriving too early (before window starts)
+          else if (arrivalTime < stop.timeWindow.start - 30) {
+            // Very early - moderate penalty
+            score += 50;
           }
         }
         
@@ -397,29 +398,22 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Consider ISP deliveries (can go anywhere) - PRIORITY: Time window first, then distance
+      // Consider ISP deliveries (can go anywhere) - PRIORITY: Distance first, respect time windows
       for (const idx of unvisitedISP) {
         const stop = stops[idx];
         const travelTime = Math.ceil(crowFliesMatrix[currentPos][idx].duration / 60);
         const arrivalTime = cumulativeTime + travelTime;
         
-        // Base score starts with travel time
+        // Base score starts with travel time (distance-first)
         let score = travelTime;
         
-        // Time window handling - CRITICAL for correct ordering
+        // Time window handling - penalize arriving late, don't penalize arriving early
         if (stop.timeWindow) {
-          // CRITICAL: Deliveries with earlier time windows should be prioritized
-          // Add urgency bonus based on window start time (earlier = lower score = higher priority)
-          score += stop.timeWindow.start * 0.3;
-          
-          // Penalty for arriving outside the window
-          if (arrivalTime < stop.timeWindow.start) {
-            // Early arrival - add wait time as penalty
-            score += (stop.timeWindow.start - arrivalTime) * 0.3;
-          } else if (arrivalTime > stop.timeWindow.end) {
-            // Late arrival - heavy penalty
-            score += (arrivalTime - stop.timeWindow.end) * 3;
+          // Heavy penalty for arriving AFTER the window ends
+          if (arrivalTime > stop.timeWindow.end) {
+            score += 500 + (arrivalTime - stop.timeWindow.end) * 5;
           }
+          // No penalty for arriving early or within window - distance is primary
         }
         
         if (score < bestScore) {
@@ -455,7 +449,7 @@ Deno.serve(async (req) => {
         const remainingDelivs = [...unvisitedDeliveries];
         
         while (remainingDelivs.length > 0) {
-          // Find best delivery considering TIME WINDOWS first, then distance
+          // Find best delivery - DISTANCE FIRST, respect time windows (don't be late)
           let bestDeliv = null;
           let bestDelivScore = Infinity;
           
@@ -463,25 +457,18 @@ Deno.serve(async (req) => {
             const travelTime = crowFliesMatrix[pickupPos][deliv.idx].duration / 60;
             const arrivalTime = cumulativeTime + travelTime;
             
-            // Base score is travel time
+            // Base score is travel time (DISTANCE IS PRIMARY)
             let score = travelTime;
             
-            // CRITICAL: Time window handling - prioritize stops with earlier windows
+            // Time window handling - only penalize being LATE
             if (stops[deliv.idx].timeWindow) {
-              const windowStart = stops[deliv.idx].timeWindow.start;
               const windowEnd = stops[deliv.idx].timeWindow.end;
               
-              // Add urgency based on window start (earlier windows = lower score = higher priority)
-              score += windowStart * 0.3;
-              
-              // Penalty for arriving outside window
-              if (arrivalTime < windowStart) {
-                // Early - add wait time
-                score += (windowStart - arrivalTime) * 0.2;
-              } else if (arrivalTime > windowEnd) {
-                // Late - heavy penalty
-                score += (arrivalTime - windowEnd) * 3;
+              // Heavy penalty for arriving AFTER the window ends
+              if (arrivalTime > windowEnd) {
+                score += 500 + (arrivalTime - windowEnd) * 5;
               }
+              // No penalty for arriving early - distance is primary
             }
             
             if (score < bestDelivScore) {
