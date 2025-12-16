@@ -782,7 +782,7 @@ export default function StopCard({
 
             <div className="flex flex-col py-0.5 gap-0.5 items-center">
               <div className="flex items-center gap-1">
-                {showStatusDropdown && !FINISHED_STATUSES.includes(delivery.status) ?
+                {showStatusDropdown && !FINISHED_STATUSES.includes(delivery.status) && !isReturnDelivery ?
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button className={`inline-flex items-center gap-1 rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-sm font-bold px-2 py-0.5 cursor-pointer hover:opacity-80 ${
