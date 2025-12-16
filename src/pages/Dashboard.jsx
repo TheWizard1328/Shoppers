@@ -9,7 +9,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Calendar as CalendarIcon, Clock, Truck, CheckCircle, XCircle, Package, Plus, ChevronUp, ChevronDown, RotateCcw as RefreshIcon, Phone, MapPin, X, Settings, Bot, Sparkles } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Truck, CheckCircle, XCircle, Package, Plus, ChevronUp, ChevronDown, RotateCcw as RefreshIcon, Phone, MapPin, X, Settings, Bot, Sparkles, Navigation } from "lucide-react";
 import { format, startOfDay } from 'date-fns';
 import { getData, invalidate, invalidateDeliveriesForDate } from "@/components/utils/dataManager";
 import DeliveryMap from "@/components/dashboard/DeliveryMap";
@@ -308,6 +308,7 @@ function Dashboard() {
   const [currentToNextPolyline, setCurrentToNextPolyline] = useState(null);
   const [hasRateLimitError, setHasRateLimitError] = useState(false);
   const [realTimeETAEnabled, setRealTimeETAEnabled] = useState(true);
+  const [isReoptimizing, setIsReoptimizing] = useState(false);
 
   // Track previous map state for restoring when card is collapsed
   const [previousMapState, setPreviousMapState] = useState(null);
@@ -5908,14 +5909,88 @@ function Dashboard() {
       </AnimatePresence>
 
       {(isDriver || isDispatcher) && (deliveriesWithStopOrder.length === 0 || stopCardsBaseHeight > 0) &&
-      <MapViewCycleFAB
-        onClick={handleMapViewCycle}
-        currentPhase={mapViewPhase}
-        hasVisibleCards={deliveriesWithStopOrder.length > 0}
-        isAIVisible={showAIAssistant && isAIEnabled}
-        isLocked={isMapViewLocked}
-        stopCardsHeight={stopCardsBaseHeight} />
+      <>
+        <MapViewCycleFAB
+          onClick={handleMapViewCycle}
+          currentPhase={mapViewPhase}
+          hasVisibleCards={deliveriesWithStopOrder.length > 0}
+          isAIVisible={showAIAssistant && isAIEnabled}
+          isLocked={isMapViewLocked}
+          stopCardsHeight={stopCardsBaseHeight} />
 
+        {/* Re-optimize Route FAB - Only for drivers viewing their own route */}
+        {isDriver && selectedDriverId === currentUser?.id && selectedDriverId !== 'all' && (
+          <motion.div
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 260, damping: 20 }}
+            className="fixed z-[140]"
+            style={{ 
+              bottom: `${deliveriesWithStopOrder.length > 0 && stopCardsBaseHeight > 0 ? stopCardsBaseHeight + 15 : 25}px`,
+              right: '64px' // Position to the left of MapViewCycleFAB
+            }}>
+            <Button
+              onClick={async () => {
+                if (isReoptimizing) return;
+                
+                setIsReoptimizing(true);
+                setOptimizationMessage('Re-optimizing route with Google Maps...');
+                
+                try {
+                  const deliveryDate = format(selectedDate, 'yyyy-MM-dd');
+                  
+                  const response = await base44.functions.invoke('reoptimizeFullRoute', {
+                    driverId: currentUser.id,
+                    deliveryDate: deliveryDate
+                  });
+                  
+                  const data = response?.data || response;
+                  
+                  if (data?.success) {
+                    setOptimizationMessage(`Route optimized! ${data.optimizedCount} stops updated.`);
+                    
+                    // Refresh data to show new order
+                    invalidateDeliveriesForDate(deliveryDate);
+                    await refreshData();
+                    
+                    // Trigger map view update
+                    setIsMapViewLocked(true);
+                    setMapViewTrigger((prev) => prev + 1);
+                    
+                    setTimeout(() => {
+                      setOptimizationMessage(null);
+                      setIsMapViewLocked(false);
+                    }, 3000);
+                  } else {
+                    setOptimizationMessage(data?.error || 'Optimization failed');
+                    setTimeout(() => setOptimizationMessage(null), 5000);
+                  }
+                } catch (error) {
+                  console.error('❌ [ReoptimizeRoute] Error:', error);
+                  setOptimizationMessage(`Error: ${error.message}`);
+                  setTimeout(() => setOptimizationMessage(null), 5000);
+                } finally {
+                  setIsReoptimizing(false);
+                }
+              }}
+              disabled={isReoptimizing || isDateFinished}
+              title="Re-optimize entire route using Google Maps"
+              className={`inline-flex items-center justify-center whitespace-nowrap text-sm font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 text-primary-foreground h-10 w-10 rounded-lg shadow-2xl p-0 relative transition-all duration-200 ${
+                isReoptimizing 
+                  ? 'bg-amber-500 hover:bg-amber-600' 
+                  : 'bg-emerald-600 hover:bg-emerald-700'
+              }`} 
+              style={{ pointerEvents: 'auto', touchAction: 'manipulation' }}>
+              {isReoptimizing ? (
+                <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full" />
+              ) : (
+                <Navigation className="w-5 h-5 text-white" />
+              )}
+            </Button>
+          </motion.div>
+        )}
+      </>
       }
 
       <AnimatePresence>
