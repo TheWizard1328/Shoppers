@@ -2516,6 +2516,9 @@ export default function DeliveryMap({
         stopCardsHeight={areStopCardsVisible ? stopCardsHeight : 0}
         statsCardHeight={isMobile ? (isStatsCardExpanded ? 216 : 116) : 0}
         isMobile={isMobile} />
+      
+      {/* Invisible padding div to shift map viewport center up by 30px */}
+      <div className="absolute top-0 left-0 right-0 pointer-events-none" style={{ height: '30px' }} />
 
       {safeDeliveries.length === 0 &&
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ background: 'var(--bg-white)', opacity: 0.8 }}>
