@@ -724,11 +724,11 @@ function Dashboard() {
   }, [currentUser, selectedDate, deliveries]);
 
   const tooltipValues = useMemo(() => ({
-    total: "Total Scheduled Deliveries",
-    inTransit: "In-Transit Deliveries",
-    completed: "Completed Deliveries",
-    failed: `${stats.failed} Failed / ${stats.returned}`
-  }), [stats.failed, stats.returned]);
+    total: `Total: ${stats.total - stats.totalPickups} deliveries${stats.totalPickups > 0 ? ` + ${stats.totalPickups} pickups` : ''}`,
+    inTransit: `In-Transit: ${stats.inTransit - stats.inTransitPickups} deliveries${stats.inTransitPickups > 0 ? ` + ${stats.inTransitPickups} pickups` : ''}`,
+    completed: `Completed: ${stats.completed - stats.completedPickups} deliveries${stats.completedPickups > 0 ? ` + ${stats.completedPickups} pickups` : ''}`,
+    failed: `${stats.failed} Failed / ${stats.returned} Returned`
+  }), [stats]);
 
   const nextStop = useMemo(() => {
     if (!isDriver || !currentUser || !filteredDeliveries || !Array.isArray(filteredDeliveries) || filteredDeliveries.length === 0) return null;
