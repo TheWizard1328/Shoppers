@@ -3712,10 +3712,10 @@ export default function DeliveryForm({
                                 <Trash2 className="w-5 h-5" />
                               </Button>
                             </div>
-                            {/* Second row: Address and badges */}
-                            <div className="flex items-center justify-between -mt-0.5">
+                            {/* Second row: Address and badges aligned with trash button */}
+                            <div className="flex items-center -mt-0.5">
                               <div className="truncate flex-1 min-w-0" style={{ color: 'var(--text-slate-500)' }}>{staged.delivery_address}</div>
-                              <div className="flex items-center gap-1 flex-shrink-0 ml-1">
+                              <div className="flex items-center gap-1 flex-shrink-0 ml-1 w-7 justify-end">
                                 {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed) &&
                                   <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold">
                                     {staged.cod_total_amount_required > 0 && '$'}
