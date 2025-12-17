@@ -51,13 +51,14 @@ const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
 const simpleCircleIconCache = new Map();
 
 const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, borderColor = 'white', isOtherDriver = false) => {
-  // Create cache key based on all parameters that affect the icon
+  // CRITICAL: Disable caching to prevent vibration issues
+  // Create fresh icon on each render for smooth hover transitions
   const cacheKey = `${status}_${number}_${zoomLevel}_${isMobile}_${borderColor}_${isOtherDriver}`;
   
-  // Return cached icon if it exists
-  if (simpleCircleIconCache.has(cacheKey)) {
-    return simpleCircleIconCache.get(cacheKey);
-  }
+  // Skip cache for now
+  // if (simpleCircleIconCache.has(cacheKey)) {
+  //   return simpleCircleIconCache.get(cacheKey);
+  // }
   
   const statusColors = {
     'pending': '#3B82F6', // Blue
@@ -104,6 +105,8 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
       <div class="simple-circle-marker" style="
         width: ${baseSize}px;
         height: ${baseSize}px;
+        transform-origin: center center;
+        transition: transform 0.2s ease;
         background-color: ${driverColor};
         border-radius: 50%;
         display: flex;
@@ -125,8 +128,8 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
     iconAnchor: [baseSize / 2, baseSize / 2]
   });
   
-  // Cache the icon
-  simpleCircleIconCache.set(cacheKey, icon);
+  // Skip caching for now to prevent vibration
+  // simpleCircleIconCache.set(cacheKey, icon);
   
   return icon;
 };
