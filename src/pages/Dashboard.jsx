@@ -4630,7 +4630,7 @@ function Dashboard() {
       }
 
       // CRITICAL: Always clear isNextDelivery flag when completing/failing deliveries
-      if (['completed', 'failed', 'cancelled', 'returned'].includes(newStatus)) {
+      if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
         updateData.isNextDelivery = false;
       }
 
@@ -4661,7 +4661,7 @@ function Dashboard() {
       }
 
       // CRITICAL: Update isNextDelivery flags BEFORE updating status (so UI shows correct next stop immediately)
-      if (['completed', 'failed', 'cancelled', 'returned'].includes(newStatus)) {
+      if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
         // Reset all isNextDelivery flags for this driver/date
         const allDriverDeliveriesForDate = deliveriesWithStopOrder.filter((d) =>
         d && d.driver_id === driverId && d.delivery_date === deliveryDate
@@ -4677,7 +4677,7 @@ function Dashboard() {
 
         // Find the next incomplete delivery (excluding the one being completed) and mark as next (SKIP PENDING)
         const incompleteDeliveries = allDriverDeliveriesForDate.
-        filter((d) => d.id !== deliveryId && !['completed', 'failed', 'cancelled', 'returned'].includes(d.status) && d.status !== 'pending').
+        filter((d) => d.id !== deliveryId && !['completed', 'failed', 'cancelled'].includes(d.status) && d.status !== 'pending').
         sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
         if (incompleteDeliveries.length > 0) {
@@ -4729,12 +4729,12 @@ function Dashboard() {
       await recalculateStopOrders(targetDelivery.driver_id, deliveryDate);
 
       // Check if route is complete - ALL statuses that finish a delivery (not just completed)
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+      const finishedStatuses = ['completed', 'failed', 'cancelled'];
       const allDriverDeliveries = deliveriesWithStopOrder.filter((d) =>
       d && d.driver_id === driverId && d.delivery_date === targetDelivery.delivery_date
       );
       const routeComplete = allDriverDeliveries.length > 0 &&
-      allDriverDeliveries.every((d) => finishedStatuses.includes(d.status));
+      allDriverDeliveries.every((d) => finishedStatuses.includes(d.status) || isReturn(d));
 
       if (routeComplete && finishedStatuses.includes(newStatus)) {
         const summaryKey = `${driverId}_${targetDelivery.delivery_date}`;
@@ -4788,7 +4788,7 @@ function Dashboard() {
       }
 
       // CRITICAL: Scroll to next delivery card after status update (completion)
-      if (['completed', 'failed', 'cancelled', 'returned'].includes(newStatus)) {
+      if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
         setTimeout(() => {
           // Find the card with isNextDelivery=true from updated deliveries
           const nextCardElement = document.querySelector('[data-is-next-delivery="true"]');
@@ -4797,7 +4797,7 @@ function Dashboard() {
             console.log('📍 [STATUS] Scrolled to next delivery card after completion');
           } else {
             // Fallback: find by querying deliveries that were just updated
-            const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+            const finishedStatuses = ['completed', 'failed', 'cancelled'];
             const incompleteDeliveries = deliveriesWithStopOrder.filter((d) => 
               d && d.id !== deliveryId && !finishedStatuses.includes(d.status) && d.status !== 'pending'
             ).sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
