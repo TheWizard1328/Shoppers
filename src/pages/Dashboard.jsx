@@ -2857,25 +2857,35 @@ function Dashboard() {
 
           }
 
-          // CRITICAL: Trigger full ETA recalculation when adding deliveries (ALL users)
-          try {
-            const response = await base44.functions.invoke('optimizeRouteRealTime', {
-              driverId: driverId,
-              deliveryDate: deliveryDate
-            });
-            const data = response?.data || response;
-            if (data?.success && data?.optimizedRoute) {
-              const now = new Date();
-              let cumulativeMinutes = now.getHours() * 60 + now.getMinutes();
-              for (const stop of data.optimizedRoute) {
-                cumulativeMinutes += stop.travelMinutes;
-                const eta = `${String(Math.floor(cumulativeMinutes / 60) % 24).padStart(2, '0')}:${String(cumulativeMinutes % 60).padStart(2, '0')}`;
-                await base44.entities.Delivery.update(stop.deliveryId, { delivery_time_eta: eta });
-                cumulativeMinutes += stop.serviceMinutes;
+          // CRITICAL: Only run ETA recalculation if there are in_transit deliveries
+          const hasInTransitDeliveries = stopsToProcess.some(s => 
+            s && (s.status === 'in_transit' || s.status === 'en_route')
+          );
+          
+          if (hasInTransitDeliveries) {
+            try {
+              console.log('🔄 [AddToRoute] Running ETA recalculation (has in-transit deliveries)...');
+              const response = await base44.functions.invoke('optimizeRouteRealTime', {
+                driverId: driverId,
+                deliveryDate: deliveryDate
+              });
+              const data = response?.data || response;
+              if (data?.success && data?.optimizedRoute) {
+                const now = new Date();
+                let cumulativeMinutes = now.getHours() * 60 + now.getMinutes();
+                for (const stop of data.optimizedRoute) {
+                  cumulativeMinutes += stop.travelMinutes;
+                  const eta = `${String(Math.floor(cumulativeMinutes / 60) % 24).padStart(2, '0')}:${String(cumulativeMinutes % 60).padStart(2, '0')}`;
+                  await base44.entities.Delivery.update(stop.deliveryId, { delivery_time_eta: eta });
+                  cumulativeMinutes += stop.serviceMinutes;
+                }
               }
+              console.log('✅ [AddToRoute] ETA recalculation complete');
+            } catch (etaError) {
+              console.warn('⚠️ [AddToRoute] ETA recalculation failed:', etaError);
             }
-          } catch (etaError) {
-            console.warn('⚠️ [AddToRoute] ETA recalculation failed:', etaError);
+          } else {
+            console.log('⏸️ [AddToRoute] Skipping ETA recalculation - no in-transit deliveries yet');
           }
 
           for (const stop of stopsToProcess) {
