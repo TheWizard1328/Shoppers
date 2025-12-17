@@ -2919,11 +2919,8 @@ function Dashboard() {
               // CRITICAL: Only set delivery_time_end for NEW deliveries or if patient has explicit time window
               if (stopPatient?.time_window_end) {
                 stop.delivery_time_end = stopPatient.time_window_end;
-              } else if (stop.isNew && !stop.delivery_time_end) {
-                // Only set default end time for NEW deliveries that don't have one
-                stop.delivery_time_end = '21:00';
               }
-              // Leave existing delivery_time_end unchanged for non-new stops
+              // DISABLED: No longer auto-assign 9:00 PM default - leave blank if patient has no time window
             }
           }
 
@@ -3008,15 +3005,11 @@ function Dashboard() {
                 }
               }
 
-              // CRITICAL: Only set delivery_time_end for NEW deliveries or if patient has explicit time window
+              // CRITICAL: Only set delivery_time_end if patient has explicit time window
               if (stopPatient?.time_window_end) {
                 stop.delivery_time_end = stopPatient.time_window_end;
-              } else if (stop.isNew && !stop.delivery_time_end) {
-                // Only set default end time for NEW deliveries that don't have one
-                stop.delivery_time_end = stop.delivery_time_start ?
-                addMinutesToTime(stop.delivery_time_start, 60) : '21:00';
               }
-              // Leave existing delivery_time_end unchanged for non-new stops
+              // DISABLED: No longer auto-assign default end times - leave blank if patient has no time window
               windowsProcessed++;
             }
           }
@@ -3584,9 +3577,8 @@ function Dashboard() {
 
           if (stopPatient?.time_window_end) {
             stop.delivery_time_end = stopPatient.time_window_end;
-          } else {
-            stop.delivery_time_end = '21:00';
           }
+          // DISABLED: No longer auto-assign 9:00 PM default - leave blank if patient has no time window
         }
       }
 
@@ -3641,9 +3633,8 @@ function Dashboard() {
 
           if (stopPatient?.time_window_end) {
             stop.delivery_time_end = stopPatient.time_window_end;
-          } else {
-            stop.delivery_time_end = stop.delivery_time_start ? addMinutesToTime(stop.delivery_time_start, 60) : '21:00';
           }
+          // DISABLED: No longer auto-assign default end times - leave blank if patient has no time window
         }
       }
 
