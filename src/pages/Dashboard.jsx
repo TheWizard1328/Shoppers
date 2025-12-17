@@ -4763,25 +4763,6 @@ function Dashboard() {
       // CRITICAL: Recalculate stop orders after status change
       await recalculateStopOrders(targetDelivery.driver_id, deliveryDate);
 
-      // Check if route is complete - ALL statuses that finish a delivery (not just completed)
-      const finishedStatuses = ['completed', 'failed', 'cancelled'];
-      const allDriverDeliveries = deliveriesWithStopOrder.filter((d) =>
-      d && d.driver_id === driverId && d.delivery_date === targetDelivery.delivery_date
-      );
-      const routeComplete = allDriverDeliveries.length > 0 &&
-      allDriverDeliveries.every((d) => finishedStatuses.includes(d.status) || isReturn(d));
-
-      if (routeComplete && finishedStatuses.includes(newStatus)) {
-        const summaryKey = `${driverId}_${targetDelivery.delivery_date}`;
-        if (!hasShownSummaryRef.current.has(summaryKey)) {
-          console.log('🎉 [STATUS UPDATE] Route complete - showing summary');
-          const completedDriver = users.find(u => u && u.id === driverId) || currentUser;
-          setSummaryDriver(completedDriver);
-          setShowRouteSummary(true);
-          hasShownSummaryRef.current.add(summaryKey);
-        }
-      }
-
       // CRITICAL: Force full data refresh to sync UI
       invalidateDeliveriesForDate(deliveryDate);
       await refreshData();
@@ -5141,8 +5122,24 @@ function Dashboard() {
       const allDriverDeliveriesForStart = deliveries.filter((d) => 
         d && d.driver_id === driverId && d.delivery_date === deliveryDate
       );
+      
+      // Helper to detect returns by markers (no status check)
+      const checkIsReturn = (d) => {
+        if (!d || d.patient_id) return false;
+        const patient = patients.find(p => p && p.id === d.patient_id);
+        const notes = d.delivery_notes || '';
+        const patientName = d.patient_name || '';
+        const patientFullName = patient?.full_name || '';
+        return notes.toLowerCase().includes('(rtn)') || 
+               patientName.toLowerCase().includes('(rtn)') || 
+               patientFullName.toLowerCase().includes('(rtn)') ||
+               /\breturn\b/i.test(notes) ||
+               /\breturn\b/i.test(patientName) ||
+               /\breturn\b/i.test(patientFullName);
+      };
+      
       const routeComplete = allDriverDeliveriesForStart.length > 0 && 
-        allDriverDeliveriesForStart.every((d) => finishedStatuses.includes(d.status));
+        allDriverDeliveriesForStart.every((d) => finishedStatuses.includes(d.status) || checkIsReturn(d));
       
       if (routeComplete) {
         const summaryKey = `${driverId}_${deliveryDate}`;
@@ -5881,12 +5878,28 @@ function Dashboard() {
 
                 // CRITICAL: For drivers, mark all deliveries as stripped when route is complete
                 if (isDriver && !isDispatcher && !isAdmin) {
-                  const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+                  const finishedStatuses = ['completed', 'failed', 'cancelled'];
                   const allDriverDeliveries = deliveriesWithStopOrder.filter((d) => 
                     d && d.driver_id === currentUser.id
                   );
+                  
+                  // Helper to detect returns by markers
+                  const checkIsReturn = (d) => {
+                    if (!d || d.patient_id) return false;
+                    const patient = patients.find(p => p && p.id === d.patient_id);
+                    const notes = d.delivery_notes || '';
+                    const patientName = d.patient_name || '';
+                    const patientFullName = patient?.full_name || '';
+                    return notes.toLowerCase().includes('(rtn)') || 
+                           patientName.toLowerCase().includes('(rtn)') || 
+                           patientFullName.toLowerCase().includes('(rtn)') ||
+                           /\breturn\b/i.test(notes) ||
+                           /\breturn\b/i.test(patientName) ||
+                           /\breturn\b/i.test(patientFullName);
+                  };
+                  
                   const routeComplete = allDriverDeliveries.length > 0 && 
-                    allDriverDeliveries.every((d) => finishedStatuses.includes(d.status));
+                    allDriverDeliveries.every((d) => finishedStatuses.includes(d.status) || checkIsReturn(d));
                   
                   if (routeComplete) {
                     return {
