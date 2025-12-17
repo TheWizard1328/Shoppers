@@ -754,7 +754,13 @@ export default function StopCard({
                       <span className="font-medium">{formatTime12Hour(format(new Date(delivery.actual_delivery_time), 'HH:mm'))}</span>
                     </> :
 
-                  <span className="font-medium">ETA: {formatTime12Hour(delivery.delivery_time_eta || delivery.delivery_time_start || delivery.time_window_start || '--:--')}</span>
+                  <span className="font-medium">ETA: {formatTime12Hour(
+                    delivery.delivery_time_eta || 
+                    (isPickup ? delivery.delivery_time_start : null) || 
+                    delivery.delivery_time_start || 
+                    delivery.time_window_start || 
+                    '--:--'
+                  )}</span>
                   }
                   {showDriverName && safeDriver &&
                   <>
