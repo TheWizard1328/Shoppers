@@ -5541,21 +5541,21 @@ function Dashboard() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <StatBadge
                     icon={Package}
-                    value={stats.total}
+                    value={stats.total - stats.totalPickups}
                     pickupCount={stats.totalPickups}
                     color="blue"
                     label="Total"
                     tooltip={tooltipValues.total} />
                   <StatBadge
                     icon={Truck}
-                    value={stats.inTransit}
+                    value={stats.inTransit - stats.inTransitPickups}
                     pickupCount={stats.inTransitPickups}
                     color="purple"
                     label="In Transit"
                     tooltip={tooltipValues.inTransit} />
                   <StatBadge
                     icon={CheckCircle}
-                    value={stats.completed}
+                    value={stats.completed - stats.completedPickups}
                     pickupCount={stats.completedPickups}
                     color="green"
                     label="Completed"
