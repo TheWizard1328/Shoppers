@@ -56,6 +56,21 @@ export default function ETATracker({
 
     console.log('🕐 [ETATracker] Starting ETA tracking for driver:', selectedDriverId);
 
+    // Helper: Check if there are any in-transit deliveries
+    const hasInTransitDeliveries = async () => {
+      try {
+        const deliveries = await base44.entities.Delivery.filter({
+          driver_id: selectedDriverId,
+          delivery_date: selectedDate,
+          status: 'in_transit'
+        });
+        return deliveries && deliveries.length > 0;
+      } catch (error) {
+        console.error('Error checking in-transit deliveries:', error);
+        return false;
+      }
+    };
+
     // Helper: Calculate distance between two coordinates (Haversine formula)
     const calculateDistance = (lat1, lon1, lat2, lon2) => {
       const R = 6371; // Earth's radius in km
@@ -70,6 +85,14 @@ export default function ETATracker({
 
     const updateETAs = async () => {
       try {
+        // CRITICAL: Skip ETA updates if no in-transit deliveries
+        // This preserves pickup order based on delivery_time_start until route actually starts
+        const hasActiveDeliveries = await hasInTransitDeliveries();
+        if (!hasActiveDeliveries) {
+          console.log('⏸️ [ETATracker] No in-transit deliveries - skipping ETA update to preserve pickup order');
+          return;
+        }
+
         const now = Date.now();
         const currentLocation = currentUser?.current_latitude && currentUser?.current_longitude
           ? { lat: currentUser.current_latitude, lon: currentUser.current_longitude }
