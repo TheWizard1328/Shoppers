@@ -2701,6 +2701,23 @@ export default function DeliveryForm({
     });
   }, [stagedDeliveries, stores, formData.driver_id]);
 
+  const sortedProjectedDeliveries = useMemo(() => {
+    return [...projectedDeliveries].sort((a, b) => {
+      const storeA = stores?.find((s) => s && s.id === a.store_id);
+      const storeB = stores?.find((s) => s && s.id === b.store_id);
+
+      // Sort by store sort_order
+      const sortOrderA = storeA?.sort_order ?? Infinity;
+      const sortOrderB = storeB?.sort_order ?? Infinity;
+      if (sortOrderA !== sortOrderB) {
+        return sortOrderA - sortOrderB;
+      }
+
+      // Then by patient name
+      return (a.patient_name || '').localeCompare(b.patient_name || '');
+    });
+  }, [projectedDeliveries, stores]);
+
 
   return (
     <div className={`fixed inset-0 z-[10010] overflow-hidden ${useFullscreen ? '' : 'bg-black/60 flex items-center justify-center p-4'}`} style={useFullscreen ? { background: 'var(--bg-white)' } : {}}>
@@ -3682,7 +3699,7 @@ export default function DeliveryForm({
 
                       })}
 
-                      {projectedDeliveries.map((projected) => {
+                      {sortedProjectedDeliveries.map((projected) => {
                         const projectedStore = stores?.find((s) => s && s.id === projected.store_id);
                         const storeColor = projectedStore ? getStoreColor(projectedStore) : '#64748b';
 
@@ -3867,7 +3884,7 @@ export default function DeliveryForm({
 
                       })}
 
-                      {projectedDeliveries.map((projected) => {
+                      {sortedProjectedDeliveries.map((projected) => {
                         const projectedStore = stores?.find((s) => s && s.id === projected.store_id);
                         const storeColor = projectedStore ? getStoreColor(projectedStore) : '#64748b';
 
