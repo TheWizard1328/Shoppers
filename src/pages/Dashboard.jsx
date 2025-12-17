@@ -2857,36 +2857,10 @@ function Dashboard() {
 
           }
 
-          // CRITICAL: Only run ETA recalculation if there are in_transit deliveries
-          const hasInTransitDeliveries = stopsToProcess.some(s => 
-            s && (s.status === 'in_transit' || s.status === 'en_route')
-          );
-          
-          if (hasInTransitDeliveries) {
-            try {
-              console.log('🔄 [AddToRoute] Running ETA recalculation (has in-transit deliveries)...');
-              const response = await base44.functions.invoke('optimizeRouteRealTime', {
-                driverId: driverId,
-                deliveryDate: deliveryDate
-              });
-              const data = response?.data || response;
-              if (data?.success && data?.optimizedRoute) {
-                const now = new Date();
-                let cumulativeMinutes = now.getHours() * 60 + now.getMinutes();
-                for (const stop of data.optimizedRoute) {
-                  cumulativeMinutes += stop.travelMinutes;
-                  const eta = `${String(Math.floor(cumulativeMinutes / 60) % 24).padStart(2, '0')}:${String(cumulativeMinutes % 60).padStart(2, '0')}`;
-                  await base44.entities.Delivery.update(stop.deliveryId, { delivery_time_eta: eta });
-                  cumulativeMinutes += stop.serviceMinutes;
-                }
-              }
-              console.log('✅ [AddToRoute] ETA recalculation complete');
-            } catch (etaError) {
-              console.warn('⚠️ [AddToRoute] ETA recalculation failed:', etaError);
-            }
-          } else {
-            console.log('⏸️ [AddToRoute] Skipping ETA recalculation - no in-transit deliveries yet');
-          }
+          // NOTE: Route optimization and ETA updates are NOT run here.
+          // They are triggered later when stops are transitioned from 'pending' to 'in_transit'
+          // via the Assign/Accept All button or Start Delivery action.
+          console.log('📝 [AddToRoute] Saving pending deliveries - optimization will run when stops are started');
 
           for (const stop of stopsToProcess) {
             if (!stop || !stop.isNew) continue;
@@ -3217,47 +3191,10 @@ function Dashboard() {
             }
           }
 
-          // CRITICAL: Only run route optimizer if there are in_transit deliveries
-          const routeHasActiveStops = stopsToProcess.some(s => 
-            s && (s.status === 'in_transit' || s.status === 'en_route')
-          );
-          
-          if (routeHasActiveStops) {
-            try {
-              console.log('🔄 [AddToRoute] Running route optimizer (has in-transit deliveries)...');
-              const driverAppUser = appUsers.find(u => u && u.user_id === driverId);
-              const currentLocation = driverAppUser?.current_latitude && driverAppUser?.current_longitude ? {
-                lat: driverAppUser.current_latitude,
-                lng: driverAppUser.current_longitude
-              } : null;
+          // NOTE: Route optimizer is NOT run here - deliveries are saved as 'pending'.
+          // Optimization runs when stops are transitioned to 'in_transit' status.
 
-              const response = await base44.functions.invoke('optimizeRouteRealTime', {
-                driverId: driverId,
-                deliveryDate: deliveryDate,
-                startLocation: currentLocation
-              });
-              const data = response?.data || response;
-              if (data?.success && data?.durationUpdates) {
-                console.log(`✅ [AddToRoute] Received ${data.durationUpdates.length} ETA updates from backend`);
-                
-                // CRITICAL: Update ETAs immediately using the backend response
-                for (const update of data.durationUpdates) {
-                  await updateDeliveryLocal(update.deliveryId, {
-                    delivery_time_eta: update.eta,
-                    stop_order: update.newOrder
-                  });
-                  console.log(`  ✅ Updated ${update.delivery_id}: ETA=${update.eta}, order=${update.newOrder}`);
-                }
-              }
-              console.log('✅ [AddToRoute] Route optimization complete');
-            } catch (optimizeError) {
-              console.warn('⚠️ [AddToRoute] Route optimization failed:', optimizeError);
-            }
-          } else {
-            console.log('⏸️ [AddToRoute] Skipping route optimizer - no in-transit deliveries');
-          }
-
-          // Update isNextDelivery flags after optimization
+          // Update isNextDelivery flags after saving
           try {
             const allDriverDeliveries = await base44.entities.Delivery.filter({
               driver_id: driverId,
