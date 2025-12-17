@@ -724,11 +724,11 @@ function Dashboard() {
   }, [currentUser, selectedDate, deliveries]);
 
   const tooltipValues = useMemo(() => ({
-    total: `Total: ${stats.total} (${stats.totalPickups} pickups, ${stats.total - stats.totalPickups} deliveries)`,
-    inTransit: `In-Transit: ${stats.inTransit} (${stats.inTransitPickups} pickups, ${stats.inTransit - stats.inTransitPickups} deliveries)`,
-    completed: `Completed: ${stats.completed} (${stats.completedPickups} pickups, ${stats.completed - stats.completedPickups} deliveries)`,
-    failed: `${stats.failed} Failed / ${stats.returned} Returned`
-  }), [stats.failed, stats.returned, stats.total, stats.totalPickups, stats.inTransit, stats.inTransitPickups, stats.completed, stats.completedPickups]);
+    total: "Total Scheduled Deliveries",
+    inTransit: "In-Transit Deliveries",
+    completed: "Completed Deliveries",
+    failed: `${stats.failed} Failed / ${stats.returned}`
+  }), [stats.failed, stats.returned]);
 
   const nextStop = useMemo(() => {
     if (!isDriver || !currentUser || !filteredDeliveries || !Array.isArray(filteredDeliveries) || filteredDeliveries.length === 0) return null;
