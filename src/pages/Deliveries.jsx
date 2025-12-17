@@ -3463,7 +3463,12 @@ export default function DeliveriesPage() {
               </Card>
 
               <div className="flex-1 overflow-y-auto px-4 pb-4">
-                {driverCards.length === 0 ?
+                {isLoadingData && driverCards.length === 0 ?
+                  <div className="text-center py-12 text-slate-500">
+                    <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                    <p className="text-lg font-medium">Loading drivers...</p>
+                  </div> :
+                driverCards.length === 0 ?
                   <div className="text-center py-12 text-slate-500">
                     <Package className="w-16 h-16 mx-auto mb-4 opacity-30" />
                     <p className="text-lg font-medium">No drivers with deliveries for this period</p>
