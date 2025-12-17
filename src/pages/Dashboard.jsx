@@ -4607,6 +4607,14 @@ function Dashboard() {
 
       const updateData = { status: newStatus, ...extraData };
 
+      // CRITICAL: Set delivery_time_start to current time + 5 minutes when transitioning to in_transit
+      if (newStatus === 'in_transit' || newStatus === 'en_route') {
+        const now = new Date();
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        const startMinutes = currentMinutes + 5;
+        updateData.delivery_time_start = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
+      }
+
       // CRITICAL: Always clear isNextDelivery flag when completing/failing deliveries
       if (['completed', 'failed', 'cancelled', 'returned'].includes(newStatus)) {
         updateData.isNextDelivery = false;
