@@ -3954,10 +3954,11 @@ export default function DeliveryForm({
                               type="button"
                               size="sm"
                               variant="ghost"
-                              className="h-5 w-5 p-0 text-emerald-600 flex-shrink-0 hover:bg-emerald-100"
+                              className="h-6 w-6 p-0 flex-shrink-0 rounded"
+                              style={{ backgroundColor: '#059669', color: '#ffffff' }}
                               onClick={() => confirmAddProjectedToStaged(projected)}
                               title="Add to route">
-                              <Plus className="w-3 h-3" />
+                              <Plus className="w-4 h-4" />
                             </Button>
                           </div>);
 
