@@ -886,7 +886,7 @@ function Dashboard() {
       return;
     }
 
-    // Manual user interaction - unlock FAB
+    // Manual user interaction - unlock FAB (including phase 2)
     console.log('🗺️ [Map Interaction] Manual interaction detected - unlocking FAB');
 
     // CRITICAL: Clear timers and unlock immediately
