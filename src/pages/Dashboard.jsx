@@ -886,7 +886,7 @@ function Dashboard() {
       return;
     }
 
-    // Manual user interaction - unlock FAB (including phase 2)
+    // Manual user interaction - unlock FAB (ALL phases including phase 2)
     console.log('🗺️ [Map Interaction] Manual interaction detected - unlocking FAB');
 
     // CRITICAL: Clear timers and unlock immediately
@@ -898,7 +898,7 @@ function Dashboard() {
 
     setIsMapViewLocked(false);
 
-    // CRITICAL: Disable proximity snap for 5 minutes after ANY user interaction
+    // CRITICAL: Record user interaction time (prevents proximity snap for 5 minutes)
     lastUserInteractionRef.current = Date.now();
   }, []);
 
@@ -1141,11 +1141,41 @@ function Dashboard() {
 
           setDriverLocation(newLocation);
 
-          // CRITICAL: Auto-zoom when within 100m of in_transit/en_route stop (mobile + not phase 2)
-          // Only trigger if user has been idle AND card is NOT already centered
-          if (isMobile && mapViewPhase !== 2 && newLocation.latitude && newLocation.longitude) {
+          // CRITICAL: Auto-zoom when within 100m of in_transit/en_route stop (mobile only)
+          // Phase 2: continuous re-centering when locked (FAB blue), proximity snap when unlocked (FAB gray)
+          // Other phases: proximity snap only (if unlocked)
+          if (isMobile && newLocation.latitude && newLocation.longitude) {
             const now = Date.now();
             
+            // PHASE 2 LOCKED: Continuous re-centering (every location update)
+            if (mapViewPhase === 2 && isMapViewLocked && nextStopCoordinates) {
+              console.log('📍 [Phase 2 Auto] Re-centering on driver & next stop');
+              
+              // Mark as programmatic to prevent unlock
+              lastProgrammaticMapMoveRef.current = Date.now();
+              window._lastProgrammaticMapMove = Date.now();
+              
+              const bounds = [
+                [newLocation.latitude, newLocation.longitude],
+                [nextStopCoordinates.lat, nextStopCoordinates.lon]
+              ];
+              
+              const padding = getMapPadding(false);
+              setShouldFitBounds({
+                bounds,
+                options: {
+                  ...padding,
+                  maxZoom: 17.5,
+                  animate: true,
+                  duration: 0.5
+                }
+              });
+              setMapCenter(null);
+              setMapZoom(null);
+              return; // Skip proximity snap logic below
+            }
+            
+            // PROXIMITY SNAP: Only when FAB is unlocked (gray) and user has been idle
             // Check if 5 minutes have passed since last user interaction (map/card)
             const timeSinceUserInteraction = now - lastUserInteractionRef.current;
             const interactionCooldown = 300000; // 5 minutes
@@ -1154,7 +1184,7 @@ function Dashboard() {
             const timeSinceLastSnap = now - lastProximitySnapTimeRef.current;
             const snapCooldown = 60000; // 60 seconds
 
-            if (timeSinceUserInteraction >= interactionCooldown && timeSinceLastSnap >= snapCooldown) {
+            if (!isMapViewLocked && timeSinceUserInteraction >= interactionCooldown && timeSinceLastSnap >= snapCooldown) {
               const activeStatuses = ['in_transit', 'en_route'];
               const activeDeliveries = deliveriesWithStopOrder.filter((d) =>
               d && activeStatuses.includes(d.status)
