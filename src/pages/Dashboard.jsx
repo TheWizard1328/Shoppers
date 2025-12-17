@@ -4698,6 +4698,41 @@ function Dashboard() {
         }
       }
 
+      // Check if route is complete - finished statuses OR returns (identified by markers)
+      const finishedStatuses = ['completed', 'failed', 'cancelled'];
+      
+      // Helper to detect return deliveries by markers
+      const isReturnByMarkers = (d) => {
+        if (!d || d.patient_id) return false; // Returns are pickups
+        const patient = patients.find(p => p && p.id === d.patient_id);
+        const notes = d.delivery_notes || '';
+        const patientName = d.patient_name || '';
+        const patientFullName = patient?.full_name || '';
+        return notes.toLowerCase().includes('(rtn)') || 
+               patientName.toLowerCase().includes('(rtn)') || 
+               patientFullName.toLowerCase().includes('(rtn)') ||
+               /\breturn\b/i.test(notes) ||
+               /\breturn\b/i.test(patientName) ||
+               /\breturn\b/i.test(patientFullName);
+      };
+      
+      const allDriverDeliveries = deliveriesWithStopOrder.filter((d) =>
+        d && d.driver_id === driverId && d.delivery_date === targetDelivery.delivery_date
+      );
+      const routeComplete = allDriverDeliveries.length > 0 &&
+        allDriverDeliveries.every((d) => finishedStatuses.includes(d.status) || isReturnByMarkers(d));
+
+      if (routeComplete && finishedStatuses.includes(newStatus)) {
+        const summaryKey = `${driverId}_${targetDelivery.delivery_date}`;
+        if (!hasShownSummaryRef.current.has(summaryKey)) {
+          console.log('🎉 [STATUS UPDATE] Route complete - showing summary');
+          const completedDriver = users.find(u => u && u.id === driverId) || currentUser;
+          setSummaryDriver(completedDriver);
+          setShowRouteSummary(true);
+          hasShownSummaryRef.current.add(summaryKey);
+        }
+      }
+
       // CRITICAL: Update ETAs for mobile drivers only when completing/failing stops
       const shouldUpdateETAs = isMobile && isDriver && ['completed', 'failed', 'cancelled'].includes(newStatus);
 
