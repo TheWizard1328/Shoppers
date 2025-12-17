@@ -3696,7 +3696,7 @@ export default function DeliveryForm({
                               <Button
                               type="button"
                               size="sm"
-                              variant="ghost" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground text-xs h-9 w-9 p-0 flex-shrink-0 bg-red-600 hover:bg-red-700 text-white rounded"
+                              variant="ghost" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground text-xs h-8 w-8 p-0 flex-shrink-0 bg-red-600 hover:bg-red-700 text-white rounded"
 
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -3763,7 +3763,7 @@ export default function DeliveryForm({
                             <Button
                             type="button"
                             size="sm"
-                            variant="ghost" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:bg-accent hover:text-accent-foreground text-xs h-9 w-9 p-0 flex-shrink-0 rounded"
+                            variant="ghost" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:bg-accent hover:text-accent-foreground text-xs h-8 w-8 p-0 flex-shrink-0 rounded"
 
                             style={{ backgroundColor: '#059669', color: '#ffffff' }}
                             onClick={() => confirmAddProjectedToStaged(projected)}
