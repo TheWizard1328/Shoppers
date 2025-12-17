@@ -221,6 +221,7 @@ Deno.serve(async (req) => {
             deliveryId: delivery.id,
             delivery_id: delivery.delivery_id,
             eta: eta,
+            status: delivery.status,
             travelMinutes: travelMinutes,
             serviceMinutes: serviceTime,
             stopOrder: delivery.stop_order,
