@@ -5663,7 +5663,7 @@ function Dashboard() {
         </div>
       </div>
 
-      <div className="flex-1 w-full relative min-h-0">
+      <div className="flex-1 w-full relative min-h-0 overflow-hidden">
         {/* Polyline API hits badge - App Owner only - positioned above stop cards like FAB but on left */}
         {currentUser && isAppOwner(currentUser) &&
         <div 
@@ -5709,37 +5709,39 @@ function Dashboard() {
           driverId={selectedDriverId}
         />
 
-        <DeliveryMap
-          deliveries={deliveriesWithStopOrder}
-          selectedDriverId={selectedDriverId}
-          selectedDate={format(selectedDate, 'yyyy-MM-dd')}
-          patients={patients}
-          stores={stores}
-          users={drivers}
-          currentUser={currentUser}
-          driverLocations={allDriverLocations}
-          currentDriverLocation={driverLocation}
-          currentToNextPolyline={currentToNextPolyline}
-          center={mapCenter}
-          zoom={mapZoom}
-          shouldFitBounds={shouldFitBounds}
-          onBoundsFitted={() => setShouldFitBounds(null)}
-          onMarkerClick={handleMarkerClick}
-          mapMode={mapMode}
-          onMapModeChange={setMapMode}
-          autoFitBounds={true}
-          showRoutes={showRoutes}
-          showLegend={false}
-          areCardsVisible={areCardsVisible}
-          onLegendInteraction={handleCardInteraction}
-          googleApiKey={googleApiKey}
-          onDriverRoutesCalculated={setDriverRoutes}
-          onMapInteraction={handleMapInteraction}
-          onDoubleTap={handleMapViewCycle}
-          retractClustersRef={retractClustersRef}
-          areStopCardsVisible={deliveriesWithStopOrder.length > 0}
-          highlightedDeliveryId={highlightedCardId}
-          stopCardsHeight={stopCardsBaseHeight} />
+        <div className="absolute inset-0">
+          <DeliveryMap
+            deliveries={deliveriesWithStopOrder}
+            selectedDriverId={selectedDriverId}
+            selectedDate={format(selectedDate, 'yyyy-MM-dd')}
+            patients={patients}
+            stores={stores}
+            users={drivers}
+            currentUser={currentUser}
+            driverLocations={allDriverLocations}
+            currentDriverLocation={driverLocation}
+            currentToNextPolyline={currentToNextPolyline}
+            center={mapCenter}
+            zoom={mapZoom}
+            shouldFitBounds={shouldFitBounds}
+            onBoundsFitted={() => setShouldFitBounds(null)}
+            onMarkerClick={handleMarkerClick}
+            mapMode={mapMode}
+            onMapModeChange={setMapMode}
+            autoFitBounds={true}
+            showRoutes={showRoutes}
+            showLegend={false}
+            areCardsVisible={areCardsVisible}
+            onLegendInteraction={handleCardInteraction}
+            googleApiKey={googleApiKey}
+            onDriverRoutesCalculated={setDriverRoutes}
+            onMapInteraction={handleMapInteraction}
+            onDoubleTap={handleMapViewCycle}
+            retractClustersRef={retractClustersRef}
+            areStopCardsVisible={deliveriesWithStopOrder.length > 0}
+            highlightedDeliveryId={highlightedCardId}
+            stopCardsHeight={stopCardsBaseHeight} />
+        </div>
 
         <div
           ref={stopCardsContainerRef}
