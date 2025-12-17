@@ -66,7 +66,7 @@ import ETANotification from '../components/dashboard/ETANotification';
 import RealTimeRouteOptimizer from '../components/dashboard/RealTimeRouteOptimizer';
 
   // FIXED: StatBadge - always render with consistent hook structure
-  const StatBadge = ({ icon: Icon, value, color, label, tooltip }) => {
+  const StatBadge = ({ icon: Icon, value, color, label, tooltip, pickupCount }) => {
   // ALWAYS calculate color class (hook-like behavior should be consistent)
   const colorClasses = useMemo(() => ({
     blue: "bg-blue-100 text-blue-600",
@@ -82,7 +82,14 @@ import RealTimeRouteOptimizer from '../components/dashboard/RealTimeRouteOptimiz
       <div className={`p-1.5 rounded-lg ${colorClasses[color]}`}>
         <Icon className="w-3.5 h-3.5" />
       </div>
-      <span className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{value}</span>
+      <div className="relative">
+        {pickupCount !== undefined && pickupCount > 0 && (
+          <span className="absolute -top-1 -left-1 text-[9px] font-bold" style={{ color: 'var(--text-slate-500)' }}>
+            {pickupCount}
+          </span>
+        )}
+        <span className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{value}</span>
+      </div>
     </div>;
 
 
@@ -576,7 +583,12 @@ function Dashboard() {
 
   const stats = useMemo(() => {
     const safeDeliveries = filteredDeliveries || [];
-    if (!Array.isArray(safeDeliveries)) return { total: 0, inTransit: 0, completed: 0, failed: 0, returned: 0 };
+    if (!Array.isArray(safeDeliveries)) return { 
+      total: 0, totalPickups: 0, 
+      inTransit: 0, inTransitPickups: 0, 
+      completed: 0, completedPickups: 0, 
+      failed: 0, returned: 0 
+    };
 
     const patientMap = new Map((patients || []).filter((p) => p && p.id).map((p) => [p.id, p]));
 
@@ -598,14 +610,22 @@ function Dashboard() {
     };
 
     const total = safeDeliveries.length;
-    const inTransit = safeDeliveries.filter((d) => d && (d.status === 'in_transit' || d.status === 'en_route')).length;
+    const totalPickups = safeDeliveries.filter((d) => d && !d.patient_id).length;
+    
+    const inTransitDeliveries = safeDeliveries.filter((d) => d && (d.status === 'in_transit' || d.status === 'en_route'));
+    const inTransit = inTransitDeliveries.length;
+    const inTransitPickups = inTransitDeliveries.filter((d) => !d.patient_id).length;
+    
     // CRITICAL: Only count 'completed' status, explicitly exclude returns
-    const completed = safeDeliveries.filter((d) => {
+    const completedDeliveries = safeDeliveries.filter((d) => {
       if (!d || d.status !== 'completed') return false;
       // Exclude returns from completed count
       if (isReturn(d)) return false;
       return true;
-    }).length;
+    });
+    const completed = completedDeliveries.length;
+    const completedPickups = completedDeliveries.filter((d) => !d.patient_id).length;
+    
     const returned = safeDeliveries.filter(isReturn).length;
     const failed = safeDeliveries.filter((d) => {
       if (!d) return false;
@@ -616,7 +636,7 @@ function Dashboard() {
       return false;
     }).length;
 
-    return { total, inTransit, completed, failed, returned };
+    return { total, totalPickups, inTransit, inTransitPickups, completed, completedPickups, failed, returned };
   }, [filteredDeliveries, patients]);
 
   const isDateFinished = useMemo(() => {
@@ -5490,18 +5510,21 @@ function Dashboard() {
                   <StatBadge
                     icon={Package}
                     value={stats.total}
+                    pickupCount={stats.totalPickups}
                     color="blue"
                     label="Total"
                     tooltip={tooltipValues.total} />
                   <StatBadge
                     icon={Truck}
                     value={stats.inTransit}
+                    pickupCount={stats.inTransitPickups}
                     color="purple"
                     label="In Transit"
                     tooltip={tooltipValues.inTransit} />
                   <StatBadge
                     icon={CheckCircle}
                     value={stats.completed}
+                    pickupCount={stats.completedPickups}
                     color="green"
                     label="Completed"
                     tooltip={tooltipValues.completed} />
