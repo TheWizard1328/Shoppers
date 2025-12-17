@@ -5657,7 +5657,7 @@ function Dashboard() {
         <div 
           className="absolute left-4 z-[140]"
           style={{ 
-            bottom: `${deliveriesWithStopOrder.length > 0 && stopCardsBaseHeight > 0 ? stopCardsBaseHeight + 30 : 40}px` 
+            bottom: `${deliveriesWithStopOrder.length > 0 && stopCardsBaseHeight > 0 ? stopCardsBaseHeight + 15 : 25}px` 
           }}>
             <div className="backdrop-blur-sm rounded-lg px-2 py-1 shadow-sm border text-xs font-medium" style={{ background: 'var(--bg-white)', opacity: 0.9, borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-600)' }}>
               🛣️ {dailyPolylineCount ?? '...'}
@@ -5734,7 +5734,7 @@ function Dashboard() {
 
         <div
           ref={stopCardsContainerRef}
-          className="horizontal-cards-container absolute bottom-0 left-0 right-0 z-[150] px-4 pb-4 pointer-events-none flex flex-col justify-end min-h-[145px] max-h-[80vh]"
+          className="horizontal-cards-container absolute bottom-0 left-0 right-0 z-[150] px-4 pb-1 pointer-events-none flex flex-col justify-end min-h-[145px] max-h-[80vh]"
           onClick={() => {
             if (retractClustersRef.current) {
               retractClustersRef.current();
@@ -5951,7 +5951,7 @@ function Dashboard() {
             transition={{ type: "spring", stiffness: 260, damping: 20 }}
             className="fixed z-[140]"
             style={{ 
-              bottom: `${deliveriesWithStopOrder.length > 0 && stopCardsBaseHeight > 0 ? stopCardsBaseHeight + 30 : 40}px`,
+              bottom: `${deliveriesWithStopOrder.length > 0 && stopCardsBaseHeight > 0 ? stopCardsBaseHeight + 15 : 25}px`,
               right: '64px' // Position to the left of MapViewCycleFAB
             }}>
             <Button
