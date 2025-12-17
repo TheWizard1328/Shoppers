@@ -28,7 +28,7 @@ export default function ETATracker({
     const isCurrentDriver = currentUser && currentUser.id === selectedDriverId;
 
     if (!isMobile || !isDriver || !isCurrentDriver) {
-      console.log('⏸️ [ETATracker] Skipping - not driver\'s mobile device');
+      // Only log once when first skipping, not on every render
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
@@ -207,7 +207,9 @@ export default function ETATracker({
         intervalRef.current = null;
       }
     };
-  }, [selectedDriverId, selectedDate, currentUser, isActive, onETAUpdate]);
+  // CRITICAL: Only depend on stable values to prevent re-running on every render
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDriverId, selectedDate, currentUser?.id, currentUser?.driver_status, isActive]);
 
   // Render nothing - this is a background service
   return null;
