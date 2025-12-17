@@ -16,12 +16,18 @@ export default function ETANotification({
   const [notification, setNotification] = useState(null);
   const [previousETAs, setPreviousETAs] = useState(new Map());
 
+  // Define finished statuses to exclude from ETA notifications
+  const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
+
   useEffect(() => {
     if (!deliveries || deliveries.length === 0) return;
 
-    // Check for significant ETA changes
+    // Check for significant ETA changes - ONLY for active deliveries
     deliveries.forEach(delivery => {
       if (!delivery || !delivery.delivery_time_eta) return;
+      
+      // CRITICAL: Skip completed/failed/cancelled deliveries - no ETA notifications for finished stops
+      if (FINISHED_STATUSES.includes(delivery.status)) return;
 
       const currentETA = delivery.delivery_time_eta;
       const previousETA = previousETAs.get(delivery.id);

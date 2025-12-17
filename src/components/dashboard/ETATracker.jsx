@@ -127,9 +127,15 @@ export default function ETATracker({
 
         if (data?.success && data?.durationUpdates?.length > 0) {
           // CRITICAL: Backend now returns actual clock time ETAs - use them directly
+          // Filter out completed/failed/cancelled deliveries from updates
+          const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
+          const activeUpdates = data.durationUpdates.filter(update => 
+            !FINISHED_STATUSES.includes(update.status)
+          );
+          
           const etaUpdates = [];
           
-          for (const update of data.durationUpdates) {
+          for (const update of activeUpdates) {
             // Backend returns eta as HH:mm clock time, not cumulative minutes
             const etaString = update.eta;
 
@@ -147,7 +153,7 @@ export default function ETATracker({
             });
           }
 
-          console.log(`✅ [ETATracker] Updated ${etaUpdates.length} ETAs based on driver motion`);
+          console.log(`✅ [ETATracker] Updated ${etaUpdates.length} active ETAs (filtered ${data.durationUpdates.length - activeUpdates.length} finished)`);
           
           if (onETAUpdate) {
             onETAUpdate(etaUpdates);
