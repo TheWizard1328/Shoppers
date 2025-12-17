@@ -40,6 +40,24 @@ export default function RealTimeRouteOptimizer({
       return;
     }
 
+    // CRITICAL: Skip optimization if no in-transit deliveries
+    // This preserves pickup order based on delivery_time_start until route actually starts
+    try {
+      const inTransitDeliveries = await base44.entities.Delivery.filter({
+        driver_id: selectedDriverId,
+        delivery_date: selectedDate,
+        status: 'in_transit'
+      });
+      
+      if (!inTransitDeliveries || inTransitDeliveries.length === 0) {
+        console.log('⏸️ [RealTimeRouteOptimizer] No in-transit deliveries - skipping to preserve pickup order');
+        return;
+      }
+    } catch (error) {
+      console.error('Error checking in-transit deliveries:', error);
+      return;
+    }
+
     console.log('🔄 [RealTimeRouteOptimizer] Triggering route optimization for driver:', selectedDriverId);
 
     try {
