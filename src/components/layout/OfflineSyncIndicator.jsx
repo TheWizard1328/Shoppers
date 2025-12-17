@@ -27,8 +27,8 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
       setSyncStatus(status);
       setIsSyncing(status.status === 'syncing' || status.status === 'force_syncing');
       
-      // Refresh stats when sync completes
-      if (status.status === 'complete' || status.status === 'synced') {
+      // Refresh stats in real-time during sync AND when complete
+      if (status.status === 'syncing' || status.status === 'force_syncing' || status.status === 'complete' || status.status === 'synced') {
         getSyncStats().then(setStats);
       }
     });
