@@ -23,72 +23,108 @@ Deno.serve(async (req) => {
 
     // Extract data using Vision LLM
     console.log('🔍 [scanPrescriptionLabel] Extracting data from image using Vision LLM...');
-    console.log('📎 [scanPrescriptionLabel] Image source type:', imageSource.startsWith('data:') ? 'base64' : 'url');
+    const isBase64 = imageSource.startsWith('data:');
+    console.log('📎 [scanPrescriptionLabel] Image source type:', isBase64 ? 'base64' : 'url');
     
     let extractionResult = null;
     let lastError = null;
+    let uploadedFileUrl = imageSource;
     
-    try {
-      // Use ExtractDataFromUploadedFile for more reliable extraction
-      const extractResult = await base44.integrations.Core.ExtractDataFromUploadedFile({
-        file_url: imageSource,
-        json_schema: {
-          type: "object",
-          properties: {
-            patient_name: { type: "string", description: "Patient's full name" },
-            street_address: { type: "string", description: "Street address" },
-            city: { type: "string", description: "City name" },
-            state: { type: "string", description: "State or province" },
-            zip_code: { type: "string", description: "Zip or postal code" },
-            phone_number: { type: "string", description: "Phone number" }
-          }
-        }
-      });
-      
-      console.log('📄 [scanPrescriptionLabel] ExtractData response:', extractResult);
-      
-      if (extractResult && extractResult.status === 'success' && extractResult.output) {
-        extractionResult = extractResult.output;
-        console.log('✅ [scanPrescriptionLabel] Successfully extracted data');
-      } else {
-        lastError = new Error(extractResult?.details || 'Extraction returned no data');
-        console.error('❌ [scanPrescriptionLabel] Extraction failed:', lastError.message);
-      }
-    } catch (extractError) {
-      console.error('❌ [scanPrescriptionLabel] ExtractData error:', extractError.message);
-      lastError = extractError;
-      
-      // Fallback: Try simple LLM call without JSON schema
-      console.log('🔄 [scanPrescriptionLabel] Trying fallback LLM approach...');
+    // If base64, upload it first to get a URL
+    if (isBase64) {
       try {
-        const textResponse = await base44.integrations.Core.InvokeLLM({
-          prompt: `Analyze this prescription label image. Extract and return ONLY a JSON object (no other text) with these fields:
-- patient_name: the patient's full name
-- street_address: the street address  
-- city: the city
-- state: the state/province
-- zip_code: the postal code
-- phone_number: the phone number
-
-Use null for any field you cannot find. Example format:
-{"patient_name":"John Doe","street_address":"123 Main St","city":"Edmonton","state":"AB","zip_code":"T5A 1A1","phone_number":"780-555-1234"}`,
-          file_urls: [imageSource]
+        console.log('📤 [scanPrescriptionLabel] Uploading base64 image...');
+        // Convert base64 to blob for upload
+        const base64Data = imageSource.split(',')[1];
+        const mimeType = imageSource.split(';')[0].split(':')[1] || 'image/jpeg';
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: mimeType });
+        const file = new File([blob], 'prescription_label.jpg', { type: mimeType });
+        
+        const uploadResult = await base44.integrations.Core.UploadFile({ file });
+        if (uploadResult && uploadResult.file_url) {
+          uploadedFileUrl = uploadResult.file_url;
+          console.log('✅ [scanPrescriptionLabel] Image uploaded:', uploadedFileUrl);
+        }
+      } catch (uploadError) {
+        console.error('⚠️ [scanPrescriptionLabel] Upload failed, will try direct LLM:', uploadError.message);
+      }
+    }
+    
+    // Try ExtractDataFromUploadedFile if we have a URL (not base64)
+    if (!uploadedFileUrl.startsWith('data:')) {
+      try {
+        console.log('🔄 [scanPrescriptionLabel] Using ExtractDataFromUploadedFile...');
+        const extractResult = await base44.integrations.Core.ExtractDataFromUploadedFile({
+          file_url: uploadedFileUrl,
+          json_schema: {
+            type: "object",
+            properties: {
+              patient_name: { type: "string", description: "Patient's full name" },
+              street_address: { type: "string", description: "Street address" },
+              city: { type: "string", description: "City name" },
+              state: { type: "string", description: "State or province" },
+              zip_code: { type: "string", description: "Zip or postal code" },
+              phone_number: { type: "string", description: "Phone number" }
+            }
+          }
         });
         
-        console.log('📄 [scanPrescriptionLabel] Fallback LLM response:', textResponse);
+        console.log('📄 [scanPrescriptionLabel] ExtractData response:', extractResult);
         
-        if (typeof textResponse === 'string') {
-          const jsonMatch = textResponse.match(/\{[\s\S]*?\}/);
+        if (extractResult && extractResult.status === 'success' && extractResult.output) {
+          extractionResult = extractResult.output;
+          console.log('✅ [scanPrescriptionLabel] Successfully extracted data');
+        } else {
+          lastError = new Error(extractResult?.details || 'Extraction returned no data');
+          console.error('❌ [scanPrescriptionLabel] Extraction failed:', lastError.message);
+        }
+      } catch (extractError) {
+        console.error('❌ [scanPrescriptionLabel] ExtractData error:', extractError.message);
+        lastError = extractError;
+      }
+    }
+    
+    // Fallback: Try simple LLM call (works with both base64 and URL)
+    if (!extractionResult) {
+      console.log('🔄 [scanPrescriptionLabel] Trying LLM vision approach...');
+      try {
+        const textResponse = await base44.integrations.Core.InvokeLLM({
+          prompt: `Look at this prescription label image carefully. Extract the patient information and return ONLY a valid JSON object with no additional text before or after:
+
+{"patient_name": "full name here", "street_address": "street address here", "city": "city here", "state": "state/province here", "zip_code": "postal code here", "phone_number": "phone here"}
+
+Use null for any field you cannot read. Return ONLY the JSON, nothing else.`,
+          file_urls: [uploadedFileUrl]
+        });
+        
+        console.log('📄 [scanPrescriptionLabel] LLM response type:', typeof textResponse);
+        console.log('📄 [scanPrescriptionLabel] LLM response:', textResponse);
+        
+        if (typeof textResponse === 'string' && textResponse.trim()) {
+          // Clean the response - remove markdown code blocks if present
+          let cleanedResponse = textResponse.trim();
+          cleanedResponse = cleanedResponse.replace(/```json\s*/gi, '').replace(/```\s*/g, '');
+          
+          const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
             extractionResult = JSON.parse(jsonMatch[0]);
-            console.log('✅ [scanPrescriptionLabel] Fallback parsing successful');
+            console.log('✅ [scanPrescriptionLabel] LLM parsing successful');
+          } else {
+            console.error('❌ [scanPrescriptionLabel] No JSON found in response');
           }
         } else if (typeof textResponse === 'object' && textResponse !== null) {
           extractionResult = textResponse;
+          console.log('✅ [scanPrescriptionLabel] LLM returned object directly');
         }
-      } catch (fallbackError) {
-        console.error('❌ [scanPrescriptionLabel] Fallback also failed:', fallbackError.message);
-        lastError = fallbackError;
+      } catch (llmError) {
+        console.error('❌ [scanPrescriptionLabel] LLM approach failed:', llmError.message);
+        lastError = llmError;
       }
     }
     
@@ -100,7 +136,7 @@ Use null for any field you cannot find. Example format:
       }, { status: 400 });
     }
 
-    console.log('📊 [scanPrescriptionLabel] LLM extraction result:', extractionResult);
+    console.log('📊 [scanPrescriptionLabel] Final extraction result:', extractionResult);
 
     // Check if the LLM returned usable data
     if (!extractionResult || !extractionResult.patient_name) {
