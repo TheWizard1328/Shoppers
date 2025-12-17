@@ -173,10 +173,10 @@ export default function DateListPanel({
                     variant="ghost"
                     size="sm"
                     className="h-6 w-6 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50"
-                    onClick={(e) => {
+                    onClick={async (e) => {
                       e.stopPropagation();
                       if (window.confirm(`Delete all ${total} stops for this date? This cannot be undone.`)) {
-                        onDeleteRoute(dateStr, selectedDriverId);
+                        await onDeleteRoute(dateStr, selectedDriverId);
                       }
                     }}
                     title="Delete entire route for this date"
