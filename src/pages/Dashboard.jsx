@@ -5709,40 +5709,37 @@ function Dashboard() {
           driverId={selectedDriverId}
         />
 
-        <div className="absolute inset-0 overflow-hidden">
-          <DeliveryMap
-            deliveries={deliveriesWithStopOrder}
-            selectedDriverId={selectedDriverId}
-            selectedDate={format(selectedDate, 'yyyy-MM-dd')}
-            patients={patients}
-            stores={stores}
-            users={drivers}
-            currentUser={currentUser}
-            driverLocations={allDriverLocations}
-            currentDriverLocation={driverLocation}
-            currentToNextPolyline={currentToNextPolyline}
-            center={mapCenter}
-            zoom={mapZoom}
-            shouldFitBounds={shouldFitBounds}
-            onBoundsFitted={() => setShouldFitBounds(null)}
-            onMarkerClick={handleMarkerClick}
-            mapMode={mapMode}
-            onMapModeChange={setMapMode}
-            autoFitBounds={true}
-            showRoutes={showRoutes}
-            showLegend={false}
-            areCardsVisible={areCardsVisible}
-            onLegendInteraction={handleCardInteraction}
-            googleApiKey={googleApiKey}
-            onDriverRoutesCalculated={setDriverRoutes}
-            onMapInteraction={handleMapInteraction}
-            onDoubleTap={handleMapViewCycle}
-            retractClustersRef={retractClustersRef}
-            areStopCardsVisible={deliveriesWithStopOrder.length > 0}
-            highlightedDeliveryId={highlightedCardId}
-            stopCardsHeight={stopCardsBaseHeight} />
-
-        </div>
+        <DeliveryMap
+          deliveries={deliveriesWithStopOrder}
+          selectedDriverId={selectedDriverId}
+          selectedDate={format(selectedDate, 'yyyy-MM-dd')}
+          patients={patients}
+          stores={stores}
+          users={drivers}
+          currentUser={currentUser}
+          driverLocations={allDriverLocations}
+          currentDriverLocation={driverLocation}
+          currentToNextPolyline={currentToNextPolyline}
+          center={mapCenter}
+          zoom={mapZoom}
+          shouldFitBounds={shouldFitBounds}
+          onBoundsFitted={() => setShouldFitBounds(null)}
+          onMarkerClick={handleMarkerClick}
+          mapMode={mapMode}
+          onMapModeChange={setMapMode}
+          autoFitBounds={true}
+          showRoutes={showRoutes}
+          showLegend={false}
+          areCardsVisible={areCardsVisible}
+          onLegendInteraction={handleCardInteraction}
+          googleApiKey={googleApiKey}
+          onDriverRoutesCalculated={setDriverRoutes}
+          onMapInteraction={handleMapInteraction}
+          onDoubleTap={handleMapViewCycle}
+          retractClustersRef={retractClustersRef}
+          areStopCardsVisible={deliveriesWithStopOrder.length > 0}
+          highlightedDeliveryId={highlightedCardId}
+          stopCardsHeight={stopCardsBaseHeight} />
 
         <div
           ref={stopCardsContainerRef}
