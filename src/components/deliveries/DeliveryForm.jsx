@@ -3768,8 +3768,7 @@ export default function DeliveryForm({
                               type="button"
                               size="sm"
                               variant="ghost"
-                              className="h-5 w-5 p-0 flex-shrink-0 hover:bg-emerald-100"
-                              style={{ color: '#059669' }}
+                              className="h-5 w-5 p-0 flex-shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white"
                               onClick={() => confirmAddProjectedToStaged(projected)}
                               title="Add to route">
 
