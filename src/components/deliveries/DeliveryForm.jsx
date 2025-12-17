@@ -3663,8 +3663,10 @@ export default function DeliveryForm({
                           }}
                           onClick={() => handleStagedDeliveryClick(staged)}>
 
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1 min-w-0">
+                            <div className="flex items-start gap-1">
+                              {/* Left content: two rows */}
+                              <div className="flex-1 min-w-0 flex flex-col">
+                                {/* Row 1: Name, Store badge, Distance badge */}
                                 <div className="font-medium flex items-center gap-1.5 min-w-0 w-full">
                                   <span className="truncate flex-shrink min-w-0">{staged.patient_name}</span>
                                   <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
@@ -3687,12 +3689,31 @@ export default function DeliveryForm({
                                     }
                                   </div>
                                 </div>
+                                {/* Row 2: Address, Special flags badge, AM/PM badge */}
+                                <div className="flex items-center gap-1">
+                                  <div className="truncate flex-1 min-w-0" style={{ color: 'var(--text-slate-500)' }}>{staged.delivery_address}</div>
+                                  {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed) &&
+                                    <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold flex-shrink-0">
+                                      {staged.cod_total_amount_required > 0 && '$'}
+                                      {staged.first_delivery && (staged.cod_total_amount_required > 0 ? ' N' : 'N')}
+                                      {staged.oversized && (staged.cod_total_amount_required > 0 || staged.first_delivery ? ' O' : 'O')}
+                                      {staged.fridge_item && (staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized ? ' F' : 'F')}
+                                      {staged.signature_needed && (staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item ? ' S' : 'S')}
+                                    </Badge>
+                                  }
+                                  {staged.ampm_deliveries &&
+                                    <Badge className={`text-[10px] px-1.5 py-0 h-4 flex-shrink-0 ${staged.ampm_deliveries === 'AM' ? 'bg-sky-100 text-sky-700 rounded-full' : 'bg-indigo-100 text-indigo-700 rounded-lg'}`}>
+                                      {staged.ampm_deliveries}
+                                    </Badge>
+                                  }
+                                </div>
                               </div>
+                              {/* Right: Trash button isolated */}
                               <Button
                                 type="button"
                                 size="sm"
                                 variant="ghost"
-                                className="h-7 w-7 p-0 flex-shrink-0 bg-red-600 hover:bg-red-700 text-white rounded ml-1"
+                                className="h-7 w-7 p-0 flex-shrink-0 bg-red-600 hover:bg-red-700 text-white rounded self-center"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   if (staged.id) {
@@ -3711,26 +3732,6 @@ export default function DeliveryForm({
                                 }}>
                                 <Trash2 className="w-5 h-5" />
                               </Button>
-                            </div>
-                            {/* Second row: Address and badges aligned with trash button */}
-                            <div className="flex items-center -mt-0.5">
-                              <div className="truncate flex-1 min-w-0" style={{ color: 'var(--text-slate-500)' }}>{staged.delivery_address}</div>
-                              <div className="flex items-center gap-1 flex-shrink-0 ml-1 w-7 justify-end">
-                                {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed) &&
-                                  <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold">
-                                    {staged.cod_total_amount_required > 0 && '$'}
-                                    {staged.first_delivery && (staged.cod_total_amount_required > 0 ? ' N' : 'N')}
-                                    {staged.oversized && (staged.cod_total_amount_required > 0 || staged.first_delivery ? ' O' : 'O')}
-                                    {staged.fridge_item && (staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized ? ' F' : 'F')}
-                                    {staged.signature_needed && (staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item ? ' S' : 'S')}
-                                  </Badge>
-                                }
-                                {staged.ampm_deliveries &&
-                                  <Badge className={`text-[10px] px-1.5 py-0 h-4 ${staged.ampm_deliveries === 'AM' ? 'bg-sky-100 text-sky-700 rounded-full' : 'bg-indigo-100 text-indigo-700 rounded-lg'}`}>
-                                    {staged.ampm_deliveries}
-                                  </Badge>
-                                }
-                              </div>
                             </div>
                           </div>);
 
