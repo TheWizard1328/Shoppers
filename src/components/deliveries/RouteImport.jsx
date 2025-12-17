@@ -55,24 +55,26 @@ const generateDeliveryId = (existingIds = []) => {
   return newId;
 };
 
-// Check if delivery is a return
+// Check if delivery is a return (identified by markers in notes/patient name, NOT status)
 const isReturnDelivery = (delivery, patients, stores) => {
   if (!delivery || typeof delivery !== 'object') return false;
   const validPatients = Array.isArray(patients) ? patients : [];
   const validStores = Array.isArray(stores) ? stores : [];
   const notesLower = (delivery.delivery_notes || '').toLowerCase();
   const patient = validPatients.find((p) => p.id === delivery.patient_id);
-  const patientNameLower = (patient?.full_name || '').toLowerCase();
+  const patientNameLower = (patient?.full_name || delivery.patient_name || '').toLowerCase();
 
-  if (delivery.status === 'returned') return true;
-  if (notesLower.includes('return')) return true;
+  // CRITICAL: Returns are marked by "(RTN)" or "return" in notes/patient name, NOT by status
+  if (notesLower.includes('return') || notesLower.includes('(rtn)')) return true;
+  if (patientNameLower.includes('return') || patientNameLower.includes('(rtn)')) return true;
+  
   if (!delivery.patient_id) {
     const store = validStores.find((s) => s.id === delivery.store_id);
     if (store && (notesLower.includes('return') || store.name?.toLowerCase().includes('return'))) {
       return true;
     }
   }
-  if (patientNameLower.includes('return')) return true;
+  
   return false;
 };
 
@@ -640,8 +642,7 @@ export default function RouteImport({
       'Pending': 'pending',
       'Picked Up': 'picked_up',
       'Failed': 'failed',
-      'Cancelled': 'cancelled',
-      'Returned': 'returned'
+      'Cancelled': 'cancelled'
     };
 
     const deliveriesToCreate = [];
@@ -874,9 +875,8 @@ export default function RouteImport({
         newDeliveryData.status = statusMap['Failed'];
       } else if (notesLower.includes('cancel')) {
         newDeliveryData.status = statusMap['Cancelled'];
-      } else if (notesLower.includes('return')) {
-        newDeliveryData.status = statusMap['Returned'];
       }
+      // REMOVED: Return status detection - returns are identified by notes/patient name markers only
 
       if (notesLower.match(/\bsignature\b/i)) {
         newDeliveryData.signature_needed = true;
@@ -1167,7 +1167,9 @@ export default function RouteImport({
     const returned = filteredPreviewDeliveries.filter((d) => {
       const notesReturn = (d.delivery_notes || '').toLowerCase().includes('return');
       const addressReturn = (d.delivery_address || '').toLowerCase().includes('rtn');
-      return d.status === 'returned' || notesReturn || addressReturn;
+      const patientNameReturn = (d.patient_name || '').toLowerCase().includes('return');
+      // CRITICAL: Return is identified by markers in notes/patient name, NOT by status
+      return notesReturn || addressReturn || patientNameReturn;
     }).length;
 
     return { creates, updates, completed, failed, returned, skipped: previewData.skippedItems.length };
@@ -1469,7 +1471,8 @@ export default function RouteImport({
             batch.forEach((cleanData) => {
               overallResults.created++;
               overallResults.completed++;
-              if (cleanData.status === 'returned' || isReturnDelivery(cleanData, freshPatients, freshStores)) {
+              // CRITICAL: Check for return markers in notes/patient name, NOT status
+              if (isReturnDelivery(cleanData, freshPatients, freshStores)) {
                 overallResults.returned++;
               }
             });
@@ -1496,7 +1499,8 @@ export default function RouteImport({
                 await base44.entities.Delivery.create(cleanData);
                 overallResults.created++;
                 overallResults.completed++;
-                if (cleanData.status === 'returned' || isReturnDelivery(cleanData, freshPatients, freshStores)) {
+                // CRITICAL: Check for return markers in notes/patient name, NOT status
+                if (isReturnDelivery(cleanData, freshPatients, freshStores)) {
                   overallResults.returned++;
                 }
                 totalCreated++;
@@ -1561,7 +1565,8 @@ export default function RouteImport({
 
             overallResults.updated++;
             overallResults.completed++;
-            if (cleanPayload.status === 'returned' || isReturnDelivery(cleanPayload, freshPatients, freshStores)) {
+            // CRITICAL: Check for return markers in notes/patient name, NOT status
+            if (isReturnDelivery(cleanPayload, freshPatients, freshStores)) {
               overallResults.returned++;
             }
             setImportProgress((prev) => ({
@@ -1623,7 +1628,8 @@ export default function RouteImport({
 
             overallResults.created++;
             overallResults.completed++;
-            if (cleanData.status === 'returned' || isReturnDelivery(cleanData, freshPatients, freshStores)) {
+            // CRITICAL: Check for return markers in notes/patient name, NOT status
+            if (isReturnDelivery(cleanData, freshPatients, freshStores)) {
               overallResults.returned++;
             }
             setImportProgress((prev) => ({
@@ -1659,7 +1665,8 @@ export default function RouteImport({
 
             overallResults.updated++;
             overallResults.completed++;
-            if (updatePayload.status === 'returned' || isReturnDelivery(updatePayload, freshPatients, freshStores)) {
+            // CRITICAL: Check for return markers in notes/patient name, NOT status
+            if (isReturnDelivery(updatePayload, freshPatients, freshStores)) {
               overallResults.returned++;
             }
             setImportProgress((prev) => ({
@@ -1725,7 +1732,6 @@ export default function RouteImport({
       'in_transit': 'bg-blue-100 text-blue-800',
       'pending': 'bg-yellow-100 text-yellow-800',
       'Ready For Pickup': 'bg-purple-100 text-purple-800',
-      'returned': 'bg-orange-100 text-orange-800',
       'picked_up': 'bg-indigo-100 text-indigo-800'
     };
     const color = statusColors[status] || 'bg-slate-100 text-slate-800';
