@@ -21,66 +21,81 @@ Deno.serve(async (req) => {
 
     console.log('📸 [scanPrescriptionLabel] Processing image...');
 
-    // Extract data using Vision LLM with retry logic
+    // Extract data using Vision LLM
     console.log('🔍 [scanPrescriptionLabel] Extracting data from image using Vision LLM...');
+    console.log('📎 [scanPrescriptionLabel] Image source type:', imageSource.startsWith('data:') ? 'base64' : 'url');
     
     let extractionResult = null;
     let lastError = null;
     
-    for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      // Use ExtractDataFromUploadedFile for more reliable extraction
+      const extractResult = await base44.integrations.Core.ExtractDataFromUploadedFile({
+        file_url: imageSource,
+        json_schema: {
+          type: "object",
+          properties: {
+            patient_name: { type: "string", description: "Patient's full name" },
+            street_address: { type: "string", description: "Street address" },
+            city: { type: "string", description: "City name" },
+            state: { type: "string", description: "State or province" },
+            zip_code: { type: "string", description: "Zip or postal code" },
+            phone_number: { type: "string", description: "Phone number" }
+          }
+        }
+      });
+      
+      console.log('📄 [scanPrescriptionLabel] ExtractData response:', extractResult);
+      
+      if (extractResult && extractResult.status === 'success' && extractResult.output) {
+        extractionResult = extractResult.output;
+        console.log('✅ [scanPrescriptionLabel] Successfully extracted data');
+      } else {
+        lastError = new Error(extractResult?.details || 'Extraction returned no data');
+        console.error('❌ [scanPrescriptionLabel] Extraction failed:', lastError.message);
+      }
+    } catch (extractError) {
+      console.error('❌ [scanPrescriptionLabel] ExtractData error:', extractError.message);
+      lastError = extractError;
+      
+      // Fallback: Try simple LLM call without JSON schema
+      console.log('🔄 [scanPrescriptionLabel] Trying fallback LLM approach...');
       try {
-        console.log(`🔄 [scanPrescriptionLabel] Attempt ${attempt}...`);
-        
-        // First, get raw text extraction without JSON schema (more reliable)
-        const textExtraction = await base44.integrations.Core.InvokeLLM({
-          prompt: `Look at this prescription label image and extract the following information. Return ONLY a valid JSON object with these exact keys, no other text:
-{
-  "patient_name": "the patient's full name or null if not found",
-  "street_address": "the street address or null if not found", 
-  "city": "the city or null if not found",
-  "state": "the state/province or null if not found",
-  "zip_code": "the zip/postal code or null if not found",
-  "phone_number": "the phone number or null if not found"
-}
+        const textResponse = await base44.integrations.Core.InvokeLLM({
+          prompt: `Analyze this prescription label image. Extract and return ONLY a JSON object (no other text) with these fields:
+- patient_name: the patient's full name
+- street_address: the street address  
+- city: the city
+- state: the state/province
+- zip_code: the postal code
+- phone_number: the phone number
 
-If you cannot read the image or find no relevant information, return: {"patient_name": null, "street_address": null, "city": null, "state": null, "zip_code": null, "phone_number": null}`,
+Use null for any field you cannot find. Example format:
+{"patient_name":"John Doe","street_address":"123 Main St","city":"Edmonton","state":"AB","zip_code":"T5A 1A1","phone_number":"780-555-1234"}`,
           file_urls: [imageSource]
         });
         
-        console.log('📄 [scanPrescriptionLabel] Raw LLM response:', textExtraction);
+        console.log('📄 [scanPrescriptionLabel] Fallback LLM response:', textResponse);
         
-        // Parse the response - it should be a string containing JSON
-        if (typeof textExtraction === 'string') {
-          // Try to extract JSON from the response
-          const jsonMatch = textExtraction.match(/\{[\s\S]*\}/);
+        if (typeof textResponse === 'string') {
+          const jsonMatch = textResponse.match(/\{[\s\S]*?\}/);
           if (jsonMatch) {
             extractionResult = JSON.parse(jsonMatch[0]);
-          } else {
-            throw new Error('No JSON found in LLM response');
+            console.log('✅ [scanPrescriptionLabel] Fallback parsing successful');
           }
-        } else if (typeof textExtraction === 'object') {
-          extractionResult = textExtraction;
+        } else if (typeof textResponse === 'object' && textResponse !== null) {
+          extractionResult = textResponse;
         }
-        
-        if (extractionResult) {
-          console.log('✅ [scanPrescriptionLabel] Successfully parsed extraction result');
-          break;
-        }
-      } catch (parseError) {
-        console.error(`❌ [scanPrescriptionLabel] Attempt ${attempt} failed:`, parseError.message);
-        lastError = parseError;
-        
-        if (attempt < 2) {
-          console.log('⏳ [scanPrescriptionLabel] Retrying...');
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
+      } catch (fallbackError) {
+        console.error('❌ [scanPrescriptionLabel] Fallback also failed:', fallbackError.message);
+        lastError = fallbackError;
       }
     }
     
     if (!extractionResult) {
       console.error('❌ [scanPrescriptionLabel] All extraction attempts failed');
       return Response.json({ 
-        error: 'Failed to extract data from image. The image may be unclear or not contain readable text.',
+        error: 'Failed to extract data from image. Please ensure the image is clear and contains readable text.',
         details: lastError?.message || 'LLM extraction failed'
       }, { status: 400 });
     }
