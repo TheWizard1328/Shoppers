@@ -307,10 +307,12 @@ const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, numbe
         ` : ''}
       </div>
       <style>
+        .store-marker {
+          transition: transform 0.2s ease;
+        }
         .store-marker:hover {
           z-index: 9999 !important;
-          transform: scale(1.25);
-          transition: transform 0.2s ease;
+          transform: scale(1.15);
         }
         .leaflet-marker-icon:has(.store-marker:hover) {
           z-index: 9999 !important;
@@ -443,10 +445,12 @@ const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, nu
         ` : ''}
       </div>
       <style>
+        .delivery-marker {
+          transition: transform 0.2s ease;
+        }
         .delivery-marker:hover {
           z-index: 9999 !important;
-          transform: scale(1.25);
-          transition: transform 0.2s ease;
+          transform: scale(1.15);
         }
         .leaflet-marker-icon:has(.delivery-marker:hover) {
           z-index: 9999 !important;
@@ -576,10 +580,10 @@ const createLiveLocationDot = () => {
         .live-location-dot {
           z-index: 100 !important;
           pointer-events: auto;
+          transition: transform 0.2s ease;
         }
         .live-location-dot:hover {
-          transform: scale(1.2);
-          transition: transform 0.2s ease;
+          transform: scale(1.15);
         }
       </style>
     `,
@@ -632,10 +636,12 @@ const createHomeIcon = (color = '#10B981') => {
         </svg>
       </div>
       <style>
+        .home-marker {
+          transition: transform 0.2s ease;
+        }
         .home-marker:hover {
           z-index: 9999 !important;
-          transform: scale(1.25);
-          transition: transform 0.2s ease;
+          transform: scale(1.15);
         }
         .leaflet-marker-icon:has(.home-marker:hover) {
           z-index: 9999 !important;
@@ -2177,7 +2183,6 @@ export default function DeliveryMap({
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
                   e.target.openPopup();
-                  // Close popup after a short delay
                   setTimeout(() => e.target.closePopup(), 3000);
                 },
                 mouseover: (e) => e.target.openPopup(),
@@ -2190,19 +2195,6 @@ export default function DeliveryMap({
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
                   handleMarkerClickForFanning(pickup, 'pickup');
-                  e.target.openPopup();
-                  setTimeout(() => {
-                    e.target.closePopup();
-                  }, 5000);
-                },
-                mouseover: (e) => {
-                  e.target.openPopup();
-                  setTimeout(() => {
-                    e.target.closePopup();
-                  }, 5000);
-                },
-                mouseout: (e) => {
-                  e.target.closePopup();
                 },
                 dragend: (e) => handleMarkerDragEnd(pickup.id, e, 'pickup')
               }}
@@ -2361,7 +2353,6 @@ export default function DeliveryMap({
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
                   e.target.openPopup();
-                  // Close popup after a short delay
                   setTimeout(() => e.target.closePopup(), 3000);
                 },
                 mouseover: (e) => e.target.openPopup(),
@@ -2374,19 +2365,6 @@ export default function DeliveryMap({
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
                   handleMarkerClickForFanning(delivery, 'delivery');
-                  e.target.openPopup();
-                  setTimeout(() => {
-                    e.target.closePopup();
-                  }, 5000);
-                },
-                mouseover: (e) => {
-                  e.target.openPopup();
-                  setTimeout(() => {
-                    e.target.closePopup();
-                  }, 5000);
-                },
-                mouseout: (e) => {
-                  e.target.closePopup();
                 },
                 dragend: (e) => handleMarkerDragEnd(delivery.id, e, 'delivery')
               }}
