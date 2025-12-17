@@ -22,12 +22,13 @@ export default function ETANotification({
   useEffect(() => {
     if (!deliveries || deliveries.length === 0) return;
 
-    // Check for significant ETA changes - ONLY for active deliveries
+    // Check for significant ETA changes - ONLY for in_transit deliveries
     deliveries.forEach(delivery => {
       if (!delivery || !delivery.delivery_time_eta) return;
       
-      // CRITICAL: Skip completed/failed/cancelled deliveries - no ETA notifications for finished stops
-      if (FINISHED_STATUSES.includes(delivery.status)) return;
+      // CRITICAL: Only show ETA notifications for 'in_transit' status
+      // Skip: finished deliveries, pending, and en_route (not started yet)
+      if (delivery.status !== 'in_transit') return;
 
       const currentETA = delivery.delivery_time_eta;
       const previousETA = previousETAs.get(delivery.id);
