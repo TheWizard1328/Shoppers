@@ -6085,7 +6085,7 @@ function Dashboard() {
                   setIsReoptimizing(false);
                 }
               }}
-              disabled={isReoptimizing || isDateFinished || (filteredDeliveries.length > 0 && !filteredDeliveries.some(d => d && (d.status === 'in_transit' || d.status === 'en_route')))}
+              disabled={isReoptimizing || isDateFinished || !filteredDeliveries.some(d => d && d.status === 'in_transit')}
               title="Re-optimize entire route using Google Maps"
               className={`inline-flex items-center justify-center whitespace-nowrap text-sm font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 text-primary-foreground h-10 w-10 rounded-lg shadow-2xl p-0 relative transition-all duration-200 ${
                 isReoptimizing 
