@@ -1519,6 +1519,9 @@ function Dashboard() {
   // Track a counter to force useEffect to re-run when FAB is clicked
   const [mapViewTrigger, setMapViewTrigger] = useState(0);
 
+  // Track the last trigger value to prevent re-running on every state change
+  const lastAppliedTriggerRef = useRef(0);
+  
   useEffect(() => {
 
     // CRITICAL: Only run map positioning when FAB is LOCKED (user just clicked it)
@@ -1538,12 +1541,13 @@ function Dashboard() {
       return;
     }
 
-    // CRITICAL: Skip if mapViewTrigger hasn't changed (prevents re-running on lock state changes)
-    // This ensures map only repositions when FAB is clicked, not when lock state toggles
-    const triggerValue = mapViewTrigger;
-    if (triggerValue === 0) {
+    // CRITICAL: Only run when trigger value actually changes (prevents re-running on every render)
+    if (mapViewTrigger === 0 || mapViewTrigger === lastAppliedTriggerRef.current) {
       return;
     }
+    
+    // Update last applied trigger
+    lastAppliedTriggerRef.current = mapViewTrigger;
 
     // Mark that this positioning is from a FAB interaction (prevents unlock on programmatic map moves)
     mapPositioningTriggerRef.current = 'fab';
