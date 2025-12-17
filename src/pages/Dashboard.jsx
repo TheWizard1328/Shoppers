@@ -1508,23 +1508,9 @@ function Dashboard() {
     }, 300);
 
     // Handle timer based on phase
-    if (newMapViewPhase === 2) {
-      // Phase 2 stays locked permanently - no timer, no unlock
-      console.log('🔵 [FAB] Phase 2 locked - no auto-unlock timer');
-    } else if (shouldStartTimer) {
-      // Phase 1 or 3: Set up 3-second auto-unlock timer
-      const lockDuration = 3000;
-      const expiresAt = Date.now() + lockDuration;
-      mapLockExpiresAtRef.current = expiresAt;
-
-      mapLockTimeoutRef.current = window.setTimeout(() => {
-        if (mapLockExpiresAtRef.current === expiresAt) {
-          setIsMapViewLocked(false);
-          mapLockExpiresAtRef.current = null;
-          mapLockTimeoutRef.current = null;
-        }
-      }, lockDuration);
-    }
+    // All phases: no auto-unlock timer, only unlock on manual user interaction
+    console.log(`🔵 [FAB] Phase ${newMapViewPhase} locked - will unlock on map pan/zoom`);
+    // No timer needed - handleMapInteraction will unlock when user pans/zooms
   }, [mapViewPhase, isMapViewLocked, isDriver, nextStopCoordinates, isDispatcher, isAdmin, isMobile, currentUser, deliveriesWithStopOrder]);
 
   // Track if the current map positioning was triggered by FAB (not by data refresh)
@@ -1916,7 +1902,7 @@ function Dashboard() {
       return;
     }
 
-    // CASE 1: No deliveries - set phase 1 with temporary lock
+    // CASE 1: No deliveries - set phase 1 locked, will unlock on pan/zoom
     if (deliveriesWithStopOrder.length === 0) {
       setMapViewPhase(1);
       setIsMapViewLocked(true);
@@ -1924,21 +1910,12 @@ function Dashboard() {
 
       if (mapLockTimeoutRef.current) {
         clearTimeout(mapLockTimeoutRef.current);
+        mapLockTimeoutRef.current = null;
       }
-
-      const lockDuration = 3000;
-      const expiresAt = Date.now() + lockDuration;
-      mapLockExpiresAtRef.current = expiresAt;
-
-      mapLockTimeoutRef.current = window.setTimeout(() => {
-        if (mapLockExpiresAtRef.current === expiresAt) {
-          setIsMapViewLocked(false);
-          mapLockExpiresAtRef.current = null;
-          mapLockTimeoutRef.current = null;
-        }
-      }, lockDuration);
+      mapLockExpiresAtRef.current = null;
 
       setMapViewTrigger((prev) => prev + 1);
+      console.log('🔵 [FAB Initial] No deliveries - locked, will unlock on pan/zoom');
       return;
     }
 
@@ -1951,17 +1928,7 @@ function Dashboard() {
       setIsMapViewLocked(true);
       setMapViewTrigger((prev) => prev + 1);
       setInitialMapViewApplied(true);
-
-      const lockDuration = 3000;
-      const expiresAt = Date.now() + lockDuration;
-      mapLockExpiresAtRef.current = expiresAt;
-      mapLockTimeoutRef.current = window.setTimeout(() => {
-        if (mapLockExpiresAtRef.current === expiresAt) {
-          setIsMapViewLocked(false);
-          mapLockExpiresAtRef.current = null;
-          mapLockTimeoutRef.current = null;
-        }
-      }, lockDuration);
+      console.log('🔵 [FAB Initial] Phase 3 unavailable, using Phase 1 - locked, will unlock on pan/zoom');
       return;
     }
 
@@ -1980,24 +1947,8 @@ function Dashboard() {
     // Trigger map view
     setMapViewTrigger((prev) => prev + 1);
 
-    // Set timer based on phase
-    if (phaseToApply === 2) {
-      // Phase 2 stays locked permanently - no timer
-      console.log('🔵 [FAB Initial] Phase 2 locked - no auto-unlock');
-    } else if (phaseToApply === 1 || phaseToApply === 3) {
-      // Phase 1 or 3: Set up 3-second auto-unlock timer
-      const lockDuration = 3000;
-      const expiresAt = Date.now() + lockDuration;
-      mapLockExpiresAtRef.current = expiresAt;
-
-      mapLockTimeoutRef.current = window.setTimeout(() => {
-        if (mapLockExpiresAtRef.current === expiresAt) {
-          setIsMapViewLocked(false);
-          mapLockExpiresAtRef.current = null;
-          mapLockTimeoutRef.current = null;
-        }
-      }, lockDuration);
-    }
+    // All phases: no auto-unlock timer, only unlock on manual user interaction
+    console.log(`🔵 [FAB Initial] Phase ${phaseToApply} locked - will unlock on map pan/zoom`);
 
     // Scroll to card with isNextDelivery=true for phase 2
     if (phaseToApply === 2) {
@@ -2404,21 +2355,7 @@ function Dashboard() {
         setIsMapViewLocked(true);
         setMapViewTrigger((prev) => prev + 1);
 
-        if (mapViewPhase === 2) {
-          // Phase 2 stays locked permanently - no timer
-          console.log('🔵 [FAB Date Change] Phase 2 locked - no auto-unlock');
-        } else if (mapViewPhase === 1 || mapViewPhase === 3) {
-          const lockDuration = 3000;
-          const expiresAt = Date.now() + lockDuration;
-          mapLockExpiresAtRef.current = expiresAt;
-          mapLockTimeoutRef.current = window.setTimeout(() => {
-            if (mapLockExpiresAtRef.current === expiresAt) {
-              setIsMapViewLocked(false);
-              mapLockExpiresAtRef.current = null;
-              mapLockTimeoutRef.current = null;
-            }
-          }, lockDuration);
-        }
+        console.log(`🔵 [FAB Date Change] Phase ${mapViewPhase} locked - will unlock on map pan/zoom`);
       }, 100);
       
       // STEP 7: Background loads (non-blocking)
@@ -2494,23 +2431,8 @@ function Dashboard() {
         setIsMapViewLocked(true);
         setMapViewTrigger((prev) => prev + 1);
 
-        // Set up timer based on current phase
-        if (mapViewPhase === 2) {
-          // Phase 2 stays locked permanently - no timer
-          console.log('🔵 [FAB Driver Change] Phase 2 locked - no auto-unlock');
-        } else if (mapViewPhase === 1 || mapViewPhase === 3) {
-          const lockDuration = 3000;
-          const expiresAt = Date.now() + lockDuration;
-          mapLockExpiresAtRef.current = expiresAt;
-
-          mapLockTimeoutRef.current = window.setTimeout(() => {
-            if (mapLockExpiresAtRef.current === expiresAt) {
-              setIsMapViewLocked(false);
-              mapLockExpiresAtRef.current = null;
-              mapLockTimeoutRef.current = null;
-            }
-          }, lockDuration);
-        }
+        // No auto-unlock timer - will unlock on manual map pan/zoom
+        console.log(`🔵 [FAB Driver Change] Phase ${mapViewPhase} locked - will unlock on map pan/zoom`);
       }, 300);
     } catch (error) {
       console.error('❌ [Dashboard] Instant refresh failed:', error);
@@ -4729,36 +4651,13 @@ function Dashboard() {
       }
 
       // CRITICAL: Re-lock and re-trigger FAB based on original phase
-      if (wasPhase2Locked) {
-        // Was Phase 2 and locked - re-lock to Phase 2 and re-trigger map view
-        console.log('🔒 [STATUS] Re-locking FAB to Phase 2 after status update');
-        setIsMapViewLocked(true);
-        lastProgrammaticMapMoveRef.current = Date.now();
-        window._lastProgrammaticMapMove = Date.now();
-        setMapViewTrigger((prev) => prev + 1);
-        // Phase 2 stays locked permanently - no timer needed
-      } else if (currentPhase === 1 || currentPhase === 3) {
-        // Was Phase 1 or 3 - activate for 500ms then deactivate
-        console.log(`🔄 [STATUS] Phase ${currentPhase} detected - activating FAB for 500ms`);
-        setIsMapViewLocked(true);
-        lastProgrammaticMapMoveRef.current = Date.now();
-        window._lastProgrammaticMapMove = Date.now();
-        setMapViewTrigger((prev) => prev + 1);
-        
-        // Auto-unlock after 500ms
-        const lockDuration = 500;
-        const expiresAt = Date.now() + lockDuration;
-        mapLockExpiresAtRef.current = expiresAt;
-        
-        mapLockTimeoutRef.current = window.setTimeout(() => {
-          if (mapLockExpiresAtRef.current === expiresAt) {
-            setIsMapViewLocked(false);
-            mapLockExpiresAtRef.current = null;
-            mapLockTimeoutRef.current = null;
-            console.log(`⏱️ [STATUS] Phase ${currentPhase} - unlocking FAB after 500ms`);
-          }
-        }, lockDuration);
-      }
+      // All phases: lock, trigger, then unlock on manual pan/zoom only
+      console.log(`🔒 [STATUS] Re-locking FAB to Phase ${currentPhase} after status update`);
+      setIsMapViewLocked(true);
+      lastProgrammaticMapMoveRef.current = Date.now();
+      window._lastProgrammaticMapMove = Date.now();
+      setMapViewTrigger((prev) => prev + 1);
+      // No timer - will unlock when user pans/zooms map
 
       // CRITICAL: Scroll to next delivery card after status update (completion)
       if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
