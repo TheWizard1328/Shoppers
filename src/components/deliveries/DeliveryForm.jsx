@@ -3692,7 +3692,7 @@ export default function DeliveryForm({
                                 type="button"
                                 size="sm"
                                 variant="ghost"
-                                className="h-5 w-5 p-0 text-red-600 flex-shrink-0"
+                                className="h-6 w-6 p-0 flex-shrink-0 bg-red-600 hover:bg-red-700 text-white rounded"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   if (staged.id) {
@@ -3710,7 +3710,7 @@ export default function DeliveryForm({
                                     setPredictionTrigger((prev) => prev + 1);
                                   }
                                 }}>
-                                <Trash2 className="w-3 h-3" />
+                                <Trash2 className="w-4 h-4" />
                               </Button>
                             </div>
                             {/* Second row: Address on left, badges on right */}
@@ -3768,11 +3768,11 @@ export default function DeliveryForm({
                               type="button"
                               size="sm"
                               variant="ghost"
-                              className="h-5 w-5 p-0 flex-shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white"
+                              className="h-6 w-6 p-0 flex-shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white rounded"
                               onClick={() => confirmAddProjectedToStaged(projected)}
                               title="Add to route">
 
-                              <Plus className="w-3 h-3" />
+                              <Plus className="w-4 h-4" />
                             </Button>
                           </div>);
 
@@ -3878,7 +3878,7 @@ export default function DeliveryForm({
                                 type="button"
                                 size="sm"
                                 variant="ghost"
-                                className="h-5 w-5 p-0 text-red-600 flex-shrink-0"
+                                className="h-6 w-6 p-0 flex-shrink-0 bg-red-600 hover:bg-red-700 text-white rounded"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   if (staged.id) {
@@ -3896,7 +3896,7 @@ export default function DeliveryForm({
                                     setPredictionTrigger((prev) => prev + 1);
                                   }
                                 }}>
-                                <Trash2 className="w-3 h-3" />
+                                <Trash2 className="w-4 h-4" />
                               </Button>
                             </div>
                             {/* Second row: Address on left, badges on right */}
