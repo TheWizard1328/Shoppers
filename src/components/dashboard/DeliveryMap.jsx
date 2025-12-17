@@ -1593,16 +1593,12 @@ export default function DeliveryMap({
     
     const mapInstance = useMapEvents({
       zoomstart: () => {
-        const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
-        if (timeSinceProgrammatic > 1000) {
-          if (onMapInteraction) onMapInteraction();
-        }
+        // Always call onMapInteraction - Dashboard will handle programmatic vs manual detection
+        if (onMapInteraction) onMapInteraction();
       },
       movestart: () => {
-        const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
-        if (timeSinceProgrammatic > 1000) {
-          if (onMapInteraction) onMapInteraction();
-        }
+        // Always call onMapInteraction - Dashboard will handle programmatic vs manual detection
+        if (onMapInteraction) onMapInteraction();
       },
       zoomend: () => {
         const rawZoom = mapInstance.getZoom();
