@@ -3207,36 +3207,44 @@ function Dashboard() {
             }
           }
 
-          // CRITICAL: Run route optimizer to properly sequence new deliveries after their pickups
-          try {
-            console.log('🔄 [AddToRoute] Running route optimizer...');
-            const driverAppUser = appUsers.find(u => u && u.user_id === driverId);
-            const currentLocation = driverAppUser?.current_latitude && driverAppUser?.current_longitude ? {
-              lat: driverAppUser.current_latitude,
-              lng: driverAppUser.current_longitude
-            } : null;
+          // CRITICAL: Only run route optimizer if there are in_transit deliveries
+          const hasInTransitDeliveries = stopsToProcess.some(s => 
+            s && (s.status === 'in_transit' || s.status === 'en_route')
+          );
+          
+          if (hasInTransitDeliveries) {
+            try {
+              console.log('🔄 [AddToRoute] Running route optimizer (has in-transit deliveries)...');
+              const driverAppUser = appUsers.find(u => u && u.user_id === driverId);
+              const currentLocation = driverAppUser?.current_latitude && driverAppUser?.current_longitude ? {
+                lat: driverAppUser.current_latitude,
+                lng: driverAppUser.current_longitude
+              } : null;
 
-            const response = await base44.functions.invoke('optimizeRouteRealTime', {
-              driverId: driverId,
-              deliveryDate: deliveryDate,
-              startLocation: currentLocation
-            });
-            const data = response?.data || response;
-            if (data?.success && data?.durationUpdates) {
-              console.log(`✅ [AddToRoute] Received ${data.durationUpdates.length} ETA updates from backend`);
-              
-              // CRITICAL: Update ETAs immediately using the backend response
-              for (const update of data.durationUpdates) {
-                await updateDeliveryLocal(update.deliveryId, {
-                  delivery_time_eta: update.eta,
-                  stop_order: update.newOrder
-                });
-                console.log(`  ✅ Updated ${update.delivery_id}: ETA=${update.eta}, order=${update.newOrder}`);
+              const response = await base44.functions.invoke('optimizeRouteRealTime', {
+                driverId: driverId,
+                deliveryDate: deliveryDate,
+                startLocation: currentLocation
+              });
+              const data = response?.data || response;
+              if (data?.success && data?.durationUpdates) {
+                console.log(`✅ [AddToRoute] Received ${data.durationUpdates.length} ETA updates from backend`);
+                
+                // CRITICAL: Update ETAs immediately using the backend response
+                for (const update of data.durationUpdates) {
+                  await updateDeliveryLocal(update.deliveryId, {
+                    delivery_time_eta: update.eta,
+                    stop_order: update.newOrder
+                  });
+                  console.log(`  ✅ Updated ${update.delivery_id}: ETA=${update.eta}, order=${update.newOrder}`);
+                }
               }
+              console.log('✅ [AddToRoute] Route optimization complete');
+            } catch (optimizeError) {
+              console.warn('⚠️ [AddToRoute] Route optimization failed:', optimizeError);
             }
-            console.log('✅ [AddToRoute] Route optimization complete');
-          } catch (optimizeError) {
-            console.warn('⚠️ [AddToRoute] Route optimization failed:', optimizeError);
+          } else {
+            console.log('⏸️ [AddToRoute] Skipping route optimizer - no in-transit deliveries');
           }
 
           // Update isNextDelivery flags after optimization
