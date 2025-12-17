@@ -1625,15 +1625,16 @@ export default function DeliveryForm({
       hasId: !!s.id
     })));
 
-    // CRITICAL: Stop prediction manager when Done button is clicked
+    // CRITICAL: Stop prediction manager COMPLETELY when Done button is clicked
     console.log('⏸️ [DeliveryForm] Stopping delivery prediction manager...');
-    setIsLoadingPredictions(true);
-    setProjectedDeliveries([]);
+    setIsLoadingPredictions(true); // Block predictions immediately
+    setProjectedDeliveries([]); // Clear projections
 
     if (stagedDeliveries.length === 0 && !hasPendingDeletes) {
       console.warn('[AddToRoute] ⚠️ No staged deliveries to save');
       hasLoadedPending.current = false; // Reset flag when closing without saves
-      setIsLoadingPredictions(false); // Resume predictions
+      // Don't resume predictions - we're closing the form
+      onCancel(); // Close form immediately
       return;
     }
     
@@ -1645,6 +1646,7 @@ export default function DeliveryForm({
       setHasPendingDeletes(false);
       setHasChanges(false);
       hasLoadedPending.current = false;
+      setIsLoadingPredictions(true); // Keep predictions blocked
       onCancel();
       return;
     }
@@ -1685,6 +1687,7 @@ export default function DeliveryForm({
       setStagedDeliveries([]);
       setProjectedDeliveries([]);
       hasLoadedPending.current = false;
+      setIsLoadingPredictions(true); // Keep predictions blocked
       onCancel();
       return;
     }
@@ -1940,16 +1943,17 @@ export default function DeliveryForm({
       setHasPendingDeletes(false); // Reset pending deletes flag
       setHasChanges(false); // Reset changes flag
       hasLoadedPending.current = false; // Reset flag to allow reload
+      setIsLoadingPredictions(true); // Keep predictions blocked permanently when closing
       console.log('[AddToRoute] ✅ Staged deliveries cleared');
       
       onCancel(); // Always close after successful batch save
     } catch (err) {
       console.error('[AddToRoute] ❌ Batch save error:', err);
       setError(`Failed to save: ${err.message || 'Unknown error'}`);
-      setIsLoadingPredictions(false); // Resume predictions on error
+      // Don't resume predictions on error - form is still open
     } finally {
       setIsSaving(false);
-      setIsLoadingPredictions(false); // Resume predictions after completion
+      // Don't resume predictions here - form is closing or errored
     }
   }, [stagedDeliveries, onSave, onCancel, allDeliveries, formData.delivery_date, formData.driver_id, editingStagedId]);
 
