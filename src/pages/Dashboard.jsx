@@ -3222,14 +3222,16 @@ function Dashboard() {
               startLocation: currentLocation
             });
             const data = response?.data || response;
-            if (data?.success && data?.optimizedRoute) {
-              const now = new Date();
-              let cumulativeMinutes = now.getHours() * 60 + now.getMinutes();
-              for (const stop of data.optimizedRoute) {
-                cumulativeMinutes += stop.travelMinutes;
-                const eta = `${String(Math.floor(cumulativeMinutes / 60) % 24).padStart(2, '0')}:${String(cumulativeMinutes % 60).padStart(2, '0')}`;
-                await base44.entities.Delivery.update(stop.deliveryId, { delivery_time_eta: eta });
-                cumulativeMinutes += stop.serviceMinutes;
+            if (data?.success && data?.durationUpdates) {
+              console.log(`✅ [AddToRoute] Received ${data.durationUpdates.length} ETA updates from backend`);
+              
+              // CRITICAL: Update ETAs immediately using the backend response
+              for (const update of data.durationUpdates) {
+                await updateDeliveryLocal(update.deliveryId, {
+                  delivery_time_eta: update.eta,
+                  stop_order: update.newOrder
+                });
+                console.log(`  ✅ Updated ${update.delivery_id}: ETA=${update.eta}, order=${update.newOrder}`);
               }
             }
             console.log('✅ [AddToRoute] Route optimization complete');
