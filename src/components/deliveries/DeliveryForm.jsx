@@ -3835,53 +3835,67 @@ export default function DeliveryForm({
                       const stagedStore = stores?.find((s) => s && s.id === staged.store_id);
                       const storeColor = stagedStore ? getStoreColor(stagedStore) : '#64748b';
                       const fadedBgColor = hexToRgba(storeColor, 0.1);
-                      const isPendingStop = !!staged.id;
 
                       return (
                         <div
                           key={staged._tempId}
-                          className={`flex flex-col p-2 rounded border text-xs cursor-pointer transition-colors ${editingStagedId === staged._tempId ? 'border-blue-300' : 'hover:bg-slate-50'}`
-                          }
+                          className={`flex p-2 rounded border text-xs cursor-pointer transition-colors ${editingStagedId === staged._tempId ? 'border-blue-300' : 'hover:bg-slate-50'}`}
                           style={{
                             backgroundColor: editingStagedId === staged._tempId ? hexToRgba(storeColor, 0.2) : fadedBgColor
                           }}
                           onClick={() => handleStagedDeliveryClick(staged)}>
 
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1 min-w-0">
-                                <div className="font-medium flex items-center gap-1.5 min-w-0 w-full">
-                                  <span className="truncate flex-shrink min-w-0">{staged.patient_name}</span>
-                                  <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
-                                    {staged.store_abbreviation && shouldShowStoreBadges(currentUser) &&
-                                  <Badge
-                                    className="text-white text-[10px] px-1.5 py-0 h-4"
-                                    style={{ backgroundColor: storeColor }}>
-                                        {staged.store_abbreviation}
-                                      </Badge>
+                            {/* Left: Two rows of content */}
+                            <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                              {/* Row 1: Name, Store badge, Distance badge */}
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-medium truncate flex-1 min-w-0">{staged.patient_name}</span>
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                  {staged.store_abbreviation && shouldShowStoreBadges(currentUser) &&
+                                    <Badge className="text-white text-[10px] px-1.5 py-0 h-4" style={{ backgroundColor: storeColor }}>
+                                      {staged.store_abbreviation}
+                                    </Badge>
                                   }
-                                    {staged.distanceFromStore !== null &&
-                                  <Badge
-                                    className="text-white text-[10px] px-1.5 py-0 h-4"
-                                    style={{
-                                      backgroundColor: staged.distanceFromStore <= 10 ? '#10b981' :
-                                      staged.distanceFromStore <= 15 ? '#f59e0b' : '#ef4444'
-                                    }}>
-                                        {staged.distanceFromStore.toFixed(1)} km
-                                      </Badge>
+                                  {staged.distanceFromStore !== null &&
+                                    <Badge
+                                      className="text-white text-[10px] px-1.5 py-0 h-4"
+                                      style={{
+                                        backgroundColor: staged.distanceFromStore <= 10 ? '#10b981' :
+                                          staged.distanceFromStore <= 15 ? '#f59e0b' : '#ef4444'
+                                      }}>
+                                      {staged.distanceFromStore.toFixed(1)} km
+                                    </Badge>
                                   }
-                                    {staged.ampm_deliveries &&
-                                  <Badge className={`text-[10px] px-1.5 py-0 h-4 ${staged.ampm_deliveries === 'AM' ? 'bg-sky-100 text-sky-700 rounded-full' : 'bg-indigo-100 text-indigo-700 rounded-lg'}`}>
-                                        {staged.ampm_deliveries}
-                                      </Badge>
-                                  }
-                                  </div>
                                 </div>
                               </div>
-                              <Button
+                              {/* Row 2: Address, Special flags, AM/PM badge */}
+                              <div className="flex items-center gap-1">
+                                <div className="truncate flex-1 min-w-0" style={{ color: 'var(--text-slate-500)' }}>{staged.delivery_address}</div>
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                  {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed) &&
+                                    <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold">
+                                      {staged.cod_total_amount_required > 0 && '$'}
+                                      {staged.first_delivery && (staged.cod_total_amount_required > 0 ? ' N' : 'N')}
+                                      {staged.oversized && (staged.cod_total_amount_required > 0 || staged.first_delivery ? ' O' : 'O')}
+                                      {staged.fridge_item && (staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized ? ' F' : 'F')}
+                                      {staged.signature_needed && (staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item ? ' S' : 'S')}
+                                    </Badge>
+                                  }
+                                  {staged.ampm_deliveries &&
+                                    <Badge className={`text-[10px] px-1.5 py-0 h-4 ${staged.ampm_deliveries === 'AM' ? 'bg-sky-100 text-sky-700 rounded-full' : 'bg-indigo-100 text-indigo-700 rounded-lg'}`}>
+                                      {staged.ampm_deliveries}
+                                    </Badge>
+                                  }
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Right: Trash button isolated */}
+                            <Button
                               type="button"
                               size="sm"
                               variant="ghost"
-                              className="h-7 w-7 p-0 flex-shrink-0 bg-red-600 hover:bg-red-700 text-white rounded"
+                              className="h-7 w-7 p-0 flex-shrink-0 bg-red-600 hover:bg-red-700 text-white rounded ml-1"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 if (staged.id) {
@@ -3895,26 +3909,11 @@ export default function DeliveryForm({
                                     setEditingStagedId(null);
                                     handleClearForm();
                                   }
-                                  // Trigger projections refresh after removing staged item
                                   setPredictionTrigger((prev) => prev + 1);
                                 }
                               }}>
-                                <Trash2 className="w-5 h-5" />
-                              </Button>
-                            </div>
-                            {/* Second row: Address on left, special flags on right */}
-                            <div className="flex items-center justify-between">
-                              <div className="truncate flex-1 min-w-0" style={{ color: 'var(--text-slate-500)' }}>{staged.delivery_address}</div>
-                              {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed) &&
-                            <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold flex-shrink-0 ml-1">
-                                  {staged.cod_total_amount_required > 0 && '$'}
-                                  {staged.first_delivery && (staged.cod_total_amount_required > 0 ? ' N' : 'N')}
-                                  {staged.oversized && (staged.cod_total_amount_required > 0 || staged.first_delivery ? ' O' : 'O')}
-                                  {staged.fridge_item && (staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized ? ' F' : 'F')}
-                                  {staged.signature_needed && (staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item ? ' S' : 'S')}
-                                </Badge>
-                            }
-                            </div>
+                              <Trash2 className="w-5 h-5" />
+                            </Button>
                           </div>);
 
                     })}
@@ -3926,32 +3925,36 @@ export default function DeliveryForm({
                       return (
                         <div
                           key={`proj-${projected.patient_id}`}
-                          className="flex items-start justify-between p-2 rounded border border-yellow-400 bg-yellow-50 text-xs transition-colors">
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium flex items-center gap-1.5 min-w-0 w-full text-slate-900">
-                                <span className="truncate flex-shrink min-w-0">{projected.patient_name}</span>
-                                <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
+                          className="flex p-2 rounded border border-yellow-400 bg-yellow-50 text-xs transition-colors">
+
+                            {/* Left: Two rows of content */}
+                            <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                              {/* Row 1: Name, Store badge, Projection badge */}
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-medium truncate flex-1 min-w-0 text-slate-900">{projected.patient_name}</span>
+                                <div className="flex items-center gap-1 flex-shrink-0">
                                   {projectedStore?.abbreviation && shouldShowStoreBadges(currentUser) &&
-                                <Badge
-                                  className="text-white text-[10px] px-1.5 py-0 h-4"
-                                  style={{ backgroundColor: storeColor }}>
+                                    <Badge className="text-white text-[10px] px-1.5 py-0 h-4" style={{ backgroundColor: storeColor }}>
                                       {projectedStore.abbreviation}
                                     </Badge>
-                                }
+                                  }
                                   <Badge className="bg-yellow-500 text-white text-[10px] px-1.5 py-0 h-4">PROJ</Badge>
                                 </div>
                               </div>
-                              <div className="text-slate-600 text-[10px] mt-0.5 truncate">{projected.reason}</div>
+                              {/* Row 2: Address (reason) */}
+                              <div className="truncate text-slate-600 text-[10px]">{projected.reason}</div>
                             </div>
+
+                            {/* Right: Plus button isolated */}
                             <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 w-6 p-0 flex-shrink-0 rounded"
-                            style={{ backgroundColor: '#059669', color: '#ffffff' }}
-                            onClick={() => confirmAddProjectedToStaged(projected)}
-                            title="Add to route">
-                              <Plus className="w-4 h-4" />
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0 flex-shrink-0 rounded ml-1"
+                              style={{ backgroundColor: '#059669', color: '#ffffff' }}
+                              onClick={() => confirmAddProjectedToStaged(projected)}
+                              title="Add to route">
+                              <Plus className="w-5 h-5" />
                             </Button>
                           </div>);
 
