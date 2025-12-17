@@ -3692,7 +3692,7 @@ export default function DeliveryForm({
                                 type="button"
                                 size="sm"
                                 variant="ghost"
-                                className="h-6 w-6 p-0 flex-shrink-0 bg-red-600 hover:bg-red-700 text-white rounded"
+                                className="h-7 w-7 p-0 flex-shrink-0 bg-red-600 hover:bg-red-700 text-white rounded"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   if (staged.id) {
@@ -3710,29 +3710,27 @@ export default function DeliveryForm({
                                     setPredictionTrigger((prev) => prev + 1);
                                   }
                                 }}>
-                                <Trash2 className="w-4 h-4" />
+                                <Trash2 className="w-5 h-5" />
                               </Button>
                             </div>
-                            {/* Second row: Address on left, badges on right */}
+                            {/* Second row: Address on left, AM/PM badge aligned right */}
                             <div className="flex items-center justify-between">
-                              <div className="truncate flex-1 min-w-0" style={{ color: 'var(--text-slate-500)' }}>{staged.delivery_address}</div>
-                              {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed || staged.ampm_deliveries) &&
-                                <div className="flex items-center gap-1 flex-shrink-0 ml-1">
-                                  {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed) &&
-                                    <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold">
-                                      {staged.cod_total_amount_required > 0 && '$'}
-                                      {staged.first_delivery && (staged.cod_total_amount_required > 0 ? ' N' : 'N')}
-                                      {staged.oversized && (staged.cod_total_amount_required > 0 || staged.first_delivery ? ' O' : 'O')}
-                                      {staged.fridge_item && (staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized ? ' F' : 'F')}
-                                      {staged.signature_needed && (staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item ? ' S' : 'S')}
-                                    </Badge>
-                                  }
-                                  {staged.ampm_deliveries &&
-                                    <Badge className={`text-[10px] px-1.5 py-0 h-4 ${staged.ampm_deliveries === 'AM' ? 'bg-sky-100 text-sky-700 rounded-full' : 'bg-indigo-100 text-indigo-700 rounded-lg'}`}>
-                                      {staged.ampm_deliveries}
-                                    </Badge>
-                                  }
-                                </div>
+                              <div className="flex items-center gap-1 flex-1 min-w-0">
+                                <div className="truncate min-w-0" style={{ color: 'var(--text-slate-500)' }}>{staged.delivery_address}</div>
+                                {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed) &&
+                                  <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold flex-shrink-0">
+                                    {staged.cod_total_amount_required > 0 && '$'}
+                                    {staged.first_delivery && (staged.cod_total_amount_required > 0 ? ' N' : 'N')}
+                                    {staged.oversized && (staged.cod_total_amount_required > 0 || staged.first_delivery ? ' O' : 'O')}
+                                    {staged.fridge_item && (staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized ? ' F' : 'F')}
+                                    {staged.signature_needed && (staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item ? ' S' : 'S')}
+                                  </Badge>
+                                }
+                              </div>
+                              {staged.ampm_deliveries &&
+                                <Badge className={`text-[10px] px-1.5 py-0 h-4 flex-shrink-0 ml-1 ${staged.ampm_deliveries === 'AM' ? 'bg-sky-100 text-sky-700 rounded-full' : 'bg-indigo-100 text-indigo-700 rounded-lg'}`}>
+                                  {staged.ampm_deliveries}
+                                </Badge>
                               }
                             </div>
                           </div>);
@@ -3878,7 +3876,7 @@ export default function DeliveryForm({
                                 type="button"
                                 size="sm"
                                 variant="ghost"
-                                className="h-6 w-6 p-0 flex-shrink-0 bg-red-600 hover:bg-red-700 text-white rounded"
+                                className="h-7 w-7 p-0 flex-shrink-0 bg-red-600 hover:bg-red-700 text-white rounded"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   if (staged.id) {
@@ -3896,29 +3894,27 @@ export default function DeliveryForm({
                                     setPredictionTrigger((prev) => prev + 1);
                                   }
                                 }}>
-                                <Trash2 className="w-4 h-4" />
+                                <Trash2 className="w-5 h-5" />
                               </Button>
                             </div>
-                            {/* Second row: Address on left, badges on right */}
+                            {/* Second row: Address on left, AM/PM badge aligned right */}
                             <div className="flex items-center justify-between">
-                              <div className="truncate flex-1 min-w-0" style={{ color: 'var(--text-slate-500)' }}>{staged.delivery_address}</div>
-                              {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed || staged.ampm_deliveries) &&
-                                <div className="flex items-center gap-1 flex-shrink-0 ml-1">
-                                  {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed) &&
-                                    <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold">
-                                      {staged.cod_total_amount_required > 0 && '$'}
-                                      {staged.first_delivery && (staged.cod_total_amount_required > 0 ? ' N' : 'N')}
-                                      {staged.oversized && (staged.cod_total_amount_required > 0 || staged.first_delivery ? ' O' : 'O')}
-                                      {staged.fridge_item && (staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized ? ' F' : 'F')}
-                                      {staged.signature_needed && (staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item ? ' S' : 'S')}
-                                    </Badge>
-                                  }
-                                  {staged.ampm_deliveries &&
-                                    <Badge className={`text-[10px] px-1.5 py-0 h-4 ${staged.ampm_deliveries === 'AM' ? 'bg-sky-100 text-sky-700 rounded-full' : 'bg-indigo-100 text-indigo-700 rounded-lg'}`}>
-                                      {staged.ampm_deliveries}
-                                    </Badge>
-                                  }
-                                </div>
+                              <div className="flex items-center gap-1 flex-1 min-w-0">
+                                <div className="truncate min-w-0" style={{ color: 'var(--text-slate-500)' }}>{staged.delivery_address}</div>
+                                {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed) &&
+                                  <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold flex-shrink-0">
+                                    {staged.cod_total_amount_required > 0 && '$'}
+                                    {staged.first_delivery && (staged.cod_total_amount_required > 0 ? ' N' : 'N')}
+                                    {staged.oversized && (staged.cod_total_amount_required > 0 || staged.first_delivery ? ' O' : 'O')}
+                                    {staged.fridge_item && (staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized ? ' F' : 'F')}
+                                    {staged.signature_needed && (staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item ? ' S' : 'S')}
+                                  </Badge>
+                                }
+                              </div>
+                              {staged.ampm_deliveries &&
+                                <Badge className={`text-[10px] px-1.5 py-0 h-4 flex-shrink-0 ml-1 ${staged.ampm_deliveries === 'AM' ? 'bg-sky-100 text-sky-700 rounded-full' : 'bg-indigo-100 text-indigo-700 rounded-lg'}`}>
+                                  {staged.ampm_deliveries}
+                                </Badge>
                               }
                             </div>
                           </div>);
