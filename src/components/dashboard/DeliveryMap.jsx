@@ -1064,6 +1064,7 @@ export default function DeliveryMap({
       if (onMapInteraction) onMapInteraction();
       
       if (fannedLocationKey === locationKey) {
+        // Already fanned - clicking again should select the marker
         setFannedLocationKey(null);
         if (onMarkerClick) onMarkerClick(marker);
         return;
@@ -1088,7 +1089,6 @@ export default function DeliveryMap({
       });
       
       if (map) {
-        
         // Center on original cluster location with padding for stop cards
         const fitOptions = { 
           paddingTopLeft: [80, 80],
@@ -1113,7 +1113,7 @@ export default function DeliveryMap({
         setFannedLocationKey(locationKey);
       }
       
-      // Don't call onMarkerClick when fanning - only when already fanned
+      // Don't call onMarkerClick when first clicking cluster - only when already fanned
       return;
     }
     
