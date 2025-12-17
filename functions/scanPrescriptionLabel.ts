@@ -21,23 +21,69 @@ Deno.serve(async (req) => {
 
     console.log('📸 [scanPrescriptionLabel] Processing image...');
 
-    // Extract data using Vision LLM
+    // Extract data using Vision LLM with retry logic
     console.log('🔍 [scanPrescriptionLabel] Extracting data from image using Vision LLM...');
-    const extractionResult = await base44.integrations.Core.InvokeLLM({
-      prompt: "From the image of the prescription label, extract the patient's full name, street address, city, state, zip code, and phone number. If a piece of information is not present or clearly readable, return it as null. Focus only on information directly related to the patient's delivery address and contact.",
-      response_json_schema: {
-        type: "object",
-        properties: {
-          patient_name: { type: "string" },
-          street_address: { type: "string" },
-          city: { type: "string" },
-          state: { type: "string" },
-          zip_code: { type: "string" },
-          phone_number: { type: "string" }
+    
+    let extractionResult = null;
+    let lastError = null;
+    
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        console.log(`🔄 [scanPrescriptionLabel] Attempt ${attempt}...`);
+        
+        // First, get raw text extraction without JSON schema (more reliable)
+        const textExtraction = await base44.integrations.Core.InvokeLLM({
+          prompt: `Look at this prescription label image and extract the following information. Return ONLY a valid JSON object with these exact keys, no other text:
+{
+  "patient_name": "the patient's full name or null if not found",
+  "street_address": "the street address or null if not found", 
+  "city": "the city or null if not found",
+  "state": "the state/province or null if not found",
+  "zip_code": "the zip/postal code or null if not found",
+  "phone_number": "the phone number or null if not found"
+}
+
+If you cannot read the image or find no relevant information, return: {"patient_name": null, "street_address": null, "city": null, "state": null, "zip_code": null, "phone_number": null}`,
+          file_urls: [imageSource]
+        });
+        
+        console.log('📄 [scanPrescriptionLabel] Raw LLM response:', textExtraction);
+        
+        // Parse the response - it should be a string containing JSON
+        if (typeof textExtraction === 'string') {
+          // Try to extract JSON from the response
+          const jsonMatch = textExtraction.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            extractionResult = JSON.parse(jsonMatch[0]);
+          } else {
+            throw new Error('No JSON found in LLM response');
+          }
+        } else if (typeof textExtraction === 'object') {
+          extractionResult = textExtraction;
         }
-      },
-      file_urls: [imageSource]
-    });
+        
+        if (extractionResult) {
+          console.log('✅ [scanPrescriptionLabel] Successfully parsed extraction result');
+          break;
+        }
+      } catch (parseError) {
+        console.error(`❌ [scanPrescriptionLabel] Attempt ${attempt} failed:`, parseError.message);
+        lastError = parseError;
+        
+        if (attempt < 2) {
+          console.log('⏳ [scanPrescriptionLabel] Retrying...');
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+    }
+    
+    if (!extractionResult) {
+      console.error('❌ [scanPrescriptionLabel] All extraction attempts failed');
+      return Response.json({ 
+        error: 'Failed to extract data from image. The image may be unclear or not contain readable text.',
+        details: lastError?.message || 'LLM extraction failed'
+      }, { status: 400 });
+    }
 
     console.log('📊 [scanPrescriptionLabel] LLM extraction result:', extractionResult);
 
