@@ -809,7 +809,7 @@ export default function StopCard({
                         <MoreVertical className="w-3 h-3" />
                       </button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="z-[99999] text-base p-2 space-y-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                    <DropdownMenuContent align="end" className="z-[200] text-base p-2 space-y-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                       {nextAvailableStatuses.filter((s) => !['pending', 'Ready For Pickup'].includes(s)).map((status) => {
                       const isCompleteStatus = status === 'completed';
                       const isFailedStatus = status === 'failed' || status === 'cancelled';
@@ -1315,7 +1315,7 @@ export default function StopCard({
                                <SelectTrigger className="h-7 text-xs w-24" onClick={(e) => e.stopPropagation()} data-cod-select-index={index}>
                                  <SelectValue placeholder="Type" />
                                </SelectTrigger>
-                                <SelectContent onClick={(e) => e.stopPropagation()} className="z-[99999]">
+                                <SelectContent onClick={(e) => e.stopPropagation()} className="z-[200]">
                                   <SelectItem value="Cash">Cash</SelectItem>
                                   <SelectItem value="Debit">Debit</SelectItem>
                                   <SelectItem value="Credit">Credit</SelectItem>
@@ -2086,7 +2086,7 @@ export default function StopCard({
                             <MoreVertical className="w-4 h-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="p-1 rounded-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 min-w-[8rem] overflow-hidden border-2 shadow-md z-[99999]" sideOffset={5} onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
+                        <DropdownMenuContent align="end" className="p-1 rounded-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 min-w-[8rem] overflow-hidden border-2 shadow-md z-[200]" sideOffset={5} onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
                           {onEditDelivery && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                         <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEditDelivery(delivery);}}>
                               <Edit className="w-4 h-4 mr-2" />
