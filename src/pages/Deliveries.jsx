@@ -3107,29 +3107,42 @@ export default function DeliveriesPage() {
                   const deliveriesToDelete = driverFilteredDeliveries.filter(
                     (d) => d.delivery_date === dateStr && d.driver_id === driverId
                   );
-                  console.log(`🗑️ Deleting ${deliveriesToDelete.length} deliveries for ${dateStr}, driver ${driverId}`);
+                  console.log(`🗑️ [DeleteRoute] Deleting ${deliveriesToDelete.length} deliveries for ${dateStr}, driver ${driverId}`);
 
+                  // Step 1: Update local UI immediately (optimistic update)
+                  console.log('🗑️ [DeleteRoute] Step 1: Updating local UI...');
+                  setAllDeliveries((prev) => {
+                    const filtered = prev.filter((d) => !(d.delivery_date === dateStr && d.driver_id === driverId));
+                    console.log(`✅ [DeleteRoute] Local state: ${prev.length} → ${filtered.length}`);
+                    return filtered;
+                  });
+
+                  // Step 2: Delete from offline DB and sync to backend
+                  console.log('🗑️ [DeleteRoute] Step 2: Deleting from offline DB and backend...');
                   for (const delivery of deliveriesToDelete) {
-                    await base44.entities.Delivery.delete(delivery.id);
+                    await deleteDeliveryLocal(delivery.id);
                   }
+                  console.log(`✅ [DeleteRoute] Deleted ${deliveriesToDelete.length} deliveries from offline DB`);
 
+                  // Step 3: Invalidate cache
+                  console.log('🗑️ [DeleteRoute] Step 3: Invalidating cache...');
                   invalidate('Delivery');
 
-                  setAllDeliveries((prev) => prev.filter((d) =>
-                  !(d.delivery_date === dateStr && d.driver_id === driverId)
-                  ));
-
+                  // Step 4: Update Layout context
+                  console.log('🗑️ [DeleteRoute] Step 4: Updating Layout context...');
                   if (updateDeliveriesLocally) {
                     const remainingDeliveries = allDeliveries.filter((d) =>
-                    !(d.delivery_date === dateStr && d.driver_id === driverId)
+                      !(d.delivery_date === dateStr && d.driver_id === driverId)
                     );
-                    updateDeliveriesLocally(remainingDeliveries);
+                    updateDeliveriesLocally(remainingDeliveries, true);
                   }
 
-                  console.log(`✅ Route deleted successfully`);
+                  console.log(`✅ [DeleteRoute] Route deleted successfully`);
                 } catch (error) {
-                  console.error('Error deleting route:', error);
+                  console.error('❌ [DeleteRoute] Error:', error);
                   alert('Failed to delete route. Please try again.');
+                  // Revert optimistic update on error
+                  await loadData(true);
                 }
               }} />
             </div>
