@@ -54,7 +54,7 @@ const statusConfig = {
   'cancelled': { label: 'Cancelled', color: 'bg-red-100 text-red-800' }
 };
 
-// MOVED OUTSIDE COMPONENT: Define finished statuses as a constant
+// MOVED OUTSIDE COMPONENT: Define finished statuses as a constant (no 'returned' status)
 const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
 // Helper function to format time to 12-hour format with AM/PM
@@ -865,7 +865,7 @@ export default function StopCard({
                             try {
                               await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
 
-                              const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+                              const finishedStatuses = ['completed', 'failed', 'cancelled'];
                               const skipAutoCenter = !finishedStatuses.includes(status);
                               await onStatusUpdate(delivery.id, status, {}, skipAutoCenter);
 
@@ -1456,7 +1456,7 @@ export default function StopCard({
                           );
 
                           // Identify incomplete stops that come after the pickup and need to be pushed down
-                          const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+                          const finishedStatuses = ['completed', 'failed', 'cancelled'];
                           const incompleteAfterPickup = allDriverDeliveries.filter((d) =>
                             !finishedStatuses.includes(d.status) &&
                             (d.stop_order || 0) > pickupStopOrder
@@ -1811,7 +1811,7 @@ export default function StopCard({
                           {isRetrying ? <Loader2 className="w-3 h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-3 h-3 mr-1 !text-white" />}
                           <span className="text-white">Retry</span>
                         </Button> :
-                    delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'returned' && (
+                    delivery.status !== 'completed' && delivery.status !== 'cancelled' && (
                     isNextDelivery ?
                     <Button
                       onClick={async (e) => {
