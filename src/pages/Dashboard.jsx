@@ -1149,13 +1149,6 @@ function Dashboard() {
             
             // PHASE 2 LOCKED: Continuous re-centering (every location update)
             if (mapViewPhase === 2 && isMapViewLocked && nextStopCoordinates) {
-              // Check if user has manually interacted in last 10 seconds - if so, skip auto-recenter
-              const timeSinceUserInteraction = now - lastUserInteractionRef.current;
-              if (timeSinceUserInteraction < 10000) {
-                console.log('📍 [Phase 2 Auto] Skipping - user interacted recently');
-                return;
-              }
-              
               console.log('📍 [Phase 2 Auto] Re-centering on driver & next stop');
               
               // Mark as programmatic to prevent unlock
