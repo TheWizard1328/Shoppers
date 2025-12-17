@@ -59,25 +59,27 @@ const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 
 // Helper function to format time to 12-hour format with AM/PM
 const formatTime12Hour = (timeString) => {
-  if (!timeString) return '';
+  if (!timeString || timeString === '--:--') return '--:--';
 
   try {
     // Handle cases where timeString might include seconds or be an invalid format
-    const timeParts = timeString.split(':');
-    if (timeParts.length < 2) return timeString; // Not a valid HH:mm or HH:mm:ss
+    const timeParts = String(timeString).split(':');
+    if (timeParts.length < 2) return '--:--'; // Not a valid HH:mm or HH:mm:ss
 
     const hours = parseInt(timeParts[0], 10);
     const minutes = parseInt(timeParts[1], 10);
 
     if (isNaN(hours) || isNaN(minutes)) {
-      return timeString; // Return original if parsing fails
+      console.warn('[formatTime12Hour] Invalid time parts:', { timeString, hours, minutes });
+      return '--:--'; // Return placeholder if parsing fails
     }
 
     const period = hours >= 12 ? 'PM' : 'AM';
     const displayHours = hours % 12 || 12; // Convert 0 to 12 for midnight
     return `${displayHours}:${String(minutes).padStart(2, '0')} ${period}`;
   } catch (error) {
-    return timeString;
+    console.error('[formatTime12Hour] Error formatting time:', error, timeString);
+    return '--:--';
   }
 };
 
