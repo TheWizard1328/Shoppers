@@ -348,19 +348,13 @@ function Dashboard() {
       ? (isExpanded ? STATS_CARD_EXTENDED_HEIGHT + 10 : STATS_CARD_BASE_HEIGHT + 10) 
       : 140; // Desktop: account for stats card
     
-    // CRITICAL: Add 30px to top padding to match crosshair shift
-    const adjustedTopPadding = topPadding + 30;
-    
     const bottomPadding = isMobile 
-      ? (cardExpanded ? STOP_CARDS_EXPANDED_HEIGHT + 20 : STOP_CARDS_BASE_HEIGHT + 40)
+      ? (cardExpanded ? STOP_CARDS_EXPANDED_HEIGHT + 20 : STOP_CARDS_BASE_HEIGHT + 20)
       : (cardExpanded ? 500 : 160); // Desktop: account for stop cards
     
-    // CRITICAL: Subtract 30px from bottom padding to balance the top shift
-    const adjustedBottomPadding = Math.max(bottomPadding - 30, 20);
-    
     return {
-      paddingTopLeft: [25, adjustedTopPadding],
-      paddingBottomRight: [25, adjustedBottomPadding]
+      paddingTopLeft: [25, topPadding],
+      paddingBottomRight: [25, bottomPadding]
     };
   }, [isMobile, isExpanded, stopCardsBaseHeight, isDriver, driverLocation, selectedDate, mapViewPhase]);
 
