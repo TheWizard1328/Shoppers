@@ -1470,15 +1470,22 @@ export default function StopCard({
                           );
 
                           // Update pending stops with sequential stop orders right after pickup
+                          // CRITICAL: Set delivery_time_start to current time + 5 minutes when transitioning to in_transit
+                          const now = new Date();
+                          const currentMinutes = now.getHours() * 60 + now.getMinutes();
+                          const startMinutes = currentMinutes + 5;
+                          const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
+                          
                           for (let i = 0; i < sortedPending.length; i++) {
                             const pendingDelivery = sortedPending[i];
                             const newStopOrder = pickupStopOrder + i + 1;
                             
                             await updateDeliveryLocal(pendingDelivery.id, {
                               status: 'in_transit',
-                              stop_order: newStopOrder
+                              stop_order: newStopOrder,
+                              delivery_time_start: deliveryTimeStart
                             });
-                            console.log(`    ✅ ${pendingDelivery.patient_name} → in_transit, stop_order: ${newStopOrder}`);
+                            console.log(`    ✅ ${pendingDelivery.patient_name} → in_transit, stop_order: ${newStopOrder}, delivery_time_start: ${deliveryTimeStart}`);
                           }
 
                           // Push down incomplete stops that were after the pickup
@@ -1676,8 +1683,17 @@ export default function StopCard({
                                 // Assign the next sequential TR#
                                 const newTR = String(highestExistingTR + 1);
 
+                                // CRITICAL: Set delivery_time_start to current time + 5 minutes
+                                const now = new Date();
+                                const currentMinutes = now.getHours() * 60 + now.getMinutes();
+                                const startMinutes = currentMinutes + 5;
+                                const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
+
                                 // Update this single delivery to in_transit (don't touch isNextDelivery)
-                                await onStatusUpdate(projectedDelivery.id, 'in_transit', { tracking_number: newTR }, true);
+                                await onStatusUpdate(projectedDelivery.id, 'in_transit', { 
+                                  tracking_number: newTR,
+                                  delivery_time_start: deliveryTimeStart
+                                }, true);
 
                                 // Send notification message
                                 const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher');
@@ -1837,13 +1853,22 @@ export default function StopCard({
                             (a.patient_name || '').localeCompare(b.patient_name || '')
                             );
 
+                            // CRITICAL: Set delivery_time_start to current time + 5 minutes for all pending deliveries
+                            const now = new Date();
+                            const currentMinutes = now.getHours() * 60 + now.getMinutes();
+                            const startMinutes = currentMinutes + 5;
+                            const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
+
                             // Assign sequential TR#s starting after the highest existing TR#
                             for (let i = 0; i < sortedPendingWithoutTR.length; i++) {
                               const pendingDelivery = sortedPendingWithoutTR[i];
                               const newTR = String(highestExistingTR + i + 1);
 
-                              // Update with new tracking number AND status (skip auto-center), do NOT touch isNextDelivery
-                              await onStatusUpdate(pendingDelivery.id, 'in_transit', { tracking_number: newTR }, true);
+                              // Update with new tracking number AND status AND delivery_time_start (skip auto-center), do NOT touch isNextDelivery
+                              await onStatusUpdate(pendingDelivery.id, 'in_transit', { 
+                                tracking_number: newTR,
+                                delivery_time_start: deliveryTimeStart
+                              }, true);
                             }
 
                             // Now complete the pickup itself - let the backend optimizer handle next delivery selection
