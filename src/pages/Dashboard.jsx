@@ -1538,6 +1538,13 @@ function Dashboard() {
       return;
     }
 
+    // CRITICAL: Skip if mapViewTrigger hasn't changed (prevents re-running on lock state changes)
+    // This ensures map only repositions when FAB is clicked, not when lock state toggles
+    const triggerValue = mapViewTrigger;
+    if (triggerValue === 0) {
+      return;
+    }
+
     // Mark that this positioning is from a FAB interaction (prevents unlock on programmatic map moves)
     mapPositioningTriggerRef.current = 'fab';
     lastProgrammaticMapMoveRef.current = Date.now();
@@ -2018,48 +2025,10 @@ function Dashboard() {
     if (!setOnSmartRefreshComplete) return;
 
     const handleSmartRefreshComplete = () => {
-      // CRITICAL: Use ref to get current lock state (avoids stale closure)
-      const currentlyLocked = isMapViewLockedRef.current;
-
-      // CRITICAL: Only re-apply map view if:
-      // 1. Phase 2 is active
-      // 2. Map is LOCKED (blue FAB) - checked via ref for current value
-      // 3. We have driver location and next stop coordinates
-      if (mapViewPhase === 2 && currentlyLocked && isDriver && driverLocation && nextStopCoordinates) {
-
-        // Mark that we're doing a programmatic map move (debounces interaction handler for 500ms)
-        lastProgrammaticMapMoveRef.current = Date.now();
-        window._lastProgrammaticMapMove = Date.now();
-
-        const bounds = [
-        [driverLocation.latitude, driverLocation.longitude],
-        [nextStopCoordinates.lat, nextStopCoordinates.lon]];
-
-
-        // CRITICAL: Only include viewed user's home location if home IS the next stop
-        // For impersonation, use selectedDriverId to get the viewed user's home
-        const viewedUserSmartRefresh = selectedDriverId && selectedDriverId !== 'all' ?
-        users.find((u) => u && u.id === selectedDriverId) :
-        currentUser;
-
-        if (viewedUserSmartRefresh?.home_latitude && viewedUserSmartRefresh?.home_longitude) {
-          const isHomeNextStop =
-          Math.abs(nextStopCoordinates.lat - viewedUserSmartRefresh.home_latitude) < 0.0001 &&
-          Math.abs(nextStopCoordinates.lon - viewedUserSmartRefresh.home_longitude) < 0.0001;
-
-        }
-
-        const padding = getMapPadding(false);
-        setShouldFitBounds({
-          bounds,
-          options: {
-            ...padding,
-            maxZoom: 17
-          }
-        });
-        setMapCenter(null);
-        setMapZoom(null);
-      }
+      // CRITICAL: Smart refresh should NEVER reposition the map
+      // Map only repositions when FAB is clicked (mapViewTrigger changes)
+      // This prevents the map from re-centering during background refreshes
+      console.log('🔄 [Smart Refresh] Complete - skipping map reposition');
     };
 
     setOnSmartRefreshComplete(handleSmartRefreshComplete);
@@ -2067,7 +2036,7 @@ function Dashboard() {
     return () => {
       setOnSmartRefreshComplete(null);
     };
-  }, [setOnSmartRefreshComplete, mapViewPhase, isDriver, driverLocation, nextStopCoordinates, currentUser, getMapPadding]);
+  }, [setOnSmartRefreshComplete]);
 
   // Auto-center on next stop on initial load
   const hasAutoSelectedRef = useRef(false);
