@@ -1338,9 +1338,10 @@ export default function DeliveryForm({
 
   const isFormValid = useMemo(() => {
     if (delivery) return true;
+    // For new deliveries, driver is optional (can use "All Drivers" filter)
     if (isPickupMode) return selectedPickupOption !== '' && !!formData.delivery_date && !!formData.driver_id;
     return (!!formData.patient_id || !!formData.patient_name) && !!formData.store_id &&
-      !!formData.delivery_date && !!formData.driver_id && !isFormDisabled;
+      !!formData.delivery_date && !isFormDisabled;
   }, [formData, selectedPickupOption, isPickupMode, delivery, isFormDisabled]);
 
   const handleAddToStaging = useCallback(async () => {
@@ -2704,7 +2705,34 @@ export default function DeliveryForm({
   }, [stagedDeliveries, stores, formData.driver_id]);
 
   const sortedProjectedDeliveries = useMemo(() => {
-    return [...projectedDeliveries].sort((a, b) => {
+    let filtered = [...projectedDeliveries];
+
+    // Filter by driver if a specific driver is selected (match by store's assigned driver)
+    if (formData.driver_id && formData.driver_id !== '') {
+      filtered = filtered.filter(proj => {
+        const store = stores?.find(s => s && s.id === proj.store_id);
+        if (!store) return false;
+        
+        const deliveryDate = formData.delivery_date ? new Date(formData.delivery_date + 'T00:00:00') : new Date();
+        const dayOfWeek = deliveryDate.getDay();
+        
+        let amDriverId, pmDriverId;
+        if (dayOfWeek === 6) {
+          amDriverId = store.saturday_am_driver_id;
+          pmDriverId = store.saturday_pm_driver_id;
+        } else if (dayOfWeek === 0) {
+          amDriverId = store.sunday_am_driver_id;
+          pmDriverId = store.sunday_pm_driver_id;
+        } else {
+          amDriverId = store.weekday_am_driver_id;
+          pmDriverId = store.weekday_pm_driver_id;
+        }
+        
+        return amDriverId === formData.driver_id || pmDriverId === formData.driver_id;
+      });
+    }
+
+    return filtered.sort((a, b) => {
       const storeA = stores?.find((s) => s && s.id === a.store_id);
       const storeB = stores?.find((s) => s && s.id === b.store_id);
 
@@ -2718,7 +2746,7 @@ export default function DeliveryForm({
       // Then by patient name
       return (a.patient_name || '').localeCompare(b.patient_name || '');
     });
-  }, [projectedDeliveries, stores]);
+  }, [projectedDeliveries, stores, formData.driver_id, formData.delivery_date]);
 
 
   return (
@@ -2773,7 +2801,8 @@ export default function DeliveryForm({
                       variant={isPickupMode ? "default" : "outline"}
                       size="sm"
                       onClick={() => setIsPickupMode(true)}
-                      className={isPickupMode ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}>
+                      className={isPickupMode ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}
+                      style={!isPickupMode ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}>
                       Add Pickup
                     </Button>
                   </div>
@@ -3075,22 +3104,31 @@ export default function DeliveryForm({
 
                 {/* Section 3: Driver Selection - STATIC */}
                 <div className={`${useMobileLayout ? 'flex-1' : 'flex-1'} space-y-1 p-3 rounded-lg border`} style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver *</Label>
+                  <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Driver {delivery ? '*' : ''}</Label>
                   <Select
-                    value={formData.driver_id || ''}
+                    value={formData.driver_id || 'all'}
                     onValueChange={(driverId) => {
-                      const driver = allDrivers.find((d) => d.id === driverId);
-                      setFormData((prev) => ({
-                        ...prev,
-                        driver_id: driverId,
-                        driver_name: driver ? getDriverNameForStorage(driver) : ''
-                      }));
+                      if (driverId === 'all') {
+                        setFormData((prev) => ({
+                          ...prev,
+                          driver_id: '',
+                          driver_name: ''
+                        }));
+                      } else {
+                        const driver = allDrivers.find((d) => d.id === driverId);
+                        setFormData((prev) => ({
+                          ...prev,
+                          driver_id: driverId,
+                          driver_name: driver ? getDriverNameForStorage(driver) : ''
+                        }));
+                      }
                     }}
                     disabled={isSaving}>
                     <SelectTrigger className="h-9">
                       <SelectValue placeholder="Select driver" />
                     </SelectTrigger>
                     <SelectContent className="z-[999999]">
+                      {!delivery && <SelectItem value="all">All Drivers</SelectItem>}
                       {allDrivers.map((driver) =>
                         <SelectItem key={driver.id} value={driver.id}>
                           {getDriverDisplayName(driver)}
@@ -3677,7 +3715,7 @@ export default function DeliveryForm({
                             </div>
                             {/* Second row: Address on left, badges on right */}
                             <div className="flex items-center justify-between">
-                              <div className="text-slate-600 truncate flex-1 min-w-0">{staged.delivery_address}</div>
+                              <div className="truncate flex-1 min-w-0" style={{ color: 'var(--text-slate-500)' }}>{staged.delivery_address}</div>
                               {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed || staged.ampm_deliveries) &&
                                 <div className="flex items-center gap-1 flex-shrink-0 ml-1">
                                   {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed) &&
@@ -3711,7 +3749,7 @@ export default function DeliveryForm({
                             className="flex items-start justify-between p-2 rounded border border-yellow-400 bg-yellow-50 text-xs transition-colors">
 
                             <div className="flex-1 min-w-0">
-                              <div className="font-medium flex items-center gap-1.5 min-w-0 w-full">
+                              <div className="font-medium flex items-center gap-1.5 min-w-0 w-full text-slate-900">
                                 <span className="truncate flex-shrink min-w-0">{projected.patient_name}</span>
                                 <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
                                   {projectedStore?.abbreviation && shouldShowStoreBadges(currentUser) &&
@@ -3730,7 +3768,8 @@ export default function DeliveryForm({
                               type="button"
                               size="sm"
                               variant="ghost"
-                              className="h-5 w-5 p-0 text-emerald-600 flex-shrink-0 hover:bg-emerald-100"
+                              className="h-5 w-5 p-0 flex-shrink-0 hover:bg-emerald-100"
+                              style={{ color: '#059669' }}
                               onClick={() => confirmAddProjectedToStaged(projected)}
                               title="Add to route">
 
@@ -3761,7 +3800,8 @@ export default function DeliveryForm({
                       size="sm"
                       className="w-full mt-2 text-xs"
                       onClick={() => setPredictionTrigger((prev) => prev + 1)}
-                      disabled={isLoadingPredictions}>
+                      disabled={isLoadingPredictions}
+                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                       {isLoadingPredictions ? 'Analyzing...' : 'Refresh Projections'}
                     </Button>
                   </div>
@@ -3862,7 +3902,7 @@ export default function DeliveryForm({
                             </div>
                             {/* Second row: Address on left, badges on right */}
                             <div className="flex items-center justify-between">
-                              <div className="text-slate-600 truncate flex-1 min-w-0">{staged.delivery_address}</div>
+                              <div className="truncate flex-1 min-w-0" style={{ color: 'var(--text-slate-500)' }}>{staged.delivery_address}</div>
                               {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed || staged.ampm_deliveries) &&
                                 <div className="flex items-center gap-1 flex-shrink-0 ml-1">
                                   {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed) &&
@@ -3895,7 +3935,7 @@ export default function DeliveryForm({
                             key={`proj-${projected.patient_id}`}
                             className="flex items-start justify-between p-2 rounded border border-yellow-400 bg-yellow-50 text-xs transition-colors">
                             <div className="flex-1 min-w-0">
-                              <div className="font-medium flex items-center gap-1.5 min-w-0 w-full">
+                              <div className="font-medium flex items-center gap-1.5 min-w-0 w-full text-slate-900">
                                 <span className="truncate flex-shrink min-w-0">{projected.patient_name}</span>
                                 <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
                                   {projectedStore?.abbreviation && shouldShowStoreBadges(currentUser) &&
@@ -3944,7 +3984,8 @@ export default function DeliveryForm({
                       size="sm"
                       className="w-full mt-2 text-xs"
                       onClick={() => setPredictionTrigger((prev) => prev + 1)}
-                      disabled={isLoadingPredictions}>
+                      disabled={isLoadingPredictions}
+                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                       {isLoadingPredictions ? 'Analyzing...' : 'Refresh Projections'}
                     </Button>
                   </motion.div>
@@ -3961,7 +4002,8 @@ export default function DeliveryForm({
                   variant="outline"
                   size="sm"
                   onClick={() => setShowStagedPanel(!showStagedPanel)}
-                  className="gap-2">
+                  className="gap-2"
+                  style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                   <Package className="w-4 h-4" />
                   Staged: (S: {stagedDeliveries.length} P: {projectedDeliveries.length})
                 </Button>
@@ -3972,7 +4014,8 @@ export default function DeliveryForm({
                   variant="outline"
                   size="sm"
                   onClick={delivery ? handleCancelClick : cancelButtonState === 'clear' ? handleClearForm : handleCancelClick}
-                  disabled={isSaving || isPatientFormOpen}>
+                  disabled={isSaving || isPatientFormOpen}
+                  style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                   {delivery ? 'Cancel' : cancelButtonState === 'clear' ? 'Clear' : 'Cancel'}
                 </Button>
 
