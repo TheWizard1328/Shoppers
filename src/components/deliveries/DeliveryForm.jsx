@@ -3663,73 +3663,74 @@ export default function DeliveryForm({
                           }}
                           onClick={() => handleStagedDeliveryClick(staged)}>
 
-                            <div className="flex items-start justify-between">
+                            <div className="flex items-center justify-between">
                               <div className="flex-1 min-w-0">
                                 <div className="font-medium flex items-center gap-1.5 min-w-0 w-full">
                                   <span className="truncate flex-shrink min-w-0">{staged.patient_name}</span>
                                   <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
                                     {staged.store_abbreviation && shouldShowStoreBadges(currentUser) &&
-                                  <Badge
-                                    className="text-white text-[10px] px-1.5 py-0 h-4"
-                                    style={{ backgroundColor: storeColor }}>
+                                      <Badge
+                                        className="text-white text-[10px] px-1.5 py-0 h-4"
+                                        style={{ backgroundColor: storeColor }}>
                                         {staged.store_abbreviation}
                                       </Badge>
-                                  }
+                                    }
                                     {staged.distanceFromStore !== null &&
-                                  <Badge
-                                    className="text-white text-[10px] px-1.5 py-0 h-4"
-                                    style={{
-                                      backgroundColor: staged.distanceFromStore <= 10 ? '#10b981' :
-                                      staged.distanceFromStore <= 15 ? '#f59e0b' : '#ef4444'
-                                    }}>
+                                      <Badge
+                                        className="text-white text-[10px] px-1.5 py-0 h-4"
+                                        style={{
+                                          backgroundColor: staged.distanceFromStore <= 10 ? '#10b981' :
+                                            staged.distanceFromStore <= 15 ? '#f59e0b' : '#ef4444'
+                                        }}>
                                         {staged.distanceFromStore.toFixed(1)} km
                                       </Badge>
-                                  }
-                                    {staged.ampm_deliveries &&
-                                  <Badge className={`text-[10px] px-1.5 py-0 h-4 ${staged.ampm_deliveries === 'AM' ? 'bg-sky-100 text-sky-700 rounded-full' : 'bg-indigo-100 text-indigo-700 rounded-lg'}`}>
-                                        {staged.ampm_deliveries}
-                                      </Badge>
-                                  }
+                                    }
                                   </div>
                                 </div>
                               </div>
                               <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground text-xs h-8 w-8 p-0 flex-shrink-0 bg-red-600 hover:bg-red-700 text-white rounded"
-
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (staged.id) {
-                                  setDeleteConfirmation({ show: true, staged });
-                                } else {
-                                  if (staged._wasProjected && staged._originalProjected) {
-                                    setProjectedDeliveries((prev) => [...prev, staged._originalProjected]);
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 flex-shrink-0 bg-red-600 hover:bg-red-700 text-white rounded ml-1"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (staged.id) {
+                                    setDeleteConfirmation({ show: true, staged });
+                                  } else {
+                                    if (staged._wasProjected && staged._originalProjected) {
+                                      setProjectedDeliveries((prev) => [...prev, staged._originalProjected]);
+                                    }
+                                    setStagedDeliveries((prev) => prev.filter((item) => item._tempId !== staged._tempId));
+                                    if (editingStagedId === staged._tempId) {
+                                      setEditingStagedId(null);
+                                      handleClearForm();
+                                    }
+                                    setPredictionTrigger((prev) => prev + 1);
                                   }
-                                  setStagedDeliveries((prev) => prev.filter((item) => item._tempId !== staged._tempId));
-                                  if (editingStagedId === staged._tempId) {
-                                    setEditingStagedId(null);
-                                    handleClearForm();
-                                  }
-                                  // Trigger projections refresh after removing staged item
-                                  setPredictionTrigger((prev) => prev + 1);
-                                }
-                              }}>
+                                }}>
                                 <Trash2 className="w-5 h-5" />
                               </Button>
                             </div>
-                            {/* Second row: Address on left, special flags on right */}
-                            <div className="flex items-center justify-between">
+                            {/* Second row: Address and badges */}
+                            <div className="flex items-center justify-between -mt-0.5">
                               <div className="truncate flex-1 min-w-0" style={{ color: 'var(--text-slate-500)' }}>{staged.delivery_address}</div>
-                              {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed) &&
-                            <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold flex-shrink-0 ml-1">
-                                  {staged.cod_total_amount_required > 0 && '$'}
-                                  {staged.first_delivery && (staged.cod_total_amount_required > 0 ? ' N' : 'N')}
-                                  {staged.oversized && (staged.cod_total_amount_required > 0 || staged.first_delivery ? ' O' : 'O')}
-                                  {staged.fridge_item && (staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized ? ' F' : 'F')}
-                                  {staged.signature_needed && (staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item ? ' S' : 'S')}
-                                </Badge>
-                            }
+                              <div className="flex items-center gap-1 flex-shrink-0 ml-1">
+                                {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed) &&
+                                  <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold">
+                                    {staged.cod_total_amount_required > 0 && '$'}
+                                    {staged.first_delivery && (staged.cod_total_amount_required > 0 ? ' N' : 'N')}
+                                    {staged.oversized && (staged.cod_total_amount_required > 0 || staged.first_delivery ? ' O' : 'O')}
+                                    {staged.fridge_item && (staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized ? ' F' : 'F')}
+                                    {staged.signature_needed && (staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item ? ' S' : 'S')}
+                                  </Badge>
+                                }
+                                {staged.ampm_deliveries &&
+                                  <Badge className={`text-[10px] px-1.5 py-0 h-4 ${staged.ampm_deliveries === 'AM' ? 'bg-sky-100 text-sky-700 rounded-full' : 'bg-indigo-100 text-indigo-700 rounded-lg'}`}>
+                                    {staged.ampm_deliveries}
+                                  </Badge>
+                                }
+                              </div>
                             </div>
                           </div>);
 
