@@ -3204,30 +3204,43 @@ export default function DeliveriesPage() {
                     const deliveriesToDelete = driverFilteredDeliveries.filter(
                       (d) => d.delivery_date === dateStr && d.driver_id === driverId
                     );
-                    console.log(`🗑️ Deleting ${deliveriesToDelete.length} deliveries for ${dateStr}, driver ${driverId}`);
+                    console.log(`🗑️ [DeleteRoute-Mobile] Deleting ${deliveriesToDelete.length} deliveries for ${dateStr}, driver ${driverId}`);
 
+                    // Step 1: Update local UI immediately (optimistic update)
+                    console.log('🗑️ [DeleteRoute-Mobile] Step 1: Updating local UI...');
+                    setAllDeliveries((prev) => {
+                      const filtered = prev.filter((d) => !(d.delivery_date === dateStr && d.driver_id === driverId));
+                      console.log(`✅ [DeleteRoute-Mobile] Local state: ${prev.length} → ${filtered.length}`);
+                      return filtered;
+                    });
+
+                    // Step 2: Delete from offline DB and sync to backend
+                    console.log('🗑️ [DeleteRoute-Mobile] Step 2: Deleting from offline DB and backend...');
                     for (const delivery of deliveriesToDelete) {
                       await deleteDeliveryLocal(delivery.id);
                     }
+                    console.log(`✅ [DeleteRoute-Mobile] Deleted ${deliveriesToDelete.length} deliveries from offline DB`);
 
+                    // Step 3: Invalidate cache
+                    console.log('🗑️ [DeleteRoute-Mobile] Step 3: Invalidating cache...');
                     invalidate('Delivery');
 
-                    setAllDeliveries((prev) => prev.filter((d) =>
-                    !(d.delivery_date === dateStr && d.driver_id === driverId)
-                    ));
-
+                    // Step 4: Update Layout context
+                    console.log('🗑️ [DeleteRoute-Mobile] Step 4: Updating Layout context...');
                     if (updateDeliveriesLocally) {
                       const remainingDeliveries = allDeliveries.filter((d) =>
-                      !(d.delivery_date === dateStr && d.driver_id === driverId)
+                        !(d.delivery_date === dateStr && d.driver_id === driverId)
                       );
-                      updateDeliveriesLocally(remainingDeliveries);
+                      updateDeliveriesLocally(remainingDeliveries, true);
                     }
 
                     setIsMobileMenuOpen(false);
-                    console.log(`✅ Route deleted successfully`);
+                    console.log(`✅ [DeleteRoute-Mobile] Route deleted successfully`);
                   } catch (error) {
-                    console.error('Error deleting route:', error);
+                    console.error('❌ [DeleteRoute-Mobile] Error:', error);
                     alert('Failed to delete route. Please try again.');
+                    // Revert optimistic update on error
+                    await loadData(true);
                   }
                 }} />
               </div>
