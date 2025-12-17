@@ -3218,11 +3218,11 @@ function Dashboard() {
           }
 
           // CRITICAL: Only run route optimizer if there are in_transit deliveries
-          const hasInTransitDeliveries = stopsToProcess.some(s => 
+          const routeHasActiveStops = stopsToProcess.some(s => 
             s && (s.status === 'in_transit' || s.status === 'en_route')
           );
           
-          if (hasInTransitDeliveries) {
+          if (routeHasActiveStops) {
             try {
               console.log('🔄 [AddToRoute] Running route optimizer (has in-transit deliveries)...');
               const driverAppUser = appUsers.find(u => u && u.user_id === driverId);
