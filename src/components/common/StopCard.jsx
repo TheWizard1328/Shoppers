@@ -1876,15 +1876,17 @@ export default function StopCard({
                             const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
 
                             // Assign sequential TR#s starting after the highest existing TR#
+                            // CRITICAL: Use skipSmartRefresh option and update via updateDeliveryLocal to ensure DB sync before onStatusUpdate
                             for (let i = 0; i < sortedPendingWithoutTR.length; i++) {
                               const pendingDelivery = sortedPendingWithoutTR[i];
                               const newTR = String(highestExistingTR + i + 1);
 
-                              // Update with new tracking number AND status AND delivery_time_start (skip auto-center), do NOT touch isNextDelivery
-                              await onStatusUpdate(pendingDelivery.id, 'in_transit', { 
+                              // Update with new tracking number AND status AND delivery_time_start
+                              await updateDeliveryLocal(pendingDelivery.id, { 
+                                status: 'in_transit',
                                 tracking_number: newTR,
                                 delivery_time_start: deliveryTimeStart
-                              }, true);
+                              }, { skipSmartRefresh: true });
                             }
 
                             // Now complete the pickup itself - let the backend optimizer handle next delivery selection
