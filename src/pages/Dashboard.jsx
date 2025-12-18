@@ -4410,7 +4410,7 @@ function Dashboard() {
       // Step 1: Delete from offline database
       console.log('🗑️ [DELETE] Step 1: Deleting from offline DB...');
       const { offlineDB } = await import('../components/utils/offlineDatabase');
-      await offlineDB.deleteDelivery(deliveryId);
+      await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, deliveryId);
       console.log('  ✅ Removed from offline DB');
 
       // Step 2: Delete from online entity
