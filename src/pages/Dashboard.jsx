@@ -358,7 +358,6 @@ function Dashboard() {
   //       paddingBottomRight = [horizontal, vertical from bottom]
 
   const getMapPadding = useCallback((cardExpanded = false) => {
-    console.log('areCardsVisible: ', areCardsVisible);
     const topPadding = isMobile 
       ? (isExpanded ? STATS_CARD_EXTENDED_HEIGHT + 10 : STATS_CARD_BASE_HEIGHT + 10) 
       : 25; // Desktop: Exclude stats card
@@ -371,6 +370,7 @@ function Dashboard() {
       paddingTopLeft: [25, topPadding],
       paddingBottomRight: [25, bottomPadding]
     };
+    console.log('areCardsVisible: ', areCardsVisible);
   }, [isMobile, isExpanded, stopCardsBaseHeight, isDriver, driverLocation, selectedDate, mapViewPhase]);
 
   // Load user settings on mount - PHASE 1: Load backend values FIRST
