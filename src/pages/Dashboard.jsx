@@ -1157,7 +1157,7 @@ function Dashboard() {
             // PHASE 2 LOCKED: Continuous re-centering (every location update)
             // CRITICAL: Only re-center if FAB is locked - user pan/zoom unlocks FAB via handleMapInteraction
             // CRITICAL: Use ref to get current lock state (closure captures stale state)
-            if (mapViewPhase === 2 && isMapViewLockedForGPSRef.current && nextStopCoordinates) {
+            if (mapViewPhaseRef.current === 2 && isMapViewLockedRef.current && nextStopCoordinates) {
               console.log('📍 [Phase 2 Auto] Re-centering on driver & next stop');
               
               // Mark as programmatic to prevent unlock from this movement
