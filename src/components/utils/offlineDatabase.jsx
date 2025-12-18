@@ -390,5 +390,6 @@ export const offlineDB = {
   addPendingMutation,
   getPendingMutations,
   removePendingMutation,
-  updateMutationRetry
+  updateMutationRetry,
+  deleteRecord
 };
