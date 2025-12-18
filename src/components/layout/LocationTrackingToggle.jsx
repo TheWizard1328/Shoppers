@@ -36,13 +36,19 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         current_longitude: user.current_longitude
       });
       setLocalUser(user);
-      
-      // CRITICAL: If driver went off duty, force disable location sharing in UI
-      if (user.driver_status === 'off_duty' && user.location_tracking_enabled === false) {
-        console.log('📍 [LocationSharing] Driver off duty - ensuring sharing toggle is OFF');
-      }
     }
   }, [user, user?.driver_status, user?.location_tracking_enabled]);
+
+  // Listen for location sharing disabled event from DriverStatusToggle
+  useEffect(() => {
+    const handleSharingDisabled = async () => {
+      console.log('📍 [LocationSharing] Received locationSharingDisabled event - updating UI');
+      setLocalUser(prev => prev ? { ...prev, location_tracking_enabled: false } : prev);
+    };
+
+    window.addEventListener('locationSharingDisabled', handleSharingDisabled);
+    return () => window.removeEventListener('locationSharingDisabled', handleSharingDisabled);
+  }, []);
 
   // CRITICAL: Always start tracking on mobile devices for drivers/admins
   useEffect(() => {
