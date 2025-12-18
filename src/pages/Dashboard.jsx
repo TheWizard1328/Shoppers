@@ -1802,9 +1802,9 @@ function Dashboard() {
             closestCity = currentCity;
           }
 
-          // Center on the closest city with tighter zoom
+          // Center on the closest city
           if (closestCity?.latitude && closestCity?.longitude) {
-            const targetRadiusKm = 8; // Reduced from 16km to 8km for tighter view
+            const targetRadiusKm = 16;
             const latDegPerKm = 1 / 111.32;
             const lonDegPerKm = 1 / (111.32 * Math.cos(closestCity.latitude * Math.PI / 180));
 
@@ -1820,7 +1820,7 @@ function Dashboard() {
               bounds,
               options: {
                 ...padding,
-                maxZoom: 13, // Increased from 12 to 13 for tighter zoom
+                maxZoom: 12,
                 animate: true
               }
             });
@@ -1866,8 +1866,8 @@ function Dashboard() {
           // Mobile needs tighter zoom (higher numbers), desktop can zoom out more (lower numbers)
           const spanKm = maxSpan * 111.0;
           const baseZoom = 16 - Math.log2(spanKm + 1) * 1.5;
-          const screenAdjustment = isMobile ? 1.0 : 0.0; // Mobile +1.0 zoom (tighter), Desktop no adjustment
-          const phase1MaxZoom = Math.max(11.0, Math.min(16, Math.round((baseZoom + screenAdjustment) * 10) / 10));
+          const screenAdjustment = isMobile ? 0.5 : -0.5; // Mobile +0.5 zoom, Desktop -0.5 zoom
+          const phase1MaxZoom = Math.max(8.0, Math.min(15, Math.round((baseZoom + screenAdjustment) * 10) / 10)).toFixed(1);
           console.info('phase1MaxZoom: ',phase1MaxZoom);
         
           const padding = getMapPadding(false);
