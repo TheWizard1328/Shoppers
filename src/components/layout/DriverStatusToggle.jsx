@@ -205,11 +205,10 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
             await base44.entities.AppUser.update(appUserId, {
               location_tracking_enabled: false
             });
-            // Force update local state to trigger UI refresh in LocationTrackingToggle
-            if (onStatusChange) {
-              // The parent will refresh currentUser which will propagate to LocationTrackingToggle
-            }
             console.log('✅ [DriverStatusToggle] Location sharing disabled');
+            
+            // CRITICAL: Dispatch event to force LocationTrackingToggle UI refresh
+            window.dispatchEvent(new CustomEvent('locationSharingDisabled'));
           } catch (sharingError) {
             console.warn('⚠️ [DriverStatusToggle] Failed to disable location sharing:', sharingError);
           }
