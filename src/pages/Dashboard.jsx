@@ -358,16 +358,16 @@ function Dashboard() {
     const currentStopCardsHeight = stopCardsContainerRef.current?.offsetHeight || 150;
 
     const topPadding = isMobile 
-      ? currentStatsHeight + 20
-      : 20; // Desktop: Exclude stats card
+      ? currentStatsHeight + 25
+      : 25; // Desktop: Exclude stats card
 
     const bottomPadding = areCardsVisible 
-      ? (cardExpanded ? currentStopCardsHeight + 20 : stopCardsBaseHeight + 20)
-      : 20; // No stop cards visible
+      ? (cardExpanded ? currentStopCardsHeight + 25 : stopCardsBaseHeight + 25)
+      : 25; // No stop cards visible
     
     return {
-      paddingTopLeft: [20, topPadding],
-      paddingBottomRight: [20, bottomPadding]
+      paddingTopLeft: [25, topPadding],
+      paddingBottomRight: [25, bottomPadding]
     };
   }, [isMobile, areCardsVisible, stopCardsBaseHeight]);
 
