@@ -173,10 +173,13 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       console.log('💾 [DriverStatusToggle] Updating local offline database...');
       const { updateAppUserLocal } = await import('../utils/offlineMutations');
       try {
-        await updateAppUserLocal(appUserId, {
-          driver_status: newStatus,
-          location_tracking_enabled: newStatus === 'on_duty'
-        });
+        // When going off duty, disable location sharing; otherwise keep current state
+        const locationTrackingUpdate = newStatus === 'off_duty' ? false : undefined;
+        const updateData = { driver_status: newStatus };
+        if (locationTrackingUpdate !== undefined) {
+          updateData.location_tracking_enabled = locationTrackingUpdate;
+        }
+        await updateAppUserLocal(appUserId, updateData);
         console.log('✅ [DriverStatusToggle] Local offline database updated');
       } catch (offlineError) {
         console.warn('⚠️ [DriverStatusToggle] Failed to update local database:', offlineError);
