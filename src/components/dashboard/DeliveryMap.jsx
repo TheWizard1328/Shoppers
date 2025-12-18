@@ -333,6 +333,7 @@ const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, nu
   // CRITICAL: Failed/cancelled/completed takes precedence over next delivery blue
   const isFinished = FINISHED_STATUSES.includes(status);
   const shouldShowNextBlue = isNextInLine && !isFinished && hasIncompleteStops;
+  const isPending = status === 'pending';
   
   const statusColor = shouldShowNextBlue ? '#3B82F6' : getInnerSymbolColor(status, false);
   const hasYellowHalo = isFirstTime && zoomLevel >= ZOOM_LEVELS.SIMPLIFY_ROUTES;
@@ -400,8 +401,8 @@ const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, nu
                     opacity="1" />
           `) : ''}
           
-          ${isPM ? `
-            <!-- Inner STATUS SQUARE for PM deliveries -->
+          ${(isPM && !isPending) || (isPM && isPending) ? `
+            <!-- Inner STATUS SQUARE for PM deliveries (including pending PM) -->
             <rect x="4" y="4" width="16" height="16" 
                   fill="${statusColor}" 
                   stroke="${storeColor}" 

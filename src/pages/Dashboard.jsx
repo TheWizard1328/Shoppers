@@ -362,8 +362,8 @@ function Dashboard() {
       : 25; // Desktop: Exclude stats card
 
     const bottomPadding = areCardsVisible 
-      ? (cardExpanded ? currentStopCardsHeight + 55 : stopCardsBaseHeight + 55) // Extra 30px to shift map center UP to align with crosshairs
-      : 55; // Extra 30px to shift map center UP
+      ? (cardExpanded ? currentStopCardsHeight + 90 : stopCardsBaseHeight + 90) // Increased padding to shift map center UP
+      : 90; // Increased padding to shift map center UP
     
     return {
       paddingTopLeft: [25, topPadding],
