@@ -1867,7 +1867,8 @@ function Dashboard() {
           const baseZoom = 16 - Math.log2(spanKm + 1) * 1.5;
           const screenAdjustment = isMobile ? 0.5 : -0.5; // Mobile +0.5 zoom, Desktop -0.5 zoom
           const phase1MaxZoom = Math.max(8.0, Math.min(15, Math.round((baseZoom + screenAdjustment) * 10) / 10)).toFixed(1);
-
+          console.info('phase1MaxZoom: ',phase1MaxZoom);
+        
           const padding = getMapPadding(false);
 
           setShouldFitBounds({
