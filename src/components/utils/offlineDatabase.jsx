@@ -355,6 +355,25 @@ const updateMutationRetry = async (mutationId, retryCount) => {
   } catch (error) {}
 };
 
+/**
+ * Delete a single record from a store by ID
+ */
+const deleteRecord = async (storeName, recordId) => {
+  try {
+    const db = await openDatabase();
+    const transaction = db.transaction([storeName], 'readwrite');
+    const store = transaction.objectStore(storeName);
+
+    return new Promise((resolve, reject) => {
+      const request = store.delete(recordId);
+      request.onsuccess = () => resolve({ success: true });
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
 export const offlineDB = {
   STORES,
   openDatabase,
