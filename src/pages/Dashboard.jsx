@@ -362,8 +362,8 @@ function Dashboard() {
       : 25; // Desktop: Exclude stats card
 
     const bottomPadding = areCardsVisible 
-      ? (cardExpanded ? currentStopCardsHeight + 90 : stopCardsBaseHeight + 90) // Increased padding to shift map center UP
-      : 90; // Increased padding to shift map center UP
+      ? (cardExpanded ? currentStopCardsHeight + 120 : stopCardsBaseHeight + 120) // Increased padding to shift map center UP
+      : 120; // Increased padding to shift map center UP
     
     return {
       paddingTopLeft: [25, topPadding],
