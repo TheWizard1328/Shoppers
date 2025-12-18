@@ -1490,6 +1490,7 @@ export default function StopCard({
                           const startMinutes = currentMinutes + 5;
                           const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
                           
+                          // CRITICAL: Use skipSmartRefresh for all batch updates to prevent premature refresh
                           for (let i = 0; i < sortedPending.length; i++) {
                             const pendingDelivery = sortedPending[i];
                             const newStopOrder = pickupStopOrder + i + 1;
@@ -1498,7 +1499,7 @@ export default function StopCard({
                               status: 'in_transit',
                               stop_order: newStopOrder,
                               delivery_time_start: deliveryTimeStart
-                            });
+                            }, { skipSmartRefresh: true });
                             console.log(`    ✅ ${pendingDelivery.patient_name} → in_transit, stop_order: ${newStopOrder}, delivery_time_start: ${deliveryTimeStart}`);
                           }
 
@@ -1507,7 +1508,7 @@ export default function StopCard({
                             const newStopOrder = d.stop_order + sortedPending.length;
                             await updateDeliveryLocal(d.id, {
                               stop_order: newStopOrder
-                            });
+                            }, { skipSmartRefresh: true });
                             console.log(`    ✅ Pushed ${d.patient_name || 'Stop'} to stop_order: ${newStopOrder}`);
                           }
 
@@ -1533,12 +1534,13 @@ export default function StopCard({
                           console.log(`  Using pickup TR# ${baseTR} as base`);
                           
                           // Assign sequential TR#s to sorted pending deliveries
+                          // CRITICAL: Use skipSmartRefresh for all batch updates
                           for (let i = 0; i < sortedPending.length; i++) {
                             const newTR = String(baseTR + i + 1);
                             
                             await updateDeliveryLocal(sortedPending[i].id, {
                               tracking_number: newTR
-                            });
+                            }, { skipSmartRefresh: true });
                             console.log(`  ✅ ${sortedPending[i].patient_name}: TR# ${newTR}`);
                           }
                           console.log('  ✅ TR#s assigned sequentially');
@@ -1965,6 +1967,7 @@ export default function StopCard({
                         // Step 1 already done above
                         
                         // Step 3: Clear all isNextDelivery and set selected stop to true
+                        // CRITICAL: Use skipSmartRefresh for all batch updates
                         console.log('🟢 [START] Step 3: Setting isNextDelivery...');
                         const driverDeliveries = allDeliveries.filter(d => 
                           d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
@@ -1972,10 +1975,10 @@ export default function StopCard({
                         
                         for (const d of driverDeliveries) {
                           if (d.id !== delivery.id && d.isNextDelivery) {
-                            await updateDeliveryLocal(d.id, { isNextDelivery: false });
+                            await updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true });
                           }
                         }
-                        await updateDeliveryLocal(delivery.id, { isNextDelivery: true });
+                        await updateDeliveryLocal(delivery.id, { isNextDelivery: true }, { skipSmartRefresh: true });
                         console.log('  ✅ isNextDelivery flags updated');
 
                         // Step 4: Set stop order to total finished stops + 1
@@ -1984,7 +1987,7 @@ export default function StopCard({
                           FINISHED_STATUSES.includes(d.status)
                         ).length;
                         const newStopOrder = finishedStops + 1;
-                        await updateDeliveryLocal(delivery.id, { stop_order: newStopOrder });
+                        await updateDeliveryLocal(delivery.id, { stop_order: newStopOrder }, { skipSmartRefresh: true });
                         console.log(`  ✅ Stop order set to ${newStopOrder}`);
 
                         // Step 5: Run Route Optimizer (with current local time and this stop's location)
@@ -2016,6 +2019,7 @@ export default function StopCard({
                           console.log('  ✅ Route optimized');
                           
                           // Step 6: Apply optimized stop orders to local state immediately
+                          // CRITICAL: Use skipSmartRefresh for all batch updates
                           console.log('🟢 [START] Step 6: Resorting optimized stops...');
                           const responseData = optimizeResponse?.data || optimizeResponse;
                           if (responseData?.durationUpdates) {
@@ -2023,7 +2027,7 @@ export default function StopCard({
                             for (const update of responseData.durationUpdates) {
                               await updateDeliveryLocal(update.deliveryId, {
                                 stop_order: update.newOrder
-                              });
+                              }, { skipSmartRefresh: true });
                             }
                             console.log('  ✅ Stop orders updated from optimizer');
                           }
