@@ -1964,12 +1964,29 @@ function Dashboard() {
     }
   }, [mapViewPhase, driverLocation, nextStopCoordinates, deliveriesWithStopOrder, patients, stores, isDriver, mapViewTrigger, isDispatcher, currentUser, getMapPadding]);
 
-  // Apply initial map view on first load - WAIT for deliveries to be loaded
+  // Apply initial map view on first load - WAIT for deliveries AND UI measurements to be ready
   useEffect(() => {
-    // CRITICAL: Skip until deliveries are actually loaded
+    // CRITICAL: Skip until deliveries are loaded AND UI elements are measured
     if (!isDataLoaded || !userSettingsLoaded || initialMapViewApplied) {
       return;
     }
+
+    // CRITICAL: Wait for UI measurements before applying initial map view
+    // statsCardRef needs to render and measure, and stopCards need to appear
+    const hasDeliveries = deliveriesWithStopOrder.length > 0;
+    const statsCardMeasured = statsCardRef.current?.offsetHeight > 0;
+    const stopCardsMeasured = hasDeliveries ? stopCardsBaseHeight > 0 : true;
+
+    if (!statsCardMeasured || !stopCardsMeasured) {
+      console.log('⏳ [FAB Initial] Waiting for UI measurements...', {
+        statsCardMeasured,
+        stopCardsMeasured,
+        hasDeliveries
+      });
+      return;
+    }
+
+    console.log('✅ [FAB Initial] UI fully rendered - applying initial map view');
 
     // CASE 1: No deliveries - set phase 1 locked, will unlock on pan/zoom
     if (deliveriesWithStopOrder.length === 0) {
@@ -2050,7 +2067,7 @@ function Dashboard() {
         }, 300);
       }
     }
-  }, [isDataLoaded, userSettingsLoaded, deliveriesWithStopOrder.length, initialMapViewApplied, isDriver, driverLocation, getMapPadding]);
+  }, [isDataLoaded, userSettingsLoaded, deliveriesWithStopOrder.length, initialMapViewApplied, isDriver, driverLocation, getMapPadding, stopCardsBaseHeight]);
 
   // CRITICAL: Dedicated effect to scroll to next delivery card on initial load
   // This runs AFTER cards are rendered and handles ALL phases
