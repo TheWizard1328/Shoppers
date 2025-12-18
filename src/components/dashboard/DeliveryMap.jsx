@@ -1593,10 +1593,12 @@ export default function DeliveryMap({
     
     const mapInstance = useMapEvents({
       zoomstart: () => {
+        console.log('🗺️ [MapController] ZOOMSTART detected - calling onMapInteraction');
         // Always call onMapInteraction - Dashboard will handle programmatic vs manual detection
         if (onMapInteraction) onMapInteraction();
       },
       movestart: () => {
+        console.log('🗺️ [MapController] MOVESTART detected - calling onMapInteraction');
         // Always call onMapInteraction - Dashboard will handle programmatic vs manual detection
         if (onMapInteraction) onMapInteraction();
       },
