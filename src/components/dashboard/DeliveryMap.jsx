@@ -1556,19 +1556,12 @@ export default function DeliveryMap({
     try {
       const bounds = L.latLngBounds(shouldFitBounds.bounds);
       
-      // CRITICAL FIX: Use stopCardsHeight directly as bottom padding
+      // CRITICAL: Use padding values directly from Dashboard.js - don't override
       const modifiedOptions = { 
         ...shouldFitBounds.options,
         animate: true,
         duration: 0.8 // Smooth 800ms animation
       };
-      
-      if (STOP_CARDS_BASE_HEIGHT > 0) {
-        modifiedOptions.paddingBottomRight = [
-          modifiedOptions.paddingBottomRight?.[0] || 50,
-          stopCardsHeight
-        ];
-      }
       
       map.fitBounds(bounds, modifiedOptions);
 
