@@ -31,12 +31,18 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
     if (user) {
       console.log('🔄 [LocationSharing] Syncing localUser with user prop:', {
         location_tracking_enabled: user.location_tracking_enabled,
+        driver_status: user.driver_status,
         current_latitude: user.current_latitude,
         current_longitude: user.current_longitude
       });
       setLocalUser(user);
+      
+      // CRITICAL: If driver went off duty, force disable location sharing in UI
+      if (user.driver_status === 'off_duty' && user.location_tracking_enabled === false) {
+        console.log('📍 [LocationSharing] Driver off duty - ensuring sharing toggle is OFF');
+      }
     }
-  }, [user]);
+  }, [user, user?.driver_status, user?.location_tracking_enabled]);
 
   // CRITICAL: Always start tracking on mobile devices for drivers/admins
   useEffect(() => {
