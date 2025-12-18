@@ -326,6 +326,9 @@ function Dashboard() {
   // Track phase before break for restoration
   const phaseBeforeBreakRef = useRef(null);
 
+  // CRITICAL: Track isMapViewLocked in a ref for GPS callback to avoid stale closures
+  const isMapViewLockedForGPSRef = useRef(false);
+
   // Store saved FAB phase from user settings (applied after data loads)
   const savedFabPhaseRef = useRef(1);
 
@@ -1150,7 +1153,8 @@ function Dashboard() {
             
             // PHASE 2 LOCKED: Continuous re-centering (every location update)
             // CRITICAL: Only re-center if FAB is locked - user pan/zoom unlocks FAB via handleMapInteraction
-            if (mapViewPhase === 2 && isMapViewLocked && nextStopCoordinates) {
+            // CRITICAL: Use ref to get current lock state (closure captures stale state)
+            if (mapViewPhase === 2 && isMapViewLockedForGPSRef.current && nextStopCoordinates) {
               console.log('📍 [Phase 2 Auto] Re-centering on driver & next stop');
               
               // Mark as programmatic to prevent unlock from this movement
