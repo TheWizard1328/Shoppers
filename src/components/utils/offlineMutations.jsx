@@ -392,8 +392,13 @@ export const createDeliveryLocal = async (deliveryData) => {
 
 /**
  * Update a Delivery (local-first)
+ * @param {string} deliveryId - The delivery ID to update
+ * @param {object} updates - The fields to update
+ * @param {object} options - Options: { skipSmartRefresh: boolean }
  */
-export const updateDeliveryLocal = async (deliveryId, updates) => {
+export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => {
+  const { skipSmartRefresh = false } = options;
+  
   // CRITICAL: Check if mutations are paused
   if (mutationsPaused) {
     console.log('⏸️ [OfflineMutations] updateDeliveryLocal skipped - mutations paused');
@@ -428,8 +433,10 @@ export const updateDeliveryLocal = async (deliveryId, updates) => {
         data: backendDelivery 
       });
       
-      // Trigger smart refresh to pull data from other users
-      await triggerSmartRefresh();
+      // CRITICAL: Only trigger smart refresh if not skipped
+      if (!skipSmartRefresh) {
+        await triggerSmartRefresh();
+      }
       
       return backendDelivery;
     }
@@ -441,27 +448,17 @@ export const updateDeliveryLocal = async (deliveryId, updates) => {
       updated_date: new Date().toISOString()
     };
 
-    // Save to local IndexedDB
+    // Save to local IndexedDB FIRST
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
-
     console.log('✅ [OfflineMutations] Delivery updated locally:', deliveryId);
-    
-    // CRITICAL: Notify listeners IMMEDIATELY for instant UI update
-    notifyMutation({ 
-      type: 'update', 
-      entity: 'Delivery', 
-      id: deliveryId,
-      data: updatedDelivery 
-    });
 
-    // Try immediate backend sync
+    // CRITICAL: Sync to backend BEFORE notifying UI (ensures DB consistency)
+    let backendSyncSuccess = false;
     try {
       const { base44 } = await import('@/api/base44Client');
       await base44.entities.Delivery.update(deliveryId, updates);
       console.log('✅ [Sync] Delivery synced to backend immediately:', deliveryId);
-      
-      // Trigger smart refresh to pull data from other users
-      await triggerSmartRefresh();
+      backendSyncSuccess = true;
     } catch (error) {
       console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
       // Queue for backend sync if immediate sync fails
@@ -471,6 +468,19 @@ export const updateDeliveryLocal = async (deliveryId, updates) => {
         recordId: deliveryId,
         payload: updates
       });
+    }
+    
+    // CRITICAL: Notify listeners AFTER backend sync attempt for consistent state
+    notifyMutation({ 
+      type: 'update', 
+      entity: 'Delivery', 
+      id: deliveryId,
+      data: updatedDelivery 
+    });
+
+    // CRITICAL: Only trigger smart refresh if not skipped AND backend sync succeeded
+    if (!skipSmartRefresh && backendSyncSuccess) {
+      await triggerSmartRefresh();
     }
     
     return updatedDelivery;
