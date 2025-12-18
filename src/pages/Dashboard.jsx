@@ -326,16 +326,8 @@ function Dashboard() {
   // Track phase before break for restoration
   const phaseBeforeBreakRef = useRef(null);
 
-  // CRITICAL: Track isMapViewLocked in a ref for GPS callback to avoid stale closures
-  const isMapViewLockedForGPSRef = useRef(false);
-
   // Store saved FAB phase from user settings (applied after data loads)
   const savedFabPhaseRef = useRef(1);
-
-  // CRITICAL: Keep GPS ref in sync with state
-  useEffect(() => {
-    isMapViewLockedForGPSRef.current = isMapViewLocked;
-  }, [isMapViewLocked]);
 
   // Route optimization notification
   const [routeNotification, setRouteNotification] = useState(null);
@@ -2089,8 +2081,7 @@ function Dashboard() {
     return () => clearTimeout(scrollTimer);
   }, [isDataLoaded, deliveriesWithStopOrder]);
 
-  // Register smart refresh callback to update map when in phase 2 (locked)
-  // CRITICAL: Use a ref to track current lock state to avoid stale closure issues
+  // CRITICAL: Use a ref to track current lock state to avoid stale closure issues in GPS callback
   const isMapViewLockedRef = useRef(isMapViewLocked);
   useEffect(() => {
     isMapViewLockedRef.current = isMapViewLocked;
