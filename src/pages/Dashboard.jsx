@@ -882,7 +882,6 @@ function Dashboard() {
 
   const handleMapInteraction = useCallback(() => {
     // CRITICAL: Only unlock on MANUAL user interactions, NOT on programmatic FAB movements
-    // Extended window to 1000ms to prevent false positives during FAB animations
     const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
     const isProgrammaticMove = timeSinceProgrammatic < 1000;
 
@@ -893,7 +892,7 @@ function Dashboard() {
     }
 
     // Manual user interaction - unlock FAB (ALL phases including phase 2)
-    console.log('🗺️ [Map Interaction] Manual interaction detected - unlocking FAB');
+    console.log('🗺️ [Map Interaction] Manual pan/zoom detected - UNLOCKING FAB');
 
     // CRITICAL: Clear timers and unlock immediately
     if (mapLockTimeoutRef.current) {
@@ -902,6 +901,7 @@ function Dashboard() {
     }
     mapLockExpiresAtRef.current = null;
 
+    // CRITICAL: Set lock state to FALSE (both state and ref)
     setIsMapViewLocked(false);
 
     // CRITICAL: Record user interaction time (prevents proximity snap for 5 minutes)
