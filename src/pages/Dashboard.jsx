@@ -343,14 +343,9 @@ function Dashboard() {
   const isDriver = useMemo(() => currentUser ? userHasRole(currentUser, 'driver') : false, [currentUser]);
   const isAdmin = useMemo(() => currentUser ? userHasRole(currentUser, 'admin') : false, [currentUser]);
 
-  // CRITICAL: Define constants BEFORE useState that uses them
-  const STOP_CARDS_EXPANDED_HEIGHT = 450;
-  const STOP_CARDS_BASE_HEIGHT = 75;
-  const STATS_CARD_BASE_HEIGHT = 116;
-  const STATS_CARD_EXTENDED_HEIGHT = 216;
-  
-  // Track HorizontalStopCards container base height for FAB positioning
-  const [stopCardsBaseHeight, setStopCardsBaseHeight] = useState(0); // Start at 0 to avoid double render
+  // Track dynamically measured heights for map padding
+  const [stopCardsBaseHeight, setStopCardsBaseHeight] = useState(0); 
+  const [statsCardHeight, setStatsCardHeight] = useState(0);
   const measurementTimeoutRef = useRef(null);
 
   // Computed padding values for consistent map bounds
@@ -358,19 +353,23 @@ function Dashboard() {
   //       paddingBottomRight = [horizontal, vertical from bottom]
 
   const getMapPadding = useCallback((cardExpanded = false) => {
+    // Get actual rendered heights from refs
+    const currentStatsHeight = statsCardRef.current?.offsetHeight || 116;
+    const currentStopCardsHeight = stopCardsContainerRef.current?.offsetHeight || 75;
+
     const topPadding = isMobile 
-      ? (isExpanded ? STATS_CARD_EXTENDED_HEIGHT + 10 : STATS_CARD_BASE_HEIGHT + 10) 
+      ? currentStatsHeight + 10
       : 25; // Desktop: Exclude stats card
 
     const bottomPadding = areCardsVisible 
-      ? (cardExpanded ? STOP_CARDS_EXPANDED_HEIGHT + 20 : STOP_CARDS_BASE_HEIGHT + 20)
+      ? (cardExpanded ? currentStopCardsHeight + 20 : stopCardsBaseHeight + 20)
       : 20; // No stop cards visible
     
     return {
       paddingTopLeft: [25, topPadding],
       paddingBottomRight: [25, bottomPadding]
     };
-  }, [isMobile, isExpanded, stopCardsBaseHeight, isDriver, driverLocation, selectedDate, mapViewPhase]);
+  }, [isMobile, areCardsVisible, stopCardsBaseHeight]);
 
   // Load user settings on mount - PHASE 1: Load backend values FIRST
   useEffect(() => {
@@ -1018,9 +1017,13 @@ function Dashboard() {
     const measureStatsCard = () => {
       if (statsCardRef.current) {
         const width = statsCardRef.current.offsetWidth;
+        const height = statsCardRef.current.offsetHeight;
 
         if (width > 0 && width !== cardWidth) {
           setCardWidth(width);
+        }
+        if (height > 0 && height !== statsCardHeight) {
+          setStatsCardHeight(height);
         }
       }
     };
@@ -1059,13 +1062,9 @@ function Dashboard() {
       // Wait for render and animations to settle
       measurementTimeoutRef.current = setTimeout(() => {
         if (stopCardsContainerRef.current && !selectedCardId) {
-          // CRITICAL: Measure the inner scroll container, not the outer wrapper
-          const scrollContainer = stopCardsContainerRef.current.querySelector('.overflow-x-auto');
-          if (scrollContainer) {
-            const height = scrollContainer.offsetHeight;
-            if (height > 0) {
-              setStopCardsBaseHeight(height);
-            }
+          const height = stopCardsContainerRef.current.offsetHeight;
+          if (height > 0) {
+            setStopCardsBaseHeight(height);
           }
         }
       }, 400);
@@ -1923,13 +1922,18 @@ function Dashboard() {
           setMapCenter(null);
           setMapZoom(null);
         } else {
-          // If no next stop, just center on driver
-          const topPadding = isMobile 
-           ? (isExpanded ? STATS_CARD_EXTENDED_HEIGHT + 20 : STATS_CARD_BASE_HEIGHT + 20) 
-           : 20;
-          setMapCenter([driverLocation.latitude, driverLocation.longitude]);
-          setMapZoom(15);
-          setShouldFitBounds(null);
+          // If no next stop, just center on driver with padding
+          const padding = getMapPadding(false);
+          setShouldFitBounds({
+            bounds: [[driverLocation.latitude, driverLocation.longitude]],
+            options: {
+              ...padding,
+              maxZoom: 15,
+              animate: true
+            }
+          });
+          setMapCenter(null);
+          setMapZoom(null);
         }
         break;
 
@@ -1943,9 +1947,6 @@ function Dashboard() {
 
         // Use fitBounds with driver location to apply bottom padding
         const padding = getMapPadding(false);
-        {/* const topPadding = isMobile 
-          ? (isExpanded ? STATS_CARD_EXTENDED_HEIGHT + 20 : STATS_CARD_BASE_HEIGHT + 20) 
-          : 20; */}
         setShouldFitBounds({
           bounds: [[driverLocation.latitude, driverLocation.longitude]],
           options: {
@@ -1961,7 +1962,7 @@ function Dashboard() {
       default:
         break;
     }
-  }, [mapViewPhase, driverLocation, nextStopCoordinates, deliveriesWithStopOrder, patients, stores, isDriver, STOP_CARDS_BASE_HEIGHT, mapViewTrigger, isDispatcher, currentUser, getMapPadding]);
+  }, [mapViewPhase, driverLocation, nextStopCoordinates, deliveriesWithStopOrder, patients, stores, isDriver, mapViewTrigger, isDispatcher, currentUser, getMapPadding]);
 
   // Apply initial map view on first load - WAIT for deliveries to be loaded
   useEffect(() => {
