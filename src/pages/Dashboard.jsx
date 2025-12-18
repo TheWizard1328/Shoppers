@@ -360,8 +360,10 @@ function Dashboard() {
     const topPadding = isMobile 
       ? (isExpanded ? STATS_CARD_EXTENDED_HEIGHT + 10 : STATS_CARD_BASE_HEIGHT + 10) 
       : 25; // Desktop: Exclude stats card
-    
-    const bottomPadding = cardExpanded ? STOP_CARDS_EXPANDED_HEIGHT + 20 : STOP_CARDS_BASE_HEIGHT + 20
+
+    const bottomPadding = areCardsVisible 
+      ? (cardExpanded ? STOP_CARDS_EXPANDED_HEIGHT + 20 : STOP_CARDS_BASE_HEIGHT + 20)
+      : 20; // No stop cards visible
     
     return {
       paddingTopLeft: [25, topPadding],
