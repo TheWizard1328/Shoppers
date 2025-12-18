@@ -370,7 +370,6 @@ function Dashboard() {
       paddingTopLeft: [25, topPadding],
       paddingBottomRight: [25, bottomPadding]
     };
-    console.log('areCardsVisible: ', areCardsVisible);
   }, [isMobile, isExpanded, stopCardsBaseHeight, isDriver, driverLocation, selectedDate, mapViewPhase]);
 
   // Load user settings on mount - PHASE 1: Load backend values FIRST
@@ -1871,6 +1870,8 @@ function Dashboard() {
           const phase1MaxZoom = Math.max(8.0, Math.min(15, Math.round((baseZoom + screenAdjustment) * 10) / 10)).toFixed(1);
 
           const padding = getMapPadding(false);
+
+          console.log('areCardsVisible: ', areCardsVisible);
           setShouldFitBounds({
             bounds: allCoordinates,
             options: {
