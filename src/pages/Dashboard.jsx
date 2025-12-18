@@ -1871,7 +1871,7 @@ function Dashboard() {
 
           const padding = getMapPadding(false);
 
-          console.log('areCardsVisible: ', areCardsVisible);
+          console.log('stopCardContainerRef: ', stopCardsContainerRef);
           setShouldFitBounds({
             bounds: allCoordinates,
             options: {
