@@ -4407,12 +4407,19 @@ function Dashboard() {
       const driverId = targetDelivery.driver_id;
       const deliveryDate = targetDelivery.delivery_date;
       
-      console.log('🗑️ [DELETE] Step 1: Deleting from offline and online DBs...');
-      const { deleteDeliveryLocal } = await import('../components/utils/offlineMutations');
-      await deleteDeliveryLocal(deliveryId);
+      // Step 1: Delete from offline database
+      console.log('🗑️ [DELETE] Step 1: Deleting from offline DB...');
+      const { offlineDB } = await import('../components/utils/offlineDatabase');
+      await offlineDB.deleteDelivery(deliveryId);
+      console.log('  ✅ Removed from offline DB');
 
-      // CRITICAL: Update UI immediately by removing from local state
-      console.log('🗑️ [DELETE] Step 2: Updating UI state immediately...');
+      // Step 2: Delete from online entity
+      console.log('🗑️ [DELETE] Step 2: Deleting from online entity...');
+      await base44.entities.Delivery.delete(deliveryId);
+      console.log('  ✅ Removed from online entity');
+
+      // Step 3: Update UI immediately
+      console.log('🗑️ [DELETE] Step 3: Updating UI...');
       if (updateDeliveriesLocally) {
         const updatedDeliveries = deliveries.filter(d => d && d.id !== deliveryId);
         updateDeliveriesLocally(updatedDeliveries, true);
@@ -4422,25 +4429,21 @@ function Dashboard() {
       if (selectedCardId === deliveryId) {
         setSelectedCardId(null);
       }
+      console.log('  ✅ UI updated');
 
-      // CRITICAL: Force refresh to sync with backend
-      console.log('🗑️ [DELETE] Step 3: Syncing with backend...');
-      await forceRefreshDriverDeliveries(driverId, deliveryDate);
+      // Step 4: Run smart refresh
+      console.log('🗑️ [DELETE] Step 4: Running smart refresh...');
+      smartRefreshManager.lastRefreshTimes = {
+        driverLocation: 0,
+        activeDeliveries: 0,
+        todayDeliveries: 0,
+        appUsers: 0,
+        patients: 0,
+        stores: 0
+      };
+      console.log('  ✅ Smart refresh triggered');
 
-      // CRITICAL: Trigger full ETA recalculation after deletion
-      if (driverId && deliveryDate) {
-        try {
-          await base44.functions.invoke('calculateRealTimeETA', {
-            driverId: driverId,
-            deliveryDate: deliveryDate
-          });
-          console.log('✅ [DELETE] ETAs recalculated');
-        } catch (etaError) {
-          console.warn('⚠️ [DELETE Handler] ETA recalculation failed:', etaError);
-        }
-      }
-
-      console.log('✅ [DELETE] Delivery deleted and UI updated');
+      console.log('✅ [DELETE] Complete');
 
     } catch (error) {
       console.error('❌ [DELETE Handler] Error:', error);
