@@ -4406,30 +4406,41 @@ function Dashboard() {
 
       const driverId = targetDelivery.driver_id;
       const deliveryDate = targetDelivery.delivery_date;
+      
+      console.log('🗑️ [DELETE] Step 1: Deleting from offline and online DBs...');
       const { deleteDeliveryLocal } = await import('../components/utils/offlineMutations');
       await deleteDeliveryLocal(deliveryId);
+
+      // CRITICAL: Update UI immediately by removing from local state
+      console.log('🗑️ [DELETE] Step 2: Updating UI state immediately...');
+      if (updateDeliveriesLocally) {
+        const updatedDeliveries = deliveries.filter(d => d && d.id !== deliveryId);
+        updateDeliveriesLocally(updatedDeliveries, true);
+      }
 
       // Clear selection if this card was selected
       if (selectedCardId === deliveryId) {
         setSelectedCardId(null);
       }
 
-      // CRITICAL: Force refresh to sync UI immediately
+      // CRITICAL: Force refresh to sync with backend
+      console.log('🗑️ [DELETE] Step 3: Syncing with backend...');
       await forceRefreshDriverDeliveries(driverId, deliveryDate);
 
       // CRITICAL: Trigger full ETA recalculation after deletion
       if (driverId && deliveryDate) {
         try {
-          await base44.functions.invoke('etaOptimizer', {
+          await base44.functions.invoke('calculateRealTimeETA', {
             driverId: driverId,
-            deliveryDate: deliveryDate,
-            triggerFullRecalculation: true,
-            deviceTime: new Date().toISOString()
+            deliveryDate: deliveryDate
           });
+          console.log('✅ [DELETE] ETAs recalculated');
         } catch (etaError) {
           console.warn('⚠️ [DELETE Handler] ETA recalculation failed:', etaError);
         }
       }
+
+      console.log('✅ [DELETE] Delivery deleted and UI updated');
 
     } catch (error) {
       console.error('❌ [DELETE Handler] Error:', error);
