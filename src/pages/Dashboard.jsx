@@ -1256,7 +1256,8 @@ function Dashboard() {
                       bounds: [[stopLat, stopLon]],
                       options: {
                         ...padding,
-                        maxZoom: 17
+                        maxZoom: 17,
+                        animate: true
                       }
                     });
                     setMapCenter(null);
@@ -1821,7 +1822,7 @@ function Dashboard() {
               options: {
                 ...padding,
                 maxZoom: 12,
-                animate: false
+                animate: true
               }
             });
             setMapCenter(null);
@@ -1836,7 +1837,8 @@ function Dashboard() {
             bounds: allCoordinates,
             options: {
               ...padding,
-              maxZoom: 14
+              maxZoom: 14,
+              animate: true
             }
           });
           setMapCenter(null);
@@ -1875,7 +1877,8 @@ function Dashboard() {
             bounds: allCoordinates,
             options: {
               ...padding,
-              maxZoom: phase1MaxZoom
+              maxZoom: phase1MaxZoom,
+              animate: true
             }
           });
           setMapCenter(null);
@@ -1913,7 +1916,8 @@ function Dashboard() {
             bounds,
             options: {
               ...padding,
-              maxZoom: 17.5
+              maxZoom: 17.5,
+              animate: true
             }
           });
           setMapCenter(null);
@@ -1921,7 +1925,7 @@ function Dashboard() {
         } else {
           // If no next stop, just center on driver
           const topPadding = isMobile 
-           ? (isExpanded ? STATS_CARD_EXTENDED_HEIGHT : STATS_CARD_BASE_HEIGHT + 15) 
+           ? (isExpanded ? STATS_CARD_EXTENDED_HEIGHT + 20 : STATS_CARD_BASE_HEIGHT + 20) 
            : 20;
           setMapCenter([driverLocation.latitude, driverLocation.longitude]);
           setMapZoom(15);
@@ -1947,7 +1951,7 @@ function Dashboard() {
           options: {
             ...padding,
             maxZoom: 15,
-            animate: false
+            animate: true
           }
         });
         setMapCenter(null);
@@ -2234,7 +2238,8 @@ function Dashboard() {
             bounds: [[patient.latitude, patient.longitude]],
             options: {
               ...padding,
-              maxZoom: 15
+              maxZoom: 15,
+              animate: true
             }
           });
           setMapCenter(null);
@@ -2247,7 +2252,8 @@ function Dashboard() {
             bounds: [[store.latitude, store.longitude]],
             options: {
               ...padding,
-              maxZoom: 15
+              maxZoom: 15,
+              animate: true
             }
           });
           setMapCenter(null);
@@ -2608,7 +2614,8 @@ function Dashboard() {
             bounds: [[patient.latitude, patient.longitude]],
             options: {
               ...expandedPadding,
-              maxZoom: 16
+              maxZoom: 16,
+              animate: true
             }
           });
           setMapCenter(null);
@@ -2623,7 +2630,8 @@ function Dashboard() {
             bounds: [[store.latitude, store.longitude]],
             options: {
               ...expandedPadding,
-              maxZoom: 16
+              maxZoom: 16,
+              animate: true
             }
           });
           setMapCenter(null);
