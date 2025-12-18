@@ -357,8 +357,8 @@ function Dashboard() {
   // Note: paddingTopLeft = [horizontal, vertical from top]
   //       paddingBottomRight = [horizontal, vertical from bottom]
 
-  console.log('areCardsVisible: ', areCardsVisible);
   const getMapPadding = useCallback((cardExpanded = false) => {
+    console.log('areCardsVisible: ', areCardsVisible);
     const topPadding = isMobile 
       ? (isExpanded ? STATS_CARD_EXTENDED_HEIGHT + 10 : STATS_CARD_BASE_HEIGHT + 10) 
       : 25; // Desktop: Exclude stats card
