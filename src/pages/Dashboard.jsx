@@ -358,12 +358,12 @@ function Dashboard() {
     const currentStopCardsHeight = stopCardsContainerRef.current?.offsetHeight || 150;
 
     const topPadding = isMobile 
-      ? currentStatsHeight + 10 // Reduced from 25 to shift map center UP by 15px
+      ? currentStatsHeight + 25 // Reduced from 25 to shift map center UP by 15px
       : 25; // Desktop: Exclude stats card
 
     const bottomPadding = areCardsVisible 
-      ? (cardExpanded ? currentStopCardsHeight + 40 : stopCardsBaseHeight + 40) // Increased from 25 to shift map center UP by 15px
-      : 40; // Increased from 25
+      ? (cardExpanded ? currentStopCardsHeight + 25 : stopCardsBaseHeight + 25) // Increased from 25 to shift map center UP by 15px
+      : 25; // Increased from 25
     
     return {
       paddingTopLeft: [25, topPadding],
