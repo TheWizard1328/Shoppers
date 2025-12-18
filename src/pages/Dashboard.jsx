@@ -332,6 +332,12 @@ function Dashboard() {
   // Route optimization notification
   const [routeNotification, setRouteNotification] = useState(null);
 
+  // CRITICAL: Track map view phase in ref for GPS callback (avoid stale closure)
+  const mapViewPhaseRef = useRef(mapViewPhase);
+  useEffect(() => {
+    mapViewPhaseRef.current = mapViewPhase;
+  }, [mapViewPhase]);
+
   // CRITICAL: Calculate isDriver early (before useEffect that needs it)
   const isMobile = useMemo(() => isMobileDevice(), []);
   const isDriver = useMemo(() => currentUser ? userHasRole(currentUser, 'driver') : false, [currentUser]);
