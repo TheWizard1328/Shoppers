@@ -1815,7 +1815,6 @@ function Dashboard() {
             [closestCity.latitude - latOffset, closestCity.longitude - lonOffset],
             [closestCity.latitude + latOffset, closestCity.longitude + lonOffset]];
 
-
             const padding = getMapPadding(false);
             setShouldFitBounds({
               bounds,
@@ -1871,7 +1870,6 @@ function Dashboard() {
 
           const padding = getMapPadding(false);
 
-          console.log('stopCardContainerRef: ', stopCardsContainerRef);
           setShouldFitBounds({
             bounds: allCoordinates,
             options: {
