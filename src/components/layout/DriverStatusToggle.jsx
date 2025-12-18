@@ -195,6 +195,19 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
         locationTracker.setDriverStatus(newStatus);
         console.log('🛑 Location tracking stopped (off duty/on break)');
         
+        // CRITICAL: When going OFF DUTY, also disable location sharing
+        if (newStatus === 'off_duty') {
+          try {
+            console.log('📍 [DriverStatusToggle] Disabling location sharing (off duty)...');
+            await base44.entities.AppUser.update(appUserId, {
+              location_tracking_enabled: false
+            });
+            console.log('✅ [DriverStatusToggle] Location sharing disabled');
+          } catch (sharingError) {
+            console.warn('⚠️ [DriverStatusToggle] Failed to disable location sharing:', sharingError);
+          }
+        }
+        
         // If going on break, save current FAB phase and notify Dashboard
             // Backend cleared isNextDelivery flags in setDriverStatus
             if (newStatus === 'on_break') {
