@@ -363,7 +363,7 @@ function Dashboard() {
     
     const bottomPadding = isMobile 
       ? (cardExpanded ? STOP_CARDS_EXPANDED_HEIGHT + 20 : STOP_CARDS_BASE_HEIGHT + 20)
-      : (cardExpanded ? 500 : 160); // Desktop: account for stop cards
+      : (cardExpanded ? 500 : 180); // Desktop: account for stop cards
     
     return {
       paddingTopLeft: [25, topPadding],
