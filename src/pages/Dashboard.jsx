@@ -358,7 +358,7 @@ function Dashboard() {
     const currentStopCardsHeight = stopCardsContainerRef.current?.offsetHeight || 150;
 
     const topPadding = isMobile 
-      ? currentStatsHeight + 25 // Reduced from 25 to shift map center UP by 15px
+      ? currentStatsHeight + 48 // Increased by 23px (1.5x the previous 15px reduction) to shift map center UP
       : 25; // Desktop: Exclude stats card
 
     const bottomPadding = areCardsVisible 
