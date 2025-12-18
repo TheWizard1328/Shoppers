@@ -355,19 +355,19 @@ function Dashboard() {
   const getMapPadding = useCallback((cardExpanded = false) => {
     // Get actual rendered heights from refs
     const currentStatsHeight = statsCardRef.current?.offsetHeight || 116;
-    const currentStopCardsHeight = stopCardsContainerRef.current?.offsetHeight || 75;
+    const currentStopCardsHeight = stopCardsContainerRef.current?.offsetHeight || 150;
 
     const topPadding = isMobile 
-      ? currentStatsHeight + 10
-      : 25; // Desktop: Exclude stats card
+      ? currentStatsHeight + 20
+      : 20; // Desktop: Exclude stats card
 
     const bottomPadding = areCardsVisible 
       ? (cardExpanded ? currentStopCardsHeight + 20 : stopCardsBaseHeight + 20)
       : 20; // No stop cards visible
     
     return {
-      paddingTopLeft: [25, topPadding],
-      paddingBottomRight: [25, bottomPadding]
+      paddingTopLeft: [20, topPadding],
+      paddingBottomRight: [20, bottomPadding]
     };
   }, [isMobile, areCardsVisible, stopCardsBaseHeight]);
 
