@@ -1142,25 +1142,18 @@ function Dashboard() {
           setDriverLocation(newLocation);
 
           // CRITICAL: Auto-zoom when within 100m of in_transit/en_route stop (mobile only)
-          // Phase 2: continuous re-centering when locked (FAB blue), proximity snap when unlocked (FAB gray)
+          // Phase 2: continuous re-centering ONLY when locked (FAB blue)
+          // When user pans/zooms, handleMapInteraction unlocks FAB, stopping re-centering
           // Other phases: proximity snap only (if unlocked)
           if (isMobile && newLocation.latitude && newLocation.longitude) {
             const now = Date.now();
             
             // PHASE 2 LOCKED: Continuous re-centering (every location update)
-            // CRITICAL: Skip if user manually interacted in last 5 seconds
+            // CRITICAL: Only re-center if FAB is locked - user pan/zoom unlocks FAB via handleMapInteraction
             if (mapViewPhase === 2 && isMapViewLocked && nextStopCoordinates) {
-              const timeSinceUserInteraction = now - lastUserInteractionRef.current;
-              
-              // Skip auto-recenter if user interacted in last 5 seconds (let them explore)
-              if (timeSinceUserInteraction < 5000) {
-                console.log('📍 [Phase 2 Auto] Skipping - user is interacting with map');
-                return;
-              }
-              
               console.log('📍 [Phase 2 Auto] Re-centering on driver & next stop');
               
-              // Mark as programmatic to prevent unlock
+              // Mark as programmatic to prevent unlock from this movement
               lastProgrammaticMapMoveRef.current = Date.now();
               window._lastProgrammaticMapMove = Date.now();
               
