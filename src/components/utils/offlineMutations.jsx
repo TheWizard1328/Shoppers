@@ -415,30 +415,46 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
     // CRITICAL: If delivery not in IndexedDB, update backend FIRST, then add to IndexedDB
     if (!existingDelivery) {
       console.log('⚠️ [OfflineMutations] Delivery not in IndexedDB - syncing to backend first:', deliveryId);
-      
-      // Update backend immediately
-      const { base44 } = await import('@/api/base44Client');
-      const backendDelivery = await base44.entities.Delivery.update(deliveryId, updates);
-      console.log('✅ [Sync] Delivery updated on backend:', deliveryId);
-      
-      // Add to IndexedDB
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [backendDelivery]);
-      console.log('✅ [OfflineMutations] Added backend delivery to IndexedDB:', deliveryId);
-      
-      // Notify listeners for UI update
-      notifyMutation({ 
-        type: 'update', 
-        entity: 'Delivery', 
-        id: deliveryId,
-        data: backendDelivery 
-      });
-      
-      // CRITICAL: Only trigger smart refresh if not skipped
-      if (!skipSmartRefresh) {
-        await triggerSmartRefresh();
+
+      try {
+        // Update backend immediately
+        const { base44 } = await import('@/api/base44Client');
+        const backendDelivery = await base44.entities.Delivery.update(deliveryId, updates);
+        console.log('✅ [Sync] Delivery updated on backend:', deliveryId);
+
+        // Add to IndexedDB
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [backendDelivery]);
+        console.log('✅ [OfflineMutations] Added backend delivery to IndexedDB:', deliveryId);
+
+        // Notify listeners for UI update
+        notifyMutation({ 
+          type: 'update', 
+          entity: 'Delivery', 
+          id: deliveryId,
+          data: backendDelivery 
+        });
+
+        // CRITICAL: Only trigger smart refresh if not skipped
+        if (!skipSmartRefresh) {
+          await triggerSmartRefresh();
+        }
+
+        return backendDelivery;
+      } catch (error) {
+        // CRITICAL: Handle case where delivery was deleted from backend
+        if (error.message?.includes('not found') || error.message?.includes('404')) {
+          console.warn('⚠️ [OfflineMutations] Delivery no longer exists in backend:', deliveryId);
+          // Notify listeners to remove from UI
+          notifyMutation({ 
+            type: 'delete', 
+            entity: 'Delivery', 
+            id: deliveryId,
+            data: null 
+          });
+          return null;
+        }
+        throw error;
       }
-      
-      return backendDelivery;
     }
 
     // Apply updates
