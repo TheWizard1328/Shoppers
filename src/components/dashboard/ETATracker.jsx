@@ -198,8 +198,8 @@ export default function ETATracker({
     // Update ETAs immediately
     updateETAs();
 
-    // Check for updates every 30 seconds (scan for location changes)
-    intervalRef.current = setInterval(updateETAs, 30000);
+    // Check for updates every 5 minutes (300000ms) - only updates if driver moved >500m
+    intervalRef.current = setInterval(updateETAs, 300000);
 
     return () => {
       if (intervalRef.current) {
