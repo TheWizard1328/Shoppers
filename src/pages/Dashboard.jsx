@@ -1943,9 +1943,9 @@ function Dashboard() {
 
         // Use fitBounds with driver location to apply bottom padding
         const padding = getMapPadding(false);
-        const topPadding = isMobile 
-          ? (isExpanded ? STATS_CARD_EXTENDED_HEIGHT : STATS_CARD_BASE_HEIGHT + 15) 
-          : 20;
+        {/* const topPadding = isMobile 
+          ? (isExpanded ? STATS_CARD_EXTENDED_HEIGHT + 20 : STATS_CARD_BASE_HEIGHT + 20) 
+          : 20; */}
         setShouldFitBounds({
           bounds: [[driverLocation.latitude, driverLocation.longitude]],
           options: {
