@@ -96,13 +96,17 @@ Deno.serve(async (req) => {
       : [];
     const storeMap = new Map(stores.map(s => [s.id, s]));
 
-    // STEP 1: Sort deliveries by time windows first
+    // STEP 1: Enrich deliveries with coordinates and store info
     const deliveriesWithTimeWindows = allDeliveries.map(d => {
       let coords = null;
+      let storeDeliveryTimeStart = null;
+      const store = storeMap.get(d.store_id);
+      
       if (d.puid) {
-        // Pickup - use store coordinates
-        const store = storeMap.get(d.store_id);
+        // Pickup - use store coordinates and store's delivery_time_start
         coords = store ? { lat: store.latitude, lng: store.longitude } : null;
+        // Get the store's AM/PM delivery_time_start for sorting pickups
+        storeDeliveryTimeStart = d.delivery_time_start || null;
       } else {
         // Delivery - use patient coordinates
         const patient = patientMap.get(d.patient_id);
@@ -112,6 +116,7 @@ Deno.serve(async (req) => {
       return {
         ...d,
         coords,
+        storeDeliveryTimeStart,
         // Use delivery time window, fallback to patient time window
         effectiveTimeWindowStart: d.time_window_start || null,
         effectiveTimeWindowEnd: d.time_window_end || null,
@@ -119,28 +124,71 @@ Deno.serve(async (req) => {
       };
     }).filter(d => d.coords); // Filter out deliveries without coordinates
 
-    // Sort by time window start, then by existing stop_order
-    deliveriesWithTimeWindows.sort((a, b) => {
-      // Pickups always come before their associated deliveries
-      // Group by PUID - pickups first, then deliveries with matching puid
-      
-      // If both are pickups or both are deliveries, sort by time window
-      if (a.effectiveTimeWindowStart && b.effectiveTimeWindowStart) {
-        const aTime = parseTimeToMinutes(a.effectiveTimeWindowStart);
-        const bTime = parseTimeToMinutes(b.effectiveTimeWindowStart);
-        if (aTime !== bTime) return aTime - bTime;
-      } else if (a.effectiveTimeWindowStart) {
-        return -1; // a has time window, prioritize it
-      } else if (b.effectiveTimeWindowStart) {
-        return 1; // b has time window, prioritize it
-      }
-      
+    // STEP 2: Separate pickups and deliveries
+    const pickups = deliveriesWithTimeWindows.filter(d => d.isPickup);
+    const regularDeliveries = deliveriesWithTimeWindows.filter(d => !d.isPickup);
+
+    // STEP 3: Sort pickups by their delivery_time_start (store pickup time)
+    pickups.sort((a, b) => {
+      const aTime = parseTimeToMinutes(a.storeDeliveryTimeStart || a.delivery_time_start);
+      const bTime = parseTimeToMinutes(b.storeDeliveryTimeStart || b.delivery_time_start);
+      if (aTime !== bTime) return aTime - bTime;
       // Fallback to existing stop_order
       return (a.stop_order || Infinity) - (b.stop_order || Infinity);
     });
 
-    // STEP 2: Build stages based on pickup locations
-    const stages = buildStages(deliveriesWithTimeWindows, driverLocation, driverHomeLocation);
+    console.log(`📋 Pickup order by delivery_time_start:`);
+    pickups.forEach((p, i) => {
+      const store = storeMap.get(p.store_id);
+      console.log(`   ${i + 1}. ${store?.name || 'Unknown'} - delivery_time_start: ${p.storeDeliveryTimeStart || p.delivery_time_start || 'N/A'}`);
+    });
+
+    // STEP 4: Group deliveries by their associated pickup (puid)
+    // Create a map of puid (pickup's stop_id) to deliveries
+    const deliveriesByPickup = new Map();
+    for (const delivery of regularDeliveries) {
+      const puid = delivery.puid;
+      if (!deliveriesByPickup.has(puid)) {
+        deliveriesByPickup.set(puid, []);
+      }
+      deliveriesByPickup.get(puid).push(delivery);
+    }
+
+    // Sort deliveries within each pickup group by time window
+    for (const [puid, deliveries] of deliveriesByPickup) {
+      deliveries.sort((a, b) => {
+        if (a.effectiveTimeWindowStart && b.effectiveTimeWindowStart) {
+          const aTime = parseTimeToMinutes(a.effectiveTimeWindowStart);
+          const bTime = parseTimeToMinutes(b.effectiveTimeWindowStart);
+          if (aTime !== bTime) return aTime - bTime;
+        } else if (a.effectiveTimeWindowStart) {
+          return -1;
+        } else if (b.effectiveTimeWindowStart) {
+          return 1;
+        }
+        return (a.stop_order || Infinity) - (b.stop_order || Infinity);
+      });
+    }
+
+    // STEP 5: Build final sorted list: for each pickup (in order), add pickup then its deliveries
+    const sortedDeliveries = [];
+    for (const pickup of pickups) {
+      sortedDeliveries.push(pickup);
+      const associatedDeliveries = deliveriesByPickup.get(pickup.stop_id) || [];
+      sortedDeliveries.push(...associatedDeliveries);
+    }
+
+    // Add any orphan deliveries (deliveries without matching pickup) at the end
+    const assignedPuids = new Set(pickups.map(p => p.stop_id));
+    for (const [puid, deliveries] of deliveriesByPickup) {
+      if (!assignedPuids.has(puid)) {
+        console.log(`⚠️ Found ${deliveries.length} orphan deliveries with puid ${puid}`);
+        sortedDeliveries.push(...deliveries);
+      }
+    }
+
+    // STEP 6: Build stages based on pickup locations
+    const stages = buildStages(sortedDeliveries, driverLocation, driverHomeLocation);
     console.log(`📊 Built ${stages.length} stages for route`);
 
     // STEP 3: Check for in_transit deliveries
