@@ -365,12 +365,12 @@ function Dashboard() {
       ? (cardExpanded ? stopCardsCurrHeight + 20 : stopCardsBaseHeight + 20) // Increased padding to shift map center UP
       : 20; // Increased padding to shift map center UP
     
-    console.log('[Map Padding] - cardExpanded:', cardExpanded);
-    console.log('[Map Padding] - top:', topPadding, 'bottom:', bottomPadding);
-    console.log('[Map Padding] - statsCardBaseHeight:', statsCardBaseHeight);
-    console.log('[Map Padding] - statsCardCurrHeight:', statsCardCurrHeight);
-    console.log('[Map Padding] - stopCardsBaseHeight:', stopCardsBaseHeight);
-    console.log('[Map Padding] - stopCardsCurrHeight:', stopCardsCurrHeight);
+    console.log('[Padding] - cardExpanded:', cardExpanded);
+    console.log('[Padding] - top:', topPadding, 'bottom:', bottomPadding);
+    console.log('[Padding] - statsCardBaseHeight:', statsCardBaseHeight);
+    console.log('[Padding] - stopCardsBaseHeight:', stopCardsBaseHeight);
+    console.log('[Padding] - statsCardCurrHeight:', statsCardCurrHeight);
+    console.log('[Padding] - stopCardsCurrHeight:', stopCardsCurrHeight);
 
     return {
       paddingTopLeft: [20, topPadding],
