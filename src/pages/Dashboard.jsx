@@ -363,7 +363,7 @@ function Dashboard() {
       : 25; // Desktop: Exclude stats card
 
     const bottomPadding = hasVisibleCards 
-      ? (cardExpanded ? stopCardsCurrHeight + 0 : stopCardsBaseHeight + 0) // Increased padding to shift map center UP
+      ? (cardExpanded ? stopCardsCurrHeight + 10 : stopCardsBaseHeight + 10) // Increased padding to shift map center UP
       : 25; // Increased padding to shift map center UP
     
     console.log('[Padding] - cardExpanded:', cardExpanded);
