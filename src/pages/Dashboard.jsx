@@ -345,7 +345,7 @@ function Dashboard() {
 
   // Track dynamically measured heights for map padding
   const [stopCardsBaseHeight, setStopCardsBaseHeight] = useState(0); 
-  const [statsCardBaseHeight, setStatsCardHeight] = useState(0);
+  const [statsCardBaseHeight, setstatsCardBaseHeight] = useState(0);
   const measurementTimeoutRef = useRef(null);
 
   // Computed padding values for consistent map bounds
@@ -1027,8 +1027,8 @@ function Dashboard() {
         if (width > 0 && width !== cardWidth) {
           setCardWidth(width);
         }
-        if (height > 0 && height !== statsCardHeight) {
-          setStatsCardHeight(height);
+        if (height > 0 && height !== statsCardBaseHeight) {
+          setstatsCardBaseHeight(height);
         }
       }
     };
