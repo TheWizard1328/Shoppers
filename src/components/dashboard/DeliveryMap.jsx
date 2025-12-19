@@ -467,7 +467,7 @@ const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, nu
   });
 };
 
-const createDriverIcon = (driverStatus = 'on_duty', initial = '') => {
+const createDriverIcon = (driverStatus = 'on_duty', initial = '', isStaleLocation = false) => {
   const size = 15; // Reduced by 50% from 30 to 15
   
   // Green for on_duty, Orange for on_break, Grey for off_duty
@@ -478,6 +478,10 @@ const createDriverIcon = (driverStatus = 'on_duty', initial = '') => {
   };
   const color = statusColors[driverStatus] || statusColors['on_duty'];
   
+  // Orange outer ring for stale location (>5 minutes old)
+  const outerRingColor = isStaleLocation ? '#F97316' : 'white';
+  const outerRingWidth = isStaleLocation ? 3 : 2;
+  
   return L.divIcon({
     html: `
       <div class="driver-marker" style="
@@ -487,7 +491,7 @@ const createDriverIcon = (driverStatus = 'on_duty', initial = '') => {
       ">
         <div style="
           background-color: ${color};
-          border: 2px solid white;
+          border: ${outerRingWidth}px solid ${outerRingColor};
           border-radius: 50%;
           width: ${size}px;
           height: ${size}px;
@@ -1148,17 +1152,17 @@ export default function DeliveryMap({
   }, [selectedDate]);
 
   // Process driver locations - Show shared location markers for on-duty drivers with location sharing enabled
+  // CRITICAL: Always show markers if driver is on_duty with location_tracking_enabled, even if location is stale
   const driverLocationMarkers = useMemo(() => {
     if (!isViewingCurrentDate) return [];
 
     const isAdmin = currentUser && userHasRole(currentUser, 'admin');
     const currentUserCityId = currentUser?.city_id;
+    const fiveMinutesInMs = 5 * 60 * 1000;
+    const now = Date.now();
 
     return safeDriverLocations.map((location) => {
-      if (!location || !location.latitude || !location.longitude) {
-        return null;
-      }
-
+      // CRITICAL: Check driver status and tracking first, before checking location coordinates
       const driverId = location.driver_id || location.user_id || location.id;
       const driver = safeUsers.find((u) => u && typeof u === 'object' && u.id === driverId);
       
@@ -1168,9 +1172,17 @@ export default function DeliveryMap({
 
       const isCurrentUser = driverId === currentUser?.id;
 
+      // Skip current user on mobile (blue dot shows instead)
       if (isMobile && isCurrentUser) return null;
+      
+      // CRITICAL: Only show if on_duty AND location_tracking_enabled
       if (location.driver_status !== 'on_duty') return null;
       if (location.location_tracking_enabled !== true) return null;
+
+      // CRITICAL: Now check for location data - if missing, skip (can't show marker without coordinates)
+      if (!location.latitude || !location.longitude) {
+        return null;
+      }
 
       // Permission filtering
       if (!isAdmin && currentUserCityId !== driver.city_id) {
@@ -1191,6 +1203,16 @@ export default function DeliveryMap({
         }
       }
 
+      // CRITICAL: Determine if location is stale (>5 minutes old)
+      let isStaleLocation = false;
+      if (location.location_updated_at) {
+        const locationAge = now - new Date(location.location_updated_at).getTime();
+        isStaleLocation = locationAge > fiveMinutesInMs;
+      } else {
+        // No timestamp = consider stale
+        isStaleLocation = true;
+      }
+
       const driverColor = getDriverColor(driver);
       const driverName = driver.user_name || driver.full_name || 'Unknown Driver';
       const driverInitial = driverName.charAt(0).toUpperCase();
@@ -1202,7 +1224,8 @@ export default function DeliveryMap({
         driverName,
         driverInitial,
         isSelf: isCurrentUser,
-        driver_status: location.driver_status
+        driver_status: location.driver_status,
+        isStaleLocation // NEW: Flag for stale location
       };
     }).filter(Boolean);
   }, [safeDriverLocations, safeUsers, safeDeliveries, currentUser, isViewingCurrentDate, isMobile]);
@@ -2399,6 +2422,7 @@ export default function DeliveryMap({
         })}
 
         {/* Driver Location Markers - Green for on_duty, Orange for on_break, with driver initial */}
+        {/* Orange outer ring indicates stale location (>5 minutes old) */}
         {driverLocationMarkers.map((location) => {
           const statusLabel = location.driver_status === 'on_duty' ? 'On Duty' : 'On Break';
           const statusColor = location.driver_status === 'on_duty' ? 'text-emerald-600' : 'text-orange-600';
@@ -2407,7 +2431,7 @@ export default function DeliveryMap({
             <Marker
               key={`driver-location-${location.id || location.user_id}`}
               position={[location.latitude, location.longitude]}
-              icon={createDriverIcon(location.driver_status, location.driverInitial)}
+              icon={createDriverIcon(location.driver_status, location.driverInitial, location.isStaleLocation)}
               zIndexOffset={3000}
               eventHandlers={{
                 click: () => onMarkerClick && onMarkerClick(location, 'driver'),
@@ -2436,6 +2460,11 @@ export default function DeliveryMap({
                     <Activity className="w-3 h-3 animate-pulse" />
                     {statusLabel}
                   </div>
+                  {location.isStaleLocation && (
+                    <div className="text-[10px] mt-1 font-medium text-orange-600">
+                      ⚠️ Location stale (&gt;5 min)
+                    </div>
+                  )}
                   {location.location_updated_at &&
                     <div className="flex items-center gap-1 mt-1 text-[11px] text-gray-600">
                       <Clock className="w-3 h-3" />
