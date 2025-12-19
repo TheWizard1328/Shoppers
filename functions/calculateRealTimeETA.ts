@@ -239,8 +239,9 @@ Deno.serve(async (req) => {
             }
           }
           
-          // Calculate ETA in HH:mm format
-          const etaHours = Math.floor(cumulativeMinutes / 60) % 24;
+          // CRITICAL: Keep cumulative format (don't use % 24) to show next-day times
+          // Frontend will display "25:30" as next day or handle overflow appropriately
+          const etaHours = Math.floor(cumulativeMinutes / 60);
           const etaMinutes = cumulativeMinutes % 60;
           const eta = `${String(etaHours).padStart(2, '0')}:${String(etaMinutes).padStart(2, '0')}`;
           
