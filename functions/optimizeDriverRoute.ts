@@ -435,15 +435,24 @@ async function optimizeStage(stage, googleMapsKey, base44, user, driverId, deliv
     const regularDeliveries = deliveryCoords.filter(d => !d.isPickup && !d.isNextDelivery);
 
     if (regularDeliveries.length <= 1) {
-      // Not enough deliveries to optimize
+      // Not enough deliveries to optimize - but still need to insert nextDelivery at correct position
+      let finalOrder = [...pickups.map(p => p.id), ...regularDeliveries.map(d => d.id)];
+      
+      // Insert nextDelivery at its preserved position
+      if (nextDelivery && nextDeliveryPosition >= 0) {
+        finalOrder.splice(nextDeliveryPosition, 0, nextDelivery.id);
+      } else if (nextDelivery) {
+        finalOrder.push(nextDelivery.id);
+      }
+      
       return {
         success: true,
-        optimizedOrder: [...pickups.map(p => p.id), ...regularDeliveries.map(d => d.id)],
+        optimizedOrder: finalOrder,
         apiCalls: 0
       };
     }
 
-    // Use Google Directions with optimize:true for regular deliveries only
+    // Use Google Directions with optimize:true for regular deliveries only (excluding nextDelivery)
     const destination = stage.endLocation 
       ? `${stage.endLocation.lat},${stage.endLocation.lng}`
       : `${regularDeliveries[regularDeliveries.length - 1].lat},${regularDeliveries[regularDeliveries.length - 1].lng}`;
@@ -484,10 +493,20 @@ async function optimizeStage(stage, googleMapsKey, base44, user, driverId, deliv
     // Add the final destination delivery
     optimizedDeliveries.push(regularDeliveries[regularDeliveries.length - 1].id);
 
-    const finalOrder = [
+    let finalOrder = [
       ...pickups.map(p => p.id),
       ...optimizedDeliveries
     ];
+
+    // CRITICAL: Insert nextDelivery at its preserved position
+    if (nextDelivery && nextDeliveryPosition >= 0) {
+      // Insert at the original position within the stage
+      finalOrder.splice(nextDeliveryPosition, 0, nextDelivery.id);
+      console.log(`   🔒 Re-inserted isNextDelivery at position ${nextDeliveryPosition + 1}`);
+    } else if (nextDelivery) {
+      // Fallback: add at end if position couldn't be determined
+      finalOrder.push(nextDelivery.id);
+    }
 
     console.log(`   ✅ Stage ${stage.stageNumber} optimized: ${finalOrder.length} stops`);
 
