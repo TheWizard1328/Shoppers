@@ -232,6 +232,8 @@ Deno.serve(async (req) => {
           const etaMinutes = cumulativeMinutes % 60;
           const eta = `${String(etaHours).padStart(2, '0')}:${String(etaMinutes).padStart(2, '0')}`;
           
+          console.log(`  📍 Stop ${i + 1}: ${delivery.patient_name || 'Pickup'} - Travel=${travelMinutes}min, Cumulative=${cumulativeMinutes}min, ETA=${eta}`);
+          
           // Track cumulative time for time window logic
           cumulativeMinutes += serviceTime;
 
