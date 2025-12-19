@@ -166,6 +166,40 @@ const getByDate = async (storeName, dateStr) => {
 };
 
 /**
+ * Get all deliveries sorted by delivery_date in descending order (most recent first)
+ */
+const getDeliveriesSortedByDate = async (limit = null) => {
+  try {
+    const db = await openDatabase();
+    const transaction = db.transaction([STORES.DELIVERIES], 'readonly');
+    const store = transaction.objectStore(STORES.DELIVERIES);
+    const index = store.index('delivery_date');
+
+    return new Promise((resolve, reject) => {
+      const results = [];
+      const request = index.openCursor(null, 'prev'); // 'prev' for descending order
+
+      request.onsuccess = (event) => {
+        const cursor = event.target.result;
+        if (cursor) {
+          results.push(cursor.value);
+          if (limit && results.length >= limit) {
+            resolve(results);
+            return;
+          }
+          cursor.continue();
+        } else {
+          resolve(results);
+        }
+      };
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    return [];
+  }
+};
+
+/**
  * Clear all data from a store
  */
 const clearStore = async (storeName) => {
