@@ -1012,7 +1012,9 @@ export default function Layout({ children, currentPageName }) {
 
         if (isEntityUpdating) return;
 
-        const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers);
+        // CRITICAL: Force refresh driver locations on every smart refresh cycle
+        // This ensures markers always show for on-duty drivers with location tracking
+        const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
         if (locationUpdates?.hasChanges) {
           setAppUsers(locationUpdates.appUsers);
           updatedEntities.push('locations');
