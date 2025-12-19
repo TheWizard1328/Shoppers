@@ -1398,6 +1398,15 @@ export default function Layout({ children, currentPageName }) {
       setStores(allStores);
       setAppUsers(allAppUsers);
 
+      // CRITICAL: Force refresh driver locations on initial load
+      // This ensures driver location markers show immediately
+      setTimeout(async () => {
+        const locationUpdates = await smartRefreshManager.refreshDriverLocations(allAppUsers, true);
+        if (locationUpdates?.hasChanges) {
+          setAppUsers(locationUpdates.appUsers);
+        }
+      }, 1000);
+
       } catch (error) {
       setUsers([]);
       setDrivers([]);
