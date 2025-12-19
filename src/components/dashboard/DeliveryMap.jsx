@@ -1674,14 +1674,24 @@ export default function DeliveryMap({
     
     const mapInstance = useMapEvents({
       zoomstart: () => {
-        console.log('🗺️ [MapController] ZOOMSTART detected - calling onMapInteraction');
-        // Always call onMapInteraction - Dashboard will handle programmatic vs manual detection
-        if (onMapInteraction) onMapInteraction();
+        // CRITICAL: Check if this is a programmatic move BEFORE calling onMapInteraction
+        const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
+        const isProgrammaticMove = timeSinceProgrammatic < 1000;
+        
+        if (!isProgrammaticMove && onMapInteraction) {
+          console.log('🗺️ [MapController] Manual ZOOMSTART - unlocking FAB');
+          onMapInteraction();
+        }
       },
       movestart: () => {
-        console.log('🗺️ [MapController] MOVESTART detected - calling onMapInteraction');
-        // Always call onMapInteraction - Dashboard will handle programmatic vs manual detection
-        if (onMapInteraction) onMapInteraction();
+        // CRITICAL: Check if this is a programmatic move BEFORE calling onMapInteraction
+        const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
+        const isProgrammaticMove = timeSinceProgrammatic < 1000;
+        
+        if (!isProgrammaticMove && onMapInteraction) {
+          console.log('🗺️ [MapController] Manual MOVESTART - unlocking FAB');
+          onMapInteraction();
+        }
       },
       zoomend: () => {
         const rawZoom = mapInstance.getZoom();
