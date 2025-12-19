@@ -358,26 +358,22 @@ function Dashboard() {
     const stopCardsCurrHeight = stopCardsContainerRef.current?.offsetHeight || 150;
 
     const topPadding = isMobile 
-      ? statsCardCurrHeight + 20 // Increased by 23px (1.5x the previous 15px reduction) to shift map center UP
+      ? statsCardCurrHeight + 20
       : 20; // Desktop: Exclude stats card
 
-    const bottomPadding = areCardsVisible 
-      ? (cardExpanded ? stopCardsCurrHeight + 20 : stopCardsBaseHeight + 20) // Increased padding to shift map center UP
-      : 20; // Increased padding to shift map center UP
+    // CRITICAL: Use deliveriesWithStopOrder.length > 0 to check if cards are visible
+    // areCardsVisible is only for the fade animation, not actual visibility
+    const hasVisibleCards = deliveriesWithStopOrder.length > 0;
     
-    console.log('[Padding] - cardExpanded:', cardExpanded);
-    console.log('[Padding] - areCardsVisible:', areCardsVisible);
-    console.log('[Padding] - top:', topPadding, 'bottom:', bottomPadding);
-    console.log('[Padding] - statsCardBaseHeight:', statsCardBaseHeight);
-    console.log('[Padding] - stopCardsBaseHeight:', stopCardsBaseHeight);
-    console.log('[Padding] - statsCardCurrHeight:', statsCardCurrHeight);
-    console.log('[Padding] - stopCardsCurrHeight:', stopCardsCurrHeight);
+    const bottomPadding = hasVisibleCards 
+      ? (cardExpanded ? stopCardsCurrHeight + 20 : stopCardsBaseHeight + 20)
+      : 20;
 
     return {
       paddingTopLeft: [20, topPadding],
       paddingBottomRight: [20, bottomPadding]
     };
-  }, [isMobile, areCardsVisible, stopCardsBaseHeight]);
+  }, [isMobile, stopCardsBaseHeight, deliveriesWithStopOrder.length]);
 
   // Load user settings on mount - PHASE 1: Load backend values FIRST
   useEffect(() => {
