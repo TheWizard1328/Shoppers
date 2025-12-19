@@ -416,6 +416,7 @@ export const offlineDB = {
   getByIndex,
   getByDate,
   getByCompoundIndex,
+  getDeliveriesSortedByDate,
   clearStore,
   getSyncStatus,
   updateSyncStatus,
