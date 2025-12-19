@@ -5856,7 +5856,19 @@ function Dashboard() {
             retractClustersRef={retractClustersRef}
             areStopCardsVisible={deliveriesWithStopOrder.length > 0}
             highlightedDeliveryId={highlightedCardId}
-            stopCardsHeight={stopCardsBaseHeight} />
+            stopCardsHeight={stopCardsBaseHeight}
+            onMapReady={() => {
+              // CRITICAL: Mark map rendering complete (Sequence 3-6 done)
+              if (!renderSequence.mapMarkers) {
+                setRenderSequence(prev => ({ 
+                  ...prev, 
+                  mapMarkers: true, 
+                  routeLines: true, 
+                  driverLiveLocation: true, 
+                  sharedLocations: true 
+                }));
+              }
+            }} />
         </div>
 
         <div
