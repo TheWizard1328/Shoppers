@@ -249,7 +249,7 @@ const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, numbe
   // REMOVED: Don't enlarge markers when highlighted
   let size = isActive ? baseSize * 1.15 : baseSize;
   
-  const numberColor = FINISHED_STATUSES.includes(status) ? 'black' : getContrastColor(storeColor);
+  const numberColor = (status === 'failed' || status === 'cancelled') ? 'white' : (FINISHED_STATUSES.includes(status) ? 'black' : getContrastColor(storeColor));
 
   return L.divIcon({
     html: `
@@ -366,7 +366,7 @@ const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, nu
   // Keep size consistent - no enlargement on highlight
   const size = isActive ? baseSize * 1.15 : baseSize;
   
-  const numberColor = shouldShowNextBlue ? '#FFFFFF' : (FINISHED_STATUSES.includes(status) ? 'black' : getContrastColor(statusColor));
+  const numberColor = shouldShowNextBlue ? '#FFFFFF' : ((status === 'failed' || status === 'cancelled') ? 'white' : (FINISHED_STATUSES.includes(status) ? 'black' : getContrastColor(statusColor)));
 
   return L.divIcon({
     html: `
