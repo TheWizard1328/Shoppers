@@ -534,15 +534,18 @@ class SmartRefreshManager {
   
   /**
    * Fast driver location refresh
+   * @param currentAppUsers - Current AppUser data
+   * @param forceRefresh - If true, bypasses the interval check (for initial load)
    */
-  async refreshDriverLocations(currentAppUsers) {
+  async refreshDriverLocations(currentAppUsers, forceRefresh = false) {
     try {
-      // Check if disabled - silently skip automatic polling
-      if (!this._enabled) {
+      // Check if disabled - silently skip automatic polling (unless forced)
+      if (!this._enabled && !forceRefresh) {
         return null;
       }
       
-      if (!this.shouldRefresh('driverLocation')) {
+      // Skip interval check if force refresh (initial load)
+      if (!forceRefresh && !this.shouldRefresh('driverLocation')) {
         return null;
       }
       
