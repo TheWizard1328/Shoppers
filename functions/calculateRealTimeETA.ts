@@ -193,10 +193,19 @@ Deno.serve(async (req) => {
       if (directionsData.status === 'OK' && directionsData.routes?.[0]) {
         const route = directionsData.routes[0];
         
-        // CRITICAL: Always use server UTC time to avoid timezone conversion issues
-        const now = new Date();
-        let cumulativeMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
-        console.log(`🕐 Using server UTC time: ${String(now.getUTCHours()).padStart(2, '0')}:${String(now.getUTCMinutes()).padStart(2, '0')} (${cumulativeMinutes} minutes)`);
+        // CRITICAL: Use device's local time passed from frontend
+        let cumulativeMinutes;
+        if (currentLocalTime) {
+          // currentLocalTime format: "14:30" (already in device's local timezone)
+          const [hours, minutes] = currentLocalTime.split(':').map(Number);
+          cumulativeMinutes = hours * 60 + minutes;
+          console.log(`🕐 Using device local time: ${currentLocalTime} (${cumulativeMinutes} minutes)`);
+        } else {
+          // Fallback: use server time if no device time provided
+          const now = new Date();
+          cumulativeMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+          console.warn(`⚠️ No device time provided, using server UTC time as fallback`);
+        }
 
         // Process each leg of the route - calculate actual clock time ETAs
         for (let i = 0; i < route.legs.length; i++) {
