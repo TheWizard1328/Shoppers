@@ -371,7 +371,7 @@ function Dashboard() {
     const hasVisibleCards = deliveriesWithStopOrder.length > 0;
 
     const topPadding = isMobile ?
-    statsCardCurrHeight + 10 :
+    statsCardCurrHeight + 20 :
     25; // Desktop: Exclude stats card
 
     const bottomPadding = hasVisibleCards ?
