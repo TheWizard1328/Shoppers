@@ -696,7 +696,8 @@ export default function DeliveryMap({
   statsCardRect = null, // NEW: Stats card bounding rect for legend positioning
   highlightedDeliveryId = null, // NEW: ID of delivery to highlight (from card hover/selection)
   areStopCardsVisible = false, // NEW: Whether stop cards are visible
-  onDriverRoutesCalculated = () => {} // NEW: Callback to pass driver routes to parent
+  onDriverRoutesCalculated = () => {}, // NEW: Callback to pass driver routes to parent
+  onMapReady = () => {} // NEW: Callback when ALL map elements are rendered
 }) {
   const mapRef = useRef(null);
   const [map, setMap] = useState(null);
