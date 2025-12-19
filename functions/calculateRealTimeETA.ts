@@ -193,31 +193,10 @@ Deno.serve(async (req) => {
       if (directionsData.status === 'OK' && directionsData.routes?.[0]) {
         const route = directionsData.routes[0];
         
-        // CRITICAL: Use device's local time - prefer HH:mm string to avoid timezone conversion
-        let cumulativeMinutes;
-        if (currentLocalTime) {
-          // currentLocalTime format: "14:30" (already in local time)
-          const [hours, minutes] = currentLocalTime.split(':').map(Number);
-          cumulativeMinutes = hours * 60 + minutes;
-          console.log(`🕐 Using device local time: ${currentLocalTime} (${cumulativeMinutes} minutes)`);
-        } else if (deviceTime) {
-          // Fallback: extract from ISO string
-          const timeMatch = deviceTime.match(/T(\d{2}):(\d{2})/);
-          if (timeMatch) {
-            const hours = parseInt(timeMatch[1], 10);
-            const minutes = parseInt(timeMatch[2], 10);
-            cumulativeMinutes = hours * 60 + minutes;
-            console.log(`🕐 Using device time from ISO: ${hours}:${String(minutes).padStart(2, '0')} (${cumulativeMinutes} minutes)`);
-          } else {
-            const now = new Date();
-            cumulativeMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
-            console.warn(`⚠️ Could not parse device time, using server UTC time`);
-          }
-        } else {
-          const now = new Date();
-          cumulativeMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
-          console.warn(`⚠️ No device time provided, using server UTC time`);
-        }
+        // CRITICAL: Always use server UTC time to avoid timezone conversion issues
+        const now = new Date();
+        let cumulativeMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+        console.log(`🕐 Using server UTC time: ${String(now.getUTCHours()).padStart(2, '0')}:${String(now.getUTCMinutes()).padStart(2, '0')} (${cumulativeMinutes} minutes)`);
 
         // Process each leg of the route - calculate actual clock time ETAs
         for (let i = 0; i < route.legs.length; i++) {
@@ -239,9 +218,8 @@ Deno.serve(async (req) => {
             }
           }
           
-          // CRITICAL: Keep cumulative format (don't use % 24) to show next-day times
-          // Frontend will display "25:30" as next day or handle overflow appropriately
-          const etaHours = Math.floor(cumulativeMinutes / 60);
+          // Calculate ETA in HH:mm format
+          const etaHours = Math.floor(cumulativeMinutes / 60) % 24;
           const etaMinutes = cumulativeMinutes % 60;
           const eta = `${String(etaHours).padStart(2, '0')}:${String(etaMinutes).padStart(2, '0')}`;
           
