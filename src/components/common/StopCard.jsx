@@ -715,7 +715,16 @@ export default function StopCard({
 
               {(hasCODRequired || isFirstDelivery || delivery.oversized || delivery.fridge_item || delivery.signature_needed) &&
               <Badge
-                variant="secondary" className="bg-slate-300 text-white mt-1 px-1.5 py-0.5 text-sm font-bold rounded-full inline-flex items-center gap-0.5 border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 min-w-[25px] justify-center">
+                variant="secondary" 
+                className={`mt-1 px-1.5 py-0.5 text-sm font-bold rounded-full inline-flex items-center gap-0.5 border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 min-w-[25px] justify-center ${
+                  hasCODRequired && isCompleted
+                    ? isCODComplete 
+                      ? 'bg-emerald-500 text-white' 
+                      : codTotalCollected > 0 
+                        ? 'bg-yellow-500 text-white' 
+                        : 'bg-red-500 text-white'
+                    : 'bg-slate-300 text-white'
+                }`}>
                   {hasCODRequired &&
                 <span className="relative inline-flex items-center justify-center">
                       $
