@@ -360,11 +360,11 @@ function Dashboard() {
 
     const topPadding = isMobile 
       ? statsCardCurrHeight + 20 // Increased by 23px (1.5x the previous 15px reduction) to shift map center UP
-      : 20; // Desktop: Exclude stats card
+      : 25; // Desktop: Exclude stats card
 
     const bottomPadding = hasVisibleCards 
-      ? (cardExpanded ? stopCardsCurrHeight + 20 : stopCardsBaseHeight + 20) // Increased padding to shift map center UP
-      : 20; // Increased padding to shift map center UP
+      ? (cardExpanded ? stopCardsCurrHeight + 0 : stopCardsBaseHeight + 0) // Increased padding to shift map center UP
+      : 25; // Increased padding to shift map center UP
     
     console.log('[Padding] - cardExpanded:', cardExpanded);
     console.log('[Padding] - hasVisibleCards:', hasVisibleCards);
@@ -375,8 +375,8 @@ function Dashboard() {
     console.log('[Padding] - stopCardsCurrHeight:', stopCardsCurrHeight);
 
     return {
-      paddingTopLeft: [20, topPadding],
-      paddingBottomRight: [20, bottomPadding]
+      paddingTopLeft: [25, topPadding],
+      paddingBottomRight: [25, bottomPadding]
     };
   }, [isMobile, areCardsVisible, stopCardsBaseHeight]);
 
