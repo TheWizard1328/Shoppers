@@ -286,6 +286,18 @@ function Dashboard() {
   const [mapViewPhase, setMapViewPhase] = useState(1); // Will be loaded from user settings
   const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
   const [initialMapViewApplied, setInitialMapViewApplied] = useState(false);
+  
+  // CRITICAL: Render sequence tracking for proper initialization order
+  // 1=StatsCard&StopCards, 2=FABs, 3=MapMarkers, 4=RouteLines, 5=DriverLiveLocation, 6=SharedLocations, 7=FABPhaseActive
+  const [renderSequence, setRenderSequence] = useState({
+    statsAndCards: false,
+    fabs: false,
+    mapMarkers: false,
+    routeLines: false,
+    driverLiveLocation: false,
+    sharedLocations: false,
+    fabPhaseReady: false
+  });
   const [googleApiKey, setGoogleApiKey] = useState(null);
   const [allDriverLocations, setAllDriverLocations] = useState([]);
   const [screenWidth, setScreenWidth] = useState(window.innerWidth);
