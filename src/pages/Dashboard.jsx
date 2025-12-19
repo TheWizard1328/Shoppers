@@ -345,7 +345,7 @@ function Dashboard() {
 
   // Track dynamically measured heights for map padding
   const [stopCardsBaseHeight, setStopCardsBaseHeight] = useState(0); 
-  const [statsCardHeight, setStatsCardHeight] = useState(0);
+  const [statsCardBaseHeight, setStatsCardHeight] = useState(0);
   const measurementTimeoutRef = useRef(null);
 
   // Computed padding values for consistent map bounds
@@ -365,7 +365,10 @@ function Dashboard() {
       ? (cardExpanded ? currentStopCardsHeight + 20 : stopCardsBaseHeight + 20) // Increased padding to shift map center UP
       : 20; // Increased padding to shift map center UP
     
-    console.log('[Map Padding] - top:', topPadding, 'bottom:', bottomPadding, 'currentStatsHeight:', currentStatsHeight, 'currentStopCardsHeight:', currentStopCardsHeight);
+    console.log('[Map Padding] - top:', topPadding, 'bottom:', bottomPadding);
+    console.log('[Map Padding] - statsCardBaseHeight:', statsCardBaseHeight, 'stopCardsBaseHeight:', stopCardsBaseHeight);
+    console.log('[Map Padding] - currentStatsHeight:', currentStatsHeight, 'currentStopCardsHeight:', currentStopCardsHeight);
+    console.log('[Map Padding] - cardExpanded:', cardExpanded, 'bottom:', bottomPadding);
 
     return {
       paddingTopLeft: [20, topPadding],
