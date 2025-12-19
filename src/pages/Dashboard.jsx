@@ -5700,7 +5700,7 @@ function Dashboard() {
           style={{
             bottom: `${deliveriesWithStopOrder.length > 0 && stopCardsBaseHeight > 0 ? stopCardsBaseHeight + 15 : 25}px`
           }}>
-            <div className="bg-transparent px-2 py-1 text-xs font-medium rounded-lg backdrop-blur-sm shadow-sm border" style={{ background: 'var(--bg-white)', opacity: 0.9, borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-600)' }}>
+            <div className="px-2 py-1 text-xs font-medium rounded-lg border" style={{ background: 'transparent', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-600)' }}>
               🛣️ {dailyPolylineCount ?? '...'}
             </div>
           </div>
