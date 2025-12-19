@@ -366,6 +366,7 @@ function Dashboard() {
       : 20; // Increased padding to shift map center UP
     
     console.log('[Padding] - cardExpanded:', cardExpanded);
+    console.log('[Padding] - areCardsVisible:', areCardsVisible);
     console.log('[Padding] - top:', topPadding, 'bottom:', bottomPadding);
     console.log('[Padding] - statsCardBaseHeight:', statsCardBaseHeight);
     console.log('[Padding] - stopCardsBaseHeight:', stopCardsBaseHeight);
