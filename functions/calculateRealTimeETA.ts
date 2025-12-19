@@ -40,22 +40,52 @@ Deno.serve(async (req) => {
       lng: driverAppUser.current_longitude
     };
 
-    // Get only in_transit deliveries and en_route pickups (not pending)
-    const deliveries = await base44.asServiceRole.entities.Delivery.filter({
+    // Get ALL deliveries for the driver and date (not just active ones)
+    const allDeliveriesForDay = await base44.asServiceRole.entities.Delivery.filter({
       driver_id: driverId,
       delivery_date: deliveryDate,
-      status: { $in: ['in_transit', 'en_route'] }
     });
 
-    if (!deliveries || deliveries.length === 0) {
+    // Sort all deliveries by stop_order first
+    const sortedAllDeliveries = [...allDeliveriesForDay].sort((a, b) => 
+      (a.stop_order || Infinity) - (b.stop_order || Infinity)
+    );
+
+    // Filter to only active deliveries (in_transit or en_route)
+    const activeDeliveries = allDeliveriesForDay.filter(d => 
+      d.status === 'in_transit' || d.status === 'en_route'
+    );
+
+    // CRITICAL: Check if there are any 'in_transit' deliveries
+    const inTransitDeliveries = activeDeliveries.filter(d => d.status === 'in_transit');
+
+    let deliveriesToProcess = [];
+
+    if (inTransitDeliveries.length > 0) {
+      // If there are in_transit deliveries, process all active deliveries (in_transit + en_route)
+      deliveriesToProcess = activeDeliveries;
+      console.log(`📦 Found ${inTransitDeliveries.length} in_transit deliveries - processing all ${activeDeliveries.length} active stops`);
+    } else {
+      // If NO in_transit deliveries, only calculate ETA for the very first stop (Stop 1)
+      // This prevents unnecessary API calls for pickups when route hasn't started
+      const firstStop = sortedAllDeliveries.find(d => 
+        (d.status === 'en_route' || d.status === 'pending') && d.stop_order === 1
+      );
+      if (firstStop) {
+        deliveriesToProcess = [firstStop];
+        console.log(`🚫 No in_transit deliveries - only calculating ETA for Stop 1: ${firstStop.puid ? 'Pickup' : firstStop.patient_name}`);
+      }
+    }
+
+    if (deliveriesToProcess.length === 0) {
       return Response.json({ 
-        message: 'No active deliveries found',
+        message: 'No active or relevant deliveries found to calculate ETAs',
         etas: []
       });
     }
 
     // Get patients for coordinates
-    const patientIds = [...new Set(deliveries.filter(d => d.patient_id).map(d => d.patient_id))];
+    const patientIds = [...new Set(deliveriesToProcess.filter(d => d.patient_id).map(d => d.patient_id))];
     const patients = patientIds.length > 0 
       ? await base44.asServiceRole.entities.Patient.filter({ id: { $in: patientIds } })
       : [];
@@ -63,15 +93,15 @@ Deno.serve(async (req) => {
     const patientMap = new Map(patients.map(p => [p.id, p]));
 
     // Get stores for pickup coordinates
-    const storeIds = [...new Set(deliveries.map(d => d.store_id).filter(Boolean))];
+    const storeIds = [...new Set(deliveriesToProcess.map(d => d.store_id).filter(Boolean))];
     const stores = storeIds.length > 0
       ? await base44.asServiceRole.entities.Store.filter({ id: { $in: storeIds } })
       : [];
     
     const storeMap = new Map(stores.map(s => [s.id, s]));
 
-    // Sort deliveries by stop_order
-    const sortedDeliveries = deliveries.sort((a, b) => 
+    // Sort deliveries to process by stop_order
+    const sortedDeliveries = [...deliveriesToProcess].sort((a, b) => 
       (a.stop_order || Infinity) - (b.stop_order || Infinity)
     );
 
