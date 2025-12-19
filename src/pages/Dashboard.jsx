@@ -2095,25 +2095,61 @@ function Dashboard() {
       mapLockExpiresAtRef.current = null;
 
       setMapViewTrigger((prev) => prev + 1);
-      console.log('🔵 [FAB Initial] No deliveries - locked, will unlock on pan/zoom');
+      console.log('🔵 [FAB Initial] No deliveries - Phase 1 locked, will unlock on pan/zoom');
       return;
     }
 
     // CASE 2: Has deliveries - apply saved phase
     const phaseToApply = savedFabPhaseRef.current;
 
-    // For phase 3, require driver location
-    if (phaseToApply === 3 && (!isDriver || !driverLocation)) {
+    // For phase 2, require nextStop coordinates
+    if (phaseToApply === 2 && !nextStopCoordinates) {
+      console.log('⚠️ [FAB Initial] Phase 2 requested but no next stop - using Phase 1');
       setMapViewPhase(1);
       setIsMapViewLocked(true);
       setMapViewTrigger((prev) => prev + 1);
       setInitialMapViewApplied(true);
       setRenderSequence(prev => ({ ...prev, fabPhaseReady: true }));
-      console.log('🔵 [FAB Initial] Phase 3 unavailable, using Phase 1 - locked, will unlock on pan/zoom');
+      
+      const lockDuration = 3000;
+      const expiresAt = Date.now() + lockDuration;
+      mapLockExpiresAtRef.current = expiresAt;
+      mapLockTimeoutRef.current = setTimeout(() => {
+        if (mapLockExpiresAtRef.current === expiresAt) {
+          setIsMapViewLocked(false);
+          mapLockExpiresAtRef.current = null;
+          mapLockTimeoutRef.current = null;
+          console.log(`⏰ [FAB Initial] Phase 1 auto-unlocked after 3 seconds`);
+        }
+      }, lockDuration);
+      return;
+    }
+
+    // For phase 3, require driver location
+    if (phaseToApply === 3 && (!isDriver || !driverLocation)) {
+      console.log('⚠️ [FAB Initial] Phase 3 requested but no driver location - using Phase 1');
+      setMapViewPhase(1);
+      setIsMapViewLocked(true);
+      setMapViewTrigger((prev) => prev + 1);
+      setInitialMapViewApplied(true);
+      setRenderSequence(prev => ({ ...prev, fabPhaseReady: true }));
+      
+      const lockDuration = 3000;
+      const expiresAt = Date.now() + lockDuration;
+      mapLockExpiresAtRef.current = expiresAt;
+      mapLockTimeoutRef.current = setTimeout(() => {
+        if (mapLockExpiresAtRef.current === expiresAt) {
+          setIsMapViewLocked(false);
+          mapLockExpiresAtRef.current = null;
+          mapLockTimeoutRef.current = null;
+          console.log(`⏰ [FAB Initial] Phase 1 auto-unlocked after 3 seconds`);
+        }
+      }, lockDuration);
       return;
     }
 
     // Apply the saved phase
+    console.log(`🔵 [FAB Initial] Applying saved phase ${phaseToApply}`);
     setMapViewPhase(phaseToApply);
     setIsMapViewLocked(true);
     setInitialMapViewApplied(true);
@@ -2150,20 +2186,19 @@ function Dashboard() {
       console.log(`🔵 [FAB Initial] Phase ${phaseToApply} locked - will unlock on FAB click or manual map interaction`);
     }
 
-    // Scroll to card with isNextDelivery=true for phase 2
-    if (phaseToApply === 2) {
+    // Scroll to card with isNextDelivery=true for all phases (helps user orient)
+    setTimeout(() => {
       const nextDelivery = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
 
       if (nextDelivery) {
-        setTimeout(() => {
-          const cardElement = document.getElementById(`stop-card-${nextDelivery.id}`);
-          if (cardElement) {
-            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-          }
-        }, 300);
+        const cardElement = document.getElementById(`stop-card-${nextDelivery.id}`);
+        if (cardElement) {
+          cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+          console.log(`📍 [FAB Initial] Scrolled to next delivery card for Phase ${phaseToApply}`);
+        }
       }
-    }
-  }, [renderSequence.sharedLocations, renderSequence.fabPhaseReady, initialMapViewApplied, deliveriesWithStopOrder.length, isDriver, driverLocation, deliveriesWithStopOrder]);
+    }, 500);
+  }, [renderSequence.sharedLocations, renderSequence.fabPhaseReady, initialMapViewApplied, deliveriesWithStopOrder.length, isDriver, driverLocation, deliveriesWithStopOrder, nextStopCoordinates]);
 
   // CRITICAL: Dedicated effect to scroll to next delivery card on initial load
   // This runs AFTER cards are rendered and handles ALL phases
