@@ -1985,35 +1985,108 @@ function Dashboard() {
     }
   }, [mapViewPhase, driverLocation, nextStopCoordinates, deliveriesWithStopOrder, patients, stores, isDriver, mapViewTrigger, isDispatcher, currentUser, getMapPadding]);
 
-  // Apply initial map view on first load - WAIT for deliveries AND UI measurements to be ready
+  // RENDER SEQUENCE EFFECT 1: Track StatsCard & StopCards ready
   useEffect(() => {
-    // CRITICAL: Skip until deliveries are loaded AND UI elements are measured
-    if (!isDataLoaded || !userSettingsLoaded || initialMapViewApplied) {
-      return;
-    }
-
-    // CRITICAL: Wait for UI measurements before applying initial map view
-    // statsCardRef needs to render and measure, and stopCards need to appear
+    if (!isDataLoaded || !userSettingsLoaded) return;
+    
     const hasDeliveries = deliveriesWithStopOrder.length > 0;
     const statsCardMeasured = statsCardRef.current?.offsetHeight > 0;
     const stopCardsMeasured = hasDeliveries ? stopCardsBaseHeight > 0 : true;
+    
+    if (statsCardMeasured && stopCardsMeasured && !renderSequence.statsAndCards) {
+      console.log('✅ [Render Sequence 1] StatsCard & StopCards ready');
+      setRenderSequence(prev => ({ ...prev, statsAndCards: true }));
+    }
+  }, [isDataLoaded, userSettingsLoaded, deliveriesWithStopOrder.length, stopCardsBaseHeight, renderSequence.statsAndCards]);
 
-    if (!statsCardMeasured || !stopCardsMeasured) {
-      console.log('⏳ [FAB Initial] Waiting for UI measurements...', {
-        statsCardMeasured,
-        stopCardsMeasured,
-        hasDeliveries
-      });
+  // RENDER SEQUENCE EFFECT 2: Track FABs ready (after stats/cards)
+  useEffect(() => {
+    if (!renderSequence.statsAndCards) return;
+    if (renderSequence.fabs) return;
+    
+    // FABs render immediately after stats/cards - just mark as ready
+    console.log('✅ [Render Sequence 2] FABs ready');
+    setRenderSequence(prev => ({ ...prev, fabs: true }));
+  }, [renderSequence.statsAndCards, renderSequence.fabs]);
+
+  // RENDER SEQUENCE EFFECT 3: Track Map Markers ready (including home locations)
+  useEffect(() => {
+    if (!renderSequence.fabs) return;
+    if (renderSequence.mapMarkers) return;
+    
+    // Map markers are ready once we have deliveries data and stores/patients loaded
+    const hasRequiredData = deliveriesWithStopOrder.length > 0 || stores.length > 0;
+    
+    if (hasRequiredData) {
+      console.log('✅ [Render Sequence 3] Map Markers ready');
+      setRenderSequence(prev => ({ ...prev, mapMarkers: true }));
+    }
+  }, [renderSequence.fabs, renderSequence.mapMarkers, deliveriesWithStopOrder.length, stores.length]);
+
+  // RENDER SEQUENCE EFFECT 4: Track Route Lines ready
+  useEffect(() => {
+    if (!renderSequence.mapMarkers) return;
+    if (renderSequence.routeLines) return;
+    
+    // Route lines are ready - they render after markers
+    console.log('✅ [Render Sequence 4] Route Lines ready');
+    setRenderSequence(prev => ({ ...prev, routeLines: true }));
+  }, [renderSequence.mapMarkers, renderSequence.routeLines]);
+
+  // RENDER SEQUENCE EFFECT 5: Track Driver Live Location ready
+  useEffect(() => {
+    if (!renderSequence.routeLines) return;
+    if (renderSequence.driverLiveLocation) return;
+    
+    // Driver live location is ready when we have location OR user is not a driver
+    const hasLocation = driverLocation?.latitude && driverLocation?.longitude;
+    const notDriverOrHasLocation = !isDriver || hasLocation;
+    
+    if (notDriverOrHasLocation) {
+      console.log('✅ [Render Sequence 5] Driver Live Location ready');
+      setRenderSequence(prev => ({ ...prev, driverLiveLocation: true }));
+    }
+  }, [renderSequence.routeLines, renderSequence.driverLiveLocation, driverLocation, isDriver]);
+
+  // RENDER SEQUENCE EFFECT 6: Track Shared Driver Locations ready
+  useEffect(() => {
+    if (!renderSequence.driverLiveLocation) return;
+    if (renderSequence.sharedLocations) return;
+    
+    // Shared locations are loaded via driverLocationPoller - consider ready after poller starts
+    // or if allDriverLocations has been populated
+    const hasSharedLocations = allDriverLocations.length > 0 || !isDataLoaded;
+    
+    // Always mark as ready after a short delay to not block forever
+    const timer = setTimeout(() => {
+      console.log('✅ [Render Sequence 6] Shared Driver Locations ready');
+      setRenderSequence(prev => ({ ...prev, sharedLocations: true }));
+    }, allDriverLocations.length > 0 ? 0 : 500);
+    
+    return () => clearTimeout(timer);
+  }, [renderSequence.driverLiveLocation, renderSequence.sharedLocations, allDriverLocations.length, isDataLoaded]);
+
+  // RENDER SEQUENCE EFFECT 7: Activate FAB Phase (FINAL STEP)
+  // Apply initial map view on first load - WAIT for full render sequence
+  useEffect(() => {
+    // CRITICAL: Wait for full render sequence before activating FAB phase
+    if (!renderSequence.sharedLocations || renderSequence.fabPhaseReady) {
+      return;
+    }
+    
+    if (initialMapViewApplied) {
+      setRenderSequence(prev => ({ ...prev, fabPhaseReady: true }));
       return;
     }
 
-    console.log('✅ [FAB Initial] UI fully rendered - applying initial map view');
+    console.log('✅ [Render Sequence 7] All elements rendered - activating FAB phase');
 
     // CASE 1: No deliveries - set phase 1 locked, will unlock on pan/zoom
     if (deliveriesWithStopOrder.length === 0) {
       setMapViewPhase(1);
       setIsMapViewLocked(true);
       setInitialMapViewApplied(true);
+      setRenderSequence(prev => ({ ...prev, fabPhaseReady: true }));
 
       if (mapLockTimeoutRef.current) {
         clearTimeout(mapLockTimeoutRef.current);
@@ -2035,6 +2108,7 @@ function Dashboard() {
       setIsMapViewLocked(true);
       setMapViewTrigger((prev) => prev + 1);
       setInitialMapViewApplied(true);
+      setRenderSequence(prev => ({ ...prev, fabPhaseReady: true }));
       console.log('🔵 [FAB Initial] Phase 3 unavailable, using Phase 1 - locked, will unlock on pan/zoom');
       return;
     }
@@ -2043,6 +2117,7 @@ function Dashboard() {
     setMapViewPhase(phaseToApply);
     setIsMapViewLocked(true);
     setInitialMapViewApplied(true);
+    setRenderSequence(prev => ({ ...prev, fabPhaseReady: true }));
 
     // Clear existing timers
     if (mapLockTimeoutRef.current) {
@@ -2088,7 +2163,7 @@ function Dashboard() {
         }, 300);
       }
     }
-  }, [isDataLoaded, userSettingsLoaded, deliveriesWithStopOrder.length, initialMapViewApplied, isDriver, driverLocation, getMapPadding, stopCardsBaseHeight]);
+  }, [renderSequence.sharedLocations, renderSequence.fabPhaseReady, initialMapViewApplied, deliveriesWithStopOrder.length, isDriver, driverLocation, deliveriesWithStopOrder]);
 
   // CRITICAL: Dedicated effect to scroll to next delivery card on initial load
   // This runs AFTER cards are rendered and handles ALL phases
