@@ -2583,17 +2583,6 @@ export default function DeliveryMap({
         statsCardHeight={isMobile ? (isStatsCardExpanded ? 216 : 116) : 0}
         isMobile={isMobile} />
 
-      {safeDeliveries.length === 0 &&
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[50]">
-          <div className="text-center px-4 py-3 rounded-lg" style={{ background: 'var(--bg-white)', opacity: 0.95 }}>
-            <Package className="w-12 h-12 mx-auto mb-2" style={{ color: 'var(--text-slate-400)' }} />
-            <p style={{ color: 'var(--text-slate-600)' }}>No deliveries for selected date</p>
-          </div>
-        </div>
-      }
-
-
-
       {/* NEW: Zoom Level Overlay */}
       {showZoomOverlay &&
         <div className="absolute top-4 left-4 z-[99999] px-4 py-2 rounded-lg shadow-lg transition-opacity duration-300 pointer-events-none" style={{ background: 'var(--text-slate-900)', color: 'var(--bg-white)' }}>
