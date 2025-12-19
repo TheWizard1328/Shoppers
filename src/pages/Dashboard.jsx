@@ -371,12 +371,12 @@ function Dashboard() {
     const hasVisibleCards = deliveriesWithStopOrder.length > 0;
 
     const topPadding = isMobile ?
-    statsCardCurrHeight + 25 :
-    25; // Desktop: Exclude stats card
+    statsCardCurrHeight + 30 :
+    20; // Desktop: Exclude stats card
 
     const bottomPadding = hasVisibleCards ?
     cardExpanded ? stopCardsCurrHeight + 10 : stopCardsBaseHeight + 10 :
-    25; // Increased padding to shift map center UP
+    20;
 
     console.log('[Padding] - cardExpanded:', cardExpanded);
     console.log('[Padding] - hasVisibleCards:', hasVisibleCards);
