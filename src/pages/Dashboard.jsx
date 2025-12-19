@@ -354,11 +354,11 @@ function Dashboard() {
 
   const getMapPadding = useCallback((cardExpanded = false) => {
     // Get actual rendered heights from refs
-    const statsCurrHeight = statsCardRef.current?.offsetHeight || 116;
+    const statsCardCurrHeight = statsCardRef.current?.offsetHeight || 116;
     const stopCardsCurrHeight = stopCardsContainerRef.current?.offsetHeight || 150;
 
     const topPadding = isMobile 
-      ? statsCurrHeight + 20 // Increased by 23px (1.5x the previous 15px reduction) to shift map center UP
+      ? statsCardCurrHeight + 20 // Increased by 23px (1.5x the previous 15px reduction) to shift map center UP
       : 20; // Desktop: Exclude stats card
 
     const bottomPadding = areCardsVisible 
@@ -368,7 +368,7 @@ function Dashboard() {
     console.log('[Map Padding] - cardExpanded:', cardExpanded);
     console.log('[Map Padding] - top:', topPadding, 'bottom:', bottomPadding);
     console.log('[Map Padding] - statsCardBaseHeight:', statsCardBaseHeight);
-    console.log('[Map Padding] - statsCurrHeight:', statsCurrHeight);
+    console.log('[Map Padding] - statsCardCurrHeight:', statsCardCurrHeight);
     console.log('[Map Padding] - stopCardsBaseHeight:', stopCardsBaseHeight);
     console.log('[Map Padding] - stopCardsCurrHeight:', stopCardsCurrHeight);
 
