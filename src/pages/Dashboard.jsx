@@ -358,16 +358,16 @@ function Dashboard() {
     const currentStopCardsHeight = stopCardsContainerRef.current?.offsetHeight || 150;
 
     const topPadding = isMobile 
-      ? currentStatsHeight + 48 // Increased by 23px (1.5x the previous 15px reduction) to shift map center UP
-      : 25; // Desktop: Exclude stats card
+      ? currentStatsHeight + 20 // Increased by 23px (1.5x the previous 15px reduction) to shift map center UP
+      : 20; // Desktop: Exclude stats card
 
     const bottomPadding = areCardsVisible 
-      ? (cardExpanded ? currentStopCardsHeight + 120 : stopCardsBaseHeight + 120) // Increased padding to shift map center UP
-      : 120; // Increased padding to shift map center UP
+      ? (cardExpanded ? currentStopCardsHeight + 20 : stopCardsBaseHeight + 20) // Increased padding to shift map center UP
+      : 20; // Increased padding to shift map center UP
     
     return {
-      paddingTopLeft: [25, topPadding],
-      paddingBottomRight: [25, bottomPadding]
+      paddingTopLeft: [20, topPadding],
+      paddingBottomRight: [20, bottomPadding]
     };
   }, [isMobile, areCardsVisible, stopCardsBaseHeight]);
 
