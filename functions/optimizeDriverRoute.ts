@@ -393,6 +393,7 @@ function stageNeedsOptimization(stage) {
 
 /**
  * Optimize a single stage using Google Directions API
+ * CRITICAL: Preserves position of any delivery with isNextDelivery: true
  */
 async function optimizeStage(stage, googleMapsKey, base44, user, driverId, deliveryDate) {
   try {
@@ -413,13 +414,25 @@ async function optimizeStage(stage, googleMapsKey, base44, user, driverId, deliv
       id: d.id,
       lat: d.coords.lat,
       lng: d.coords.lng,
-      isPickup: d.isPickup
+      isPickup: d.isPickup,
+      isNextDelivery: d.isNextDelivery || false,
+      originalStopOrder: d.stop_order || Infinity
     }));
 
+    // CRITICAL: Find and preserve the "next delivery" - it must maintain its position
+    const nextDelivery = deliveryCoords.find(d => d.isNextDelivery);
+    const nextDeliveryPosition = nextDelivery 
+      ? stage.deliveries.findIndex(d => d.id === nextDelivery.id)
+      : -1;
+
+    if (nextDelivery) {
+      console.log(`   🔒 Preserving isNextDelivery at position ${nextDeliveryPosition + 1}: ${nextDelivery.id}`);
+    }
+
     // Pickups should maintain their relative order (first pickup stays first in stage)
-    // Only optimize the delivery portion
+    // Only optimize the delivery portion, excluding the "next delivery"
     const pickups = deliveryCoords.filter(d => d.isPickup);
-    const regularDeliveries = deliveryCoords.filter(d => !d.isPickup);
+    const regularDeliveries = deliveryCoords.filter(d => !d.isPickup && !d.isNextDelivery);
 
     if (regularDeliveries.length <= 1) {
       // Not enough deliveries to optimize
