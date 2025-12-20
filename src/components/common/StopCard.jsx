@@ -713,7 +713,7 @@ export default function StopCard({
                 </Badge>
               }
 
-              {(hasCODRequired || isFirstDelivery || delivery.oversized || delivery.fridge_item || delivery.signature_needed) &&
+              {(hasCODRequired || isFirstDelivery || delivery.oversized || delivery.fridge_item || delivery.signature_needed || (!isPickup && (delivery.call_upon_arrival || patient?.call_upon_arrival || delivery.ring_bell || patient?.ring_bell || delivery.dont_ring_bell || patient?.dont_ring_bell || delivery.mailbox_ok || patient?.mailbox_ok))) &&
               <Badge
                 variant="secondary" 
                 className={`mt-1 px-1.5 py-0.5 text-sm font-bold rounded-full inline-flex items-center gap-0.5 border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 min-w-[25px] justify-center ${
@@ -753,25 +753,19 @@ export default function StopCard({
                   {delivery.oversized && (hasCODRequired || isFirstDelivery ? ' O' : 'O')}
                   {delivery.fridge_item && (hasCODRequired || isFirstDelivery ? ' F' : 'F')}
                   {delivery.signature_needed && (hasCODRequired || isFirstDelivery || delivery.fridge_item ? ' S' : 'S')}
+                  {!isPickup && (delivery.call_upon_arrival || patient?.call_upon_arrival) &&
+                    <Phone className="w-3 h-3 text-amber-600 ml-0.5" />
+                  }
+                  {!isPickup && (delivery.ring_bell || patient?.ring_bell) && !(delivery.dont_ring_bell || patient?.dont_ring_bell) &&
+                    <Bell className="w-3 h-3 text-emerald-600" />
+                  }
+                  {!isPickup && (delivery.dont_ring_bell || patient?.dont_ring_bell) &&
+                    <BellOff className="w-3 h-3 text-red-600" />
+                  }
+                  {!isPickup && (delivery.mailbox_ok || patient?.mailbox_ok) &&
+                    <Mailbox className="w-3 h-3 text-blue-600" />
+                  }
                 </Badge>
-              }
-
-              {/* Delivery Preferences Icons */}
-              {!isPickup && (delivery.call_upon_arrival || patient?.call_upon_arrival || delivery.ring_bell || patient?.ring_bell || delivery.dont_ring_bell || patient?.dont_ring_bell || delivery.mailbox_ok || patient?.mailbox_ok) &&
-              <div className="mt-1 flex items-center gap-0.5">
-                  {(delivery.call_upon_arrival || patient?.call_upon_arrival) &&
-                    <Phone className="w-3.5 h-3.5 text-amber-600" />
-                  }
-                  {(delivery.ring_bell || patient?.ring_bell) && !(delivery.dont_ring_bell || patient?.dont_ring_bell) &&
-                    <Bell className="w-3.5 h-3.5 text-emerald-600" />
-                  }
-                  {(delivery.dont_ring_bell || patient?.dont_ring_bell) &&
-                    <BellOff className="w-3.5 h-3.5 text-red-600" />
-                  }
-                  {(delivery.mailbox_ok || patient?.mailbox_ok) &&
-                    <Mailbox className="w-3.5 h-3.5 text-blue-600" />
-                  }
-                </div>
               }
             </div>
 
