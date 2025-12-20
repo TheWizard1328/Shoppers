@@ -3570,6 +3570,11 @@ function Dashboard() {
             enriched.latitude = existingPatient.latitude;
             enriched.longitude = existingPatient.longitude;
           }
+          // Copy delivery preferences from patient if not already set
+          enriched.call_upon_arrival = existingDelivery.call_upon_arrival ?? existingPatient?.call_upon_arrival;
+          enriched.ring_bell = existingDelivery.ring_bell ?? existingPatient?.ring_bell;
+          enriched.dont_ring_bell = existingDelivery.dont_ring_bell ?? existingPatient?.dont_ring_bell;
+          enriched.mailbox_ok = existingDelivery.mailbox_ok ?? existingPatient?.mailbox_ok;
         } else {
           const existingStore = stores.find((s) => s && s.id === existingDelivery.store_id);
           if (existingStore?.latitude && existingStore?.longitude) {
