@@ -908,13 +908,6 @@ function Dashboard() {
   }, [mapViewPhase]);
 
   const handleMapInteraction = useCallback(() => {
-    // CRITICAL: Ignore programmatic map moves (within 500ms of FAB click or programmatic move)
-    const timeSinceProgrammaticMove = Date.now() - (window._lastProgrammaticMapMove || 0);
-    if (timeSinceProgrammaticMove < 500) {
-      console.log('🗺️ [Map Interaction] Ignoring - programmatic move within 500ms');
-      return;
-    }
-
     // CRITICAL: ONLY unlock when Phase 2 is active - ignore for Phase 1 & 3
     // Use ref to avoid stale closure issues
     if (mapViewPhaseForInteractionRef.current !== 2) {
@@ -1554,6 +1547,13 @@ function Dashboard() {
       console.log(`➡️ [FAB] Advancing to Phase ${newMapViewPhase}`);
     }
 
+    // CRITICAL: First clear any existing timers BEFORE setting new state
+    if (mapLockTimeoutRef.current) {
+      clearTimeout(mapLockTimeoutRef.current);
+      mapLockTimeoutRef.current = null;
+    }
+    mapLockExpiresAtRef.current = null;
+
     // Lock FAB and trigger map repositioning
     setIsMapViewLocked(true);
     setMapViewPhase(newMapViewPhase);
@@ -1594,7 +1594,10 @@ function Dashboard() {
       console.log(`🔵 [FAB] Phase ${newMapViewPhase} locked - will auto-unlock in 3 seconds`);
     } else {
       // Phase 2 - stays locked permanently until manual map interaction
-      console.log(`🔵 [FAB] Phase 2 locked - will unlock ONLY on manual map pan/zoom`);
+      // CRITICAL: Ensure no timer is set for Phase 2
+      mapLockTimeoutRef.current = null;
+      mapLockExpiresAtRef.current = null;
+      console.log(`🔵 [FAB] Phase 2 locked PERMANENTLY - will unlock ONLY on manual map pan/zoom`);
     }
   }, [mapViewPhase, isMapViewLocked, isDriver, nextStopCoordinates, isDispatcher, isAdmin, isMobile, currentUser, deliveriesWithStopOrder]);
 
