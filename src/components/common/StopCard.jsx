@@ -1670,6 +1670,13 @@ export default function StopCard({
                       const hasFridge = projectedDelivery.fridge_item === true;
                       const hasSignature = projectedDelivery.signature_needed === true;
 
+                      // Delivery preference flags
+                      const hasCallOnArrival = projectedDelivery.call_upon_arrival || projPatient?.call_upon_arrival;
+                      const hasRingBell = (projectedDelivery.ring_bell || projPatient?.ring_bell) && !(projectedDelivery.dont_ring_bell || projPatient?.dont_ring_bell);
+                      const hasDontRingBell = projectedDelivery.dont_ring_bell || projPatient?.dont_ring_bell;
+                      const hasMailboxOk = projectedDelivery.mailbox_ok || projPatient?.mailbox_ok;
+                      const hasDeliveryPrefs = hasCallOnArrival || hasRingBell || hasDontRingBell || hasMailboxOk;
+
                       const hasSpecialBadge = hasCOD || projIsFirstDelivery || hasOversized || hasFridge || hasSignature;
 
                       return (
