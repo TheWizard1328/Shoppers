@@ -902,22 +902,26 @@ function Dashboard() {
 
 
   const handleMapInteraction = useCallback(() => {
-    // CRITICAL: ALWAYS unlock on ANY map interaction (remove programmatic check)
-    console.log('🗺️ [Map Interaction] Map interaction detected - UNLOCKING FAB');
+    // CRITICAL: ONLY unlock when Phase 2 is active - ignore for Phase 1 & 3
+    if (mapViewPhase !== 2) {
+      console.log('🗺️ [Map Interaction] Ignoring - Phase 1/3 have timers');
+      return;
+    }
 
-    // CRITICAL: Clear timers and unlock immediately
+    console.log('🗺️ [Map Interaction] Phase 2 - UNLOCKING FAB from manual pan/zoom');
+
+    // Clear timers and unlock
     if (mapLockTimeoutRef.current) {
       clearTimeout(mapLockTimeoutRef.current);
       mapLockTimeoutRef.current = null;
     }
     mapLockExpiresAtRef.current = null;
 
-    // CRITICAL: Set lock state to FALSE (both state and ref)
     setIsMapViewLocked(false);
 
-    // CRITICAL: Record user interaction time (prevents proximity snap for 5 minutes)
+    // Record user interaction time (prevents proximity snap for 5 minutes)
     lastUserInteractionRef.current = Date.now();
-  }, []);
+  }, [mapViewPhase]);
 
   // NOTE: Removed auto-fit bounds effect that was causing map to re-center unexpectedly
   // The FAB handleMapViewCycle now handles all map positioning
