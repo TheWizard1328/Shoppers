@@ -688,8 +688,8 @@ export default function StopCard({
         <CardContent className="mt-1 mb-1 px-3 py-0 flex flex-col">
           {/* HEADER SECTION - Always Visible */}
           <div className="flex items-start gap-1">
-            {/* Drag Handle */}
-            {showDragHandle && dragHandleProps &&
+            {/* Drag Handle - Only show for non-finished deliveries */}
+            {showDragHandle && dragHandleProps && !FINISHED_STATUSES.includes(delivery.status) &&
             <div {...dragHandleProps} className="flex items-center justify-center cursor-grab active:cursor-grabbing pt-1 mr-1">
                 <GripVertical className="w-5 h-5 text-slate-400 hover:text-slate-600" />
               </div>
