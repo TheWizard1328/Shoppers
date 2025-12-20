@@ -912,13 +912,6 @@ function Dashboard() {
   }, [mapViewPhase]);
 
   const handleMapInteraction = useCallback(() => {
-    // CRITICAL: Ignore all map interactions within 3 seconds of FAB click (programmatic moves)
-    const timeSinceProgrammatic = Date.now() - (lastProgrammaticMapMoveRef.current || 0);
-    if (timeSinceProgrammatic < 3000) {
-      console.log('🗺️ [Map Interaction] BLOCKED - programmatic move within 3s (timestamp:', timeSinceProgrammatic, 'ms ago)');
-      return;
-    }
-    
     // CRITICAL: ONLY unlock when Phase 2 is active - ignore for Phase 1 & 3
     // Use ref to avoid stale closure issues
     const currentPhase = mapViewPhaseForInteractionRef.current;
@@ -926,8 +919,25 @@ function Dashboard() {
       console.log('🗺️ [Map Interaction] Ignoring - Phase', currentPhase, 'has timers');
       return;
     }
+    
+    // CRITICAL: Phase 2 requires waiting for manual interaction flag to be cleared
+    // This flag is only cleared after the programmatic window has passed AND we're in Phase 2
+    if (!phase2WaitingForManualInteractionRef.current) {
+      console.log('🗺️ [Map Interaction] Phase 2 - Not waiting for manual interaction yet');
+      return;
+    }
+    
+    // CRITICAL: Ignore all map interactions within 3 seconds of FAB click (programmatic moves)
+    const timeSinceProgrammatic = Date.now() - (lastProgrammaticMapMoveRef.current || 0);
+    if (timeSinceProgrammatic < 3000) {
+      console.log('🗺️ [Map Interaction] BLOCKED - programmatic move within 3s (timestamp:', timeSinceProgrammatic, 'ms ago)');
+      return;
+    }
 
     console.log('🗺️ [Map Interaction] Phase 2 - UNLOCKING FAB from REAL manual pan/zoom (', timeSinceProgrammatic, 'ms since programmatic)');
+
+    // Clear the waiting flag - user has interacted
+    phase2WaitingForManualInteractionRef.current = false;
 
     // Clear timers and unlock
     if (mapLockTimeoutRef.current) {
