@@ -872,6 +872,10 @@ function Dashboard() {
 
   // Track when the last programmatic map move happened (to debounce interaction handler)
   const lastProgrammaticMapMoveRef = useRef(0);
+  
+  // CRITICAL: Track if Phase 2 is waiting for FIRST manual interaction (not programmatic)
+  // This flag is set to true when entering Phase 2 and only cleared on genuine user interaction
+  const phase2WaitingForManualInteractionRef = useRef(false);
 
   // Track previous values for detecting changes that should trigger map repositioning
   const prevSelectedDriverIdRef = useRef(selectedDriverId);
