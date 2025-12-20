@@ -1517,10 +1517,17 @@ function Dashboard() {
 
     let newMapViewPhase;
 
+    // CRITICAL: Clear any existing timers FIRST before any logic
+    if (mapLockTimeoutRef.current) {
+      clearTimeout(mapLockTimeoutRef.current);
+      mapLockTimeoutRef.current = null;
+    }
+    mapLockExpiresAtRef.current = null;
+
     // CLICKING UNLOCKED FAB (gray) → Re-activate current phase
     if (!isMapViewLocked) {
       newMapViewPhase = mapViewPhase;
-      console.log(`🔄 [FAB] Re-activating Phase ${newMapViewPhase}`);
+      console.log(`🔄 [FAB] Re-activating Phase ${newMapViewPhase} (was unlocked)`);
     } else {
       // CLICKING LOCKED FAB (blue) → Advance to next phase
       const nextPhase = mapViewPhase % 3 + 1;
