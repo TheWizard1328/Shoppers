@@ -911,18 +911,19 @@ function Dashboard() {
     // CRITICAL: Ignore all map interactions within 3 seconds of FAB click (programmatic moves)
     const timeSinceProgrammatic = Date.now() - (lastProgrammaticMapMoveRef.current || 0);
     if (timeSinceProgrammatic < 3000) {
-      console.log('🗺️ [Map Interaction] BLOCKED - programmatic move within 3s');
+      console.log('🗺️ [Map Interaction] BLOCKED - programmatic move within 3s (timestamp:', timeSinceProgrammatic, 'ms ago)');
       return;
     }
     
     // CRITICAL: ONLY unlock when Phase 2 is active - ignore for Phase 1 & 3
     // Use ref to avoid stale closure issues
-    if (mapViewPhaseForInteractionRef.current !== 2) {
-      console.log('🗺️ [Map Interaction] Ignoring - Phase 1/3 have timers');
+    const currentPhase = mapViewPhaseForInteractionRef.current;
+    if (currentPhase !== 2) {
+      console.log('🗺️ [Map Interaction] Ignoring - Phase', currentPhase, 'has timers');
       return;
     }
 
-    console.log('🗺️ [Map Interaction] Phase 2 - UNLOCKING FAB from manual pan/zoom');
+    console.log('🗺️ [Map Interaction] Phase 2 - UNLOCKING FAB from REAL manual pan/zoom (', timeSinceProgrammatic, 'ms since programmatic)');
 
     // Clear timers and unlock
     if (mapLockTimeoutRef.current) {
