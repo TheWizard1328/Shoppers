@@ -95,14 +95,16 @@ const StatBadge = ({ icon: Icon, value, color, label, tooltip, pickupCount }) =>
 
   // ALWAYS render Tooltip with all hooks, just conditionally show content
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        {badge}
-      </TooltipTrigger>
-      <TooltipContent className="animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-999 overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md origin-[--radix-tooltip-content-transform-origin]">
-        <p>{tooltip || ''}</p>
-      </TooltipContent>
-    </Tooltip>);
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {badge}
+        </TooltipTrigger>
+        <TooltipContent className="z-[9999] bg-slate-900 text-white border-slate-700">
+          <p>{tooltip || ''}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>);
 
 };
 
