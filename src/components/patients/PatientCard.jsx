@@ -242,6 +242,25 @@ export default function PatientCard({
               {deliveryPreferences.join(', ')}
             </Badge>
           }
+          {/* Delivery Preferences Icons Badge */}
+          {(patient.call_upon_arrival || patient.ring_bell || patient.dont_ring_bell || patient.mailbox_ok) &&
+          <Badge
+            variant="secondary"
+            className="bg-slate-300 text-white text-sm font-bold rounded-full inline-flex items-center gap-0.5 px-1.5 py-0.5">
+              {patient.call_upon_arrival &&
+                <Phone className="w-3 h-3 text-amber-600" />
+              }
+              {patient.ring_bell && !patient.dont_ring_bell &&
+                <Bell className="w-3 h-3 text-emerald-600" />
+              }
+              {patient.dont_ring_bell &&
+                <BellOff className="w-3 h-3 text-red-600" />
+              }
+              {patient.mailbox_ok &&
+                <Mailbox className="w-3 h-3 text-blue-600" />
+              }
+            </Badge>
+          }
         </div>
 
         {/* Patient Notes */}
