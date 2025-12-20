@@ -1674,10 +1674,10 @@ export default function DeliveryMap({
     
     const mapInstance = useMapEvents({
       zoomstart: () => {
-        // CRITICAL: Ignore programmatic zooms (within 500ms of FAB click)
+        // CRITICAL: Ignore programmatic zooms (within 2 seconds of FAB click)
         const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
-        if (timeSinceProgrammatic < 500) {
-          console.log('🗺️ [MapController] ZOOM START - ignoring (programmatic)');
+        if (timeSinceProgrammatic < 2000) {
+          console.log('🗺️ [MapController] ZOOM START - ignoring (programmatic within 2s)');
           return;
         }
         
@@ -1688,10 +1688,10 @@ export default function DeliveryMap({
         }
       },
       movestart: () => {
-        // CRITICAL: Ignore programmatic pans (within 500ms of FAB click)
+        // CRITICAL: Ignore programmatic pans (within 2 seconds of FAB click)
         const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
-        if (timeSinceProgrammatic < 500) {
-          console.log('🗺️ [MapController] PAN START - ignoring (programmatic)');
+        if (timeSinceProgrammatic < 2000) {
+          console.log('🗺️ [MapController] PAN START - ignoring (programmatic within 2s)');
           return;
         }
         
