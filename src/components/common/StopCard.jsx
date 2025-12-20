@@ -60,12 +60,12 @@ const FINISHED_STATUSES = ['completed', 'failed', 'cancelled'];
 // Helper function to format time to 12-hour format with AM/PM
 const formatTime12Hour = (timeString) => {
   // Silently handle missing, invalid, or placeholder times (common for pending deliveries)
-  if (!timeString || 
-      timeString === '--:--' || 
-      timeString === 'null' || 
-      timeString === 'undefined' ||
-      timeString === 'NaN:NaN' ||
-      String(timeString).includes('NaN')) {
+  if (!timeString ||
+  timeString === '--:--' ||
+  timeString === 'null' ||
+  timeString === 'undefined' ||
+  timeString === 'NaN:NaN' ||
+  String(timeString).includes('NaN')) {
     return '--:--';
   }
 
@@ -267,14 +267,14 @@ export default function StopCard({
   // Detect if this is a return delivery (check patient name/notes for "(RTN)" specifically)
   const isReturnDelivery = useMemo(() => {
     if (!delivery || isPickup) return false;
-    
+
     const patientName = (patient?.full_name || delivery.patient_name || '').toUpperCase();
     const deliveryNotes = (delivery.delivery_notes || '').toUpperCase();
     const patientNotes = (patient?.notes || '').toUpperCase();
-    
-    return patientName.includes('(RTN)') || 
-           deliveryNotes.includes('(RTN)') ||
-           patientNotes.includes('(RTN)');
+
+    return patientName.includes('(RTN)') ||
+    deliveryNotes.includes('(RTN)') ||
+    patientNotes.includes('(RTN)');
   }, [delivery, patient, isPickup]);
 
   // Check if this is a first delivery based on patient's last_delivery_date
@@ -336,16 +336,16 @@ export default function StopCard({
     if (!delivery || !currentUser) return false;
     // Redact completed deliveries for drivers (not admins/dispatchers)
     if (isCompleted && !isPickup &&
-        !userHasRole(currentUser, 'admin') &&
-        !userHasRole(currentUser, 'dispatcher') &&
-        userHasRole(currentUser, 'driver')) {
+    !userHasRole(currentUser, 'admin') &&
+    !userHasRole(currentUser, 'dispatcher') &&
+    userHasRole(currentUser, 'driver')) {
       return true;
     }
     // Redact when route is complete for drivers
     if (isRouteCompleted && !isPickup &&
-        !userHasRole(currentUser, 'admin') &&
-        !userHasRole(currentUser, 'dispatcher') &&
-        userHasRole(currentUser, 'driver')) {
+    !userHasRole(currentUser, 'admin') &&
+    !userHasRole(currentUser, 'dispatcher') &&
+    userHasRole(currentUser, 'driver')) {
       return true;
     }
     return false;
@@ -679,8 +679,8 @@ export default function StopCard({
           onClick && onClick(delivery);
         }
       }}
-      style={{ 
-        background: 'var(--bg-white)', 
+      style={{
+        background: 'var(--bg-white)',
         borderColor: isNextDelivery ? '#10B981' : '#3B82F6',
         opacity: shouldFade ? 0.4 : 1,
         transition: 'opacity 0.2s ease-in-out'
@@ -713,18 +713,18 @@ export default function StopCard({
                 </Badge>
               }
 
-              {(hasCODRequired || isFirstDelivery || delivery.oversized || delivery.fridge_item || delivery.signature_needed || (!isPickup && (delivery.call_upon_arrival || patient?.call_upon_arrival || delivery.ring_bell || patient?.ring_bell || delivery.dont_ring_bell || patient?.dont_ring_bell || delivery.mailbox_ok || patient?.mailbox_ok))) &&
+              {(hasCODRequired || isFirstDelivery || delivery.oversized || delivery.fridge_item || delivery.signature_needed || !isPickup && (delivery.call_upon_arrival || patient?.call_upon_arrival || delivery.ring_bell || patient?.ring_bell || delivery.dont_ring_bell || patient?.dont_ring_bell || delivery.mailbox_ok || patient?.mailbox_ok)) &&
               <Badge
-                variant="secondary" 
-                className={`mt-1 px-1.5 py-0.5 text-sm font-bold rounded-full inline-flex items-center gap-0.5 border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 min-w-[25px] justify-center ${
-                  hasCODRequired && isCompleted
-                    ? isCODComplete 
-                      ? 'bg-emerald-500 text-white' 
-                      : codTotalCollected > 0 
-                        ? 'bg-yellow-500 text-white' 
-                        : 'bg-red-500 text-white'
-                    : 'bg-slate-300 text-white'
-                }`}>
+                variant="secondary" className="mt-1 px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center gap-0.5 border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 min-w-[25px] justify-center bg-slate-300 text-white">
+
+
+
+
+
+
+
+
+
                   {hasCODRequired &&
                 <span className="relative inline-flex items-center justify-center">
                       $
@@ -754,17 +754,17 @@ export default function StopCard({
                   {delivery.fridge_item && (hasCODRequired || isFirstDelivery ? ' F' : 'F')}
                   {delivery.signature_needed && (hasCODRequired || isFirstDelivery || delivery.fridge_item ? ' S' : 'S')}
                   {!isPickup && (delivery.call_upon_arrival || patient?.call_upon_arrival) &&
-                    <Phone className="w-3 h-3 text-amber-600 ml-0.5" />
-                  }
+                <Phone className="w-3 h-3 text-amber-600 ml-0.5" />
+                }
                   {!isPickup && (delivery.ring_bell || patient?.ring_bell) && !(delivery.dont_ring_bell || patient?.dont_ring_bell) &&
-                    <Bell className="w-3 h-3 text-emerald-600" />
-                  }
+                <Bell className="w-3 h-3 text-emerald-600" />
+                }
                   {!isPickup && (delivery.dont_ring_bell || patient?.dont_ring_bell) &&
-                    <BellOff className="w-3 h-3 text-red-600" />
-                  }
+                <BellOff className="w-3 h-3 text-red-600" />
+                }
                   {!isPickup && (delivery.mailbox_ok || patient?.mailbox_ok) &&
-                    <Mailbox className="w-3 h-3 text-blue-600" />
-                  }
+                <Mailbox className="w-3 h-3 text-blue-600" />
+                }
                 </Badge>
               }
             </div>
@@ -782,12 +782,12 @@ export default function StopCard({
                     </> :
 
                   <span className="font-medium">ETA: {formatTime12Hour(
-                    delivery.delivery_time_eta || 
-                    (isPickup ? delivery.delivery_time_start : null) || 
-                    delivery.delivery_time_start || 
-                    delivery.time_window_start || 
-                    '--:--'
-                  )}</span>
+                      delivery.delivery_time_eta || (
+                      isPickup ? delivery.delivery_time_start : null) ||
+                      delivery.delivery_time_start ||
+                      delivery.time_window_start ||
+                      '--:--'
+                    )}</span>
                   }
                   {showDriverName && safeDriver &&
                   <>
@@ -1085,7 +1085,7 @@ export default function StopCard({
                     className="flex-1 bg-red-600 hover:bg-red-700"
                     onClick={async () => {
                       setIsEntityUpdating(true);
-                      await new Promise(resolve => setTimeout(resolve, 100));
+                      await new Promise((resolve) => setTimeout(resolve, 100));
 
                       try {
                         await onDeleteDelivery(delivery.id);
@@ -1455,7 +1455,7 @@ export default function StopCard({
                       onClick={async (e) => {
                         e.stopPropagation();
                         console.log('🟢 [Assign All] Step 1: Running smart refresh...');
-                        
+
                         // Step 1: Run smart refresh
                         smartRefreshManager.lastRefreshTimes = {
                           driverLocation: 0,
@@ -1465,12 +1465,12 @@ export default function StopCard({
                           patients: 0,
                           stores: 0
                         };
-                        await new Promise(resolve => setTimeout(resolve, 200));
+                        await new Promise((resolve) => setTimeout(resolve, 200));
 
                         // Step 2: Pause smart refresh
                         console.log('🟢 [Assign All] Step 2: Pausing smart refresh...');
                         setIsEntityUpdating(true);
-                        await new Promise(resolve => setTimeout(resolve, 100));
+                        await new Promise((resolve) => setTimeout(resolve, 100));
 
                         try {
                           // Step 3: Change all pending stops to in_transit AND insert directly after pickup
@@ -1484,24 +1484,24 @@ export default function StopCard({
 
                           // Get all other driver deliveries to adjust their stop orders
                           const allDriverDeliveries = allDeliveries.filter((d) =>
-                            d && d.driver_id === delivery.driver_id && 
-                            d.delivery_date === delivery.delivery_date &&
-                            d.id !== delivery.id &&
-                            !allPendingDeliveries.find(p => p.id === d.id)
+                          d && d.driver_id === delivery.driver_id &&
+                          d.delivery_date === delivery.delivery_date &&
+                          d.id !== delivery.id &&
+                          !allPendingDeliveries.find((p) => p.id === d.id)
                           );
 
                           // Identify incomplete stops that come after the pickup and need to be pushed down
                           const finishedStatuses = ['completed', 'failed', 'cancelled'];
                           const incompleteAfterPickup = allDriverDeliveries.filter((d) =>
-                            !finishedStatuses.includes(d.status) &&
-                            (d.stop_order || 0) > pickupStopOrder
+                          !finishedStatuses.includes(d.status) &&
+                          (d.stop_order || 0) > pickupStopOrder
                           );
 
                           console.log(`  Found ${incompleteAfterPickup.length} incomplete stops after pickup to push down`);
 
                           // Sort pending by patient name for consistent ordering
                           const sortedPending = [...allPendingDeliveries].sort((a, b) =>
-                            (a.patient_name || '').localeCompare(b.patient_name || '')
+                          (a.patient_name || '').localeCompare(b.patient_name || '')
                           );
 
                           // Update pending stops with sequential stop orders right after pickup
@@ -1510,12 +1510,12 @@ export default function StopCard({
                           const currentMinutes = now.getHours() * 60 + now.getMinutes();
                           const startMinutes = currentMinutes + 5;
                           const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
-                          
+
                           // CRITICAL: Use skipSmartRefresh for all batch updates to prevent premature refresh
                           for (let i = 0; i < sortedPending.length; i++) {
                             const pendingDelivery = sortedPending[i];
                             const newStopOrder = pickupStopOrder + i + 1;
-                            
+
                             await updateDeliveryLocal(pendingDelivery.id, {
                               status: 'in_transit',
                               stop_order: newStopOrder,
@@ -1549,16 +1549,16 @@ export default function StopCard({
 
                           // Step 5: Update TR#s sequentially for newly accepted stops
                           console.log('🟢 [Assign All] Step 5: Assigning sequential TR#s...');
-                          
+
                           const pickupTR = parseInt(delivery.tracking_number, 10);
                           const baseTR = isNaN(pickupTR) ? 0 : pickupTR;
                           console.log(`  Using pickup TR# ${baseTR} as base`);
-                          
+
                           // Assign sequential TR#s to sorted pending deliveries
                           // CRITICAL: Use skipSmartRefresh for all batch updates
                           for (let i = 0; i < sortedPending.length; i++) {
                             const newTR = String(baseTR + i + 1);
-                            
+
                             await updateDeliveryLocal(sortedPending[i].id, {
                               tracking_number: newTR
                             }, { skipSmartRefresh: true });
@@ -1693,13 +1693,13 @@ export default function StopCard({
                               <div className="flex items-center gap-1 flex-shrink-0">
                                 {/* Delivery preference icons */}
                                 {hasDeliveryPrefs &&
-                                  <div className="flex items-center gap-0.5 mr-1">
+                            <div className="flex items-center gap-0.5 mr-1">
                                     {hasCallOnArrival && <Phone className="w-3 h-3 text-amber-600" />}
                                     {hasRingBell && <Bell className="w-3 h-3 text-emerald-600" />}
                                     {hasDontRingBell && <BellOff className="w-3 h-3 text-red-600" />}
                                     {hasMailboxOk && <Mailbox className="w-3 h-3 text-blue-600" />}
                                   </div>
-                                }
+                            }
                                 {/* Special badge on the RIGHT, to the LEFT of TR# */}
                                 {hasSpecialBadge &&
                             <Badge className="bg-yellow-400 text-black text-[9px] px-1 py-0 h-4 font-bold">
@@ -1743,7 +1743,7 @@ export default function StopCard({
                                 const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
 
                                 // Update this single delivery to in_transit (don't touch isNextDelivery)
-                                await onStatusUpdate(projectedDelivery.id, 'in_transit', { 
+                                await onStatusUpdate(projectedDelivery.id, 'in_transit', {
                                   tracking_number: newTR,
                                   delivery_time_start: deliveryTimeStart
                                 }, true);
@@ -1919,7 +1919,7 @@ export default function StopCard({
                               const newTR = String(highestExistingTR + i + 1);
 
                               // Update with new tracking number AND status AND delivery_time_start
-                              await updateDeliveryLocal(pendingDelivery.id, { 
+                              await updateDeliveryLocal(pendingDelivery.id, {
                                 status: 'in_transit',
                                 tracking_number: newTR,
                                 delivery_time_start: deliveryTimeStart
@@ -1984,7 +1984,7 @@ export default function StopCard({
                       fabControlEvents.deactivateFAB();
 
                       setIsStarting(true);
-                      
+
                       // Step 1: Run smart refresh
                       console.log('🟢 [START] Step 1: Running smart refresh...');
                       smartRefreshManager.lastRefreshTimes = {
@@ -1995,23 +1995,23 @@ export default function StopCard({
                         patients: 0,
                         stores: 0
                       };
-                      await new Promise(resolve => setTimeout(resolve, 200));
+                      await new Promise((resolve) => setTimeout(resolve, 200));
 
                       // Step 2: Pause smart refresh
                       console.log('🟢 [START] Step 2: Pausing smart refresh...');
                       setIsEntityUpdating(true);
-                      await new Promise(resolve => setTimeout(resolve, 100));
+                      await new Promise((resolve) => setTimeout(resolve, 100));
 
                       try {
                         // Step 1 already done above
-                        
+
                         // Step 3: Clear all isNextDelivery and set selected stop to true
                         // CRITICAL: Use skipSmartRefresh for all batch updates
                         console.log('🟢 [START] Step 3: Setting isNextDelivery...');
-                        const driverDeliveries = allDeliveries.filter(d => 
-                          d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+                        const driverDeliveries = allDeliveries.filter((d) =>
+                        d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
                         );
-                        
+
                         for (const d of driverDeliveries) {
                           if (d.id !== delivery.id && d.isNextDelivery) {
                             await updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true });
@@ -2022,8 +2022,8 @@ export default function StopCard({
 
                         // Step 4: Set stop order to total finished stops + 1
                         console.log('🟢 [START] Step 4: Setting stop order...');
-                        const finishedStops = driverDeliveries.filter(d => 
-                          FINISHED_STATUSES.includes(d.status)
+                        const finishedStops = driverDeliveries.filter((d) =>
+                        FINISHED_STATUSES.includes(d.status)
                         ).length;
                         const newStopOrder = finishedStops + 1;
                         await updateDeliveryLocal(delivery.id, { stop_order: newStopOrder }, { skipSmartRefresh: true });
@@ -2034,21 +2034,21 @@ export default function StopCard({
                         try {
                           const now = new Date();
                           const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                          
+
                           // Use this stop's location as starting point
                           let startLat, startLng;
                           if (delivery.puid) {
                             // Pickup - use store location
-                            const store = stores.find(s => s.id === delivery.store_id);
+                            const store = stores.find((s) => s.id === delivery.store_id);
                             startLat = store?.latitude;
                             startLng = store?.longitude;
                           } else {
                             // Delivery - use patient location
-                            const patient = patients.find(p => p.id === delivery.patient_id);
+                            const patient = patients.find((p) => p.id === delivery.patient_id);
                             startLat = patient?.latitude;
                             startLng = patient?.longitude;
                           }
-                          
+
                           const optimizeResponse = await base44.functions.invoke('optimizeRouteRealTime', {
                             driverId: delivery.driver_id,
                             deliveryDate: delivery.delivery_date,
@@ -2056,7 +2056,7 @@ export default function StopCard({
                             startLocation: startLat && startLng ? { lat: startLat, lng: startLng } : null
                           });
                           console.log('  ✅ Route optimized');
-                          
+
                           // Step 6: Apply optimized stop orders to local state immediately
                           // CRITICAL: Use skipSmartRefresh for all batch updates
                           console.log('🟢 [START] Step 6: Resorting optimized stops...');
