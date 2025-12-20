@@ -78,10 +78,17 @@ export default function GoogleAPILogViewer() {
 
     setIsClearing(true);
     try {
-      // Delete all logs
+      // Delete all logs in batches to avoid rate limits
       const allLogs = await base44.entities.GoogleAPILog.filter({});
-      for (const log of allLogs) {
-        await base44.entities.GoogleAPILog.delete(log.id);
+      const batchSize = 10;
+      
+      for (let i = 0; i < allLogs.length; i += batchSize) {
+        const batch = allLogs.slice(i, i + batchSize);
+        await Promise.all(batch.map(log => base44.entities.GoogleAPILog.delete(log.id)));
+        // Small delay between batches to avoid rate limits
+        if (i + batchSize < allLogs.length) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
       }
       
       // Reload logs
@@ -89,7 +96,7 @@ export default function GoogleAPILogViewer() {
       alert('All Google API logs have been cleared.');
     } catch (error) {
       console.error('Failed to clear logs:', error);
-      alert('Failed to clear logs. Please try again.');
+      alert('Failed to clear logs: ' + (error.message || 'Please try again.'));
     } finally {
       setIsClearing(false);
     }
