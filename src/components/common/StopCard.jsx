@@ -755,6 +755,24 @@ export default function StopCard({
                   {delivery.signature_needed && (hasCODRequired || isFirstDelivery || delivery.fridge_item ? ' S' : 'S')}
                 </Badge>
               }
+
+              {/* Delivery Preferences Icons */}
+              {!isPickup && (delivery.call_upon_arrival || patient?.call_upon_arrival || delivery.ring_bell || patient?.ring_bell || delivery.dont_ring_bell || patient?.dont_ring_bell || delivery.mailbox_ok || patient?.mailbox_ok) &&
+              <div className="mt-1 flex items-center gap-0.5">
+                  {(delivery.call_upon_arrival || patient?.call_upon_arrival) &&
+                    <Phone className="w-3.5 h-3.5 text-amber-600" />
+                  }
+                  {(delivery.ring_bell || patient?.ring_bell) && !(delivery.dont_ring_bell || patient?.dont_ring_bell) &&
+                    <Bell className="w-3.5 h-3.5 text-emerald-600" />
+                  }
+                  {(delivery.dont_ring_bell || patient?.dont_ring_bell) &&
+                    <BellOff className="w-3.5 h-3.5 text-red-600" />
+                  }
+                  {(delivery.mailbox_ok || patient?.mailbox_ok) &&
+                    <Mailbox className="w-3.5 h-3.5 text-blue-600" />
+                  }
+                </div>
+              }
             </div>
 
             <div className="flex-1 min-w-0">
