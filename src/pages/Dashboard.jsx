@@ -1171,10 +1171,6 @@ function Dashboard() {
             if (mapViewPhaseRef.current === 2 && isMapViewLockedRef.current && nextStopCoordinates) {
               console.log('📍 [Phase 2 Auto] Re-centering on driver & next stop');
 
-              // CRITICAL: DO NOT set programmatic flag - let map interactions unlock FAB
-              // lastProgrammaticMapMoveRef.current = Date.now();
-              // window._lastProgrammaticMapMove = Date.now();
-
               const bounds = [
               [newLocation.latitude, newLocation.longitude],
               [nextStopCoordinates.lat, nextStopCoordinates.lon]];

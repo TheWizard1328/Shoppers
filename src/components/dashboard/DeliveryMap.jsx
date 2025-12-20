@@ -1672,20 +1672,35 @@ export default function DeliveryMap({
   function MapController() {
     const lastTapRef = useRef(0);
     
+    const lastMoveStartRef = useRef(0);
+    const lastZoomStartRef = useRef(0);
+    
     const mapInstance = useMapEvents({
       zoomstart: () => {
-        // CRITICAL: ALWAYS trigger unlock on ANY zoom interaction
-        console.log('🗺️ [MapController] ZOOMSTART - unlocking FAB');
-        if (onMapInteraction) {
+        const now = Date.now();
+        const timeSinceLastZoom = now - lastZoomStartRef.current;
+        
+        // CRITICAL: Only trigger unlock if this is a NEW user-initiated zoom (not a rapid repeat)
+        // Programmatic zooms happen in rapid succession, user zooms have delays
+        if (timeSinceLastZoom > 100 && onMapInteraction) {
+          console.log('🗺️ [MapController] USER ZOOM detected - unlocking FAB');
           onMapInteraction();
         }
+        
+        lastZoomStartRef.current = now;
       },
       movestart: () => {
-        // CRITICAL: ALWAYS trigger unlock on ANY move interaction
-        console.log('🗺️ [MapController] MOVESTART - unlocking FAB');
-        if (onMapInteraction) {
+        const now = Date.now();
+        const timeSinceLastMove = now - lastMoveStartRef.current;
+        
+        // CRITICAL: Only trigger unlock if this is a NEW user-initiated pan (not a rapid repeat)
+        // Programmatic pans happen in rapid succession, user pans have delays
+        if (timeSinceLastMove > 100 && onMapInteraction) {
+          console.log('🗺️ [MapController] USER PAN detected - unlocking FAB');
           onMapInteraction();
         }
+        
+        lastMoveStartRef.current = now;
       },
       zoomend: () => {
         const rawZoom = mapInstance.getZoom();
