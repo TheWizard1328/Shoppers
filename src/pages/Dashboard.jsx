@@ -100,7 +100,7 @@ const StatBadge = ({ icon: Icon, value, color, label, tooltip, pickupCount }) =>
         <TooltipTrigger asChild>
           {badge}
         </TooltipTrigger>
-        <TooltipContent className="z-[9999]" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-900)', borderColor: 'var(--border-slate-200)' }}>
+        <TooltipContent className="z-[9999] border" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-900)', borderColor: 'var(--border-slate-300)' }}>
           <p>{tooltip || ''}</p>
         </TooltipContent>
       </Tooltip>
