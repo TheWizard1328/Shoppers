@@ -1674,29 +1674,15 @@ export default function DeliveryMap({
     
     const mapInstance = useMapEvents({
       zoomstart: () => {
-        // CRITICAL: Ignore programmatic zooms (within 2 seconds of FAB click)
-        const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
-        if (timeSinceProgrammatic < 2000) {
-          console.log('🗺️ [MapController] ZOOM START - ignoring (programmatic within 2s)');
-          return;
-        }
-        
-        // Only notify parent of MANUAL zoom interactions
-        console.log('🗺️ [MapController] ZOOM START - manual interaction detected');
+        // Only notify parent of zoom interactions
+        console.log('🗺️ [MapController] ZOOM START - notifying parent');
         if (onMapInteraction) {
           onMapInteraction();
         }
       },
       movestart: () => {
-        // CRITICAL: Ignore programmatic pans (within 2 seconds of FAB click)
-        const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
-        if (timeSinceProgrammatic < 2000) {
-          console.log('🗺️ [MapController] PAN START - ignoring (programmatic within 2s)');
-          return;
-        }
-        
-        // Only notify parent of MANUAL pan interactions
-        console.log('🗺️ [MapController] PAN START - manual interaction detected');
+        // Only notify parent of pan interactions
+        console.log('🗺️ [MapController] PAN START - notifying parent');
         if (onMapInteraction) {
           onMapInteraction();
         }
