@@ -78,16 +78,14 @@ export default function GoogleAPILogViewer() {
 
     setIsClearing(true);
     try {
-      // Delete all logs in batches to avoid rate limits
+      // Delete all logs one at a time with delays to avoid rate limits
       const allLogs = await base44.entities.GoogleAPILog.filter({});
-      const batchSize = 10;
       
-      for (let i = 0; i < allLogs.length; i += batchSize) {
-        const batch = allLogs.slice(i, i + batchSize);
-        await Promise.all(batch.map(log => base44.entities.GoogleAPILog.delete(log.id)));
-        // Small delay between batches to avoid rate limits
-        if (i + batchSize < allLogs.length) {
-          await new Promise(resolve => setTimeout(resolve, 200));
+      for (let i = 0; i < allLogs.length; i++) {
+        await base44.entities.GoogleAPILog.delete(allLogs[i].id);
+        // Wait 1 second between each delete to respect rate limits
+        if (i < allLogs.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
       
