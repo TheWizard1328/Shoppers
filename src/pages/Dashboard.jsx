@@ -1508,21 +1508,7 @@ function Dashboard() {
       return;
     }
 
-    // Clear any existing timeout
-    if (mapLockTimeoutRef.current) {
-      clearTimeout(mapLockTimeoutRef.current);
-      mapLockTimeoutRef.current = null;
-    }
-    mapLockExpiresAtRef.current = null;
-
     let newMapViewPhase;
-
-    // CRITICAL: Clear any existing timers FIRST before any logic
-    if (mapLockTimeoutRef.current) {
-      clearTimeout(mapLockTimeoutRef.current);
-      mapLockTimeoutRef.current = null;
-    }
-    mapLockExpiresAtRef.current = null;
 
     // CLICKING UNLOCKED FAB (gray) → Re-activate current phase
     if (!isMapViewLocked) {
@@ -1554,16 +1540,16 @@ function Dashboard() {
       console.log(`➡️ [FAB] Advancing to Phase ${newMapViewPhase}`);
     }
 
-    // CRITICAL: First clear any existing timers BEFORE setting new state
-    if (mapLockTimeoutRef.current) {
-      clearTimeout(mapLockTimeoutRef.current);
-      mapLockTimeoutRef.current = null;
-    }
-    mapLockExpiresAtRef.current = null;
-
-    // Lock FAB and trigger map repositioning
+    // CRITICAL: Set lock IMMEDIATELY and update phase
+    console.log(`🔒 [FAB Click] Locking FAB for Phase ${newMapViewPhase}`);
     setIsMapViewLocked(true);
     setMapViewPhase(newMapViewPhase);
+    
+    // CRITICAL: Mark this as programmatic BEFORE triggering map view
+    lastProgrammaticMapMoveRef.current = Date.now();
+    window._lastProgrammaticMapMove = Date.now();
+    
+    // Trigger map repositioning AFTER marking as programmatic
     setMapViewTrigger((prev) => prev + 1);
 
     // Save to user settings
@@ -1582,7 +1568,7 @@ function Dashboard() {
       }
     }, 300);
 
-    // PHASE 1 & 3: 3-second timer then auto-unlock
+    // PHASE 1 & 3: Set timer for 3-second auto-unlock
     // PHASE 2: NO TIMER - stays locked until manual map interaction
     if (newMapViewPhase === 1 || newMapViewPhase === 3) {
       const lockDuration = 3000;
@@ -1600,10 +1586,7 @@ function Dashboard() {
 
       console.log(`🔵 [FAB] Phase ${newMapViewPhase} locked - will auto-unlock in 3 seconds`);
     } else {
-      // Phase 2 - stays locked permanently until manual map interaction
-      // CRITICAL: Ensure no timer is set for Phase 2
-      mapLockTimeoutRef.current = null;
-      mapLockExpiresAtRef.current = null;
+      // Phase 2 - NO timer, stays locked
       console.log(`🔵 [FAB] Phase 2 locked PERMANENTLY - will unlock ONLY on manual map pan/zoom`);
     }
   }, [mapViewPhase, isMapViewLocked, isDriver, nextStopCoordinates, isDispatcher, isAdmin, isMobile, currentUser, deliveriesWithStopOrder]);
