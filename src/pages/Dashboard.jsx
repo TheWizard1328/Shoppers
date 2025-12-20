@@ -901,9 +901,16 @@ function Dashboard() {
 
 
 
+  // CRITICAL: Track map view phase in ref for handleMapInteraction (avoid stale closure)
+  const mapViewPhaseForInteractionRef = useRef(mapViewPhase);
+  useEffect(() => {
+    mapViewPhaseForInteractionRef.current = mapViewPhase;
+  }, [mapViewPhase]);
+
   const handleMapInteraction = useCallback(() => {
     // CRITICAL: ONLY unlock when Phase 2 is active - ignore for Phase 1 & 3
-    if (mapViewPhase !== 2) {
+    // Use ref to avoid stale closure issues
+    if (mapViewPhaseForInteractionRef.current !== 2) {
       console.log('🗺️ [Map Interaction] Ignoring - Phase 1/3 have timers');
       return;
     }
@@ -921,7 +928,7 @@ function Dashboard() {
 
     // Record user interaction time (prevents proximity snap for 5 minutes)
     lastUserInteractionRef.current = Date.now();
-  }, [mapViewPhase]);
+  }, []);
 
   // NOTE: Removed auto-fit bounds effect that was causing map to re-center unexpectedly
   // The FAB handleMapViewCycle now handles all map positioning
