@@ -908,6 +908,13 @@ function Dashboard() {
   }, [mapViewPhase]);
 
   const handleMapInteraction = useCallback(() => {
+    // CRITICAL: Ignore programmatic map moves (within 500ms of FAB click or programmatic move)
+    const timeSinceProgrammaticMove = Date.now() - (window._lastProgrammaticMapMove || 0);
+    if (timeSinceProgrammaticMove < 500) {
+      console.log('🗺️ [Map Interaction] Ignoring - programmatic move within 500ms');
+      return;
+    }
+
     // CRITICAL: ONLY unlock when Phase 2 is active - ignore for Phase 1 & 3
     // Use ref to avoid stale closure issues
     if (mapViewPhaseForInteractionRef.current !== 2) {
