@@ -1674,9 +1674,9 @@ export default function DeliveryMap({
     
     const mapInstance = useMapEvents({
       zoomstart: () => {
-        // CRITICAL: Check if this is a programmatic move BEFORE calling onMapInteraction
+        // CRITICAL: SHORTER timeout window (300ms) for Phase 2 responsiveness
         const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
-        const isProgrammaticMove = timeSinceProgrammatic < 1000;
+        const isProgrammaticMove = timeSinceProgrammatic < 300;
         
         if (!isProgrammaticMove && onMapInteraction) {
           console.log('🗺️ [MapController] Manual ZOOMSTART - unlocking FAB');
@@ -1684,9 +1684,9 @@ export default function DeliveryMap({
         }
       },
       movestart: () => {
-        // CRITICAL: Check if this is a programmatic move BEFORE calling onMapInteraction
+        // CRITICAL: SHORTER timeout window (300ms) for Phase 2 responsiveness
         const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
-        const isProgrammaticMove = timeSinceProgrammatic < 1000;
+        const isProgrammaticMove = timeSinceProgrammatic < 300;
         
         if (!isProgrammaticMove && onMapInteraction) {
           console.log('🗺️ [MapController] Manual MOVESTART - unlocking FAB');

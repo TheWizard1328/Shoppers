@@ -1181,7 +1181,8 @@ function Dashboard() {
             if (mapViewPhaseRef.current === 2 && isMapViewLockedRef.current && nextStopCoordinates) {
               console.log('📍 [Phase 2 Auto] Re-centering on driver & next stop');
 
-              // Mark as programmatic to prevent unlock from this movement
+              // CRITICAL: Set programmatic flag with SHORTER duration (500ms instead of 1000ms)
+              // This allows manual interaction to be detected faster
               lastProgrammaticMapMoveRef.current = Date.now();
               window._lastProgrammaticMapMove = Date.now();
 
