@@ -1697,6 +1697,15 @@ export default function StopCard({
                                 {projectedDelivery.patient_name || 'Unknown Patient'}
                               </span>
                               <div className="flex items-center gap-1 flex-shrink-0">
+                                {/* Delivery preference icons */}
+                                {hasDeliveryPrefs &&
+                                  <div className="flex items-center gap-0.5 mr-1">
+                                    {hasCallOnArrival && <Phone className="w-3 h-3 text-amber-600" />}
+                                    {hasRingBell && <Bell className="w-3 h-3 text-emerald-600" />}
+                                    {hasDontRingBell && <BellOff className="w-3 h-3 text-red-600" />}
+                                    {hasMailboxOk && <Mailbox className="w-3 h-3 text-blue-600" />}
+                                  </div>
+                                }
                                 {/* Special badge on the RIGHT, to the LEFT of TR# */}
                                 {hasSpecialBadge &&
                             <Badge className="bg-yellow-400 text-black text-[9px] px-1 py-0 h-4 font-bold">
