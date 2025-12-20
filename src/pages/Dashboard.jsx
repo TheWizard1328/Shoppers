@@ -1471,37 +1471,50 @@ function Dashboard() {
     }
   }, [showDeliveryForm, showPatientForm, showOptimizationSettings, showAIAssistant, setIsFormOverlayOpen]);
 
+  /**
+   * MAP CYCLE FAB - RULES:
+   * 
+   * PHASE 1: Show all markers (drivers, stops, home locations)
+   *   - Locked for 3 seconds, then auto-unlocks
+   *   - After unlock: free roam mode (user can pan/zoom)
+   * 
+   * PHASE 2: Center on driver + next stop (continuous tracking)
+   *   - STAYS LOCKED PERMANENTLY until user manually pans/zooms the map
+   *   - Continuously re-centers on driver & next stop as location updates
+   *   - Manual map interaction unlocks FAB (turns gray)
+   * 
+   * PHASE 3: Center on driver only
+   *   - Locked for 3 seconds, then auto-unlocks
+   *   - After unlock: free roam mode (user can pan/zoom)
+   * 
+   * CLICKING FAB:
+   *   - If UNLOCKED (gray): Re-activate current phase (re-lock + re-center)
+   *   - If LOCKED (blue): Advance to next phase
+   */
   const handleMapViewCycle = useCallback(() => {
     // CRITICAL: Allow dispatchers and admins to use FAB
     if (!isDriver && !isDispatcher && !isAdmin) {
       return;
     }
 
-    let newMapViewPhase;
-    let shouldStartTimer = false;
+    // Clear any existing timeout
+    if (mapLockTimeoutRef.current) {
+      clearTimeout(mapLockTimeoutRef.current);
+      mapLockTimeoutRef.current = null;
+    }
+    mapLockExpiresAtRef.current = null;
 
-    // CRITICAL: If FAB is unlocked (gray), clicking RE-LOCKS the current phase (don't advance)
+    let newMapViewPhase;
+
+    // CLICKING UNLOCKED FAB (gray) → Re-activate current phase
     if (!isMapViewLocked) {
       newMapViewPhase = mapViewPhase;
-      // Re-locking should start the timer for phase 1 and 3
-      shouldStartTimer = newMapViewPhase === 1 || newMapViewPhase === 3;
-
-      // CRITICAL: Scroll to card with isNextDelivery=true
-      setTimeout(() => {
-        const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
-
-        if (nextCard) {
-          const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
-          if (cardElement) {
-            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-          }
-        }
-      }, 300);
+      console.log(`🔄 [FAB] Re-activating Phase ${newMapViewPhase}`);
     } else {
-      // FAB is locked - advance to next phase
+      // CLICKING LOCKED FAB (blue) → Advance to next phase
       const nextPhase = mapViewPhase % 3 + 1;
 
-      // Non-drivers (dispatchers/admins) always stay on Phase 1
+      // Non-drivers always stay on Phase 1
       if (!isDriver) {
         newMapViewPhase = 1;
       } else {
@@ -1515,37 +1528,27 @@ function Dashboard() {
         if (newMapViewPhase === 3 && !isMobile) {
           newMapViewPhase = 1;
         }
-        // If we ended up on phase 2 but still no next stop, go to 1
+        // Double-check phase 2 validity
         if (newMapViewPhase === 2 && !nextStopCoordinates) {
           newMapViewPhase = 1;
         }
       }
-
-      shouldStartTimer = newMapViewPhase === 1 || newMapViewPhase === 3;
+      console.log(`➡️ [FAB] Advancing to Phase ${newMapViewPhase}`);
     }
 
-    // CRITICAL: Clear any existing timeout BEFORE setting new lock state
-    if (mapLockTimeoutRef.current) {
-      clearTimeout(mapLockTimeoutRef.current);
-      mapLockTimeoutRef.current = null;
-    }
-    mapLockExpiresAtRef.current = null;
-
-    // Set lock to TRUE and trigger map repositioning
+    // Lock FAB and trigger map repositioning
     setIsMapViewLocked(true);
     setMapViewPhase(newMapViewPhase);
+    setMapViewTrigger((prev) => prev + 1);
 
-    // Save to user settings (async, don't wait)
+    // Save to user settings
     if (currentUser?.id) {
       saveSetting(currentUser.id, 'fab_map_cycle_phase', newMapViewPhase);
     }
 
-    setMapViewTrigger((prev) => prev + 1);
-
-    // CRITICAL: Scroll to next delivery card (isNextDelivery === true)
+    // Scroll to next delivery card
     setTimeout(() => {
       const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
-
       if (nextCard) {
         const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
         if (cardElement) {
@@ -1554,9 +1557,9 @@ function Dashboard() {
       }
     }, 300);
 
-    // CRITICAL: Phase 1 & 3 get 3-second auto-unlock timer
-    // Phase 2 stays locked until FAB click or manual map interaction
-    if (shouldStartTimer) {
+    // PHASE 1 & 3: 3-second timer then auto-unlock
+    // PHASE 2: NO TIMER - stays locked until manual map interaction
+    if (newMapViewPhase === 1 || newMapViewPhase === 3) {
       const lockDuration = 3000;
       const expiresAt = Date.now() + lockDuration;
       mapLockExpiresAtRef.current = expiresAt;
@@ -1572,8 +1575,8 @@ function Dashboard() {
 
       console.log(`🔵 [FAB] Phase ${newMapViewPhase} locked - will auto-unlock in 3 seconds`);
     } else {
-      // Phase 2 - stays locked
-      console.log(`🔵 [FAB] Phase ${newMapViewPhase} locked - will unlock on FAB click or manual map interaction`);
+      // Phase 2 - stays locked permanently until manual map interaction
+      console.log(`🔵 [FAB] Phase 2 locked - will unlock ONLY on manual map pan/zoom`);
     }
   }, [mapViewPhase, isMapViewLocked, isDriver, nextStopCoordinates, isDispatcher, isAdmin, isMobile, currentUser, deliveriesWithStopOrder]);
 
