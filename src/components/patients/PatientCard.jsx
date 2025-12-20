@@ -182,12 +182,34 @@ export default function PatientCard({
             }
             <p className="text-sm text-slate-600">{displayAddress}</p>
             {patient.phone && <p className="text-sm text-slate-500">{formatPhoneNumber(patient.phone)}</p>}
-            {patient.distance_from_store && store &&
+            {(patient.distance_from_store && store) || (patient.call_upon_arrival || patient.ring_bell || patient.dont_ring_bell || patient.mailbox_ok) ?
             <div className="flex items-center gap-2 mt-1">
+                {patient.distance_from_store && store &&
                 <span className="text-xs text-slate-500">
                   {patient.distance_from_store.toFixed(1)} km
                 </span>
+                }
+                {/* Delivery Preferences Icons Badge */}
+                {(patient.call_upon_arrival || patient.ring_bell || patient.dont_ring_bell || patient.mailbox_ok) &&
+                <Badge
+                  variant="secondary"
+                  className="bg-slate-300 text-white text-sm font-bold rounded-full inline-flex items-center gap-0.5 px-1.5 py-0.5">
+                    {patient.call_upon_arrival &&
+                      <Phone className="w-3 h-3 text-amber-600" />
+                    }
+                    {patient.ring_bell && !patient.dont_ring_bell &&
+                      <Bell className="w-3 h-3 text-emerald-600" />
+                    }
+                    {patient.dont_ring_bell &&
+                      <BellOff className="w-3 h-3 text-red-600" />
+                    }
+                    {patient.mailbox_ok &&
+                      <Mailbox className="w-3 h-3 text-blue-600" />
+                    }
+                  </Badge>
+                }
               </div>
+            : null
             }
           </div>
 
