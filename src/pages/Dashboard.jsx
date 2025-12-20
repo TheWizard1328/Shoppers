@@ -5682,50 +5682,48 @@ function Dashboard() {
               </div>
             </div>
 
-            <TooltipProvider>
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <StatBadge
-                    icon={Package}
-                    value={stats.total - stats.totalPickups}
-                    pickupCount={stats.totalPickups}
-                    color="blue"
-                    label="Total"
-                    tooltip={tooltipValues.total} />
-                  <StatBadge
-                    icon={Truck}
-                    value={stats.inTransit - stats.inTransitPickups}
-                    pickupCount={stats.inTransitPickups}
-                    color="purple"
-                    label="In Transit"
-                    tooltip={tooltipValues.inTransit} />
-                  <StatBadge
-                    icon={CheckCircle}
-                    value={stats.completed - stats.completedPickups}
-                    pickupCount={stats.completedPickups}
-                    color="green"
-                    label="Completed"
-                    tooltip={tooltipValues.completed} />
-                  <StatBadge
-                    icon={XCircle}
-                    value={`${stats.failed}/${stats.returned}`}
-                    color="red"
-                    label="Failed/Returned"
-                    tooltip={tooltipValues.failed} />
-                </div>
-
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsExpanded(!isExpanded);
-                  }}
-                  className="h-8 w-8 p-0 flex-shrink-0">
-                  {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                </Button>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <StatBadge
+                  icon={Package}
+                  value={stats.total - stats.totalPickups}
+                  pickupCount={stats.totalPickups}
+                  color="blue"
+                  label="Total"
+                  tooltip={tooltipValues.total} />
+                <StatBadge
+                  icon={Truck}
+                  value={stats.inTransit - stats.inTransitPickups}
+                  pickupCount={stats.inTransitPickups}
+                  color="purple"
+                  label="In Transit"
+                  tooltip={tooltipValues.inTransit} />
+                <StatBadge
+                  icon={CheckCircle}
+                  value={stats.completed - stats.completedPickups}
+                  pickupCount={stats.completedPickups}
+                  color="green"
+                  label="Completed"
+                  tooltip={tooltipValues.completed} />
+                <StatBadge
+                  icon={XCircle}
+                  value={`${stats.failed}/${stats.returned}`}
+                  color="red"
+                  label="Failed/Returned"
+                  tooltip={tooltipValues.failed} />
               </div>
-            </TooltipProvider>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsExpanded(!isExpanded);
+                }}
+                className="h-8 w-8 p-0 flex-shrink-0">
+                {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </Button>
+            </div>
 
 
             <AnimatePresence>
