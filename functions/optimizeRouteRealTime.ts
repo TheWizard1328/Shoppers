@@ -342,11 +342,13 @@ Deno.serve(async (req) => {
       );
       console.log(`📊 Route HAS started - optimizing ${incompleteDeliveries.length} stops AFTER isNextDelivery`);
     } else {
-      // Route has NOT started: exclude pending AND finished statuses (all stops will be optimized)
+      // Route has NOT started: include ALL non-finished stops (including pending)
+      // EXCEPT the isNextDelivery stop which stays locked at position 1
       incompleteDeliveries = allDeliveries.filter(d => 
-        !finishedStatuses.includes(d.status) && d.status !== 'pending'
+        !finishedStatuses.includes(d.status) && 
+        (!isNextDeliveryStop || d.id !== isNextDeliveryStop.id)
       );
-      console.log(`📊 Route NOT started - optimizing all ${incompleteDeliveries.length} active stops`);
+      console.log(`📊 Route NOT started - optimizing ${incompleteDeliveries.length} stops (excluding isNextDelivery)`);
     }
 
     console.log(`📊 Route breakdown: ${completedDeliveries.length} completed, ${isNextDeliveryStop ? 1 : 0} isNextDelivery (locked), ${incompleteDeliveries.length} to optimize`);
