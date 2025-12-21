@@ -930,7 +930,11 @@ Deno.serve(async (req) => {
     }
 
     // STEP 2: Update remaining optimized stops with stop_order and ETAs
+    // CRITICAL: ETAs must be calculated sequentially from isNextDelivery, not from driver
     const updates = [];
+    
+    // Track the previous stop's location for sequential ETA calculation
+    let prevStopIdx = isNextDeliveryStopData ? stops.findIndex(s => s.delivery.id === isNextDeliveryStop.id) : -1;
 
     for (let i = 0; i < optimizedRoute.length; i++) {
       const stopIdx = optimizedRoute[i];
@@ -938,21 +942,26 @@ Deno.serve(async (req) => {
       const newStopOrder = startingStopOrder + i + 1;
 
       // Get real travel time from Google API
-      // CRITICAL: For first stop in optimized route, calculate from isNextDelivery location (not driver location)
+      // CRITICAL: Calculate travel time from PREVIOUS stop (not driver location)
+      // This ensures sequential ETAs that make sense
       let realTravelTimeSeconds;
-      if (i === 0 && isNextDeliveryStop) {
-        // Find isNextDelivery in stops array to use as origin
-        const nextDeliveryIdx = stops.findIndex(s => s.delivery.id === isNextDeliveryStop.id);
-        if (nextDeliveryIdx >= 0) {
-          // Use distance matrix row for isNextDelivery as origin
-          realTravelTimeSeconds = finalMatrix[nextDeliveryIdx + 1][stopIdx].duration;
+      
+      if (i === 0) {
+        // First optimized stop: travel from isNextDelivery (if exists) or driver location
+        if (prevStopIdx >= 0) {
+          // Travel from isNextDelivery location
+          realTravelTimeSeconds = finalMatrix[prevStopIdx + 1]?.[stopIdx]?.duration || finalMatrix[0][stopIdx].duration;
+          console.log(`📍 Stop ${i+1} travel from isNextDelivery: ${Math.ceil(realTravelTimeSeconds/60)} min`);
         } else {
+          // No isNextDelivery, travel from driver location
           realTravelTimeSeconds = finalMatrix[0][stopIdx].duration;
+          console.log(`📍 Stop ${i+1} travel from driver: ${Math.ceil(realTravelTimeSeconds/60)} min`);
         }
       } else {
-        realTravelTimeSeconds = i === 0 
-          ? finalMatrix[0][stopIdx].duration 
-          : finalMatrix[stopIdx][stopIdx].duration;
+        // Subsequent stops: travel from previous optimized stop
+        const prevOptimizedIdx = optimizedRoute[i - 1];
+        realTravelTimeSeconds = finalMatrix[prevOptimizedIdx + 1]?.[stopIdx]?.duration || finalMatrix[0][stopIdx].duration;
+        console.log(`📍 Stop ${i+1} travel from prev stop: ${Math.ceil(realTravelTimeSeconds/60)} min`);
       }
       
       const realTravelTimeMinutes = Math.ceil(realTravelTimeSeconds / 60);
