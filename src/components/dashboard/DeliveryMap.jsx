@@ -1075,6 +1075,16 @@ export default function DeliveryMap({
       if (fannedLocationKey === locationKey) {
         // Already fanned - clicking again should select the marker
         setFannedLocationKey(null);
+        
+        // CRITICAL: For pending deliveries, select the assigned pickup instead
+        if (marker.status === 'pending' && marker.puid) {
+          const assignedPickup = pickupMarkers.find(p => p && p.stop_id === marker.puid);
+          if (assignedPickup && onMarkerClick) {
+            onMarkerClick(assignedPickup);
+            return;
+          }
+        }
+        
         if (onMarkerClick) onMarkerClick(marker);
         return;
       }
@@ -1128,6 +1138,16 @@ export default function DeliveryMap({
     
     // Retract any expanded cluster and call onMarkerClick for non-clustered markers
     setFannedLocationKey(null);
+    
+    // CRITICAL: For pending deliveries, select the assigned pickup instead
+    if (marker.status === 'pending' && marker.puid) {
+      const assignedPickup = pickupMarkers.find(p => p && p.stop_id === marker.puid);
+      if (assignedPickup && onMarkerClick) {
+        onMarkerClick(assignedPickup);
+        return;
+      }
+    }
+    
     if (onMarkerClick) {
       onMarkerClick(marker);
     }
