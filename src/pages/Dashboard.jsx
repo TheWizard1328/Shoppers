@@ -2158,6 +2158,10 @@ function Dashboard() {
     }
 
     console.log('✅ [Render Sequence 7] All elements rendered - activating FAB phase');
+    
+    // CRITICAL: Notify fabControlEvents that initial data is ready
+    // This allows other components to know when dashboard is fully loaded
+    fabControlEvents.notifyDataReady();
 
     // CASE 1: No deliveries - set phase 1 locked, will unlock on pan/zoom
     if (deliveriesWithStopOrder.length === 0) {
@@ -2645,6 +2649,9 @@ function Dashboard() {
             }
           }, lockDuration);
         }
+        
+        // CRITICAL: Notify that date change data is ready
+        fabControlEvents.notifyDataReady();
       }, 100);
 
       // STEP 7: Background loads (non-blocking)
@@ -2734,6 +2741,9 @@ function Dashboard() {
             }
           }, lockDuration);
         }
+        
+        // CRITICAL: Notify that driver change data is ready
+        fabControlEvents.notifyDataReady();
       }, 300);
     } catch (error) {
       console.error('❌ [Dashboard] Instant refresh failed:', error);
