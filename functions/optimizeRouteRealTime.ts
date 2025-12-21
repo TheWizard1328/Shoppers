@@ -800,10 +800,20 @@ Deno.serve(async (req) => {
         const travelMinutes = (travelDist / 40) * 60;
         cumulativeTime += travelMinutes;
         
-        // Apply pickup time window
-        if (nextPickup.timeWindow && cumulativeTime < nextPickup.timeWindow.start) {
-          cumulativeTime = nextPickup.timeWindow.start;
+        // CRITICAL: Check if we arrive before or after scheduled pickup time
+        let scheduledPickupMinutes = null;
+        if (nextPickup.delivery.delivery_time_start) {
+          const [h, m] = nextPickup.delivery.delivery_time_start.split(':').map(Number);
+          scheduledPickupMinutes = h * 60 + m;
         }
+        
+        // If we arrive BEFORE scheduled time, wait until scheduled time
+        if (scheduledPickupMinutes !== null && cumulativeTime < scheduledPickupMinutes) {
+          console.log(`      ⏳ Arriving early at pickup - waiting until ${nextPickup.delivery.delivery_time_start}`);
+          cumulativeTime = scheduledPickupMinutes;
+        }
+        // If we arrive AFTER scheduled time, the ETA will reflect the actual arrival
+        // (This will be updated in the final ETA calculation step)
         
         // Add pickup service time
         const serviceTime = nextPickup.delivery.extra_time || 15;
@@ -812,7 +822,8 @@ Deno.serve(async (req) => {
         // Update position
         currentPosition = { lat: nextPickup.lat, lng: nextPickup.lng };
         
-        console.log(`      📦 [Pickup] ${nextPickup.delivery.store_id} completed`);
+        const etaHHMM = `${String(Math.floor((cumulativeTime - serviceTime) / 60) % 24).padStart(2, '0')}:${String((cumulativeTime - serviceTime) % 60).padStart(2, '0')}`;
+        console.log(`      📦 [Pickup] ${nextPickup.delivery.patient_name || nextPickup.delivery.store_id} - ETA: ${etaHHMM} (scheduled: ${nextPickup.delivery.delivery_time_start || 'N/A'})`);
       } else {
         // No more pickups - we're done
         break;
