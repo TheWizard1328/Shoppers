@@ -2103,7 +2103,14 @@ export default function DeliveryForm({
       ['completed', 'cancelled', 'failed', 'returned'].includes(formData.status) &&
       delivery.status !== formData.status;
 
-      await onSave(dataToSave);
+      // CRITICAL: Save to both offline and online databases using local-first approach
+      if (delivery?.id) {
+        console.log('📝 [DeliveryForm] Updating delivery via local-first mutation...');
+        await updateDeliveryLocal(delivery.id, dataToSave);
+        console.log('✅ [DeliveryForm] Delivery updated in both offline and online DBs');
+      } else {
+        await onSave(dataToSave);
+      }
 
       // Send message if driver changed (from active driver to new driver)
       if (driverChanged && oldDriver && newDriver && currentUser && userHasRole(currentUser, 'driver')) {
@@ -2120,10 +2127,23 @@ export default function DeliveryForm({
         console.log('✉️ [DeliveryForm] Sent driver reassignment message');
       }
 
-      // CRITICAL: Always invalidate delivery cache after update to force refresh
+      // CRITICAL: Invalidate caches and restart smart refresh
       const { invalidate } = await import('../utils/dataManager');
+      const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+      
       invalidate('Delivery');
       invalidate('Patient');
+      
+      // Restart smart refresh manager to sync UI immediately
+      smartRefreshManager.lastRefreshTimes = {
+        driverLocation: 0,
+        activeDeliveries: 0,
+        todayDeliveries: 0,
+        appUsers: 0,
+        patients: 0,
+        stores: 0
+      };
+      console.log('🔄 [DeliveryForm] Smart refresh manager restarted');
 
       // CRITICAL: Always reorder stops after any delivery update or status change
       if (delivery && delivery.driver_id && delivery.delivery_date) {
