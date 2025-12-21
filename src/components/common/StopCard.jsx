@@ -2156,10 +2156,39 @@ export default function StopCard({
 
                             // CRITICAL: Deactivate FAB before restart
                             fabControlEvents.deactivateFAB();
+                            setIsEntityUpdating(true);
+                            await new Promise((resolve) => setTimeout(resolve, 100));
 
                             try {
-                              await onRestart(delivery.id);
+                              console.log('🔄 [RESTART] Restarting delivery:', delivery.id);
+                              
+                              // Step 1: Clear all isNextDelivery flags for this driver/date
+                              const driverDeliveries = allDeliveries.filter((d) =>
+                                d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+                              );
+                              
+                              for (const d of driverDeliveries) {
+                                if (d.isNextDelivery) {
+                                  await updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true });
+                                }
+                              }
+                              
+                              // Step 2: Set restarted delivery to in_transit/en_route and isNextDelivery: true
+                              const newStatus = isPickup ? 'en_route' : 'in_transit';
+                              await updateDeliveryLocal(delivery.id, {
+                                status: newStatus,
+                                isNextDelivery: true
+                              }, { skipSmartRefresh: true });
+                              
+                              // Step 3: Refresh data and sync UI
+                              invalidate('Delivery');
+                              await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                              
+                              console.log('✅ [RESTART] Delivery restarted successfully');
                             } finally {
+                              setIsEntityUpdating(false);
+                              await new Promise((resolve) => setTimeout(resolve, 100));
+                              
                               // CRITICAL: Reactivate FAB after restart (skip card scroll - FAB handles it)
                               fabControlEvents.reactivateFAB(true);
                             }
