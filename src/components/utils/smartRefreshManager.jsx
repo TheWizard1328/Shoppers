@@ -12,6 +12,7 @@ class SmartRefreshManager {
     // CRITICAL: Default to true, will be overridden by initializeFromSettings() on app startup
     this._enabled = true;
     this._initialized = false;
+    this._paused = false; // CRITICAL: Pause during mutations to prevent race conditions
     
     this.lastFetchTimestamps = new Map();
     this.isRefreshing = false;
@@ -136,6 +137,49 @@ class SmartRefreshManager {
     if (this.rateLimitCallback) {
       this.rateLimitCallback(hasError);
     }
+  }
+  
+  /**
+   * Pause smart refresh during mutations
+   * CRITICAL: Call this before any Patient/Delivery mutations
+   */
+  pause() {
+    console.log('⏸️ [SmartRefresh] Paused for mutations');
+    this._paused = true;
+  }
+  
+  /**
+   * Resume smart refresh after mutations complete
+   * CRITICAL: Call this after mutations and syncs are complete
+   */
+  resume() {
+    console.log('▶️ [SmartRefresh] Resumed after mutations');
+    this._paused = false;
+  }
+  
+  /**
+   * Check if smart refresh is paused
+   */
+  isPaused() {
+    return this._paused;
+  }
+  
+  /**
+   * Restart smart refresh - reset all timers to force immediate refresh
+   * CRITICAL: Call this after mutations to sync UI with latest data
+   */
+  restart() {
+    console.log('🔄 [SmartRefresh] Restarting - resetting all refresh timers');
+    this._paused = false;
+    this.lastRefreshTimes = {
+      driverLocation: 0,
+      activeDeliveries: 0,
+      todayDeliveries: 0,
+      appUsers: 0,
+      todayPatients: 0,
+      patients: 0,
+      stores: 0
+    };
   }
   
   /**
@@ -539,8 +583,8 @@ class SmartRefreshManager {
    */
   async refreshDriverLocations(currentAppUsers, forceRefresh = false) {
     try {
-      // Check if disabled - silently skip automatic polling (unless forced)
-      if (!this._enabled && !forceRefresh) {
+      // Check if disabled or paused - silently skip automatic polling (unless forced)
+      if ((!this._enabled || this._paused) && !forceRefresh) {
         return null;
       }
       
@@ -875,8 +919,8 @@ class SmartRefreshManager {
    */
   async refreshActiveDeliveryStatuses(currentDeliveries, selectedDate, filters = {}) {
     try {
-      // Check if disabled - silently skip automatic polling
-      if (!this._enabled) {
+      // Check if disabled or paused - silently skip automatic polling
+      if (!this._enabled || this._paused) {
         return null;
       }
       
@@ -992,6 +1036,11 @@ class SmartRefreshManager {
   async performSmartRefresh(currentData, filters, isEntityUpdating = false) {
     // CRITICAL: When disabled, skip background polling
     if (!this._enabled) {
+      return null;
+    }
+    
+    // CRITICAL: Skip if paused during mutations
+    if (this._paused) {
       return null;
     }
     
