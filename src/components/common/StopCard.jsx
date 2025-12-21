@@ -1532,17 +1532,18 @@ export default function StopCard({
 
                           console.log(`  Found ${deliveriesByStore.size} store groups to optimize`);
 
-                          // Run route optimizer - it will handle staged optimization
+                          // CRITICAL: Run recursive route optimizer
                           try {
+                            console.log('🔄 [Accept/Assign All] Running optimizeRouteRealTime...');
                             await base44.functions.invoke('optimizeRouteRealTime', {
                               driverId: delivery.driver_id,
                               deliveryDate: delivery.delivery_date,
                               currentLocalTime: currentLocalTime,
                               generatePolyline: false
                             });
-                            console.log('  ✅ Route optimized');
+                            console.log('✅ [Accept/Assign All] Route optimized');
                           } catch (optimizeError) {
-                            console.warn('⚠️ Route optimizer failed, continuing without optimization:', optimizeError);
+                            console.warn('⚠️ [Accept/Assign All] Route optimizer failed, continuing without optimization:', optimizeError);
                           }
 
                           // Step 5: Update TR#s sequentially for newly accepted stops
