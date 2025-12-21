@@ -1937,11 +1937,20 @@ export default function DeliveryForm({
       // Then save new deliveries OR trigger data refresh
       if (newDeliveries.length > 0) {
         console.log('[AddToRoute] 📤 Calling Dashboard save handler with batch data...');
-        // CRITICAL: Convert 'Staged' status to 'pending' before saving
-        const deliveriesReadyForDB = deliveriesWithTRs.map(d => ({
-          ...d,
-          status: d.status === 'Staged' ? 'pending' : d.status
-        }));
+        // CRITICAL: Convert status before saving
+        // - 'Staged' → 'pending' for regular deliveries
+        // - 'Staged' → 'in_transit' for InterStore deliveries (patient_id is empty)
+        const deliveriesReadyForDB = deliveriesWithTRs.map(d => {
+          if (d.status === 'Staged') {
+            // InterStore deliveries (no patient_id) → in_transit
+            // Regular deliveries (has patient_id) → pending
+            return {
+              ...d,
+              status: !d.patient_id ? 'in_transit' : 'pending'
+            };
+          }
+          return d;
+        });
         await onSave({ _isBatchSave: true, _stagedDeliveries: deliveriesReadyForDB });
         console.log('[AddToRoute] ✅ Batch save completed successfully');
       }
