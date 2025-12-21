@@ -374,24 +374,30 @@ Deno.serve(async (req) => {
       ? { lat: driverAppUser.home_latitude, lng: driverAppUser.home_longitude }
       : null;
 
-    // STAGE-BASED OPTIMIZATION: Build route by optimizing each store's pickups and deliveries as stages
+    // GLOBAL OPTIMIZATION: Build route considering ALL stops together for shortest total distance
+    // Deliveries from one store can be deferred if picking up from another store first creates a shorter route
     const optimizedRoute = [];
     const unvisitedPickups = new Set(pickupStops.map(p => p.idx));
     const unvisitedISPs = new Set(ispDeliveryStops.map(p => p.idx));
-    const processedFlexibleDeliveries = new Set();
-    const processedConstrainedDeliveries = new Set();
+    const unvisitedFlexible = new Set(deliveryStopsWithoutTimeConstraints.map(d => d.idx));
+    const unvisitedConstrained = new Set(deliveryStopsWithTimeConstraints.map(d => d.idx));
+    
+    // Track which pickups have been completed (deliveries from these stores are now "available")
+    const completedPickupStores = new Set();
+    
     let currentPos = 0; // Start from driver location
     let cumulativeTime = currentMinutes;
 
-    console.log('🎯 [Stage Optimization] Starting stage-based route building...');
+    console.log('🎯 [Global Optimization] Starting distance-optimized route building...');
+    console.log(`📊 Total stops to visit: ${unvisitedPickups.size} pickups, ${unvisitedFlexible.size} flexible deliveries, ${unvisitedConstrained.size} constrained deliveries, ${unvisitedISPs.size} ISPs`);
 
-    // Build route: stages (pickup + flexible deliveries) with ISPs and constrained deliveries inserted optimally
-    while (unvisitedPickups.size > 0 || unvisitedISPs.size > 0 || processedFlexibleDeliveries.size < deliveryStopsWithoutTimeConstraints.length || processedConstrainedDeliveries.size < deliveryStopsWithTimeConstraints.length) {
+    // Build route: Consider ALL available stops at each step, pick the one that minimizes total route distance
+    while (unvisitedPickups.size > 0 || unvisitedISPs.size > 0 || unvisitedFlexible.size > 0 || unvisitedConstrained.size > 0) {
       let bestIdx = -1;
       let bestScore = Infinity;
       let bestType = null;
 
-      // PRIORITY 1: Consider unvisited pickups (start new stages)
+      // OPTION 1: Consider unvisited pickups
       for (const idx of unvisitedPickups) {
         const travelTime = Math.ceil(crowFliesMatrix[currentPos][idx].duration / 60);
         const stop = stops[idx];
@@ -399,12 +405,12 @@ Deno.serve(async (req) => {
         
         let score = travelTime;
         
-        // Time window handling - pickups MUST arrive within window (Rule 3)
+        // Time window handling - pickups MUST arrive within window
         if (stop.timeWindow) {
           if (arrivalTime > stop.timeWindow.end) {
             score += 10000; // Very heavy penalty - pickup time window is critical
           } else if (arrivalTime < stop.timeWindow.start - 30) {
-            score += 100; // Moderate penalty for being too early
+            score += 50; // Light penalty for being too early
           }
         }
         
@@ -415,13 +421,12 @@ Deno.serve(async (req) => {
         }
       }
 
-      // PRIORITY 2: Consider ISPs (can be inserted between stages)
+      // OPTION 2: Consider ISPs (always available - no pickup prerequisite)
       for (const idx of unvisitedISPs) {
         const stop = stops[idx];
         const travelTime = Math.ceil(crowFliesMatrix[currentPos][idx].duration / 60);
         const arrivalTime = cumulativeTime + travelTime;
         
-        // ISPs compete with pickups - use distance as primary factor
         let score = travelTime;
         
         // Respect time windows if present
@@ -438,38 +443,60 @@ Deno.serve(async (req) => {
         }
       }
 
-      // PRIORITY 3: Consider time-constrained deliveries from PREVIOUS stages
-      // These can only be added if their time window can be met
-      for (const d of deliveryStopsWithTimeConstraints) {
-        if (processedConstrainedDeliveries.has(d.idx)) continue;
+      // OPTION 3: Consider flexible deliveries (only if their store pickup is done)
+      for (const idx of unvisitedFlexible) {
+        const delivStop = deliveryStopsWithoutTimeConstraints.find(d => d.idx === idx);
+        if (!delivStop) continue;
         
-        const travelTime = Math.ceil(crowFliesMatrix[currentPos][d.idx].duration / 60);
+        // CRITICAL: Can only deliver if pickup for this store is complete
+        if (!completedPickupStores.has(delivStop.delivery.store_id)) continue;
+        
+        const travelTime = Math.ceil(crowFliesMatrix[currentPos][idx].duration / 60);
+        let score = travelTime;
+        
+        if (score < bestScore) {
+          bestScore = score;
+          bestIdx = idx;
+          bestType = 'flexible_delivery';
+        }
+      }
+
+      // OPTION 4: Consider time-constrained deliveries (only if their store pickup is done)
+      for (const idx of unvisitedConstrained) {
+        const delivStop = deliveryStopsWithTimeConstraints.find(d => d.idx === idx);
+        if (!delivStop) continue;
+        
+        // CRITICAL: Can only deliver if pickup for this store is complete
+        if (!completedPickupStores.has(delivStop.delivery.store_id)) continue;
+        
+        const travelTime = Math.ceil(crowFliesMatrix[currentPos][idx].duration / 60);
         const arrivalTime = cumulativeTime + travelTime;
         
         let score = travelTime;
         
-        // STRICT time window enforcement (Rules 4 & 5)
-        if (d.timeWindow) {
-          if (arrivalTime > d.timeWindow.end) {
+        // Time window enforcement
+        if (delivStop.timeWindow) {
+          if (arrivalTime > delivStop.timeWindow.end) {
             score += 10000; // Invalid - too late
-          } else if (arrivalTime < d.timeWindow.start) {
-            // Can deliver, but need to wait
-            const waitTime = d.timeWindow.start - arrivalTime;
+          } else if (arrivalTime < delivStop.timeWindow.start) {
+            const waitTime = delivStop.timeWindow.start - arrivalTime;
             score += waitTime * 2; // Moderate penalty for waiting
           }
         }
         
-        // Only consider if score is reasonable
         if (score < bestScore) {
           bestScore = score;
-          bestIdx = d.idx;
+          bestIdx = idx;
           bestType = 'constrained_delivery';
         }
       }
 
-      if (bestIdx === -1) break;
+      if (bestIdx === -1) {
+        console.warn('⚠️ [Global Optimization] No valid next stop found - breaking loop');
+        break;
+      }
 
-      // Add the selected stop and process based on type
+      // Add the selected stop and update state
       if (bestType === 'pickup') {
         unvisitedPickups.delete(bestIdx);
         optimizedRoute.push(bestIdx);
@@ -484,84 +511,11 @@ Deno.serve(async (req) => {
         }
         cumulativeTime += serviceTime;
         currentPos = bestIdx + 1;
+        
+        // Mark this store's deliveries as now available
+        completedPickupStores.add(pickupStop.delivery.store_id);
 
-        console.log(`📦 [Stage] Added pickup for store ${pickupStop.delivery.store_id} at cumulative time ${cumulativeTime} minutes`);
-
-        // STAGE OPTIMIZATION: Add flexible deliveries for this pickup immediately after
-        const pickupStoreId = pickupStop.delivery.store_id;
-        const flexibleDeliveries = flexibleDeliveriesByPickup.get(pickupStoreId) || [];
-        const constrainedDeliveries = constrainedDeliveriesByPickup.get(pickupStoreId) || [];
-        
-        // First, try to add flexible deliveries (no time constraints) - nearest neighbor
-        const unvisitedFlexible = flexibleDeliveries.filter(d => !processedFlexibleDeliveries.has(d.idx));
-        
-        let pickupPos = currentPos;
-        const remainingFlexible = [...unvisitedFlexible];
-        
-        while (remainingFlexible.length > 0) {
-          let bestDeliv = null;
-          let bestDelivScore = Infinity;
-          
-          for (const deliv of remainingFlexible) {
-            const travelTime = crowFliesMatrix[pickupPos][deliv.idx].duration / 60;
-            const score = travelTime; // Pure distance optimization for flexible deliveries
-            
-            if (score < bestDelivScore) {
-              bestDelivScore = score;
-              bestDeliv = deliv;
-            }
-          }
-          
-          if (!bestDeliv) break;
-          
-          optimizedRoute.push(bestDeliv.idx);
-          processedFlexibleDeliveries.add(bestDeliv.idx);
-          
-          const travelTime = Math.ceil(crowFliesMatrix[pickupPos][bestDeliv.idx].duration / 60);
-          const serviceTime = bestDeliv.delivery.extra_time || 5;
-          cumulativeTime += travelTime;
-          cumulativeTime += serviceTime;
-          pickupPos = bestDeliv.idx + 1;
-          currentPos = pickupPos;
-          
-          const idx = remainingFlexible.indexOf(bestDeliv);
-          if (idx > -1) remainingFlexible.splice(idx, 1);
-        }
-        
-        // Second, try to fit time-constrained deliveries for this pickup if they can be delivered now
-        const unvisitedConstrained = constrainedDeliveries.filter(d => !processedConstrainedDeliveries.has(d.idx));
-        
-        for (const deliv of unvisitedConstrained) {
-          const travelTime = Math.ceil(crowFliesMatrix[currentPos][deliv.idx].duration / 60);
-          const arrivalTime = cumulativeTime + travelTime;
-          
-          // Check if delivery can be made within time window
-          let canDeliverNow = true;
-          if (deliv.timeWindow) {
-            if (arrivalTime > deliv.timeWindow.end) {
-              canDeliverNow = false; // Too late - defer to later stage
-            }
-          }
-          
-          if (canDeliverNow) {
-            optimizedRoute.push(deliv.idx);
-            processedConstrainedDeliveries.add(deliv.idx);
-            
-            const serviceTime = deliv.delivery.extra_time || 5;
-            cumulativeTime += travelTime;
-            if (deliv.timeWindow && cumulativeTime < deliv.timeWindow.start) {
-              cumulativeTime = deliv.timeWindow.start; // Wait until window opens
-            }
-            cumulativeTime += serviceTime;
-            currentPos = deliv.idx + 1;
-            
-            console.log(`⏰ [Stage] Added time-constrained delivery: ${deliv.delivery.patient_name} (can deliver now)`);
-          } else {
-            console.log(`⏰ [Stage] Deferring time-constrained delivery: ${deliv.delivery.patient_name} (would arrive too late)`);
-          }
-        }
-        
-        console.log(`✅ [Stage] Completed stage for pickup ${pickupStoreId}`);
+        console.log(`📦 [Pickup] Store ${pickupStop.delivery.store_id} - deliveries now available (${cumulativeTime} min cumulative)`);
         
       } else if (bestType === 'isp') {
         unvisitedISPs.delete(bestIdx);
@@ -576,10 +530,22 @@ Deno.serve(async (req) => {
         cumulativeTime += serviceTime;
         currentPos = bestIdx + 1;
         
-        console.log(`🔀 [ISP] Added ISP delivery between stages: ${stops[bestIdx].delivery.patient_name}`);
+        console.log(`🔀 [ISP] ${stops[bestIdx].delivery.patient_name}`);
+        
+      } else if (bestType === 'flexible_delivery') {
+        unvisitedFlexible.delete(bestIdx);
+        optimizedRoute.push(bestIdx);
+        
+        const travelTime = Math.ceil(crowFliesMatrix[currentPos][bestIdx].duration / 60);
+        const serviceTime = stops[bestIdx].delivery.extra_time || 5;
+        cumulativeTime += travelTime;
+        cumulativeTime += serviceTime;
+        currentPos = bestIdx + 1;
+        
+        console.log(`📬 [Delivery] ${stops[bestIdx].delivery.patient_name} (flexible)`);
         
       } else if (bestType === 'constrained_delivery') {
-        processedConstrainedDeliveries.add(bestIdx);
+        unvisitedConstrained.delete(bestIdx);
         optimizedRoute.push(bestIdx);
         
         const travelTime = Math.ceil(crowFliesMatrix[currentPos][bestIdx].duration / 60);
@@ -591,11 +557,11 @@ Deno.serve(async (req) => {
         cumulativeTime += serviceTime;
         currentPos = bestIdx + 1;
         
-        console.log(`⏰ [Constrained] Added time-constrained delivery: ${stops[bestIdx].delivery.patient_name}`);
+        console.log(`⏰ [Delivery] ${stops[bestIdx].delivery.patient_name} (time-constrained)`);
       }
     }
 
-    console.log(`✅ [Stage Optimization] Route built with ${optimizedRoute.length} stops across all stages`);
+    console.log(`✅ [Global Optimization] Route built with ${optimizedRoute.length} stops - stores can be interleaved for shorter routes`);
 
     // Check if route changed
     const oldOrder = stops.map(s => s.currentOrder).join(',');
