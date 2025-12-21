@@ -17,6 +17,183 @@ const calculateCrowFliesDistance = (lat1, lng1, lat2, lng2) => {
 };
 
 /**
+ * Recursive algorithm to find the shortest path through a set of stops
+ * Uses branch-and-bound with pruning for efficiency
+ * @param {Object} origin - Starting point {lat, lng}
+ * @param {Array} stops - Array of stops to visit [{lat, lng, idx, ...}]
+ * @param {Object} destination - End point {lat, lng} (next pickup or home)
+ * @param {number} currentTime - Current cumulative time in minutes
+ * @returns {Object} - {path: [...indices], totalDistance: number}
+ */
+const findShortestPath = (origin, stops, destination, currentTime) => {
+  const n = stops.length;
+  
+  // Base case: no stops to visit
+  if (n === 0) {
+    if (destination) {
+      const dist = calculateCrowFliesDistance(origin.lat, origin.lng, destination.lat, destination.lng);
+      return { path: [], totalDistance: dist };
+    }
+    return { path: [], totalDistance: 0 };
+  }
+  
+  // For small number of stops (<=8), use exact permutation search
+  // For larger sets, use nearest-neighbor with look-ahead
+  if (n <= 8) {
+    return findShortestPathExact(origin, stops, destination, currentTime);
+  } else {
+    return findShortestPathHeuristic(origin, stops, destination, currentTime);
+  }
+};
+
+/**
+ * Exact permutation search for small stop sets (n <= 8)
+ * Tests all permutations to find the absolute shortest path
+ */
+const findShortestPathExact = (origin, stops, destination, currentTime) => {
+  let bestPath = null;
+  let bestDistance = Infinity;
+  
+  // Generate all permutations and find shortest total distance
+  const permute = (arr, current = [], currentDist = 0, lastPos = origin) => {
+    // Pruning: if current distance already exceeds best, abandon this branch
+    if (currentDist >= bestDistance) return;
+    
+    if (arr.length === 0) {
+      // Calculate final leg to destination
+      let finalDist = currentDist;
+      if (destination) {
+        finalDist += calculateCrowFliesDistance(lastPos.lat, lastPos.lng, destination.lat, destination.lng);
+      }
+      
+      if (finalDist < bestDistance) {
+        bestDistance = finalDist;
+        bestPath = [...current];
+      }
+      return;
+    }
+    
+    for (let i = 0; i < arr.length; i++) {
+      const stop = arr[i];
+      const remaining = [...arr.slice(0, i), ...arr.slice(i + 1)];
+      const legDist = calculateCrowFliesDistance(lastPos.lat, lastPos.lng, stop.lat, stop.lng);
+      
+      // Check time window constraints
+      const travelMinutes = (legDist / 40) * 60; // ~40 km/h average
+      const arrivalTime = currentTime + travelMinutes;
+      
+      // Skip if we'd arrive too late for a time window
+      if (stop.timeWindow && arrivalTime > stop.timeWindow.end + 30) {
+        continue; // Prune this branch - we'd be too late
+      }
+      
+      permute(
+        remaining, 
+        [...current, stop.idx], 
+        currentDist + legDist, 
+        { lat: stop.lat, lng: stop.lng }
+      );
+    }
+  };
+  
+  permute(stops);
+  
+  return { path: bestPath || stops.map(s => s.idx), totalDistance: bestDistance };
+};
+
+/**
+ * Heuristic search for larger stop sets (n > 8)
+ * Uses nearest-neighbor with 2-opt improvement
+ */
+const findShortestPathHeuristic = (origin, stops, destination, currentTime) => {
+  // Start with nearest-neighbor
+  const visited = [];
+  const unvisited = [...stops];
+  let currentPos = origin;
+  let totalDistance = 0;
+  
+  while (unvisited.length > 0) {
+    let nearestIdx = 0;
+    let nearestDist = Infinity;
+    
+    for (let i = 0; i < unvisited.length; i++) {
+      const dist = calculateCrowFliesDistance(currentPos.lat, currentPos.lng, unvisited[i].lat, unvisited[i].lng);
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearestIdx = i;
+      }
+    }
+    
+    const nearest = unvisited.splice(nearestIdx, 1)[0];
+    visited.push(nearest);
+    totalDistance += nearestDist;
+    currentPos = { lat: nearest.lat, lng: nearest.lng };
+  }
+  
+  // Add final leg to destination
+  if (destination) {
+    totalDistance += calculateCrowFliesDistance(currentPos.lat, currentPos.lng, destination.lat, destination.lng);
+  }
+  
+  // 2-opt improvement (swap pairs to reduce crossings)
+  let improved = true;
+  while (improved) {
+    improved = false;
+    for (let i = 0; i < visited.length - 1; i++) {
+      for (let j = i + 2; j < visited.length; j++) {
+        const newDist = calculate2OptSwapDistance(origin, visited, destination, i, j);
+        if (newDist < totalDistance) {
+          // Perform the swap
+          const newPath = [
+            ...visited.slice(0, i + 1),
+            ...visited.slice(i + 1, j + 1).reverse(),
+            ...visited.slice(j + 1)
+          ];
+          visited.splice(0, visited.length, ...newPath);
+          totalDistance = newDist;
+          improved = true;
+        }
+      }
+    }
+  }
+  
+  return { path: visited.map(s => s.idx), totalDistance };
+};
+
+/**
+ * Calculate total distance after a 2-opt swap
+ */
+const calculate2OptSwapDistance = (origin, path, destination, i, j) => {
+  let dist = 0;
+  let prev = origin;
+  
+  // Before swap segment
+  for (let k = 0; k <= i; k++) {
+    dist += calculateCrowFliesDistance(prev.lat, prev.lng, path[k].lat, path[k].lng);
+    prev = { lat: path[k].lat, lng: path[k].lng };
+  }
+  
+  // Reversed segment
+  for (let k = j; k > i; k--) {
+    dist += calculateCrowFliesDistance(prev.lat, prev.lng, path[k].lat, path[k].lng);
+    prev = { lat: path[k].lat, lng: path[k].lng };
+  }
+  
+  // After swap segment
+  for (let k = j + 1; k < path.length; k++) {
+    dist += calculateCrowFliesDistance(prev.lat, prev.lng, path[k].lat, path[k].lng);
+    prev = { lat: path[k].lat, lng: path[k].lng };
+  }
+  
+  // Final leg to destination
+  if (destination) {
+    dist += calculateCrowFliesDistance(prev.lat, prev.lng, destination.lat, destination.lng);
+  }
+  
+  return dist;
+};
+
+/**
  * Real-time route optimization
  * Dynamically re-sequences delivery stops based on:
  * - Current traffic conditions
