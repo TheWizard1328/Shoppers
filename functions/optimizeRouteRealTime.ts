@@ -897,32 +897,36 @@ Deno.serve(async (req) => {
 
     // STEP 1: Calculate ETA for isNextDelivery stop first (if exists)
     // CRITICAL: isNextDelivery's ETA is calculated from driver's current location
-    // All subsequent stops' ETAs are calculated from isNextDelivery's location + service time
+    // All subsequent stops' ETAs are calculated SEQUENTIALLY from isNextDelivery's location + service time
+    // 
+    // NOTE: isNextDelivery is NOT in the optimizedRoute array (it was excluded from optimization)
+    // so we need to use the FIRST element of finalMatrix (driver location) to calculate its ETA
     if (isNextDeliveryStop && isNextDeliveryStopData) {
-      // Calculate travel time from driver to isNextDelivery using Google API
-      const driverToNextIdx = 0; // Driver is always first in origins
-      const nextDeliveryStopIdx = stops.findIndex(s => s.delivery.id === isNextDeliveryStop.id);
+      // CRITICAL: isNextDelivery is NOT in optimizedRoute, so we need to calculate 
+      // the distance from driver to isNextDelivery using crow-flies as approximation
+      // The finalMatrix only contains optimized route stops, not isNextDelivery
+      const travelDistKm = calculateCrowFliesDistance(
+        driverLocation.lat, driverLocation.lng,
+        isNextDeliveryStopData.lat, isNextDeliveryStopData.lng
+      );
+      // Estimate: 40 km/h average speed with 1.3x traffic factor
+      const travelTimeMinutes = Math.ceil((travelDistKm / 40) * 60 * 1.3);
       
-      if (nextDeliveryStopIdx >= 0 && finalMatrix[0] && finalMatrix[0][nextDeliveryStopIdx]) {
-        const travelTimeSeconds = finalMatrix[0][nextDeliveryStopIdx].duration;
-        const travelTimeMinutes = Math.ceil(travelTimeSeconds / 60);
-        
-        realCumulativeTime += travelTimeMinutes;
-        
-        // Apply time window waiting for isNextDelivery
-        if (isNextDeliveryStopData.timeWindow && realCumulativeTime < isNextDeliveryStopData.timeWindow.start) {
-          realCumulativeTime = isNextDeliveryStopData.timeWindow.start;
-        }
-        
-        const isNextETA = `${String(Math.floor(realCumulativeTime / 60) % 24).padStart(2, '0')}:${String(realCumulativeTime % 60).padStart(2, '0')}`;
-        
-        // Update isNextDelivery's ETA
-        await base44.asServiceRole.entities.Delivery.update(isNextDeliveryStop.id, {
-          delivery_time_eta: isNextETA
-        });
-        
-        console.log(`⏱️ isNextDelivery ETA calculated: ${isNextETA} (${travelTimeMinutes} min travel from driver)`);
+      realCumulativeTime += travelTimeMinutes;
+      
+      // Apply time window waiting for isNextDelivery
+      if (isNextDeliveryStopData.timeWindow && realCumulativeTime < isNextDeliveryStopData.timeWindow.start) {
+        realCumulativeTime = isNextDeliveryStopData.timeWindow.start;
       }
+      
+      const isNextETA = `${String(Math.floor(realCumulativeTime / 60) % 24).padStart(2, '0')}:${String(realCumulativeTime % 60).padStart(2, '0')}`;
+      
+      // Update isNextDelivery's ETA
+      await base44.asServiceRole.entities.Delivery.update(isNextDeliveryStop.id, {
+        delivery_time_eta: isNextETA
+      });
+      
+      console.log(`⏱️ isNextDelivery ETA calculated: ${isNextETA} (${travelTimeMinutes} min travel from driver, ${travelDistKm.toFixed(1)} km)`);
       
       // Add service time for next iteration
       const serviceTime = isNextDeliveryStop.extra_time || (isNextDeliveryStop.patient_id ? 5 : 15);
