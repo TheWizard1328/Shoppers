@@ -584,32 +584,15 @@ Deno.serve(async (req) => {
 
     // STEP 1: Calculate ETA for isNextDelivery stop first (if exists)
     if (isNextDeliveryStop) {
-      // Calculate travel time to isNextDelivery from driver location
-      const destIdx = stops.findIndex(s => s.delivery.id === isNextDeliveryStop.id);
-      if (destIdx >= 0) {
-        const travelTimeSeconds = finalMatrix[0][destIdx].duration;
-        const travelTimeMinutes = Math.ceil(travelTimeSeconds / 60);
-        
-        realCumulativeTime += travelTimeMinutes;
-        
-        // Apply time window waiting
-        if (stops[destIdx].timeWindow && !isNextDeliveryStop.patient_id && realCumulativeTime < stops[destIdx].timeWindow.start) {
-          realCumulativeTime = stops[destIdx].timeWindow.start;
-        }
-        
-        const nextStopETA = `${String(Math.floor(realCumulativeTime / 60) % 24).padStart(2, '0')}:${String(realCumulativeTime % 60).padStart(2, '0')}`;
-        
-        // Update isNextDelivery with its ETA
-        await base44.asServiceRole.entities.Delivery.update(isNextDeliveryStop.id, {
-          delivery_time_eta: nextStopETA
-        });
-        
-        console.log(`✅ Updated isNextDelivery stop #${completedDeliveries.length + 1}: ${isNextDeliveryStop.patient_name || 'Pickup'} ETA: ${nextStopETA}`);
-        
-        // Add service time for next iteration
-        const serviceTime = isNextDeliveryStop.extra_time || (isNextDeliveryStop.patient_id ? 5 : 15);
-        realCumulativeTime += serviceTime;
-      }
+      // CRITICAL: Don't recalculate ETA for isNextDelivery when it's just been started
+      // The delivery_time_start is already set correctly by the frontend
+      // We only need to calculate ETAs for REMAINING stops after this one
+      
+      // Add service time for next iteration (skip ETA calculation for isNextDelivery)
+      const serviceTime = isNextDeliveryStop.extra_time || (isNextDeliveryStop.patient_id ? 5 : 15);
+      realCumulativeTime += serviceTime;
+      
+      console.log(`⏩ Skipped ETA update for isNextDelivery (already started), using cumulative time + service: ${realCumulativeTime} minutes`);
     }
 
     // STEP 2: Update remaining optimized stops with stop_order and ETAs
