@@ -643,7 +643,7 @@ Deno.serve(async (req) => {
     }
 
     // Track unvisited stops (exclude isNextDelivery if it exists)
-    const unvisitedPickups = new Set(sortedPickups.map(p => p.idx));
+    let unvisitedPickups = new Set(sortedPickups.map(p => p.idx));
     const unvisitedFlexible = new Set(
       deliveryStopsWithoutTimeConstraints
         .filter(d => !isNextDeliveryStopData || d.idx !== isNextDeliveryStopData.idx)
@@ -659,6 +659,19 @@ Deno.serve(async (req) => {
         .filter(d => !isNextDeliveryStopData || d.idx !== isNextDeliveryStopData.idx)
         .map(d => d.idx)
     );
+    
+    // CRITICAL: If isNextDelivery exists, RE-SORT pickups from isNextDelivery's position
+    // This ensures remaining pickups are prioritized correctly from where the route actually continues
+    if (isNextDeliveryStopData) {
+      console.log(`\n🔄 Re-sorting pickups from isNextDelivery location (${isNextDeliveryStopData.delivery.patient_name || 'Pickup'})...`);
+      sortedPickups = sortPickupsFromPosition(currentPosition);
+      unvisitedPickups = new Set(sortedPickups.map(p => p.idx));
+      
+      console.log('📦 Re-sorted pickup order (from isNextDelivery location):');
+      sortedPickups.forEach((p, i) => {
+        console.log(`   ${i+1}. ${p.delivery.patient_name || 'Pickup'} @ ${p.delivery.delivery_time_start || 'no time'}`);
+      });
+    }
 
     // Process each stage
     while (unvisitedPickups.size > 0 || unvisitedFlexible.size > 0 || unvisitedConstrained.size > 0 || unvisitedISPs.size > 0) {
