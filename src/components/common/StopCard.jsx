@@ -2228,6 +2228,11 @@ export default function StopCard({
                                   generatePolyline: false
                                 });
                                 console.log('✅ [Restart Delivery] Route optimized');
+                                
+                                // CRITICAL: Refresh UI to show reordered stops
+                                invalidate('Delivery');
+                                await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                                console.log('✅ [Restart Delivery] UI refreshed with new stop order');
                               } catch (optimizeError) {
                                 console.warn('⚠️ [Restart Delivery] Route optimizer failed:', optimizeError);
                               }
