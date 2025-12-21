@@ -3268,7 +3268,7 @@ export default function DeliveryForm({
 
                   {/* Section 2: Delivery Options & COD */}
                   {!isPickupMode &&
-                  <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                  <div className="space-y-2 p-3 rounded-lg border" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       <div className="flex gap-3">
                         <div className="flex gap-3">
                           <div className="flex-1 space-y-2">
