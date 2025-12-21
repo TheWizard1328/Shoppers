@@ -763,13 +763,13 @@ export default function StopCard({
                 <Phone className="w-3 h-3 text-amber-600 ml-0.5" />
                 }
                   {!isPickup && (delivery.ring_bell || patient?.ring_bell) && !(delivery.dont_ring_bell || patient?.dont_ring_bell) &&
-                <Bell className="w-3 h-3 text-emerald-600 ml-0.5" />
+                <Bell className="w-4 h-4 text-emerald-600" />
                 }
                   {!isPickup && (delivery.dont_ring_bell || patient?.dont_ring_bell) &&
-                <BellOff className="w-3 h-3 text-red-600 ml-0.5" />
+                <BellOff className="w-4 h-4 text-red-600" />
                 }
                   {!isPickup && (delivery.mailbox_ok || patient?.mailbox_ok) &&
-                <Mailbox className="w-3 h-3 text-blue-600 ml-0.5" />
+                <Mailbox className="w-4 h-4 text-blue-600" />
                 }
                 </Badge>
               }
