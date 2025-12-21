@@ -3697,13 +3697,17 @@ export default function DeliveryForm({
                               <div className="flex items-center gap-1">
                                 <div className="truncate flex-1 min-w-0" style={{ color: 'var(--text-slate-500)' }}>{staged.delivery_address}</div>
                                 <div className="flex items-center gap-1 flex-shrink-0">
-                                  {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed) &&
+                                  {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed || staged.call_upon_arrival || staged.ring_bell || staged.dont_ring_bell || staged.mailbox_ok) &&
                                     <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold">
                                       {staged.cod_total_amount_required > 0 && '$'}
-                                      {staged.first_delivery && (staged.cod_total_amount_required > 0 ? ' N' : 'N')}
-                                      {staged.oversized && (staged.cod_total_amount_required > 0 || staged.first_delivery ? ' O' : 'O')}
-                                      {staged.fridge_item && (staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized ? ' F' : 'F')}
-                                      {staged.signature_needed && (staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item ? ' S' : 'S')}
+                                      {staged.first_delivery && ' N'}
+                                      {staged.oversized && ' O'}
+                                      {staged.fridge_item && ' F'}
+                                      {staged.signature_needed && ' S'}
+                                      {staged.call_upon_arrival && ' C'}
+                                      {staged.ring_bell && ' R'}
+                                      {staged.dont_ring_bell && ' X'}
+                                      {staged.mailbox_ok && ' M'}
                                     </Badge>
                                   }
                                   {staged.ampm_deliveries &&
@@ -3771,13 +3775,17 @@ export default function DeliveryForm({
                               <div className="flex items-center gap-1">
                                 <div className="truncate flex-1 min-w-0 text-slate-600 text-[10px]">{projected.reason}</div>
                                 <div className="flex items-center gap-1 flex-shrink-0">
-                                  {(projected.cod_total_amount_required > 0 || projectedPatient?.first_delivery || projected.oversized || projected.fridge_item || projected.signature_needed || projectedPatient?.signature_needed) &&
+                                  {(projected.cod_total_amount_required > 0 || projectedPatient?.first_delivery || projected.oversized || projected.fridge_item || projected.signature_needed || projectedPatient?.signature_needed || projectedPatient?.call_upon_arrival || projectedPatient?.ring_bell || projectedPatient?.dont_ring_bell || projectedPatient?.mailbox_ok) &&
                                     <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold">
                                       {projected.cod_total_amount_required > 0 && '$'}
-                                      {projectedPatient?.first_delivery && (projected.cod_total_amount_required > 0 ? ' N' : 'N')}
-                                      {projected.oversized && (projected.cod_total_amount_required > 0 || projectedPatient?.first_delivery ? ' O' : 'O')}
-                                      {(projected.fridge_item || projectedPatient?.fridge_item) && (projected.cod_total_amount_required > 0 || projectedPatient?.first_delivery || projected.oversized ? ' F' : 'F')}
-                                      {(projected.signature_needed || projectedPatient?.signature_needed) && (projected.cod_total_amount_required > 0 || projectedPatient?.first_delivery || projected.oversized || projected.fridge_item || projectedPatient?.fridge_item ? ' S' : 'S')}
+                                      {projectedPatient?.first_delivery && ' N'}
+                                      {projected.oversized && ' O'}
+                                      {(projected.fridge_item || projectedPatient?.fridge_item) && ' F'}
+                                      {(projected.signature_needed || projectedPatient?.signature_needed) && ' S'}
+                                      {projectedPatient?.call_upon_arrival && ' C'}
+                                      {projectedPatient?.ring_bell && ' R'}
+                                      {projectedPatient?.dont_ring_bell && ' X'}
+                                      {projectedPatient?.mailbox_ok && ' M'}
                                     </Badge>
                                   }
                                 </div>
@@ -3895,13 +3903,17 @@ export default function DeliveryForm({
                               <div className="flex items-center gap-1">
                                 <div className="truncate flex-1 min-w-0" style={{ color: 'var(--text-slate-500)' }}>{staged.delivery_address}</div>
                                 <div className="flex items-center gap-1 flex-shrink-0">
-                                  {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed) &&
+                                  {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed || staged.call_upon_arrival || staged.ring_bell || staged.dont_ring_bell || staged.mailbox_ok) &&
                                     <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold">
                                       {staged.cod_total_amount_required > 0 && '$'}
-                                      {staged.first_delivery && (staged.cod_total_amount_required > 0 ? ' N' : 'N')}
-                                      {staged.oversized && (staged.cod_total_amount_required > 0 || staged.first_delivery ? ' O' : 'O')}
-                                      {staged.fridge_item && (staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized ? ' F' : 'F')}
-                                      {staged.signature_needed && (staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item ? ' S' : 'S')}
+                                      {staged.first_delivery && ' N'}
+                                      {staged.oversized && ' O'}
+                                      {staged.fridge_item && ' F'}
+                                      {staged.signature_needed && ' S'}
+                                      {staged.call_upon_arrival && ' C'}
+                                      {staged.ring_bell && ' R'}
+                                      {staged.dont_ring_bell && ' X'}
+                                      {staged.mailbox_ok && ' M'}
                                     </Badge>
                                   }
                                   {staged.ampm_deliveries &&
@@ -3969,13 +3981,17 @@ export default function DeliveryForm({
                               <div className="flex items-center gap-1">
                                 <div className="truncate flex-1 min-w-0 text-slate-600 text-[10px]">{projected.reason}</div>
                                 <div className="flex items-center gap-1 flex-shrink-0">
-                                  {(projected.cod_total_amount_required > 0 || projectedPatient?.first_delivery || projected.oversized || projected.fridge_item || projected.signature_needed || projectedPatient?.signature_needed) &&
+                                  {(projected.cod_total_amount_required > 0 || projectedPatient?.first_delivery || projected.oversized || projected.fridge_item || projected.signature_needed || projectedPatient?.signature_needed || projectedPatient?.call_upon_arrival || projectedPatient?.ring_bell || projectedPatient?.dont_ring_bell || projectedPatient?.mailbox_ok) &&
                                     <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold">
                                       {projected.cod_total_amount_required > 0 && '$'}
-                                      {projectedPatient?.first_delivery && (projected.cod_total_amount_required > 0 ? ' N' : 'N')}
-                                      {projected.oversized && (projected.cod_total_amount_required > 0 || projectedPatient?.first_delivery ? ' O' : 'O')}
-                                      {(projected.fridge_item || projectedPatient?.fridge_item) && (projected.cod_total_amount_required > 0 || projectedPatient?.first_delivery || projected.oversized ? ' F' : 'F')}
-                                      {(projected.signature_needed || projectedPatient?.signature_needed) && (projected.cod_total_amount_required > 0 || projectedPatient?.first_delivery || projected.oversized || projected.fridge_item || projectedPatient?.fridge_item ? ' S' : 'S')}
+                                      {projectedPatient?.first_delivery && ' N'}
+                                      {projected.oversized && ' O'}
+                                      {(projected.fridge_item || projectedPatient?.fridge_item) && ' F'}
+                                      {(projected.signature_needed || projectedPatient?.signature_needed) && ' S'}
+                                      {projectedPatient?.call_upon_arrival && ' C'}
+                                      {projectedPatient?.ring_bell && ' R'}
+                                      {projectedPatient?.dont_ring_bell && ' X'}
+                                      {projectedPatient?.mailbox_ok && ' M'}
                                     </Badge>
                                   }
                                 </div>
