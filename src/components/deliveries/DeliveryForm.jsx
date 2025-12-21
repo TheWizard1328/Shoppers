@@ -4166,7 +4166,14 @@ export default function DeliveryForm({
                 <Button
                   type="submit"
                   size="sm"
-                  onClick={handleSubmit}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleSubmit(e).then(() => {
+                      if (closeOnSave) {
+                        onCancel();
+                      }
+                    });
+                  }}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
                   disabled={isSaving || !isFormValid || isPatientFormOpen}>
                         {isSaving ?
