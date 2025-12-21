@@ -865,7 +865,21 @@ export default function StopCard({
 
                                 await onStatusUpdate(delivery.id, status, {}, false);
 
-                                // Next delivery flag handled by route optimizer
+                                // CRITICAL: Run recursive route optimization after completion
+                                try {
+                                  const now = new Date();
+                                  const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                                  console.log('🔄 [Completed] Running optimizeRouteRealTime...');
+                                  await base44.functions.invoke('optimizeRouteRealTime', {
+                                    driverId: delivery.driver_id,
+                                    deliveryDate: delivery.delivery_date,
+                                    currentLocalTime: currentLocalTime,
+                                    generatePolyline: false
+                                  });
+                                  console.log('✅ [Completed] Route optimized');
+                                } catch (optimizeError) {
+                                  console.warn('⚠️ [Completed] Route optimizer failed:', optimizeError);
+                                }
 
                                 if (status === 'completed' && userHasRole(currentUser, 'driver')) {
                                   await notifyDriverCompleted({
