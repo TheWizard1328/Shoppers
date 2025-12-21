@@ -1552,6 +1552,11 @@ export default function StopCard({
                               generatePolyline: false
                             });
                             console.log('✅ [Accept/Assign All] Route optimized');
+                            
+                            // CRITICAL: Refresh UI to show reordered stops
+                            invalidate('Delivery');
+                            await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                            console.log('✅ [Accept/Assign All] UI refreshed with new stop order');
                           } catch (optimizeError) {
                             console.warn('⚠️ [Accept/Assign All] Route optimizer failed, continuing without optimization:', optimizeError);
                           }
