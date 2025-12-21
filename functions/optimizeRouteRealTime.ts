@@ -676,39 +676,23 @@ Deno.serve(async (req) => {
     // Process each stage
     while (unvisitedPickups.size > 0 || unvisitedFlexible.size > 0 || unvisitedConstrained.size > 0 || unvisitedISPs.size > 0) {
       
-      // Find the next pickup to visit - PRIORITIZE by delivery_time_start (scheduled time)
-      // If calculated ETA is BEFORE pickup's delivery_time_start, we should go to it
-      // If calculated ETA is AFTER pickup's delivery_time_start, update the pickup's ETA
-      let nextPickup = null;
-      let nextPickupScore = Infinity;
+      // CRITICAL: Pickup time windows are ONLY used to order pickups among themselves
+      // They should NOT force a pickup to be the immediate next stop
+      // The optimizer should complete available deliveries before going to the next pickup
+      // UNLESS we're approaching the pickup's time window end
       
-      for (const idx of unvisitedPickups) {
-        const pickup = stops[idx];
-        const dist = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, pickup.lat, pickup.lng);
-        const travelMinutes = (dist / 40) * 60; // Estimated travel time
-        const estimatedArrival = cumulativeTime + travelMinutes;
-        
-        // Parse pickup's scheduled time (delivery_time_start)
-        let scheduledMinutes = Infinity;
-        if (pickup.delivery.delivery_time_start) {
-          const [h, m] = pickup.delivery.delivery_time_start.split(':').map(Number);
-          scheduledMinutes = h * 60 + m;
-        }
-        
-        // Score = scheduled time (primary), with distance as tiebreaker
-        // Lower score = should be visited first
-        // If no scheduled time, use estimated arrival + large penalty to push to end
-        const score = scheduledMinutes !== Infinity 
-          ? scheduledMinutes + (dist * 0.1) // Small distance factor as tiebreaker
-          : estimatedArrival + 1000; // No schedule = low priority
-        
-        if (score < nextPickupScore) {
-          nextPickupScore = score;
-          nextPickup = pickup;
+      // Find the next pickup in sorted order (already sorted by delivery_time_start)
+      let nextPickup = null;
+      
+      // Get pickups in time-window order
+      for (const sortedPickup of sortedPickups) {
+        if (unvisitedPickups.has(sortedPickup.idx)) {
+          nextPickup = sortedPickup;
+          break; // Take the first unvisited pickup in sorted order
         }
       }
       
-      console.log(`🎯 Next pickup selected: ${nextPickup?.delivery.patient_name || 'None'} (scheduled: ${nextPickup?.delivery.delivery_time_start || 'N/A'})`);
+      console.log(`🎯 Next pickup in queue: ${nextPickup?.delivery.patient_name || 'None'} (window: ${nextPickup?.delivery.delivery_time_start || 'N/A'} - ${nextPickup?.delivery.delivery_time_end || 'N/A'})`);
 
 
       // Determine stage destination (next pickup or home base)
