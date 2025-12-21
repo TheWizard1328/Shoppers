@@ -43,6 +43,7 @@ const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
 
 
 const statusColorMap = {
+  'Staged': 'text-purple-700 bg-purple-100 border-purple-200',
   'pending': 'text-slate-500 bg-slate-100 border-slate-200',
   'Ready For Pickup': 'text-amber-700 bg-amber-100 border-amber-200',
   'in_transit': 'text-blue-700 bg-blue-100 border-blue-100',
@@ -109,7 +110,7 @@ export default function DeliveryForm({
       patient_id: "",
       delivery_date: suggestedDate || format(new Date(), 'yyyy-MM-dd'),
       delivery_time_start: "", delivery_time_end: "", delivery_time_eta: "",
-      time_window_start: "", time_window_end: "", status: "pending",
+      time_window_start: "", time_window_end: "", status: "Staged",
       driver_name: "", driver_id: "", prescription_number: "",
       delivery_instructions: "", delivery_notes: "",
       cod_total_amount_required: 0, cod_payments: [],
@@ -875,9 +876,12 @@ export default function DeliveryForm({
       }
     }
 
-    let distanceFromStore = null;
-    if (patient.latitude && patient.longitude && patientStore.latitude && patientStore.longitude) {
-      distanceFromStore = calculateDistance(patientStore.latitude, patientStore.longitude, patient.latitude, patient.longitude);
+    // Use existing distance_from_store if available, otherwise calculate
+    let distanceFromStore = patient.distance_from_store;
+    if (distanceFromStore === null || distanceFromStore === undefined) {
+      if (patient.latitude && patient.longitude && patientStore.latitude && patientStore.longitude) {
+        distanceFromStore = calculateDistance(patientStore.latitude, patientStore.longitude, patient.latitude, patient.longitude);
+      }
     }
 
     const timeSlot = getStoreAssignedTimeSlot(patientStore, formData.delivery_date, allDeliveries);
@@ -907,7 +911,7 @@ export default function DeliveryForm({
       delivery_time_end: patient.time_window_end || (patient.time_window_start ? '' : ''),
       puid: puid || '',
       ampm_deliveries: timeSlot,
-      status: 'pending',
+      status: 'Staged',
       _tempId: Date.now() + Math.random(),
       patient_name: updatedFormData.patient_name || patient.full_name || 'N/A',
       store_name: patientStore.name,
@@ -1462,7 +1466,7 @@ export default function DeliveryForm({
       cod_total_amount_required: codAmount,
       puid: puid || '',
       ampm_deliveries: timeSlot,
-      status: 'pending',
+      status: 'Staged',
       _tempId: Date.now() + Math.random(),
       patient_name: formData.patient_name || patient?.full_name || 'N/A (Pickup)',
       store_name: store.name,
@@ -1927,7 +1931,12 @@ export default function DeliveryForm({
       // Then save new deliveries OR trigger data refresh
       if (newDeliveries.length > 0) {
         console.log('[AddToRoute] 📤 Calling Dashboard save handler with batch data...');
-        await onSave({ _isBatchSave: true, _stagedDeliveries: deliveriesWithTRs });
+        // CRITICAL: Convert 'Staged' status to 'pending' before saving
+        const deliveriesReadyForDB = deliveriesWithTRs.map(d => ({
+          ...d,
+          status: d.status === 'Staged' ? 'pending' : d.status
+        }));
+        await onSave({ _isBatchSave: true, _stagedDeliveries: deliveriesReadyForDB });
         console.log('[AddToRoute] ✅ Batch save completed successfully');
       }
 
@@ -2415,15 +2424,18 @@ export default function DeliveryForm({
 
     // Convert pending deliveries to staged format
     const newStagedItems = pendingDeliveries.map((delivery, index) => {
-      const patient = patients.find((p) => p && p.id === delivery.patient_id);
-      const store = stores.find((s) => s && s.id === delivery.store_id);
+    const patient = patients.find((p) => p && p.id === delivery.patient_id);
+    const store = stores.find((s) => s && s.id === delivery.store_id);
 
-      if (!patient || !store) return null;
+    if (!patient || !store) return null;
 
-      let distanceFromStore = null;
+    // Use existing distance_from_store if available, otherwise calculate
+    let distanceFromStore = patient.distance_from_store;
+    if (distanceFromStore === null || distanceFromStore === undefined) {
       if (patient?.latitude && patient?.longitude && store?.latitude && store?.longitude) {
         distanceFromStore = calculateDistance(store.latitude, store.longitude, patient.latitude, patient.longitude);
       }
+    }
 
       // CRITICAL: If the delivery already has a PUID, find its parent pickup to get the correct AM/PM slot
       let timeSlot = delivery.ampm_deliveries; // First, use the delivery's own ampm_deliveries if set
@@ -2501,9 +2513,12 @@ export default function DeliveryForm({
       return;
     }
 
-    let distanceFromStore = null;
-    if (patient.latitude && patient.longitude && store.latitude && store.longitude) {
-      distanceFromStore = calculateDistance(store.latitude, store.longitude, patient.latitude, patient.longitude);
+    // Use existing distance_from_store if available, otherwise calculate
+    let distanceFromStore = patient.distance_from_store;
+    if (distanceFromStore === null || distanceFromStore === undefined) {
+      if (patient.latitude && patient.longitude && store.latitude && store.longitude) {
+        distanceFromStore = calculateDistance(store.latitude, store.longitude, patient.latitude, patient.longitude);
+      }
     }
 
     // Auto-select driver based on patient's store and time window
@@ -2608,7 +2623,7 @@ export default function DeliveryForm({
       time_window_end: patient.time_window_end || (patient.time_window_start ? '' : ''),
       puid: puid || '',
       ampm_deliveries: timeSlot,
-      status: 'pending',
+      status: 'Staged',
       driver_id: autoSelectedDriverId,
       driver_name: autoSelectedDriverName,
       prescription_number: projected.prescription_number || '',
@@ -3386,20 +3401,8 @@ export default function DeliveryForm({
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent className="z-[999999]">
+                              <SelectItem value="Staged">Staged</SelectItem>
                               <SelectItem value="pending">Pending</SelectItem>
-                              <SelectItem value="Ready For Pickup">Ready For Pickup</SelectItem>
-                              {isPickupMode ?
-                            <SelectItem value="en_route">En Route</SelectItem> :
-                            <SelectItem value="in_transit">In Transit</SelectItem>
-                            }
-                              <SelectItem value="completed">Completed</SelectItem>
-                              {isPickupMode ?
-                            <SelectItem value="cancelled">Cancelled</SelectItem> :
-                            <>
-                                  <SelectItem value="failed">Failed</SelectItem>
-                                  <SelectItem value="returned">Returned</SelectItem>
-                                </>
-                            }
                             </SelectContent>
                           </Select>
                         </div>
