@@ -272,6 +272,22 @@ Deno.serve(async (req) => {
             const lastDeliveryDate = new Date(patient.last_delivery_date);
             const daysSinceLastDelivery = Math.round((targetDate - lastDeliveryDate) / (1000 * 60 * 60 * 24));
             
+            // CRITICAL: Skip if patient has had a delivery within ±3 days of target date
+            // Check recent deliveries for this patient around the target date
+            const recentDeliveries = historicalDeliveries.filter(d => 
+              d && d.patient_id === patient.id && d.status === 'completed'
+            );
+            const hasRecentDeliveryNearTarget = recentDeliveries.some(d => {
+              const deliveryDate = new Date(d.delivery_date);
+              const daysDiff = Math.abs(Math.round((targetDate - deliveryDate) / (1000 * 60 * 60 * 24)));
+              return daysDiff <= 3 && daysDiff !== 0; // Within ±3 days but not the same day
+            });
+            
+            if (hasRecentDeliveryNearTarget) {
+              // Skip this patient - already had a delivery within the recurring window
+              continue;
+            }
+            
             if (Math.abs(daysSinceLastDelivery - 30) <= 5) {
               shouldInclude = true;
               confidence = 0.95;
@@ -283,6 +299,22 @@ Deno.serve(async (req) => {
           if (patient.last_delivery_date) {
             const lastDeliveryDate = new Date(patient.last_delivery_date);
             const daysSinceLastDelivery = Math.round((targetDate - lastDeliveryDate) / (1000 * 60 * 60 * 24));
+            
+            // CRITICAL: Skip if patient has had a delivery within ±3 days of target date
+            // Check recent deliveries for this patient around the target date
+            const recentDeliveries = historicalDeliveries.filter(d => 
+              d && d.patient_id === patient.id && d.status === 'completed'
+            );
+            const hasRecentDeliveryNearTarget = recentDeliveries.some(d => {
+              const deliveryDate = new Date(d.delivery_date);
+              const daysDiff = Math.abs(Math.round((targetDate - deliveryDate) / (1000 * 60 * 60 * 24)));
+              return daysDiff <= 3 && daysDiff !== 0; // Within ±3 days but not the same day
+            });
+            
+            if (hasRecentDeliveryNearTarget) {
+              // Skip this patient - already had a delivery within the recurring window
+              continue;
+            }
             
             if (daysSinceLastDelivery >= 1 && daysSinceLastDelivery <= 3) {
               shouldInclude = true;
