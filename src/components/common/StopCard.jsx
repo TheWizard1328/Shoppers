@@ -2196,7 +2196,23 @@ export default function StopCard({
                                 isNextDelivery: true
                               }, { skipSmartRefresh: true });
                               
-                              // Step 3: Refresh data and sync UI
+                              // Step 3: Run recursive route optimization
+                              try {
+                                const now = new Date();
+                                const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                                console.log('🔄 [Restart Delivery] Running optimizeRouteRealTime...');
+                                await base44.functions.invoke('optimizeRouteRealTime', {
+                                  driverId: delivery.driver_id,
+                                  deliveryDate: delivery.delivery_date,
+                                  currentLocalTime: currentLocalTime,
+                                  generatePolyline: false
+                                });
+                                console.log('✅ [Restart Delivery] Route optimized');
+                              } catch (optimizeError) {
+                                console.warn('⚠️ [Restart Delivery] Route optimizer failed:', optimizeError);
+                              }
+                              
+                              // Step 4: Refresh data and sync UI
                               invalidate('Delivery');
                               await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
                               
