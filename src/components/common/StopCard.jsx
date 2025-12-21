@@ -472,11 +472,17 @@ export default function StopCard({
   }, [currentUser, delivery, isAssignedDispatcher]);
 
   // Determine button text based on user role
+  // Assigned driver (even if admin) sees "Accept All", non-driver admin/dispatcher sees "Assign All"
   const acceptButtonText = useMemo(() => {
-    if (!currentUser) return 'Assign All';
-    if (userHasRole(currentUser, 'driver') && delivery?.driver_id === currentUser.id && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')) {
+    if (!currentUser || !delivery) return 'Assign All';
+    
+    // If current user is the assigned driver, show "Accept All"
+    const isAssignedDriver = delivery.driver_id === currentUser.id && userHasRole(currentUser, 'driver');
+    if (isAssignedDriver) {
       return 'Accept All';
     }
+    
+    // Non-driver admin/dispatcher sees "Assign All"
     return 'Assign All';
   }, [currentUser, delivery?.driver_id]);
 
@@ -1473,8 +1479,8 @@ export default function StopCard({
                         await new Promise((resolve) => setTimeout(resolve, 100));
 
                         try {
-                          // Step 3: Change all pending stops to in_transit AND insert directly after pickup
-                          console.log('🟢 [Assign All] Step 3: Changing pending stops to in_transit and sequencing...');
+                          // Step 3: Change all pending stops to in_transit
+                          console.log('🟢 [Assign All] Step 3: Changing pending stops to in_transit...');
                           const allPendingDeliveries = pendingPickups.filter((p) => p.status === 'pending');
                           console.log(`  Found ${allPendingDeliveries.length} pending deliveries`);
 
@@ -1482,69 +1488,48 @@ export default function StopCard({
                           const pickupStopOrder = delivery.stop_order || 0;
                           console.log(`  Pickup stop order: ${pickupStopOrder}`);
 
-                          // Get all other driver deliveries to adjust their stop orders
-                          const allDriverDeliveries = allDeliveries.filter((d) =>
-                          d && d.driver_id === delivery.driver_id &&
-                          d.delivery_date === delivery.delivery_date &&
-                          d.id !== delivery.id &&
-                          !allPendingDeliveries.find((p) => p.id === d.id)
-                          );
-
-                          // Identify incomplete stops that come after the pickup and need to be pushed down
-                          const finishedStatuses = ['completed', 'failed', 'cancelled'];
-                          const incompleteAfterPickup = allDriverDeliveries.filter((d) =>
-                          !finishedStatuses.includes(d.status) &&
-                          (d.stop_order || 0) > pickupStopOrder
-                          );
-
-                          console.log(`  Found ${incompleteAfterPickup.length} incomplete stops after pickup to push down`);
-
-                          // Sort pending by patient name for consistent ordering
-                          const sortedPending = [...allPendingDeliveries].sort((a, b) =>
-                          (a.patient_name || '').localeCompare(b.patient_name || '')
-                          );
-
-                          // Update pending stops with sequential stop orders right after pickup
-                          // CRITICAL: Set delivery_time_start to current time + 5 minutes when transitioning to in_transit
+                          // CRITICAL: Set delivery_time_start to current time + 5 minutes for all pending deliveries
                           const now = new Date();
                           const currentMinutes = now.getHours() * 60 + now.getMinutes();
                           const startMinutes = currentMinutes + 5;
                           const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
+                          const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-                          // CRITICAL: Use skipSmartRefresh for all batch updates to prevent premature refresh
-                          for (let i = 0; i < sortedPending.length; i++) {
-                            const pendingDelivery = sortedPending[i];
-                            const newStopOrder = pickupStopOrder + i + 1;
-
+                          // Update all pending deliveries to in_transit with delivery_time_start
+                          for (const pendingDelivery of allPendingDeliveries) {
                             await updateDeliveryLocal(pendingDelivery.id, {
                               status: 'in_transit',
-                              stop_order: newStopOrder,
                               delivery_time_start: deliveryTimeStart
                             }, { skipSmartRefresh: true });
-                            console.log(`    ✅ ${pendingDelivery.patient_name} → in_transit, stop_order: ${newStopOrder}, delivery_time_start: ${deliveryTimeStart}`);
+                            console.log(`    ✅ ${pendingDelivery.patient_name} → in_transit, delivery_time_start: ${deliveryTimeStart}`);
                           }
 
-                          // Push down incomplete stops that were after the pickup
-                          for (const d of incompleteAfterPickup) {
-                            const newStopOrder = d.stop_order + sortedPending.length;
-                            await updateDeliveryLocal(d.id, {
-                              stop_order: newStopOrder
-                            }, { skipSmartRefresh: true });
-                            console.log(`    ✅ Pushed ${d.patient_name || 'Stop'} to stop_order: ${newStopOrder}`);
+                          // Step 4: Sort by delivery_time_start and group by store for staged optimization
+                          console.log('🟢 [Assign All] Step 4: Sorting by delivery_time_start and optimizing in stages...');
+
+                          // Group deliveries by store_id for staged optimization
+                          const deliveriesByStore = new Map();
+                          for (const d of allPendingDeliveries) {
+                            const storeId = d.store_id;
+                            if (!deliveriesByStore.has(storeId)) {
+                              deliveriesByStore.set(storeId, []);
+                            }
+                            deliveriesByStore.get(storeId).push(d);
                           }
 
-                          // Step 4: Run route optimizer to calculate ETAs (keep new sequence)
-                          console.log('🟢 [Assign All] Step 4: Running route optimizer for ETA updates...');
+                          console.log(`  Found ${deliveriesByStore.size} store groups to optimize`);
+
+                          // Run route optimizer - it will handle staged optimization
                           try {
                             await base44.functions.invoke('optimizeRouteRealTime', {
                               driverId: delivery.driver_id,
                               deliveryDate: delivery.delivery_date,
-                              deviceTime: new Date().toISOString(),
+                              currentLocalTime: currentLocalTime,
                               generatePolyline: false
                             });
-                            console.log('  ✅ ETAs updated');
+                            console.log('  ✅ Route optimized');
                           } catch (optimizeError) {
-                            console.warn('⚠️ Route optimizer failed, continuing without ETA update:', optimizeError);
+                            console.warn('⚠️ Route optimizer failed, continuing without optimization:', optimizeError);
                           }
 
                           // Step 5: Update TR#s sequentially for newly accepted stops
@@ -1554,11 +1539,14 @@ export default function StopCard({
                           const baseTR = isNaN(pickupTR) ? 0 : pickupTR;
                           console.log(`  Using pickup TR# ${baseTR} as base`);
 
-                          // Assign sequential TR#s to sorted pending deliveries
-                          // CRITICAL: Use skipSmartRefresh for all batch updates
+                          // Sort pending by patient name for consistent TR# assignment
+                          const sortedPending = [...allPendingDeliveries].sort((a, b) =>
+                            (a.patient_name || '').localeCompare(b.patient_name || '')
+                          );
+
+                          // Assign sequential TR#s
                           for (let i = 0; i < sortedPending.length; i++) {
                             const newTR = String(baseTR + i + 1);
-
                             await updateDeliveryLocal(sortedPending[i].id, {
                               tracking_number: newTR
                             }, { skipSmartRefresh: true });
@@ -1572,7 +1560,7 @@ export default function StopCard({
                           console.log('  ✅ Data refreshed and synced');
 
                           // Send notifications
-                          const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher');
+                          const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id;
                           if (isDriverAction) {
                             await notifyDriverAcceptedAll({
                               driver: currentUser,
