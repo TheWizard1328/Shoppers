@@ -376,7 +376,7 @@ function Dashboard() {
 
     const topPadding = isMobile ?
     statsCardCurrHeight + 30 :
-    35; // Desktop: Exclude stats card
+    25; // Desktop: Exclude stats card
 
     const bottomPadding = hasVisibleCards ?
     cardExpanded ? stopCardsCurrHeight + 10 : stopCardsBaseHeight + 10 :
