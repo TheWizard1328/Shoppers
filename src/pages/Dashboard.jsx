@@ -5624,6 +5624,8 @@ function Dashboard() {
                     }
 
                     const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+                    const now = new Date();
+                    const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
                     // STEP 1: Smart refresh cycle
                     const currentData = { deliveries, patients, appUsers, stores };
@@ -5651,38 +5653,28 @@ function Dashboard() {
 
                     const updates = await smartRefreshManager.performSmartRefresh(currentData, filters, false);
 
-                    // STEP 2: Force reload deliveries for active driver
+                    // STEP 2: Run recursive route optimization
+                    try {
+                      console.log('🔄 [Refresh Spinner] Running optimizeRouteRealTime...');
+                      await base44.functions.invoke('optimizeRouteRealTime', {
+                        driverId: activeDriverId,
+                        deliveryDate: selectedDateStr,
+                        currentLocalTime: currentLocalTime,
+                        generatePolyline: false
+                      });
+                      console.log('✅ [Refresh Spinner] Route optimized');
+                    } catch (optimizeError) {
+                      console.warn('⚠️ [Refresh Spinner] Route optimizer failed:', optimizeError);
+                    }
+
+                    // STEP 3: Force reload deliveries for active driver
                     invalidateDeliveriesForDate(selectedDateStr);
                     const freshDeliveries = await base44.entities.Delivery.filter({
                       delivery_date: selectedDateStr,
                       driver_id: activeDriverId
                     });
-                    // STEP 3: Update ETAs for active driver
-                    try {
-                      const response = await base44.functions.invoke('calculateRealTimeETA', {
-                        driverId: activeDriverId,
-                        deliveryDate: selectedDateStr
-                      });
-                      const data = response?.data || response;
-                      if (data?.success && data?.durationUpdates) {
-                        const now = new Date();
-                        let cumulativeMinutes = now.getHours() * 60 + now.getMinutes();
-                        const sorted = data.durationUpdates.sort((a, b) => (a.stopOrder || 0) - (b.stopOrder || 0));
-                        for (const update of sorted) {
-                          cumulativeMinutes += update.travelMinutes;
-                          const eta = `${String(Math.floor(cumulativeMinutes / 60) % 24).padStart(2, '0')}:${String(cumulativeMinutes % 60).padStart(2, '0')}`;
-                          await base44.entities.Delivery.update(update.deliveryId, { delivery_time_eta: eta });
-                          cumulativeMinutes += update.serviceMinutes;
-                        }
-                      }
-                    } catch (etaError) {
-                      console.warn(`   ⚠️ ETA update failed:`, etaError);
-                    }
 
-                    // STEP 4: Recalculate stop orders for active driver
-                    await recalculateStopOrders(activeDriverId, selectedDateStr);
-
-                    // STEP 5: Update isNextDelivery flags for active driver
+                    // STEP 4: Update isNextDelivery flags for active driver
                     const updatedDeliveries = await base44.entities.Delivery.filter({
                       delivery_date: selectedDateStr,
                       driver_id: activeDriverId
@@ -5704,7 +5696,7 @@ function Dashboard() {
                       await base44.entities.Delivery.update(firstIncomplete.id, { isNextDelivery: true });
                     }
 
-                    // STEP 6: Reload fresh data and update UI
+                    // STEP 5: Reload fresh data and update UI
                     invalidateDeliveriesForDate(selectedDateStr);
                     const finalDeliveries = await base44.entities.Delivery.filter({
                       delivery_date: selectedDateStr
