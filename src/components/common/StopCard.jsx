@@ -1145,22 +1145,21 @@ export default function StopCard({
 
                 await onStatusUpdate(delivery.id, status, { delivery_notes: updatedNotes }, false);
 
-                // Update next delivery flag
-                await base44.functions.invoke('updateNextDeliveryFlag', {
-                  deliveryId: delivery.id,
-                  driverId: delivery.driver_id,
-                  deliveryDate: delivery.delivery_date
-                });
-
+                // CRITICAL: Run recursive route optimization after failure
                 try {
                   const now = new Date();
                   const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                  console.log('🔄 [Failed/Cancelled] Running optimizeRouteRealTime...');
                   await base44.functions.invoke('optimizeRouteRealTime', {
                     driverId: delivery.driver_id,
                     deliveryDate: delivery.delivery_date,
-                    currentLocalTime: currentLocalTime
+                    currentLocalTime: currentLocalTime,
+                    generatePolyline: false
                   });
-                } catch (optimizeError) {}
+                  console.log('✅ [Failed/Cancelled] Route optimized');
+                } catch (optimizeError) {
+                  console.warn('⚠️ [Failed/Cancelled] Route optimizer failed:', optimizeError);
+                }
 
                 // Notify dispatchers
                 if (userHasRole(currentUser, 'driver')) {
