@@ -1869,57 +1869,66 @@ export default function StopCard({
                           // Auto-toggle driver online if offline
                           await ensureDriverOnline();
 
-                          if (isPickup) {
-                            // For a pickup, auto-accept all pending stops first, then complete the pickup
-                            // Get pickup's TR# as the base
-                            const pickupTR = parseInt(delivery.tracking_number, 10);
-                            const baseTR = isNaN(pickupTR) ? 0 : pickupTR;
+                          // CRITICAL: For pickups with pending deliveries, force Accept All FIRST
+                          if (isPickup && pendingPickups && pendingPickups.length > 0) {
+                            // Check if there are pending deliveries that haven't been accepted yet
+                            const hasPendingDeliveries = pendingPickups.some(p => p.status === 'pending');
+                            
+                            if (hasPendingDeliveries) {
+                              console.log('⚠️ [Complete Pickup] Pending deliveries detected - triggering Accept All first...');
+                              
+                              // Simulate Accept All button click
+                              const allPendingDeliveries = pendingPickups.filter((p) => p.status === 'pending');
+                              const pickupTR = parseInt(delivery.tracking_number, 10);
+                              const baseTR = isNaN(pickupTR) ? 0 : pickupTR;
+                              
+                              const now = new Date();
+                              const currentMinutes = now.getHours() * 60 + now.getMinutes();
+                              const startMinutes = currentMinutes + 5;
+                              const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
+                              const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-                            // Filter to only pending deliveries that don't already have a valid TR# assigned
-                            // (i.e., they haven't been individually accepted yet)
-                            const pendingWithoutTR = (pendingPickups || []).filter((p) => {
-                              const tr = parseInt(p.tracking_number, 10);
-                              // Consider it needing a TR# if: no TR#, TR# is 99, or TR# is 0
-                              return isNaN(tr) || tr === 99 || tr === 0 || !p.tracking_number;
-                            });
+                              // Update all pending deliveries to in_transit
+                              for (const pendingDelivery of allPendingDeliveries) {
+                                await updateDeliveryLocal(pendingDelivery.id, {
+                                  status: 'in_transit',
+                                  delivery_time_start: deliveryTimeStart
+                                }, { skipSmartRefresh: true });
+                              }
 
-                            // Get the highest TR# already assigned to this pickup's deliveries
-                            const existingTRs = (pendingPickups || []).
-                            map((p) => parseInt(p.tracking_number, 10)).
-                            filter((tr) => !isNaN(tr) && tr !== 99 && tr !== 0 && tr > baseTR);
-                            const highestExistingTR = existingTRs.length > 0 ? Math.max(...existingTRs) : baseTR;
+                              // Run route optimizer
+                              try {
+                                await base44.functions.invoke('optimizeRouteRealTime', {
+                                  driverId: delivery.driver_id,
+                                  deliveryDate: delivery.delivery_date,
+                                  currentLocalTime: currentLocalTime,
+                                  generatePolyline: false
+                                });
+                              } catch (optimizeError) {
+                                console.warn('⚠️ Route optimizer failed:', optimizeError);
+                              }
 
-                            // Sort pending without TR by patient name for consistent TR# assignment
-                            const sortedPendingWithoutTR = [...pendingWithoutTR].sort((a, b) =>
-                            (a.patient_name || '').localeCompare(b.patient_name || '')
-                            );
+                              // Assign sequential TR#s
+                              const sortedPending = [...allPendingDeliveries].sort((a, b) =>
+                                (a.patient_name || '').localeCompare(b.patient_name || '')
+                              );
 
-                            // CRITICAL: Set delivery_time_start to current time + 5 minutes for all pending deliveries
-                            const now = new Date();
-                            const currentMinutes = now.getHours() * 60 + now.getMinutes();
-                            const startMinutes = currentMinutes + 5;
-                            const deliveryTimeStart = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
+                              for (let i = 0; i < sortedPending.length; i++) {
+                                const newTR = String(baseTR + i + 1);
+                                await updateDeliveryLocal(sortedPending[i].id, {
+                                  tracking_number: newTR
+                                }, { skipSmartRefresh: true });
+                              }
 
-                            // Assign sequential TR#s starting after the highest existing TR#
-                            // CRITICAL: Use skipSmartRefresh option and update via updateDeliveryLocal to ensure DB sync before onStatusUpdate
-                            for (let i = 0; i < sortedPendingWithoutTR.length; i++) {
-                              const pendingDelivery = sortedPendingWithoutTR[i];
-                              const newTR = String(highestExistingTR + i + 1);
-
-                              // Update with new tracking number AND status AND delivery_time_start
-                              await updateDeliveryLocal(pendingDelivery.id, {
-                                status: 'in_transit',
-                                tracking_number: newTR,
-                                delivery_time_start: deliveryTimeStart
-                              }, { skipSmartRefresh: true });
+                              // Refresh data
+                              await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                              
+                              console.log('✅ [Complete Pickup] Accept All completed - now completing pickup...');
                             }
-
-                            // Now complete the pickup itself - let the backend optimizer handle next delivery selection
-                            await onStatusUpdate(delivery.id, 'completed');
-                          } else {
-                            // For a regular delivery, just mark it as completed
-                            await onStatusUpdate(delivery.id, 'completed');
                           }
+
+                          // Now complete the pickup/delivery
+                          await onStatusUpdate(delivery.id, 'completed');
 
                           // Next delivery flag handled by route optimizer
 
