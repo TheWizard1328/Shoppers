@@ -218,6 +218,24 @@ Deno.serve(async (req) => {
           
           cumulativeMinutes += travelMinutes;
           
+          // CRITICAL: For pickups with no prior in_transit/en_route stops - ETA cannot be before delivery_time_start
+          if (delivery.puid && delivery.delivery_time_start) {
+            const [startHours, startMinutes] = delivery.delivery_time_start.split(':').map(Number);
+            const startTimeMinutes = startHours * 60 + startMinutes;
+            
+            // Check if there are any prior in_transit/en_route stops
+            const priorActiveStops = sortedAllDeliveries.filter(d => 
+              (d.status === 'in_transit' || d.status === 'en_route') &&
+              (d.stop_order || Infinity) < (delivery.stop_order || Infinity)
+            );
+            
+            // If no prior active stops and ETA is before start time, use start time instead
+            if (priorActiveStops.length === 0 && cumulativeMinutes < startTimeMinutes) {
+              cumulativeMinutes = startTimeMinutes;
+              console.log(`  ⏰ Pickup has no prior active stops - using delivery_time_start as minimum ETA`);
+            }
+          }
+          
           // Apply time window waiting if applicable
           if (delivery.time_window_start && !delivery.puid) {
             const [windowHours, windowMinutes] = delivery.time_window_start.split(':').map(Number);
