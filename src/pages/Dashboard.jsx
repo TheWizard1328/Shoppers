@@ -3612,7 +3612,7 @@ function Dashboard() {
       const stopsToProcess = [];
 
       for (const existingDelivery of driverDeliveriesForDate) {
-        if (!existingDelivery) return; // Defensive check
+        if (!existingDelivery) continue; // Defensive check
 
         const enriched = { ...existingDelivery, isNew: false };
 
@@ -5494,35 +5494,6 @@ function Dashboard() {
       setIsEntityUpdating(false);
     }
   };
-
-  return (
-    <Dialog open={showQuickAdjustments} onOpenChange={setShowQuickAdjustments}>
-      <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto z-[10001]">
-        <DialogHeader>
-          <DialogTitle>Quick Route Adjustments</DialogTitle>
-        </DialogHeader>
-        
-        {incompleteDeliveries.length === 0 ? (
-          <p className="text-sm text-slate-500 py-4">No active stops to adjust</p>
-        ) : (
-          <QuickRouteAdjustments
-            deliveries={incompleteDeliveries}
-            currentUser={currentUser}
-            patients={patients}
-            stores={stores}
-            onReorder={handleQuickReorder}
-            onAddDelay={(deliveryId, minutes) => {
-              setSelectedDelivery(incompleteDeliveries.find(d => d.id === deliveryId));
-              setDelayMinutes(minutes);
-              setShowDelayDialog(true);
-            }}
-          />
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 
   // CRITICAL: Add click handler BEFORE early return to ensure hooks are always called
   // Also handles collapsing stats card when clicking outside
