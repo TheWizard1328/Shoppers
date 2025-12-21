@@ -592,40 +592,46 @@ Deno.serve(async (req) => {
       }
     }
 
+    // CRITICAL: Sort pickups AFTER determining currentPosition (which is after isNextDelivery)
+    // This ensures distances are calculated from the correct starting point
     // Sort pickups by delivery_time_start (scheduled pickup time), then by distance as tiebreaker
-    // CRITICAL: Pickups should be ordered by their scheduled time, not just proximity
-    const sortedPickups = [...pickupStops]
-      .filter(p => !isNextDeliveryStopData || p.idx !== isNextDeliveryStopData.idx) // Exclude isNextDelivery if it was a pickup
-      .sort((a, b) => {
-        // Parse delivery_time_start for both pickups
-        const aTimeStart = a.delivery.delivery_time_start;
-        const bTimeStart = b.delivery.delivery_time_start;
-        
-        // Convert to minutes for comparison
-        let aMinutes = Infinity;
-        let bMinutes = Infinity;
-        
-        if (aTimeStart) {
-          const [aH, aM] = aTimeStart.split(':').map(Number);
-          aMinutes = aH * 60 + aM;
-        }
-        if (bTimeStart) {
-          const [bH, bM] = bTimeStart.split(':').map(Number);
-          bMinutes = bH * 60 + bM;
-        }
-        
-        // Primary sort: by scheduled pickup time
-        if (aMinutes !== bMinutes) {
-          return aMinutes - bMinutes;
-        }
-        
-        // Tiebreaker: by distance from current position
-        const distA = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, a.lat, a.lng);
-        const distB = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, b.lat, b.lng);
-        return distA - distB;
-      });
+    const sortPickupsFromPosition = (position) => {
+      return [...pickupStops]
+        .filter(p => !isNextDeliveryStopData || p.idx !== isNextDeliveryStopData.idx) // Exclude isNextDelivery if it was a pickup
+        .sort((a, b) => {
+          // Parse delivery_time_start for both pickups
+          const aTimeStart = a.delivery.delivery_time_start;
+          const bTimeStart = b.delivery.delivery_time_start;
+          
+          // Convert to minutes for comparison
+          let aMinutes = Infinity;
+          let bMinutes = Infinity;
+          
+          if (aTimeStart) {
+            const [aH, aM] = aTimeStart.split(':').map(Number);
+            aMinutes = aH * 60 + aM;
+          }
+          if (bTimeStart) {
+            const [bH, bM] = bTimeStart.split(':').map(Number);
+            bMinutes = bH * 60 + bM;
+          }
+          
+          // Primary sort: by scheduled pickup time
+          if (aMinutes !== bMinutes) {
+            return aMinutes - bMinutes;
+          }
+          
+          // Tiebreaker: by distance from provided position
+          const distA = calculateCrowFliesDistance(position.lat, position.lng, a.lat, a.lng);
+          const distB = calculateCrowFliesDistance(position.lat, position.lng, b.lat, b.lng);
+          return distA - distB;
+        });
+    };
     
-    console.log('📦 Pickup order by delivery_time_start:');
+    // Initial sort using current position (will be updated after isNextDelivery is processed)
+    let sortedPickups = sortPickupsFromPosition(currentPosition);
+    
+    console.log('📦 Initial pickup order by delivery_time_start (from driver location):');
     sortedPickups.forEach((p, i) => {
       console.log(`   ${i+1}. ${p.delivery.patient_name || 'Pickup'} @ ${p.delivery.delivery_time_start || 'no time'}`);
     });
