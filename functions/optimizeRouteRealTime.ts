@@ -557,8 +557,8 @@ Deno.serve(async (req) => {
     // Strategy: Optimize in STAGES, where each stage is:
     //   Origin (current position) → Deliveries → Next Pickup (or Home if no more pickups)
     // 
-    // For each stage, we use recursive/permutation search to find the shortest path
-    // through all available deliveries before reaching the next pickup.
+    // CRITICAL: isNextDelivery stop is LOCKED and always comes first after driver location.
+    // Optimization only applies to stops AFTER the isNextDelivery stop.
     // ═══════════════════════════════════════════════════════════════════════════════
     
     const optimizedRoute = [];
@@ -566,21 +566,72 @@ Deno.serve(async (req) => {
     let currentPosition = { lat: driverLocation.lat, lng: driverLocation.lng };
     let cumulativeTime = currentMinutes;
 
-    // Sort pickups by distance from driver to determine pickup order
-    const sortedPickups = [...pickupStops].sort((a, b) => {
-      const distA = calculateCrowFliesDistance(driverLocation.lat, driverLocation.lng, a.lat, a.lng);
-      const distB = calculateCrowFliesDistance(driverLocation.lat, driverLocation.lng, b.lat, b.lng);
-      return distA - distB;
-    });
+    // CRITICAL: If isNextDelivery exists, it's LOCKED as first stop - start optimization from there
+    let isNextDeliveryStopData = null;
+    if (isNextDeliveryStop) {
+      // Find isNextDelivery in the stops array
+      isNextDeliveryStopData = stops.find(s => s.delivery.id === isNextDeliveryStop.id);
+      
+      if (isNextDeliveryStopData) {
+        console.log(`🔒 [isNextDelivery LOCKED] ${isNextDeliveryStopData.delivery.patient_name || 'Pickup'} - maintaining position as Stop #${startingStopOrder + 1}`);
+        
+        // Add isNextDelivery to route first (it's locked)
+        optimizedRoute.push(isNextDeliveryStopData.idx);
+        
+        // If it's a pickup, mark that store's deliveries as available
+        if (isNextDeliveryStopData.delivery.puid && !isNextDeliveryStopData.delivery.patient_id) {
+          completedPickupStores.add(isNextDeliveryStopData.delivery.store_id);
+        }
+        
+        // Update position to isNextDelivery location for subsequent optimization
+        currentPosition = { lat: isNextDeliveryStopData.lat, lng: isNextDeliveryStopData.lng };
+        
+        // Update cumulative time
+        const travelDist = calculateCrowFliesDistance(driverLocation.lat, driverLocation.lng, isNextDeliveryStopData.lat, isNextDeliveryStopData.lng);
+        const travelMinutes = (travelDist / 40) * 60;
+        cumulativeTime += travelMinutes;
+        
+        if (isNextDeliveryStopData.timeWindow && cumulativeTime < isNextDeliveryStopData.timeWindow.start) {
+          cumulativeTime = isNextDeliveryStopData.timeWindow.start;
+        }
+        
+        const serviceTime = isNextDeliveryStopData.delivery.extra_time || (isNextDeliveryStopData.delivery.patient_id ? 5 : 15);
+        cumulativeTime += serviceTime;
+      }
+    }
+
+    // Sort pickups by distance from current position (after isNextDelivery) to determine pickup order
+    const sortedPickups = [...pickupStops]
+      .filter(p => !isNextDeliveryStopData || p.idx !== isNextDeliveryStopData.idx) // Exclude isNextDelivery if it was a pickup
+      .sort((a, b) => {
+        const distA = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, a.lat, a.lng);
+        const distB = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, b.lat, b.lng);
+        return distA - distB;
+      });
 
     console.log('🎯 [Stage-Based Optimization] Starting recursive optimization...');
     console.log(`📊 Total: ${pickupStops.length} pickups, ${deliveryStopsWithoutTimeConstraints.length} flexible, ${deliveryStopsWithTimeConstraints.length} constrained, ${ispDeliveryStops.length} ISPs`);
+    if (isNextDeliveryStopData) {
+      console.log(`🔒 isNextDelivery is locked - optimizing ${stops.length - 1} remaining stops`);
+    }
 
-    // Track unvisited stops
+    // Track unvisited stops (exclude isNextDelivery if it exists)
     const unvisitedPickups = new Set(sortedPickups.map(p => p.idx));
-    const unvisitedFlexible = new Set(deliveryStopsWithoutTimeConstraints.map(d => d.idx));
-    const unvisitedConstrained = new Set(deliveryStopsWithTimeConstraints.map(d => d.idx));
-    const unvisitedISPs = new Set(ispDeliveryStops.map(d => d.idx));
+    const unvisitedFlexible = new Set(
+      deliveryStopsWithoutTimeConstraints
+        .filter(d => !isNextDeliveryStopData || d.idx !== isNextDeliveryStopData.idx)
+        .map(d => d.idx)
+    );
+    const unvisitedConstrained = new Set(
+      deliveryStopsWithTimeConstraints
+        .filter(d => !isNextDeliveryStopData || d.idx !== isNextDeliveryStopData.idx)
+        .map(d => d.idx)
+    );
+    const unvisitedISPs = new Set(
+      ispDeliveryStops
+        .filter(d => !isNextDeliveryStopData || d.idx !== isNextDeliveryStopData.idx)
+        .map(d => d.idx)
+    );
 
     // Process each stage
     while (unvisitedPickups.size > 0 || unvisitedFlexible.size > 0 || unvisitedConstrained.size > 0 || unvisitedISPs.size > 0) {
