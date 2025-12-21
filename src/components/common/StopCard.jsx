@@ -877,6 +877,11 @@ export default function StopCard({
                                     generatePolyline: false
                                   });
                                   console.log('✅ [Completed] Route optimized');
+                                  
+                                  // CRITICAL: Refresh UI to show reordered stops
+                                  invalidate('Delivery');
+                                  await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                                  console.log('✅ [Completed] UI refreshed with new stop order');
                                 } catch (optimizeError) {
                                   console.warn('⚠️ [Completed] Route optimizer failed:', optimizeError);
                                 }
