@@ -2067,13 +2067,15 @@ export default function StopCard({
                             startLng = patient?.longitude;
                           }
 
+                          console.log('🔄 [Start Button] Running optimizeRouteRealTime...');
                           const optimizeResponse = await base44.functions.invoke('optimizeRouteRealTime', {
                             driverId: delivery.driver_id,
                             deliveryDate: delivery.delivery_date,
                             currentLocalTime: currentLocalTime,
-                            startLocation: startLat && startLng ? { lat: startLat, lng: startLng } : null
+                            startLocation: startLat && startLng ? { lat: startLat, lng: startLng } : null,
+                            generatePolyline: false
                           });
-                          console.log('  ✅ Route optimized');
+                          console.log('✅ [Start Button] Route optimized');
 
                           // Step 6: Apply optimized stop orders to local state immediately
                           // CRITICAL: Use skipSmartRefresh for all batch updates
