@@ -551,194 +551,218 @@ Deno.serve(async (req) => {
       ? { lat: driverAppUser.home_latitude, lng: driverAppUser.home_longitude }
       : null;
 
-    // GLOBAL OPTIMIZATION: Build route considering ALL stops together for shortest total distance
-    // Deliveries from one store can be deferred if picking up from another store first creates a shorter route
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // STAGE-BASED RECURSIVE OPTIMIZATION
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // Strategy: Optimize in STAGES, where each stage is:
+    //   Origin (current position) → Deliveries → Next Pickup (or Home if no more pickups)
+    // 
+    // For each stage, we use recursive/permutation search to find the shortest path
+    // through all available deliveries before reaching the next pickup.
+    // ═══════════════════════════════════════════════════════════════════════════════
+    
     const optimizedRoute = [];
-    const unvisitedPickups = new Set(pickupStops.map(p => p.idx));
-    const unvisitedISPs = new Set(ispDeliveryStops.map(p => p.idx));
-    const unvisitedFlexible = new Set(deliveryStopsWithoutTimeConstraints.map(d => d.idx));
-    const unvisitedConstrained = new Set(deliveryStopsWithTimeConstraints.map(d => d.idx));
-    
-    // Track which pickups have been completed (deliveries from these stores are now "available")
     const completedPickupStores = new Set();
-    
-    let currentPos = 0; // Start from driver location
+    let currentPosition = { lat: driverLocation.lat, lng: driverLocation.lng };
     let cumulativeTime = currentMinutes;
 
-    console.log('🎯 [Global Optimization] Starting distance-optimized route building...');
-    console.log(`📊 Total stops to visit: ${unvisitedPickups.size} pickups, ${unvisitedFlexible.size} flexible deliveries, ${unvisitedConstrained.size} constrained deliveries, ${unvisitedISPs.size} ISPs`);
+    // Sort pickups by distance from driver to determine pickup order
+    const sortedPickups = [...pickupStops].sort((a, b) => {
+      const distA = calculateCrowFliesDistance(driverLocation.lat, driverLocation.lng, a.lat, a.lng);
+      const distB = calculateCrowFliesDistance(driverLocation.lat, driverLocation.lng, b.lat, b.lng);
+      return distA - distB;
+    });
 
-    // Build route: Consider ALL available stops at each step, pick the one that minimizes total route distance
-    while (unvisitedPickups.size > 0 || unvisitedISPs.size > 0 || unvisitedFlexible.size > 0 || unvisitedConstrained.size > 0) {
-      let bestIdx = -1;
-      let bestScore = Infinity;
-      let bestType = null;
+    console.log('🎯 [Stage-Based Optimization] Starting recursive optimization...');
+    console.log(`📊 Total: ${pickupStops.length} pickups, ${deliveryStopsWithoutTimeConstraints.length} flexible, ${deliveryStopsWithTimeConstraints.length} constrained, ${ispDeliveryStops.length} ISPs`);
 
-      // OPTION 1: Consider unvisited pickups
+    // Track unvisited stops
+    const unvisitedPickups = new Set(sortedPickups.map(p => p.idx));
+    const unvisitedFlexible = new Set(deliveryStopsWithoutTimeConstraints.map(d => d.idx));
+    const unvisitedConstrained = new Set(deliveryStopsWithTimeConstraints.map(d => d.idx));
+    const unvisitedISPs = new Set(ispDeliveryStops.map(d => d.idx));
+
+    // Process each stage
+    while (unvisitedPickups.size > 0 || unvisitedFlexible.size > 0 || unvisitedConstrained.size > 0 || unvisitedISPs.size > 0) {
+      
+      // Find the next pickup to visit (closest unvisited pickup)
+      let nextPickup = null;
+      let nextPickupDist = Infinity;
+      
       for (const idx of unvisitedPickups) {
-        const travelTime = Math.ceil(crowFliesMatrix[currentPos][idx].duration / 60);
-        const stop = stops[idx];
-        const arrivalTime = cumulativeTime + travelTime;
-        
-        let score = travelTime;
-        
-        // Time window handling - pickups MUST arrive within window
-        if (stop.timeWindow) {
-          if (arrivalTime > stop.timeWindow.end) {
-            score += 10000; // Very heavy penalty - pickup time window is critical
-          } else if (arrivalTime < stop.timeWindow.start - 30) {
-            score += 50; // Light penalty for being too early
-          }
-        }
-        
-        if (score < bestScore) {
-          bestScore = score;
-          bestIdx = idx;
-          bestType = 'pickup';
+        const pickup = stops[idx];
+        const dist = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, pickup.lat, pickup.lng);
+        if (dist < nextPickupDist) {
+          nextPickupDist = dist;
+          nextPickup = pickup;
         }
       }
 
-      // OPTION 2: Consider ISPs (always available - no pickup prerequisite)
-      for (const idx of unvisitedISPs) {
-        const stop = stops[idx];
-        const travelTime = Math.ceil(crowFliesMatrix[currentPos][idx].duration / 60);
-        const arrivalTime = cumulativeTime + travelTime;
-        
-        let score = travelTime;
-        
-        // Respect time windows if present
-        if (stop.timeWindow) {
-          if (arrivalTime > stop.timeWindow.end) {
-            score += 1000; // Heavy penalty for being late
-          }
-        }
-        
-        if (score < bestScore) {
-          bestScore = score;
-          bestIdx = idx;
-          bestType = 'isp';
-        }
-      }
+      // Determine stage destination (next pickup or home base)
+      const stageDestination = nextPickup 
+        ? { lat: nextPickup.lat, lng: nextPickup.lng }
+        : driverHomeLocation;
 
-      // OPTION 3: Consider flexible deliveries (only if their store pickup is done)
+      // Collect all available deliveries for this stage
+      // Available = their pickup store has been completed
+      const availableDeliveries = [];
+      
+      // Add flexible deliveries whose pickup is done
       for (const idx of unvisitedFlexible) {
         const delivStop = deliveryStopsWithoutTimeConstraints.find(d => d.idx === idx);
-        if (!delivStop) continue;
-        
-        // CRITICAL: Can only deliver if pickup for this store is complete
-        if (!completedPickupStores.has(delivStop.delivery.store_id)) continue;
-        
-        const travelTime = Math.ceil(crowFliesMatrix[currentPos][idx].duration / 60);
-        let score = travelTime;
-        
-        if (score < bestScore) {
-          bestScore = score;
-          bestIdx = idx;
-          bestType = 'flexible_delivery';
+        if (delivStop && completedPickupStores.has(delivStop.delivery.store_id)) {
+          availableDeliveries.push({
+            ...delivStop,
+            lat: stops[idx].lat,
+            lng: stops[idx].lng,
+            timeWindow: stops[idx].timeWindow
+          });
         }
       }
-
-      // OPTION 4: Consider time-constrained deliveries (only if their store pickup is done)
+      
+      // Add constrained deliveries whose pickup is done
       for (const idx of unvisitedConstrained) {
         const delivStop = deliveryStopsWithTimeConstraints.find(d => d.idx === idx);
-        if (!delivStop) continue;
+        if (delivStop && completedPickupStores.has(delivStop.delivery.store_id)) {
+          availableDeliveries.push({
+            ...delivStop,
+            lat: stops[idx].lat,
+            lng: stops[idx].lng,
+            timeWindow: stops[idx].timeWindow
+          });
+        }
+      }
+      
+      // Add ISPs (always available)
+      for (const idx of unvisitedISPs) {
+        const ispStop = ispDeliveryStops.find(d => d.idx === idx);
+        if (ispStop) {
+          availableDeliveries.push({
+            ...ispStop,
+            lat: stops[idx].lat,
+            lng: stops[idx].lng,
+            timeWindow: stops[idx].timeWindow
+          });
+        }
+      }
+
+      console.log(`\n📍 [Stage] From current position → ${nextPickup ? 'Next Pickup' : 'Home Base'}`);
+      console.log(`   Available deliveries in this stage: ${availableDeliveries.length}`);
+
+      // If there are deliveries to make before the next pickup, optimize their order
+      if (availableDeliveries.length > 0) {
+        console.log(`   🔄 Running recursive optimization for ${availableDeliveries.length} stops...`);
         
-        // CRITICAL: Can only deliver if pickup for this store is complete
-        if (!completedPickupStores.has(delivStop.delivery.store_id)) continue;
+        const { path: optimizedPath, totalDistance } = findShortestPath(
+          currentPosition,
+          availableDeliveries,
+          stageDestination,
+          cumulativeTime
+        );
         
-        const travelTime = Math.ceil(crowFliesMatrix[currentPos][idx].duration / 60);
-        const arrivalTime = cumulativeTime + travelTime;
-        
-        let score = travelTime;
-        
-        // Time window enforcement
-        if (delivStop.timeWindow) {
-          if (arrivalTime > delivStop.timeWindow.end) {
-            score += 10000; // Invalid - too late
-          } else if (arrivalTime < delivStop.timeWindow.start) {
-            const waitTime = delivStop.timeWindow.start - arrivalTime;
-            score += waitTime * 2; // Moderate penalty for waiting
+        console.log(`   ✅ Optimal path found: ${optimizedPath.length} stops, ~${totalDistance.toFixed(1)} km`);
+
+        // Add optimized deliveries to route
+        for (const idx of optimizedPath) {
+          const stop = stops[idx];
+          optimizedRoute.push(idx);
+          
+          // Update tracking sets
+          unvisitedFlexible.delete(idx);
+          unvisitedConstrained.delete(idx);
+          unvisitedISPs.delete(idx);
+          
+          // Calculate travel time and update cumulative time
+          const travelDist = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, stop.lat, stop.lng);
+          const travelMinutes = (travelDist / 40) * 60; // ~40 km/h
+          cumulativeTime += travelMinutes;
+          
+          // Apply time window waiting if needed
+          if (stop.timeWindow && cumulativeTime < stop.timeWindow.start) {
+            cumulativeTime = stop.timeWindow.start;
           }
-        }
-        
-        if (score < bestScore) {
-          bestScore = score;
-          bestIdx = idx;
-          bestType = 'constrained_delivery';
+          
+          // Add service time
+          const serviceTime = stop.delivery.extra_time || 5;
+          cumulativeTime += serviceTime;
+          
+          // Update position
+          currentPosition = { lat: stop.lat, lng: stop.lng };
+          
+          console.log(`      📬 ${stop.delivery.patient_name || 'Delivery'}`);
         }
       }
 
-      if (bestIdx === -1) {
-        console.warn('⚠️ [Global Optimization] No valid next stop found - breaking loop');
-        break;
-      }
-
-      // Add the selected stop and update state
-      if (bestType === 'pickup') {
-        unvisitedPickups.delete(bestIdx);
-        optimizedRoute.push(bestIdx);
-        
-        const pickupStop = stops[bestIdx];
-        const travelTime = Math.ceil(crowFliesMatrix[currentPos][bestIdx].duration / 60);
-        const serviceTime = pickupStop.delivery.extra_time || 15;
-        
-        cumulativeTime += travelTime;
-        if (pickupStop.timeWindow && cumulativeTime < pickupStop.timeWindow.start) {
-          cumulativeTime = pickupStop.timeWindow.start;
-        }
-        cumulativeTime += serviceTime;
-        currentPos = bestIdx + 1;
+      // Now visit the next pickup (if any)
+      if (nextPickup) {
+        optimizedRoute.push(nextPickup.idx);
+        unvisitedPickups.delete(nextPickup.idx);
         
         // Mark this store's deliveries as now available
-        completedPickupStores.add(pickupStop.delivery.store_id);
-
-        console.log(`📦 [Pickup] Store ${pickupStop.delivery.store_id} - deliveries now available (${cumulativeTime} min cumulative)`);
+        completedPickupStores.add(nextPickup.delivery.store_id);
         
-      } else if (bestType === 'isp') {
-        unvisitedISPs.delete(bestIdx);
-        optimizedRoute.push(bestIdx);
+        // Update travel time
+        const travelDist = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, nextPickup.lat, nextPickup.lng);
+        const travelMinutes = (travelDist / 40) * 60;
+        cumulativeTime += travelMinutes;
         
-        const travelTime = Math.ceil(crowFliesMatrix[currentPos][bestIdx].duration / 60);
-        const serviceTime = stops[bestIdx].delivery.extra_time || 5;
-        cumulativeTime += travelTime;
-        if (stops[bestIdx].timeWindow && cumulativeTime < stops[bestIdx].timeWindow.start) {
-          cumulativeTime = stops[bestIdx].timeWindow.start;
+        // Apply pickup time window
+        if (nextPickup.timeWindow && cumulativeTime < nextPickup.timeWindow.start) {
+          cumulativeTime = nextPickup.timeWindow.start;
         }
+        
+        // Add pickup service time
+        const serviceTime = nextPickup.delivery.extra_time || 15;
         cumulativeTime += serviceTime;
-        currentPos = bestIdx + 1;
         
-        console.log(`🔀 [ISP] ${stops[bestIdx].delivery.patient_name}`);
+        // Update position
+        currentPosition = { lat: nextPickup.lat, lng: nextPickup.lng };
         
-      } else if (bestType === 'flexible_delivery') {
-        unvisitedFlexible.delete(bestIdx);
-        optimizedRoute.push(bestIdx);
-        
-        const travelTime = Math.ceil(crowFliesMatrix[currentPos][bestIdx].duration / 60);
-        const serviceTime = stops[bestIdx].delivery.extra_time || 5;
-        cumulativeTime += travelTime;
-        cumulativeTime += serviceTime;
-        currentPos = bestIdx + 1;
-        
-        console.log(`📬 [Delivery] ${stops[bestIdx].delivery.patient_name} (flexible)`);
-        
-      } else if (bestType === 'constrained_delivery') {
-        unvisitedConstrained.delete(bestIdx);
-        optimizedRoute.push(bestIdx);
-        
-        const travelTime = Math.ceil(crowFliesMatrix[currentPos][bestIdx].duration / 60);
-        const serviceTime = stops[bestIdx].delivery.extra_time || 5;
-        cumulativeTime += travelTime;
-        if (stops[bestIdx].timeWindow && cumulativeTime < stops[bestIdx].timeWindow.start) {
-          cumulativeTime = stops[bestIdx].timeWindow.start;
-        }
-        cumulativeTime += serviceTime;
-        currentPos = bestIdx + 1;
-        
-        console.log(`⏰ [Delivery] ${stops[bestIdx].delivery.patient_name} (time-constrained)`);
+        console.log(`      📦 [Pickup] ${nextPickup.delivery.store_id} completed`);
+      } else {
+        // No more pickups - we're done
+        break;
       }
     }
 
-    console.log(`✅ [Global Optimization] Route built with ${optimizedRoute.length} stops - stores can be interleaved for shorter routes`);
+    // Final pass: any remaining deliveries after all pickups
+    const remainingDeliveries = [];
+    for (const idx of unvisitedFlexible) {
+      const stop = stops[idx];
+      remainingDeliveries.push({ ...stop, idx });
+    }
+    for (const idx of unvisitedConstrained) {
+      const stop = stops[idx];
+      remainingDeliveries.push({ ...stop, idx });
+    }
+    for (const idx of unvisitedISPs) {
+      const stop = stops[idx];
+      remainingDeliveries.push({ ...stop, idx });
+    }
+
+    if (remainingDeliveries.length > 0) {
+      console.log(`\n📍 [Final Stage] ${remainingDeliveries.length} remaining deliveries → Home`);
+      
+      const { path: finalPath } = findShortestPath(
+        currentPosition,
+        remainingDeliveries,
+        driverHomeLocation,
+        cumulativeTime
+      );
+      
+      for (const idx of finalPath) {
+        optimizedRoute.push(idx);
+        unvisitedFlexible.delete(idx);
+        unvisitedConstrained.delete(idx);
+        unvisitedISPs.delete(idx);
+        
+        const stop = stops[idx];
+        currentPosition = { lat: stop.lat, lng: stop.lng };
+        console.log(`      📬 ${stop.delivery.patient_name || 'Delivery'}`);
+      }
+    }
+
+    console.log(`\n✅ [Stage-Based Optimization] Complete: ${optimizedRoute.length} stops optimized using recursive shortest-path`);
 
     // Check if route changed
     const oldOrder = stops.map(s => s.currentOrder).join(',');
