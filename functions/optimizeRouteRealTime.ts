@@ -936,11 +936,14 @@ Deno.serve(async (req) => {
     }
 
     // STEP 2: Update remaining optimized stops with stop_order and ETAs
-    // CRITICAL: ETAs must be calculated sequentially from isNextDelivery, not from driver
+    // CRITICAL: ETAs must be calculated SEQUENTIALLY from isNextDelivery (or driver if no isNextDelivery)
+    // Each stop's ETA = previous stop's ETA + service time + travel time to this stop
     const updates = [];
     
-    // Track the previous stop's location for sequential ETA calculation
-    let prevStopIdx = isNextDeliveryStopData ? stops.findIndex(s => s.delivery.id === isNextDeliveryStop.id) : -1;
+    // Track the previous stop's coordinates for sequential travel time calculation
+    let prevCoords = isNextDeliveryStopData 
+      ? { lat: isNextDeliveryStopData.lat, lng: isNextDeliveryStopData.lng }
+      : { lat: driverLocation.lat, lng: driverLocation.lng };
 
     for (let i = 0; i < optimizedRoute.length; i++) {
       const stopIdx = optimizedRoute[i];
@@ -948,27 +951,36 @@ Deno.serve(async (req) => {
       const newStopOrder = startingStopOrder + i + 1;
 
       // Get real travel time from Google API
-      // CRITICAL: Calculate travel time from PREVIOUS stop (not driver location)
-      // This ensures sequential ETAs that make sense
+      // CRITICAL: finalMatrix row 0 = driver, rows 1+ = optimized stops in order
+      // For sequential calculation, we use: row (i) to destination stopIdx
+      // But since finalMatrix destinations = optimizedRoute stops, we need to find the right index
       let realTravelTimeSeconds;
+      
+      // Find this stop's position in the finalDestinations array (which is optimizedRoute order)
+      const destIdxInMatrix = i; // Since finalDestinations = optimizedRoute.map(idx => allStopCoords[idx])
       
       if (i === 0) {
         // First optimized stop: travel from isNextDelivery (if exists) or driver location
-        if (prevStopIdx >= 0) {
-          // Travel from isNextDelivery location
-          realTravelTimeSeconds = finalMatrix[prevStopIdx + 1]?.[stopIdx]?.duration || finalMatrix[0][stopIdx].duration;
-          console.log(`📍 Stop ${i+1} travel from isNextDelivery: ${Math.ceil(realTravelTimeSeconds/60)} min`);
+        if (isNextDeliveryStopData) {
+          // Calculate from isNextDelivery location using crow-flies (isNextDelivery not in matrix)
+          const distKm = calculateCrowFliesDistance(
+            isNextDeliveryStopData.lat, isNextDeliveryStopData.lng,
+            stop.lat, stop.lng
+          );
+          realTravelTimeSeconds = (distKm / 40) * 60 * 60 * 1.3; // 40km/h with 1.3x traffic
+          console.log(`📍 Stop ${i+1} travel from isNextDelivery: ${Math.ceil(realTravelTimeSeconds/60)} min (${distKm.toFixed(1)} km)`);
         } else {
-          // No isNextDelivery, travel from driver location
-          realTravelTimeSeconds = finalMatrix[0][stopIdx].duration;
+          // No isNextDelivery, travel from driver location (row 0 in matrix)
+          realTravelTimeSeconds = finalMatrix[0][destIdxInMatrix].duration;
           console.log(`📍 Stop ${i+1} travel from driver: ${Math.ceil(realTravelTimeSeconds/60)} min`);
         }
       } else {
-        // Subsequent stops: travel from previous optimized stop
-        const prevOptimizedIdx = optimizedRoute[i - 1];
-        realTravelTimeSeconds = finalMatrix[prevOptimizedIdx + 1]?.[stopIdx]?.duration || finalMatrix[0][stopIdx].duration;
+        // Subsequent stops: travel from previous optimized stop (row i in matrix)
+        realTravelTimeSeconds = finalMatrix[i][destIdxInMatrix].duration;
         console.log(`📍 Stop ${i+1} travel from prev stop: ${Math.ceil(realTravelTimeSeconds/60)} min`);
       }
+      
+      prevCoords = { lat: stop.lat, lng: stop.lng };
       
       const realTravelTimeMinutes = Math.ceil(realTravelTimeSeconds / 60);
 
