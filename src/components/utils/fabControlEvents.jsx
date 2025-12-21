@@ -73,5 +73,20 @@ export const fabControlEvents = {
         console.error('Error in FAB event listener:', error);
       }
     });
+  },
+
+  /**
+   * Notify when route data has fully loaded/changed - FAB should reactivate current phase
+   * Called after background data loads, date changes, or driver changes complete
+   */
+  notifyDataReady: () => {
+    console.log('📢 [FAB Events] Broadcasting data ready - reactivating current FAB phase');
+    fabControlListeners.forEach(callback => {
+      try {
+        callback({ type: 'DATA_READY' });
+      } catch (error) {
+        console.error('Error in FAB event listener:', error);
+      }
+    });
   }
 };
