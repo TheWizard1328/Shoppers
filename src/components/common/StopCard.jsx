@@ -769,7 +769,7 @@ export default function StopCard({
                 <BellOff className="w-4 h-4 text-red-600" />
                 }
                   {!isPickup && (delivery.mailbox_ok || patient?.mailbox_ok) &&
-                <Mailbox className="w-4 h-4 text-blue-600" />
+                <Mailbox className="w-5 h-5 text-blue-600" />
                 }
                 </Badge>
               }
