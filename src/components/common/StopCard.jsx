@@ -2091,6 +2091,11 @@ export default function StopCard({
                             generatePolyline: false
                           });
                           console.log('✅ [Start Button] Route optimized');
+                          
+                          // CRITICAL: Refresh UI to show reordered stops
+                          invalidate('Delivery');
+                          await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                          console.log('✅ [Start Button] UI refreshed with new stop order');
 
                           // Step 6: Apply optimized stop orders to local state immediately
                           // CRITICAL: Use skipSmartRefresh for all batch updates
