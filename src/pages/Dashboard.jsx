@@ -1023,6 +1023,46 @@ function Dashboard() {
         // Phase 2 stays locked permanently
 
         phaseBeforeBreakRef.current = null;
+      } else if (event.type === 'DATA_READY') {
+        // CRITICAL: Data has fully loaded - reactivate FAB with current phase
+        console.log(`🔄 [FAB] Data ready - reactivating Phase ${mapViewPhase}`);
+        
+        // Clear any existing timers
+        if (mapLockTimeoutRef.current) {
+          clearTimeout(mapLockTimeoutRef.current);
+          mapLockTimeoutRef.current = null;
+        }
+        mapLockExpiresAtRef.current = null;
+        
+        // Lock FAB and trigger map view
+        setIsMapViewLocked(true);
+        lastProgrammaticMapMoveRef.current = Date.now();
+        window._lastProgrammaticMapMove = Date.now();
+        setMapViewTrigger((prev) => prev + 1);
+        
+        // Set timer for phase 1 & 3, phase 2 stays locked
+        if (mapViewPhase === 1 || mapViewPhase === 3) {
+          const lockDuration = 3000;
+          const expiresAt = Date.now() + lockDuration;
+          mapLockExpiresAtRef.current = expiresAt;
+
+          mapLockTimeoutRef.current = window.setTimeout(() => {
+            if (mapLockExpiresAtRef.current === expiresAt) {
+              setIsMapViewLocked(false);
+              mapLockExpiresAtRef.current = null;
+              mapLockTimeoutRef.current = null;
+              console.log(`⏰ [FAB] Phase ${mapViewPhase} auto-unlocked after data ready`);
+            }
+          }, lockDuration);
+        } else if (mapViewPhase === 2) {
+          // Phase 2 - set delayed manual interaction flag
+          phase2WaitingForManualInteractionRef.current = false;
+          setTimeout(() => {
+            if (mapViewPhaseForInteractionRef.current === 2 && isMapViewLockedRef.current) {
+              phase2WaitingForManualInteractionRef.current = true;
+            }
+          }, 3000);
+        }
       }
     });
 
