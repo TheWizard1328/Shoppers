@@ -657,18 +657,40 @@ Deno.serve(async (req) => {
     // Process each stage
     while (unvisitedPickups.size > 0 || unvisitedFlexible.size > 0 || unvisitedConstrained.size > 0 || unvisitedISPs.size > 0) {
       
-      // Find the next pickup to visit (closest unvisited pickup)
+      // Find the next pickup to visit - PRIORITIZE by delivery_time_start (scheduled time)
+      // If calculated ETA is BEFORE pickup's delivery_time_start, we should go to it
+      // If calculated ETA is AFTER pickup's delivery_time_start, update the pickup's ETA
       let nextPickup = null;
-      let nextPickupDist = Infinity;
+      let nextPickupScore = Infinity;
       
       for (const idx of unvisitedPickups) {
         const pickup = stops[idx];
         const dist = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, pickup.lat, pickup.lng);
-        if (dist < nextPickupDist) {
-          nextPickupDist = dist;
+        const travelMinutes = (dist / 40) * 60; // Estimated travel time
+        const estimatedArrival = cumulativeTime + travelMinutes;
+        
+        // Parse pickup's scheduled time (delivery_time_start)
+        let scheduledMinutes = Infinity;
+        if (pickup.delivery.delivery_time_start) {
+          const [h, m] = pickup.delivery.delivery_time_start.split(':').map(Number);
+          scheduledMinutes = h * 60 + m;
+        }
+        
+        // Score = scheduled time (primary), with distance as tiebreaker
+        // Lower score = should be visited first
+        // If no scheduled time, use estimated arrival + large penalty to push to end
+        const score = scheduledMinutes !== Infinity 
+          ? scheduledMinutes + (dist * 0.1) // Small distance factor as tiebreaker
+          : estimatedArrival + 1000; // No schedule = low priority
+        
+        if (score < nextPickupScore) {
+          nextPickupScore = score;
           nextPickup = pickup;
         }
       }
+      
+      console.log(`🎯 Next pickup selected: ${nextPickup?.delivery.patient_name || 'None'} (scheduled: ${nextPickup?.delivery.delivery_time_start || 'N/A'})`);
+
 
       // Determine stage destination (next pickup or home base)
       const stageDestination = nextPickup 
