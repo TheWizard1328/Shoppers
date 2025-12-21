@@ -64,6 +64,7 @@ import DashboardOfflineSync from '@/components/dashboard/DashboardOfflineSync';
 import ETATracker from '../components/dashboard/ETATracker';
 import ETANotification from '../components/dashboard/ETANotification';
 import RealTimeRouteOptimizer from '../components/dashboard/RealTimeRouteOptimizer';
+import QuickRouteAdjustments from '../components/dashboard/QuickRouteAdjustments';
 
 // FIXED: StatBadge - always render with consistent hook structure
 const StatBadge = ({ icon: Icon, value, color, label, tooltip, pickupCount }) => {
@@ -330,6 +331,7 @@ function Dashboard() {
   const [hasRateLimitError, setHasRateLimitError] = useState(false);
   const [realTimeETAEnabled, setRealTimeETAEnabled] = useState(true);
   const [isReoptimizing, setIsReoptimizing] = useState(false);
+  const [showQuickAdjustments, setShowQuickAdjustments] = useState(false);
 
   // Track previous map state for restoring when card is collapsed
   const [previousMapState, setPreviousMapState] = useState(null);
@@ -5403,6 +5405,125 @@ function Dashboard() {
     }
   };
 
+  const handleQuickReorder = async (reorderUpdates) => {
+    try {
+      setIsEntityUpdating(true);
+      
+      console.log('🔄 [Quick Reorder] Swapping stop orders:', reorderUpdates);
+      
+      // Update stop orders in parallel
+      for (const update of reorderUpdates) {
+        await updateDeliveryLocal(update.id, { stop_order: update.stop_order });
+      }
+      
+      // Recalculate ETAs after reordering
+      const deliveryDate = format(selectedDate, 'yyyy-MM-dd');
+      const response = await base44.functions.invoke('calculateRealTimeETA', {
+        driverId: currentUser.id,
+        deliveryDate: deliveryDate
+      });
+      
+      const data = response?.data || response;
+      if (data?.success && data?.durationUpdates) {
+        const now = new Date();
+        let cumulativeMinutes = now.getHours() * 60 + now.getMinutes();
+        const sorted = data.durationUpdates.sort((a, b) => (a.stopOrder || 0) - (b.stopOrder || 0));
+        
+        for (const update of sorted) {
+          cumulativeMinutes += update.travelMinutes;
+          const eta = `${String(Math.floor(cumulativeMinutes / 60) % 24).padStart(2, '0')}:${String(cumulativeMinutes % 60).padStart(2, '0')}`;
+          await base44.entities.Delivery.update(update.deliveryId, { delivery_time_eta: eta });
+          cumulativeMinutes += update.serviceMinutes;
+        }
+      }
+      
+      invalidate('Delivery');
+      await refreshData();
+      
+      console.log('✅ [Quick Reorder] Complete');
+    } catch (error) {
+      console.error('❌ [Quick Reorder] Error:', error);
+      alert('Failed to reorder stops. Please try again.');
+    } finally {
+      setIsEntityUpdating(false);
+    }
+  };
+
+  const handleAddDelay = async (deliveryId, delayMinutes) => {
+    try {
+      setIsEntityUpdating(true);
+      
+      console.log(`⏱️ [Add Delay] Adding ${delayMinutes} minutes to stop ${deliveryId}`);
+      
+      const delivery = deliveriesWithStopOrder.find(d => d && d.id === deliveryId);
+      if (!delivery) return;
+      
+      // Add delay to this stop's ETA and all subsequent stops
+      const deliveryDate = format(selectedDate, 'yyyy-MM-dd');
+      const allDriverDeliveries = await base44.entities.Delivery.filter({
+        driver_id: currentUser.id,
+        delivery_date: deliveryDate
+      }, 'stop_order');
+      
+      const targetStopOrder = delivery.stop_order;
+      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
+      
+      for (const d of allDriverDeliveries) {
+        if (!d || finishedStatuses.includes(d.status)) continue;
+        if ((d.stop_order || 0) < targetStopOrder) continue;
+        
+        // Add delay to ETA
+        const currentETA = d.delivery_time_eta || d.delivery_time_start;
+        if (currentETA) {
+          const [hours, mins] = currentETA.split(':').map(Number);
+          const totalMinutes = hours * 60 + mins + delayMinutes;
+          const newETA = `${String(Math.floor(totalMinutes / 60) % 24).padStart(2, '0')}:${String(totalMinutes % 60).padStart(2, '0')}`;
+          
+          await base44.entities.Delivery.update(d.id, { delivery_time_eta: newETA });
+        }
+      }
+      
+      invalidate('Delivery');
+      await refreshData();
+      
+      console.log(`✅ [Add Delay] ${delayMinutes} minutes added to remaining stops`);
+    } catch (error) {
+      console.error('❌ [Add Delay] Error:', error);
+      alert('Failed to add delay. Please try again.');
+    } finally {
+      setIsEntityUpdating(false);
+    }
+  };
+
+  return (
+    <Dialog open={showQuickAdjustments} onOpenChange={setShowQuickAdjustments}>
+      <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto z-[10001]">
+        <DialogHeader>
+          <DialogTitle>Quick Route Adjustments</DialogTitle>
+        </DialogHeader>
+        
+        {incompleteDeliveries.length === 0 ? (
+          <p className="text-sm text-slate-500 py-4">No active stops to adjust</p>
+        ) : (
+          <QuickRouteAdjustments
+            deliveries={incompleteDeliveries}
+            currentUser={currentUser}
+            patients={patients}
+            stores={stores}
+            onReorder={handleQuickReorder}
+            onAddDelay={(deliveryId, minutes) => {
+              setSelectedDelivery(incompleteDeliveries.find(d => d.id === deliveryId));
+              setDelayMinutes(minutes);
+              setShowDelayDialog(true);
+            }}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
   // CRITICAL: Add click handler BEFORE early return to ensure hooks are always called
   // Also handles collapsing stats card when clicking outside
   useEffect(() => {
@@ -5819,16 +5940,30 @@ function Dashboard() {
 
                     {userHasRole(currentUser, 'driver') &&
                   <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleAIToggle}
-                    className={`h-8 w-8 p-0 flex-shrink-0 relative ${isAIEnabled ? 'bg-purple-100 border-purple-300' : ''}`}
-                    title={isAIEnabled ? "Disable AI Assistant" : "Enable AI Assistant"}>
-                        <Bot className={`w-3.5 h-3.5 ${isAIEnabled ? 'text-purple-600' : 'text-slate-400'}`} />
-                        {hasUnreadAIAlerts && isAIEnabled &&
-                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white"></span>
-                    }
-                      </Button>
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAIToggle}
+                  className={`h-8 w-8 p-0 flex-shrink-0 relative ${isAIEnabled ? 'bg-purple-100 border-purple-300' : ''}`}
+                  title={isAIEnabled ? "Disable AI Assistant" : "Enable AI Assistant"}>
+                      <Bot className={`w-3.5 h-3.5 ${isAIEnabled ? 'text-purple-600' : 'text-slate-400'}`} />
+                      {hasUnreadAIAlerts && isAIEnabled &&
+                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white"></span>
+                  }
+                    </Button>
+                  }
+
+                  {/* Quick Route Adjustments - Driver Mobile Only */}
+                  {isMobile && isDriver && selectedDriverId === currentUser?.id &&
+                  <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowQuickAdjustments(true)}
+                  className="h-8 gap-1.5 px-2 flex-shrink-0"
+                  title="Quick route adjustments">
+                      <ArrowUp className="w-3 h-3" />
+                      <ArrowDown className="w-3 h-3" />
+                      <span className="text-xs">Adjust</span>
+                    </Button>
                   }
 
                     <Button
@@ -6402,6 +6537,33 @@ function Dashboard() {
         }} />
 
       }
+
+      {/* Quick Route Adjustments Dialog */}
+      {isMobile && isDriver && (
+        <Dialog open={showQuickAdjustments} onOpenChange={setShowQuickAdjustments}>
+          <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto z-[10001]">
+            <DialogHeader>
+              <DialogTitle>Quick Route Adjustments</DialogTitle>
+            </DialogHeader>
+            
+            {deliveriesWithStopOrder.filter(d => 
+              d && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status) && 
+              d.driver_id === currentUser?.id
+            ).length === 0 ? (
+              <p className="text-sm text-slate-500 py-4">No active stops to adjust</p>
+            ) : (
+              <QuickRouteAdjustments
+                deliveries={deliveriesWithStopOrder}
+                currentUser={currentUser}
+                patients={patients}
+                stores={stores}
+                onReorder={handleQuickReorder}
+                onAddDelay={handleAddDelay}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
     </div>);
 
 }
