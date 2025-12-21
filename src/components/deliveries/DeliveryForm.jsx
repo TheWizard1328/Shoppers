@@ -3426,8 +3426,19 @@ export default function DeliveryForm({
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent className="z-[999999]">
-                              <SelectItem value="Staged">Staged</SelectItem>
-                              <SelectItem value="pending">Pending</SelectItem>
+                              {delivery ? (
+                                <>
+                                  <SelectItem value="pending">Pending</SelectItem>
+                                  <SelectItem value="in_transit">In Transit</SelectItem>
+                                  <SelectItem value="completed">Completed</SelectItem>
+                                  <SelectItem value="failed">Failed</SelectItem>
+                                </>
+                              ) : (
+                                <>
+                                  <SelectItem value="Staged">Staged</SelectItem>
+                                  <SelectItem value="pending">Pending</SelectItem>
+                                </>
+                              )}
                             </SelectContent>
                           </Select>
                         </div>
