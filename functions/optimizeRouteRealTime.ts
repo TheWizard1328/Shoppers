@@ -327,29 +327,19 @@ Deno.serve(async (req) => {
     // CRITICAL: Find isNextDelivery stop - this is the anchor point for optimization
     const isNextDeliveryStop = allDeliveries.find(d => d.isNextDelivery === true && !finishedStatuses.includes(d.status));
     
-    // CRITICAL: Determine if route has started (has in_transit or finished stops)
+    // CRITICAL: Determine if route has started (has in_transit, en_route, or finished stops)
     const routeHasStarted = allDeliveries.some(d => 
-      d.status === 'in_transit' || finishedStatuses.includes(d.status)
+      d.status === 'in_transit' || d.status === 'en_route' || finishedStatuses.includes(d.status)
     );
     
     // Filter incomplete deliveries - EXCLUDE isNextDelivery stop from optimization
-    let incompleteDeliveries;
-    if (routeHasStarted) {
-      // Route has started: exclude finished statuses AND isNextDelivery stop
-      incompleteDeliveries = allDeliveries.filter(d => 
-        !finishedStatuses.includes(d.status) && 
-        (!isNextDeliveryStop || d.id !== isNextDeliveryStop.id)
-      );
-      console.log(`📊 Route HAS started - optimizing ${incompleteDeliveries.length} stops AFTER isNextDelivery`);
-    } else {
-      // Route has NOT started: include ALL non-finished stops (including pending)
-      // EXCEPT the isNextDelivery stop which stays locked at position 1
-      incompleteDeliveries = allDeliveries.filter(d => 
-        !finishedStatuses.includes(d.status) && 
-        (!isNextDeliveryStop || d.id !== isNextDeliveryStop.id)
-      );
-      console.log(`📊 Route NOT started - optimizing ${incompleteDeliveries.length} stops (excluding isNextDelivery)`);
-    }
+    // Include ALL non-finished stops: pending, en_route, in_transit (except isNextDelivery)
+    const incompleteDeliveries = allDeliveries.filter(d => 
+      !finishedStatuses.includes(d.status) && 
+      (!isNextDeliveryStop || d.id !== isNextDeliveryStop.id)
+    );
+    console.log(`📊 Route ${routeHasStarted ? 'HAS' : 'NOT'} started - optimizing ${incompleteDeliveries.length} stops (excluding isNextDelivery)`);
+    console.log(`📊 Statuses in incomplete: ${[...new Set(incompleteDeliveries.map(d => d.status))].join(', ')}`)
 
     console.log(`📊 Route breakdown: ${completedDeliveries.length} completed, ${isNextDeliveryStop ? 1 : 0} isNextDelivery (locked), ${incompleteDeliveries.length} to optimize`);
 
