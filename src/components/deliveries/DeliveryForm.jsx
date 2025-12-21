@@ -3930,6 +3930,7 @@ export default function DeliveryForm({
                       {sortedProjectedDeliveries.map((projected) => {
                       const projectedStore = stores?.find((s) => s && s.id === projected.store_id);
                       const storeColor = projectedStore ? getStoreColor(projectedStore) : '#64748b';
+                      const projectedPatient = patients?.find((p) => p && p.id === projected.patient_id);
 
                       return (
                         <div
@@ -3950,8 +3951,21 @@ export default function DeliveryForm({
                                   <Badge className="bg-yellow-500 text-white text-[10px] px-1.5 py-0 h-4">PROJ</Badge>
                                 </div>
                               </div>
-                              {/* Row 2: Address (reason) */}
-                              <div className="truncate text-slate-600 text-[10px]">{projected.reason}</div>
+                              {/* Row 2: Reason + Special flags */}
+                              <div className="flex items-center gap-1">
+                                <div className="truncate flex-1 min-w-0 text-slate-600 text-[10px]">{projected.reason}</div>
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                  {(projected.cod_total_amount_required > 0 || projectedPatient?.first_delivery || projected.oversized || projected.fridge_item || projected.signature_needed || projectedPatient?.signature_needed) &&
+                                    <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold">
+                                      {projected.cod_total_amount_required > 0 && '$'}
+                                      {projectedPatient?.first_delivery && (projected.cod_total_amount_required > 0 ? ' N' : 'N')}
+                                      {projected.oversized && (projected.cod_total_amount_required > 0 || projectedPatient?.first_delivery ? ' O' : 'O')}
+                                      {(projected.fridge_item || projectedPatient?.fridge_item) && (projected.cod_total_amount_required > 0 || projectedPatient?.first_delivery || projected.oversized ? ' F' : 'F')}
+                                      {(projected.signature_needed || projectedPatient?.signature_needed) && (projected.cod_total_amount_required > 0 || projectedPatient?.first_delivery || projected.oversized || projected.fridge_item || projectedPatient?.fridge_item ? ' S' : 'S')}
+                                    </Badge>
+                                  }
+                                </div>
+                              </div>
                             </div>
 
                             {/* Right: Plus button isolated */}
