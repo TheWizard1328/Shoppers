@@ -1405,9 +1405,12 @@ export default function DeliveryForm({
       }
     }
 
-    let distanceFromStore = null;
-    if (patient && patient.latitude && patient.longitude && store.latitude && store.longitude) {
-      distanceFromStore = calculateDistance(store.latitude, store.longitude, patient.latitude, patient.longitude);
+    // Use existing distance_from_store if available, otherwise calculate
+    let distanceFromStore = patient?.distance_from_store;
+    if (distanceFromStore === null || distanceFromStore === undefined) {
+      if (patient && patient.latitude && patient.longitude && store.latitude && store.longitude) {
+        distanceFromStore = calculateDistance(store.latitude, store.longitude, patient.latitude, patient.longitude);
+      }
     }
 
     // Check for existing pickup for this store/driver/date
@@ -1560,9 +1563,12 @@ export default function DeliveryForm({
       }
     }
 
-    let distanceFromStore = null;
-    if (patient && patient.latitude && patient.longitude && store.latitude && store.longitude) {
-      distanceFromStore = calculateDistance(store.latitude, store.longitude, patient.latitude, patient.longitude);
+    // Use existing distance_from_store if available, otherwise calculate
+    let distanceFromStore = patient?.distance_from_store;
+    if (distanceFromStore === null || distanceFromStore === undefined) {
+      if (patient && patient.latitude && patient.longitude && store.latitude && store.longitude) {
+        distanceFromStore = calculateDistance(store.latitude, store.longitude, patient.latitude, patient.longitude);
+      }
     }
 
     setStagedDeliveries((prev) => prev.map((staged) => {
