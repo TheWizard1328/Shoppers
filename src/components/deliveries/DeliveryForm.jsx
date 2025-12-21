@@ -1939,23 +1939,20 @@ export default function DeliveryForm({
         console.log('[AddToRoute] 📤 Calling Dashboard save handler with batch data...');
         // CRITICAL: Convert status before saving
         // - 'Staged' → 'pending' for regular deliveries
-        // - 'Staged' → 'in_transit' for InterStore deliveries (patient with 'InterStore', 'ISP', or 'ISD' in name/notes)
+        // - 'Staged' → 'in_transit' for InterStore deliveries (patient with 'InterStore', 'ISP', or 'ISD' in name/notes/address)
         const deliveriesReadyForDB = deliveriesWithTRs.map(d => {
           if (d.status === 'Staged') {
             // Check if this is an InterStore delivery
             const patientName = (d.patient_name || '').toLowerCase();
             const deliveryNotes = (d.delivery_notes || '').toLowerCase();
             const patientNotes = (d.delivery_instructions || '').toLowerCase();
+            const deliveryAddress = (d.delivery_address || '').toLowerCase();
             
             const isInterStore = patientName.includes('interstore') || 
-                                 patientName.includes('isp') || 
-                                 patientName.includes('isd') ||
                                  deliveryNotes.includes('interstore') || 
-                                 deliveryNotes.includes('isp') || 
-                                 deliveryNotes.includes('isd') ||
-                                 patientNotes.includes('interstore') || 
-                                 patientNotes.includes('isp') || 
-                                 patientNotes.includes('isd');
+                                 patientNotes.includes('interstore') ||
+                                 deliveryAddress.includes('isp') || 
+                                 deliveryAddress.includes('isd');
             
             return {
               ...d,
