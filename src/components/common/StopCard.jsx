@@ -2029,12 +2029,19 @@ export default function StopCard({
                         await updateDeliveryLocal(delivery.id, { stop_order: newStopOrder }, { skipSmartRefresh: true });
                         console.log(`  ✅ Stop order set to ${newStopOrder}`);
 
-                        // Step 5: Run Route Optimizer (with current local time and this stop's location)
-                        console.log('🟢 [START] Step 5: Running route optimizer...');
-                        try {
-                          const now = new Date();
-                          const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                        // Step 5: Set delivery_time_start to current time BEFORE running optimizer
+                        console.log('🟢 [START] Step 5a: Setting delivery_time_start to current time...');
+                        const now = new Date();
+                        const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                        
+                        await updateDeliveryLocal(delivery.id, { 
+                          delivery_time_start: currentLocalTime 
+                        }, { skipSmartRefresh: true });
+                        console.log(`  ✅ delivery_time_start set to ${currentLocalTime}`);
 
+                        // Step 5b: Run Route Optimizer (with current local time and this stop's location)
+                        console.log('🟢 [START] Step 5b: Running route optimizer...');
+                        try {
                           // Use this stop's location as starting point
                           let startLat, startLng;
                           if (delivery.puid) {
