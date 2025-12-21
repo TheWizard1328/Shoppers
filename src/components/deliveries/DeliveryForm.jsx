@@ -2162,7 +2162,8 @@ export default function DeliveryForm({
         }
       }
 
-      if (closeOnSave) onCancel();
+      // CRITICAL: Always close form after successful update
+      onCancel();
     } catch (error) {
       setError(error.message);
     } finally {
