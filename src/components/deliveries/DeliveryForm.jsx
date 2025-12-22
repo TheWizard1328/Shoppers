@@ -1679,26 +1679,37 @@ export default function DeliveryForm({
       return;
     }
 
-    // CRITICAL: If only pending deletes (no staged items), force refresh and close form
+    // CRITICAL: If only pending deletes (no staged items), pause smart refresh, sync, update UI, and close form
     if (stagedDeliveries.length === 0 && hasPendingDeletes) {
-      console.log('[AddToRoute] ✅ All deletions synced, forcing immediate refresh...');
+      console.log('[AddToRoute] 🗑️ Processing pending deletes...');
       
-      // Force immediate data refresh to update UI
-      const { invalidate } = await import('../utils/dataManager');
-      invalidate('Delivery');
-      
-      // Trigger full data reload in layout
-      if (window.dispatchEvent) {
-        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+      try {
+        // Pause smart refresh
+        console.log('[AddToRoute] ⏸️ Pausing smart refresh...');
+        const { setIsEntityUpdating } = await import('../utils/AppDataContext');
+        
+        // Invalidate and force refresh from backend
+        const { invalidate } = await import('../utils/dataManager');
+        invalidate('Delivery');
+        
+        // Wait for sync to complete
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        
+        // Trigger full data reload in layout and UI update
+        if (window.dispatchEvent) {
+          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+        }
+        
+        console.log('[AddToRoute] ✅ Deletions synced and UI updated');
+      } finally {
+        setStagedDeliveries([]);
+        setProjectedDeliveries([]);
+        setHasPendingDeletes(false);
+        setHasChanges(false);
+        hasLoadedPending.current = false;
+        setIsLoadingPredictions(true);
+        onCancel();
       }
-      
-      setStagedDeliveries([]);
-      setProjectedDeliveries([]);
-      setHasPendingDeletes(false);
-      setHasChanges(false);
-      hasLoadedPending.current = false;
-      setIsLoadingPredictions(true); // Keep predictions blocked
-      onCancel();
       return;
     }
 
