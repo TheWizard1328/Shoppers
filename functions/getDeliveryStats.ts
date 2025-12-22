@@ -209,10 +209,20 @@ Deno.serve(async (req) => {
       console.log('📊 [getDeliveryStats] All data from cache - no DB calls needed!');
     }
 
-    const monthDeliveries = Array.isArray(rawMonthDeliveries) ? rawMonthDeliveries : [];
+    // CRITICAL: Validate rawMonthDeliveries is an array
+    if (!rawMonthDeliveries) {
+      console.error('❌ rawMonthDeliveries is null/undefined');
+      rawMonthDeliveries = [];
+    }
+    if (!Array.isArray(rawMonthDeliveries)) {
+      console.error('❌ rawMonthDeliveries is not an array:', typeof rawMonthDeliveries, rawMonthDeliveries);
+      rawMonthDeliveries = [];
+    }
+    
+    const monthDeliveries = rawMonthDeliveries;
     
     // Filter today's deliveries from month data
-    const todayDeliveries = monthDeliveries.filter(d => d.delivery_date === todayStr);
+    const todayDeliveries = monthDeliveries.filter(d => d && d.delivery_date === todayStr);
     
     console.log('✅ [getDeliveryStats] Stats ready:', {
       today: todayDeliveries.length,
