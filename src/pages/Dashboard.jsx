@@ -2218,30 +2218,30 @@ function Dashboard() {
     setMapViewTrigger((prev) => prev + 1);
 
     // Set timer for phase 1 & 3, permanent lock for phase 2
-    if (phaseToApply === 1 || phaseToApply === 3) {
-      const lockDuration = 3000;
-      const expiresAt = Date.now() + lockDuration;
-      mapLockExpiresAtRef.current = expiresAt;
+    if (phaseToApply === 2) {
+    // Phase 2 - NO timer at all, stays locked PERMANENTLY
+    // CRITICAL: Clear any timers to prevent accidental unlock
+    if (mapLockTimeoutRef.current) {
+    clearTimeout(mapLockTimeoutRef.current);
+    mapLockTimeoutRef.current = null;
+    }
+    mapLockExpiresAtRef.current = null;
+    console.log(`🔵 [FAB Initial] Phase 2 locked PERMANENTLY - unlocks only on FAB click`);
+    } else if (phaseToApply === 1 || phaseToApply === 3) {
+    const lockDuration = 3000;
+    const expiresAt = Date.now() + lockDuration;
+    mapLockExpiresAtRef.current = expiresAt;
 
-      mapLockTimeoutRef.current = setTimeout(() => {
-        if (mapLockExpiresAtRef.current === expiresAt) {
-          setIsMapViewLocked(false);
-          mapLockExpiresAtRef.current = null;
-          mapLockTimeoutRef.current = null;
-          console.log(`⏰ [FAB Initial] Phase ${phaseToApply} auto-unlocked after 3 seconds`);
-        }
-      }, lockDuration);
-
-      console.log(`🔵 [FAB Initial] Phase ${phaseToApply} locked - will auto-unlock in 3 seconds`);
-    } else if (phaseToApply === 2) {
-      // Phase 2 - NO timer, stays locked PERMANENTLY
-      // CRITICAL: Clear any timers to prevent accidental unlock
-      if (mapLockTimeoutRef.current) {
-        clearTimeout(mapLockTimeoutRef.current);
-        mapLockTimeoutRef.current = null;
-      }
+    mapLockTimeoutRef.current = setTimeout(() => {
+    if (mapLockExpiresAtRef.current === expiresAt) {
+      setIsMapViewLocked(false);
       mapLockExpiresAtRef.current = null;
-      console.log(`🔵 [FAB Initial] Phase 2 locked PERMANENTLY - unlocks only on FAB click`);
+      mapLockTimeoutRef.current = null;
+      console.log(`⏰ [FAB Initial] Phase ${phaseToApply} auto-unlocked after 3 seconds`);
+    }
+    }, lockDuration);
+
+    console.log(`🔵 [FAB Initial] Phase ${phaseToApply} locked - will auto-unlock in 3 seconds`);
     }
 
     // Scroll to card with isNextDelivery=true for all phases (helps user orient)
@@ -4977,8 +4977,16 @@ function Dashboard() {
       window._lastProgrammaticMapMove = Date.now();
       setMapViewTrigger((prev) => prev + 1);
 
-      // Set timer for phase 1 & 3
-      if (currentPhase === 1 || currentPhase === 3) {
+      // Set timer for phase 1 & 3 ONLY - Phase 2 has NO timer
+      if (currentPhase === 2) {
+        // Phase 2 - NO timer, stays locked PERMANENTLY
+        if (mapLockTimeoutRef.current) {
+          clearTimeout(mapLockTimeoutRef.current);
+          mapLockTimeoutRef.current = null;
+        }
+        mapLockExpiresAtRef.current = null;
+        console.log('🔵 [STATUS] Phase 2 - NO TIMER - stays locked permanently');
+      } else if (currentPhase === 1 || currentPhase === 3) {
         const lockDuration = 3000;
         const expiresAt = Date.now() + lockDuration;
         mapLockExpiresAtRef.current = expiresAt;
