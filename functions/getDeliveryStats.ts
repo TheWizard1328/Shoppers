@@ -55,16 +55,16 @@ Deno.serve(async (req) => {
     try {
       appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id });
       appUser = appUsers?.[0];
-      userRoles = appUser?.app_roles || [];
+      userRoles = Array.isArray(appUser?.app_roles) ? appUser.app_roles : [];
       isAdmin = userRoles.includes('admin');
       isDispatcher = userRoles.includes('dispatcher');
       isDriver = userRoles.includes('driver');
-      userStoreIds = appUser?.store_ids || [];
+      userStoreIds = Array.isArray(appUser?.store_ids) ? appUser.store_ids : [];
       
       console.log('📊 [getDeliveryStats] User roles:', userRoles, 'Store IDs:', userStoreIds);
     } catch (appUserError) {
       console.error('❌ Error fetching AppUser:', appUserError.message);
-      return Response.json({ error: 'Failed to fetch user roles' }, { status: 500 });
+      return Response.json({ error: 'Failed to fetch user roles: ' + appUserError.message }, { status: 500 });
     }
     
     // Use selected date or default to today
