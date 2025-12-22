@@ -1057,11 +1057,12 @@ function Dashboard() {
             }
           }, lockDuration);
         } else if (mapViewPhase === 2) {
-          // Phase 2 - set delayed manual interaction flag
+          // Phase 2 - set delayed manual interaction flag ONLY (NO unlock timer)
           phase2WaitingForManualInteractionRef.current = false;
           setTimeout(() => {
             if (mapViewPhaseForInteractionRef.current === 2 && isMapViewLockedRef.current) {
               phase2WaitingForManualInteractionRef.current = true;
+              console.log('🔵 [FAB] Phase 2 now accepting manual interactions (stays locked)');
             }
           }, 3000);
         }
