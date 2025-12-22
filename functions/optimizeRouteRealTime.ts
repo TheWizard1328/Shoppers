@@ -883,65 +883,86 @@ Deno.serve(async (req) => {
     console.log('📋 New order:', newOrder);
     console.log('📋 Route changed:', routeChanged);
 
-    // NOW use Google Distance Matrix API for the final optimized route only
-    console.log('🌐 [optimizeRouteRealTime] Calling Google API for final route distances...');
+    // NOW use Google Directions API for sequential travel times between stops
+    console.log('🌐 [optimizeRouteRealTime] Calling Google Directions API for sequential travel times...');
     const googleMapsKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
     const finalRouteCoords = optimizedRoute.map(idx => allStopCoords[idx]);
-    const finalOrigins = [driverLocation, ...finalRouteCoords];
-    const finalDestinations = finalRouteCoords;
+    
+    // Build sequential route: driver location → all stops in order
+    // For Directions API: origin, destination, and waypoints in between
+    const routeOrigin = isNextDeliveryStopData 
+      ? `${isNextDeliveryStopData.lat},${isNextDeliveryStopData.lng}`
+      : `${driverLocation.lat},${driverLocation.lng}`;
+    
+    // If we have stops, the last one is the destination, the rest are waypoints
+    let directionsLegs = [];
+    
+    if (finalRouteCoords.length > 0) {
+      const routeDestination = `${finalRouteCoords[finalRouteCoords.length - 1].lat},${finalRouteCoords[finalRouteCoords.length - 1].lng}`;
+      const waypointsArr = finalRouteCoords.slice(0, -1).map(c => `${c.lat},${c.lng}`);
+      const waypointsStr = waypointsArr.length > 0 ? `&waypoints=${waypointsArr.join('|')}` : '';
+      
+      console.log(`📍 Directions API: Origin → ${finalRouteCoords.length} stops (${waypointsArr.length} waypoints + 1 destination)`);
 
-    const finalOriginsStr = finalOrigins.map(o => `${o.lat},${o.lng}`).join('|');
-    const finalDestinationsStr = finalDestinations.map(d => `${d.lat},${d.lng}`).join('|');
+      // Log API call
+      await base44.asServiceRole.entities.GoogleAPILog.create({
+        timestamp: new Date().toISOString(),
+        api_type: 'Directions',
+        purpose: `Sequential travel times for driver ${driverAppUser.user_name || driverId}`,
+        function_name: 'optimizeRouteRealTime',
+        user_id: user.id,
+        user_name: user.full_name,
+        metadata: {
+          driver_id: driverId,
+          delivery_date: deliveryDate,
+          stops_count: optimizedRoute.length,
+          route_changed: routeChanged,
+          waypoints_count: waypointsArr.length
+        }
+      });
 
-    // Log API call
-    await base44.asServiceRole.entities.GoogleAPILog.create({
-      timestamp: new Date().toISOString(),
-      api_type: 'Distance Matrix',
-      purpose: `Optimizing route for driver ${driverAppUser.user_name || driverId}`,
-      function_name: 'optimizeRouteRealTime',
-      user_id: user.id,
-      user_name: user.full_name,
-      metadata: {
-        driver_id: driverId,
-        delivery_date: deliveryDate,
-        stops_count: optimizedRoute.length,
-        route_changed: routeChanged
+      const directionsUrl = `https://maps.googleapis.com/maps/api/directions/json?` +
+        `origin=${routeOrigin}&` +
+        `destination=${routeDestination}` +
+        `${waypointsStr}&` +
+        `departure_time=now&` +
+        `traffic_model=best_guess&` +
+        `key=${googleMapsKey}`;
+
+      const directionsResponse = await fetch(directionsUrl);
+      const directionsData = await directionsResponse.json();
+
+      // Increment API counter
+      const updatedPolylineRecord = await base44.asServiceRole.entities.DriverRoutePolyline.update(polylineRecord.id, {
+        daily_generation_count: (polylineRecord.daily_generation_count || 0) + 1,
+        last_generated_at: new Date().toISOString()
+      });
+      polylineRecord = updatedPolylineRecord;
+
+      if (directionsData.status !== 'OK') {
+        console.error('❌ [optimizeRouteRealTime] Google Directions API failed:', directionsData.status, directionsData.error_message);
+        return Response.json({ 
+          error: 'Failed to get directions',
+          status: directionsData.status,
+          message: directionsData.error_message
+        }, { status: 500 });
       }
-    });
 
-    const finalMatrixUrl = `https://maps.googleapis.com/maps/api/distancematrix/json?` +
-      `origins=${finalOriginsStr}&` +
-      `destinations=${finalDestinationsStr}&` +
-      `departure_time=now&` +
-      `traffic_model=best_guess&` +
-      `key=${googleMapsKey}`;
-
-    const finalMatrixResponse = await fetch(finalMatrixUrl);
-    const finalMatrixData = await finalMatrixResponse.json();
-
-    // Increment API counter (only 1 call now instead of N calls)
-    const updatedPolylineRecord = await base44.asServiceRole.entities.DriverRoutePolyline.update(polylineRecord.id, {
-      daily_generation_count: (polylineRecord.daily_generation_count || 0) + 1,
-      last_generated_at: new Date().toISOString()
-    });
-    polylineRecord = updatedPolylineRecord;
-
-    if (finalMatrixData.status !== 'OK') {
-      console.error('❌ [optimizeRouteRealTime] Google API failed:', finalMatrixData.status);
-      return Response.json({ 
-        error: 'Failed to get final distance matrix',
-        status: finalMatrixData.status
-      }, { status: 500 });
+      // Extract legs - each leg is the travel between consecutive waypoints
+      // legs[0] = origin to first waypoint (or destination if no waypoints)
+      // legs[1] = first waypoint to second waypoint, etc.
+      directionsLegs = directionsData.routes[0].legs.map(leg => ({
+        duration: leg.duration_in_traffic?.value || leg.duration?.value || 0,
+        distance: leg.distance?.value || 0
+      }));
+      
+      console.log(`✅ [optimizeRouteRealTime] Directions API returned ${directionsLegs.length} legs`);
+      directionsLegs.forEach((leg, i) => {
+        console.log(`   Leg ${i+1}: ${Math.ceil(leg.duration/60)} min, ${(leg.distance/1000).toFixed(1)} km`);
+      });
+    } else {
+      console.log('⚠️ No stops to get directions for');
     }
-
-    // Build final distance/time matrix from Google API
-    const finalMatrix = finalMatrixData.rows.map(row => 
-      row.elements.map(el => ({
-        duration: el.duration_in_traffic?.value || el.duration?.value || 999999,
-        distance: el.distance?.value || 999999
-      }))
-    );
-    console.log('✅ [optimizeRouteRealTime] Google API results received');
 
     // CRITICAL: Calculate start time for ETA calculations
     // Priority: Use isNextDelivery's ETA + service time as starting point
