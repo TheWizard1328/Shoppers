@@ -407,7 +407,7 @@ function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, importS
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="p-6 pb-4 flex-shrink-0">
-        <h2 className="text-xl font-semibold text-slate-800">
+        <h2 className="text-xl font-semibold" style={{ color: 'var(--text-slate-800)' }}>
           Select Store to View Patients
         </h2>
       </div>
@@ -427,10 +427,12 @@ function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, importS
 
             return (
               <Card
-                key={store.id} className="rounded-xl border text-card-foreground shadow cursor-pointer hover:shadow-md transition-all duration-200 bg-white"
+                key={store.id} className="rounded-xl border shadow cursor-pointer hover:shadow-md transition-all duration-200"
 
                 style={{
-                  borderColor: store.color || '#e2e8f0',
+                  background: 'var(--bg-white)',
+                  color: 'var(--text-slate-900)',
+                  borderColor: store.color || 'var(--border-slate-200)',
                   borderWidth: '2px'
                 }}
                 onClick={() => {
@@ -442,7 +444,7 @@ function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, importS
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-slate-900 text-base">{store.name}</h3>
+                        <h3 className="font-semibold text-base" style={{ color: 'var(--text-slate-900)' }}>{store.name}</h3>
                         {store.abbreviation &&
                         <Badge
                           variant="outline" className="text-foreground px-2.5 py-0.5 text-xs font-semibold opacity-75 rounded-[10px] inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
@@ -458,17 +460,17 @@ function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, importS
                           </Badge>
                         }
                       </div>
-                      <p className="text-slate-600 text-sm">{store.address}</p>
-                      <p className="text-slate-600 text-sm font-medium">{store.phone ? formatPhoneNumber(store.phone) : ''}</p>
+                      <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>{store.address}</p>
+                      <p className="text-sm font-medium" style={{ color: 'var(--text-slate-600)' }}>{store.phone ? formatPhoneNumber(store.phone) : ''}</p>
                     </div>
                     <div className="text-center ml-3">
                       <div className="text-3xl font-bold text-emerald-600 mb-1">
                         {store.patientCount || 0}
                       </div>
-                      <div className="text-xs text-slate-500 mb-1">patients</div>
+                      <div className="text-xs mb-1" style={{ color: 'var(--text-slate-500)' }}>patients</div>
                     </div>
                   </div>
-                  <div className="border-t border-slate-100 pt-2 mt-2">
+                  <div className="pt-2 mt-2" style={{ borderTop: '1px solid var(--border-slate-100)' }}>
                     {stats.totalRoutes > 0 &&
                     <div className="flex justify-center gap-3 text-xs font-medium flex-wrap">
                         <span className="text-blue-600">Active: {stats.activeRoutes}</span>
@@ -479,14 +481,14 @@ function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, importS
                     }
 
                     {/* Driver Assignments - Table Layout */}
-                    <div className="text-sm text-slate-600">
-                      <div className="font-semibold text-slate-700 mb-1">Assigned Drivers:</div>
+                    <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                      <div className="font-semibold mb-1" style={{ color: 'var(--text-slate-700)' }}>Assigned Drivers:</div>
                       <table className="w-full text-xs table-fixed">
                         <thead>
-                          <tr className="border-b border-slate-200">
-                            <th className="w-1/3 text-left py-1 pr-2 font-medium text-slate-600">Day</th>
-                            <th className="w-1/3 text-center py-1 px-2 font-medium text-slate-600">AM</th>
-                            <th className="w-1/3 text-center py-1 pl-2 font-medium text-slate-600">PM</th>
+                          <tr style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
+                            <th className="w-1/3 text-left py-1 pr-2 font-medium" style={{ color: 'var(--text-slate-600)' }}>Day</th>
+                            <th className="w-1/3 text-center py-1 px-2 font-medium" style={{ color: 'var(--text-slate-600)' }}>AM</th>
+                            <th className="w-1/3 text-center py-1 pl-2 font-medium" style={{ color: 'var(--text-slate-600)' }}>PM</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -496,7 +498,7 @@ function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, importS
                           { day: 'Sunday', am: driversInfo.sundayAM, pm: driversInfo.sundayPM }].
                           map(({ day, am, pm }) =>
                           <tr key={day}>
-                                <td className="w-1/3 text-left py-1 pr-2 text-slate-700">{day}</td>
+                                <td className="w-1/3 text-left py-1 pr-2" style={{ color: 'var(--text-slate-700)' }}>{day}</td>
                                 <td className="w-1/3 text-center py-1 px-2">
                                   {am !== 'Off' ?
                               <Badge
@@ -549,7 +551,7 @@ function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, importS
 
                     {/* Import Stats - Only shown if there are stats */}
                     {importStats && (storeImportStats.new > 0 || storeImportStats.updated > 0) &&
-                    <div className="mt-2 pt-2 border-t border-slate-100 flex gap-3 text-xs font-medium">
+                    <div className="mt-2 pt-2 flex gap-3 text-xs font-medium" style={{ borderTop: '1px solid var(--border-slate-100)' }}>
                         {storeImportStats.new > 0 &&
                       <span className="text-green-600">
                             New: {storeImportStats.new}
@@ -569,7 +571,9 @@ function StoreOverview({ stores, onStoreSelect, allPatients, deliveries, importS
           })}
         </div>
         {stores.length === 0 &&
-        <Card className="mt-4"><CardContent className="p-6 text-center text-slate-500">No stores found for this city.</CardContent></Card>
+        <Card className="mt-4" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          <CardContent className="p-6 text-center" style={{ color: 'var(--text-slate-500)' }}>No stores found for this city.</CardContent>
+        </Card>
         }
       </div>
     </div>);
@@ -1498,13 +1502,13 @@ export default function Patients() {
       return (
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="p-6 pb-4 flex-shrink-0">
-            <h2 className="text-xl font-semibold text-slate-800">
+            <h2 className="text-xl font-semibold" style={{ color: 'var(--text-slate-800)' }}>
               Select Store to View Patients
             </h2>
           </div>
           <div className="flex-1 overflow-y-auto px-6 pb-6">
-            <Card className="mt-4">
-              <CardContent className="p-6 text-center text-slate-500">
+            <Card className="mt-4" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+              <CardContent className="p-6 text-center" style={{ color: 'var(--text-slate-500)' }}>
                 Please select a store to view patients from the dropdown above.
               </CardContent>
             </Card>
@@ -1522,12 +1526,14 @@ export default function Patients() {
       return (
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="p-6 pb-4 flex-shrink-0">
-            <h2 className="text-xl font-semibold text-slate-800">
+            <h2 className="text-xl font-semibold" style={{ color: 'var(--text-slate-800)' }}>
               Select Store to View Patients
             </h2>
           </div>
           <div className="flex-1 overflow-y-auto px-6 pb-6">
-            <Card className="mt-4"><CardContent className="p-6 text-center text-slate-500">No stores found for this city.</CardContent></Card>
+            <Card className="mt-4" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+              <CardContent className="p-6 text-center" style={{ color: 'var(--text-slate-500)' }}>No stores found for this city.</CardContent>
+            </Card>
           </div>
         </div>);
 
@@ -1550,11 +1556,11 @@ export default function Patients() {
   if (isLoading) {
     return (
       <div className="h-screen flex flex-col">
-        <div className="flex-shrink-0 p-6 border-b border-slate-200 bg-white">
-          <h1 className="text-3xl font-bold text-slate-900">Patient Database</h1>
+        <div className="flex-shrink-0 p-6" style={{ borderBottom: '1px solid var(--border-slate-200)', background: 'var(--bg-white)' }}>
+          <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Patient Database</h1>
         </div>
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-slate-600">Loading patient data...</p>
+          <p style={{ color: 'var(--text-slate-600)' }}>Loading patient data...</p>
         </div>
       </div>);
 
@@ -1563,8 +1569,8 @@ export default function Patients() {
   if (!hasAccess) {
     return (
       <div className="h-screen flex flex-col">
-        <div className="flex-shrink-0 p-6 border-b border-slate-200 bg-white">
-          <h1 className="text-3xl font-bold text-slate-900">Patient Database</h1>
+        <div className="flex-shrink-0 p-6" style={{ borderBottom: '1px solid var(--border-slate-200)', background: 'var(--bg-white)' }}>
+          <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Patient Database</h1>
         </div>
         <div className="flex-1 flex items-center justify-center">
           <p className="text-red-600">You do not have permission to view this page.</p>
@@ -1982,8 +1988,8 @@ export default function Patients() {
               <div className="flex-1 p-6 overflow-y-auto">
                 <AnimatePresence>
                   {sortedAndFilteredPatients.length === 0 ?
-                <Card className="col-span-full">
-                      <CardContent className="p-6 text-center text-slate-500">
+                <Card className="col-span-full" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                      <CardContent className="p-6 text-center" style={{ color: 'var(--text-slate-500)' }}>
                         {allPatients.length === 0 ?
                     "No patients found in your assigned stores." :
 
