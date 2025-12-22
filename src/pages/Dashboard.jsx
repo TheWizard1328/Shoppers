@@ -2652,8 +2652,32 @@ function Dashboard() {
         setIsMapViewLocked(true);
         setMapViewTrigger((prev) => prev + 1);
 
-        // Set timer for phase 1 & 3
-        if (mapViewPhase === 1 || mapViewPhase === 3) {
+        // CRITICAL: Handle timer logic based on phase - ONLY set timers for Phase 1 & 3
+        if (mapViewPhase === 2) {
+          // Phase 2 - NO timer at all, stays locked permanently
+          // CRITICAL: Clear any existing timers to prevent accidental unlock
+          if (mapLockTimeoutRef.current) {
+            clearTimeout(mapLockTimeoutRef.current);
+            mapLockTimeoutRef.current = null;
+          }
+          mapLockExpiresAtRef.current = null;
+          
+          // Set delayed manual interaction flag ONLY (NO unlock timer)
+          phase2WaitingForManualInteractionRef.current = false;
+          setTimeout(() => {
+            if (mapViewPhaseForInteractionRef.current === 2 && isMapViewLockedRef.current) {
+              phase2WaitingForManualInteractionRef.current = true;
+              console.log('🔵 [FAB] Phase 2 now accepting manual interactions (stays locked)');
+            }
+          }, 3000);
+        } else if (mapViewPhase === 1 || mapViewPhase === 3) {
+          // Phase 1 & 3 - Clear any existing timers first, then set new timer
+          if (mapLockTimeoutRef.current) {
+            clearTimeout(mapLockTimeoutRef.current);
+            mapLockTimeoutRef.current = null;
+          }
+          mapLockExpiresAtRef.current = null;
+          
           const lockDuration = 3000;
           const expiresAt = Date.now() + lockDuration;
           mapLockExpiresAtRef.current = expiresAt;
