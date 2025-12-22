@@ -607,31 +607,23 @@ export default function DeliveryForm({
   useEffect(() => {
     if (delivery || !formData.delivery_date || !currentUser || !stores || !allDeliveries) return;
 
-    const fetchPredictions = async (forceRefresh = false) => {
+    const fetchPredictions = async () => {
       setIsLoadingPredictions(true);
       setProjectedDeliveries([]);
 
       try {
         let storeIdsToPredict = [];
 
-        // CRITICAL FIX: For admins viewing a single store (via dispatcher filter), 
-        // only predict for that store, not ALL stores
-        // Check if admin has a selected store context (e.g., viewing Kingsway specifically)
         const isAdmin = userHasRole(currentUser, 'admin');
         const isDispatcher = userHasRole(currentUser, 'dispatcher');
 
         if (isDispatcher && !isAdmin) {
-          // Pure dispatcher: use their assigned stores
           storeIdsToPredict = currentUser.store_ids || [];
         } else if (isAdmin) {
-          // Admin: If they also have dispatcher store_ids set, use those for focused predictions
-          // Otherwise fall back to all stores (but this is rare - admins usually filter by store)
           if (currentUser.store_ids && currentUser.store_ids.length > 0) {
             storeIdsToPredict = currentUser.store_ids;
-            console.log('[DeliveryForm] Admin with store filter, using stores:', storeIdsToPredict);
           } else {
             storeIdsToPredict = stores.map((s) => s.id);
-            console.log('[DeliveryForm] Admin without store filter, using all stores:', storeIdsToPredict.length);
           }
         } else if (userHasRole(currentUser, 'driver')) {
           const driverStores = stores.filter((store) => {
@@ -652,109 +644,30 @@ export default function DeliveryForm({
           return;
         }
 
-        const response = await base44.functions.invoke('predictDeliveries', {
-          delivery_date: formData.delivery_date,
-          store_ids: storeIdsToPredict
+        // Call backend function for predictions
+        const stagedPatientIds = stagedDeliveries.map((d) => d.patient_id).filter(Boolean);
+        const response = await base44.functions.invoke('getDeliveryPredictions', {
+          selectedDate: formData.delivery_date,
+          storeIds: storeIdsToPredict,
+          excludePatientIds: stagedPatientIds
         });
 
-        if (response.data && response.data.predictions) {
-          console.log('[DeliveryForm] Received predictions from API:', response.data.predictions.length);
+        const result = response?.data || response;
+        if (result.predictions) {
+          console.log('[DeliveryForm] Received predictions from backend:', result.predictions.length);
+          
+          // Map predictions to the format expected by UI
+          const formattedPredictions = result.predictions.map(pred => ({
+            patient_id: pred.patient_id,
+            patient_name: pred.patient_name,
+            store_id: pred.store_id,
+            reason: `${pred.frequency} delivery`,
+            cod_total_amount_required: pred.cod_total_amount_required || 0,
+            prescription_number: pred.prescription_number || '',
+            extra_time: pred.extra_time || 0
+          }));
 
-          const stagedPatientIds = new Set(stagedDeliveries.map((d) => d.patient_id));
-
-          const filteredPredictions = response.data.predictions.filter(
-            (pred) => {
-              // Filter out staged only
-              if (stagedPatientIds.has(pred.patient_id)) {
-                console.log('[DeliveryForm] Filtered out (staged):', pred.patient_name);
-                return false;
-              }
-
-              // Safety check: ensure patient is not inactive
-              const patient = patients?.find((p) => p && p.id === pred.patient_id);
-              if (patient && patient.status === 'inactive') {
-                console.log('[DeliveryForm] Filtered out (inactive):', pred.patient_name);
-                return false;
-              }
-
-              // Filter based on recurring type and last delivery date
-              if (patient && patient.last_delivery_date) {
-                const lastDeliveryDate = new Date(patient.last_delivery_date + 'T00:00:00');
-                const today = new Date();
-                const daysSinceLastDelivery = Math.floor((today - lastDeliveryDate) / (1000 * 60 * 60 * 24));
-
-                // Daily: exclude if last delivery was more than 3 days ago
-                if (patient.recurring_daily && daysSinceLastDelivery > 3) {
-                  console.log('[DeliveryForm] Filtered out (daily stale):', pred.patient_name, daysSinceLastDelivery, 'days');
-                  return false;
-                }
-
-                // Weekly: exclude if last delivery was more than 2 weeks (14 days) ago
-                if ((patient.recurring_weekly_mon || patient.recurring_weekly_tue ||
-                patient.recurring_weekly_wed || patient.recurring_weekly_thu ||
-                patient.recurring_weekly_fri || patient.recurring_weekly_sat ||
-                patient.recurring_weekly_sun) && daysSinceLastDelivery > 14) {
-                  console.log('[DeliveryForm] Filtered out (weekly stale):', pred.patient_name, daysSinceLastDelivery, 'days');
-                  return false;
-                }
-
-                // Bi-Weekly: exclude if last delivery was more than 4 weeks (28 days) ago
-                if (patient.recurring_biweekly && daysSinceLastDelivery > 28) {
-                  console.log('[DeliveryForm] Filtered out (bi-weekly stale):', pred.patient_name, daysSinceLastDelivery, 'days');
-                  return false;
-                }
-
-                // Weekly x4 & Monthly: exclude if last delivery was more than 60 days ago
-                if ((patient.recurring_weekly_x4 || patient.recurring_monthly) && daysSinceLastDelivery > 60) {
-                  console.log('[DeliveryForm] Filtered out (monthly stale):', pred.patient_name, daysSinceLastDelivery, 'days');
-                  return false;
-                }
-
-                // Bi-Monthly: exclude if last delivery was more than 120 days ago
-                if (patient.recurring_bimonthly && daysSinceLastDelivery > 120) {
-                  console.log('[DeliveryForm] Filtered out (bi-monthly stale):', pred.patient_name, daysSinceLastDelivery, 'days');
-                  return false;
-                }
-              }
-
-              // CRITICAL: Filter out patients with weekly/bi-weekly recurring set for specific days
-              // that don't match the selected delivery date's day of week
-              const hasSpecificWeeklyDays = patient.recurring_weekly_mon || patient.recurring_weekly_tue ||
-              patient.recurring_weekly_wed || patient.recurring_weekly_thu ||
-              patient.recurring_weekly_fri || patient.recurring_weekly_sat || patient.recurring_weekly_sun;
-
-              if (patient.recurring && hasSpecificWeeklyDays &&
-              !patient.recurring_daily && !patient.recurring_weekly_x4 &&
-              !patient.recurring_monthly && !patient.recurring_bimonthly) {
-                // This patient has weekly or bi-weekly recurring with specific days set
-                const selectedDateObj = new Date(formData.delivery_date + 'T00:00:00');
-                const dayOfWeek = selectedDateObj.getDay(); // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
-
-                const dayFieldMap = {
-                  0: 'recurring_weekly_sun',
-                  1: 'recurring_weekly_mon',
-                  2: 'recurring_weekly_tue',
-                  3: 'recurring_weekly_wed',
-                  4: 'recurring_weekly_thu',
-                  5: 'recurring_weekly_fri',
-                  6: 'recurring_weekly_sat'
-                };
-
-                const requiredDayField = dayFieldMap[dayOfWeek];
-                if (!patient[requiredDayField]) {
-                  console.log('[DeliveryForm] Filtered out (weekly/bi-weekly wrong day):', pred.patient_name,
-                  'Selected:', formData.delivery_date, '(day', dayOfWeek, ') but patient has:',
-                  Object.entries(dayFieldMap).filter(([k, v]) => patient[v]).map(([k]) => k).join(','));
-                  return false;
-                }
-              }
-
-              return true;
-            }
-          );
-
-          console.log('[DeliveryForm] Filtered predictions:', filteredPredictions.length, 'of', response.data.predictions.length);
-          setProjectedDeliveries(filteredPredictions);
+          setProjectedDeliveries(formattedPredictions);
         }
       } catch (error) {
         console.error('Error fetching predictions:', error);
@@ -764,7 +677,7 @@ export default function DeliveryForm({
     };
 
     fetchPredictions();
-  }, [delivery, formData.delivery_date, currentUser, stores, allDeliveries, predictionTrigger]);
+  }, [delivery, formData.delivery_date, currentUser, stores, allDeliveries, predictionTrigger, stagedDeliveries]);
 
   const handlePatientSelect = useCallback(async (patient) => {
     if (!patient) return;
