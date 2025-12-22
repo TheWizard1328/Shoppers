@@ -3217,7 +3217,7 @@ export default function DeliveryForm({
                       <Label htmlFor="puid" className="text-xs">PUID</Label>
                       <Input
                       id="puid"
-                      value={formData.puid || ''}
+                      value={formData.puid ?? delivery?.puid ?? ''}
                       onChange={(e) => setFormData((prev) => ({ ...prev, puid: e.target.value }))}
                       className="h-9 text-sm"
                       disabled={isSaving} />
