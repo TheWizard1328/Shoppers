@@ -752,10 +752,10 @@ export default function PatientForm({
               </div>
 
               <div className="grid grid-cols-2 gap-2">
-                <div className="px-3 py-2 rounded-[10px]" style={{ background: 'var(--bg-slate-100)' }}>
-                  <div className="border-b pb-2 mb-3" style={{ borderColor: 'var(--border-slate-300)' }}>
-                    <h3 className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Preferences</h3>
-                  </div>
+                    <div className="px-3 py-2 rounded-[10px]" style={{ background: 'var(--bg-slate-200)' }}>
+                      <div className="border-b pb-2 mb-3" style={{ borderColor: 'var(--border-slate-300)' }}>
+                        <h3 className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Preferences</h3>
+                      </div>
 
                   <div className="space-y-3">
                     <CheckboxField
@@ -790,95 +790,97 @@ export default function PatientForm({
                   </div>
                 </div>
 
-                <div className="px-3 py-2 rounded-[10px] relative" style={{ background: 'var(--bg-slate-100)' }}>
+                <div className="px-3 py-2 rounded-[10px] relative" style={{ background: 'var(--bg-slate-200)' }}>
                   <div className="border-b pb-2" style={{ borderColor: 'var(--border-slate-300)' }}>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="recurring"
-                        checked={isRecurring}
-                        onCheckedChange={handleRecurringChange} />
-                      <Label htmlFor="recurring" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
-                        Recurring
-                      </Label>
-                    </div>
-                  </div>
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="recurring"
+                            checked={isRecurring}
+                            onCheckedChange={handleRecurringChange} />
+                          <Label htmlFor="recurring" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
+                            Recurring
+                          </Label>
+                        </div>
+                      </div>
 
-                  <RadioGroup
-                    value={frequency}
-                    onValueChange={setFrequency}
-                    disabled={!isRecurring}>
+                      <RadioGroup
+                        value={frequency}
+                        onValueChange={setFrequency}
+                        disabled={!isRecurring}>
 
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="daily" id="daily" disabled={!isRecurring} />
-                      <Label htmlFor="daily" className={`text-sm ${!isRecurring ? 'text-slate-400' : ''}`}>
-                        Daily
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem
-                        value="weekly"
-                        id="weekly"
-                        disabled={!isRecurring}
-                        onClick={(e) => {
-                          if (isRecurring) {
-                            e.preventDefault();
-                            handleWeeklyClick();
-                          }
-                        }} />
-                      <Label
-                        htmlFor="weekly"
-                        className={`text-sm cursor-pointer ${!isRecurring ? 'text-slate-400' : ''}`}
-                        onClick={(e) => {
-                          if (isRecurring) {
-                            e.preventDefault();
-                            handleWeeklyClick();
-                          }
-                        }}>
-                        {getWeeklyLabel()}
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem
-                        value="bi-weekly"
-                        id="bi-weekly"
-                        disabled={!isRecurring}
-                        onClick={(e) => {
-                          if (isRecurring) {
-                            e.preventDefault();
-                            handleBiWeeklyClick();
-                          }
-                        }} />
-                      <Label
-                        htmlFor="bi-weekly"
-                        className={`text-sm cursor-pointer ${!isRecurring ? 'text-slate-400' : ''}`}
-                        onClick={(e) => {
-                          if (isRecurring) {
-                            e.preventDefault();
-                            handleBiWeeklyClick();
-                          }
-                        }}>
-                        {getBiWeeklyLabel()}
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="weekly-x4" id="weekly-x4" disabled={!isRecurring} />
-                      <Label htmlFor="weekly-x4" className={`text-sm ${!isRecurring ? 'text-slate-400' : ''}`}>
-                        Weekly x4
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="monthly" id="monthly" disabled={!isRecurring} />
-                      <Label htmlFor="monthly" className={`text-sm ${!isRecurring ? 'text-slate-400' : ''}`}>
-                        Monthly
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="bi-monthly" id="bi-monthly" disabled={!isRecurring} />
-                      <Label htmlFor="bi-monthly" className={`text-sm ${!isRecurring ? 'text-slate-400' : ''}`}>
-                        Bi-Monthly
-                      </Label>
-                    </div>
-                  </RadioGroup>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="daily" id="daily" disabled={!isRecurring} />
+                          <Label htmlFor="daily" className="text-sm" style={{ color: !isRecurring ? 'var(--text-slate-400)' : 'var(--text-slate-900)' }}>
+                            Daily
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem
+                            value="weekly"
+                            id="weekly"
+                            disabled={!isRecurring}
+                            onClick={(e) => {
+                              if (isRecurring) {
+                                e.preventDefault();
+                                handleWeeklyClick();
+                              }
+                            }} />
+                          <Label
+                            htmlFor="weekly"
+                            className="text-sm cursor-pointer"
+                            style={{ color: !isRecurring ? 'var(--text-slate-400)' : 'var(--text-slate-900)' }}
+                            onClick={(e) => {
+                              if (isRecurring) {
+                                e.preventDefault();
+                                handleWeeklyClick();
+                              }
+                            }}>
+                            {getWeeklyLabel()}
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem
+                            value="bi-weekly"
+                            id="bi-weekly"
+                            disabled={!isRecurring}
+                            onClick={(e) => {
+                              if (isRecurring) {
+                                e.preventDefault();
+                                handleBiWeeklyClick();
+                              }
+                            }} />
+                          <Label
+                            htmlFor="bi-weekly"
+                            className="text-sm cursor-pointer"
+                            style={{ color: !isRecurring ? 'var(--text-slate-400)' : 'var(--text-slate-900)' }}
+                            onClick={(e) => {
+                              if (isRecurring) {
+                                e.preventDefault();
+                                handleBiWeeklyClick();
+                              }
+                            }}>
+                            {getBiWeeklyLabel()}
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="weekly-x4" id="weekly-x4" disabled={!isRecurring} />
+                          <Label htmlFor="weekly-x4" className="text-sm" style={{ color: !isRecurring ? 'var(--text-slate-400)' : 'var(--text-slate-900)' }}>
+                            Weekly x4
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="monthly" id="monthly" disabled={!isRecurring} />
+                          <Label htmlFor="monthly" className="text-sm" style={{ color: !isRecurring ? 'var(--text-slate-400)' : 'var(--text-slate-900)' }}>
+                            Monthly
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="bi-monthly" id="bi-monthly" disabled={!isRecurring} />
+                          <Label htmlFor="bi-monthly" className="text-sm" style={{ color: !isRecurring ? 'var(--text-slate-400)' : 'var(--text-slate-900)' }}>
+                            Bi-Monthly
+                          </Label>
+                        </div>
+                      </RadioGroup>
 
                   {showWeeklyDays && isRecurring && (frequency === 'weekly' || frequency === 'bi-weekly') &&
                   <div className="absolute left-0 top-[-120px] w-full border-2 border-emerald-400 rounded-lg p-4 shadow-xl z-20" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
