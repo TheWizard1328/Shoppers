@@ -310,8 +310,12 @@ export default function DeliveryForm({
     }
   }, [delivery, currentUser, stores, drivers, allDrivers, formData.delivery_date, formData.driver_id]);
 
+  // Ref to track if we're loading an existing delivery (prevent patient auto-load from clearing PUID)
+  const isLoadingExistingDelivery = useRef(false);
+
   useEffect(() => {
     if (delivery) {
+      isLoadingExistingDelivery.current = true;
       const patient = delivery.patient_id ? patients?.find((p) => p && p.id === delivery.patient_id) : null;
       
       console.log('📝 [DeliveryForm] Loading delivery for edit:', {
