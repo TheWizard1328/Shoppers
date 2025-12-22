@@ -5153,23 +5153,7 @@ function Dashboard() {
         status: newStatus
       });
 
-      // STEP 3: Run calculateRealTimeETA to update all ETAs for the route
-      try {
-        const now = new Date();
-        const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        
-        console.log('📍 [START] Running calculateRealTimeETA for all stops...');
-        await base44.functions.invoke('calculateRealTimeETA', {
-          driverId: driverId,
-          deliveryDate: deliveryDate,
-          currentLocalTime: localTimeString
-        });
-        console.log('✅ [START] ETAs updated via calculateRealTimeETA');
-      } catch (etaError) {
-        console.warn('⚠️ [START] ETA calculation failed:', etaError);
-      }
-
-      // STEP 4: Optimize ONLY remaining stops (exclude the started delivery)
+      // STEP 3: Optimize ONLY remaining stops (exclude the started delivery)
       try {
         console.log('🔄 [START] Optimizing remaining stops after the started delivery...');
 
@@ -5236,7 +5220,7 @@ function Dashboard() {
         });
       }
 
-      // STEP 5: Update isNextDelivery flags after optimization
+      // STEP 4: Update isNextDelivery flags after optimization
       try {
         const allDriverDeliveries = await base44.entities.Delivery.filter({
           driver_id: driverId,
@@ -5256,13 +5240,29 @@ function Dashboard() {
         console.warn('⚠️ [START] isNextDelivery flag update failed:', flagError);
       }
 
-      // STEP 7: Full data refresh to update UI with newly optimized route
+      // STEP 5: Run calculateRealTimeETA BEFORE UI refresh
+      try {
+        const now = new Date();
+        const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        
+        console.log('📍 [START] Running calculateRealTimeETA for all stops...');
+        await base44.functions.invoke('calculateRealTimeETA', {
+          driverId: driverId,
+          deliveryDate: deliveryDate,
+          currentLocalTime: localTimeString
+        });
+        console.log('✅ [START] ETAs updated via calculateRealTimeETA');
+      } catch (etaError) {
+        console.warn('⚠️ [START] ETA calculation failed:', etaError);
+      }
+
+      // STEP 6: Full data refresh to update UI with newly optimized route
       invalidateDeliveriesForDate(deliveryDate);
       await refreshData();
 
       console.log('✅ [START] Start delivery complete - UI refreshed');
 
-      // STEP 8: Scroll to started delivery
+      // STEP 7: Scroll to started delivery
       setTimeout(() => {
         const cardElement = document.getElementById(`stop-card-${deliveryId}`);
         if (cardElement) {
