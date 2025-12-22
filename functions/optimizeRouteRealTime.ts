@@ -676,32 +676,8 @@ Deno.serve(async (req) => {
     // Process each stage
     while (unvisitedPickups.size > 0 || unvisitedFlexible.size > 0 || unvisitedConstrained.size > 0 || unvisitedISPs.size > 0) {
       
-      // CRITICAL: Pickup time windows are ONLY used to order pickups among themselves
-      // They should NOT force a pickup to be the immediate next stop
-      // The optimizer should complete available deliveries before going to the next pickup
-      // UNLESS we're approaching the pickup's time window end
-      
-      // Find the next pickup in sorted order (already sorted by delivery_time_start)
-      let nextPickup = null;
-      
-      // Get pickups in time-window order
-      for (const sortedPickup of sortedPickups) {
-        if (unvisitedPickups.has(sortedPickup.idx)) {
-          nextPickup = sortedPickup;
-          break; // Take the first unvisited pickup in sorted order
-        }
-      }
-      
-      console.log(`🎯 Next pickup in queue: ${nextPickup?.delivery.patient_name || 'None'} (window: ${nextPickup?.delivery.delivery_time_start || 'N/A'} - ${nextPickup?.delivery.delivery_time_end || 'N/A'})`);
-
-
-      // Determine stage destination (next pickup or home base)
-      const stageDestination = nextPickup 
-        ? { lat: nextPickup.lat, lng: nextPickup.lng }
-        : driverHomeLocation;
-
-      // Collect all available deliveries for this stage
-      // Available = their pickup store has been completed
+      // STEP 1: Collect all available deliveries FIRST
+      // Available = their pickup store has been completed (including isNextDelivery if it was a pickup)
       const availableDeliveries = [];
       
       // Add flexible deliveries whose pickup is done
@@ -742,13 +718,28 @@ Deno.serve(async (req) => {
           });
         }
       }
-
-      console.log(`\n📍 [Stage] From current position → ${nextPickup ? 'Next Pickup' : 'Home Base'}`);
-      console.log(`   Available deliveries in this stage: ${availableDeliveries.length}`);
-
-      // If there are deliveries to make before the next pickup, optimize their order
+      
+      console.log(`\n📍 [Stage] Available deliveries: ${availableDeliveries.length}, Remaining pickups: ${unvisitedPickups.size}`);
+      
+      // STEP 2: Find the next pickup in sorted order (for use as stage destination)
+      let nextPickup = null;
+      for (const sortedPickup of sortedPickups) {
+        if (unvisitedPickups.has(sortedPickup.idx)) {
+          nextPickup = sortedPickup;
+          break;
+        }
+      }
+      
+      console.log(`🎯 Next pickup in queue: ${nextPickup?.delivery.patient_name || 'None'} (window: ${nextPickup?.delivery.delivery_time_start || 'N/A'} - ${nextPickup?.delivery.delivery_time_end || 'N/A'})`);
+      
+      // STEP 3: If there are available deliveries, process them BEFORE going to next pickup
       if (availableDeliveries.length > 0) {
-        console.log(`   🔄 Running recursive optimization for ${availableDeliveries.length} stops...`);
+        // Determine stage destination (next pickup or home base)
+        const stageDestination = nextPickup 
+          ? { lat: nextPickup.lat, lng: nextPickup.lng }
+          : driverHomeLocation;
+        
+        console.log(`   🔄 Running recursive optimization for ${availableDeliveries.length} deliveries...`);
         
         const { path: optimizedPath, totalDistance } = findShortestPath(
           currentPosition,
@@ -790,12 +781,12 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Now visit the next pickup (if any)
+      // STEP 4: Now visit the next pickup (if any) - ONLY after processing available deliveries
       if (nextPickup) {
         optimizedRoute.push(nextPickup.idx);
         unvisitedPickups.delete(nextPickup.idx);
         
-        // Mark this store's deliveries as now available
+        // Mark this store's deliveries as now available for NEXT iteration
         completedPickupStores.add(nextPickup.delivery.store_id);
         
         // Update travel time
@@ -815,8 +806,6 @@ Deno.serve(async (req) => {
           console.log(`      ⏳ Arriving early at pickup - waiting until ${nextPickup.delivery.delivery_time_start}`);
           cumulativeTime = scheduledPickupMinutes;
         }
-        // If we arrive AFTER scheduled time, the ETA will reflect the actual arrival
-        // (This will be updated in the final ETA calculation step)
         
         // Add pickup service time
         const serviceTime = nextPickup.delivery.extra_time || 15;
@@ -827,8 +816,8 @@ Deno.serve(async (req) => {
         
         const etaHHMM = `${String(Math.floor((cumulativeTime - serviceTime) / 60) % 24).padStart(2, '0')}:${String((cumulativeTime - serviceTime) % 60).padStart(2, '0')}`;
         console.log(`      📦 [Pickup] ${nextPickup.delivery.patient_name || nextPickup.delivery.store_id} - ETA: ${etaHHMM} (scheduled: ${nextPickup.delivery.delivery_time_start || 'N/A'})`);
-      } else {
-        // No more pickups - we're done
+      } else if (availableDeliveries.length === 0) {
+        // No more pickups AND no available deliveries - we're done
         break;
       }
     }
