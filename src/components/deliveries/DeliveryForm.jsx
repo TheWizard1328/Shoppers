@@ -1273,6 +1273,8 @@ export default function DeliveryForm({
     console.log('📦 PUID in staged:', staged.puid);
     console.log('📦 Store ID in staged:', staged.store_id);
     console.log('📦 AMPM in staged:', staged.ampm_deliveries);
+    console.log('📦 Full staged object keys:', Object.keys(staged));
+    console.log('📦 Has ID (is pending)?:', !!staged.id);
 
     // Hide staged panel on mobile when clicking a staged item
     if (isMobileDevice) {
