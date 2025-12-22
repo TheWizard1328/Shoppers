@@ -524,40 +524,41 @@ export default function PatientForm({
         exit={{ opacity: 0, scale: 0.95 }}
         className="w-full max-w-[30rem] max-h-[90vh] flex flex-col">
 
-        <Card className="shadow-xl flex flex-col overflow-hidden" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-          <CardHeader className="px-4 py-2 flex flex-col space-y-1.5 border-b flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)' }}>
+        <Card className="shadow-xl flex flex-col overflow-hidden" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
+          <CardHeader className="px-4 py-2 flex flex-col space-y-1.5 border-b flex-shrink-0" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
             <div className="flex items-center justify-between">
               <CardTitle className="text-xl font-bold flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
                 <UserPlus className="w-5 h-5 text-emerald-600" />
                 {patient ? 'Edit Patient' : 'Add New Patient'}
               </CardTitle>
               <Button variant="ghost" size="icon" onClick={onCancel}>
-                <X className="w-4 h-4" />
+                <X className="w-4 h-4" style={{ color: 'var(--text-slate-700)' }} />
               </Button>
             </div>
           </CardHeader>
 
-          <CardContent className="px-2 py-2 overflow-y-auto flex-1">
+          <CardContent className="px-2 py-2 overflow-y-auto flex-1" style={{ background: 'var(--bg-white)' }}>
             <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="space-y-2">
               {/* AppOwner Only: GPS & Distance Section */}
               {isAppOwner(currentUser) &&
-              <div className="border-2 border-amber-300 px-2 py-2 rounded-[10px] space-y-2" style={{ background: '#fffbeb' }}>
+              <div className="border-2 border-amber-300 px-2 py-2 rounded-[10px] space-y-2 bg-amber-50">
                   <div className="flex items-center gap-2 mb-1">
-                    <Label className="text-xs font-semibold uppercase" style={{ color: '#78350f' }}>App Owner Controls</Label>
+                    <Label className="text-xs font-semibold uppercase text-amber-900">App Owner Controls</Label>
                   </div>
                   <div className="grid grid-cols-12 gap-2">
                     <div className="col-span-2 space-y-1">
-                      <Label htmlFor="patient_id_appowner" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>PID</Label>
+                      <Label htmlFor="patient_id_appowner" className="text-sm font-medium text-amber-900">PID</Label>
                       <Input
                       id="patient_id_appowner"
                       value={formData.patient_id}
                       onChange={(e) => setFormData((prev) => ({ ...prev, patient_id: e.target.value.trim() }))}
                       placeholder="5-char"
-                      className="h-10 md:h-9 text-sm border-slate-300 bg-white"
+                      className="h-10 md:h-9 text-sm"
+                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
                       maxLength={5} />
                     </div>
                     <div className="col-span-4 space-y-1">
-                      <Label htmlFor="latitude" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Latitude</Label>
+                      <Label htmlFor="latitude" className="text-sm font-medium text-amber-900">Latitude</Label>
                       <Input
                       id="latitude"
                       type="number"
@@ -565,10 +566,11 @@ export default function PatientForm({
                       value={formData.latitude !== null && formData.latitude !== undefined ? formData.latitude : ''}
                       onChange={(e) => setFormData((prev) => ({ ...prev, latitude: e.target.value ? parseFloat(e.target.value) : null }))}
                       placeholder="GPS Lat"
-                      className="h-10 md:h-9 text-sm border-slate-300 bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                      className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                     </div>
                     <div className="col-span-4 space-y-1">
-                      <Label htmlFor="longitude" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Longitude</Label>
+                      <Label htmlFor="longitude" className="text-sm font-medium text-amber-900">Longitude</Label>
                       <Input
                       id="longitude"
                       type="number"
@@ -576,10 +578,11 @@ export default function PatientForm({
                       value={formData.longitude !== null && formData.longitude !== undefined ? formData.longitude : ''}
                       onChange={(e) => setFormData((prev) => ({ ...prev, longitude: e.target.value ? parseFloat(e.target.value) : null }))}
                       placeholder="GPS Lon"
-                      className="h-10 md:h-9 text-sm border-slate-300 bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                      className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                     </div>
                     <div className="col-span-2 space-y-1">
-                      <Label htmlFor="distance" className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>Dist (km)</Label>
+                      <Label htmlFor="distance" className="text-sm font-medium text-amber-900">Dist (km)</Label>
                       <Input
                       id="distance"
                       type="number"
@@ -587,7 +590,8 @@ export default function PatientForm({
                       value={formData.distance_from_store !== null && formData.distance_from_store !== undefined ? formData.distance_from_store : ''}
                       onChange={(e) => setFormData((prev) => ({ ...prev, distance_from_store: e.target.value ? parseFloat(e.target.value) : null }))}
                       placeholder="km"
-                      className="h-10 md:h-9 text-sm border-slate-300 bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                      className="h-10 md:h-9 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                     </div>
                   </div>
                 </div>
@@ -602,10 +606,10 @@ export default function PatientForm({
                       value={formData.store_id}
                       onValueChange={(value) => setFormData((prev) => ({ ...prev, store_id: value }))}
                       disabled={isStoreDisabled}>
-                      <SelectTrigger ref={storeSelectRef} className="h-10 md:h-9 text-sm border-slate-300 bg-white">
+                      <SelectTrigger ref={storeSelectRef} className="h-10 md:h-9 text-sm" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                         <SelectValue placeholder="Select store..." />
                       </SelectTrigger>
-                      <SelectContent className="max-h-[300px] overflow-y-auto z-[99999]">
+                      <SelectContent className="max-h-[300px] overflow-y-auto z-[99999]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
                         {availableStores.map((store) =>
                         <SelectItem key={store.id} value={store.id}>
                             {store.name}
@@ -620,10 +624,10 @@ export default function PatientForm({
                     <Select
                       value={formData.status}
                       onValueChange={(value) => setFormData((prev) => ({ ...prev, status: value }))}>
-                      <SelectTrigger className="h-10 md:h-9 text-sm border-slate-300 bg-white">
+                      <SelectTrigger className="h-10 md:h-9 text-sm" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="max-h-[200px] overflow-y-auto">
+                      <SelectContent className="max-h-[200px] overflow-y-auto" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
                         <SelectItem value="active">Active</SelectItem>
                         <SelectItem value="inactive">Inactive</SelectItem>
                       </SelectContent>
@@ -637,7 +641,8 @@ export default function PatientForm({
                       type="time"
                       value={formData.time_window_start}
                       onChange={(e) => setFormData((prev) => ({ ...prev, time_window_start: e.target.value }))}
-                      className="h-10 md:h-9 text-sm border-slate-300 bg-white" />
+                      className="h-10 md:h-9 text-sm"
+                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                   </div>
 
                   <div className="col-span-3 space-y-1">
@@ -647,7 +652,8 @@ export default function PatientForm({
                       type="time"
                       value={formData.time_window_end}
                       onChange={(e) => setFormData((prev) => ({ ...prev, time_window_end: e.target.value }))}
-                      className="h-10 md:h-9 text-sm border-slate-300 bg-white" />
+                      className="h-10 md:h-9 text-sm"
+                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                   </div>
                 </div>
 
@@ -660,7 +666,8 @@ export default function PatientForm({
                       value={formData.patient_id}
                       onChange={(e) => setFormData((prev) => ({ ...prev, patient_id: e.target.value.trim() }))}
                       placeholder="5-char ID"
-                      className={`h-10 md:h-9 text-sm border-slate-300 bg-white ${pidBackgroundColor}`}
+                      className={`h-10 md:h-9 text-sm ${pidBackgroundColor}`}
+                      style={{ background: pidBackgroundColor || 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
                       maxLength={5} />
                       {formData.patient_id && !validateId(formData.patient_id, 5) &&
                     <p className="text-xs text-red-600">Must be 5 chars</p>
@@ -680,7 +687,8 @@ export default function PatientForm({
                       value={formData.full_name}
                       onChange={(e) => setFormData((prev) => ({ ...prev, full_name: capitalizeName(e.target.value) }))}
                       required
-                      className="h-10 md:h-9 text-sm border-slate-300 bg-white" />
+                      className="h-10 md:h-9 text-sm"
+                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                   </div>
 
                   <div className="col-span-4 space-y-1">
@@ -690,7 +698,7 @@ export default function PatientForm({
                       value={formData.phone}
                       onChange={(value) => setFormData((prev) => ({ ...prev, phone: value }))}
                       placeholder="Phone number"
-                      className="h-10 md:h-9 text-sm border-slate-300 bg-white" />
+                      className="h-10 md:h-9 text-sm" />
                   </div>
 
                   <div className="col-span-4 space-y-1">
@@ -700,7 +708,7 @@ export default function PatientForm({
                       value={formData.phone_secondary}
                       onChange={(value) => setFormData((prev) => ({ ...prev, phone_secondary: value }))}
                       placeholder="Alt. phone"
-                      className="h-10 md:h-9 text-sm border-slate-300 bg-white" />
+                      className="h-10 md:h-9 text-sm" />
                   </div>
                 </div>
 
@@ -713,7 +721,7 @@ export default function PatientForm({
                       onAddressSelect={handleAddressSelect}
                       cityCenter={cityCenter}
                       placeholder="Start typing address..."
-                      className="h-10 md:h-9 text-sm border-slate-300 bg-white" />
+                      className="h-10 md:h-9 text-sm" />
 
                   </div>
 
@@ -723,7 +731,8 @@ export default function PatientForm({
                       id="unit_number"
                       value={formData.unit_number}
                       onChange={(e) => setFormData((prev) => ({ ...prev, unit_number: e.target.value }))}
-                      className="h-10 md:h-9 text-sm border-slate-300 bg-white" />
+                      className="h-10 md:h-9 text-sm"
+                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                   </div>
                 </div>
               </div>
@@ -737,14 +746,15 @@ export default function PatientForm({
                     value={formData.notes}
                     onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
                     placeholder="Special delivery instructions, preferences, etc."
-                    className="h-24 md:h-32 text-sm border-slate-300 bg-white resize-none" />
+                    className="h-24 md:h-32 text-sm resize-none"
+                    style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div className="px-3 py-2 rounded-[10px]" style={{ background: 'var(--bg-slate-100)' }}>
-                  <div className="border-b pb-2 mb-3" style={{ borderColor: 'var(--border-slate-200)' }}>
-                    <h3 className="text-sm font-semibold" style={{ color: 'var(--text-slate-700)' }}>Delivery Preferences</h3>
+                  <div className="border-b pb-2 mb-3" style={{ borderColor: 'var(--border-slate-300)' }}>
+                    <h3 className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>Delivery Preferences</h3>
                   </div>
 
                   <div className="space-y-3">
@@ -781,7 +791,7 @@ export default function PatientForm({
                 </div>
 
                 <div className="px-3 py-2 rounded-[10px] relative" style={{ background: 'var(--bg-slate-100)' }}>
-                  <div className="border-b pb-2" style={{ borderColor: 'var(--border-slate-200)' }}>
+                  <div className="border-b pb-2" style={{ borderColor: 'var(--border-slate-300)' }}>
                     <div className="flex items-center space-x-2">
                       <Checkbox
                         id="recurring"
@@ -871,8 +881,8 @@ export default function PatientForm({
                   </RadioGroup>
 
                   {showWeeklyDays && isRecurring && (frequency === 'weekly' || frequency === 'bi-weekly') &&
-                  <div className="absolute left-0 top-[-120px] w-full border-2 border-emerald-400 rounded-lg p-4 shadow-xl z-20" style={{ background: 'var(--bg-white)' }}>
-                      <p className="text-sm font-semibold mb-3" style={{ color: 'var(--text-slate-700)' }}>Select Days:</p>
+                  <div className="absolute left-0 top-[-120px] w-full border-2 border-emerald-400 rounded-lg p-4 shadow-xl z-20" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
+                      <p className="text-sm font-semibold mb-3" style={{ color: 'var(--text-slate-900)' }}>Select Days:</p>
                       <div className="space-y-2">
                         {['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map((day) =>
                       <div key={day} className="flex items-center space-x-2">
@@ -881,7 +891,7 @@ export default function PatientForm({
                           checked={weeklyDays.includes(day)}
                           onCheckedChange={() => handleWeeklyDayToggle(day)} />
 
-                            <Label htmlFor={`day-${day}`} className="text-sm capitalize cursor-pointer">
+                            <Label htmlFor={`day-${day}`} className="text-sm capitalize cursor-pointer" style={{ color: 'var(--text-slate-900)' }}>
                               {day.charAt(0).toUpperCase() + day.slice(1)}
                             </Label>
                           </div>
@@ -904,10 +914,10 @@ export default function PatientForm({
 
           <CardFooter className="px-4 py-2 border-t flex items-center justify-end flex-shrink-0" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
             <div className="flex gap-3">
-              <Button type="button" variant="outline" onClick={onCancel} className="bg-white">
+              <Button type="button" variant="outline" onClick={onCancel} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                 Cancel
               </Button>
-              <Button type="button" onClick={handleSubmit} disabled={!isFormValid} className="bg-emerald-600 hover:bg-emerald-700 gap-2">
+              <Button type="button" onClick={handleSubmit} disabled={!isFormValid} className="bg-emerald-600 hover:bg-emerald-700 gap-2 text-white">
                 <Save className="w-3 h-3" />
                 {patient ? 'Update Patient' : 'Create Patient'}
               </Button>
