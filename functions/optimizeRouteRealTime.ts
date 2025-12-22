@@ -732,18 +732,65 @@ Deno.serve(async (req) => {
       
       console.log(`🎯 Next pickup in queue: ${nextPickup?.delivery.patient_name || 'None'} (window: ${nextPickup?.delivery.delivery_time_start || 'N/A'} - ${nextPickup?.delivery.delivery_time_end || 'N/A'})`);
       
-      // STEP 3: If there are available deliveries, process them BEFORE going to next pickup
-      if (availableDeliveries.length > 0) {
+      // STEP 3: Test each available delivery - only include in THIS stage if it doesn't make route longer
+      // Compare: (current → delivery → nextPickup) vs (current → nextPickup)
+      // If adding the delivery makes the route longer, defer it to a later stage
+      const deliveriesForThisStage = [];
+      const deliveriesDeferred = [];
+      
+      if (availableDeliveries.length > 0 && nextPickup) {
+        // Calculate baseline distance: current → nextPickup
+        const baselineDistance = calculateCrowFliesDistance(
+          currentPosition.lat, currentPosition.lng,
+          nextPickup.lat, nextPickup.lng
+        );
+        
+        console.log(`   📏 Baseline to next pickup: ${baselineDistance.toFixed(2)} km`);
+        
+        // Test each delivery individually
+        for (const delivery of availableDeliveries) {
+          // Calculate distance: current → delivery → nextPickup
+          const distToDelivery = calculateCrowFliesDistance(
+            currentPosition.lat, currentPosition.lng,
+            delivery.lat, delivery.lng
+          );
+          const distDeliveryToPickup = calculateCrowFliesDistance(
+            delivery.lat, delivery.lng,
+            nextPickup.lat, nextPickup.lng
+          );
+          const totalWithDelivery = distToDelivery + distDeliveryToPickup;
+          
+          // Allow delivery if it doesn't add more than 50% extra distance
+          // This accounts for the value of completing deliveries vs pure distance optimization
+          const threshold = baselineDistance * 1.5;
+          
+          if (totalWithDelivery <= threshold) {
+            deliveriesForThisStage.push(delivery);
+            console.log(`   ✅ ${delivery.delivery.patient_name || 'Delivery'}: ${totalWithDelivery.toFixed(2)} km (included in stage)`);
+          } else {
+            deliveriesDeferred.push(delivery);
+            console.log(`   ⏭️ ${delivery.delivery.patient_name || 'Delivery'}: ${totalWithDelivery.toFixed(2)} km (deferred - exceeds threshold ${threshold.toFixed(2)} km)`);
+          }
+        }
+      } else if (availableDeliveries.length > 0) {
+        // No next pickup - all available deliveries go in this stage
+        deliveriesForThisStage.push(...availableDeliveries);
+      }
+      
+      console.log(`   📊 Stage breakdown: ${deliveriesForThisStage.length} to process now, ${deliveriesDeferred.length} deferred`);
+      
+      // STEP 4: Optimize and process deliveries for THIS stage
+      if (deliveriesForThisStage.length > 0) {
         // Determine stage destination (next pickup or home base)
         const stageDestination = nextPickup 
           ? { lat: nextPickup.lat, lng: nextPickup.lng }
           : driverHomeLocation;
         
-        console.log(`   🔄 Running recursive optimization for ${availableDeliveries.length} deliveries...`);
+        console.log(`   🔄 Running recursive optimization for ${deliveriesForThisStage.length} deliveries...`);
         
         const { path: optimizedPath, totalDistance } = findShortestPath(
           currentPosition,
-          availableDeliveries,
+          deliveriesForThisStage,
           stageDestination,
           cumulativeTime
         );
@@ -781,7 +828,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      // STEP 4: Now visit the next pickup (if any) - ONLY after processing available deliveries
+      // STEP 5: Now visit the next pickup (if any) - ONLY after processing stage deliveries
       if (nextPickup) {
         optimizedRoute.push(nextPickup.idx);
         unvisitedPickups.delete(nextPickup.idx);
@@ -816,7 +863,7 @@ Deno.serve(async (req) => {
         
         const etaHHMM = `${String(Math.floor((cumulativeTime - serviceTime) / 60) % 24).padStart(2, '0')}:${String((cumulativeTime - serviceTime) % 60).padStart(2, '0')}`;
         console.log(`      📦 [Pickup] ${nextPickup.delivery.patient_name || nextPickup.delivery.store_id} - ETA: ${etaHHMM} (scheduled: ${nextPickup.delivery.delivery_time_start || 'N/A'})`);
-      } else if (availableDeliveries.length === 0) {
+      } else if (deliveriesForThisStage.length === 0 && availableDeliveries.length === 0) {
         // No more pickups AND no available deliveries - we're done
         break;
       }
