@@ -528,7 +528,7 @@ export default function Layout({ children, currentPageName }) {
   const { deviceType, os } = getUserAgentInfo();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(deviceType === 'Mobile');
+  const isMobile = deviceType === 'Mobile'; // CRITICAL: Use deviceType directly, not screen width
   const [screenWidth, setScreenWidth] = useState(window.innerWidth);
   const [cardWidth, setCardWidth] = useState(300);
 
@@ -605,7 +605,7 @@ export default function Layout({ children, currentPageName }) {
         }
 
         // Apply theme preference (mobile only - desktop always light)
-        if (settings.theme_preference && deviceType === 'Mobile') {
+        if (settings.theme_preference && isMobile) {
         setThemePreference(settings.theme_preference);
         } else {
         setThemePreference('light');
