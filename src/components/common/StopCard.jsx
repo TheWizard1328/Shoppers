@@ -1896,7 +1896,7 @@ export default function StopCard({
                       }}
                       size="sm"
                       className="bg-blue-600 hover:bg-blue-700 h-8 rounded-r-none border-r border-blue-500 !text-white"
-                      disabled={isRetrying || !canRetry || hasFutureRetry}>
+                      disabled={isRetrying || !canRetry || hasFutureRetry || hasCompletedDelivery}>
                           {isRetrying ? <Loader2 className="w-3 h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-3 h-3 mr-1 !text-white" />}
                           <span className="text-white">Retry</span>
                         </Button> :
