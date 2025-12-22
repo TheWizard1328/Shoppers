@@ -124,9 +124,26 @@ Deno.serve(async (req) => {
       };
     }).filter(d => d.coords); // Filter out deliveries without coordinates
 
-    // STEP 2: Separate pickups and deliveries
+    // STEP 2: Separate pickups, DMR pickups (special deliveries that go before regular pickups), and regular deliveries
     const pickups = deliveriesWithTimeWindows.filter(d => d.isPickup);
-    const regularDeliveries = deliveriesWithTimeWindows.filter(d => !d.isPickup);
+    
+    // DMR PickUp deliveries can be optimized before their pickup locations
+    // Check both delivery_notes and patient notes for 'DMR PickUp'
+    const dmrPickupDeliveries = deliveriesWithTimeWindows.filter(d => {
+      if (d.isPickup) return false;
+      const deliveryNotes = (d.delivery_notes || '').toLowerCase();
+      const deliveryInstructions = (d.delivery_instructions || '').toLowerCase();
+      return deliveryNotes.includes('dmr pickup') || deliveryInstructions.includes('dmr pickup');
+    });
+    
+    const regularDeliveries = deliveriesWithTimeWindows.filter(d => {
+      if (d.isPickup) return false;
+      const deliveryNotes = (d.delivery_notes || '').toLowerCase();
+      const deliveryInstructions = (d.delivery_instructions || '').toLowerCase();
+      return !deliveryNotes.includes('dmr pickup') && !deliveryInstructions.includes('dmr pickup');
+    });
+
+    console.log(`📋 Found ${dmrPickupDeliveries.length} DMR PickUp deliveries (can be optimized before pickups)`);
 
     // STEP 3: Sort pickups by their delivery_time_start (store pickup time)
     pickups.sort((a, b) => {
@@ -170,12 +187,35 @@ Deno.serve(async (req) => {
       });
     }
 
-    // STEP 5: Build final sorted list: for each pickup (in order), add pickup then its deliveries
+    // STEP 5: Build final sorted list
+    // DMR PickUp deliveries go first (before any pickups), then for each pickup add pickup then its deliveries
     const sortedDeliveries = [];
+    
+    // Sort DMR pickups by time window first
+    dmrPickupDeliveries.sort((a, b) => {
+      if (a.effectiveTimeWindowStart && b.effectiveTimeWindowStart) {
+        const aTime = parseTimeToMinutes(a.effectiveTimeWindowStart);
+        const bTime = parseTimeToMinutes(b.effectiveTimeWindowStart);
+        if (aTime !== bTime) return aTime - bTime;
+      }
+      return (a.stop_order || Infinity) - (b.stop_order || Infinity);
+    });
+    
+    // Add DMR PickUp deliveries first (they can be done before pickups)
+    sortedDeliveries.push(...dmrPickupDeliveries);
+    console.log(`   Added ${dmrPickupDeliveries.length} DMR PickUp deliveries at the start`);
+    
+    // Then add pickups and their associated deliveries
     for (const pickup of pickups) {
       sortedDeliveries.push(pickup);
       const associatedDeliveries = deliveriesByPickup.get(pickup.stop_id) || [];
-      sortedDeliveries.push(...associatedDeliveries);
+      // Filter out DMR pickups from associated deliveries (they're already added)
+      const nonDmrDeliveries = associatedDeliveries.filter(d => {
+        const deliveryNotes = (d.delivery_notes || '').toLowerCase();
+        const deliveryInstructions = (d.delivery_instructions || '').toLowerCase();
+        return !deliveryNotes.includes('dmr pickup') && !deliveryInstructions.includes('dmr pickup');
+      });
+      sortedDeliveries.push(...nonDmrDeliveries);
     }
 
     // Add any orphan deliveries (deliveries without matching pickup) at the end
