@@ -408,10 +408,22 @@ export default function StopCard({
           futureRetryExists = true;
         }
 
-        // Check for a return delivery
-        const notesMatch = (d.delivery_notes || '').toLowerCase().includes(failedPatientName.toLowerCase());
+        // Check for a return delivery - look for "Patient Return" in notes with failed patient's name
+        const notesLower = (d.delivery_notes || '').toLowerCase();
+        const patientNotesLower = (() => {
+          const returnPatient = patients.find(p => p?.id === d.patient_id);
+          return (returnPatient?.notes || '').toLowerCase();
+        })();
+        
+        // Check if this delivery's notes contain "Patient Return" AND the failed patient's name
+        const hasPatientReturnMarker = notesLower.includes('patient return') || patientNotesLower.includes('patient return');
+        const hasFailedPatientName = notesLower.includes(failedPatientName.toLowerCase()) || patientNotesLower.includes(failedPatientName.toLowerCase());
+        
+        // Legacy check: old style return detection
+        const legacyNotesMatch = notesLower.includes(failedPatientName.toLowerCase());
         const sidMatch = d.stop_id === delivery.stop_id;
-        if ((notesMatch || sidMatch) && !d.patient_id) {
+        
+        if ((hasPatientReturnMarker && hasFailedPatientName) || ((legacyNotesMatch || sidMatch) && !d.patient_id)) {
           futureReturnExists = true;
         }
       }
@@ -420,7 +432,7 @@ export default function StopCard({
     }
 
     return { hasFutureRetry: futureRetryExists, hasFutureReturn: futureReturnExists };
-  }, [delivery, allDeliveries, patient, isPickup]);
+  }, [delivery, allDeliveries, patient, isPickup, patients]);
 
   const canRetry = useMemo(() => {
     if (!delivery || delivery.status !== 'failed' || isPickup || !patient) return true;
