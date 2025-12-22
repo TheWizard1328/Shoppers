@@ -1684,23 +1684,19 @@ export default function DeliveryForm({
       console.log('[AddToRoute] 🗑️ Processing pending deletes...');
       
       try {
-        // Pause smart refresh
-        console.log('[AddToRoute] ⏸️ Pausing smart refresh...');
-        const { setIsEntityUpdating } = await import('../utils/AppDataContext');
-        
-        // Invalidate and force refresh from backend
-        const { invalidate } = await import('../utils/dataManager');
-        invalidate('Delivery');
-        
-        // Wait for sync to complete
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        // Wait for mutation notifications to propagate to UI
+        await new Promise((resolve) => setTimeout(resolve, 500));
         
         // Trigger full data reload in layout and UI update
         if (window.dispatchEvent) {
           window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         }
         
-        console.log('[AddToRoute] ✅ Deletions synced and UI updated');
+        // CRITICAL: Notify FAB system that data is ready (activates map cycle FAB)
+        const { fabControlEvents } = await import('../utils/fabControlEvents');
+        fabControlEvents.notifyDataReady();
+        
+        console.log('[AddToRoute] ✅ Deletions synced, UI updated, and FAB activated');
       } finally {
         setStagedDeliveries([]);
         setProjectedDeliveries([]);
