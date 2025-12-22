@@ -1297,6 +1297,7 @@ export default function DeliveryForm({
       cod_total_amount_required: staged.cod_total_amount_required > 0 ? staged.cod_total_amount_required * 100 : 0
     };
     console.log('📦 formDataToSet.puid:', formDataToSet.puid);
+    console.log('📦 formDataToSet after spread:', formDataToSet);
 
     // If it's a patient delivery and has a PUID, find the parent pickup to get the correct AM/PM slot.
     if (staged.patient_id && staged.puid) {
