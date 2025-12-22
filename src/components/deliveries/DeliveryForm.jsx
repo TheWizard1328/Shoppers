@@ -768,6 +768,12 @@ export default function DeliveryForm({
 
   const handlePatientSelect = useCallback(async (patient) => {
     if (!patient) return;
+    
+    // CRITICAL: Don't auto-load patient data if we're editing an existing delivery
+    if (isLoadingExistingDelivery.current) {
+      console.log('⏸️ [handlePatientSelect] Blocked - editing existing delivery');
+      return;
+    }
 
     const hasCompletedDelivery = allDeliveries?.some((d) =>
     d && d.patient_id === patient.id && d.status === 'completed'
