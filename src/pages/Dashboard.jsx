@@ -5406,24 +5406,15 @@ function Dashboard() {
       
       // Recalculate ETAs after reordering
       const deliveryDate = format(selectedDate, 'yyyy-MM-dd');
+      const now = new Date();
+      const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      
       const response = await base44.functions.invoke('calculateRealTimeETA', {
         driverId: currentUser.id,
-        deliveryDate: deliveryDate
+        deliveryDate: deliveryDate,
+        currentLocalTime: localTimeString // Backend calculates and saves ETAs directly
       });
-      
-      const data = response?.data || response;
-      if (data?.success && data?.durationUpdates) {
-        const now = new Date();
-        let cumulativeMinutes = now.getHours() * 60 + now.getMinutes();
-        const sorted = data.durationUpdates.sort((a, b) => (a.stopOrder || 0) - (b.stopOrder || 0));
-        
-        for (const update of sorted) {
-          cumulativeMinutes += update.travelMinutes;
-          const eta = `${String(Math.floor(cumulativeMinutes / 60) % 24).padStart(2, '0')}:${String(cumulativeMinutes % 60).padStart(2, '0')}`;
-          await base44.entities.Delivery.update(update.deliveryId, { delivery_time_eta: eta });
-          cumulativeMinutes += update.serviceMinutes;
-        }
-      }
+      // Backend now handles all ETA calculations and database updates - no need to recalculate here
       
       invalidate('Delivery');
       await refreshData();
