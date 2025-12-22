@@ -5153,63 +5153,18 @@ function Dashboard() {
         status: newStatus
       });
 
-      // STEP 3: Immediately run optimization which will assign proper stop_order
+      // STEP 3: Run calculateRealTimeETA to update all ETAs for the route
       try {
-        const nowTime = new Date();
-        const currentTotalMinutes = nowTime.getHours() * 60 + nowTime.getMinutes();
-
-        // Get driver's current location
-        const driverAppUser = appUsers.find((u) => u && u.user_id === driverId);
-        let startLat, startLon;
-
-        if (driverAppUser?.current_latitude && driverAppUser?.current_longitude) {
-          startLat = driverAppUser.current_latitude;
-          startLon = driverAppUser.current_longitude;
-          console.log('📍 [START] Using driver current location for ETA');
-        } else if (completedStops.length > 0) {
-          const lastCompleted = completedStops[completedStops.length - 1];
-          if (lastCompleted.patient_id) {
-            const patient = patients.find((p) => p && p.id === lastCompleted.patient_id);
-            startLat = patient?.latitude;
-            startLon = patient?.longitude;
-          } else if (lastCompleted.store_id) {
-            const store = stores.find((s) => s && s.id === lastCompleted.store_id);
-            startLat = store?.latitude;
-            startLon = store?.longitude;
-          }
-          console.log('📍 [START] Using last completed stop location');
-        } else if (driverAppUser?.home_latitude && driverAppUser?.home_longitude) {
-          startLat = driverAppUser.home_latitude;
-          startLon = driverAppUser.home_longitude;
-          console.log('📍 [START] Using driver home location');
-        }
-
-        if (startLat && startLon) {
-          let destLat, destLon;
-
-          if (deliveryFromUI.patient_id) {
-            const patient = patients.find((p) => p && p.id === deliveryFromUI.patient_id);
-            destLat = patient?.latitude;
-            destLon = patient?.longitude;
-          } else if (deliveryFromUI.store_id) {
-            const store = stores.find((s) => s && s.id === deliveryFromUI.store_id);
-            destLat = store?.latitude;
-            destLon = store?.longitude;
-          }
-
-          if (destLat && destLon) {
-            // Simple distance-based ETA calculation
-            const distanceKm = calculateDistance(startLat, startLon, destLat, destLon);
-            const travelMinutes = Math.ceil(distanceKm / 40 * 60); // 40 km/h average
-            const etaMinutes = currentTotalMinutes + travelMinutes;
-            const eta = `${String(Math.floor(etaMinutes / 60) % 24).padStart(2, '0')}:${String(etaMinutes % 60).padStart(2, '0')}`;
-
-            await updateDeliveryLocal(deliveryId, {
-              delivery_time_eta: eta
-            });
-            console.log(`✅ [START] Updated ETA to ${eta} (${travelMinutes} min travel)`);
-          }
-        }
+        const now = new Date();
+        const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        
+        console.log('📍 [START] Running calculateRealTimeETA for all stops...');
+        await base44.functions.invoke('calculateRealTimeETA', {
+          driverId: driverId,
+          deliveryDate: deliveryDate,
+          currentLocalTime: localTimeString
+        });
+        console.log('✅ [START] ETAs updated via calculateRealTimeETA');
       } catch (etaError) {
         console.warn('⚠️ [START] ETA calculation failed:', etaError);
       }
