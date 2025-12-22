@@ -2652,7 +2652,7 @@ function Dashboard() {
         setIsMapViewLocked(true);
         setMapViewTrigger((prev) => prev + 1);
 
-        // Set timer for phase 1 & 3
+        // Set timer for phase 1 & 3 ONLY - phase 2 stays locked permanently
         if (mapViewPhase === 1 || mapViewPhase === 3) {
           const lockDuration = 3000;
           const expiresAt = Date.now() + lockDuration;
@@ -2665,6 +2665,16 @@ function Dashboard() {
               mapLockTimeoutRef.current = null;
             }
           }, lockDuration);
+        } else if (mapViewPhase === 2) {
+          // Phase 2 - NO unlock timer, stays locked until manual map interaction
+          // Set delayed flag to start accepting manual interactions
+          phase2WaitingForManualInteractionRef.current = false;
+          setTimeout(() => {
+            if (mapViewPhaseForInteractionRef.current === 2 && isMapViewLockedRef.current) {
+              phase2WaitingForManualInteractionRef.current = true;
+              console.log('🔵 [FAB] Phase 2 now accepting manual interactions (stays locked)');
+            }
+          }, 3000);
         }
         
         // CRITICAL: Notify that date change data is ready
@@ -2744,7 +2754,7 @@ function Dashboard() {
         setIsMapViewLocked(true);
         setMapViewTrigger((prev) => prev + 1);
 
-        // Set timer for phase 1 & 3
+        // Set timer for phase 1 & 3 ONLY - phase 2 stays locked permanently
         if (mapViewPhase === 1 || mapViewPhase === 3) {
           const lockDuration = 3000;
           const expiresAt = Date.now() + lockDuration;
@@ -2757,6 +2767,16 @@ function Dashboard() {
               mapLockTimeoutRef.current = null;
             }
           }, lockDuration);
+        } else if (mapViewPhase === 2) {
+          // Phase 2 - NO unlock timer, stays locked until manual map interaction
+          // Set delayed flag to start accepting manual interactions
+          phase2WaitingForManualInteractionRef.current = false;
+          setTimeout(() => {
+            if (mapViewPhaseForInteractionRef.current === 2 && isMapViewLockedRef.current) {
+              phase2WaitingForManualInteractionRef.current = true;
+              console.log('🔵 [FAB] Phase 2 now accepting manual interactions (stays locked)');
+            }
+          }, 3000);
         }
         
         // CRITICAL: Notify that driver change data is ready
