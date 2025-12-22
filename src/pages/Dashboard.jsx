@@ -2337,7 +2337,9 @@ function Dashboard() {
     };
   }, []);
 
-  // Periodic ETA optimizer - runs every 60 seconds for current driver
+  // Periodic ETA optimizer - runs every 15 minutes for current driver, only if moved 500m+
+  const lastETAUpdateLocationRef = useRef(null);
+  
   useEffect(() => {
     if (!isDataLoaded || !currentUser || !selectedDriverId || selectedDriverId === 'all') {
       return;
@@ -2362,6 +2364,30 @@ function Dashboard() {
           return;
         }
 
+        // CRITICAL: Only update if driver has moved 500m+ since last ETA update
+        if (driverLocation?.latitude && driverLocation?.longitude) {
+          if (lastETAUpdateLocationRef.current) {
+            const distanceMoved = calculateDistance(
+              lastETAUpdateLocationRef.current.lat,
+              lastETAUpdateLocationRef.current.lon,
+              driverLocation.latitude,
+              driverLocation.longitude
+            ) * 1000; // Convert km to meters
+            
+            if (distanceMoved < 500) {
+              console.log(`⏭️ [ETA] Skipping update - driver moved only ${Math.round(distanceMoved)}m (< 500m)`);
+              return;
+            }
+            console.log(`✅ [ETA] Driver moved ${Math.round(distanceMoved)}m - updating ETAs`);
+          }
+          
+          // Store current location for next comparison
+          lastETAUpdateLocationRef.current = {
+            lat: driverLocation.latitude,
+            lon: driverLocation.longitude
+          };
+        }
+
         // Get current local time in HH:mm format
         const now = new Date();
         const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -2378,17 +2404,17 @@ function Dashboard() {
       }
     };
 
-    // Run after initial delay to avoid competing with data load
-    const initialTimer = setTimeout(runETAOptimizer, 60000);
+    // Run after initial delay (2 minutes) to avoid competing with data load
+    const initialTimer = setTimeout(runETAOptimizer, 120000);
 
-    // Then run every 5 minutes to reduce API calls
-    const interval = setInterval(runETAOptimizer, 300000);
+    // Then run every 15 minutes
+    const interval = setInterval(runETAOptimizer, 900000);
 
     return () => {
       clearTimeout(initialTimer);
       clearInterval(interval);
     };
-  }, [isDataLoaded, currentUser, selectedDriverId, selectedDate, filteredDeliveries]);
+  }, [isDataLoaded, currentUser, selectedDriverId, selectedDate, filteredDeliveries, driverLocation]);
 
   useEffect(() => {
     // CRITICAL: Skip auto-center if initial FAB phase has been applied
