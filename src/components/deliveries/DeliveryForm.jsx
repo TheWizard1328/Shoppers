@@ -4334,9 +4334,11 @@ export default function DeliveryForm({
 
                 setIsDeletingPending(true);
                 try {
-                  console.log('🗑️ [DeliveryForm] Deleting pending delivery locally:', staged.id, staged.patient_name);
+                  console.log('🗑️ [DeliveryForm] Deleting pending delivery:', staged.id, staged.patient_name);
+                  
+                  // Delete from both offline and online databases
                   await deleteDeliveryLocal(staged.id);
-                  console.log('✅ [DeliveryForm] Pending delivery deleted locally');
+                  console.log('✅ [DeliveryForm] Pending delivery deleted from offline and online DBs');
 
                   // Remove from staged list completely
                   setStagedDeliveries((prev) => prev.filter((item) => item.id !== staged.id && item._tempId !== staged._tempId));
@@ -4354,7 +4356,7 @@ export default function DeliveryForm({
                   // Trigger projections refresh
                   setPredictionTrigger((prev) => prev + 1);
 
-                  // Invalidate cache
+                  // Invalidate cache to force fresh data on next load
                   const { invalidate } = await import('../utils/dataManager');
                   invalidate('Delivery');
 
