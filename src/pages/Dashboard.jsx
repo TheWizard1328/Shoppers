@@ -1062,7 +1062,15 @@ function Dashboard() {
             }
           }, lockDuration);
         } else if (mapViewPhase === 2) {
-          // Phase 2 - set delayed manual interaction flag ONLY (NO unlock timer)
+          // Phase 2 - NO unlock timer, stays locked until manual interaction
+          // CRITICAL: Clear any accidental timers
+          if (mapLockTimeoutRef.current) {
+            clearTimeout(mapLockTimeoutRef.current);
+            mapLockTimeoutRef.current = null;
+          }
+          mapLockExpiresAtRef.current = null;
+          
+          // Set delayed manual interaction flag ONLY (NO unlock timer)
           phase2WaitingForManualInteractionRef.current = false;
           setTimeout(() => {
             if (mapViewPhaseForInteractionRef.current === 2 && isMapViewLockedRef.current) {
