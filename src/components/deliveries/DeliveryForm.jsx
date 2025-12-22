@@ -313,6 +313,14 @@ export default function DeliveryForm({
   useEffect(() => {
     if (delivery) {
       const patient = delivery.patient_id ? patients?.find((p) => p && p.id === delivery.patient_id) : null;
+      
+      console.log('📝 [DeliveryForm] Loading delivery for edit:', {
+        id: delivery.id,
+        patient_name: delivery.patient_name,
+        puid: delivery.puid,
+        stop_id: delivery.stop_id,
+        isPickup: !delivery.patient_id
+      });
 
       setFormData({
         patient_id: delivery.patient_id || "",
