@@ -915,7 +915,13 @@ function Dashboard() {
     mapViewPhaseForInteractionRef.current = mapViewPhase;
   }, [mapViewPhase]);
 
-  const handleMapInteraction = useCallback(() => {
+  const handleMapInteraction = useCallback((isUserInteraction = false) => {
+    // CRITICAL: ONLY process genuine user interactions, not programmatic ones
+    // The map component should pass isUserInteraction=true only for real user gestures
+    if (!isUserInteraction) {
+      return; // Silently ignore programmatic interactions
+    }
+    
     // CRITICAL: ONLY unlock when Phase 2 is active - ignore for Phase 1 & 3
     // Use ref to avoid stale closure issues
     const currentPhase = mapViewPhaseForInteractionRef.current;
@@ -924,21 +930,20 @@ function Dashboard() {
       return;
     }
     
-    // CRITICAL: Phase 2 requires waiting for manual interaction flag to be cleared
-    // This flag is only cleared after the programmatic window has passed AND we're in Phase 2
+    // CRITICAL: Phase 2 requires waiting for manual interaction flag to be set
     if (!phase2WaitingForManualInteractionRef.current) {
       console.log('🗺️ [Map Interaction] Phase 2 - Not waiting for manual interaction yet');
       return;
     }
     
-    // CRITICAL: Ignore all map interactions within 3 seconds of FAB click (programmatic moves)
+    // CRITICAL: Ignore all map interactions within 3 seconds of any programmatic move
     const timeSinceProgrammatic = Date.now() - (lastProgrammaticMapMoveRef.current || 0);
     if (timeSinceProgrammatic < 3000) {
-      console.log('🗺️ [Map Interaction] BLOCKED - programmatic move within 3s (timestamp:', timeSinceProgrammatic, 'ms ago)');
+      console.log('🗺️ [Map Interaction] BLOCKED - too soon after programmatic move (', timeSinceProgrammatic, 'ms ago)');
       return;
     }
 
-    console.log('🗺️ [Map Interaction] Phase 2 - UNLOCKING FAB from REAL manual pan/zoom (', timeSinceProgrammatic, 'ms since programmatic)');
+    console.log('🗺️ [Map Interaction] Phase 2 - UNLOCKING FAB from REAL manual pan/zoom');
 
     // Clear the waiting flag - user has interacted
     phase2WaitingForManualInteractionRef.current = false;
