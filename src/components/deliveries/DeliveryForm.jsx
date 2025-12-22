@@ -3441,12 +3441,20 @@ export default function DeliveryForm({
                             </SelectTrigger>
                             <SelectContent className="z-[999999]">
                               {delivery ? (
-                                <>
-                                  <SelectItem value="pending">Pending</SelectItem>
-                                  <SelectItem value="in_transit">In Transit</SelectItem>
-                                  <SelectItem value="completed">Completed</SelectItem>
-                                  <SelectItem value="failed">Failed</SelectItem>
-                                </>
+                                isPickupMode ? (
+                                  <>
+                                    <SelectItem value="en_route">En Route</SelectItem>
+                                    <SelectItem value="completed">Completed</SelectItem>
+                                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                                  </>
+                                ) : (
+                                  <>
+                                    <SelectItem value="pending">Pending</SelectItem>
+                                    <SelectItem value="in_transit">In Transit</SelectItem>
+                                    <SelectItem value="completed">Completed</SelectItem>
+                                    <SelectItem value="failed">Failed</SelectItem>
+                                  </>
+                                )
                               ) : (
                                 <>
                                   <SelectItem value="Staged">Staged</SelectItem>
