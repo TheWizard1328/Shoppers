@@ -1679,9 +1679,19 @@ export default function DeliveryForm({
       return;
     }
 
-    // CRITICAL: If only pending deletes (no staged items), close form
+    // CRITICAL: If only pending deletes (no staged items), force refresh and close form
     if (stagedDeliveries.length === 0 && hasPendingDeletes) {
-      console.log('[AddToRoute] ✅ All deletions synced, closing form...');
+      console.log('[AddToRoute] ✅ All deletions synced, forcing immediate refresh...');
+      
+      // Force immediate data refresh to update UI
+      const { invalidate } = await import('../utils/dataManager');
+      invalidate('Delivery');
+      
+      // Trigger full data reload in layout
+      if (window.dispatchEvent) {
+        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+      }
+      
       setStagedDeliveries([]);
       setProjectedDeliveries([]);
       setHasPendingDeletes(false);
