@@ -2971,16 +2971,16 @@ export default function DeliveriesPage() {
   const shouldShowNoDataMessage = !isLoading && (isOffline || effectiveDeliveries.length === 0);
 
   return (
-    <div className="h-screen h-[100dvh] flex flex-col bg-slate-50 relative overflow-hidden">
+    <div className="h-screen h-[100dvh] flex flex-col relative overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
 
-      <div className={`${isMobile ? 'block' : 'hidden'} border-b border-slate-200 bg-white px-4 py-3 flex-shrink-0 z-20`}>
+      <div className={`${isMobile ? 'block' : 'hidden'} px-4 py-3 flex-shrink-0 z-20`} style={{ borderBottom: '1px solid var(--border-slate-200)', background: 'var(--bg-white)' }}>
         {isDriverOverviewMode ?
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
-            <h1 className="text-xl font-bold text-slate-900">Driver Overview</h1>
+            <h1 className="text-xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Driver Overview</h1>
           </div> :
 
         <div className="flex justify-between items-center">
-            <h1 className="text-xl font-bold text-slate-900">Route Management</h1>
+            <h1 className="text-xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Route Management</h1>
             <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen((v) => !v)}>
               <CalendarIcon className="w-5 h-5" />
             </Button>
@@ -2988,7 +2988,7 @@ export default function DeliveriesPage() {
         }
       </div>
 
-      <div className="hidden lg:block border-b border-slate-200 bg-white px-6 py-4 flex-shrink-0 z-20">
+      <div className="hidden lg:block px-6 py-4 flex-shrink-0 z-20" style={{ borderBottom: '1px solid var(--border-slate-200)', background: 'var(--bg-white)' }}>
         {isDriverOverviewMode ?
         <div className="relative">
           {isLoading &&
@@ -2996,24 +2996,24 @@ export default function DeliveriesPage() {
               <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
             </div>
           }
-          <h1 className="text-3xl font-bold text-slate-900">Driver Overview</h1>
+          <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Driver Overview</h1>
         </div> :
 
         <>
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
               <div>
-                <h1 className="text-3xl font-bold text-slate-900 flex items-baseline gap-3 relative">
+                <h1 className="text-3xl font-bold flex items-baseline gap-3 relative" style={{ color: 'var(--text-slate-900)' }}>
                   {isLoading &&
                 <div className="absolute -left-8 top-1/2 -translate-y-1/2">
                       <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
                     </div>
                 }
                   Route Management
-                  <Badge variant="outline" className="ml-2 text-sm font-normal">
+                  <Badge variant="outline" className="ml-2 text-sm font-normal" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
                     {selectedDate ? format(selectedDate, 'MMM d, yyyy') : 'Select a Date'}
                   </Badge>
                 </h1>
-                <p className="text-slate-600 mt-1">
+                <p className="mt-1" style={{ color: 'var(--text-slate-600)' }}>
                   Manage deliveries and routes for {selectedDate ? format(selectedDate, 'EEEE, MMMM d, yyyy') : 'the selected date'}
                 </p>
               </div>
@@ -3086,10 +3086,10 @@ export default function DeliveriesPage() {
       <div className="flex-1 flex overflow-hidden min-h-0">
 
         {!isDriverOverviewMode &&
-        <div className="hidden lg:flex w-72 bg-white border-r border-slate-200 flex-col h-full">
-            <div className="p-2 border-b border-slate-100 flex items-center gap-2">
-              <CalendarIcon className="w-5 h-5" />
-              <h2 className="text-lg font-semibold text-slate-800">Route Dates</h2>
+        <div className="hidden lg:flex w-72 flex-col h-full" style={{ background: 'var(--bg-white)', borderRight: '1px solid var(--border-slate-200)' }}>
+            <div className="p-2 flex items-center gap-2" style={{ borderBottom: '1px solid var(--border-slate-100)' }}>
+              <CalendarIcon className="w-5 h-5" style={{ color: 'var(--text-slate-700)' }} />
+              <h2 className="text-lg font-semibold" style={{ color: 'var(--text-slate-800)' }}>Route Dates</h2>
             </div>
             <div className="flex-1 p-1 sm:p-2 overflow-y-auto">
               <DateListPanel
@@ -3252,16 +3252,17 @@ export default function DeliveriesPage() {
 
           {isDriverOverviewMode ?
           <div className="flex flex-col h-full overflow-hidden">
-              <Card className="bg-white/80 backdrop-blur-sm hidden lg:block flex-shrink-0 m-4 mb-2">
+              <Card className="backdrop-blur-sm hidden lg:block flex-shrink-0 m-4 mb-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                 <CardContent className="p-6">
                   <div className="flex items-center gap-3">
                     <div className="relative flex-grow" style={{ minWidth: '200px', maxWidth: '400px' }}>
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
                       <Input
                       placeholder="Search drivers..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 w-full bg-slate-100 border-slate-300" />
+                      className="pl-10 w-full"
+                      style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                     </div>
 
                     {userHasRole(currentUser, 'admin') && cities && cities.length > 0 &&
@@ -3269,13 +3270,13 @@ export default function DeliveriesPage() {
                     setSelectedCityId(value);
                     updateUrl({ city: value });
                   }}>
-                        <SelectTrigger className="w-[140px] bg-white border-slate-300">
+                        <SelectTrigger className="w-[140px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                           <SelectValue placeholder="Select City" />
                         </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Cities</SelectItem>
+                        <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                          <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Cities</SelectItem>
                           {cities.map((city) =>
-                      <SelectItem key={city.id} value={city.id}>{city.name}</SelectItem>
+                      <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>{city.name}</SelectItem>
                       )}
                         </SelectContent>
                       </Select>
@@ -3292,13 +3293,13 @@ export default function DeliveriesPage() {
                     }
                     navigate(`${location.pathname}?${params.toString()}`, { replace: true });
                   }}>
-                      <SelectTrigger className="w-[140px] bg-white border-slate-300">
+                      <SelectTrigger className="w-[140px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Years</SelectItem>
+                      <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                        <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Years</SelectItem>
                         {availableOverviewYears.map((year) =>
-                      <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                      <SelectItem key={year} value={year.toString()} style={{ color: 'var(--text-slate-900)' }}>{year}</SelectItem>
                       )}
                       </SelectContent>
                     </Select>
@@ -3464,12 +3465,12 @@ export default function DeliveriesPage() {
 
               <div className="flex-1 overflow-y-auto px-4 pb-4">
                 {isLoadingData && driverCards.length === 0 ?
-                  <div className="text-center py-12 text-slate-500">
+                  <div className="text-center py-12" style={{ color: 'var(--text-slate-500)' }}>
                     <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
                     <p className="text-lg font-medium">Loading drivers...</p>
                   </div> :
                 driverCards.length === 0 ?
-                  <div className="text-center py-12 text-slate-500">
+                  <div className="text-center py-12" style={{ color: 'var(--text-slate-500)' }}>
                     <Package className="w-16 h-16 mx-auto mb-4 opacity-30" />
                     <p className="text-lg font-medium">No drivers with deliveries for this period</p>
                     <p className="text-sm mt-2">Select a different year or add deliveries</p>
@@ -3480,13 +3481,13 @@ export default function DeliveriesPage() {
                 const isInactive = card.driver.status === 'inactive';
                 return (
                   <Card
-                    key={card.driver.id} className="rounded-xl border text-card-foreground shadow cursor-pointer transition-shadow bg-white/80 backdrop-blur-sm hover:shadow-lg"
-
+                    key={card.driver.id} className="rounded-xl border shadow cursor-pointer transition-shadow backdrop-blur-sm hover:shadow-lg"
+                    style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}
                     onClick={() => handleDriverCardClick(card.driver)}>
 
                         <CardHeader className="pb-2">
                           <CardTitle className="text-base flex items-center justify-between">
-                            <span className="text-lg font-bold">
+                            <span className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>
                               {card.firstName}
                             </span>
                             <Badge
@@ -3508,7 +3509,7 @@ export default function DeliveriesPage() {
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="px-3 py-3">
-                          <div className="mb-3 pb-3 border-b border-slate-100 h-[40px] flex items-center justify-center">
+                          <div className="mb-3 pb-3 h-[40px] flex items-center justify-center" style={{ borderBottom: '1px solid var(--border-slate-100)' }}>
                             {card.todayStats && card.todayStats.total > 0 ?
                             <div className="flex items-center justify-center gap-2 text-xs font-medium flex-wrap">
                                 <span className="text-blue-600">Active: {card.todayStats.active}</span>
@@ -3516,22 +3517,22 @@ export default function DeliveriesPage() {
                                 <span className="text-red-600">Failed: {card.todayStats.failed}</span>
                                 <span className="text-orange-600">Returns: {card.todayStats.returned}</span>
                               </div> :
-                            <div className="text-xs text-slate-400">No deliveries today</div>
+                            <div className="text-xs" style={{ color: 'var(--text-slate-400)' }}>No deliveries today</div>
                             }
                           </div>
                           <div className="space-y-1 text-sm">
                             <div className="flex justify-between items-center">
-                              <span className="text-slate-600">Pickups:</span>
-                              <span className="bg-blue-100 text-blue-800 px-3 py-1 text-xs rounded-full font-medium w-[60px] text-center">{card.stats.pickups}</span>
+                              <span style={{ color: 'var(--text-slate-600)' }}>Pickups:</span>
+                              <span className="bg-blue-500 text-white px-3 py-1 text-xs rounded-full font-medium w-[60px] text-center">{card.stats.pickups}</span>
                             </div>
                             <div className="flex justify-between items-center">
-                              <span className="text-slate-600">Completed:</span>
-                              <span className="bg-emerald-100 text-emerald-800 px-3 py-1 text-xs rounded-full font-medium w-[60px] text-center">{card.stats.completed}</span>
+                              <span style={{ color: 'var(--text-slate-600)' }}>Completed:</span>
+                              <span className="bg-emerald-500 text-white px-3 py-1 text-xs rounded-full font-medium w-[60px] text-center">{card.stats.completed}</span>
                             </div>
                             {(card.stats.failed > 0 || card.stats.returned > 0) &&
                         <div className="flex justify-between items-center">
-                                <span className="text-slate-600">Failed/Returned:</span>
-                                <span className="bg-red-100 text-red-800 px-3 py-1 text-xs rounded-full font-medium w-[60px] text-center">
+                                <span style={{ color: 'var(--text-slate-600)' }}>Failed/Returned:</span>
+                                <span className="bg-red-500 text-white px-3 py-1 text-xs rounded-full font-medium w-[60px] text-center">
                                   {card.stats.failed}/{card.stats.returned}
                                 </span>
                               </div>
