@@ -2475,9 +2475,10 @@ export default function DeliveryForm({
       }
     }
 
-      // CRITICAL: If the delivery already has a PUID, find its parent pickup to get the correct AM/PM slot
+      // CRITICAL: Preserve the PUID from the delivery record - it's already saved in the database
       let timeSlot = delivery.ampm_deliveries; // First, use the delivery's own ampm_deliveries if set
-      let puid = delivery.puid;
+      let puid = delivery.puid || ''; // Use the existing PUID from the delivery
+      console.log(`📦 [AutoLoad] Loading pending delivery ${delivery.patient_name} with PUID: ${puid}`);
 
       if (puid) {
         // Find the parent pickup by PUID (stop_id)
