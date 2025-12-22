@@ -2017,6 +2017,14 @@ export default function DeliveryForm({
         invalidate('Delivery');
       }
 
+      // Wait for mutations to propagate
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // CRITICAL: Notify FAB system that data is ready (activates map cycle FAB)
+      const { fabControlEvents } = await import('../utils/fabControlEvents');
+      fabControlEvents.notifyDataReady();
+      console.log('[AddToRoute] ✅ FAB activated after save');
+
       // CRITICAL: Clear staged deliveries AFTER successful save
       // This prevents duplicate deliveries from being created
       console.log('[AddToRoute] 🧹 Clearing staged deliveries from state...');
