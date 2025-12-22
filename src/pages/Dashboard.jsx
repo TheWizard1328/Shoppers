@@ -2233,9 +2233,15 @@ function Dashboard() {
       }, lockDuration);
 
       console.log(`🔵 [FAB Initial] Phase ${phaseToApply} locked - will auto-unlock in 3 seconds`);
-    } else {
-      // Phase 2 - stays locked PERMANENTLY until FAB click
-      console.log(`🔵 [FAB Initial] Phase ${phaseToApply} locked PERMANENTLY - unlocks only on FAB click`);
+    } else if (phaseToApply === 2) {
+      // Phase 2 - NO timer, stays locked PERMANENTLY
+      // CRITICAL: Clear any timers to prevent accidental unlock
+      if (mapLockTimeoutRef.current) {
+        clearTimeout(mapLockTimeoutRef.current);
+        mapLockTimeoutRef.current = null;
+      }
+      mapLockExpiresAtRef.current = null;
+      console.log(`🔵 [FAB Initial] Phase 2 locked PERMANENTLY - unlocks only on FAB click`);
     }
 
     // Scroll to card with isNextDelivery=true for all phases (helps user orient)
