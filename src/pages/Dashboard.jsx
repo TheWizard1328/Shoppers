@@ -5901,20 +5901,6 @@ function Dashboard() {
                       <Settings className="w-3.5 h-3.5" />
                     </Button>
 
-                    {userHasRole(currentUser, 'driver') &&
-                  <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleAIToggle}
-                  className={`h-8 w-8 p-0 flex-shrink-0 relative ${isAIEnabled ? 'bg-purple-100 border-purple-300' : ''}`}
-                  title={isAIEnabled ? "Disable AI Assistant" : "Enable AI Assistant"}>
-                      <Bot className={`w-3.5 h-3.5 ${isAIEnabled ? 'text-purple-600' : 'text-slate-400'}`} />
-                      {hasUnreadAIAlerts && isAIEnabled &&
-                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white"></span>
-                  }
-                    </Button>
-                  }
-
                   {/* Quick Route Adjustments - Driver Mobile Only */}
                   {isMobile && isDriver && selectedDriverId === currentUser?.id &&
                   <Button
