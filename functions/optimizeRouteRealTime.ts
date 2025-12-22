@@ -673,10 +673,11 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Process each stage
+    // Process each stage - CRITICAL: Process ALL available deliveries BEFORE any pickup
+    // Pickups only serve to unlock MORE deliveries, not to interrupt the current batch
     while (unvisitedPickups.size > 0 || unvisitedFlexible.size > 0 || unvisitedConstrained.size > 0 || unvisitedISPs.size > 0) {
       
-      // STEP 1: Collect all available deliveries FIRST
+      // STEP 1: Collect all CURRENTLY available deliveries
       // Available = their pickup store has been completed (including isNextDelivery if it was a pickup)
       const availableDeliveries = [];
       
@@ -721,83 +722,34 @@ Deno.serve(async (req) => {
       
       console.log(`\n📍 [Stage] Available deliveries: ${availableDeliveries.length}, Remaining pickups: ${unvisitedPickups.size}`);
       
-      // STEP 2: Find the next pickup in sorted order (for use as stage destination)
-      let nextPickup = null;
-      for (const sortedPickup of sortedPickups) {
-        if (unvisitedPickups.has(sortedPickup.idx)) {
-          nextPickup = sortedPickup;
-          break;
-        }
-      }
-      
-      console.log(`🎯 Next pickup in queue: ${nextPickup?.delivery.patient_name || 'None'} (window: ${nextPickup?.delivery.delivery_time_start || 'N/A'} - ${nextPickup?.delivery.delivery_time_end || 'N/A'})`);
-      
-      // STEP 3: Test each available delivery - only include in THIS stage if it doesn't make route longer
-      // Compare: (current → delivery → nextPickup) vs (current → nextPickup)
-      // If adding the delivery makes the route longer, defer it to a later stage
-      const deliveriesForThisStage = [];
-      const deliveriesDeferred = [];
-      
-      if (availableDeliveries.length > 0 && nextPickup) {
-        // Calculate baseline distance: current → nextPickup
-        const baselineDistance = calculateCrowFliesDistance(
-          currentPosition.lat, currentPosition.lng,
-          nextPickup.lat, nextPickup.lng
-        );
-        
-        console.log(`   📏 Baseline to next pickup: ${baselineDistance.toFixed(2)} km`);
-        
-        // Test each delivery individually
-        for (const delivery of availableDeliveries) {
-          // Calculate distance: current → delivery → nextPickup
-          const distToDelivery = calculateCrowFliesDistance(
-            currentPosition.lat, currentPosition.lng,
-            delivery.lat, delivery.lng
-          );
-          const distDeliveryToPickup = calculateCrowFliesDistance(
-            delivery.lat, delivery.lng,
-            nextPickup.lat, nextPickup.lng
-          );
-          const totalWithDelivery = distToDelivery + distDeliveryToPickup;
-          
-          // Allow delivery if it doesn't add more than 50% extra distance
-          // This accounts for the value of completing deliveries vs pure distance optimization
-          const threshold = baselineDistance * 1.5;
-          
-          if (totalWithDelivery <= threshold) {
-            deliveriesForThisStage.push(delivery);
-            console.log(`   ✅ ${delivery.delivery.patient_name || 'Delivery'}: ${totalWithDelivery.toFixed(2)} km (included in stage)`);
-          } else {
-            deliveriesDeferred.push(delivery);
-            console.log(`   ⏭️ ${delivery.delivery.patient_name || 'Delivery'}: ${totalWithDelivery.toFixed(2)} km (deferred - exceeds threshold ${threshold.toFixed(2)} km)`);
+      // STEP 2: If there are available deliveries, process ALL of them before going to next pickup
+      if (availableDeliveries.length > 0) {
+        // Find next pickup for destination calculation (but we won't go there yet)
+        let nextPickupForDestination = null;
+        for (const sortedPickup of sortedPickups) {
+          if (unvisitedPickups.has(sortedPickup.idx)) {
+            nextPickupForDestination = sortedPickup;
+            break;
           }
         }
-      } else if (availableDeliveries.length > 0) {
-        // No next pickup - all available deliveries go in this stage
-        deliveriesForThisStage.push(...availableDeliveries);
-      }
-      
-      console.log(`   📊 Stage breakdown: ${deliveriesForThisStage.length} to process now, ${deliveriesDeferred.length} deferred`);
-      
-      // STEP 4: Optimize and process deliveries for THIS stage
-      if (deliveriesForThisStage.length > 0) {
+        
         // Determine stage destination (next pickup or home base)
-        const stageDestination = nextPickup 
-          ? { lat: nextPickup.lat, lng: nextPickup.lng }
+        const stageDestination = nextPickupForDestination 
+          ? { lat: nextPickupForDestination.lat, lng: nextPickupForDestination.lng }
           : driverHomeLocation;
         
-        console.log(`   🔄 Running recursive optimization for ${deliveriesForThisStage.length} deliveries...`);
+        console.log(`   🔄 Optimizing ${availableDeliveries.length} deliveries toward ${nextPickupForDestination ? 'next pickup' : 'home'}...`);
         
         const { path: optimizedPath, totalDistance } = findShortestPath(
           currentPosition,
-          deliveriesForThisStage,
+          availableDeliveries,
           stageDestination,
           cumulativeTime
         );
         
         console.log(`   ✅ Optimal path found: ${optimizedPath.length} stops, ~${totalDistance.toFixed(1)} km`);
 
-        // Add optimized deliveries to route
+        // Add ALL optimized deliveries to route
         for (const idx of optimizedPath) {
           const stop = stops[idx];
           optimizedRoute.push(idx);
@@ -826,10 +778,24 @@ Deno.serve(async (req) => {
           
           console.log(`      📬 ${stop.delivery.patient_name || 'Delivery'}`);
         }
+        
+        // After processing all deliveries, continue loop to check for more available
+        // (in case a pickup was already completed that unlocks more)
+        continue;
       }
-
-      // STEP 5: Now visit the next pickup (if any) - ONLY after processing stage deliveries
+      
+      // STEP 3: No available deliveries - go to next pickup to unlock more
+      let nextPickup = null;
+      for (const sortedPickup of sortedPickups) {
+        if (unvisitedPickups.has(sortedPickup.idx)) {
+          nextPickup = sortedPickup;
+          break;
+        }
+      }
+      
       if (nextPickup) {
+        console.log(`🎯 Going to pickup: ${nextPickup.delivery.patient_name || 'Pickup'} (window: ${nextPickup.delivery.delivery_time_start || 'N/A'} - ${nextPickup.delivery.delivery_time_end || 'N/A'})`);
+        
         optimizedRoute.push(nextPickup.idx);
         unvisitedPickups.delete(nextPickup.idx);
         
@@ -863,7 +829,7 @@ Deno.serve(async (req) => {
         
         const etaHHMM = `${String(Math.floor((cumulativeTime - serviceTime) / 60) % 24).padStart(2, '0')}:${String((cumulativeTime - serviceTime) % 60).padStart(2, '0')}`;
         console.log(`      📦 [Pickup] ${nextPickup.delivery.patient_name || nextPickup.delivery.store_id} - ETA: ${etaHHMM} (scheduled: ${nextPickup.delivery.delivery_time_start || 'N/A'})`);
-      } else if (deliveriesForThisStage.length === 0 && availableDeliveries.length === 0) {
+      } else {
         // No more pickups AND no available deliveries - we're done
         break;
       }
