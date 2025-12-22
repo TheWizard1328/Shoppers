@@ -876,10 +876,6 @@ function Dashboard() {
 
   // Track when the last programmatic map move happened (to debounce interaction handler)
   const lastProgrammaticMapMoveRef = useRef(0);
-  
-  // CRITICAL: Track if Phase 2 is waiting for FIRST manual interaction (not programmatic)
-  // This flag is set to true when entering Phase 2 and only cleared on genuine user interaction
-  const phase2WaitingForManualInteractionRef = useRef(false);
 
   // Track previous values for detecting changes that should trigger map repositioning
   const prevSelectedDriverIdRef = useRef(selectedDriverId);
@@ -916,49 +912,14 @@ function Dashboard() {
   }, [mapViewPhase]);
 
   const handleMapInteraction = useCallback((isUserInteraction = false) => {
-    // CRITICAL: ONLY process genuine user interactions, not programmatic ones
-    // The map component should pass isUserInteraction=true only for real user gestures
-    if (!isUserInteraction) {
-      return; // Silently ignore programmatic interactions
-    }
+    // PHASE 2 NO LONGER UNLOCKS ON MAP INTERACTION
+    // It stays permanently locked until FAB is clicked to change phases
+    // This simplifies the logic and prevents accidental unlocks
     
-    // CRITICAL: ONLY unlock when Phase 2 is active - ignore for Phase 1 & 3
-    // Use ref to avoid stale closure issues
-    const currentPhase = mapViewPhaseForInteractionRef.current;
-    if (currentPhase !== 2) {
-      console.log('🗺️ [Map Interaction] Ignoring - Phase', currentPhase, 'has timers');
-      return;
-    }
-    
-    // CRITICAL: Phase 2 requires waiting for manual interaction flag to be set
-    if (!phase2WaitingForManualInteractionRef.current) {
-      console.log('🗺️ [Map Interaction] Phase 2 - Not waiting for manual interaction yet');
-      return;
-    }
-    
-    // CRITICAL: Ignore all map interactions within 3 seconds of any programmatic move
-    const timeSinceProgrammatic = Date.now() - (lastProgrammaticMapMoveRef.current || 0);
-    if (timeSinceProgrammatic < 3000) {
-      console.log('🗺️ [Map Interaction] BLOCKED - too soon after programmatic move (', timeSinceProgrammatic, 'ms ago)');
-      return;
-    }
-
-    console.log('🗺️ [Map Interaction] Phase 2 - UNLOCKING FAB from REAL manual pan/zoom');
-
-    // Clear the waiting flag - user has interacted
-    phase2WaitingForManualInteractionRef.current = false;
-
-    // Clear timers and unlock
-    if (mapLockTimeoutRef.current) {
-      clearTimeout(mapLockTimeoutRef.current);
-      mapLockTimeoutRef.current = null;
-    }
-    mapLockExpiresAtRef.current = null;
-
-    setIsMapViewLocked(false);
-
     // Record user interaction time (prevents proximity snap for 5 minutes)
-    lastUserInteractionRef.current = Date.now();
+    if (isUserInteraction) {
+      lastUserInteractionRef.current = Date.now();
+    }
   }, []);
 
   // NOTE: Removed auto-fit bounds effect that was causing map to re-center unexpectedly
@@ -1649,11 +1610,8 @@ function Dashboard() {
     }, 300);
 
     // PHASE 1 & 3: Set timer for 3-second auto-unlock
-    // PHASE 2: NO TIMER - stays locked until manual map interaction
+    // PHASE 2: NO TIMER - stays locked permanently
     if (newMapViewPhase === 1 || newMapViewPhase === 3) {
-      // Clear Phase 2 waiting flag for non-Phase 2 phases
-      phase2WaitingForManualInteractionRef.current = false;
-      
       const lockDuration = 3000;
       const expiresAt = Date.now() + lockDuration;
       mapLockExpiresAtRef.current = expiresAt;
@@ -1669,10 +1627,7 @@ function Dashboard() {
 
       console.log(`🔵 [FAB] Phase ${newMapViewPhase} locked - will auto-unlock in 3 seconds`);
     } else if (newMapViewPhase === 2) {
-      // Phase 2 - NO timer, stays locked until manual interaction
-      // CRITICAL: Set a delayed flag that allows manual interaction detection AFTER programmatic moves settle
-      phase2WaitingForManualInteractionRef.current = false; // Reset first
-      
+      // Phase 2 - NO timer, stays locked PERMANENTLY until FAB is clicked again
       // CRITICAL: Clear any existing timers to prevent accidental unlock
       if (mapLockTimeoutRef.current) {
         clearTimeout(mapLockTimeoutRef.current);
@@ -1680,15 +1635,7 @@ function Dashboard() {
       }
       mapLockExpiresAtRef.current = null;
       
-      // After 3 seconds, start accepting manual interactions (but keep locked)
-      setTimeout(() => {
-        if (mapViewPhaseForInteractionRef.current === 2 && isMapViewLockedRef.current) {
-          phase2WaitingForManualInteractionRef.current = true;
-          console.log(`🔵 [FAB] Phase 2 now accepting manual interactions (stays locked)`);
-        }
-      }, 3000);
-      
-      console.log(`🔵 [FAB] Phase 2 locked PERMANENTLY - will unlock ONLY on manual map pan/zoom (after 3s window)`);
+      console.log(`🔵 [FAB] Phase 2 locked PERMANENTLY - unlocks only when FAB is clicked to change phase`);
     }
   }, [mapViewPhase, isMapViewLocked, isDriver, nextStopCoordinates, isDispatcher, isAdmin, isMobile, currentUser, deliveriesWithStopOrder]);
 
