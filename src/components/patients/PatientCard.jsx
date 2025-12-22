@@ -165,7 +165,7 @@ export default function PatientCard({
                 {patient.full_name}
               </h3>
               {todayDelivery &&
-              <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+              <Badge style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
                   On Route
                 </Badge>
               }
@@ -177,7 +177,7 @@ export default function PatientCard({
             </div>
             {patient.status === 'inactive' &&
             <div className="mb-1">
-                <Badge className="bg-red-100 text-red-700 border border-red-300">INACTIVE</Badge>
+                <Badge className="bg-red-500 text-white border border-red-600">INACTIVE</Badge>
               </div>
             }
             <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>{displayAddress}</p>
@@ -248,19 +248,19 @@ export default function PatientCard({
         {/* Quick Info Icons (Badges) */}
         <div className="flex gap-2 mt-3 flex-wrap">
           {(patient.time_window_start || patient.time_window_end) &&
-          <Badge variant="outline" className="text-xs bg-blue-50 dark:bg-blue-900 dark:text-blue-200">
+          <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
               <Clock className="w-4 h-3 mr-1" />
               {patient.time_window_start || '...'}-{patient.time_window_end || '...'}
             </Badge>
           }
           {recurringText &&
-          <Badge variant="outline" className="text-xs bg-purple-50 dark:bg-purple-900 dark:text-purple-200">
+          <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
               <RefreshCw className="w-4 h-3 mr-1" />
               {recurringText}
             </Badge>
           }
           {deliveryPreferences.length > 0 &&
-          <Badge variant="outline" className="text-xs bg-emerald-50 dark:bg-emerald-900 dark:text-emerald-200">
+          <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
               <Info className="w-4 h-3 mr-1" />
               {deliveryPreferences.join(', ')}
             </Badge>
