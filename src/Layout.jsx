@@ -767,6 +767,20 @@ export default function Layout({ children, currentPageName }) {
           return;
         }
 
+        // CRITICAL: Handle 'delete' mutations - remove from UI state immediately
+        if (mutation.type === 'delete') {
+          if (mutation.entity === 'Patient') {
+            setPatients(prevPatients => 
+              prevPatients.filter(p => p?.id !== mutation.id)
+            );
+          } else if (mutation.entity === 'Delivery') {
+            setDeliveries(prevDeliveries => 
+              prevDeliveries.filter(d => d?.id !== mutation.id)
+            );
+          }
+          return;
+        }
+
         // CRITICAL: Update UI state immediately from local database with proper deduplication
         if (mutation.entity === 'Patient') {
           try {
