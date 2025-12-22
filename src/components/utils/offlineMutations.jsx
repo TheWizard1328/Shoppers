@@ -576,22 +576,11 @@ export const deleteDeliveryLocal = async (deliveryId) => {
 
     console.log('✅ [OfflineMutations] Delivery deleted locally:', deliveryId);
     
-    // CRITICAL: Notify listeners IMMEDIATELY for instant UI update
-    notifyMutation({ 
-      type: 'delete', 
-      entity: 'Delivery', 
-      id: deliveryId,
-      data: null 
-    });
-
-    // Try immediate backend sync
+    // Try immediate backend sync FIRST before notifying UI
     try {
       const { base44 } = await import('@/api/base44Client');
       await base44.entities.Delivery.delete(deliveryId);
       console.log('✅ [Sync] Delivery deletion synced to backend immediately:', deliveryId);
-      
-      // Restart smart refresh after sync
-      await restartSmartRefresh();
     } catch (error) {
       console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
       // Queue for backend sync if immediate sync fails
@@ -600,9 +589,18 @@ export const deleteDeliveryLocal = async (deliveryId) => {
         entity: 'Delivery',
         recordId: deliveryId
       });
-      // Still restart smart refresh even if queued
-      await restartSmartRefresh();
     }
+
+    // CRITICAL: Notify listeners AFTER backend sync for instant UI update
+    notifyMutation({ 
+      type: 'delete', 
+      entity: 'Delivery', 
+      id: deliveryId,
+      data: null 
+    });
+
+    // Restart smart refresh after sync
+    await restartSmartRefresh();
     
     return true;
   } catch (error) {
