@@ -1160,7 +1160,7 @@ export default function Layout({ children, currentPageName }) {
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [sidebarOpen, isMobile]);
+  }, [sidebarOpen]);
 
   const handleTouchStart = (e) => {
     if (!isMobile || isRefreshing) return;
