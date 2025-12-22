@@ -143,25 +143,25 @@ export default function PatientCard({
 
   return (
     <Card
-      className={`overflow-hidden transition-all duration-200 bg-white hover:shadow-lg cursor-pointer ${
+      className={`overflow-hidden transition-all duration-200 hover:shadow-lg cursor-pointer ${
       patient.status === 'inactive' ?
       'border-2 border-red-500 hover:border-red-600' :
       showStoreBadge && store?.color ?
       `border-2 hover:border-opacity-80` :
-      'border-slate-200 hover:border-emerald-400'} ${
+      'hover:border-emerald-400'} ${
       isSelected ? 'ring-2 ring-emerald-500 border-emerald-500' : ''}`}
-      style={
-      patient.status !== 'inactive' && showStoreBadge && store?.color ?
-      { borderColor: store.color } :
-      undefined
-      }
+      style={{
+        background: 'var(--bg-white)',
+        borderColor: patient.status !== 'inactive' && showStoreBadge && store?.color ? store.color : 'var(--border-slate-200)',
+        color: 'var(--text-slate-900)'
+      }}
       onClick={() => onSelect?.(patient)}>
 
       <CardContent className="p-4">
         <div className="flex justify-between items-start mb-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <h3 className="font-semibold text-slate-900 text-base truncate">
+              <h3 className="font-semibold text-base truncate" style={{ color: 'var(--text-slate-900)' }}>
                 {patient.full_name}
               </h3>
               {todayDelivery &&
@@ -180,12 +180,12 @@ export default function PatientCard({
                 <Badge className="bg-red-100 text-red-700 border border-red-300">INACTIVE</Badge>
               </div>
             }
-            <p className="text-sm text-slate-600">{displayAddress}</p>
-            {patient.phone && <p className="text-sm text-slate-500">{formatPhoneNumber(patient.phone)}</p>}
+            <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>{displayAddress}</p>
+            {patient.phone && <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>{formatPhoneNumber(patient.phone)}</p>}
             {(patient.distance_from_store && store) || (patient.call_upon_arrival || patient.ring_bell || patient.dont_ring_bell || patient.mailbox_ok) ?
             <div className="flex items-center gap-2 mt-1">
                 {patient.distance_from_store && store &&
-                <span className="text-xs text-slate-500">
+                <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
                   {patient.distance_from_store.toFixed(1)} km
                 </span>
                 }
@@ -217,7 +217,8 @@ export default function PatientCard({
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-slate-400 hover:text-slate-600"
+              className="h-8 w-8 hover:text-slate-600"
+              style={{ color: 'var(--text-slate-400)' }}
               onClick={handleEdit}
               title="Edit Patient">
 
@@ -268,12 +269,12 @@ export default function PatientCard({
 
         {/* Patient Notes */}
         {patient.notes &&
-        <div className="mt-3 pt-3 border-t border-slate-100">
-            <div className="text-xs font-semibold text-slate-500 mb-1 flex items-center gap-1">
+        <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border-slate-100)' }}>
+            <div className="text-xs font-semibold mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
               <StickyNote className="w-3 h-3" />
               Notes:
             </div>
-            <div className="text-xs text-slate-700 bg-slate-50 p-2 rounded">
+            <div className="text-xs p-2 rounded" style={{ color: 'var(--text-slate-700)', background: 'var(--bg-slate-50)' }}>
               {patient.notes.split('\n').map((line, i) =>
             <div key={i}>{line}</div>
             )}

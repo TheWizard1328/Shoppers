@@ -74,9 +74,9 @@ const DeliveryCalendar = ({ deliveries, patient }) => {
   };
 
   return (
-    <Card className="bg-white border-slate-200 shadow-sm">
+    <Card className="shadow-sm" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
       <CardHeader className="px-4 py-2 flex flex-col space-y-1.5">
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
           <Calendar className="w-5 h-5 text-emerald-600" />
           Delivery History
         </CardTitle>
@@ -96,7 +96,7 @@ const DeliveryCalendar = ({ deliveries, patient }) => {
         {/* Weekday headers */}
         <div className="grid grid-cols-7 gap-1 mb-2">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) =>
-          <div key={day} className="text-center text-xs font-semibold text-slate-600 py-2">
+          <div key={day} className="text-center text-xs font-semibold py-2" style={{ color: 'var(--text-slate-600)' }}>
               {day}
             </div>
           )}
@@ -115,8 +115,8 @@ const DeliveryCalendar = ({ deliveries, patient }) => {
               <div
                 key={dateStr}
                 className={`aspect-square p-1 rounded-lg flex items-center justify-center text-sm relative ${
-                !isCurrentMonth ? 'text-slate-300' : 'text-slate-900'} ${
-                isToday ? 'ring-2 ring-blue-500 ring-inset' : ''}`}>
+                isToday ? 'ring-2 ring-blue-500 ring-inset' : ''}`}
+                style={{ color: !isCurrentMonth ? 'var(--text-slate-300)' : 'var(--text-slate-900)' }}>
 
                 {badgeInfo ?
                 badgeInfo.type === 'split' ?
@@ -156,25 +156,25 @@ const DeliveryCalendar = ({ deliveries, patient }) => {
         </div>
 
         {/* Legend */}
-        <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t border-slate-200 text-xs">
+        <div className="flex flex-wrap gap-4 mt-4 pt-4 text-xs" style={{ borderTop: '1px solid var(--border-slate-200)' }}>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 rounded bg-emerald-500" />
-            <span className="text-slate-600">Completed</span>
+            <span style={{ color: 'var(--text-slate-600)' }}>Completed</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 rounded bg-red-500" />
-            <span className="text-slate-600">Failed</span>
+            <span style={{ color: 'var(--text-slate-600)' }}>Failed</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 rounded bg-orange-500" />
-            <span className="text-slate-600">Returned</span>
+            <span style={{ color: 'var(--text-slate-600)' }}>Returned</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 rounded flex">
               <div className="w-1/2 bg-emerald-500 rounded-l" />
               <div className="w-1/2 bg-red-500 rounded-r" />
             </div>
-            <span className="text-slate-600">Mixed Status</span>
+            <span style={{ color: 'var(--text-slate-600)' }}>Mixed Status</span>
           </div>
         </div>
       </CardContent>
@@ -185,7 +185,7 @@ const DeliveryCalendar = ({ deliveries, patient }) => {
 export default function PatientDetails({ patient, deliveries, deliveryStats }) {
   if (!patient) {
     return (
-      <div className="text-center text-slate-500 py-10">
+      <div className="text-center py-10" style={{ color: 'var(--text-slate-500)' }}>
         <p className="text-lg mb-2">Select a patient to view details</p>
         <p className="text-sm">Click on any patient card on the left to see analytics and recent delivery history.</p>
       </div>);
@@ -207,33 +207,33 @@ export default function PatientDetails({ patient, deliveries, deliveryStats }) {
     <div className="space-y-6 sticky top-6">
       {/* Delivery Statistics */}
       {deliveryStats &&
-      <Card className="bg-white border-slate-200 shadow-sm">
+      <Card className="shadow-sm" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
               <BarChart3 className="w-5 h-5 text-blue-600" />
               Delivery Analytics
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 space-y-2">
             <div className="grid grid-cols-2 gap-4">
-              <div className="text-center p-3 bg-slate-50 rounded-lg">
-                <p className="text-2xl font-bold text-slate-900">{deliveryStats.totalDeliveries}</p>
-                <p className="text-sm text-slate-600">Total</p>
+              <div className="text-center p-3 rounded-lg" style={{ background: 'var(--bg-slate-50)' }}>
+                <p className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>{deliveryStats.totalDeliveries}</p>
+                <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>Total</p>
               </div>
               <div className="text-center p-3 bg-emerald-50 rounded-lg">
                 <p className="text-2xl font-bold text-emerald-700">
                   {deliveryStats.mostCommonDay ? dayAbbreviations[deliveryStats.mostCommonDay] || deliveryStats.mostCommonDay.substring(0, 3) : 'N/A'}
                 </p>
-                <p className="text-sm text-slate-600">Most Common Day</p>
+                <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>Most Common Day</p>
               </div>
             </div>
 
             {deliveryStats.lastDeliveryDate &&
-          <div className="flex items-center gap-3 text-sm p-3 bg-slate-50 rounded-lg">
-                <Calendar className="w-4 h-4 text-slate-500 flex-shrink-0" />
+          <div className="flex items-center gap-3 text-sm p-3 rounded-lg" style={{ background: 'var(--bg-slate-50)' }}>
+                <Calendar className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--text-slate-500)' }} />
                 <div>
-                  <p className="font-medium text-slate-900">Last Delivery</p>
-                  <p className="text-slate-600">
+                  <p className="font-medium" style={{ color: 'var(--text-slate-900)' }}>Last Delivery</p>
+                  <p style={{ color: 'var(--text-slate-600)' }}>
                     {format(new Date(deliveryStats.lastDeliveryDate + 'T12:00:00'), 'EEE, MMM d, yyyy')}
                   </p>
                 </div>
@@ -242,15 +242,15 @@ export default function PatientDetails({ patient, deliveries, deliveryStats }) {
 
             {deliveryStats.dayFrequency && Object.keys(deliveryStats.dayFrequency).length > 0 &&
           <div>
-                <p className="font-medium text-slate-900 mb-3">Delivery Pattern</p>
+                <p className="font-medium mb-3" style={{ color: 'var(--text-slate-900)' }}>Delivery Pattern</p>
                 <div className="space-y-2">
                   {Object.entries(deliveryStats.dayFrequency).
               sort(([, a], [, b]) => b - a).
               map(([day, count]) =>
               <div key={day} className="flex justify-between items-center text-sm">
-                        <span className="text-slate-600 min-w-[40px]">{dayAbbreviations[day] || day.substring(0, 3)}</span>
+                        <span className="min-w-[40px]" style={{ color: 'var(--text-slate-600)' }}>{dayAbbreviations[day] || day.substring(0, 3)}</span>
                         <div className="flex items-center gap-2 flex-1">
-                          <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
+                          <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: 'var(--bg-slate-200)' }}>
                             <div
                       className="h-full bg-emerald-500 rounded-full transition-all duration-300"
                       style={{ width: `${count / deliveryStats.totalDeliveries * 100}%` }} />
