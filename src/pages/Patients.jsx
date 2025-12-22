@@ -1574,10 +1574,10 @@ export default function Patients() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-slate-50">
+    <div className="h-screen flex flex-col" style={{ background: 'var(--bg-slate-50)' }}>
       {/* Static Header - Only show when NOT in overview context */}
       {!inOverviewContext &&
-      <div className="flex-shrink-0 bg-white border-b border-slate-200 shadow-sm">
+      <div className="flex-shrink-0 shadow-sm" style={{ background: 'var(--bg-white)', borderBottom: '1px solid var(--border-slate-200)' }}>
           <div className="p-4" ref={headerRef}>
             {useCompactLayout ? (
           /* Mobile Layout */
@@ -1590,7 +1590,7 @@ export default function Patients() {
                           <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
                         </div>
                   }
-                      <h1 className="text-2xl font-bold text-slate-900">Patient Database</h1>
+                      <h1 className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Patient Database</h1>
                       <Badge
                     className="text-white px-2.5 py-0.5 text-sm font-semibold rounded-md"
                     style={{
@@ -1623,7 +1623,7 @@ export default function Patients() {
                         <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
                       </div>
                 }
-                    <h1 className="text-3xl font-bold text-slate-900">Patient Database</h1>
+                    <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Patient Database</h1>
                     <Badge className="bg-primary text-white px-3 py-1 text-lg font-semibold rounded-[10px] inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent shadow hover:bg-primary/80"
 
                 style={{
@@ -1634,7 +1634,7 @@ export default function Patients() {
                       {sortedAndFilteredPatients.length}
                     </Badge>
                   </div>
-                  <p className="text-slate-600 mt-1">Manage patient information and delivery preferences</p>
+                  <p className="mt-1" style={{ color: 'var(--text-slate-600)' }}>Manage patient information and delivery preferences</p>
                 </div>
                 <div className="flex gap-3 flex-wrap items-center">
                   {showImportButton && !isMobile &&
@@ -1663,7 +1663,7 @@ export default function Patients() {
                   {/* Row 1: Search and Import Button */}
                   <div className="flex gap-2 items-center">
                     <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
                       <Input
                     placeholder="Search patients..."
                     value={searchTerm}
@@ -1671,7 +1671,7 @@ export default function Patients() {
                     className="pl-10 w-full" />
                       {searchTerm &&
                   <Button variant="ghost" size="icon" className="absolute right-2 top-1/2 transform -translate-y-1/2 h-7 w-7" onClick={() => setSearchTerm("")}>
-                          <X className="w-4 h-4 text-slate-400" />
+                          <X className="w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
                         </Button>
                   }
                     </div>
@@ -1691,7 +1691,7 @@ export default function Patients() {
                   <div className="flex gap-2 flex-wrap">
                     {/* City Filter - MOVED FIRST */}
                     <div className="space-y-1 flex-1">
-                      <span className="text-xs font-medium text-slate-700">City</span>
+                      <span className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>City</span>
                       <Select
                     value={selectedCityId}
                     onValueChange={(cityId) => {
@@ -1713,10 +1713,10 @@ export default function Patients() {
                       }
                     }}
                     disabled={!userHasRole(currentUser, 'admin') && currentUser.city_id}>
-                        <SelectTrigger className="w-full bg-white border-black h-9">
+                        <SelectTrigger className="w-full h-9" style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
                           <SelectValue placeholder="City..." />
                         </SelectTrigger>
-                        <SelectContent className="max-h-[300px] overflow-y-auto">
+                        <SelectContent className="max-h-[300px] overflow-y-auto" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
                           {userHasRole(currentUser, 'admin') ?
                       <>
                               <SelectItem value="all">All Cities</SelectItem>
@@ -1738,7 +1738,7 @@ export default function Patients() {
                     {/* Store Filter - Hide if dispatcher with only one store */}
                     {!(userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && currentUser.store_ids?.length === 1) &&
                 <div className="space-y-1 flex-1">
-                        <span className="text-xs font-medium text-slate-700">Store</span>
+                        <span className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Store</span>
                         <Select
                     value={storeFilter}
                     onValueChange={(value) => {
@@ -1757,10 +1757,10 @@ export default function Patients() {
                       urlParams.set('store', value);
                       navigate(`${location.pathname}?${urlParams.toString()}`, { replace: true });
                     }}>
-                          <SelectTrigger className="w-full bg-white border-black h-9">
+                          <SelectTrigger className="w-full h-9" style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
                             <SelectValue placeholder="Store..." />
                           </SelectTrigger>
-                          <SelectContent className="max-h-[300px] overflow-y-auto">
+                          <SelectContent className="max-h-[300px] overflow-y-auto" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
                             <SelectItem value="all">
                               {selectedCityId === "all" ? "All Patients" : `All in ${cities.find((c) => c.id === selectedCityId)?.name || "city"}`}
                             </SelectItem>
@@ -1788,12 +1788,12 @@ export default function Patients() {
 
                     {/* Status Filter */}
                     <div className="space-y-1 flex-1">
-                      <span className="text-xs font-medium text-slate-700">Status</span>
+                      <span className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Status</span>
                       <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="w-full bg-white border-black h-9">
+                        <SelectTrigger className="w-full h-9" style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
                           <SelectValue placeholder="Status..." />
                         </SelectTrigger>
-                        <SelectContent className="max-h-[300px] overflow-y-auto">
+                        <SelectContent className="max-h-[300px] overflow-y-auto" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
                           <SelectItem value="all">All Statuses</SelectItem>
                           <SelectItem value="active">Active</SelectItem>
                           <SelectItem value="inactive">Inactive</SelectItem>
@@ -1807,7 +1807,7 @@ export default function Patients() {
             <div className="flex gap-4 items-end">
                   {/* Search */}
                   <div className="relative w-80 flex-shrink-0">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
                     <Input
                   placeholder="Search patients..."
                   value={searchTerm}
@@ -1815,7 +1815,7 @@ export default function Patients() {
                   className="pl-10 w-full" />
                     {searchTerm &&
                 <Button variant="ghost" size="icon" className="absolute right-2 top-1/2 transform -translate-y-1/2 h-7 w-7" onClick={() => setSearchTerm("")}>
-                        <X className="w-4 h-4 text-slate-400" />
+                        <X className="w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
                       </Button>
                 }
                   </div>
@@ -1827,7 +1827,7 @@ export default function Patients() {
                   <div className="flex gap-3">
                     {/* City Filter - MOVED FIRST */}
                     <div className="space-y-1 w-40 flex-shrink-0">
-                      <span className="text-sm font-medium text-slate-700">City</span>
+                      <span className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>City</span>
                       <Select
                     value={selectedCityId}
                     onValueChange={(cityId) => {
@@ -1849,10 +1849,10 @@ export default function Patients() {
                       }
                     }}
                     disabled={!userHasRole(currentUser, 'admin') && currentUser.city_id}>
-                        <SelectTrigger className="w-full bg-white border-black">
+                        <SelectTrigger className="w-full" style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
                           <SelectValue placeholder="Filter by city..." />
                         </SelectTrigger>
-                        <SelectContent className="max-h-[300px] overflow-y-auto">
+                        <SelectContent className="max-h-[300px] overflow-y-auto" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
                           {userHasRole(currentUser, 'admin') ?
                       <>
                               <SelectItem value="all">All Cities</SelectItem>
@@ -1874,7 +1874,7 @@ export default function Patients() {
                     {/* Store Filter - Hide if dispatcher with only one store */}
                     {!(userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') && currentUser.store_ids?.length === 1) &&
                 <div className="space-y-1 w-40 flex-shrink-0">
-                        <span className="text-sm font-medium text-slate-700">Store</span>
+                        <span className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>Store</span>
                         <Select
                     value={storeFilter}
                     onValueChange={(value) => {
@@ -1893,10 +1893,10 @@ export default function Patients() {
                       urlParams.set('store', value);
                       navigate(`${location.pathname}?${urlParams.toString()}`, { replace: true });
                     }}>
-                          <SelectTrigger className="w-full bg-white border-black">
+                          <SelectTrigger className="w-full" style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
                             <SelectValue placeholder="Filter by store..." />
                           </SelectTrigger>
-                          <SelectContent className="max-h-[300px] overflow-y-auto">
+                          <SelectContent className="max-h-[300px] overflow-y-auto" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
                             <SelectItem value="all">
                               {selectedCityId === "all" ? "All Patients" : `All in ${cities.find((c) => c.id === selectedCityId)?.name || "selected city"}`}
                             </SelectItem>
@@ -1924,12 +1924,12 @@ export default function Patients() {
 
                     {/* Status Filter */}
                     <div className="space-y-1 w-40 flex-shrink-0">
-                      <span className="text-sm font-medium text-slate-700">Status</span>
+                      <span className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>Status</span>
                       <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="w-full bg-white border-black">
+                        <SelectTrigger className="w-full" style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
                           <SelectValue placeholder="Status..." />
                         </SelectTrigger>
-                        <SelectContent className="max-h-[300px] overflow-y-auto">
+                        <SelectContent className="max-h-[300px] overflow-y-auto" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
                           <SelectItem value="all">All Statuses</SelectItem>
                           <SelectItem value="active">Active</SelectItem>
                           <SelectItem value="inactive">Inactive</SelectItem>
@@ -1946,7 +1946,7 @@ export default function Patients() {
 
       {/* Patient Database Header - Only show IN overview context */}
       {inOverviewContext &&
-      <div className="flex-shrink-0 bg-white border-b border-slate-200 shadow-sm">
+      <div className="flex-shrink-0 shadow-sm" style={{ background: 'var(--bg-white)', borderBottom: '1px solid var(--border-slate-200)' }}>
           <div className="p-4">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div className="flex-1 relative">
@@ -1955,8 +1955,8 @@ export default function Patients() {
                     <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
                   </div>
               }
-                <h1 className="text-3xl font-bold text-slate-900">Store Overview</h1>
-                <p className="text-slate-600 mt-1">Select a store to view and manage patients</p>
+                <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Store Overview</h1>
+                <p className="mt-1" style={{ color: 'var(--text-slate-600)' }}>Select a store to view and manage patients</p>
               </div>
               {/* Import button - ONLY for users with import access and not on mobile */}
               {showImportButton && !isMobile &&
@@ -2048,8 +2048,8 @@ export default function Patients() {
 
             {/* Right Panel - Delivery Analytics and Recent Deliveries */}
             <div
-            className="bg-slate-100 border-l border-slate-200 p-6 overflow-y-auto hidden lg:block"
-            style={{ width: `${rightPanelWidth}px`, flexShrink: 0 }}>
+            className="p-6 overflow-y-auto hidden lg:block"
+            style={{ width: `${rightPanelWidth}px`, flexShrink: 0, background: 'var(--bg-slate-100)', borderLeft: '1px solid var(--border-slate-200)' }}>
               <PatientDetails
               patient={selectedPatient}
               deliveries={selectedPatient ? getPatientDeliveries(selectedPatient.id) : []}
