@@ -1691,21 +1691,55 @@ export default function DeliveryMap({
   // NEW: Double-tap detection for FAB activation
   function MapController() {
     const lastTapRef = useRef(0);
+    const isDraggingRef = useRef(false);
+    const hasMovedRef = useRef(false);
     
     const mapInstance = useMapEvents({
       zoomstart: () => {
-        // Only notify parent of zoom interactions
-        console.log('🗺️ [MapController] ZOOM START - notifying parent');
+        // CRITICAL: Check if this is a programmatic zoom (from FAB/auto-center)
+        const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
+        const isProgrammaticZoom = timeSinceProgrammatic < 1000; // Within 1 second of programmatic move
+        
+        if (isProgrammaticZoom) {
+          console.log('🗺️ [MapController] ZOOM START - PROGRAMMATIC (ignoring)');
+          return;
+        }
+        
+        // Real user zoom - notify parent
+        console.log('🗺️ [MapController] ZOOM START - USER INTERACTION');
         if (onMapInteraction) {
-          onMapInteraction();
+          onMapInteraction(true); // Pass true for user interaction
+        }
+      },
+      dragstart: () => {
+        isDraggingRef.current = true;
+        hasMovedRef.current = false;
+      },
+      drag: () => {
+        hasMovedRef.current = true;
+      },
+      dragend: () => {
+        const wasDragging = isDraggingRef.current;
+        const didMove = hasMovedRef.current;
+        isDraggingRef.current = false;
+        hasMovedRef.current = false;
+        
+        // CRITICAL: Only notify if user actually dragged the map
+        if (wasDragging && didMove) {
+          const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
+          const isProgrammaticDrag = timeSinceProgrammatic < 1000;
+          
+          if (!isProgrammaticDrag) {
+            console.log('🗺️ [MapController] DRAG END - USER INTERACTION');
+            if (onMapInteraction) {
+              onMapInteraction(true); // Pass true for user interaction
+            }
+          }
         }
       },
       movestart: () => {
-        // Only notify parent of pan interactions
-        console.log('🗺️ [MapController] PAN START - notifying parent');
-        if (onMapInteraction) {
-          onMapInteraction();
-        }
+        // CRITICAL: Don't notify on movestart - wait for dragend to confirm real drag
+        // This prevents false positives from programmatic map moves
       },
       zoomend: () => {
         const rawZoom = mapInstance.getZoom();
