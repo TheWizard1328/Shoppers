@@ -1017,48 +1017,29 @@ Deno.serve(async (req) => {
     // CRITICAL: ETAs must be calculated SEQUENTIALLY from isNextDelivery (or driver if no isNextDelivery)
     // Each stop's ETA = previous stop's ETA + service time + travel time to this stop
     const updates = [];
-    
-    // Track the previous stop's coordinates for sequential travel time calculation
-    let prevCoords = isNextDeliveryStopData 
-      ? { lat: isNextDeliveryStopData.lat, lng: isNextDeliveryStopData.lng }
-      : { lat: driverLocation.lat, lng: driverLocation.lng };
 
     for (let i = 0; i < optimizedRoute.length; i++) {
       const stopIdx = optimizedRoute[i];
       const stop = stops[stopIdx];
       const newStopOrder = startingStopOrder + i + 1;
 
-      // Get real travel time from Google API
-      // CRITICAL: finalMatrix row 0 = driver, rows 1+ = optimized stops in order
-      // For sequential calculation, we use: row (i) to destination stopIdx
-      // But since finalMatrix destinations = optimizedRoute stops, we need to find the right index
-      let realTravelTimeSeconds;
+      // Get real travel time from Google Directions API legs
+      // directionsLegs[i] = travel time from previous point to this stop
+      let realTravelTimeSeconds = 0;
       
-      // Find this stop's position in the finalDestinations array (which is optimizedRoute order)
-      const destIdxInMatrix = i; // Since finalDestinations = optimizedRoute.map(idx => allStopCoords[idx])
-      
-      if (i === 0) {
-        // First optimized stop: travel from isNextDelivery (if exists) or driver location
-        if (isNextDeliveryStopData) {
-          // Calculate from isNextDelivery location using crow-flies (isNextDelivery not in matrix)
-          const distKm = calculateCrowFliesDistance(
-            isNextDeliveryStopData.lat, isNextDeliveryStopData.lng,
-            stop.lat, stop.lng
-          );
-          realTravelTimeSeconds = (distKm / 40) * 60 * 60 * 1.3; // 40km/h with 1.3x traffic
-          console.log(`📍 Stop ${i+1} travel from isNextDelivery: ${Math.ceil(realTravelTimeSeconds/60)} min (${distKm.toFixed(1)} km)`);
-        } else {
-          // No isNextDelivery, travel from driver location (row 0 in matrix)
-          realTravelTimeSeconds = finalMatrix[0][destIdxInMatrix].duration;
-          console.log(`📍 Stop ${i+1} travel from driver: ${Math.ceil(realTravelTimeSeconds/60)} min`);
-        }
+      if (directionsLegs.length > i) {
+        realTravelTimeSeconds = directionsLegs[i].duration;
+        const distanceMeters = directionsLegs[i].distance;
+        console.log(`📍 Stop ${i+1} (${stop.delivery.patient_name || 'Pickup'}): ${Math.ceil(realTravelTimeSeconds/60)} min, ${(distanceMeters/1000).toFixed(1)} km`);
       } else {
-        // Subsequent stops: travel from previous optimized stop (row i in matrix)
-        realTravelTimeSeconds = finalMatrix[i][destIdxInMatrix].duration;
-        console.log(`📍 Stop ${i+1} travel from prev stop: ${Math.ceil(realTravelTimeSeconds/60)} min`);
+        // Fallback to crow-flies if no leg data
+        const prevCoords = i === 0 
+          ? (isNextDeliveryStopData || driverLocation)
+          : { lat: stops[optimizedRoute[i-1]].lat, lng: stops[optimizedRoute[i-1]].lng };
+        const distKm = calculateCrowFliesDistance(prevCoords.lat, prevCoords.lng, stop.lat, stop.lng);
+        realTravelTimeSeconds = (distKm / 40) * 60 * 60 * 1.3;
+        console.log(`📍 Stop ${i+1} (fallback crow-flies): ${Math.ceil(realTravelTimeSeconds/60)} min`);
       }
-      
-      prevCoords = { lat: stop.lat, lng: stop.lng };
       
       const realTravelTimeMinutes = Math.ceil(realTravelTimeSeconds / 60);
 
