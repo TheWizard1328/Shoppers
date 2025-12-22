@@ -384,6 +384,11 @@ export default function DeliveryForm({
       if (patient) {
         setSelectedPatient(patient);
       }
+      
+      // Reset flag after form is loaded
+      setTimeout(() => {
+        isLoadingExistingDelivery.current = false;
+      }, 500);
     }
   }, [delivery, patients]);
 
