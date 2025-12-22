@@ -1660,16 +1660,23 @@ function Dashboard() {
       }, lockDuration);
 
       console.log(`🔵 [FAB] Phase ${newMapViewPhase} locked - will auto-unlock in 3 seconds`);
-    } else {
+    } else if (newMapViewPhase === 2) {
       // Phase 2 - NO timer, stays locked until manual interaction
       // CRITICAL: Set a delayed flag that allows manual interaction detection AFTER programmatic moves settle
       phase2WaitingForManualInteractionRef.current = false; // Reset first
       
-      // After 3 seconds, start accepting manual interactions
+      // CRITICAL: Clear any existing timers to prevent accidental unlock
+      if (mapLockTimeoutRef.current) {
+        clearTimeout(mapLockTimeoutRef.current);
+        mapLockTimeoutRef.current = null;
+      }
+      mapLockExpiresAtRef.current = null;
+      
+      // After 3 seconds, start accepting manual interactions (but keep locked)
       setTimeout(() => {
         if (mapViewPhaseForInteractionRef.current === 2 && isMapViewLockedRef.current) {
           phase2WaitingForManualInteractionRef.current = true;
-          console.log(`🔵 [FAB] Phase 2 now accepting manual interactions`);
+          console.log(`🔵 [FAB] Phase 2 now accepting manual interactions (stays locked)`);
         }
       }, 3000);
       
