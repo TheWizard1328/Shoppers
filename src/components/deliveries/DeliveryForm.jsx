@@ -4336,7 +4336,8 @@ export default function DeliveryForm({
                 try {
                   console.log('🗑️ [DeliveryForm] Deleting pending delivery:', staged.id, staged.patient_name);
                   
-                  // Delete from both offline and online databases
+                  // CRITICAL: Delete from both offline and online databases
+                  // This also triggers immediate mutation notification to update Layout state
                   await deleteDeliveryLocal(staged.id);
                   console.log('✅ [DeliveryForm] Pending delivery deleted from offline and online DBs');
 
@@ -4355,10 +4356,6 @@ export default function DeliveryForm({
 
                   // Trigger projections refresh
                   setPredictionTrigger((prev) => prev + 1);
-
-                  // Invalidate cache to force fresh data on next load
-                  const { invalidate } = await import('../utils/dataManager');
-                  invalidate('Delivery');
 
                   setDeleteConfirmation({ show: false, staged: null });
                 } catch (error) {
