@@ -172,6 +172,10 @@ Deno.serve(async (req) => {
         for (const key of fetchKeys) {
           if (key === 'month') {
             rawMonthDeliveries = results[resultIdx++];
+            if (!Array.isArray(rawMonthDeliveries)) {
+              console.error('❌ Month deliveries is not an array:', rawMonthDeliveries);
+              rawMonthDeliveries = [];
+            }
             statsCache.monthly = { data: rawMonthDeliveries, cacheDate, key: monthlyKey };
           } else if (key === 'patients') {
             const allPatients = results[resultIdx++];
@@ -179,23 +183,27 @@ Deno.serve(async (req) => {
             const allStores = results[resultIdx++];
             const allAppUsers = results[resultIdx++];
             entityCounts = {
-              patients: allPatients.length,
-              cities: allCities.length,
-              stores: allStores.length,
-              users: allAppUsers.length
+              patients: Array.isArray(allPatients) ? allPatients.length : 0,
+              cities: Array.isArray(allCities) ? allCities.length : 0,
+              stores: Array.isArray(allStores) ? allStores.length : 0,
+              users: Array.isArray(allAppUsers) ? allAppUsers.length : 0
             };
             statsCache.entityCounts = { data: entityCounts, cacheDate };
           } else if (key === 'patientsOnly') {
             const dispatcherPatients = results[resultIdx++];
             entityCounts = {
-              patients: dispatcherPatients.length
+              patients: Array.isArray(dispatcherPatients) ? dispatcherPatients.length : 0
             };
             // Don't cache dispatcher-specific counts (they vary by user)
           }
         }
       } catch (processingError) {
         console.error('❌ Error processing results:', processingError.message);
-        return Response.json({ error: 'Failed to process stats: ' + processingError.message }, { status: 500 });
+        console.error('Processing stack:', processingError.stack);
+        return Response.json({ 
+          error: 'Failed to process stats: ' + processingError.message,
+          stack: processingError.stack?.split('\n').slice(0, 5).join(' | ')
+        }, { status: 500 });
       }
     } else {
       console.log('📊 [getDeliveryStats] All data from cache - no DB calls needed!');
