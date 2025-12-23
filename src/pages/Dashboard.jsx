@@ -4997,26 +4997,23 @@ function Dashboard() {
         hasAutoSelectedRef.current = false;
       }
 
-      // CRITICAL: Re-lock and re-trigger FAB based on original phase
-      console.log(`🔒 [STATUS] Re-locking FAB to Phase ${currentPhase} after status update`);
-      setIsMapViewLocked(true);
-      lastProgrammaticMapMoveRef.current = Date.now();
-      window._lastProgrammaticMapMove = Date.now();
-      setMapViewTrigger((prev) => prev + 1);
-
-      // Set timer for phase 1 & 3
-      if (currentPhase === 1 || currentPhase === 3) {
-        const lockDuration = 3000;
-        const expiresAt = Date.now() + lockDuration;
-        mapLockExpiresAtRef.current = expiresAt;
-
-        mapLockTimeoutRef.current = setTimeout(() => {
-          if (mapLockExpiresAtRef.current === expiresAt) {
-            setIsMapViewLocked(false);
-            mapLockExpiresAtRef.current = null;
-            mapLockTimeoutRef.current = null;
-          }
-        }, lockDuration);
+      // CRITICAL: Only re-lock and re-trigger FAB if original phase was Phase 2
+      if (currentPhase === 2) {
+        console.log(`🔒 [STATUS] Re-locking FAB to Phase 2 after status update`);
+        setIsMapViewLocked(true);
+        lastProgrammaticMapMoveRef.current = Date.now();
+        window._lastProgrammaticMapMove = Date.now();
+        setMapViewTrigger((prev) => prev + 1);
+        
+        // Phase 2 stays locked permanently - clear any timers
+        if (mapLockTimeoutRef.current) {
+          clearTimeout(mapLockTimeoutRef.current);
+          mapLockTimeoutRef.current = null;
+        }
+        mapLockExpiresAtRef.current = null;
+      } else {
+        // Phase 1 & 3 - don't reactivate, leave as-is
+        console.log(`🔓 [STATUS] Phase ${currentPhase} - leaving unlocked after status update`);
       }
 
       // CRITICAL: Scroll to next delivery card after status update (completion)
@@ -5697,6 +5694,22 @@ function Dashboard() {
                       if (updates.stores) {
                         setStores(updates.stores);
                       }
+                    }
+
+                    // CRITICAL: Only re-lock and re-trigger FAB if current phase is Phase 2
+                    if (mapViewPhase === 2) {
+                      console.log(`🔒 [Refresh Spinner] Re-locking FAB to Phase 2 after optimization`);
+                      setIsMapViewLocked(true);
+                      lastProgrammaticMapMoveRef.current = Date.now();
+                      window._lastProgrammaticMapMove = Date.now();
+                      setMapViewTrigger((prev) => prev + 1);
+                      
+                      // Phase 2 stays locked permanently - clear any timers
+                      if (mapLockTimeoutRef.current) {
+                        clearTimeout(mapLockTimeoutRef.current);
+                        mapLockTimeoutRef.current = null;
+                      }
+                      mapLockExpiresAtRef.current = null;
                     }
 
                   }} />
