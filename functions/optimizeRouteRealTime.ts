@@ -738,8 +738,61 @@ Deno.serve(async (req) => {
       
       // STEP 3: Decision - handle in_transit deliveries OR optimize other deliveries OR go to next pickup
       
-      if (availableDeliveries.length > 0) {
-        // Check if next pickup has a time constraint we need to respect
+      if (inTransitDeliveriesForStore.length > 0) {
+        // CRITICAL: in_transit deliveries MUST come immediately after their pickup
+        // Go to pickup first, then deliver in_transit stops right away
+        if (nextScheduledPickup) {
+          optimizedRoute.push(nextScheduledPickup.idx);
+          unvisitedPickups.delete(nextScheduledPickup.idx);
+          completedPickupStores.add(nextScheduledPickup.delivery.store_id);
+          
+          const travelDist = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, nextScheduledPickup.lat, nextScheduledPickup.lng);
+          cumulativeTime += (travelDist / 40) * 60;
+          
+          if (nextScheduledPickup.delivery.delivery_time_start) {
+            const [h, m] = nextScheduledPickup.delivery.delivery_time_start.split(':').map(Number);
+            if (cumulativeTime < h * 60 + m) {
+              console.log(`   ⏳ Waiting at pickup until ${nextScheduledPickup.delivery.delivery_time_start}`);
+              cumulativeTime = h * 60 + m;
+            }
+          }
+          
+          cumulativeTime += nextScheduledPickup.delivery.extra_time || 15;
+          currentPosition = { lat: nextScheduledPickup.lat, lng: nextScheduledPickup.lng };
+          console.log(`   ✅ Pickup: ${nextScheduledPickup.delivery.patient_name || 'Pickup'}`);
+          
+          // Now optimize in_transit deliveries immediately
+          console.log(`   🔄 Optimizing ${inTransitDeliveriesForStore.length} in_transit deliveries right after pickup...`);
+          
+          const { path: inTransitPath } = findShortestPath(
+            currentPosition,
+            inTransitDeliveriesForStore,
+            null,
+            cumulativeTime
+          );
+          
+          for (const idx of inTransitPath) {
+            const stop = stops[idx];
+            optimizedRoute.push(idx);
+            
+            unvisitedFlexible.delete(idx);
+            unvisitedConstrained.delete(idx);
+            
+            const travelDist = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, stop.lat, stop.lng);
+            cumulativeTime += (travelDist / 40) * 60;
+            
+            if (stop.timeWindow && cumulativeTime < stop.timeWindow.start) {
+              cumulativeTime = stop.timeWindow.start;
+            }
+            
+            cumulativeTime += stop.delivery.extra_time || 5;
+            currentPosition = { lat: stop.lat, lng: stop.lng };
+            
+            console.log(`      📬 in_transit: ${stop.delivery.patient_name || 'Delivery'}`);
+          }
+        }
+      } else if (availableOtherDeliveries.length > 0) {
+        // Other deliveries available - check if pickup is urgent
         let pickupTimeUrgent = false;
         
         if (nextScheduledPickup && nextScheduledPickup.delivery.delivery_time_start) {
@@ -749,7 +802,6 @@ Deno.serve(async (req) => {
           const travelToPickupMinutes = (pickupDistance / 40) * 60;
           const arrivalAtPickup = cumulativeTime + travelToPickupMinutes;
           
-          // If we'd arrive late to pickup, prioritize it
           if (arrivalAtPickup > pickupTimeMinutes + 15) {
             pickupTimeUrgent = true;
             console.log(`   ⚠️ Pickup time urgent! Scheduled: ${nextScheduledPickup.delivery.delivery_time_start}`);
@@ -757,7 +809,6 @@ Deno.serve(async (req) => {
         }
         
         if (pickupTimeUrgent && nextScheduledPickup) {
-          // Go to pickup immediately
           optimizedRoute.push(nextScheduledPickup.idx);
           unvisitedPickups.delete(nextScheduledPickup.idx);
           completedPickupStores.add(nextScheduledPickup.delivery.store_id);
@@ -772,25 +823,24 @@ Deno.serve(async (req) => {
           
           cumulativeTime += nextScheduledPickup.delivery.extra_time || 15;
           currentPosition = { lat: nextScheduledPickup.lat, lng: nextScheduledPickup.lng };
-          console.log(`   ✅ Going to urgent pickup: ${nextScheduledPickup.delivery.patient_name || 'Pickup'}`);
+          console.log(`   ✅ Urgent pickup: ${nextScheduledPickup.delivery.patient_name || 'Pickup'}`);
         } else {
-          // USE SHORTEST PATH ALGORITHM for all available deliveries toward next pickup
+          // Optimize other available deliveries
           const stageDestination = nextScheduledPickup 
             ? { lat: nextScheduledPickup.lat, lng: nextScheduledPickup.lng }
             : driverHomeLocation;
           
-          console.log(`   🔄 Finding optimal path through ${availableDeliveries.length} deliveries...`);
+          console.log(`   🔄 Optimizing ${availableOtherDeliveries.length} other deliveries...`);
           
           const { path: optimizedPath, totalDistance } = findShortestPath(
             currentPosition,
-            availableDeliveries,
+            availableOtherDeliveries,
             stageDestination,
             cumulativeTime
           );
           
-          console.log(`   ✅ Optimal path found: ${optimizedPath.length} stops, ~${totalDistance.toFixed(1)} km total`);
+          console.log(`   ✅ Optimal path: ${optimizedPath.length} stops, ~${totalDistance.toFixed(1)} km`);
           
-          // Add ALL optimized deliveries to route
           for (const idx of optimizedPath) {
             const stop = stops[idx];
             optimizedRoute.push(idx);
@@ -813,7 +863,7 @@ Deno.serve(async (req) => {
           }
         }
       } else if (nextScheduledPickup) {
-        // No available deliveries, go to next scheduled pickup
+        // No deliveries available, go to next pickup
         optimizedRoute.push(nextScheduledPickup.idx);
         unvisitedPickups.delete(nextScheduledPickup.idx);
         completedPickupStores.add(nextScheduledPickup.delivery.store_id);
@@ -832,7 +882,7 @@ Deno.serve(async (req) => {
         cumulativeTime += nextScheduledPickup.delivery.extra_time || 15;
         currentPosition = { lat: nextScheduledPickup.lat, lng: nextScheduledPickup.lng };
         
-        console.log(`   ✅ Going to next pickup: ${nextScheduledPickup.delivery.patient_name || 'Pickup'}`);
+        console.log(`   ✅ Pickup: ${nextScheduledPickup.delivery.patient_name || 'Pickup'}`);
       } else {
         break;
       }
