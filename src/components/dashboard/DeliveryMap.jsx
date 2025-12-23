@@ -984,12 +984,15 @@ export default function DeliveryMap({
       const isPureDriver = userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher');
       const isOtherDriver = isPureDriver && isDriverViewingSelfToday && pickup.driver_id !== currentUser?.id;
 
+      // CRITICAL: Pin color for pickups - ALWAYS use store color (never driver color)
+      const pickupPinColor = getStoreColor(store);
+
       return {
         ...pickup,
         latitude: store.latitude,
         longitude: store.longitude,
         store,
-        pinColor,
+        pinColor: pickupPinColor, // CRITICAL: Always store color for pickups
         driver,
         number: pickup.display_stop_order || pickup.stop_order || 0,
         markerType: 'pickup',
