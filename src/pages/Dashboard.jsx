@@ -289,7 +289,7 @@ function Dashboard() {
   const [mapViewPhase, setMapViewPhase] = useState(1); // Will be loaded from user settings
   const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
   const [initialMapViewApplied, setInitialMapViewApplied] = useState(false);
-  
+
   // CRITICAL: Render sequence tracking for proper initialization order
   // 1=StatsCard&StopCards, 2=FABs, 3=MapMarkers, 4=RouteLines, 5=DriverLiveLocation, 6=SharedLocations, 7=FABPhaseActive
   const [renderSequence, setRenderSequence] = useState({
@@ -909,7 +909,7 @@ function Dashboard() {
     // PHASE 2 NO LONGER UNLOCKS ON MAP INTERACTION
     // It stays permanently locked until FAB is clicked to change phases
     // This simplifies the logic and prevents accidental unlocks
-    
+
     // Record user interaction time (prevents proximity snap for 5 minutes)
     if (isUserInteraction) {
       lastUserInteractionRef.current = Date.now();
@@ -936,9 +936,9 @@ function Dashboard() {
 
       if (newFilters.selectedDriverId !== undefined) {
 
+
         // This subscription handles changes from other components
-      }});
-    return unsubscribe;
+      }});return unsubscribe;
   }, []); // Listen for driver status break/resume events from DriverStatusToggle
   useEffect(() => {
     const unsubscribe = fabControlEvents.subscribe((event) => {
@@ -988,13 +988,13 @@ function Dashboard() {
       } else if (event.type === 'DATA_READY') {
         // CRITICAL: Data has fully loaded - reactivate FAB with current phase
         console.log(`🔄 [FAB] Data ready - reactivating Phase ${mapViewPhase}`);
-        
+
         // Lock FAB and trigger map view
         setIsMapViewLocked(true);
         lastProgrammaticMapMoveRef.current = Date.now();
         window._lastProgrammaticMapMove = Date.now();
         setMapViewTrigger((prev) => prev + 1);
-        
+
         // CRITICAL: Handle timer logic based on phase - ONLY set timers for Phase 1 & 3
         if (mapViewPhase === 2) {
           // Phase 2 - NO timer at all, stays locked permanently
@@ -1004,7 +1004,7 @@ function Dashboard() {
             mapLockTimeoutRef.current = null;
           }
           mapLockExpiresAtRef.current = null;
-          
+
         } else if (mapViewPhase === 1 || mapViewPhase === 3) {
           // Phase 1 & 3 - Clear any existing timers first, then set new timer
           if (mapLockTimeoutRef.current) {
@@ -1012,7 +1012,7 @@ function Dashboard() {
             mapLockTimeoutRef.current = null;
           }
           mapLockExpiresAtRef.current = null;
-          
+
           const lockDuration = 3000;
           const expiresAt = Date.now() + lockDuration;
           mapLockExpiresAtRef.current = expiresAt;
@@ -1357,11 +1357,11 @@ function Dashboard() {
     driverLocationPoller.start(() => {
 
 
+
+
       // Callback provided for future use, but not actively calling refreshData
       // to prevent triggering auto-selection every 15 seconds
-    });const unsubscribe = driverLocationPoller.subscribe((locations) => {if (!locations || !Array.isArray(locations)) return;
-        setAllDriverLocations(locations);
-      });
+    });const unsubscribe = driverLocationPoller.subscribe((locations) => {if (!locations || !Array.isArray(locations)) return;setAllDriverLocations(locations);});
     return () => {
       unsubscribe();
       driverLocationPoller.stop();
@@ -1571,11 +1571,11 @@ function Dashboard() {
     console.log(`🔒 [FAB Click] Locking FAB for Phase ${newMapViewPhase}`);
     setIsMapViewLocked(true);
     setMapViewPhase(newMapViewPhase);
-    
+
     // CRITICAL: Mark this as programmatic BEFORE triggering map view
     lastProgrammaticMapMoveRef.current = Date.now();
     window._lastProgrammaticMapMove = Date.now();
-    
+
     // Trigger map repositioning AFTER marking as programmatic
     setMapViewTrigger((prev) => prev + 1);
 
@@ -1620,7 +1620,7 @@ function Dashboard() {
         mapLockTimeoutRef.current = null;
       }
       mapLockExpiresAtRef.current = null;
-      
+
       console.log(`🔵 [FAB] Phase 2 locked PERMANENTLY - unlocks only when FAB is clicked to change phase`);
     }
   }, [mapViewPhase, isMapViewLocked, isDriver, nextStopCoordinates, isDispatcher, isAdmin, isMobile, currentUser, deliveriesWithStopOrder]);
@@ -2022,14 +2022,14 @@ function Dashboard() {
   // RENDER SEQUENCE EFFECT 1: Track StatsCard & StopCards ready
   useEffect(() => {
     if (!isDataLoaded || !userSettingsLoaded) return;
-    
+
     const hasDeliveries = deliveriesWithStopOrder.length > 0;
     const statsCardMeasured = statsCardRef.current?.offsetHeight > 0;
     const stopCardsMeasured = hasDeliveries ? stopCardsBaseHeight > 0 : true;
-    
+
     if (statsCardMeasured && stopCardsMeasured && !renderSequence.statsAndCards) {
       console.log('✅ [Render Sequence 1] StatsCard & StopCards ready');
-      setRenderSequence(prev => ({ ...prev, statsAndCards: true }));
+      setRenderSequence((prev) => ({ ...prev, statsAndCards: true }));
     }
   }, [isDataLoaded, userSettingsLoaded, deliveriesWithStopOrder.length, stopCardsBaseHeight, renderSequence.statsAndCards]);
 
@@ -2037,23 +2037,23 @@ function Dashboard() {
   useEffect(() => {
     if (!renderSequence.statsAndCards) return;
     if (renderSequence.fabs) return;
-    
+
     // FABs render immediately after stats/cards - just mark as ready
     console.log('✅ [Render Sequence 2] FABs ready');
-    setRenderSequence(prev => ({ ...prev, fabs: true }));
+    setRenderSequence((prev) => ({ ...prev, fabs: true }));
   }, [renderSequence.statsAndCards, renderSequence.fabs]);
 
   // RENDER SEQUENCE EFFECT 3: Track Map Markers ready (including home locations)
   useEffect(() => {
     if (!renderSequence.fabs) return;
     if (renderSequence.mapMarkers) return;
-    
+
     // Map markers are ready once we have deliveries data and stores/patients loaded
     const hasRequiredData = deliveriesWithStopOrder.length > 0 || stores.length > 0;
-    
+
     if (hasRequiredData) {
       console.log('✅ [Render Sequence 3] Map Markers ready');
-      setRenderSequence(prev => ({ ...prev, mapMarkers: true }));
+      setRenderSequence((prev) => ({ ...prev, mapMarkers: true }));
     }
   }, [renderSequence.fabs, renderSequence.mapMarkers, deliveriesWithStopOrder.length, stores.length]);
 
@@ -2061,24 +2061,24 @@ function Dashboard() {
   useEffect(() => {
     if (!renderSequence.mapMarkers) return;
     if (renderSequence.routeLines) return;
-    
+
     // Route lines are ready - they render after markers
     console.log('✅ [Render Sequence 4] Route Lines ready');
-    setRenderSequence(prev => ({ ...prev, routeLines: true }));
+    setRenderSequence((prev) => ({ ...prev, routeLines: true }));
   }, [renderSequence.mapMarkers, renderSequence.routeLines]);
 
   // RENDER SEQUENCE EFFECT 5: Track Driver Live Location ready
   useEffect(() => {
     if (!renderSequence.routeLines) return;
     if (renderSequence.driverLiveLocation) return;
-    
+
     // Driver live location is ready when we have location OR user is not a driver
     const hasLocation = driverLocation?.latitude && driverLocation?.longitude;
     const notDriverOrHasLocation = !isDriver || hasLocation;
-    
+
     if (notDriverOrHasLocation) {
       console.log('✅ [Render Sequence 5] Driver Live Location ready');
-      setRenderSequence(prev => ({ ...prev, driverLiveLocation: true }));
+      setRenderSequence((prev) => ({ ...prev, driverLiveLocation: true }));
     }
   }, [renderSequence.routeLines, renderSequence.driverLiveLocation, driverLocation, isDriver]);
 
@@ -2086,17 +2086,17 @@ function Dashboard() {
   useEffect(() => {
     if (!renderSequence.driverLiveLocation) return;
     if (renderSequence.sharedLocations) return;
-    
+
     // Shared locations are loaded via driverLocationPoller - consider ready after poller starts
     // or if allDriverLocations has been populated
     const hasSharedLocations = allDriverLocations.length > 0 || !isDataLoaded;
-    
+
     // Always mark as ready after a short delay to not block forever
     const timer = setTimeout(() => {
       console.log('✅ [Render Sequence 6] Shared Driver Locations ready');
-      setRenderSequence(prev => ({ ...prev, sharedLocations: true }));
+      setRenderSequence((prev) => ({ ...prev, sharedLocations: true }));
     }, allDriverLocations.length > 0 ? 0 : 500);
-    
+
     return () => clearTimeout(timer);
   }, [renderSequence.driverLiveLocation, renderSequence.sharedLocations, allDriverLocations.length, isDataLoaded]);
 
@@ -2107,14 +2107,14 @@ function Dashboard() {
     if (!renderSequence.sharedLocations || renderSequence.fabPhaseReady) {
       return;
     }
-    
+
     if (initialMapViewApplied) {
-      setRenderSequence(prev => ({ ...prev, fabPhaseReady: true }));
+      setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
       return;
     }
 
     console.log('✅ [Render Sequence 7] All elements rendered - activating FAB phase');
-    
+
     // CRITICAL: Notify fabControlEvents that initial data is ready
     // This allows other components to know when dashboard is fully loaded
     fabControlEvents.notifyDataReady();
@@ -2124,7 +2124,7 @@ function Dashboard() {
       setMapViewPhase(1);
       setIsMapViewLocked(true);
       setInitialMapViewApplied(true);
-      setRenderSequence(prev => ({ ...prev, fabPhaseReady: true }));
+      setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
 
       if (mapLockTimeoutRef.current) {
         clearTimeout(mapLockTimeoutRef.current);
@@ -2147,8 +2147,8 @@ function Dashboard() {
       setIsMapViewLocked(true);
       setMapViewTrigger((prev) => prev + 1);
       setInitialMapViewApplied(true);
-      setRenderSequence(prev => ({ ...prev, fabPhaseReady: true }));
-      
+      setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
+
       const lockDuration = 3000;
       const expiresAt = Date.now() + lockDuration;
       mapLockExpiresAtRef.current = expiresAt;
@@ -2170,8 +2170,8 @@ function Dashboard() {
       setIsMapViewLocked(true);
       setMapViewTrigger((prev) => prev + 1);
       setInitialMapViewApplied(true);
-      setRenderSequence(prev => ({ ...prev, fabPhaseReady: true }));
-      
+      setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
+
       const lockDuration = 3000;
       const expiresAt = Date.now() + lockDuration;
       mapLockExpiresAtRef.current = expiresAt;
@@ -2191,7 +2191,7 @@ function Dashboard() {
     setMapViewPhase(phaseToApply);
     setIsMapViewLocked(true);
     setInitialMapViewApplied(true);
-    setRenderSequence(prev => ({ ...prev, fabPhaseReady: true }));
+    setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
 
     // Clear existing timers
     if (mapLockTimeoutRef.current) {
@@ -2333,7 +2333,7 @@ function Dashboard() {
 
   // Periodic ETA optimizer - runs every 15 minutes for current driver, only if moved 500m+
   const lastETAUpdateLocationRef = useRef(null);
-  
+
   useEffect(() => {
     if (!isDataLoaded || !currentUser || !selectedDriverId || selectedDriverId === 'all') {
       return;
@@ -2367,14 +2367,14 @@ function Dashboard() {
               driverLocation.latitude,
               driverLocation.longitude
             ) * 1000; // Convert km to meters
-            
+
             if (distanceMoved < 500) {
               console.log(`⏭️ [ETA] Skipping update - driver moved only ${Math.round(distanceMoved)}m (< 500m)`);
               return;
             }
             console.log(`✅ [ETA] Driver moved ${Math.round(distanceMoved)}m - updating ETAs`);
           }
-          
+
           // Store current location for next comparison
           lastETAUpdateLocationRef.current = {
             lat: driverLocation.latitude,
@@ -2385,7 +2385,7 @@ function Dashboard() {
         // Get current local time in HH:mm format
         const now = new Date();
         const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        
+
         const response = await base44.functions.invoke('calculateRealTimeETA', {
           driverId: selectedDriverId,
           deliveryDate: dateStr,
@@ -2636,7 +2636,7 @@ function Dashboard() {
             }
           }, lockDuration);
         }
-        
+
         // CRITICAL: Notify that date change data is ready
         fabControlEvents.notifyDataReady();
       }, 100);
@@ -2737,7 +2737,7 @@ function Dashboard() {
             }
           }, lockDuration);
         }
-        
+
         // CRITICAL: Notify that driver change data is ready
         fabControlEvents.notifyDataReady();
       }, 300);
@@ -4948,7 +4948,7 @@ function Dashboard() {
           // Get current local time in HH:mm format
           const now = new Date();
           const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-          
+
           const response = await base44.functions.invoke('calculateRealTimeETA', {
             driverId: targetDelivery.driver_id,
             deliveryDate: deliveryDate,
@@ -5238,7 +5238,7 @@ function Dashboard() {
       try {
         const now = new Date();
         const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        
+
         console.log('📍 [START] Running calculateRealTimeETA for all stops...');
         await base44.functions.invoke('calculateRealTimeETA', {
           driverId: driverId,
@@ -5351,29 +5351,29 @@ function Dashboard() {
   const handleQuickReorder = async (reorderUpdates) => {
     try {
       setIsEntityUpdating(true);
-      
+
       console.log('🔄 [Quick Reorder] Swapping stop orders:', reorderUpdates);
-      
+
       // Update stop orders in parallel
       for (const update of reorderUpdates) {
         await updateDeliveryLocal(update.id, { stop_order: update.stop_order });
       }
-      
+
       // Recalculate ETAs after reordering
       const deliveryDate = format(selectedDate, 'yyyy-MM-dd');
       const now = new Date();
       const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      
+
       const response = await base44.functions.invoke('calculateRealTimeETA', {
         driverId: currentUser.id,
         deliveryDate: deliveryDate,
         currentLocalTime: localTimeString // Backend calculates and saves ETAs directly
       });
       // Backend now handles all ETA calculations and database updates - no need to recalculate here
-      
+
       invalidate('Delivery');
       await refreshData();
-      
+
       console.log('✅ [Quick Reorder] Complete');
     } catch (error) {
       console.error('❌ [Quick Reorder] Error:', error);
@@ -5386,40 +5386,40 @@ function Dashboard() {
   const handleAddDelay = async (deliveryId, delayMinutes) => {
     try {
       setIsEntityUpdating(true);
-      
+
       console.log(`⏱️ [Add Delay] Adding ${delayMinutes} minutes to stop ${deliveryId}`);
-      
-      const delivery = deliveriesWithStopOrder.find(d => d && d.id === deliveryId);
+
+      const delivery = deliveriesWithStopOrder.find((d) => d && d.id === deliveryId);
       if (!delivery) return;
-      
+
       // Add delay to this stop's ETA and all subsequent stops
       const deliveryDate = format(selectedDate, 'yyyy-MM-dd');
       const allDriverDeliveries = await base44.entities.Delivery.filter({
         driver_id: currentUser.id,
         delivery_date: deliveryDate
       }, 'stop_order');
-      
+
       const targetStopOrder = delivery.stop_order;
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned', 'pending'];
-      
+
       for (const d of allDriverDeliveries) {
         if (!d || finishedStatuses.includes(d.status)) continue;
         if ((d.stop_order || 0) < targetStopOrder) continue;
-        
+
         // Add delay to ETA
         const currentETA = d.delivery_time_eta || d.delivery_time_start;
         if (currentETA) {
           const [hours, mins] = currentETA.split(':').map(Number);
           const totalMinutes = hours * 60 + mins + delayMinutes;
           const newETA = `${String(Math.floor(totalMinutes / 60) % 24).padStart(2, '0')}:${String(totalMinutes % 60).padStart(2, '0')}`;
-          
+
           await base44.entities.Delivery.update(d.id, { delivery_time_eta: newETA });
         }
       }
-      
+
       invalidate('Delivery');
       await refreshData();
-      
+
       console.log(`✅ [Add Delay] ${delayMinutes} minutes added to remaining stops`);
     } catch (error) {
       console.error('❌ [Add Delay] Error:', error);
@@ -5513,7 +5513,7 @@ function Dashboard() {
       </AnimatePresence>
 
       <div className={statsCardPositioning}>
-        <div className="flex flex-col items-center gap-1 z-[200]"
+        <div className="flex flex-col items-center gap-1 z-[200] max-w-[340px]"
 
         style={{ opacity: statsPanelOpacity, transition: 'opacity 0.5s ease-in-out' }}
         onMouseEnter={() => handleStatsPanelInteraction(true)}
@@ -5839,12 +5839,12 @@ function Dashboard() {
                   {/* Quick Route Adjustments - Driver Mobile Only */}
                   {isMobile && isDriver && selectedDriverId === currentUser?.id &&
                   <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowQuickAdjustments(true)}
-                  className="h-8 gap-1.5 px-2 flex-shrink-0"
-                  title="Quick route adjustments"
-                  style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowQuickAdjustments(true)}
+                    className="h-8 gap-1.5 px-2 flex-shrink-0"
+                    title="Quick route adjustments"
+                    style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                       <ArrowUp className="w-3 h-3" />
                       <ArrowDown className="w-3 h-3" />
                       <span className="text-xs">Adjust</span>
@@ -6006,12 +6006,12 @@ function Dashboard() {
             onMapReady={() => {
               // CRITICAL: Mark map rendering complete (Sequence 3-6 done)
               if (!renderSequence.mapMarkers) {
-                setRenderSequence(prev => ({ 
-                  ...prev, 
-                  mapMarkers: true, 
-                  routeLines: true, 
-                  driverLiveLocation: true, 
-                  sharedLocations: true 
+                setRenderSequence((prev) => ({
+                  ...prev,
+                  mapMarkers: true,
+                  routeLines: true,
+                  driverLiveLocation: true,
+                  sharedLocations: true
                 }));
               }
             }} />
@@ -6424,31 +6424,31 @@ function Dashboard() {
       }
 
       {/* Quick Route Adjustments Dialog */}
-      {isMobile && isDriver && (
-        <Dialog open={showQuickAdjustments} onOpenChange={setShowQuickAdjustments}>
+      {isMobile && isDriver &&
+      <Dialog open={showQuickAdjustments} onOpenChange={setShowQuickAdjustments}>
           <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto z-[10001]">
             <DialogHeader>
               <DialogTitle>Quick Route Adjustments</DialogTitle>
             </DialogHeader>
             
-            {deliveriesWithStopOrder.filter(d => 
-              d && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status) && 
-              d.driver_id === currentUser?.id
-            ).length === 0 ? (
-              <p className="text-sm text-slate-500 py-4">No active stops to adjust</p>
-            ) : (
-              <QuickRouteAdjustments
-                deliveries={deliveriesWithStopOrder}
-                currentUser={currentUser}
-                patients={patients}
-                stores={stores}
-                onReorder={handleQuickReorder}
-                onAddDelay={handleAddDelay}
-              />
-            )}
+            {deliveriesWithStopOrder.filter((d) =>
+          d && !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status) &&
+          d.driver_id === currentUser?.id
+          ).length === 0 ?
+          <p className="text-sm text-slate-500 py-4">No active stops to adjust</p> :
+
+          <QuickRouteAdjustments
+            deliveries={deliveriesWithStopOrder}
+            currentUser={currentUser}
+            patients={patients}
+            stores={stores}
+            onReorder={handleQuickReorder}
+            onAddDelay={handleAddDelay} />
+
+          }
           </DialogContent>
         </Dialog>
-      )}
+      }
     </div>);
 
 }
