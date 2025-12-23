@@ -955,6 +955,9 @@ export default function DeliveryMap({
 
       // CRITICAL: Use backend isNextDelivery flag for blue marker circle
       const isNextInLine = delivery.isNextDelivery || false;
+      
+      // CRITICAL: Track delivery status and isNextDelivery in stable key
+      const stableKey = `${delivery.id}:${delivery.status}:${isNextInLine}:${delivery.stop_order}`;
 
       const hasNoPickup = delivery.patient_id && (!delivery.puid || delivery.puid.trim() === '');
 
@@ -1099,9 +1102,9 @@ export default function DeliveryMap({
   // CRITICAL: Use stable references to prevent re-renders on smart refresh
   // Only recalculate when actual data IDs change, not on every array reference change
   }, [
-    // Stable ID lists for deliveries/pickups
-    patientDeliveries.map(d => d?.id).join(','),
-    pickups.map(p => p?.id).join(','),
+    // CRITICAL: Track status, isNextDelivery, and stop_order changes for immediate marker updates
+    patientDeliveries.map(d => `${d?.id}:${d?.status}:${d?.isNextDelivery}:${d?.stop_order}`).join(','),
+    pickups.map(p => `${p?.id}:${p?.status}:${p?.isNextDelivery}:${p?.stop_order}`).join(','),
     // Stable user/store/patient tracking
     safeUsers.map(u => u?.id).join(','),
     safeStores.map(s => s?.id).join(','),
