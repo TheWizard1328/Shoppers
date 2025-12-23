@@ -1,4 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
 // In-memory cache for expensive stats (survives across requests in the same Deno isolate)
 const statsCache = {
