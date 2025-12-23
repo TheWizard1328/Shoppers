@@ -604,8 +604,17 @@ export default function DeliveryForm({
     return 'Bi-Weekly';
   }, [currentFrequency, hasAnyDaySelected, formData]);
 
+  // CRITICAL: Track if predictions should be stopped (when Done button is clicked or form is closing)
+  const predictionsStopped = useRef(false);
+
   useEffect(() => {
     if (delivery || !formData.delivery_date || !currentUser || !stores || !allDeliveries) return;
+    
+    // CRITICAL: Stop predictions if explicitly stopped (Done button clicked)
+    if (predictionsStopped.current) {
+      console.log('⏸️ [DeliveryForm] Predictions STOPPED - Done button clicked');
+      return;
+    }
 
     const fetchPredictions = async () => {
       setIsLoadingPredictions(true);
@@ -1580,14 +1589,15 @@ export default function DeliveryForm({
     })));
 
     // CRITICAL: Stop prediction manager COMPLETELY when Done button is clicked
-    console.log('⏸️ [DeliveryForm] Stopping delivery prediction manager...');
+    console.log('⏸️ [DeliveryForm] Stopping delivery prediction manager PERMANENTLY...');
+    predictionsStopped.current = true; // Block predictions permanently
     setIsLoadingPredictions(true); // Block predictions immediately
     setProjectedDeliveries([]); // Clear projections
 
     if (stagedDeliveries.length === 0 && !hasPendingDeletes) {
       console.warn('[AddToRoute] ⚠️ No staged deliveries to save');
       hasLoadedPending.current = false; // Reset flag when closing without saves
-      // Don't resume predictions - we're closing the form
+      predictionsStopped.current = false; // Reset for next open
       onCancel(); // Close form immediately
       return;
     }
@@ -1616,6 +1626,7 @@ export default function DeliveryForm({
         setHasPendingDeletes(false);
         setHasChanges(false);
         hasLoadedPending.current = false;
+        predictionsStopped.current = false; // Reset for next open
         setIsLoadingPredictions(true);
         onCancel();
       }
@@ -1658,6 +1669,7 @@ export default function DeliveryForm({
       setStagedDeliveries([]);
       setProjectedDeliveries([]);
       hasLoadedPending.current = false;
+      predictionsStopped.current = false; // Reset for next open
       setIsLoadingPredictions(true); // Keep predictions blocked
       onCancel();
       return;
@@ -1946,6 +1958,7 @@ export default function DeliveryForm({
       setHasPendingDeletes(false); // Reset pending deletes flag
       setHasChanges(false); // Reset changes flag
       hasLoadedPending.current = false; // Reset flag to allow reload
+      predictionsStopped.current = false; // Reset for next open
       setIsLoadingPredictions(true); // Keep predictions blocked permanently when closing
       console.log('[AddToRoute] ✅ Staged deliveries cleared');
 
@@ -1953,10 +1966,10 @@ export default function DeliveryForm({
     } catch (err) {
       console.error('[AddToRoute] ❌ Batch save error:', err);
       setError(`Failed to save: ${err.message || 'Unknown error'}`);
-      // Don't resume predictions on error - form is still open
+      predictionsStopped.current = false; // Reset on error (form stays open, allow predictions)
+      setIsLoadingPredictions(false); // Re-enable predictions on error
     } finally {
       setIsSaving(false);
-      // Don't resume predictions here - form is closing or errored
     }
   }, [stagedDeliveries, onSave, onCancel, allDeliveries, formData.delivery_date, formData.driver_id, editingStagedId]);
 
