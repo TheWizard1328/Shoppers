@@ -1305,7 +1305,7 @@ export default function DeliveryMap({
         latitude: user.current_latitude,
         longitude: user.current_longitude,
         location_updated_at: user.location_updated_at,
-        driver,
+        driver: user,
         driverColor,
         driverName,
         driverInitial,
