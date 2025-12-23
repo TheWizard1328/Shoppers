@@ -5813,10 +5813,10 @@ function Dashboard() {
                     onValueChange={handleDriverChange}
                     disabled={isDriverDropdownDisabled}>
 
-                      <SelectTrigger className="flex h-8 w-full items-center justify-between rounded-md border px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 flex-1" style={{ pointerEvents: 'auto', touchAction: 'manipulation', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
+                      <SelectTrigger className="flex h-8 w-full items-center justify-between rounded-md border px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 flex-1" style={{ pointerEvents: 'auto', touchAction: 'manipulation', background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                         <SelectValue placeholder="All Drivers" />
                       </SelectTrigger>
-                      <SelectContent className="z-[10001]" style={{ pointerEvents: 'auto', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                      <SelectContent className="z-[10001]" style={{ pointerEvents: 'auto', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
                         <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Drivers</SelectItem>
                         {driversList.map((driver) =>
                       <SelectItem key={driver.id} value={driver.id} style={{ color: 'var(--text-slate-900)' }}>
@@ -5831,7 +5831,8 @@ function Dashboard() {
                     size="sm"
                     onClick={() => setShowOptimizationSettings(true)}
                     className="h-8 w-8 p-0 flex-shrink-0"
-                    title="Route Optimization Settings">
+                    title="Route Optimization Settings"
+                    style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                       <Settings className="w-3.5 h-3.5" />
                     </Button>
 
