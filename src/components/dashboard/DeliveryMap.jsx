@@ -1261,7 +1261,7 @@ export default function DeliveryMap({
     if (!isViewingCurrentDate) return [];
 
     const isAdmin = currentUser && userHasRole(currentUser, 'admin');
-    const isDriver = currentUser && userHasRole(currentUser, 'driver');
+    const isDriverRole = currentUser && userHasRole(currentUser, 'driver');
     const currentUserCityId = currentUser?.city_id;
     const fiveMinutesInMs = 5 * 60 * 1000;
     const now = Date.now();
@@ -1315,7 +1315,7 @@ export default function DeliveryMap({
       }
 
       // Permission filtering - drivers and admins see all shared locations in same city
-      if (!isAdmin && !isDriver) {
+      if (!isAdmin && !isDriverRole) {
         return null;
       }
       
@@ -1370,8 +1370,16 @@ export default function DeliveryMap({
     }).filter(Boolean);
 
     return markers;
-  // CRITICAL: Include isMobile in deps to ensure mobile filtering works correctly
-  }, [safeUsers.map(u => u?.id).join(','), currentUser?.id, isViewingCurrentDate, isMobile, safeDeliveries.map(d => d?.id).join(',')]);
+  // CRITICAL: Use stable string keys for dependencies to prevent unnecessary re-renders
+  }, [
+    // Stable key for users with location data
+    safeUsers.map(u => `${u?.id}:${u?.current_latitude}:${u?.current_longitude}:${u?.driver_status}:${u?.location_tracking_enabled}`).join('|'),
+    currentUser?.id,
+    isViewingCurrentDate,
+    isMobile,
+    // Only track delivery driver IDs for dispatcher filtering
+    safeDeliveries.map(d => `${d?.driver_id}:${d?.store_id}`).join('|')
+  ]);
 
   // UPDATED: Process current driver's live location for display - ONLY SHOW ON MOBILE, TODAY'S DATE
   const currentDriverMarker = useMemo(() => {
@@ -1473,12 +1481,15 @@ export default function DeliveryMap({
     return homeMarkers;
   // CRITICAL: Use stable references to prevent home markers from blinking on refresh
   }, [
-    safeDeliveries.map(d => d?.id).join(','),
-    safeUsers.map(u => `${u?.id}:${u?.home_latitude}:${u?.home_longitude}`).join(','),
+    // Only track driver IDs with active stops, not full delivery data
+    safeDeliveries.map(d => `${d?.driver_id}:${d?.status}`).join('|'),
+    // Only track home coordinates, not all user data
+    safeUsers.map(u => `${u?.id}:${u?.home_latitude}:${u?.home_longitude}`).join('|'),
     showRoutes,
     currentUser?.id,
     isViewingCurrentDate,
-    isDriverViewingSelfToday
+    isDriverViewingSelfToday,
+    isMobile
   ]);
 
   // CRITICAL: Store previous driverRoutes to prevent unnecessary recalculations
@@ -2060,8 +2071,12 @@ export default function DeliveryMap({
         }
 
         {/* STRAIGHT BLUE DASHED LINE - From driver location (or fallback) to NEXT stop only */}
-        {isViewingCurrentDate && (() => {
+        {/* CRITICAL: Only render if we're NOT showing a pre-route line from driverRoutes (to avoid duplicates) */}
+        {isViewingCurrentDate && !googleRouteCoordinates && (() => {
           const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+          
+          // CRITICAL: Only show for current user who is a driver
+          if (!currentUser || !userHasRole(currentUser, 'driver')) return null;
           
           // Get all incomplete deliveries for the current driver, sorted by stop_order
           const incompleteDeliveries = deliveryMarkers.filter(d => 
@@ -2085,6 +2100,13 @@ export default function DeliveryMap({
           const nextStop = allIncompleteStops[0];
           
           if (!nextStop) return null;
+          
+          // CRITICAL: Check if driverRoutes already has a startToFirstStopCoordinates for this driver
+          // If so, DON'T draw a duplicate line
+          const currentDriverRoute = driverRoutes.find(r => r.driverId === currentUser.id);
+          if (currentDriverRoute?.startToFirstStopCoordinates) {
+            return null; // driverRoutes already draws the pre-route line
+          }
           
           // CRITICAL: Determine the starting point for the blue dashed line
           // Priority: 1) Live driver location, 2) Last completed stop, 3) Driver's home location
