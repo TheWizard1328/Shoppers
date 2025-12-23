@@ -605,25 +605,41 @@ class SmartRefreshManager {
         return null;
       }
       
-      let hasLocationChanges = false;
+      // CRITICAL: Merge ALL server AppUsers into current state (not just drivers)
+      // This ensures non-driver AppUsers are also updated consistently
       const updatedAppUsers = currentAppUsers.map(au => {
         const serverVersion = allAppUsers.find(ad => ad.user_id === au.user_id);
         if (serverVersion) {
-          // CRITICAL: Detect ANY change in location, status, or tracking enabled
-          if (au.current_latitude !== serverVersion.current_latitude ||
-              au.current_longitude !== serverVersion.current_longitude ||
-              au.driver_status !== serverVersion.driver_status ||
-              au.location_tracking_enabled !== serverVersion.location_tracking_enabled) {
-            hasLocationChanges = true;
-            return { ...au, ...serverVersion };
-          }
+          return { ...au, ...serverVersion };
         }
         return au;
       });
       
-      // CRITICAL: Always use updatedAppUsers (merged with server data) for consistency
-      // This prevents flickering between old and new data
-      const finalAppUsers = hasLocationChanges ? updatedAppUsers : currentAppUsers;
+      // Add any new AppUsers from server that weren't in current list
+      allAppUsers.forEach(serverAu => {
+        if (!updatedAppUsers.find(au => au.user_id === serverAu.user_id)) {
+          updatedAppUsers.push(serverAu);
+        }
+      });
+      
+      // Check for changes
+      let hasLocationChanges = false;
+      for (let i = 0; i < currentAppUsers.length; i++) {
+        const curr = currentAppUsers[i];
+        const updated = updatedAppUsers.find(u => u.user_id === curr.user_id);
+        if (updated) {
+          if (curr.current_latitude !== updated.current_latitude ||
+              curr.current_longitude !== updated.current_longitude ||
+              curr.driver_status !== updated.driver_status ||
+              curr.location_tracking_enabled !== updated.location_tracking_enabled) {
+            hasLocationChanges = true;
+            break;
+          }
+        }
+      }
+      
+      // CRITICAL: Always return updatedAppUsers (merged with server) for consistency
+      const finalAppUsers = updatedAppUsers;
       
       // CRITICAL: Always dispatch event to driverLocationPoller with consistent data
       // The poller handles filtering logic - SmartRefresh should NOT filter stale markers
@@ -640,14 +656,14 @@ class SmartRefreshManager {
       // CRITICAL: Sync to offline database after changes
       try {
         const { offlineManager } = await import('./offlineManager');
-        await offlineManager.cacheData('AppUser', updatedAppUsers);
+        await offlineManager.cacheData('AppUser', finalAppUsers);
       } catch (offlineError) {
         console.warn('⚠️ [SmartRefresh] Failed to sync AppUsers to offline DB:', offlineError);
       }
       
       return {
         hasChanges: true,
-        appUsers: updatedAppUsers
+        appUsers: finalAppUsers
       };
       
     } catch (error) {
