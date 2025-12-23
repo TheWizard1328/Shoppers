@@ -5291,6 +5291,33 @@ function Dashboard() {
       await refreshData();
 
       console.log('✅ [START] Start delivery complete - UI refreshed');
+      
+      // STEP 6.5: Force re-render of blue polyline by clearing and recalculating
+      setCurrentToNextPolyline(null);
+      setTimeout(async () => {
+        try {
+          const { determinePolylineSegment, fetchPolylineForSegment } = await import('../components/utils/dynamicPolylineManager');
+          const freshDeliveries = deliveries.filter((d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate);
+          const driver = users.find((u) => u && u.id === driverId);
+          
+          if (driver && driver.driver_status === 'on_duty' && driver.location_tracking_enabled === true) {
+            const segment = determinePolylineSegment(freshDeliveries, driver, patients, stores);
+            
+            if (segment) {
+              const polyline = await fetchPolylineForSegment(
+                segment.originLat,
+                segment.originLon,
+                segment.destLat,
+                segment.destLon
+              );
+              setCurrentToNextPolyline(polyline);
+              console.log('✅ [START] Blue polyline updated');
+            }
+          }
+        } catch (polylineError) {
+          console.warn('⚠️ [START] Blue polyline update failed:', polylineError);
+        }
+      }, 500);
 
       // STEP 7: Scroll to started delivery
       setTimeout(() => {
