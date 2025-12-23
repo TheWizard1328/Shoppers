@@ -5845,8 +5845,8 @@ function Dashboard() {
                     className="h-8 gap-1.5 px-2 flex-shrink-0"
                     title="Quick route adjustments"
                     style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                      <ArrowUp className="w-3 h-3" />
-                      <ArrowDown className="w-3 h-3" />
+                      {/*<ArrowUp className="w-3 h-3" />
+                      <ArrowDown className="w-3 h-3" />*/}
                       <span className="text-xs">Adjust</span>
                     </Button>
                   }
