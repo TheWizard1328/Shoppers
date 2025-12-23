@@ -1624,68 +1624,22 @@ export default function DeliveryMap({
     }
   }, [driverRoutes, onDriverRoutesCalculated]);
 
-  // CRITICAL: Notify parent when ALL map elements are ready
-  // Track render state of each element type
-  const [mapRenderState, setMapRenderState] = useState({
-    markersReady: false,
-    routeLinesReady: false,
-    driverLiveReady: false,
-    sharedLocationsReady: false
-  });
+  // CRITICAL: Notify parent when map is ready - simplified to prevent infinite loops
+  const hasNotifiedMapReady = useRef(false);
 
-  // Check when map markers are ready (deliveries + pickups)
+  // Notify parent once when map and markers are ready
   useEffect(() => {
+    if (hasNotifiedMapReady.current) return;
+    if (!map) return;
+    
     const hasMarkers = deliveryMarkers.length > 0 || pickupMarkers.length > 0;
-    const markersRendered = hasMarkers || safeDeliveries.length === 0;
+    const isReady = hasMarkers || safeDeliveries.length === 0;
     
-    if (markersRendered && !mapRenderState.markersReady) {
-      console.log('✅ [DeliveryMap Sequence 3] Map Markers rendered');
-      setMapRenderState(prev => ({ ...prev, markersReady: true }));
-    }
-  }, [deliveryMarkers.length, pickupMarkers.length, safeDeliveries.length, mapRenderState.markersReady]);
-
-  // Check when route lines are ready
-  useEffect(() => {
-    if (!mapRenderState.markersReady) return;
-    
-    const routesRendered = !showRoutes || driverRoutes.length === 0 || map !== null;
-    
-    if (routesRendered && !mapRenderState.routeLinesReady) {
-      console.log('✅ [DeliveryMap Sequence 4] Route Lines rendered');
-      setMapRenderState(prev => ({ ...prev, routeLinesReady: true }));
-    }
-  }, [mapRenderState.markersReady, mapRenderState.routeLinesReady, showRoutes, driverRoutes.length, map]);
-
-  // Check when driver live location is ready
-  useEffect(() => {
-    if (!mapRenderState.routeLinesReady) return;
-    
-    const liveLocationRendered = currentDriverMarker !== null || !isMobile;
-    
-    if (liveLocationRendered && !mapRenderState.driverLiveReady) {
-      console.log('✅ [DeliveryMap Sequence 5] Driver Live Location rendered');
-      setMapRenderState(prev => ({ ...prev, driverLiveReady: true }));
-    }
-  }, [mapRenderState.routeLinesReady, mapRenderState.driverLiveReady, currentDriverMarker, isMobile]);
-
-  // Check when shared driver locations are ready
-  useEffect(() => {
-    if (!mapRenderState.driverLiveReady) return;
-    
-    // Shared locations are always ready after live location
-    if (!mapRenderState.sharedLocationsReady) {
-      console.log('✅ [DeliveryMap Sequence 6] Shared Driver Locations rendered');
-      setMapRenderState(prev => ({ ...prev, sharedLocationsReady: true }));
-    }
-  }, [mapRenderState.driverLiveReady, mapRenderState.sharedLocationsReady]);
-
-  // Notify parent when ALL elements are ready
-  useEffect(() => {
-    if (mapRenderState.sharedLocationsReady && onMapReady) {
-      console.log('✅ [DeliveryMap] ALL map elements rendered - notifying Dashboard');
+    if (isReady && onMapReady) {
+      hasNotifiedMapReady.current = true;
       onMapReady();
     }
-  }, [mapRenderState.sharedLocationsReady, onMapReady]);
+  }, [map, deliveryMarkers.length, pickupMarkers.length, safeDeliveries.length, onMapReady]);
 
   // NEW: Calculate legend position centered below stats card (AFTER driverRoutes is defined)
   useEffect(() => {
