@@ -2523,9 +2523,7 @@ export default function DeliveryMap({
                   L.DomEvent.stopPropagation(e);
                   e.target.openPopup();
                   setTimeout(() => e.target.closePopup(), 3000);
-                },
-                mouseover: (e) => e.target.openPopup(),
-                mouseout: (e) => e.target.closePopup()
+                }
               } : delivery.useSimpleCircle ? {
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
