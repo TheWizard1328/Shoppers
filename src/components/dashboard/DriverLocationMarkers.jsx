@@ -74,7 +74,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver }) => {
       }
     });
     
-  }, [users, currentUser]);
+  }, [users, currentUser, isMobile]);
 
   // Listen for location cleared events
   useEffect(() => {
