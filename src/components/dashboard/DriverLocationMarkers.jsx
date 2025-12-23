@@ -150,7 +150,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver }) => {
 
     window.addEventListener('driverLocationUpdated', handleLocationUpdate);
     return () => window.removeEventListener('driverLocationUpdated', handleLocationUpdate);
-  }, [users, currentUser]);
+  }, [users, currentUser, isMobile]);
 
   const createDriverIcon = (user, isActive) => {
     const displayName = user.user_name || user.full_name || 'U';
