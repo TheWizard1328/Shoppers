@@ -935,13 +935,16 @@ export default function DeliveryMap({
       const isPureDriver = userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher');
       const isOtherDriver = isPureDriver && isDriverViewingSelfToday && delivery.driver_id !== currentUser?.id;
 
+      // CRITICAL: Determine pin color based on mode - calculate ONCE, before rendering
       let pinColor;
       if (hasNoPickup) {
         pinColor = '#FBBF24';
-      } else if (isSingleDriverMode) {
-        pinColor = store ? getStoreColor(store) : '#6B7280';
-      } else {
+      } else if (isAllDriversMode) {
+        // All drivers mode - use driver colors
         pinColor = driver && typeof driver === 'object' ? getDriverColor(driver) : '#607D8B';
+      } else {
+        // Single driver mode - use store colors
+        pinColor = store ? getStoreColor(store) : '#6B7280';
       }
 
       return {
