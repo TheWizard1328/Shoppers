@@ -50,6 +50,8 @@ class DriverLocationPoller {
     
     const users = appUsers;
     if (!Array.isArray(users) || users.length === 0) {
+      // CRITICAL: Still notify subscribers with empty array to clear markers
+      this.notifySubscribers([]);
       return;
     }
 
@@ -60,40 +62,30 @@ class DriverLocationPoller {
     const currentUserCityId = this.currentUser?.city_id;
     const currentUserId = this.currentUser?.id;
 
-    // Filter to drivers with on_duty or on_break status AND recent location data
+    // CRITICAL: Filter to drivers with on_duty status ONLY (not on_break) AND location_tracking_enabled
     const activeDriversWithLocation = users.filter(user => {
       if (!user) return false;
       
       // Skip inactive users
       if (user.status === 'inactive') return false;
       
-      // CRITICAL: Must be on_duty or on_break
-      if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') return false;
+      // CRITICAL: Must be on_duty (not on_break)
+      if (user.driver_status !== 'on_duty') return false;
       
-      // Skip if no valid coordinates
-      if (!user.current_latitude || !user.current_longitude) return false;
-      
-      // Check if location data is too old
-      if (user.location_updated_at) {
-        const locationAge = now - new Date(user.location_updated_at).getTime();
-        if (locationAge > maxStaleTime) return false;
-      }
-      
-      // PERMISSION FILTERING:
-      // 1. Always show current user's own location (green/orange dot on other devices)
-      if (user.id === currentUserId) {
-        return true;
-      }
-      
-      // 2. Only show OTHER users if location_tracking_enabled is true (sharing is ON)
+      // CRITICAL: Must have location_tracking_enabled for shared markers
       if (user.location_tracking_enabled !== true) return false;
       
-      // 3. Admins can see ALL shared locations
+      // CRITICAL: Skip if no valid coordinates - but still show if coordinates will come soon
+      // This prevents markers from disappearing during smart refresh
+      if (!user.current_latitude || !user.current_longitude) return false;
+      
+      // PERMISSION FILTERING:
+      // 1. Admins can see ALL shared locations
       if (isAdmin) {
         return true;
       }
       
-      // 4. Non-admins can only see locations from users in the same city
+      // 2. Non-admins can only see locations from users in the same city
       if (currentUserCityId && user.city_id === currentUserCityId) {
         return true;
       }
@@ -101,33 +93,18 @@ class DriverLocationPoller {
       return false;
     });
 
-    // Check for location changes and notify subscribers
-    let hasChanges = false;
+    // CRITICAL: ALWAYS notify subscribers with current locations to prevent disappearing markers
+    // Don't check for changes - just broadcast the current state every time
+    console.log(`📍 [DriverLocationPoller] Broadcasting ${activeDriversWithLocation.length} driver locations`);
+    
     const newLocations = new Map();
-
     activeDriversWithLocation.forEach(user => {
       const locationKey = `${user.id}_${user.current_latitude}_${user.current_longitude}_${user.driver_status}`;
       newLocations.set(user.id, locationKey);
-
-      const previousLocation = this.lastLocations.get(user.id);
-      if (previousLocation !== locationKey) {
-        console.log(`📍 [DriverLocationPoller] Location/status changed for ${user.user_name || user.full_name}`);
-        hasChanges = true;
-      }
     });
-
-    // Check for removed drivers
-    this.lastLocations.forEach((value, userId) => {
-      if (!newLocations.has(userId)) {
-        console.log(`📍 [DriverLocationPoller] Driver location no longer visible: ${userId}`);
-        hasChanges = true;
-      }
-    });
-
-    if (hasChanges) {
-      this.lastLocations = newLocations;
-      this.notifySubscribers(activeDriversWithLocation);
-    }
+    
+    this.lastLocations = newLocations;
+    this.notifySubscribers(activeDriversWithLocation);
   }
 
   notifySubscribers(activeDriversWithLocation) {
