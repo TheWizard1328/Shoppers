@@ -795,8 +795,19 @@ export default function DeliveryMap({
       }
     };
 
+    // NEW: Listen for delivery updates to force marker re-render
+    const handleDeliveriesUpdate = (event) => {
+      console.log('🗺️ [DeliveryMap] Deliveries updated - forcing marker recalculation');
+      // Force marker recalculation by updating users state
+      setRealtimeAppUsers(prev => [...prev]);
+    };
+
     window.addEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
-    return () => window.removeEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
+    window.addEventListener('deliveriesUpdated', handleDeliveriesUpdate);
+    return () => {
+      window.removeEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
+      window.removeEventListener('deliveriesUpdated', handleDeliveriesUpdate);
+    };
   }, []);
 
   // CRITICAL: Determine mode BEFORE processing markers - must be defined first
