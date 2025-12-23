@@ -673,94 +673,142 @@ Deno.serve(async (req) => {
       });
     }
 
-    // CRITICAL: Simple nearest-neighbor optimization - just find the closest incomplete stop each iteration
-    // No complex stage logic - just go to the nearest unfinished stop every time
+    // HYBRID OPTIMIZATION:
+    // - Pickups: Maintain original order by delivery_time_start (already sorted in sortedPickups)
+    // - Deliveries: Nearest neighbor from current position, but only after their pickup is done
     while (unvisitedPickups.size > 0 || unvisitedFlexible.size > 0 || unvisitedConstrained.size > 0 || unvisitedISPs.size > 0) {
       
-      // Collect ALL unvisited stops (pickups + deliveries)
-      const allUnvisitedStops = [];
+      // STEP 1: Collect available deliveries (whose pickup is already completed)
+      const availableDeliveries = [];
       
-      // Add pickups
-      for (const idx of unvisitedPickups) {
-        const pickup = pickupStops.find(p => p.idx === idx);
-        if (pickup) {
-          allUnvisitedStops.push(pickup);
-        }
-      }
-      
-      // Add flexible deliveries
       for (const idx of unvisitedFlexible) {
         const deliv = deliveryStopsWithoutTimeConstraints.find(d => d.idx === idx);
-        if (deliv) {
-          allUnvisitedStops.push(deliv);
+        if (deliv && completedPickupStores.has(deliv.delivery.store_id)) {
+          availableDeliveries.push(deliv);
         }
       }
       
-      // Add constrained deliveries
       for (const idx of unvisitedConstrained) {
         const deliv = deliveryStopsWithTimeConstraints.find(d => d.idx === idx);
-        if (deliv) {
-          allUnvisitedStops.push(deliv);
+        if (deliv && completedPickupStores.has(deliv.delivery.store_id)) {
+          availableDeliveries.push(deliv);
         }
       }
       
-      // Add ISPs
       for (const idx of unvisitedISPs) {
         const isp = ispDeliveryStops.find(d => d.idx === idx);
         if (isp) {
-          allUnvisitedStops.push(isp);
+          availableDeliveries.push(isp);
         }
       }
       
-      if (allUnvisitedStops.length === 0) break;
-      
-      console.log(`\n📍 [Nearest Neighbor] Choosing from ${allUnvisitedStops.length} remaining stops...`);
-      
-      // Find nearest stop from current position
-      let nearestStop = null;
-      let nearestDist = Infinity;
-      
-      for (const stop of allUnvisitedStops) {
-        const dist = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, stop.lat, stop.lng);
-        if (dist < nearestDist) {
-          nearestDist = dist;
-          nearestStop = stop;
+      // STEP 2: Get next pickup in scheduled order
+      let nextScheduledPickup = null;
+      for (const sortedPickup of sortedPickups) {
+        if (unvisitedPickups.has(sortedPickup.idx)) {
+          nextScheduledPickup = sortedPickup;
+          break;
         }
       }
       
-      if (!nearestStop) break;
+      console.log(`\n📍 [Hybrid] Available deliveries: ${availableDeliveries.length}, Next pickup: ${nextScheduledPickup?.delivery.patient_name || 'None'}`);
       
-      console.log(`   ✅ Nearest: ${nearestStop.delivery.patient_name || 'Pickup'} (${nearestDist.toFixed(1)} km)`);
+      // STEP 3: Decision - go to nearest delivery OR next scheduled pickup
+      // Priority: If there are available deliveries, check if any are closer than the next pickup
+      let chosenStop = null;
+      
+      if (availableDeliveries.length > 0) {
+        // Find nearest available delivery
+        let nearestDelivery = null;
+        let nearestDeliveryDist = Infinity;
+        
+        for (const deliv of availableDeliveries) {
+          const dist = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, deliv.lat, deliv.lng);
+          if (dist < nearestDeliveryDist) {
+            nearestDeliveryDist = dist;
+            nearestDelivery = deliv;
+          }
+        }
+        
+        // Check if next pickup has a time constraint we need to respect
+        let pickupDistance = Infinity;
+        let pickupTimeUrgent = false;
+        
+        if (nextScheduledPickup) {
+          pickupDistance = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, nextScheduledPickup.lat, nextScheduledPickup.lng);
+          
+          // Check if pickup time window is approaching
+          if (nextScheduledPickup.delivery.delivery_time_start) {
+            const [h, m] = nextScheduledPickup.delivery.delivery_time_start.split(':').map(Number);
+            const pickupTimeMinutes = h * 60 + m;
+            const travelToPickupMinutes = (pickupDistance / 40) * 60;
+            const arrivalAtPickup = cumulativeTime + travelToPickupMinutes;
+            
+            // If we'd arrive late to pickup, prioritize it
+            if (arrivalAtPickup > pickupTimeMinutes + 15) {
+              pickupTimeUrgent = true;
+              console.log(`   ⚠️ Pickup time urgent! Scheduled: ${nextScheduledPickup.delivery.delivery_time_start}, would arrive: ${Math.floor(arrivalAtPickup/60)}:${String(Math.floor(arrivalAtPickup%60)).padStart(2,'0')}`);
+            }
+          }
+        }
+        
+        // Choose nearest delivery UNLESS pickup is time-urgent
+        if (!pickupTimeUrgent && nearestDelivery) {
+          chosenStop = nearestDelivery;
+          console.log(`   ✅ Choosing nearest delivery: ${chosenStop.delivery.patient_name} (${nearestDeliveryDist.toFixed(1)} km)`);
+        } else if (nextScheduledPickup) {
+          chosenStop = nextScheduledPickup;
+          console.log(`   ✅ Choosing scheduled pickup (time-urgent): ${chosenStop.delivery.patient_name || 'Pickup'}`);
+        }
+      } else if (nextScheduledPickup) {
+        // No available deliveries, go to next scheduled pickup
+        chosenStop = nextScheduledPickup;
+        console.log(`   ✅ No available deliveries, going to next pickup: ${chosenStop.delivery.patient_name || 'Pickup'}`);
+      }
+      
+      if (!chosenStop) break;
       
       // Add to route
-      optimizedRoute.push(nearestStop.idx);
+      optimizedRoute.push(chosenStop.idx);
       
       // Remove from unvisited
-      unvisitedPickups.delete(nearestStop.idx);
-      unvisitedFlexible.delete(nearestStop.idx);
-      unvisitedConstrained.delete(nearestStop.idx);
-      unvisitedISPs.delete(nearestStop.idx);
+      unvisitedPickups.delete(chosenStop.idx);
+      unvisitedFlexible.delete(chosenStop.idx);
+      unvisitedConstrained.delete(chosenStop.idx);
+      unvisitedISPs.delete(chosenStop.idx);
       
       // If this was a pickup, mark store as completed
-      if (nearestStop.delivery.puid && !nearestStop.delivery.patient_id) {
-        completedPickupStores.add(nearestStop.delivery.store_id);
+      if (chosenStop.delivery.puid && !chosenStop.delivery.patient_id) {
+        completedPickupStores.add(chosenStop.delivery.store_id);
+        console.log(`   📦 Pickup completed - unlocked deliveries for store ${chosenStop.delivery.store_id}`);
       }
       
       // Update cumulative time
-      const travelMinutes = (nearestDist / 40) * 60;
+      const travelDist = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, chosenStop.lat, chosenStop.lng);
+      const travelMinutes = (travelDist / 40) * 60;
       cumulativeTime += travelMinutes;
       
-      // Apply time window waiting
-      if (nearestStop.timeWindow && cumulativeTime < nearestStop.timeWindow.start) {
-        cumulativeTime = nearestStop.timeWindow.start;
+      // Apply time window waiting for pickups
+      if (chosenStop.delivery.puid && !chosenStop.delivery.patient_id && chosenStop.delivery.delivery_time_start) {
+        const [h, m] = chosenStop.delivery.delivery_time_start.split(':').map(Number);
+        const scheduledMinutes = h * 60 + m;
+        if (cumulativeTime < scheduledMinutes) {
+          console.log(`   ⏳ Waiting at pickup until ${chosenStop.delivery.delivery_time_start}`);
+          cumulativeTime = scheduledMinutes;
+        }
+      }
+      
+      // Apply time window waiting for deliveries
+      if (chosenStop.timeWindow && cumulativeTime < chosenStop.timeWindow.start) {
+        cumulativeTime = chosenStop.timeWindow.start;
       }
       
       // Add service time
-      const serviceTime = nearestStop.delivery.extra_time || (nearestStop.delivery.patient_id ? 5 : 15);
+      const serviceTime = chosenStop.delivery.extra_time || (chosenStop.delivery.patient_id ? 5 : 15);
       cumulativeTime += serviceTime;
       
       // Update position
-      currentPosition = { lat: nearestStop.lat, lng: nearestStop.lng };
+      currentPosition = { lat: chosenStop.lat, lng: chosenStop.lng };
     }
 
     // Final pass: any remaining deliveries after all pickups
