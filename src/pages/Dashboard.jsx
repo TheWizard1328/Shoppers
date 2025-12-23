@@ -5843,7 +5843,8 @@ function Dashboard() {
                   size="sm"
                   onClick={() => setShowQuickAdjustments(true)}
                   className="h-8 gap-1.5 px-2 flex-shrink-0"
-                  title="Quick route adjustments">
+                  title="Quick route adjustments"
+                  style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                       <ArrowUp className="w-3 h-3" />
                       <ArrowDown className="w-3 h-3" />
                       <span className="text-xs">Adjust</span>
@@ -5857,7 +5858,7 @@ function Dashboard() {
                       setShowRoutes(!showRoutes);
                       setIsExpanded(false);
                     }}
-                    className="gap-2 h-8 flex-shrink-0">
+                    className="gap-2 h-8 flex-shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white">
                       <Truck className="w-3.5 h-3.5" />
                       {showRoutes ? 'Hide Routes' : 'Show Routes'}
                     </Button>
