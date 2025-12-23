@@ -1256,6 +1256,10 @@ export default function DeliveryMap({
   // This ensures shared markers render even when driverLocations prop is empty
   const driverLocationMarkers = useMemo(() => {
     if (!isViewingCurrentDate) return [];
+    
+    // CRITICAL: Respect driverLocations prop for filtering
+    // When prop is empty [], don't show any shared driver markers
+    if (safeDriverLocations.length === 0) return [];
 
     const isAdmin = currentUser && userHasRole(currentUser, 'admin');
     const isDriver = currentUser && userHasRole(currentUser, 'driver');
