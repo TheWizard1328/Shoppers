@@ -3,8 +3,10 @@ import L from 'leaflet';
 import { Circle, Marker, Popup } from 'react-leaflet';
 import { formatDistanceToNow } from 'date-fns';
 import { userHasRole } from '../utils/userRoles';
+import { isMobileDevice } from '../utils/deviceUtils';
 
 const DriverLocationMarkers = ({ users, currentUser, activeDriver }) => {
+  const isMobile = isMobileDevice();
   const [visibleDrivers, setVisibleDrivers] = useState([]);
   const markersRef = useRef({});
 
@@ -18,6 +20,12 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver }) => {
     
     const validDrivers = (users || []).filter(user => {
       if (!user) return false;
+      
+      // CRITICAL: On mobile, don't show the current user's shared location marker
+      // They already have the live blue location marker from the browser's geolocation
+      if (isMobile && currentUser && user.id === currentUser.id) {
+        return false;
+      }
       
       // Skip inactive users
       if (user.status === 'inactive') {
@@ -112,7 +120,10 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver }) => {
         status: user.status 
       });
       
-      if (user.location_tracking_enabled === true && user.status !== 'inactive' && canView) {
+      // CRITICAL: On mobile, don't show the current user's shared location marker
+      const isCurrentUserOnMobile = isMobile && currentUser && userId === currentUser.id;
+      
+      if (user.location_tracking_enabled === true && user.status !== 'inactive' && canView && !isCurrentUserOnMobile) {
         console.log('✅ [DriverLocationMarkers] Adding/updating visible driver:', user.user_name || user.full_name);
         setVisibleDrivers(prev => {
           const exists = prev.find(d => d && d.id === userId);
