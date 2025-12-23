@@ -1247,13 +1247,15 @@ export default function DeliveryMap({
       const isOnBreak = user.driver_status === 'on_break' && isCurrentUserMarker;
       
       // CRITICAL: Must be on_duty OR on_break (self only) with location_tracking_enabled
+      // Others cannot see on_break drivers, but self can always see their own marker
       if (user.driver_status === 'on_break' && !isCurrentUserMarker) {
         return null; // Others cannot see on_break drivers
       }
       if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') {
         return null;
       }
-      if (user.location_tracking_enabled !== true) {
+      // Location tracking must be enabled, UNLESS it's your own marker (you always see yourself)
+      if (user.location_tracking_enabled !== true && !isCurrentUserMarker) {
         return null;
       }
 
