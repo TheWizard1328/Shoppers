@@ -22,15 +22,15 @@ class SmartRefreshManager {
     this.minRefreshInterval = 90000; // 90 seconds minimum between full refreshes (increased to reduce rate limits)
     this.lastFullRefreshTime = 0; // Track full refresh separately
     
-    // Real-time refresh intervals (milliseconds) - INCREASED to reduce rate limits
+    // Real-time refresh intervals (milliseconds) - ALL SET TO 15 SECONDS
     this.intervals = {
-      driverLocation: 30000,     // 30s - driver GPS locations
-      activeDeliveries: 45000,   // 45s - today's active delivery statuses
-      todayDeliveries: 45000,    // 45s - today's delivery changes only
-      appUsers: 30000,           // 30s - driver status, assignments
-      todayPatients: 60000,      // 60s - patients on today's routes only
-      patients: 120000,          // 120s - all other patients
-      stores: 120000             // 120s - store data
+      driverLocation: 15000,     // 15s - driver GPS locations
+      activeDeliveries: 15000,   // 15s - today's active delivery statuses
+      todayDeliveries: 15000,    // 15s - today's delivery changes only
+      appUsers: 15000,           // 15s - driver status, assignments
+      todayPatients: 15000,      // 15s - patients on today's routes only
+      patients: 60000,           // 15s - all other patients
+      stores: 60000              // 15s - store data
     };
     
     // Track last refresh time for each entity type
