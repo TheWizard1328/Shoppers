@@ -7,11 +7,7 @@ import { getDriverFullName } from './driverUtils';
  */
 export const sortUsers = (users) => {
     if (!users || !Array.isArray(users) || users.length === 0) {
-        console.warn('⚠️ [sortUsers] Invalid input:', { 
-            exists: !!users, 
-            isArray: Array.isArray(users), 
-            length: users?.length 
-        });
+        // Empty array is valid - don't warn, just return empty
         return [];
     }
 
