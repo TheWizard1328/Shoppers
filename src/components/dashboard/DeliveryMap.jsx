@@ -1478,9 +1478,9 @@ export default function DeliveryMap({
 
     // Sort stops by stop_order and create route lines
     const routes = Object.values(routesByDriver).map((route) => {
-    // CRITICAL: Count ALL stops for this driver for legend (including those without coordinates)
-    const allDeliveriesForDriver = [...safeDeliveries, ...otherDriverDeliveries];
-    const totalDriverStops = allDeliveriesForDriver.filter(d => d && d.driver_id === route.driverId).length;
+    // CRITICAL: Count ONLY stops from safeDeliveries (filtered by current driver selection)
+    // This ensures the legend shows accurate counts without including other drivers' stops
+    const totalDriverStops = safeDeliveries.filter(d => d && d.driver_id === route.driverId).length;
 
     // Find ALL pickup locations for this driver
     const driverPickups = pickupMarkers.filter((p) => p.driver_id === route.driverId);
