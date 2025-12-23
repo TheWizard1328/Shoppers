@@ -689,30 +689,30 @@ Deno.serve(async (req) => {
       
       console.log(`\n📍 [Hybrid] Next pickup: ${nextScheduledPickup?.delivery.patient_name || 'None'}`);
       
-      // STEP 2: Collect deliveries - separate in_transit from others
-      const inTransitDeliveriesForStore = [];
-      const availableOtherDeliveries = [];
-      
-      // CRITICAL: If a pickup exists, check for in_transit deliveries from its store FIRST
+      // STEP 2: Check if next pickup has in_transit deliveries that MUST be locked to it
+      const inTransitDeliveriesForNextPickup = [];
       if (nextScheduledPickup) {
-        // Get in_transit deliveries from this pickup's store
         for (const idx of unvisitedFlexible) {
           const deliv = deliveryStopsWithoutTimeConstraints.find(d => d.idx === idx);
           if (deliv && deliv.delivery.store_id === nextScheduledPickup.delivery.store_id && deliv.delivery.status === 'in_transit') {
-            inTransitDeliveriesForStore.push(deliv);
+            inTransitDeliveriesForNextPickup.push(deliv);
           }
         }
         for (const idx of unvisitedConstrained) {
           const deliv = deliveryStopsWithTimeConstraints.find(d => d.idx === idx);
           if (deliv && deliv.delivery.store_id === nextScheduledPickup.delivery.store_id && deliv.delivery.status === 'in_transit') {
-            inTransitDeliveriesForStore.push(deliv);
+            inTransitDeliveriesForNextPickup.push(deliv);
           }
         }
         
-        console.log(`   📦 Found ${inTransitDeliveriesForStore.length} in_transit deliveries for upcoming pickup (${nextScheduledPickup.delivery.patient_name || 'Pickup'})`);
+        if (inTransitDeliveriesForNextPickup.length > 0) {
+          console.log(`   🔒 Found ${inTransitDeliveriesForNextPickup.length} in_transit deliveries LOCKED to next pickup (${nextScheduledPickup.delivery.patient_name || 'Pickup'})`);
+        }
       }
       
-      // Collect other available deliveries (whose pickup is already completed, excluding in_transit)
+      // STEP 3: Collect available deliveries (pickup already completed, excluding in_transit)
+      const availableOtherDeliveries = [];
+      
       for (const idx of unvisitedFlexible) {
         const deliv = deliveryStopsWithoutTimeConstraints.find(d => d.idx === idx);
         if (deliv && completedPickupStores.has(deliv.delivery.store_id) && deliv.delivery.status !== 'in_transit') {
@@ -734,62 +734,64 @@ Deno.serve(async (req) => {
         }
       }
       
-      console.log(`   📍 Available OTHER deliveries (non in_transit): ${availableOtherDeliveries.length}`);
+      console.log(`   📍 Available: ${availableOtherDeliveries.length} other deliveries (non in_transit)`);
       
-      // STEP 3: Decision - handle in_transit deliveries OR optimize other deliveries OR go to next pickup
+      // STEP 4: Decision logic - PRIORITY ORDER:
+      // 1. If next pickup has in_transit deliveries → go to pickup + deliver in_transit immediately
+      // 2. If other deliveries available → optimize them (unless pickup is urgent)
+      // 3. If no deliveries → go to next pickup
       
-      if (inTransitDeliveriesForStore.length > 0) {
+      if (inTransitDeliveriesForNextPickup.length > 0) {
         // CRITICAL: in_transit deliveries MUST come immediately after their pickup
-        // Go to pickup first, then deliver in_transit stops right away
-        if (nextScheduledPickup) {
-          optimizedRoute.push(nextScheduledPickup.idx);
-          unvisitedPickups.delete(nextScheduledPickup.idx);
-          completedPickupStores.add(nextScheduledPickup.delivery.store_id);
+        console.log(`   🔒 Going to pickup to deliver ${inTransitDeliveriesForNextPickup.length} in_transit stops immediately`);
+        
+        optimizedRoute.push(nextScheduledPickup.idx);
+        unvisitedPickups.delete(nextScheduledPickup.idx);
+        completedPickupStores.add(nextScheduledPickup.delivery.store_id);
+        
+        const travelDist = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, nextScheduledPickup.lat, nextScheduledPickup.lng);
+        cumulativeTime += (travelDist / 40) * 60;
+        
+        if (nextScheduledPickup.delivery.delivery_time_start) {
+          const [h, m] = nextScheduledPickup.delivery.delivery_time_start.split(':').map(Number);
+          if (cumulativeTime < h * 60 + m) {
+            console.log(`   ⏳ Waiting at pickup until ${nextScheduledPickup.delivery.delivery_time_start}`);
+            cumulativeTime = h * 60 + m;
+          }
+        }
+        
+        cumulativeTime += nextScheduledPickup.delivery.extra_time || 15;
+        currentPosition = { lat: nextScheduledPickup.lat, lng: nextScheduledPickup.lng };
+        console.log(`   ✅ Pickup complete: ${nextScheduledPickup.delivery.patient_name || 'Pickup'}`);
+        
+        // Now optimize in_transit deliveries immediately
+        console.log(`   🔄 Optimizing ${inTransitDeliveriesForNextPickup.length} in_transit deliveries...`);
+        
+        const { path: inTransitPath } = findShortestPath(
+          currentPosition,
+          inTransitDeliveriesForNextPickup,
+          null,
+          cumulativeTime
+        );
+        
+        for (const idx of inTransitPath) {
+          const stop = stops[idx];
+          optimizedRoute.push(idx);
           
-          const travelDist = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, nextScheduledPickup.lat, nextScheduledPickup.lng);
+          unvisitedFlexible.delete(idx);
+          unvisitedConstrained.delete(idx);
+          
+          const travelDist = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, stop.lat, stop.lng);
           cumulativeTime += (travelDist / 40) * 60;
           
-          if (nextScheduledPickup.delivery.delivery_time_start) {
-            const [h, m] = nextScheduledPickup.delivery.delivery_time_start.split(':').map(Number);
-            if (cumulativeTime < h * 60 + m) {
-              console.log(`   ⏳ Waiting at pickup until ${nextScheduledPickup.delivery.delivery_time_start}`);
-              cumulativeTime = h * 60 + m;
-            }
+          if (stop.timeWindow && cumulativeTime < stop.timeWindow.start) {
+            cumulativeTime = stop.timeWindow.start;
           }
           
-          cumulativeTime += nextScheduledPickup.delivery.extra_time || 15;
-          currentPosition = { lat: nextScheduledPickup.lat, lng: nextScheduledPickup.lng };
-          console.log(`   ✅ Pickup: ${nextScheduledPickup.delivery.patient_name || 'Pickup'}`);
+          cumulativeTime += stop.delivery.extra_time || 5;
+          currentPosition = { lat: stop.lat, lng: stop.lng };
           
-          // Now optimize in_transit deliveries immediately
-          console.log(`   🔄 Optimizing ${inTransitDeliveriesForStore.length} in_transit deliveries right after pickup...`);
-          
-          const { path: inTransitPath } = findShortestPath(
-            currentPosition,
-            inTransitDeliveriesForStore,
-            null,
-            cumulativeTime
-          );
-          
-          for (const idx of inTransitPath) {
-            const stop = stops[idx];
-            optimizedRoute.push(idx);
-            
-            unvisitedFlexible.delete(idx);
-            unvisitedConstrained.delete(idx);
-            
-            const travelDist = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, stop.lat, stop.lng);
-            cumulativeTime += (travelDist / 40) * 60;
-            
-            if (stop.timeWindow && cumulativeTime < stop.timeWindow.start) {
-              cumulativeTime = stop.timeWindow.start;
-            }
-            
-            cumulativeTime += stop.delivery.extra_time || 5;
-            currentPosition = { lat: stop.lat, lng: stop.lng };
-            
-            console.log(`      📬 in_transit: ${stop.delivery.patient_name || 'Delivery'}`);
-          }
+          console.log(`      📬 in_transit: ${stop.delivery.patient_name}`);
         }
       } else if (availableOtherDeliveries.length > 0) {
         // Other deliveries available - check if pickup is urgent
