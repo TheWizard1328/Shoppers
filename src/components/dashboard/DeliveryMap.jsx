@@ -1651,7 +1651,21 @@ export default function DeliveryMap({
     
     const sortedRoutes = routes.sort((a, b) => a.sortOrder - b.sortOrder);
     return sortedRoutes;
-  }, [deliveryMarkers, pickupMarkers, showRoutes, isSingleDriverMode, safeUsers, currentZoom, currentUser, currentDriverLocation, isViewingCurrentDate, safeDeliveries, otherDriverDeliveries, safeStores]);
+  // CRITICAL: Use stable references for driverRoutes to prevent legend flickering
+  }, [
+    JSON.stringify(deliveryMarkers.map(d => d?.id).filter(Boolean).sort()),
+    JSON.stringify(pickupMarkers.map(p => p?.id).filter(Boolean).sort()),
+    showRoutes,
+    isAllDriversMode,
+    safeUsers.length,
+    currentZoom,
+    currentUser?.id,
+    currentDriverLocation?.latitude,
+    currentDriverLocation?.longitude,
+    isViewingCurrentDate,
+    safeDeliveries.length,
+    otherDriverDeliveries.length
+  ]);
   
   // Pass driver routes to parent component
   useEffect(() => {
