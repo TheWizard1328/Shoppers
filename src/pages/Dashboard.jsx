@@ -3476,48 +3476,22 @@ function Dashboard() {
           // NOTE: Route optimizer is NOT run here - deliveries are saved as 'pending'.
           // Optimization runs when stops are transitioned to 'in_transit' status.
 
-          // Update isNextDelivery flags after saving
-          try {
-            const allDriverDeliveries = await base44.entities.Delivery.filter({
-              driver_id: driverId,
-              delivery_date: deliveryDate
-            }, 'stop_order');
-
-            // Reset all flags first
-            const resetPromises = allDriverDeliveries.
-            filter((d) => d.isNextDelivery).
-            map((d) => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
-            await Promise.all(resetPromises);
-
-            // Find first incomplete delivery and mark as next (SKIP PENDING)
-            const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-            const firstIncomplete = allDriverDeliveries.
-            filter((d) => !finishedStatuses.includes(d.status) && d.status !== 'pending').
-            sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
-
-            if (firstIncomplete) {
-              await base44.entities.Delivery.update(firstIncomplete.id, { isNextDelivery: true });
-            }
-          } catch (flagError) {
-            console.warn('⚠️ [AddToRoute] isNextDelivery flag update failed:', flagError);
-          }
+          // CRITICAL: Skip all post-save operations - these will be handled by background sync
+          // The deliveries are already created and mutations are queued
+          // Smart refresh will handle updating isNextDelivery flags when it resumes
+          console.log('[AddToRoute] ✅ Deliveries created - skipping post-save operations (handled by background sync)');
 
         }
 
         invalidate('Delivery');
 
-        // CRITICAL: Fetch fresh deliveries immediately after batch creation
-        // Use the delivery date from the first staged delivery
+        // CRITICAL: Update context from offline database (avoid API call)
         const batchDeliveryDate = stagedDeliveries[0]?.delivery_date || format(selectedDate, 'yyyy-MM-dd');
-        const freshDeliveries = await base44.entities.Delivery.filter({
-          delivery_date: batchDeliveryDate
-        });
-
-        // Update context immediately with fresh data
-        if (updateDeliveriesLocally) {
-          updateDeliveriesLocally(freshDeliveries);
-        }
-
+        
+        // Wait for offline mutations to complete (they run asynchronously)
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        
+        // Refresh data will pull from offline DB first
         await refreshData();
 
         // Don't close form - let DeliveryForm handle it
