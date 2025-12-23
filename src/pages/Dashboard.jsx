@@ -2377,8 +2377,19 @@ function Dashboard() {
   // Periodic ETA optimizer - runs every 15 minutes for current driver, only if moved 500m+
   const lastETAUpdateLocationRef = useRef(null);
 
+  // Periodic ETA optimizer - ONLY for mobile drivers viewing their own route
   useEffect(() => {
-    if (!isDataLoaded || !currentUser || !selectedDriverId || selectedDriverId === 'all') {
+    // CRITICAL: Only run for mobile devices with pure driver role viewing their own route
+    if (!isMobile || !isDriver || !currentUser) {
+      return;
+    }
+    
+    // CRITICAL: Pure drivers only (not admins/dispatchers)
+    if (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) {
+      return;
+    }
+    
+    if (!isDataLoaded || selectedDriverId !== currentUser.id || selectedDriverId === 'all') {
       return;
     }
 
@@ -2412,10 +2423,10 @@ function Dashboard() {
             ) * 1000; // Convert km to meters
 
             if (distanceMoved < 500) {
-              console.log(`⏭️ [ETA] Skipping update - driver moved only ${Math.round(distanceMoved)}m (< 500m)`);
+              console.log(`⏭️ [ETA - Periodic] Skipping update - driver moved only ${Math.round(distanceMoved)}m (< 500m)`);
               return;
             }
-            console.log(`✅ [ETA] Driver moved ${Math.round(distanceMoved)}m - updating ETAs`);
+            console.log(`✅ [ETA - Periodic] Driver moved ${Math.round(distanceMoved)}m - updating ETAs`);
           }
 
           // Store current location for next comparison
@@ -2429,15 +2440,17 @@ function Dashboard() {
         const now = new Date();
         const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
+        console.log('📡 [ETA - Periodic] Calling calculateRealTimeETA for mobile driver...');
         const response = await base44.functions.invoke('calculateRealTimeETA', {
-          driverId: selectedDriverId,
+          driverId: currentUser.id,
           deliveryDate: dateStr,
           currentLocalTime: localTimeString // Backend calculates and saves ETAs directly
         });
+        console.log('✅ [ETA - Periodic] calculateRealTimeETA completed');
         // Backend now handles all ETA calculations and database updates - no need to recalculate here
 
       } catch (error) {
-        console.warn('⚠️ [Dashboard] Periodic ETA optimizer failed:', error);
+        console.warn('⚠️ [ETA - Periodic] Periodic ETA optimizer failed:', error);
       }
     };
 
@@ -2451,7 +2464,7 @@ function Dashboard() {
       clearTimeout(initialTimer);
       clearInterval(interval);
     };
-  }, [isDataLoaded, currentUser, selectedDriverId, selectedDate, filteredDeliveries, driverLocation]);
+  }, [isMobile, isDriver, isDataLoaded, currentUser, selectedDriverId, selectedDate, filteredDeliveries, driverLocation]);
 
   useEffect(() => {
     // CRITICAL: Skip auto-center if initial FAB phase has been applied
@@ -4984,9 +4997,10 @@ function Dashboard() {
       }
 
       // CRITICAL: Update ETAs for mobile drivers only when completing/failing stops
-      const shouldUpdateETAs = isMobile && isDriver && ['completed', 'failed', 'cancelled'].includes(newStatus);
+      const shouldUpdateETAs = isMobile && isDriver && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher') && ['completed', 'failed', 'cancelled'].includes(newStatus);
 
       if (shouldUpdateETAs) {
+        console.log('⏱️ [STATUS UPDATE - ETA] Mobile driver completing stop - updating ETAs');
         try {
           // Get current local time in HH:mm format
           const now = new Date();
@@ -5001,7 +5015,6 @@ function Dashboard() {
         } catch (etaError) {
           console.warn('⚠️ [STATUS UPDATE] ETA update failed:', etaError);
         }
-      } else {
       }
 
       // CRITICAL: Recalculate stop orders after status change
@@ -5277,20 +5290,26 @@ function Dashboard() {
         console.warn('⚠️ [START] isNextDelivery flag update failed:', flagError);
       }
 
-      // STEP 5: Run calculateRealTimeETA BEFORE UI refresh
-      try {
-        const now = new Date();
-        const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      // STEP 5: Run calculateRealTimeETA BEFORE UI refresh - ONLY for mobile drivers
+      const shouldRunETACalc = isMobile && isDriver && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher');
+      
+      if (shouldRunETACalc) {
+        try {
+          const now = new Date();
+          const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-        console.log('📍 [START] Running calculateRealTimeETA for all stops...');
-        await base44.functions.invoke('calculateRealTimeETA', {
-          driverId: driverId,
-          deliveryDate: deliveryDate,
-          currentLocalTime: localTimeString
-        });
-        console.log('✅ [START] ETAs updated via calculateRealTimeETA');
-      } catch (etaError) {
-        console.warn('⚠️ [START] ETA calculation failed:', etaError);
+          console.log('📍 [START] Mobile driver - running calculateRealTimeETA for all stops...');
+          await base44.functions.invoke('calculateRealTimeETA', {
+            driverId: driverId,
+            deliveryDate: deliveryDate,
+            currentLocalTime: localTimeString
+          });
+          console.log('✅ [START] ETAs updated via calculateRealTimeETA');
+        } catch (etaError) {
+          console.warn('⚠️ [START] ETA calculation failed:', etaError);
+        }
+      } else {
+        console.log('⏭️ [START] Skipping calculateRealTimeETA - not a mobile driver');
       }
 
       // STEP 6: Full data refresh to update UI with newly optimized route
