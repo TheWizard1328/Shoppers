@@ -736,8 +736,6 @@ export default function DeliveryMap({
   // CRITICAL: Process driverLocations prop into realtimeAppUsers on mount and updates
   useEffect(() => {
     if (safeDriverLocations && safeDriverLocations.length > 0) {
-      console.log(`📍 [DeliveryMap] driverLocations prop has ${safeDriverLocations.length} entries - merging with users`);
-      
       // Merge driverLocations data into users array (prefer driverLocations for location data)
       const mergedUsers = (users || []).map(user => {
         if (!user) return user;
@@ -752,7 +750,8 @@ export default function DeliveryMap({
             current_longitude: locationData.longitude || locationData.current_longitude || user.current_longitude,
             location_updated_at: locationData.location_updated_at || user.location_updated_at,
             driver_status: locationData.driver_status || user.driver_status,
-            location_tracking_enabled: locationData.location_tracking_enabled ?? user.location_tracking_enabled
+            location_tracking_enabled: locationData.location_tracking_enabled ?? user.location_tracking_enabled,
+            _isOnBreak: locationData._isOnBreak || false
           };
         }
         
@@ -770,7 +769,6 @@ export default function DeliveryMap({
     const handleDriverLocationUpdate = (event) => {
       const { appUsers } = event.detail;
       if (appUsers && appUsers.length > 0) {
-        console.log('📍 [DeliveryMap] Received driver location update event - updating markers immediately');
         // CRITICAL: Force re-render by setting a new array reference
         setRealtimeAppUsers([...appUsers]);
       }
@@ -1220,8 +1218,6 @@ export default function DeliveryMap({
     const fiveMinutesInMs = 5 * 60 * 1000;
     const now = Date.now();
 
-    console.log(`📍 [DeliveryMap] Processing driver locations from realtimeAppUsers (${safeUsers.length} users)`);
-
     // CRITICAL: Use realtimeAppUsers as the source of truth (contains merged location data)
     const markers = safeUsers.map((user) => {
       if (!user || typeof user !== 'object') return null;
@@ -1234,7 +1230,6 @@ export default function DeliveryMap({
       // CRITICAL: On mobile, skip current user's shared marker (blue dot shows instead)
       // On desktop, ALWAYS include current user's shared marker
       if (isMobile && isCurrentUserMarker) {
-        console.log(`⏭️ [DeliveryMap] Skipping current user's shared marker on mobile (blue dot shown): ${user.user_name}`);
         return null;
       }
       
@@ -1243,28 +1238,31 @@ export default function DeliveryMap({
         return null;
       }
       
-      // CRITICAL: Only show if on_duty AND location_tracking_enabled
-      if (user.driver_status !== 'on_duty') {
+      // CRITICAL: Check for location data - skip if missing
+      if (!user.current_latitude || !user.current_longitude) {
+        return null;
+      }
+      
+      // CRITICAL: Check if on break and viewing self on other device
+      const isOnBreak = user.driver_status === 'on_break' && isCurrentUserMarker;
+      
+      // CRITICAL: Must be on_duty OR on_break (self only) with location_tracking_enabled
+      if (user.driver_status === 'on_break' && !isCurrentUserMarker) {
+        return null; // Others cannot see on_break drivers
+      }
+      if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') {
         return null;
       }
       if (user.location_tracking_enabled !== true) {
         return null;
       }
 
-      // CRITICAL: Check for location data - skip if missing
-      if (!user.current_latitude || !user.current_longitude) {
-        console.log(`⚠️ [DeliveryMap] No coordinates for driver: ${user.user_name || user.full_name}`);
-        return null;
-      }
-
       // Permission filtering - drivers and admins see all shared locations in same city
       if (!isAdmin && !isDriver) {
-        // Non-admin, non-driver users don't see any shared locations
         return null;
       }
       
       if (!isAdmin && currentUserCityId !== user.city_id) {
-        console.log(`⏭️ [DeliveryMap] Driver in different city: ${user.user_name || user.full_name}`);
         return null;
       }
 
@@ -1278,7 +1276,6 @@ export default function DeliveryMap({
         );
 
         if (!hasDeliveryInDispatcherStore) {
-          console.log(`⏭️ [DeliveryMap] Driver not in dispatcher's stores: ${user.user_name || user.full_name}`);
           return null;
         }
       }
@@ -1296,8 +1293,6 @@ export default function DeliveryMap({
       const driverName = user.user_name || user.full_name || 'Unknown Driver';
       const driverInitial = driverName.charAt(0).toUpperCase();
 
-      console.log(`✅ [DeliveryMap] Including driver location marker: ${driverName} (${isCurrentUserMarker ? 'SELF' : 'OTHER'})`);
-
       return {
         id: driverId,
         user_id: driverId,
@@ -1312,11 +1307,11 @@ export default function DeliveryMap({
         isSelf: isCurrentUserMarker,
         driver_status: user.driver_status,
         location_tracking_enabled: user.location_tracking_enabled,
-        isStaleLocation
+        isStaleLocation,
+        isOnBreak
       };
     }).filter(Boolean);
 
-    console.log(`📍 [DeliveryMap] Rendering ${markers.length} driver location markers`);
     return markers;
   }, [safeUsers, currentUser, isViewingCurrentDate, isMobile, safeDeliveries]);
 
