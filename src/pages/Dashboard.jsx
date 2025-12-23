@@ -2379,13 +2379,8 @@ function Dashboard() {
 
   // Periodic ETA optimizer - ONLY for mobile drivers viewing their own route
   useEffect(() => {
-    // CRITICAL: Only run for mobile devices with pure driver role viewing their own route
-    if (!isMobile || !isDriver || !currentUser) {
-      return;
-    }
-    
-    // CRITICAL: Pure drivers only (not admins/dispatchers)
-    if (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) {
+    // CRITICAL: Only run for mobile devices with driver role viewing their own route
+    if (!isMobile || !userHasRole(currentUser, 'driver') || !currentUser) {
       return;
     }
     
@@ -4997,7 +4992,7 @@ function Dashboard() {
       }
 
       // CRITICAL: Update ETAs for mobile drivers only when completing/failing stops
-      const shouldUpdateETAs = isMobile && isDriver && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher') && ['completed', 'failed', 'cancelled'].includes(newStatus);
+      const shouldUpdateETAs = isMobile && userHasRole(currentUser, 'driver') && ['completed', 'failed', 'cancelled'].includes(newStatus);
 
       if (shouldUpdateETAs) {
         console.log('⏱️ [STATUS UPDATE - ETA] Mobile driver completing stop - updating ETAs');
@@ -5291,7 +5286,7 @@ function Dashboard() {
       }
 
       // STEP 5: Run calculateRealTimeETA BEFORE UI refresh - ONLY for mobile drivers
-      const shouldRunETACalc = isMobile && isDriver && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher');
+      const shouldRunETACalc = isMobile && userHasRole(currentUser, 'driver');
       
       if (shouldRunETACalc) {
         try {
