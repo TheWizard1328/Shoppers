@@ -673,34 +673,12 @@ Deno.serve(async (req) => {
 
     // HYBRID OPTIMIZATION:
     // - Pickups: Maintain original order by delivery_time_start (already sorted in sortedPickups)
-    // - Deliveries: Nearest neighbor from current position, but only after their pickup is done
+    // - Deliveries: 
+    //   * in_transit deliveries: Keep immediately after their pickup (LOCKED position)
+    //   * Pending/other deliveries: Optimize with shortest path after all in_transit for their store
     while (unvisitedPickups.size > 0 || unvisitedFlexible.size > 0 || unvisitedConstrained.size > 0 || unvisitedISPs.size > 0) {
       
-      // STEP 1: Collect available deliveries (whose pickup is already completed)
-      const availableDeliveries = [];
-      
-      for (const idx of unvisitedFlexible) {
-        const deliv = deliveryStopsWithoutTimeConstraints.find(d => d.idx === idx);
-        if (deliv && completedPickupStores.has(deliv.delivery.store_id)) {
-          availableDeliveries.push(deliv);
-        }
-      }
-      
-      for (const idx of unvisitedConstrained) {
-        const deliv = deliveryStopsWithTimeConstraints.find(d => d.idx === idx);
-        if (deliv && completedPickupStores.has(deliv.delivery.store_id)) {
-          availableDeliveries.push(deliv);
-        }
-      }
-      
-      for (const idx of unvisitedISPs) {
-        const isp = ispDeliveryStops.find(d => d.idx === idx);
-        if (isp) {
-          availableDeliveries.push(isp);
-        }
-      }
-      
-      // STEP 2: Get next pickup in scheduled order
+      // STEP 1: Get next pickup in scheduled order
       let nextScheduledPickup = null;
       for (const sortedPickup of sortedPickups) {
         if (unvisitedPickups.has(sortedPickup.idx)) {
@@ -709,9 +687,56 @@ Deno.serve(async (req) => {
         }
       }
       
-      console.log(`\n📍 [Hybrid] Available deliveries: ${availableDeliveries.length}, Next pickup: ${nextScheduledPickup?.delivery.patient_name || 'None'}`);
+      console.log(`\n📍 [Hybrid] Next pickup: ${nextScheduledPickup?.delivery.patient_name || 'None'}`);
       
-      // STEP 3: Decision - optimize deliveries OR go to next scheduled pickup
+      // STEP 2: Collect deliveries - separate in_transit from others
+      const inTransitDeliveriesForStore = [];
+      const availableOtherDeliveries = [];
+      
+      // CRITICAL: If a pickup exists, check for in_transit deliveries from its store FIRST
+      if (nextScheduledPickup) {
+        // Get in_transit deliveries from this pickup's store
+        for (const idx of unvisitedFlexible) {
+          const deliv = deliveryStopsWithoutTimeConstraints.find(d => d.idx === idx);
+          if (deliv && deliv.delivery.store_id === nextScheduledPickup.delivery.store_id && deliv.delivery.status === 'in_transit') {
+            inTransitDeliveriesForStore.push(deliv);
+          }
+        }
+        for (const idx of unvisitedConstrained) {
+          const deliv = deliveryStopsWithTimeConstraints.find(d => d.idx === idx);
+          if (deliv && deliv.delivery.store_id === nextScheduledPickup.delivery.store_id && deliv.delivery.status === 'in_transit') {
+            inTransitDeliveriesForStore.push(deliv);
+          }
+        }
+        
+        console.log(`   📦 Found ${inTransitDeliveriesForStore.length} in_transit deliveries for upcoming pickup (${nextScheduledPickup.delivery.patient_name || 'Pickup'})`);
+      }
+      
+      // Collect other available deliveries (whose pickup is already completed, excluding in_transit)
+      for (const idx of unvisitedFlexible) {
+        const deliv = deliveryStopsWithoutTimeConstraints.find(d => d.idx === idx);
+        if (deliv && completedPickupStores.has(deliv.delivery.store_id) && deliv.delivery.status !== 'in_transit') {
+          availableOtherDeliveries.push(deliv);
+        }
+      }
+      
+      for (const idx of unvisitedConstrained) {
+        const deliv = deliveryStopsWithTimeConstraints.find(d => d.idx === idx);
+        if (deliv && completedPickupStores.has(deliv.delivery.store_id) && deliv.delivery.status !== 'in_transit') {
+          availableOtherDeliveries.push(deliv);
+        }
+      }
+      
+      for (const idx of unvisitedISPs) {
+        const isp = ispDeliveryStops.find(d => d.idx === idx);
+        if (isp) {
+          availableOtherDeliveries.push(isp);
+        }
+      }
+      
+      console.log(`   📍 Available OTHER deliveries (non in_transit): ${availableOtherDeliveries.length}`);
+      
+      // STEP 3: Decision - handle in_transit deliveries OR optimize other deliveries OR go to next pickup
       
       if (availableDeliveries.length > 0) {
         // Check if next pickup has a time constraint we need to respect
