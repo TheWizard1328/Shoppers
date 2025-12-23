@@ -5192,8 +5192,14 @@ function Dashboard() {
 
       // STEP 4: Update UI immediately (before optimization)
       console.log('🖥️ [START] Step 4: Updating UI immediately...');
+      invalidateDeliveriesForDate(deliveryDate);
       await forceRefreshDriverDeliveries(driverId, deliveryDate);
-      console.log('   ✅ UI updated with new isNextDelivery and stop_order');
+      
+      // CRITICAL: Dispatch event to force map markers to re-render immediately
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { 
+        detail: { driverId, deliveryDate, triggeredBy: 'startDelivery' } 
+      }));
+      console.log('   ✅ UI and map markers updated with new isNextDelivery and stop_order');
 
       // STEP 5: Clear and recalculate blue polyline
       console.log('🔵 [START] Step 5: Updating blue polyline...');
