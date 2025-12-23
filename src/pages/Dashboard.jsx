@@ -5837,7 +5837,8 @@ function Dashboard() {
                     </Button>
 
                   {/* Quick Route Adjustments - Driver Mobile Only */}
-                  {isMobile && isDriver && selectedDriverId === currentUser?.id &&
+                  {/*isMobile && */}
+                  {isDriver && selectedDriverId === currentUser?.id &&
                   <Button
                     variant="outline"
                     size="sm"
