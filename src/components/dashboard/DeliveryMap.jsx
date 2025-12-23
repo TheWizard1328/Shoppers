@@ -2614,9 +2614,11 @@ export default function DeliveryMap({
 
         {/* Driver Location Markers - Green for on_duty, Orange for on_break, with driver initial */}
         {/* Orange outer ring indicates stale location (>5 minutes old) */}
+        {/* Blue outer ring for drivers on break viewing their own location from other devices */}
         {driverLocationMarkers.map((location) => {
           const statusLabel = location.driver_status === 'on_duty' ? 'On Duty' : 'On Break';
           const statusColor = location.driver_status === 'on_duty' ? 'text-emerald-600' : 'text-orange-600';
+          const isOnBreak = location.isOnBreak === true;
           
           return (
             <Marker
@@ -2651,6 +2653,11 @@ export default function DeliveryMap({
                     <Activity className="w-3 h-3 animate-pulse" />
                     {statusLabel}
                   </div>
+                  {isOnBreak && (
+                    <div className="text-[10px] mt-1 font-medium text-blue-600">
+                      ☕ Viewing from other device
+                    </div>
+                  )}
                   {location.isStaleLocation && (
                     <div className="text-[10px] mt-1 font-medium text-orange-600">
                       ⚠️ Location stale (&gt;5 min)
