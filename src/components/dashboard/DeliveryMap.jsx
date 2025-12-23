@@ -1370,7 +1370,8 @@ export default function DeliveryMap({
     }).filter(Boolean);
 
     return markers;
-  }, [safeUsers, currentUser, isViewingCurrentDate, isMobile, safeDeliveries]);
+  // CRITICAL: Include isMobile in deps to ensure mobile filtering works correctly
+  }, [safeUsers.map(u => u?.id).join(','), currentUser?.id, isViewingCurrentDate, isMobile, safeDeliveries.map(d => d?.id).join(',')]);
 
   // UPDATED: Process current driver's live location for display - ONLY SHOW ON MOBILE, TODAY'S DATE
   const currentDriverMarker = useMemo(() => {
