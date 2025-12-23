@@ -201,11 +201,16 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
                 } else {
                   setHasError(true);
                 }
-              } catch (error) {
+                } catch (error) {
+                // Silently handle errors - stats will show "Unable to load"
+                // Don't spam console for expected transient errors
+                if (error.response?.status !== 500) {
+                  console.warn('Stats fetch error:', error.message);
+                }
                 setHasError(true);
-              } finally {
+                } finally {
                 setIsLoading(false);
-              }
+                }
             };
 
             // Listen for manual refresh requests (e.g., after imports)
