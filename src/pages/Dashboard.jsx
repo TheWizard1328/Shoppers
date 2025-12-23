@@ -6005,6 +6005,7 @@ function Dashboard() {
             users={drivers}
             currentUser={currentUser}
             driverLocations={isAllDriversMode ? [] : (showAllDriverMarkers ? allDriverLocations : [])}
+            showOtherDriverDeliveries={showAllDriverMarkers}
             currentDriverLocation={driverLocation}
             currentToNextPolyline={currentToNextPolyline}
             center={mapCenter}
