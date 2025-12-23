@@ -2181,7 +2181,8 @@ export default function DeliveryMap({
             null,
 
             // Pre-route line - DASHED for unstarted routes - HIDE for other drivers when viewing self today
-            route.startToFirstStopCoordinates && !route.isOriginLine && !googleRouteCoordinates && !isOtherDriverRoute &&
+            // CRITICAL: Only show pre-route line from HOME (not from current location - that's handled by the separate blue dashed line)
+            route.startToFirstStopCoordinates && !route.isOriginLine && !googleRouteCoordinates && !isOtherDriverRoute && !currentDriverLocation?.latitude &&
             <Polyline
               key={`pre-route-${route.driverId}`}
               positions={route.startToFirstStopCoordinates}
