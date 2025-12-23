@@ -785,11 +785,8 @@ export default function DeliveryMap({
     return () => window.removeEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
   }, []);
 
-  const isSingleDriverMode = useMemo(() => {
-    if (!safeDeliveries || safeDeliveries.length === 0) return false;
-    const uniqueDriverIds = new Set(safeDeliveries.map((delivery) => delivery?.driver_id).filter(Boolean));
-    return uniqueDriverIds.size === 1;
-  }, [safeDeliveries]);
+  // CRITICAL: Use isAllDriversMode calculated above instead of recalculating
+  const isSingleDriverMode = useMemo(() => !isAllDriversMode, [isAllDriversMode]);
 
   const isDriverViewingSelfToday = useMemo(() => {
     if (!currentUser || !userHasRole(currentUser, 'driver')) return false;
