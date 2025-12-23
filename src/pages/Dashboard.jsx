@@ -427,19 +427,13 @@ function Dashboard() {
         hasSetInitialDriverDashboard.current = true;
 
         // Now apply saved driver selection (after marking as loaded)
-        // Priority for mobile drivers: ALWAYS select self if they have an active route (ignore saved settings)
-        // Priority for others: 1) Saved driver from settings, 2) 'all'
+        // Priority for drivers (not admin): ALWAYS select their own name (ignore saved settings)
+        // Priority for admins/dispatchers: Use saved settings or smart defaults
         let driverToSelect = null;
 
-        // Mobile drivers with active route should ALWAYS see their own route first
-        if (isMobile && currentUser && userHasRole(currentUser, 'driver')) {
-          const todayStr = format(new Date(), 'yyyy-MM-dd');
-          const hasActiveRoute = deliveries?.some((d) =>
-          d && d.driver_id === currentUser.id && d.delivery_date === todayStr
-          );
-          if (hasActiveRoute) {
-            driverToSelect = currentUser.id;
-          }
+        // CRITICAL: Non-admin drivers ALWAYS see only their own route
+        if (currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) {
+          driverToSelect = currentUser.id;
         }
 
         // Fall back to smart default based on role and store assignments
@@ -474,9 +468,9 @@ function Dashboard() {
                   driverToSelect = settings.selected_driver_id || 'all';
                 }
               }
-            } else if (userHasRole(currentUser, 'driver')) {
-              // DRIVERS: Always select their own name
-              driverToSelect = currentUser.id;
+            } else if (userHasRole(currentUser, 'admin')) {
+              // Admins - use saved or default
+              driverToSelect = settings.selected_driver_id || 'all';
             } else {
               // Other roles - use saved or default
               driverToSelect = settings.selected_driver_id || 'all';
