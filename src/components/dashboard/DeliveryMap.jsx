@@ -307,11 +307,12 @@ const createStoreIcon = (status, storeColor = '#6B7280', isActive = false, numbe
       </div>
       <style>
         .store-marker {
-          /* REMOVED: transition causes pulsation on hover, breaks click */
+          transition: transform 0.15s ease-out;
+          will-change: transform;
         }
         .store-marker:hover {
           z-index: 9999 !important;
-          /* REMOVED: transform: scale(1.15) - causes pulsation */
+          transform: scale(1.15);
         }
         .leaflet-marker-icon:has(.store-marker:hover) {
           z-index: 9999 !important;
