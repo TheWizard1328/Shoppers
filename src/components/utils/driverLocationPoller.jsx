@@ -61,6 +61,7 @@ class DriverLocationPoller {
     const isAdmin = this.currentUser && userHasRole(this.currentUser, 'admin');
     const currentUserCityId = this.currentUser?.city_id;
     const currentUserId = this.currentUser?.id;
+    const currentUserUserId = this.currentUser?.user_id; // AppUser's user_id field
 
     // CRITICAL: Filter to drivers with location data
     const activeDriversWithLocation = users.filter(user => {
@@ -72,8 +73,11 @@ class DriverLocationPoller {
       // CRITICAL: Skip if no valid coordinates
       if (!user.current_latitude || !user.current_longitude) return false;
 
-      // CRITICAL: Check if this is the current user
-      const isSelf = user.user_id === currentUserId || user.id === currentUserId;
+      // CRITICAL: Check if this is the current user (match on multiple possible ID fields)
+      const isSelf = user.user_id === currentUserId || 
+                     user.id === currentUserId || 
+                     user.user_id === currentUserUserId ||
+                     user.id === currentUserUserId;
 
       // CRITICAL: Current user ALWAYS sees their own marker (regardless of status)
       // This allows drivers to see their own location on other devices even when on break
