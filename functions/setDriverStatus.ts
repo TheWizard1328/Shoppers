@@ -31,15 +31,20 @@ Deno.serve(async (req) => {
       driver_status: newStatus
     };
 
-    // Only enable location tracking if going on_duty
+    // CRITICAL: Location tracking behavior differs between off_duty and on_break
+    // - on_duty: Enable location tracking
+    // - on_break: KEEP location_tracking_enabled as-is (so driver can see their own marker from other devices)
+    // - off_duty: Disable location tracking AND clear location data
     if (newStatus === 'on_duty') {
       updateData.location_tracking_enabled = true;
-    } else {
+    } else if (newStatus === 'off_duty') {
+      // Only off_duty clears location data and disables tracking
       updateData.location_tracking_enabled = false;
       updateData.current_latitude = null;
       updateData.current_longitude = null;
       updateData.location_updated_at = null;
     }
+    // on_break: Don't modify location_tracking_enabled - preserve current state
 
     await base44.asServiceRole.entities.AppUser.update(appUser.id, updateData);
     
