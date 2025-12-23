@@ -62,36 +62,42 @@ class DriverLocationPoller {
     const currentUserCityId = this.currentUser?.city_id;
     const currentUserId = this.currentUser?.id;
 
-    // CRITICAL: Filter to drivers with on_duty status ONLY (not on_break) AND location_tracking_enabled
+    // CRITICAL: Filter to drivers with on_duty status AND location_tracking_enabled
     const activeDriversWithLocation = users.filter(user => {
       if (!user) return false;
       
       // Skip inactive users
       if (user.status === 'inactive') return false;
       
-      // CRITICAL: Must be on_duty (not on_break)
+      // CRITICAL: Must be on_duty
       if (user.driver_status !== 'on_duty') return false;
       
       // CRITICAL: Must have location_tracking_enabled for shared markers
       if (user.location_tracking_enabled !== true) return false;
       
-      // CRITICAL: Skip if no valid coordinates - but still show if coordinates will come soon
-      // This prevents markers from disappearing during smart refresh
+      // CRITICAL: Skip if no valid coordinates
       if (!user.current_latitude || !user.current_longitude) return false;
       
       // PERMISSION FILTERING:
-      // 1. Admins can see ALL shared locations
+      // 1. ALWAYS include current user's own shared location (shows on desktop/other devices)
+      if (user.user_id === currentUserId || user.id === currentUserId) {
+        return true;
+      }
+      
+      // 2. Admins can see ALL shared locations
       if (isAdmin) {
         return true;
       }
       
-      // 2. Non-admins can only see locations from users in the same city
+      // 3. Non-admins can only see locations from users in the same city
       if (currentUserCityId && user.city_id === currentUserCityId) {
         return true;
       }
       
       return false;
     });
+    
+    console.log(`📍 [DriverLocationPoller] Found ${activeDriversWithLocation.length} active drivers with location`);
 
     // CRITICAL: ALWAYS notify subscribers with current locations to prevent disappearing markers
     // Don't check for changes - just broadcast the current state every time
