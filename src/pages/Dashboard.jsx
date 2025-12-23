@@ -5222,6 +5222,11 @@ function Dashboard() {
 
           const optimizeData = optimizeResponse?.data || optimizeResponse;
           console.log('✅ [START] Backend optimization complete - stop_order assigned:', optimizeData?.success ? 'success' : 'error');
+          
+          // CRITICAL: Force refresh deliveries to get updated stop_order and ETAs from backend
+          console.log('🔄 [START] Refreshing deliveries to sync UI with optimized route...');
+          await forceRefreshDriverDeliveries(driverId, deliveryDate);
+          console.log('✅ [START] UI refreshed with optimized route data');
         } else {
           console.log('ℹ️ [START] No remaining stops - assigning stop_order directly');
           // No remaining stops - just assign the stop_order directly
