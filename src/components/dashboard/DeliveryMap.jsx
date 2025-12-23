@@ -977,26 +977,22 @@ export default function DeliveryMap({
       // CRITICAL: Pickups should NEVER use simple circles - they always show full store pickup markers
       const useSimpleCircle = false;
 
+      // Store pickups ALWAYS use store colors (both modes)
+      const pinColor = getStoreColor(store);
+
       // CRITICAL: Determine if this marker belongs to another driver when viewing self (pure drivers only)
       const isPureDriver = userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher');
       const isOtherDriver = isPureDriver && isDriverViewingSelfToday && pickup.driver_id !== currentUser?.id;
 
-      // CRITICAL: Pin color for pickups - mode-based coloring
-      let pickupPinColor;
-      if (isAllDriversMode) {
-        // All drivers mode - use driver colors for pickups too
-        pickupPinColor = driver && typeof driver === 'object' ? getDriverColor(driver) : '#607D8B';
-      } else {
-        // Single driver mode - use store colors
-        pickupPinColor = getStoreColor(store);
-      }
+      // CRITICAL: Pin color for pickups - ALWAYS use store color (never driver color)
+      const pickupPinColor = getStoreColor(store);
 
       return {
         ...pickup,
         latitude: store.latitude,
         longitude: store.longitude,
         store,
-        pinColor: pickupPinColor,
+        pinColor: pickupPinColor, // CRITICAL: Always store color for pickups
         driver,
         number: pickup.display_stop_order || pickup.stop_order || 0,
         markerType: 'pickup',
@@ -1073,7 +1069,7 @@ export default function DeliveryMap({
       groupedPickupMarkers: groupedPickups,
       hasIncompleteStops
     };
-  }, [patientDeliveries, pickups, safePatients, safeStores, safeUsers, isAllDriversMode, currentUser, safeDeliveries, isDriverViewingSelfToday]);
+  }, [patientDeliveries, pickups, safePatients, safeStores, safeUsers, isSingleDriverMode, currentUser, safeDeliveries, isDriverViewingSelfToday]);
 
   const calculateFannedPosition = useCallback((originalLat, originalLng, markerIndex, totalMarkers, stopOrder) => {
     if (currentZoom < 11 || currentZoom > 18) {
