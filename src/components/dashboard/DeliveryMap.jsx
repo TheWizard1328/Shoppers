@@ -103,8 +103,6 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
       <div class="simple-circle-marker" style="
         width: ${baseSize}px;
         height: ${baseSize}px;
-        transform-origin: center center;
-        transition: transform 0.2s ease;
         background-color: ${driverColor};
         border-radius: 50%;
         display: flex;
@@ -126,8 +124,8 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
     iconAnchor: [baseSize / 2, baseSize / 2]
   });
   
-  // Skip caching for now to prevent vibration
-  // simpleCircleIconCache.set(cacheKey, icon);
+  // Cache the icon to prevent re-creation
+  simpleCircleIconCache.set(cacheKey, icon);
   
   return icon;
 };
