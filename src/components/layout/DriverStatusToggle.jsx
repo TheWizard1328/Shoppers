@@ -173,12 +173,13 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       console.log('💾 [DriverStatusToggle] Updating local offline database...');
       const { updateAppUserLocal } = await import('../utils/offlineMutations');
       try {
-        // When going off duty, disable location sharing; otherwise keep current state
-        const locationTrackingUpdate = newStatus === 'off_duty' ? false : undefined;
+        // CRITICAL: Only disable location sharing when going off_duty, NOT on_break
+        // On break should keep location_tracking_enabled as is (so driver can see their own marker)
         const updateData = { driver_status: newStatus };
-        if (locationTrackingUpdate !== undefined) {
-          updateData.location_tracking_enabled = locationTrackingUpdate;
+        if (newStatus === 'off_duty') {
+          updateData.location_tracking_enabled = false;
         }
+        // Don't touch location_tracking_enabled for on_break - keep it enabled
         await updateAppUserLocal(appUserId, updateData);
         console.log('✅ [DriverStatusToggle] Local offline database updated');
       } catch (offlineError) {
