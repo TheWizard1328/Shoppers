@@ -725,6 +725,14 @@ export default function DeliveryMap({
   const [visibleBounds, setVisibleBounds] = useState(null);
   const [realtimeAppUsers, setRealtimeAppUsers] = useState(users);
 
+  // Add safety checks for required props - MUST be before useEffect that uses them
+  const safeDeliveries = Array.isArray(deliveries) ? deliveries : [];
+  const safeAllDeliveriesForDate = Array.isArray(allDeliveriesForDate) ? allDeliveriesForDate : [];
+  const safePatients = Array.isArray(patients) ? patients : [];
+  const safeStores = Array.isArray(stores) ? stores : [];
+  const safeDriverLocations = Array.isArray(driverLocations) ? driverLocations : [];
+  const safeUsers = Array.isArray(realtimeAppUsers) ? realtimeAppUsers : [];
+
   // CRITICAL: Process driverLocations prop into realtimeAppUsers on mount and updates
   useEffect(() => {
     if (safeDriverLocations && safeDriverLocations.length > 0) {
@@ -771,14 +779,6 @@ export default function DeliveryMap({
     window.addEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
     return () => window.removeEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
   }, []);
-
-  // Add safety checks for required props
-  const safeDeliveries = Array.isArray(deliveries) ? deliveries : [];
-  const safeAllDeliveriesForDate = Array.isArray(allDeliveriesForDate) ? allDeliveriesForDate : []; // NEW
-  const safePatients = Array.isArray(patients) ? patients : [];
-  const safeStores = Array.isArray(stores) ? stores : [];
-  const safeUsers = Array.isArray(realtimeAppUsers) ? realtimeAppUsers : []; // UPDATED: Use real-time appUsers
-  const safeDriverLocations = Array.isArray(driverLocations) ? driverLocations : [];
 
   const isSingleDriverMode = useMemo(() => {
     if (!safeDeliveries || safeDeliveries.length === 0) return false;
