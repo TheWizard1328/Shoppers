@@ -1654,18 +1654,17 @@ export default function DeliveryMap({
     return sortedRoutes;
   // CRITICAL: Use stable references for driverRoutes to prevent legend flickering
   }, [
-    JSON.stringify(deliveryMarkers.map(d => d?.id).filter(Boolean).sort()),
-    JSON.stringify(pickupMarkers.map(p => p?.id).filter(Boolean).sort()),
+    deliveryMarkers.map(d => d?.id).join(','),
+    pickupMarkers.map(p => p?.id).join(','),
     showRoutes,
     isAllDriversMode,
-    safeUsers.length,
+    safeUsers.map(u => u?.id).join(','),
     currentZoom,
     currentUser?.id,
     currentDriverLocation?.latitude,
     currentDriverLocation?.longitude,
     isViewingCurrentDate,
-    safeDeliveries.length,
-    otherDriverDeliveries.length
+    isDriverViewingSelfToday
   ]);
   
   // Pass driver routes to parent component
