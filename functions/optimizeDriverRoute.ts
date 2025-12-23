@@ -1,22 +1,21 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
 /**
- * Staged Route Optimizer
- * 
- * Optimizes driver routes in stages, where each stage is defined by pickup locations.
- * 
- * STAGES:
- * - Stage 1: Driver Home/Current Location → First Pickup
- * - Stage 2: Pickup 1 → Pickup 2 (including all deliveries in between)
- * - Stage N: Pickup N-1 → Pickup N (including all deliveries in between)
- * - Final Stage: Last Pickup → Driver Home (including remaining deliveries)
+ * Dependency-Aware Route Optimization for Pharmacy Deliveries
  * 
  * RULES:
- * 1. Sort deliveries by time windows first (Delivery Stop Time Windows, not Patient Time Windows)
- * 2. Only optimize stages that have unoptimized or new stops
- * 3. If no in_transit deliveries, only optimize Stage 1 (to first pickup)
- * 4. When driver manually triggers optimization, optimize all stages sequentially
- * 5. Update all ETAs in one batch after all stages are optimized
+ * 1. Start location priority: Driver GPS → Last completed stop → Driver home
+ * 2. Only optimize deliveries with status in_transit or en_route
+ * 3. Stop types: pickup, delivery, isp_pickup, isp_delivery
+ * 4. Dependencies:
+ *    - ISP deliveries (patient has "(ISP)" in name/address/notes) must occur BEFORE their store pickup
+ *    - Regular deliveries must occur AFTER their pickup (PUID)
+ * 5. isNextDelivery lock: If a stop has isNextDelivery=true, it's first and used as new origin
+ * 6. Optimization:
+ *    - Branch-and-bound for ≤10 stops
+ *    - Nearest-neighbor + 2-opt for >10 stops
+ *    - Time window pruning during recursion
+ * 7. After optimization: Single Google Directions API call for ETAs
  */
 
 Deno.serve(async (req) => {
@@ -31,8 +30,8 @@ Deno.serve(async (req) => {
     const { 
       driverId, 
       deliveryDate, 
-      manualTrigger = false,  // If true, optimize all stages
-      currentLocation = null   // { lat, lng } - driver's current position
+      currentLocation = null,
+      generatePolyline = false
     } = await req.json();
 
     if (!driverId || !deliveryDate) {
@@ -41,33 +40,14 @@ Deno.serve(async (req) => {
       }, { status: 400 });
     }
 
-    console.log(`🚀 Starting staged route optimization for driver ${driverId} on ${deliveryDate}`);
-    console.log(`   Manual trigger: ${manualTrigger}`);
+    console.log(`🚀 Starting dependency-aware route optimization for driver ${driverId} on ${deliveryDate}`);
 
-    // Get driver info for home location
+    // Get driver info
     const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
     const driverAppUser = appUsers?.[0];
 
     if (!driverAppUser) {
       return Response.json({ error: 'Driver not found' }, { status: 404 });
-    }
-
-    // Determine driver's starting location
-    const driverLocation = currentLocation || {
-      lat: driverAppUser.current_latitude || driverAppUser.home_latitude,
-      lng: driverAppUser.current_longitude || driverAppUser.home_longitude
-    };
-
-    const driverHomeLocation = {
-      lat: driverAppUser.home_latitude,
-      lng: driverAppUser.home_longitude
-    };
-
-    if (!driverLocation.lat || !driverLocation.lng) {
-      return Response.json({ 
-        error: 'Driver location not available',
-        driverId 
-      }, { status: 404 });
     }
 
     // Get ALL deliveries for the driver and date
@@ -79,11 +59,11 @@ Deno.serve(async (req) => {
     if (!allDeliveries || allDeliveries.length === 0) {
       return Response.json({ 
         message: 'No deliveries found for optimization',
-        stages: []
+        optimizedCount: 0
       });
     }
 
-    // Get patients and stores for coordinates
+    // Get patients and stores for coordinates and ISP detection
     const patientIds = [...new Set(allDeliveries.filter(d => d.patient_id).map(d => d.patient_id))];
     const patients = patientIds.length > 0 
       ? await base44.asServiceRole.entities.Patient.filter({ id: { $in: patientIds } })
@@ -96,298 +76,181 @@ Deno.serve(async (req) => {
       : [];
     const storeMap = new Map(stores.map(s => [s.id, s]));
 
-    // STEP 1: Enrich deliveries with coordinates and store info
-    const deliveriesWithTimeWindows = allDeliveries.map(d => {
-      let coords = null;
-      let storeDeliveryTimeStart = null;
-      const store = storeMap.get(d.store_id);
-      
-      if (d.puid) {
-        // Pickup - use store coordinates and store's delivery_time_start
-        coords = store ? { lat: store.latitude, lng: store.longitude } : null;
-        // Get the store's AM/PM delivery_time_start for sorting pickups
-        storeDeliveryTimeStart = d.delivery_time_start || null;
-      } else {
-        // Delivery - use patient coordinates
-        const patient = patientMap.get(d.patient_id);
-        coords = patient ? { lat: patient.latitude, lng: patient.longitude } : null;
-      }
+    // STEP 1: Determine start location (priority: GPS → last completed → home)
+    const completedDeliveries = allDeliveries
+      .filter(d => d.status === 'completed')
+      .sort((a, b) => (b.stop_order || 0) - (a.stop_order || 0));
 
-      return {
-        ...d,
-        coords,
-        storeDeliveryTimeStart,
-        // Use delivery time window, fallback to patient time window
-        effectiveTimeWindowStart: d.time_window_start || null,
-        effectiveTimeWindowEnd: d.time_window_end || null,
-        isPickup: !!d.puid
-      };
-    }).filter(d => d.coords); // Filter out deliveries without coordinates
+    let startLocation = null;
+    let startLocationSource = '';
 
-    // STEP 2: Separate pickups, DMR pickups (special deliveries that go before regular pickups), and regular deliveries
-    const pickups = deliveriesWithTimeWindows.filter(d => d.isPickup);
-    
-    // DMR PickUp deliveries can be optimized before their pickup locations
-    // Check both delivery_notes and patient notes for 'DMR PickUp'
-    const dmrPickupDeliveries = deliveriesWithTimeWindows.filter(d => {
-      if (d.isPickup) return false;
-      const deliveryNotes = (d.delivery_notes || '').toLowerCase();
-      const deliveryInstructions = (d.delivery_instructions || '').toLowerCase();
-      return deliveryNotes.includes('dmr pickup') || deliveryInstructions.includes('dmr pickup');
-    });
-    
-    const regularDeliveries = deliveriesWithTimeWindows.filter(d => {
-      if (d.isPickup) return false;
-      const deliveryNotes = (d.delivery_notes || '').toLowerCase();
-      const deliveryInstructions = (d.delivery_instructions || '').toLowerCase();
-      return !deliveryNotes.includes('dmr pickup') && !deliveryInstructions.includes('dmr pickup');
-    });
-
-    console.log(`📋 Found ${dmrPickupDeliveries.length} DMR PickUp deliveries (can be optimized before pickups)`);
-
-    // STEP 3: Sort pickups by their delivery_time_start (store pickup time)
-    pickups.sort((a, b) => {
-      const aTime = parseTimeToMinutes(a.storeDeliveryTimeStart || a.delivery_time_start);
-      const bTime = parseTimeToMinutes(b.storeDeliveryTimeStart || b.delivery_time_start);
-      if (aTime !== bTime) return aTime - bTime;
-      // Fallback to existing stop_order
-      return (a.stop_order || Infinity) - (b.stop_order || Infinity);
-    });
-
-    console.log(`📋 Pickup order by delivery_time_start:`);
-    pickups.forEach((p, i) => {
-      const store = storeMap.get(p.store_id);
-      console.log(`   ${i + 1}. ${store?.name || 'Unknown'} - delivery_time_start: ${p.storeDeliveryTimeStart || p.delivery_time_start || 'N/A'}`);
-    });
-
-    // STEP 4: Group deliveries by their associated pickup (puid)
-    // Create a map of puid (pickup's stop_id) to deliveries
-    const deliveriesByPickup = new Map();
-    for (const delivery of regularDeliveries) {
-      const puid = delivery.puid;
-      if (!deliveriesByPickup.has(puid)) {
-        deliveriesByPickup.set(puid, []);
-      }
-      deliveriesByPickup.get(puid).push(delivery);
+    // Priority 1: Current GPS from parameter or AppUser
+    if (currentLocation?.lat && currentLocation?.lng) {
+      startLocation = { lat: currentLocation.lat, lng: currentLocation.lng };
+      startLocationSource = 'current_gps_param';
+    } else if (driverAppUser.current_latitude && driverAppUser.current_longitude) {
+      startLocation = { lat: driverAppUser.current_latitude, lng: driverAppUser.current_longitude };
+      startLocationSource = 'current_gps';
     }
-
-    // Sort deliveries within each pickup group by time window
-    for (const [puid, deliveries] of deliveriesByPickup) {
-      deliveries.sort((a, b) => {
-        if (a.effectiveTimeWindowStart && b.effectiveTimeWindowStart) {
-          const aTime = parseTimeToMinutes(a.effectiveTimeWindowStart);
-          const bTime = parseTimeToMinutes(b.effectiveTimeWindowStart);
-          if (aTime !== bTime) return aTime - bTime;
-        } else if (a.effectiveTimeWindowStart) {
-          return -1;
-        } else if (b.effectiveTimeWindowStart) {
-          return 1;
+    
+    // Priority 2: Last completed stop
+    if (!startLocation && completedDeliveries.length > 0) {
+      const lastCompleted = completedDeliveries[0];
+      if (lastCompleted.patient_id) {
+        const patient = patientMap.get(lastCompleted.patient_id);
+        if (patient?.latitude && patient?.longitude) {
+          startLocation = { lat: patient.latitude, lng: patient.longitude };
+          startLocationSource = 'last_completed_delivery';
         }
-        return (a.stop_order || Infinity) - (b.stop_order || Infinity);
-      });
-    }
-
-    // STEP 5: Build final sorted list
-    // DMR PickUp deliveries go first (before any pickups), then for each pickup add pickup then its deliveries
-    const sortedDeliveries = [];
-    
-    // Sort DMR pickups by time window first
-    dmrPickupDeliveries.sort((a, b) => {
-      if (a.effectiveTimeWindowStart && b.effectiveTimeWindowStart) {
-        const aTime = parseTimeToMinutes(a.effectiveTimeWindowStart);
-        const bTime = parseTimeToMinutes(b.effectiveTimeWindowStart);
-        if (aTime !== bTime) return aTime - bTime;
-      }
-      return (a.stop_order || Infinity) - (b.stop_order || Infinity);
-    });
-    
-    // Add DMR PickUp deliveries first (they can be done before pickups)
-    sortedDeliveries.push(...dmrPickupDeliveries);
-    console.log(`   Added ${dmrPickupDeliveries.length} DMR PickUp deliveries at the start`);
-    
-    // Then add pickups and their associated deliveries
-    for (const pickup of pickups) {
-      sortedDeliveries.push(pickup);
-      const associatedDeliveries = deliveriesByPickup.get(pickup.stop_id) || [];
-      // Filter out DMR pickups from associated deliveries (they're already added)
-      const nonDmrDeliveries = associatedDeliveries.filter(d => {
-        const deliveryNotes = (d.delivery_notes || '').toLowerCase();
-        const deliveryInstructions = (d.delivery_instructions || '').toLowerCase();
-        return !deliveryNotes.includes('dmr pickup') && !deliveryInstructions.includes('dmr pickup');
-      });
-      sortedDeliveries.push(...nonDmrDeliveries);
-    }
-
-    // Add any orphan deliveries (deliveries without matching pickup) at the end
-    const assignedPuids = new Set(pickups.map(p => p.stop_id));
-    for (const [puid, deliveries] of deliveriesByPickup) {
-      if (!assignedPuids.has(puid)) {
-        console.log(`⚠️ Found ${deliveries.length} orphan deliveries with puid ${puid}`);
-        sortedDeliveries.push(...deliveries);
-      }
-    }
-
-    // STEP 6: Build stages based on pickup locations
-    const stages = buildStages(sortedDeliveries, driverLocation, driverHomeLocation);
-    console.log(`📊 Built ${stages.length} stages for route`);
-
-    // STEP 3: Check for in_transit deliveries
-    const inTransitDeliveries = allDeliveries.filter(d => d.status === 'in_transit');
-    const hasInTransitDeliveries = inTransitDeliveries.length > 0;
-
-    console.log(`   In-transit deliveries: ${inTransitDeliveries.length}`);
-
-    // STEP 4: Determine which stages to optimize
-    let stagesToOptimize = [];
-
-    if (manualTrigger) {
-      // Manual trigger: optimize ALL stages sequentially
-      stagesToOptimize = stages;
-      console.log(`   Manual trigger - optimizing ALL ${stages.length} stages`);
-    } else if (hasInTransitDeliveries) {
-      // Has in_transit: find the current stage (stage containing in_transit deliveries) and optimize it
-      const currentStageIndex = findCurrentStage(stages, inTransitDeliveries);
-      if (currentStageIndex >= 0) {
-        // Only optimize current stage if it has new/unoptimized stops
-        const currentStage = stages[currentStageIndex];
-        if (stageNeedsOptimization(currentStage)) {
-          stagesToOptimize = [currentStage];
-          console.log(`   Optimizing current stage ${currentStageIndex + 1} (has unoptimized stops)`);
-        } else {
-          console.log(`   Current stage ${currentStageIndex + 1} already optimized`);
+      } else if (lastCompleted.store_id) {
+        const store = storeMap.get(lastCompleted.store_id);
+        if (store?.latitude && store?.longitude) {
+          startLocation = { lat: store.latitude, lng: store.longitude };
+          startLocationSource = 'last_completed_pickup';
         }
       }
-    } else {
-      // No in_transit: only optimize Stage 1 (driver to first pickup)
-      if (stages.length > 0 && stageNeedsOptimization(stages[0])) {
-        stagesToOptimize = [stages[0]];
-        console.log(`   No in_transit - only optimizing Stage 1`);
-      } else {
-        console.log(`   Stage 1 already optimized or no stages`);
-      }
     }
 
-    if (stagesToOptimize.length === 0) {
+    // Priority 3: Driver home
+    if (!startLocation && driverAppUser.home_latitude && driverAppUser.home_longitude) {
+      startLocation = { lat: driverAppUser.home_latitude, lng: driverAppUser.home_longitude };
+      startLocationSource = 'driver_home';
+    }
+
+    if (!startLocation) {
       return Response.json({ 
-        message: 'No stages require optimization',
-        stages: stages.map(s => ({
-          stageNumber: s.stageNumber,
-          deliveryCount: s.deliveries.length,
-          optimized: true
-        }))
-      });
+        error: 'Cannot determine start location',
+        driverId 
+      }, { status: 400 });
     }
 
-    // STEP 5: Optimize each stage
-    const googleMapsKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
-    const optimizedStages = [];
-    let totalApiCalls = 0;
+    console.log(`📍 Start location: ${startLocationSource} (${startLocation.lat}, ${startLocation.lng})`);
 
-    for (const stage of stagesToOptimize) {
-      console.log(`\n🔄 Optimizing Stage ${stage.stageNumber}...`);
-      
-      const optimizationResult = await optimizeStage(
-        stage, 
-        googleMapsKey, 
-        base44, 
-        user,
-        driverId,
-        deliveryDate
-      );
-      
-      if (optimizationResult.success) {
-        optimizedStages.push({
-          stageNumber: stage.stageNumber,
-          optimizedOrder: optimizationResult.optimizedOrder,
-          apiCalls: optimizationResult.apiCalls
-        });
-        totalApiCalls += optimizationResult.apiCalls;
-      }
-    }
-
-    // STEP 6: Update stop_order for all optimized deliveries
-    let globalStopOrder = 1;
-    const stopOrderUpdates = [];
-
-    for (const stage of stages) {
-      const optimizedStage = optimizedStages.find(os => os.stageNumber === stage.stageNumber);
-      
-      if (optimizedStage) {
-        // Use optimized order
-        for (const deliveryId of optimizedStage.optimizedOrder) {
-          stopOrderUpdates.push({ id: deliveryId, stop_order: globalStopOrder++ });
-        }
-      } else {
-        // Keep existing order for non-optimized stages
-        const sortedStageDeliveries = [...stage.deliveries].sort((a, b) => 
-          (a.stop_order || Infinity) - (b.stop_order || Infinity)
-        );
-        for (const delivery of sortedStageDeliveries) {
-          stopOrderUpdates.push({ id: delivery.id, stop_order: globalStopOrder++ });
-        }
-      }
-    }
-
-    // Batch update stop orders
-    console.log(`\n💾 Updating ${stopOrderUpdates.length} stop orders...`);
-    for (const update of stopOrderUpdates) {
-      await base44.asServiceRole.entities.Delivery.update(update.id, {
-        stop_order: update.stop_order
-      });
-    }
-
-    // STEP 7: Calculate ETAs for the entire route in one batch
-    console.log(`\n🕐 Calculating ETAs for entire route...`);
-    const etaResult = await calculateRouteETAs(
-      stopOrderUpdates,
-      allDeliveries,
-      driverLocation,
-      patientMap,
-      storeMap,
-      googleMapsKey,
-      base44,
-      user,
-      driverId,
-      deliveryDate
+    // STEP 2: Filter to only in_transit or en_route deliveries
+    const stopsToOptimize = allDeliveries.filter(d => 
+      d.status === 'in_transit' || d.status === 'en_route'
     );
 
-    totalApiCalls += etaResult.apiCalls;
+    if (stopsToOptimize.length === 0) {
+      return Response.json({ 
+        message: 'No active deliveries to optimize',
+        optimizedCount: 0
+      });
+    }
+
+    console.log(`📋 Found ${stopsToOptimize.length} stops to optimize (in_transit/en_route)`);
+
+    // STEP 3: Build stops with dependencies
+    const stops = buildStopsWithDependencies(stopsToOptimize, patientMap, storeMap);
+    console.log(`🔗 Built ${stops.length} stops with dependencies`);
+
+    // STEP 4: Handle isNextDelivery lock
+    let lockedFirstStop = null;
+    let optimizableStops = stops;
+
+    const nextDeliveryStop = stops.find(s => s.isNextDelivery);
+    if (nextDeliveryStop) {
+      lockedFirstStop = nextDeliveryStop;
+      optimizableStops = stops.filter(s => s.id !== nextDeliveryStop.id);
+      // Use the locked stop's location as the new origin for remaining optimization
+      startLocation = { lat: lockedFirstStop.lat, lng: lockedFirstStop.lng };
+      console.log(`🔒 Locked isNextDelivery: ${lockedFirstStop.id} (new origin for remaining stops)`);
+    }
+
+    // STEP 5: Run optimization algorithm
+    let optimizedOrder;
+    
+    if (optimizableStops.length <= 1) {
+      // No optimization needed
+      optimizedOrder = optimizableStops.map(s => s.id);
+    } else if (optimizableStops.length <= 10) {
+      // Branch-and-bound for small routes
+      console.log(`🔬 Using branch-and-bound for ${optimizableStops.length} stops`);
+      optimizedOrder = branchAndBoundOptimize(optimizableStops, startLocation);
+    } else {
+      // Nearest-neighbor + 2-opt for larger routes
+      console.log(`🏃 Using nearest-neighbor + 2-opt for ${optimizableStops.length} stops`);
+      optimizedOrder = nearestNeighborWith2Opt(optimizableStops, startLocation);
+    }
+
+    // STEP 6: Prepend locked first stop if exists
+    if (lockedFirstStop) {
+      optimizedOrder = [lockedFirstStop.id, ...optimizedOrder];
+    }
+
+    console.log(`✅ Optimized order: ${optimizedOrder.length} stops`);
+
+    // STEP 7: Call Google Directions API once for final ETAs
+    const googleMapsKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
+    let apiCalls = 0;
+    let etaUpdates = [];
+
+    if (googleMapsKey && optimizedOrder.length > 0) {
+      const etaResult = await calculateFinalETAs(
+        optimizedOrder,
+        stops,
+        lockedFirstStop ? { lat: driverAppUser.current_latitude || driverAppUser.home_latitude, lng: driverAppUser.current_longitude || driverAppUser.home_longitude } : startLocation,
+        googleMapsKey
+      );
+      apiCalls = etaResult.apiCalls;
+      etaUpdates = etaResult.etaUpdates;
+    }
+
+    // STEP 8: Update stop_order and ETAs in database
+    console.log(`💾 Updating ${optimizedOrder.length} stop orders and ETAs...`);
+    
+    for (let i = 0; i < optimizedOrder.length; i++) {
+      const deliveryId = optimizedOrder[i];
+      const etaUpdate = etaUpdates.find(e => e.deliveryId === deliveryId);
+      
+      const updateData = {
+        stop_order: i + 1
+      };
+      
+      if (etaUpdate?.eta) {
+        updateData.delivery_time_eta = etaUpdate.eta;
+      }
+      
+      await base44.asServiceRole.entities.Delivery.update(deliveryId, updateData);
+    }
 
     // Log API usage
     await base44.asServiceRole.entities.GoogleAPILog.create({
       timestamp: new Date().toISOString(),
       api_type: 'Directions',
-      purpose: `Staged route optimization for driver ${driverAppUser.user_name || driverId}`,
+      purpose: `Dependency-aware route optimization for driver ${driverAppUser.user_name || driverId}`,
       function_name: 'optimizeDriverRoute',
       user_id: user.id,
       user_name: user.full_name,
       metadata: {
         driver_id: driverId,
         delivery_date: deliveryDate,
-        stages_optimized: stagesToOptimize.length,
-        total_stages: stages.length,
-        total_api_calls: totalApiCalls,
-        manual_trigger: manualTrigger
+        stops_optimized: optimizedOrder.length,
+        algorithm: optimizableStops.length <= 10 ? 'branch_and_bound' : 'nearest_neighbor_2opt',
+        api_calls: apiCalls,
+        start_location_source: startLocationSource,
+        had_locked_stop: !!lockedFirstStop
       }
     });
 
     console.log(`\n✅ Route optimization complete!`);
-    console.log(`   Stages optimized: ${optimizedStages.length}/${stages.length}`);
-    console.log(`   Total API calls: ${totalApiCalls}`);
+    console.log(`   Stops optimized: ${optimizedOrder.length}`);
+    console.log(`   API calls: ${apiCalls}`);
 
     return Response.json({
       success: true,
       driverId,
       deliveryDate,
-      stagesOptimized: optimizedStages.length,
-      totalStages: stages.length,
-      totalApiCalls,
-      stopOrderUpdates: stopOrderUpdates.length,
-      etaUpdates: etaResult.etaUpdates?.length || 0
+      optimizedCount: optimizedOrder.length,
+      optimizedOrder,
+      apiCalls,
+      etaUpdates: etaUpdates.length,
+      startLocationSource,
+      algorithm: optimizableStops.length <= 10 ? 'branch_and_bound' : 'nearest_neighbor_2opt'
     });
 
   } catch (error) {
-    console.error('❌ Error in staged route optimization:', error);
+    console.error('❌ Error in route optimization:', error);
     return Response.json({ 
       error: error.message,
       stack: error.stack 
@@ -396,347 +259,483 @@ Deno.serve(async (req) => {
 });
 
 /**
+ * Check if a patient is an ISP (has "(ISP)" in name, address, or notes)
+ */
+function isISPPatient(patient) {
+  if (!patient) return false;
+  const checkStr = `${patient.full_name || ''} ${patient.address || ''} ${patient.notes || ''}`.toLowerCase();
+  return checkStr.includes('(isp)');
+}
+
+/**
  * Parse time string (HH:mm) to minutes since midnight
  */
 function parseTimeToMinutes(timeStr) {
-  if (!timeStr) return Infinity;
-  const [hours, minutes] = timeStr.split(':').map(Number);
+  if (!timeStr) return null;
+  const parts = timeStr.split(':');
+  if (parts.length !== 2) return null;
+  const [hours, minutes] = parts.map(Number);
+  if (isNaN(hours) || isNaN(minutes)) return null;
   return hours * 60 + minutes;
 }
 
 /**
- * Build stages from deliveries based on pickup locations
- * Each stage starts with a pickup and ends at the next pickup (or driver home for final stage)
+ * Calculate crow-flies distance in km between two points
  */
-function buildStages(deliveries, driverLocation, driverHomeLocation) {
-  const stages = [];
-  let currentStage = {
-    stageNumber: 1,
-    startLocation: driverLocation,
-    endLocation: null,
-    deliveries: [],
-    isFirstStage: true
-  };
+function crowFliesDistance(lat1, lng1, lat2, lng2) {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
 
+/**
+ * Build stops array with all necessary attributes and dependencies
+ */
+function buildStopsWithDependencies(deliveries, patientMap, storeMap) {
+  const stops = [];
+  
+  // First pass: Create all stops with basic info
   for (const delivery of deliveries) {
-    if (delivery.isPickup) {
-      // If current stage has deliveries, close it
-      if (currentStage.deliveries.length > 0) {
-        currentStage.endLocation = delivery.coords;
-        stages.push(currentStage);
-        
-        // Start new stage from this pickup
-        currentStage = {
-          stageNumber: stages.length + 1,
-          startLocation: delivery.coords,
-          endLocation: null,
-          deliveries: [],
-          isFirstStage: false
-        };
-      }
-      // Add pickup to current stage
-      currentStage.deliveries.push(delivery);
-    } else {
-      // Regular delivery - add to current stage
-      currentStage.deliveries.push(delivery);
-    }
-  }
-
-  // Close final stage with driver home as end location
-  if (currentStage.deliveries.length > 0) {
-    currentStage.endLocation = driverHomeLocation.lat ? driverHomeLocation : null;
-    stages.push(currentStage);
-  }
-
-  return stages;
-}
-
-/**
- * Find the stage that contains in_transit deliveries
- */
-function findCurrentStage(stages, inTransitDeliveries) {
-  const inTransitIds = new Set(inTransitDeliveries.map(d => d.id));
-  
-  for (let i = 0; i < stages.length; i++) {
-    const hasInTransit = stages[i].deliveries.some(d => inTransitIds.has(d.id));
-    if (hasInTransit) return i;
-  }
-  
-  return -1;
-}
-
-/**
- * Check if a stage needs optimization (has new or unoptimized stops)
- */
-function stageNeedsOptimization(stage) {
-  // For now, consider a stage needs optimization if:
-  // 1. Any delivery has no stop_order
-  // 2. Stage has more than 1 delivery (worth optimizing)
-  
-  if (stage.deliveries.length <= 1) return false;
-  
-  const hasUnorderedDeliveries = stage.deliveries.some(d => !d.stop_order || d.stop_order === 0);
-  return hasUnorderedDeliveries;
-}
-
-/**
- * Optimize a single stage using Google Directions API
- * CRITICAL: Preserves position of any delivery with isNextDelivery: true
- */
-async function optimizeStage(stage, googleMapsKey, base44, user, driverId, deliveryDate) {
-  try {
-    if (stage.deliveries.length <= 1) {
-      // No optimization needed for single delivery
-      return {
-        success: true,
-        optimizedOrder: stage.deliveries.map(d => d.id),
-        apiCalls: 0
-      };
-    }
-
-    // Build waypoints for optimization
-    const origin = `${stage.startLocation.lat},${stage.startLocation.lng}`;
+    let lat, lng, type;
+    const patient = patientMap.get(delivery.patient_id);
+    const store = storeMap.get(delivery.store_id);
     
-    // Get delivery coordinates
-    const deliveryCoords = stage.deliveries.map(d => ({
-      id: d.id,
-      lat: d.coords.lat,
-      lng: d.coords.lng,
-      isPickup: d.isPickup,
-      isNextDelivery: d.isNextDelivery || false,
-      originalStopOrder: d.stop_order || Infinity
-    }));
-
-    // CRITICAL: Find and preserve the "next delivery" - it must maintain its position
-    const nextDelivery = deliveryCoords.find(d => d.isNextDelivery);
-    const nextDeliveryPosition = nextDelivery 
-      ? stage.deliveries.findIndex(d => d.id === nextDelivery.id)
-      : -1;
-
-    if (nextDelivery) {
-      console.log(`   🔒 Preserving isNextDelivery at position ${nextDeliveryPosition + 1}: ${nextDelivery.id}`);
-    }
-
-    // Pickups should maintain their relative order (first pickup stays first in stage)
-    // Only optimize the delivery portion, excluding the "next delivery"
-    const pickups = deliveryCoords.filter(d => d.isPickup);
-    const regularDeliveries = deliveryCoords.filter(d => !d.isPickup && !d.isNextDelivery);
-
-    if (regularDeliveries.length <= 1) {
-      // Not enough deliveries to optimize - but still need to insert nextDelivery at correct position
-      let finalOrder = [...pickups.map(p => p.id), ...regularDeliveries.map(d => d.id)];
+    if (delivery.puid && delivery.stop_id) {
+      // This is a pickup (has puid which IS the stop_id for pickups)
+      // Actually, for pickups: stop_id is the pickup's own ID, puid links deliveries TO this pickup
+      // Let me re-check: pickups have stop_id set, deliveries have puid pointing to pickup's stop_id
       
-      // Insert nextDelivery at its preserved position
-      if (nextDelivery && nextDeliveryPosition >= 0) {
-        finalOrder.splice(nextDeliveryPosition, 0, nextDelivery.id);
-      } else if (nextDelivery) {
-        finalOrder.push(nextDelivery.id);
-      }
-      
-      return {
-        success: true,
-        optimizedOrder: finalOrder,
-        apiCalls: 0
-      };
-    }
-
-    // Use Google Directions with optimize:true for regular deliveries only (excluding nextDelivery)
-    const destination = stage.endLocation 
-      ? `${stage.endLocation.lat},${stage.endLocation.lng}`
-      : `${regularDeliveries[regularDeliveries.length - 1].lat},${regularDeliveries[regularDeliveries.length - 1].lng}`;
-
-    const waypointsStr = regularDeliveries
-      .slice(0, -1)
-      .map(d => `${d.lat},${d.lng}`)
-      .join('|');
-
-    // Start from last pickup location (or stage start if no pickups)
-    const optimizeOrigin = pickups.length > 0 
-      ? `${pickups[pickups.length - 1].lat},${pickups[pickups.length - 1].lng}`
-      : origin;
-
-    const directionsUrl = `https://maps.googleapis.com/maps/api/directions/json?` +
-      `origin=${optimizeOrigin}&` +
-      `destination=${destination}&` +
-      (waypointsStr ? `waypoints=optimize:true|${waypointsStr}&` : '') +
-      `key=${googleMapsKey}`;
-
-    const response = await fetch(directionsUrl);
-    const data = await response.json();
-
-    if (data.status !== 'OK' || !data.routes?.[0]) {
-      console.error(`❌ Google Directions API error for stage ${stage.stageNumber}:`, data.status);
-      return {
-        success: false,
-        optimizedOrder: stage.deliveries.map(d => d.id),
-        apiCalls: 1
-      };
-    }
-
-    // Get optimized order from waypoint_order
-    const waypointOrder = data.routes[0].waypoint_order || [];
-    
-    // Build final optimized order: pickups first, then optimized deliveries
-    const optimizedDeliveries = waypointOrder.map(i => regularDeliveries[i].id);
-    // Add the final destination delivery
-    optimizedDeliveries.push(regularDeliveries[regularDeliveries.length - 1].id);
-
-    let finalOrder = [
-      ...pickups.map(p => p.id),
-      ...optimizedDeliveries
-    ];
-
-    // CRITICAL: Insert nextDelivery at its preserved position
-    if (nextDelivery && nextDeliveryPosition >= 0) {
-      // Insert at the original position within the stage
-      finalOrder.splice(nextDeliveryPosition, 0, nextDelivery.id);
-      console.log(`   🔒 Re-inserted isNextDelivery at position ${nextDeliveryPosition + 1}`);
-    } else if (nextDelivery) {
-      // Fallback: add at end if position couldn't be determined
-      finalOrder.push(nextDelivery.id);
-    }
-
-    console.log(`   ✅ Stage ${stage.stageNumber} optimized: ${finalOrder.length} stops`);
-
-    return {
-      success: true,
-      optimizedOrder: finalOrder,
-      apiCalls: 1
-    };
-
-  } catch (error) {
-    console.error(`❌ Error optimizing stage ${stage.stageNumber}:`, error);
-    return {
-      success: false,
-      optimizedOrder: stage.deliveries.map(d => d.id),
-      apiCalls: 0
-    };
-  }
-}
-
-/**
- * Calculate ETAs for the entire route after optimization
- */
-async function calculateRouteETAs(
-  stopOrderUpdates,
-  allDeliveries,
-  driverLocation,
-  patientMap,
-  storeMap,
-  googleMapsKey,
-  base44,
-  user,
-  driverId,
-  deliveryDate
-) {
-  try {
-    // Sort by new stop order
-    const sortedUpdates = [...stopOrderUpdates].sort((a, b) => a.stop_order - b.stop_order);
-    
-    // Build delivery lookup
-    const deliveryMap = new Map(allDeliveries.map(d => [d.id, d]));
-    
-    // Build waypoints for ETA calculation
-    const waypoints = [];
-    for (const update of sortedUpdates) {
-      const delivery = deliveryMap.get(update.id);
-      if (!delivery) continue;
-
-      let coords;
-      if (delivery.puid) {
-        const store = storeMap.get(delivery.store_id);
-        coords = store ? { lat: store.latitude, lng: store.longitude } : null;
+      // If this delivery has NO patient_id but HAS store_id, it's likely a pickup
+      if (!delivery.patient_id && delivery.store_id) {
+        lat = store?.latitude;
+        lng = store?.longitude;
+        type = 'pickup';
       } else {
-        const patient = patientMap.get(delivery.patient_id);
-        coords = patient ? { lat: patient.latitude, lng: patient.longitude } : null;
+        // It's a delivery with a PUID (linked to a pickup)
+        lat = patient?.latitude;
+        lng = patient?.longitude;
+        
+        // Check if ISP delivery
+        if (isISPPatient(patient)) {
+          type = 'isp_delivery';
+        } else {
+          type = 'delivery';
+        }
       }
-
-      if (coords) {
-        waypoints.push({
-          deliveryId: delivery.id,
-          lat: coords.lat,
-          lng: coords.lng,
-          extraTime: delivery.extra_time || 5,
-          timeWindowStart: delivery.time_window_start
-        });
+    } else if (!delivery.patient_id && delivery.store_id) {
+      // Pickup (no patient, has store)
+      lat = store?.latitude;
+      lng = store?.longitude;
+      type = 'pickup';
+    } else {
+      // Regular delivery
+      lat = patient?.latitude;
+      lng = patient?.longitude;
+      
+      if (isISPPatient(patient)) {
+        type = 'isp_delivery';
+      } else {
+        type = 'delivery';
       }
     }
 
+    if (!lat || !lng) {
+      console.warn(`⚠️ Skipping delivery ${delivery.id} - no coordinates`);
+      continue;
+    }
+
+    // Parse time windows
+    const timeWindowStart = parseTimeToMinutes(delivery.delivery_time_start || delivery.time_window_start);
+    const timeWindowEnd = parseTimeToMinutes(delivery.delivery_time_end || delivery.time_window_end);
+
+    stops.push({
+      id: delivery.id,
+      lat,
+      lng,
+      type,
+      puid: delivery.puid || null,
+      stopId: delivery.stop_id || null,
+      storeId: delivery.store_id,
+      timeWindowStart,
+      timeWindowEnd,
+      serviceTime: delivery.extra_time || 5,
+      isNextDelivery: delivery.isNextDelivery || false,
+      dependsOn: [] // Will be populated in second pass
+    });
+  }
+
+  // Second pass: Build dependencies
+  // Create lookup maps
+  const stopsByStopId = new Map();
+  const pickupsByStoreId = new Map();
+  
+  for (const stop of stops) {
+    if (stop.stopId) {
+      stopsByStopId.set(stop.stopId, stop);
+    }
+    if (stop.type === 'pickup') {
+      if (!pickupsByStoreId.has(stop.storeId)) {
+        pickupsByStoreId.set(stop.storeId, []);
+      }
+      pickupsByStoreId.get(stop.storeId).push(stop);
+    }
+  }
+
+  // Apply dependency rules
+  for (const stop of stops) {
+    if (stop.type === 'isp_delivery') {
+      // ISP deliveries must occur BEFORE their store pickup
+      // So the store pickup depends on the ISP delivery
+      const storePickups = pickupsByStoreId.get(stop.storeId) || [];
+      for (const pickup of storePickups) {
+        if (!pickup.dependsOn.includes(stop.id)) {
+          pickup.dependsOn.push(stop.id);
+          console.log(`🔗 Pickup ${pickup.id} depends on ISP delivery ${stop.id}`);
+        }
+      }
+    } else if (stop.type === 'delivery' && stop.puid) {
+      // Regular deliveries must occur AFTER their pickup
+      const pickupStop = stopsByStopId.get(stop.puid);
+      if (pickupStop) {
+        stop.dependsOn.push(pickupStop.id);
+        console.log(`🔗 Delivery ${stop.id} depends on pickup ${pickupStop.id}`);
+      }
+    }
+  }
+
+  return stops;
+}
+
+/**
+ * Check if all dependencies for a stop have been visited
+ */
+function dependenciesSatisfied(stop, visitedIds) {
+  return stop.dependsOn.every(depId => visitedIds.has(depId));
+}
+
+/**
+ * Branch-and-bound optimization for ≤10 stops
+ * Uses recursion with dependency checking and time window pruning
+ */
+function branchAndBoundOptimize(stops, startLocation) {
+  const stopMap = new Map(stops.map(s => [s.id, s]));
+  
+  let bestOrder = null;
+  let bestDistance = Infinity;
+  
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  
+  function recurse(currentLocation, visitedIds, currentOrder, currentDistance, currentTime) {
+    // Base case: all stops visited
+    if (currentOrder.length === stops.length) {
+      if (currentDistance < bestDistance) {
+        bestDistance = currentDistance;
+        bestOrder = [...currentOrder];
+      }
+      return;
+    }
+    
+    // Pruning: if current distance already exceeds best, stop
+    if (currentDistance >= bestDistance) {
+      return;
+    }
+    
+    // Try each unvisited stop
+    for (const stop of stops) {
+      if (visitedIds.has(stop.id)) continue;
+      
+      // Check dependencies
+      if (!dependenciesSatisfied(stop, visitedIds)) continue;
+      
+      // Calculate distance to this stop
+      const dist = crowFliesDistance(currentLocation.lat, currentLocation.lng, stop.lat, stop.lng);
+      const travelMinutes = Math.ceil(dist / 40 * 60); // ~40 km/h average
+      let arrivalTime = currentTime + travelMinutes;
+      
+      // Time window pruning
+      if (stop.timeWindowEnd !== null && arrivalTime > stop.timeWindowEnd) {
+        // Would arrive too late, skip this branch
+        continue;
+      }
+      
+      // Wait if arriving before time window starts
+      if (stop.timeWindowStart !== null && arrivalTime < stop.timeWindowStart) {
+        arrivalTime = stop.timeWindowStart;
+      }
+      
+      // Recurse
+      visitedIds.add(stop.id);
+      currentOrder.push(stop.id);
+      
+      recurse(
+        { lat: stop.lat, lng: stop.lng },
+        visitedIds,
+        currentOrder,
+        currentDistance + dist,
+        arrivalTime + stop.serviceTime
+      );
+      
+      // Backtrack
+      currentOrder.pop();
+      visitedIds.delete(stop.id);
+    }
+  }
+  
+  recurse(startLocation, new Set(), [], 0, currentMinutes);
+  
+  // If no valid order found (due to dependency cycles or impossible time windows), 
+  // fall back to simple ordering
+  if (!bestOrder) {
+    console.warn('⚠️ Branch-and-bound found no valid order, using fallback');
+    return fallbackOrder(stops, startLocation);
+  }
+  
+  return bestOrder;
+}
+
+/**
+ * Nearest-neighbor with 2-opt improvement for >10 stops
+ */
+function nearestNeighborWith2Opt(stops, startLocation) {
+  const stopMap = new Map(stops.map(s => [s.id, s]));
+  const order = [];
+  const visitedIds = new Set();
+  let currentLocation = startLocation;
+  
+  const now = new Date();
+  let currentTime = now.getHours() * 60 + now.getMinutes();
+  
+  // Nearest-neighbor construction
+  while (order.length < stops.length) {
+    let bestStop = null;
+    let bestDist = Infinity;
+    
+    for (const stop of stops) {
+      if (visitedIds.has(stop.id)) continue;
+      if (!dependenciesSatisfied(stop, visitedIds)) continue;
+      
+      const dist = crowFliesDistance(currentLocation.lat, currentLocation.lng, stop.lat, stop.lng);
+      
+      // Time window consideration (prefer stops we can reach in time)
+      const travelMinutes = Math.ceil(dist / 40 * 60);
+      const arrivalTime = currentTime + travelMinutes;
+      
+      // Penalize if we'd arrive too late
+      let effectiveDist = dist;
+      if (stop.timeWindowEnd !== null && arrivalTime > stop.timeWindowEnd) {
+        effectiveDist += 1000; // Heavy penalty for late arrival
+      }
+      
+      if (effectiveDist < bestDist) {
+        bestDist = effectiveDist;
+        bestStop = stop;
+      }
+    }
+    
+    if (!bestStop) {
+      // No valid next stop found - try to find any unvisited stop
+      for (const stop of stops) {
+        if (!visitedIds.has(stop.id)) {
+          bestStop = stop;
+          break;
+        }
+      }
+      if (!bestStop) break;
+    }
+    
+    order.push(bestStop.id);
+    visitedIds.add(bestStop.id);
+    
+    const travelMinutes = Math.ceil(bestDist / 40 * 60);
+    currentTime += travelMinutes + bestStop.serviceTime;
+    if (bestStop.timeWindowStart !== null && currentTime < bestStop.timeWindowStart) {
+      currentTime = bestStop.timeWindowStart + bestStop.serviceTime;
+    }
+    
+    currentLocation = { lat: bestStop.lat, lng: bestStop.lng };
+  }
+  
+  // 2-opt improvement (only swap if dependencies allow)
+  let improved = true;
+  let iterations = 0;
+  const maxIterations = 100;
+  
+  while (improved && iterations < maxIterations) {
+    improved = false;
+    iterations++;
+    
+    for (let i = 0; i < order.length - 2; i++) {
+      for (let j = i + 2; j < order.length; j++) {
+        // Check if swap is valid (dependencies still satisfied)
+        const newOrder = twoOptSwap(order, i, j);
+        if (isValidOrder(newOrder, stopMap) && calculateTotalDistance(newOrder, stopMap, startLocation) < calculateTotalDistance(order, stopMap, startLocation)) {
+          order.splice(0, order.length, ...newOrder);
+          improved = true;
+        }
+      }
+    }
+  }
+  
+  return order;
+}
+
+/**
+ * 2-opt swap
+ */
+function twoOptSwap(order, i, j) {
+  const newOrder = order.slice(0, i + 1);
+  const reversed = order.slice(i + 1, j + 1).reverse();
+  newOrder.push(...reversed);
+  newOrder.push(...order.slice(j + 1));
+  return newOrder;
+}
+
+/**
+ * Check if an order respects all dependencies
+ */
+function isValidOrder(order, stopMap) {
+  const visitedIds = new Set();
+  for (const stopId of order) {
+    const stop = stopMap.get(stopId);
+    if (!stop) continue;
+    if (!dependenciesSatisfied(stop, visitedIds)) {
+      return false;
+    }
+    visitedIds.add(stopId);
+  }
+  return true;
+}
+
+/**
+ * Calculate total crow-flies distance for an order
+ */
+function calculateTotalDistance(order, stopMap, startLocation) {
+  let total = 0;
+  let current = startLocation;
+  
+  for (const stopId of order) {
+    const stop = stopMap.get(stopId);
+    if (!stop) continue;
+    total += crowFliesDistance(current.lat, current.lng, stop.lat, stop.lng);
+    current = { lat: stop.lat, lng: stop.lng };
+  }
+  
+  return total;
+}
+
+/**
+ * Fallback ordering when optimization fails
+ */
+function fallbackOrder(stops, startLocation) {
+  // Sort by: dependencies first, then by time window, then by distance
+  const sorted = [...stops].sort((a, b) => {
+    // Stops with no dependencies come first
+    if (a.dependsOn.length !== b.dependsOn.length) {
+      return a.dependsOn.length - b.dependsOn.length;
+    }
+    // Then by time window
+    if (a.timeWindowStart !== null && b.timeWindowStart !== null) {
+      return a.timeWindowStart - b.timeWindowStart;
+    }
+    if (a.timeWindowStart !== null) return -1;
+    if (b.timeWindowStart !== null) return 1;
+    // Then by distance from start
+    const distA = crowFliesDistance(startLocation.lat, startLocation.lng, a.lat, a.lng);
+    const distB = crowFliesDistance(startLocation.lat, startLocation.lng, b.lat, b.lng);
+    return distA - distB;
+  });
+  
+  return sorted.map(s => s.id);
+}
+
+/**
+ * Calculate final ETAs using Google Directions API
+ */
+async function calculateFinalETAs(optimizedOrder, stops, startLocation, googleMapsKey) {
+  try {
+    const stopMap = new Map(stops.map(s => [s.id, s]));
+    
+    if (optimizedOrder.length === 0) {
+      return { etaUpdates: [], apiCalls: 0 };
+    }
+    
+    // Build waypoints
+    const waypoints = optimizedOrder.map(id => {
+      const stop = stopMap.get(id);
+      return stop ? { id, lat: stop.lat, lng: stop.lng, serviceTime: stop.serviceTime, timeWindowStart: stop.timeWindowStart } : null;
+    }).filter(Boolean);
+    
     if (waypoints.length === 0) {
       return { etaUpdates: [], apiCalls: 0 };
     }
-
-    // Single API call for entire route
-    const origin = `${driverLocation.lat},${driverLocation.lng}`;
+    
+    const origin = `${startLocation.lat},${startLocation.lng}`;
     const destination = `${waypoints[waypoints.length - 1].lat},${waypoints[waypoints.length - 1].lng}`;
-    const waypointsStr = waypoints
-      .slice(0, -1)
-      .map(w => `${w.lat},${w.lng}`)
-      .join('|');
-
+    
+    // Build intermediate waypoints (excluding destination)
+    const intermediateWaypoints = waypoints.slice(0, -1);
+    const waypointsStr = intermediateWaypoints.map(w => `${w.lat},${w.lng}`).join('|');
+    
     const directionsUrl = `https://maps.googleapis.com/maps/api/directions/json?` +
       `origin=${origin}&` +
       `destination=${destination}&` +
-      (waypointsStr ? `waypoints=optimize:false|${waypointsStr}&` : '') +
+      (waypointsStr ? `waypoints=${waypointsStr}&` : '') +
       `departure_time=now&` +
       `traffic_model=best_guess&` +
       `key=${googleMapsKey}`;
-
+    
     const response = await fetch(directionsUrl);
     const data = await response.json();
-
+    
     if (data.status !== 'OK' || !data.routes?.[0]) {
-      console.error('❌ Failed to calculate ETAs:', data.status);
+      console.error('❌ Google Directions API error:', data.status);
       return { etaUpdates: [], apiCalls: 1 };
     }
-
+    
     const route = data.routes[0];
     const now = new Date();
     let cumulativeMinutes = now.getHours() * 60 + now.getMinutes();
     const etaUpdates = [];
-
+    
     for (let i = 0; i < route.legs.length && i < waypoints.length; i++) {
       const leg = route.legs[i];
       const waypoint = waypoints[i];
-
+      
       const durationSeconds = leg.duration_in_traffic?.value || leg.duration?.value || 0;
       const travelMinutes = Math.ceil(durationSeconds / 60);
-
+      
       cumulativeMinutes += travelMinutes;
-
+      
       // Apply time window waiting
-      if (waypoint.timeWindowStart) {
-        const [windowHours, windowMinutes] = waypoint.timeWindowStart.split(':').map(Number);
-        const windowStartMinutes = windowHours * 60 + windowMinutes;
-        if (cumulativeMinutes < windowStartMinutes) {
-          cumulativeMinutes = windowStartMinutes;
-        }
+      if (waypoint.timeWindowStart !== null && cumulativeMinutes < waypoint.timeWindowStart) {
+        cumulativeMinutes = waypoint.timeWindowStart;
       }
-
+      
       const etaHours = Math.floor(cumulativeMinutes / 60) % 24;
       const etaMinutesVal = cumulativeMinutes % 60;
       const eta = `${String(etaHours).padStart(2, '0')}:${String(etaMinutesVal).padStart(2, '0')}`;
-
+      
       etaUpdates.push({
-        deliveryId: waypoint.deliveryId,
+        deliveryId: waypoint.id,
         eta
       });
-
-      cumulativeMinutes += waypoint.extraTime;
+      
+      // Add service time
+      cumulativeMinutes += waypoint.serviceTime;
     }
-
-    // Batch update ETAs
-    console.log(`   💾 Updating ${etaUpdates.length} ETAs...`);
-    for (const update of etaUpdates) {
-      await base44.asServiceRole.entities.Delivery.update(update.deliveryId, {
-        delivery_time_eta: update.eta
-      });
-    }
-
+    
+    console.log(`   📍 Calculated ETAs for ${etaUpdates.length} stops`);
+    
     return { etaUpdates, apiCalls: 1 };
-
+    
   } catch (error) {
-    console.error('❌ Error calculating route ETAs:', error);
+    console.error('❌ Error calculating ETAs:', error);
     return { etaUpdates: [], apiCalls: 0 };
   }
 }
