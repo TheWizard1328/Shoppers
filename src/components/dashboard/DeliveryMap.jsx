@@ -1730,8 +1730,8 @@ export default function DeliveryMap({
     return sortedRoutes;
   // CRITICAL: Use stable references for driverRoutes to prevent legend flickering
   }, [
-    deliveryMarkers.map(d => d?.id).join(','),
-    pickupMarkers.map(p => p?.id).join(','),
+    deliveryMarkers.map(d => `${d?.id}:${d?.stop_order}:${d?.status}`).join(','),
+    pickupMarkers.map(p => `${p?.id}:${p?.stop_order}:${p?.status}`).join(','),
     showRoutes,
     isAllDriversMode,
     safeUsers.map(u => u?.id).join(','),
