@@ -4980,7 +4980,12 @@ function Dashboard() {
             deliveryDate: deliveryDate,
             currentLocalTime: localTimeString // Backend calculates and saves ETAs directly
           });
-          // Backend now handles all ETA calculations and database updates - no need to recalculate here
+          console.log('✅ [STATUS UPDATE] ETAs updated by backend');
+          
+          // CRITICAL: Force map to re-render route lines after ETA update
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', { 
+            detail: { driverId: targetDelivery.driver_id, deliveryDate: deliveryDate, triggeredBy: 'statusUpdateETA' } 
+          }));
         } catch (etaError) {
           console.warn('⚠️ [STATUS UPDATE] ETA update failed:', etaError);
         }
@@ -4992,6 +4997,11 @@ function Dashboard() {
       // CRITICAL: Force full data refresh to sync UI
       invalidateDeliveriesForDate(deliveryDate);
       await refreshData();
+      
+      // CRITICAL: Force map to re-render route lines after data refresh
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { 
+        detail: { driverId: targetDelivery.driver_id, deliveryDate: deliveryDate, triggeredBy: 'statusUpdate' } 
+      }));
 
       if (!skipAutoCenter) {
         hasAutoSelectedRef.current = false;
@@ -5253,6 +5263,11 @@ function Dashboard() {
 
         const optimizeData = optimizeResponse?.data || optimizeResponse;
         console.log(`   ✅ Route optimization: ${optimizeData?.success ? 'success' : 'error'}`);
+        
+        // CRITICAL: Force map to re-render route lines after optimization
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { 
+          detail: { driverId: driverId, deliveryDate: deliveryDate, triggeredBy: 'startDeliveryOptimization' } 
+        }));
       } catch (optimizeError) {
         console.warn('   ⚠️ Route optimization failed:', optimizeError.message);
       }
@@ -5269,6 +5284,11 @@ function Dashboard() {
             currentLocalTime: localTimeString
           });
           console.log('   ✅ ETAs updated');
+          
+          // CRITICAL: Force map to re-render route lines after ETA update
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', { 
+            detail: { driverId: driverId, deliveryDate: deliveryDate, triggeredBy: 'startDeliveryETA' } 
+          }));
         } catch (etaError) {
           console.warn('   ⚠️ ETA calculation failed:', etaError.message);
         }
@@ -5280,6 +5300,11 @@ function Dashboard() {
       await forceRefreshDriverDeliveries(driverId, deliveryDate);
       await refreshData();
       console.log('   ✅ UI and database synced');
+      
+      // CRITICAL: Force map to re-render route lines after data refresh
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { 
+        detail: { driverId: driverId, deliveryDate: deliveryDate, triggeredBy: 'startDeliveryFinalRefresh' } 
+      }));
 
       // STEP 10: Scroll to the started delivery card
       console.log('📍 [START] Step 10: Scrolling to started delivery card...');
@@ -5628,6 +5653,11 @@ function Dashboard() {
                         generatePolyline: false
                       });
                       console.log('✅ [Refresh Spinner] Route optimized - ETAs updated by backend');
+                      
+                      // CRITICAL: Force map to re-render route lines
+                      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { 
+                        detail: { driverId: activeDriverId, deliveryDate: selectedDateStr, triggeredBy: 'refreshOptimization' } 
+                      }));
                     } catch (optimizeError) {
                       console.warn('⚠️ [Refresh Spinner] Route optimizer failed:', optimizeError);
                     }
