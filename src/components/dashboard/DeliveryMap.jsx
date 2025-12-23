@@ -1274,10 +1274,17 @@ export default function DeliveryMap({
 
       const isCurrentUserMarker = driverId === currentUser?.id;
 
-      // CRITICAL: On mobile, skip current user's shared marker (blue dot shows instead)
-      // On desktop, ALWAYS include current user's shared marker
-      if (isMobile && isCurrentUserMarker) {
-        return null;
+      // CRITICAL: ALWAYS skip current user's shared marker (blue dot shows instead on mobile, shared marker shows on desktop only when not on_duty)
+      // On mobile: blue dot always takes priority for current user
+      // On desktop: shared marker shows only if user is NOT on_duty or tracking disabled
+      if (isCurrentUserMarker) {
+        if (isMobile) {
+          return null; // Blue dot shows on mobile
+        }
+        // On desktop: only show shared marker if NOT on_duty or tracking disabled
+        if (user.driver_status === 'on_duty' && user.location_tracking_enabled === true) {
+          return null;
+        }
       }
       
       // Skip inactive users
