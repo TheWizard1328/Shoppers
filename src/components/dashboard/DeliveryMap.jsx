@@ -1097,7 +1097,8 @@ export default function DeliveryMap({
     safePatients.map(p => p?.id).join(','),
     isAllDriversMode,
     currentUser?.id,
-    isDriverViewingSelfToday
+    isDriverViewingSelfToday,
+    showOtherDriverDeliveries // CRITICAL: Re-render when checkbox changes
   ]);
 
   const calculateFannedPosition = useCallback((originalLat, originalLng, markerIndex, totalMarkers, stopOrder) => {
