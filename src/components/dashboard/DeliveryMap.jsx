@@ -1070,7 +1070,19 @@ export default function DeliveryMap({
       groupedPickupMarkers: groupedPickups,
       hasIncompleteStops
     };
-  }, [patientDeliveries, pickups, safePatients, safeStores, safeUsers, isAllDriversMode, currentUser, safeDeliveries, isDriverViewingSelfToday]);
+  // CRITICAL: Use stable references to prevent re-renders on smart refresh
+  // Only recalculate when actual data IDs change, not on every array reference change
+  }, [
+    // Use JSON stringify of IDs for stable comparison
+    JSON.stringify(patientDeliveries.map(d => d?.id).filter(Boolean).sort()),
+    JSON.stringify(pickups.map(p => p?.id).filter(Boolean).sort()),
+    safePatients.length,
+    safeStores.length,
+    safeUsers.length,
+    isAllDriversMode,
+    currentUser?.id,
+    isDriverViewingSelfToday
+  ]);
 
   const calculateFannedPosition = useCallback((originalLat, originalLng, markerIndex, totalMarkers, stopOrder) => {
     if (currentZoom < 11 || currentZoom > 18) {
