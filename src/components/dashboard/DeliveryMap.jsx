@@ -1454,10 +1454,13 @@ export default function DeliveryMap({
     if (!routesByDriver[driverId]) {
       const driverForRoute = safeUsers.find((u) => u && typeof u === 'object' && u.id === driverId);
 
-      // Determine route color based on mode
-      const routeColor = isSingleDriverMode ?
-        delivery.pinColor
-        : driverForRoute && typeof driverForRoute === 'object' ? getDriverColor(driverForRoute) : '#607D8B';
+      // CRITICAL: Determine route color based on mode - calculated ONCE before rendering
+      const routeColor = isAllDriversMode ?
+        // All drivers mode - use driver colors
+        (driverForRoute && typeof driverForRoute === 'object' ? getDriverColor(driverForRoute) : '#607D8B')
+        :
+        // Single driver mode - use first delivery's store color
+        delivery.pinColor;
 
       const driverDisplayName = driverForRoute ? (driverForRoute.user_name || driverForRoute.full_name || 'Unknown') : 'Unassigned';
 
