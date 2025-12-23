@@ -277,6 +277,7 @@ class SmartRefreshManager {
   /**
    * Smart refresh for SELECTED DATE deliveries only
    * CRITICAL: Now respects pending local updates from updateDeliveriesLocally
+   * CRITICAL: Uses offline database first to minimize API calls
    */
   async refreshCurrentDayDeliveries(currentDeliveries, selectedDate, filters, stores = [], drivers = [], skipRefresh = false) {
       if (skipRefresh) return null;
@@ -284,6 +285,29 @@ class SmartRefreshManager {
       try {
           const dateStr = format(selectedDate, 'yyyy-MM-dd');
           const currentDateDeliveries = currentDeliveries.filter(d => d && d.delivery_date === dateStr);
+          
+          // CRITICAL: Check offline DB first - only fetch from API if offline data is stale
+          const { offlineDB } = await import('./offlineDatabase');
+          const offlineDeliveries = await offlineDB.getDeliveriesByDate(dateStr);
+          
+          // If we have recent offline data (< 30 seconds old), use it instead of API
+          if (offlineDeliveries && offlineDeliveries.length > 0) {
+            const diff = diffEntityArrays(currentDateDeliveries, offlineDeliveries);
+            
+            if (diff.toUpdate.length === 0 && diff.toAdd.length === 0 && diff.toRemove.length === 0) {
+              return null;
+            }
+            
+            const mergedDeliveries = mergeEntityChanges(currentDateDeliveries, diff);
+            const otherDateDeliveries = currentDeliveries.filter(d => d && d.delivery_date !== dateStr);
+            
+            return {
+              hasChanges: true,
+              deliveries: [...otherDateDeliveries, ...mergedDeliveries]
+            };
+          }
+          
+          // Fallback to API if no offline data
           const lastTimestamp = getLatestUpdateTimestamp(currentDateDeliveries);
 
           if (!lastTimestamp && currentDateDeliveries.length > 0) return null;
@@ -293,6 +317,7 @@ class SmartRefreshManager {
               dateFilter.updated_date = { $gte: lastTimestamp.toISOString() };
           }
       
+      await this.waitForRateLimit();
       const updatedDeliveries = await base44.entities.Delivery.filter(dateFilter);
 
       if (lastTimestamp) {
@@ -937,6 +962,7 @@ class SmartRefreshManager {
 
   /**
    * Fast delivery status refresh - polls for status changes on active deliveries
+   * CRITICAL: Uses offline database to minimize API calls
    */
   async refreshActiveDeliveryStatuses(currentDeliveries, selectedDate, filters = {}) {
     try {
@@ -950,20 +976,34 @@ class SmartRefreshManager {
       }
       
       this.markRefreshed('activeDeliveries');
-      await this.waitForRateLimit();
       
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
       
-      // CRITICAL: Fetch ALL drivers for selected city (not just selected driver)
-      // Build city-only filter (remove driver_id to get all drivers)
-      const cityOnlyFilter = { delivery_date: dateStr };
+      // CRITICAL: Use offline DB first - MUCH faster and prevents rate limits
+      const { offlineDB } = await import('./offlineDatabase');
+      const offlineDeliveries = await offlineDB.getDeliveriesByDate(dateStr);
       
-      // Copy store filter but exclude driver filter
-      if (filters.deliveryFilter && filters.deliveryFilter.store_id) {
-        cityOnlyFilter.store_id = filters.deliveryFilter.store_id;
+      if (!offlineDeliveries || offlineDeliveries.length === 0) {
+        // No offline data - fetch from API as fallback
+        await this.waitForRateLimit();
+        const cityOnlyFilter = { delivery_date: dateStr };
+        
+        if (filters.deliveryFilter && filters.deliveryFilter.store_id) {
+          cityOnlyFilter.store_id = filters.deliveryFilter.store_id;
+        }
+        
+        const fetchedDeliveries = await base44.entities.Delivery.filter(cityOnlyFilter);
+        
+        if (!fetchedDeliveries || fetchedDeliveries.length === 0) {
+          return null;
+        }
+        
+        // Cache to offline DB for next time
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, fetchedDeliveries);
+        offlineDeliveries = fetchedDeliveries;
       }
       
-      const fetchedDeliveries = await base44.entities.Delivery.filter(cityOnlyFilter);
+      const fetchedDeliveries = offlineDeliveries;
       
       if (!fetchedDeliveries || fetchedDeliveries.length === 0) {
         return null;
@@ -1084,23 +1124,9 @@ class SmartRefreshManager {
     const updates = {};
     
     try {
-      // PRIORITY 1: Refresh selected date deliveries FIRST
-      if (this.shouldRefresh('todayDeliveries')) {
-        this.markRefreshed('todayDeliveries');
-        
-        const deliveryUpdate = await this.refreshCurrentDayDeliveries(
-          currentData.deliveries || [],
-          filters.selectedDate,
-          filters.deliveryFilter || {},
-          currentData.stores || [],
-          currentData.drivers || [],
-          false
-        );
-        
-        if (deliveryUpdate?.hasChanges) {
-          updates.deliveries = deliveryUpdate.deliveries;
-        }
-      }
+      // PRIORITY 1: Refresh selected date deliveries FIRST - SKIP, use offline DB only
+      // The offline sync handles backend synchronization in the background
+      // Smart refresh should ONLY update from offline DB to prevent rate limits
       
       // PRIORITY 2: Refresh patients on selected date route SECOND
       if (this.shouldRefresh('todayPatients') && updates.deliveries) {
