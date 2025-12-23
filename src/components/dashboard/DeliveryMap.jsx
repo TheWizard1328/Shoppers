@@ -1073,12 +1073,13 @@ export default function DeliveryMap({
   // CRITICAL: Use stable references to prevent re-renders on smart refresh
   // Only recalculate when actual data IDs change, not on every array reference change
   }, [
-    // Use JSON stringify of IDs for stable comparison
-    JSON.stringify(patientDeliveries.map(d => d?.id).filter(Boolean).sort()),
-    JSON.stringify(pickups.map(p => p?.id).filter(Boolean).sort()),
-    safePatients.length,
-    safeStores.length,
-    safeUsers.length,
+    // Stable ID lists for deliveries/pickups
+    patientDeliveries.map(d => d?.id).join(','),
+    pickups.map(p => p?.id).join(','),
+    // Stable user/store/patient tracking
+    safeUsers.map(u => u?.id).join(','),
+    safeStores.map(s => s?.id).join(','),
+    safePatients.map(p => p?.id).join(','),
     isAllDriversMode,
     currentUser?.id,
     isDriverViewingSelfToday
