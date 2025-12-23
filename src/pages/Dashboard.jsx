@@ -5835,14 +5835,12 @@ function Dashboard() {
                     </Select>
 
                     {/* Show All Drivers Checkbox - Only for drivers in single driver mode */}
-                    {isDriver && (
+                    {isDriver && !isAllDriversMode && (
                       <div className="flex items-center gap-1.5 flex-shrink-0">
                         <Checkbox
                           id="show-all-drivers"
-                          checked={isAllDriversMode ? false : showAllDriverMarkers}
-                          disabled={isAllDriversMode}
+                          checked={showAllDriverMarkers}
                           onCheckedChange={(checked) => {
-                            if (isAllDriversMode) return;
                             setShowAllDriverMarkers(checked);
                             localStorage.setItem('rxdeliver_show_all_driver_markers', String(checked));
                           }}
@@ -5850,7 +5848,7 @@ function Dashboard() {
                         />
                         <label
                           htmlFor="show-all-drivers"
-                          className={`text-[10px] leading-tight ${isAllDriversMode ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+                          className="text-[10px] leading-tight cursor-pointer"
                           style={{ color: 'var(--text-slate-600)' }}
                         >
                           Show<br />All
@@ -6006,7 +6004,7 @@ function Dashboard() {
             stores={stores}
             users={drivers}
             currentUser={currentUser}
-            driverLocations={showAllDriverMarkers ? allDriverLocations : []}
+            driverLocations={isAllDriversMode ? [] : (showAllDriverMarkers ? allDriverLocations : [])}
             currentDriverLocation={driverLocation}
             currentToNextPolyline={currentToNextPolyline}
             center={mapCenter}
