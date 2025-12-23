@@ -1193,31 +1193,45 @@ export default function DeliveryMap({
     const fiveMinutesInMs = 5 * 60 * 1000;
     const now = Date.now();
 
-    return safeDriverLocations.map((location) => {
+    console.log(`📍 [DeliveryMap] Processing ${safeDriverLocations.length} driver locations`);
+
+    const markers = safeDriverLocations.map((location) => {
       // CRITICAL: Check driver status and tracking first, before checking location coordinates
       const driverId = location.driver_id || location.user_id || location.id;
       const driver = safeUsers.find((u) => u && typeof u === 'object' && u.id === driverId);
       
       if (!driver) {
+        console.log(`⚠️ [DeliveryMap] Driver not found for location: ${driverId}`);
         return null;
       }
 
-      const isCurrentUser = driverId === currentUser?.id;
+      const isCurrentUserMarker = driverId === currentUser?.id;
 
       // Skip current user on mobile (blue dot shows instead)
-      if (isMobile && isCurrentUser) return null;
+      if (isMobile && isCurrentUserMarker) {
+        console.log(`⏭️ [DeliveryMap] Skipping current user on mobile: ${driver.user_name}`);
+        return null;
+      }
       
       // CRITICAL: Only show if on_duty AND location_tracking_enabled
-      if (location.driver_status !== 'on_duty') return null;
-      if (location.location_tracking_enabled !== true) return null;
+      if (location.driver_status !== 'on_duty') {
+        console.log(`⏭️ [DeliveryMap] Driver not on_duty: ${driver.user_name} (${location.driver_status})`);
+        return null;
+      }
+      if (location.location_tracking_enabled !== true) {
+        console.log(`⏭️ [DeliveryMap] Location tracking disabled for: ${driver.user_name}`);
+        return null;
+      }
 
       // CRITICAL: Now check for location data - if missing, skip (can't show marker without coordinates)
       if (!location.latitude || !location.longitude) {
+        console.log(`⚠️ [DeliveryMap] No coordinates for driver: ${driver.user_name}`);
         return null;
       }
 
       // Permission filtering
       if (!isAdmin && currentUserCityId !== driver.city_id) {
+        console.log(`⏭️ [DeliveryMap] Driver in different city: ${driver.user_name}`);
         return null;
       }
 
@@ -1231,6 +1245,7 @@ export default function DeliveryMap({
         );
 
         if (!hasDeliveryInDispatcherStore) {
+          console.log(`⏭️ [DeliveryMap] Driver not in dispatcher's stores: ${driver.user_name}`);
           return null;
         }
       }
@@ -1249,17 +1264,22 @@ export default function DeliveryMap({
       const driverName = driver.user_name || driver.full_name || 'Unknown Driver';
       const driverInitial = driverName.charAt(0).toUpperCase();
 
+      console.log(`✅ [DeliveryMap] Including driver location marker: ${driverName}`);
+
       return {
         ...location,
         driver,
         driverColor,
         driverName,
         driverInitial,
-        isSelf: isCurrentUser,
+        isSelf: isCurrentUserMarker,
         driver_status: location.driver_status,
         isStaleLocation // NEW: Flag for stale location
       };
     }).filter(Boolean);
+
+    console.log(`📍 [DeliveryMap] Rendering ${markers.length} driver location markers`);
+    return markers;
   }, [safeDriverLocations, safeUsers, safeDeliveries, currentUser, isViewingCurrentDate, isMobile]);
 
   // UPDATED: Process current driver's live location for display - ONLY SHOW ON MOBILE, TODAY'S DATE
