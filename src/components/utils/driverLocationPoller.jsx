@@ -127,7 +127,7 @@ class DriverLocationPoller {
     const currentUserId = this.currentUser?.id;
 
     const locationObjects = activeDriversWithLocation.map(user => {
-      const isSelfOnOtherDevice = user.user_id === currentUserId || user.id === currentUserId;
+      const isSelf = user.user_id === currentUserId || user.id === currentUserId;
       const isOnBreak = user.driver_status === 'on_break';
 
       return {
@@ -142,7 +142,8 @@ class DriverLocationPoller {
         location_updated_at: user.location_updated_at,
         driver_status: user.driver_status,
         location_tracking_enabled: user.location_tracking_enabled,
-        _isOnBreak: isOnBreak && isSelfOnOtherDevice // Special flag for styling
+        _isSelf: isSelf, // Flag to identify own marker
+        _isOnBreak: isOnBreak && isSelf // Special flag for styling own marker when on break
       };
     });
 
