@@ -450,11 +450,11 @@ const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, nu
       </div>
       <style>
         .delivery-marker {
-          transition: transform 0.2s ease;
+          /* REMOVED: transition causes pulsation on hover, breaks click */
         }
         .delivery-marker:hover {
           z-index: 9999 !important;
-          transform: scale(1.15);
+          /* REMOVED: transform: scale(1.15) - causes pulsation */
         }
         .leaflet-marker-icon:has(.delivery-marker:hover) {
           z-index: 9999 !important;
