@@ -5924,18 +5924,11 @@ function Dashboard() {
 
           {/* Driver Legend - positioned directly below stats card */}
           {isAllDriversMode && driverRoutes.length > 0 &&
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
+          <div className="backdrop-blur-sm rounded-lg shadow-lg border px-2 py-2" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)' }}
             onMouseEnter={() => handleCardInteraction(true)}
-            onMouseLeave={() => handleCardInteraction(false)} className="backdrop-blur-sm rounded-lg shadow-lg border px-2 py-2" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)' }}>
-
-
+            onMouseLeave={() => handleCardInteraction(false)}>
               <div className="flex flex-wrap gap-x-2 gap-y-1.5 items-center justify-center">
-                {driverRoutes.
-              sort((a, b) => a.sortOrder - b.sortOrder).
-              map((route) =>
+                {driverRoutes.map((route) =>
               <div
                 key={route.driverId}
                 className="flex items-center gap-1.5">
@@ -5953,7 +5946,7 @@ function Dashboard() {
                     </div>
               )}
               </div>
-            </motion.div>
+            </div>
           }
         </div>
       </div>
