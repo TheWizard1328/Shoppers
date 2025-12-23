@@ -29,8 +29,8 @@ class SmartRefreshManager {
       todayDeliveries: 15000,    // 15s - today's delivery changes only
       appUsers: 15000,           // 15s - driver status, assignments
       todayPatients: 15000,      // 15s - patients on today's routes only
-      patients: 60000,           // 15s - all other patients
-      stores: 60000              // 15s - store data
+      patients: 60000,           // 60s - all other patients
+      stores: 60000              // 60s - store data
     };
     
     // Track last refresh time for each entity type
