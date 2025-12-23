@@ -2622,7 +2622,7 @@ export default function DeliveryMap({
             <Marker
               key={`driver-location-${location.id || location.user_id}`}
               position={[location.latitude, location.longitude]}
-              icon={createDriverIcon(location.driver_status, location.driverInitial, location.isStaleLocation)}
+              icon={createDriverIcon(location.driver_status, location.driverInitial, location.isStaleLocation, location.isOnBreak)}
               zIndexOffset={3000}
               eventHandlers={{
                 click: () => onMarkerClick && onMarkerClick(location, 'driver'),
