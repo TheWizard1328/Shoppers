@@ -66,6 +66,7 @@ import ETATracker from '../components/dashboard/ETATracker';
 import ETANotification from '../components/dashboard/ETANotification';
 import RealTimeRouteOptimizer from '../components/dashboard/RealTimeRouteOptimizer';
 import QuickRouteAdjustments from '../components/dashboard/QuickRouteAdjustments';
+import { driverActivityMonitor } from '@/components/utils/driverActivityMonitor';
 
 // FIXED: StatBadge - always render with consistent hook structure
 const StatBadge = ({ icon: Icon, value, color, label, tooltip, pickupCount }) => {
@@ -400,6 +401,36 @@ function Dashboard() {
       paddingBottomRight: [25, bottomPadding]
     };
   }, [isMobile, areCardsVisible, stopCardsBaseHeight]);
+
+  // Start driver activity monitor for pure drivers
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const isPureDriver = userHasRole(currentUser, 'driver') && 
+                        !userHasRole(currentUser, 'admin') && 
+                        !userHasRole(currentUser, 'dispatcher');
+
+    if (isPureDriver) {
+      driverActivityMonitor.start(currentUser);
+
+      // Listen for auto-status updates
+      const handleAutoStatusUpdate = (event) => {
+        const { newStatus } = event.detail;
+        console.log(`📢 [Dashboard] Driver status auto-updated to ${newStatus}`);
+        // Refresh user data to reflect new status
+        if (refreshUser) {
+          refreshUser();
+        }
+      };
+
+      window.addEventListener('driverStatusAutoUpdated', handleAutoStatusUpdate);
+
+      return () => {
+        driverActivityMonitor.stop();
+        window.removeEventListener('driverStatusAutoUpdated', handleAutoStatusUpdate);
+      };
+    }
+  }, [currentUser?.id, refreshUser]);
 
   // Load user settings on mount - PHASE 1: Load backend values FIRST
   useEffect(() => {
