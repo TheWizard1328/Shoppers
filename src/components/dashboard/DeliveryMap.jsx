@@ -827,6 +827,14 @@ export default function DeliveryMap({
     fetchOtherDrivers();
   }, [isDriverViewingSelfToday, selectedDate, currentUser]);
 
+  // CRITICAL: Determine mode BEFORE processing markers
+  const isAllDriversMode = useMemo(() => {
+    if (!selectedDriverId || selectedDriverId === 'all') return true;
+    if (!safeDeliveries || safeDeliveries.length === 0) return false;
+    const uniqueDriverIds = new Set(safeDeliveries.map((delivery) => delivery?.driver_id).filter(Boolean));
+    return uniqueDriverIds.size > 1;
+  }, [safeDeliveries, selectedDriverId]);
+
   const { pickups, patientDeliveries } = useMemo(() => {
     // CRITICAL: For drivers viewing ONLY their own route (not admin/dispatcher), show their markers + mini markers for other drivers
     const isPureDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher');
