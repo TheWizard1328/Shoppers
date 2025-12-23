@@ -689,40 +689,42 @@ Deno.serve(async (req) => {
       
       console.log(`\n📍 [Hybrid] Next pickup: ${nextScheduledPickup?.delivery.patient_name || 'None'}`);
       
-      // STEP 2: Check if next pickup has in_transit deliveries that MUST be locked to it
-      const inTransitDeliveriesForNextPickup = [];
+      // STEP 2: Check if next pickup has PENDING deliveries that MUST be locked to it
+      // CRITICAL: Only PENDING deliveries are locked to pickups - in_transit deliveries are free to optimize
+      const pendingDeliveriesForNextPickup = [];
       if (nextScheduledPickup) {
         for (const idx of unvisitedFlexible) {
           const deliv = deliveryStopsWithoutTimeConstraints.find(d => d.idx === idx);
-          if (deliv && deliv.delivery.store_id === nextScheduledPickup.delivery.store_id && deliv.delivery.status === 'in_transit') {
-            inTransitDeliveriesForNextPickup.push(deliv);
+          if (deliv && deliv.delivery.store_id === nextScheduledPickup.delivery.store_id && deliv.delivery.status === 'pending') {
+            pendingDeliveriesForNextPickup.push(deliv);
           }
         }
         for (const idx of unvisitedConstrained) {
           const deliv = deliveryStopsWithTimeConstraints.find(d => d.idx === idx);
-          if (deliv && deliv.delivery.store_id === nextScheduledPickup.delivery.store_id && deliv.delivery.status === 'in_transit') {
-            inTransitDeliveriesForNextPickup.push(deliv);
+          if (deliv && deliv.delivery.store_id === nextScheduledPickup.delivery.store_id && deliv.delivery.status === 'pending') {
+            pendingDeliveriesForNextPickup.push(deliv);
           }
         }
         
-        if (inTransitDeliveriesForNextPickup.length > 0) {
-          console.log(`   🔒 Found ${inTransitDeliveriesForNextPickup.length} in_transit deliveries LOCKED to next pickup (${nextScheduledPickup.delivery.patient_name || 'Pickup'})`);
+        if (pendingDeliveriesForNextPickup.length > 0) {
+          console.log(`   🔒 Found ${pendingDeliveriesForNextPickup.length} PENDING deliveries LOCKED to next pickup (${nextScheduledPickup.delivery.patient_name || 'Pickup'})`);
         }
       }
       
-      // STEP 3: Collect available deliveries (pickup already completed, excluding in_transit)
+      // STEP 3: Collect available deliveries (pickup already completed, excluding PENDING)
+      // CRITICAL: in_transit deliveries are treated as available for optimization
       const availableOtherDeliveries = [];
       
       for (const idx of unvisitedFlexible) {
         const deliv = deliveryStopsWithoutTimeConstraints.find(d => d.idx === idx);
-        if (deliv && completedPickupStores.has(deliv.delivery.store_id) && deliv.delivery.status !== 'in_transit') {
+        if (deliv && completedPickupStores.has(deliv.delivery.store_id) && deliv.delivery.status !== 'pending') {
           availableOtherDeliveries.push(deliv);
         }
       }
       
       for (const idx of unvisitedConstrained) {
         const deliv = deliveryStopsWithTimeConstraints.find(d => d.idx === idx);
-        if (deliv && completedPickupStores.has(deliv.delivery.store_id) && deliv.delivery.status !== 'in_transit') {
+        if (deliv && completedPickupStores.has(deliv.delivery.store_id) && deliv.delivery.status !== 'pending') {
           availableOtherDeliveries.push(deliv);
         }
       }
@@ -734,16 +736,16 @@ Deno.serve(async (req) => {
         }
       }
       
-      console.log(`   📍 Available: ${availableOtherDeliveries.length} other deliveries (non in_transit)`);
+      console.log(`   📍 Available: ${availableOtherDeliveries.length} deliveries ready for optimization (excluding pending)`);
       
       // STEP 4: Decision logic - PRIORITY ORDER:
-      // 1. If next pickup has in_transit deliveries → go to pickup + deliver in_transit immediately
-      // 2. If other deliveries available → optimize them (unless pickup is urgent)
+      // 1. If next pickup has PENDING deliveries → go to pickup + lock pending deliveries after it
+      // 2. If other deliveries available (including in_transit) → optimize them (unless pickup is urgent)
       // 3. If no deliveries → go to next pickup
       
-      if (inTransitDeliveriesForNextPickup.length > 0) {
-        // CRITICAL: in_transit deliveries MUST come immediately after their pickup
-        console.log(`   🔒 Going to pickup to deliver ${inTransitDeliveriesForNextPickup.length} in_transit stops immediately`);
+      if (pendingDeliveriesForNextPickup.length > 0) {
+        // CRITICAL: PENDING deliveries MUST come immediately after their pickup (not started yet)
+        console.log(`   🔒 Going to pickup to unlock ${pendingDeliveriesForNextPickup.length} PENDING stops`);
         
         optimizedRoute.push(nextScheduledPickup.idx);
         unvisitedPickups.delete(nextScheduledPickup.idx);
@@ -764,17 +766,17 @@ Deno.serve(async (req) => {
         currentPosition = { lat: nextScheduledPickup.lat, lng: nextScheduledPickup.lng };
         console.log(`   ✅ Pickup complete: ${nextScheduledPickup.delivery.patient_name || 'Pickup'}`);
         
-        // Now optimize in_transit deliveries immediately
-        console.log(`   🔄 Optimizing ${inTransitDeliveriesForNextPickup.length} in_transit deliveries...`);
+        // Now add PENDING deliveries immediately after pickup (they unlock when picked up)
+        console.log(`   📦 Adding ${pendingDeliveriesForNextPickup.length} PENDING deliveries after pickup...`);
         
-        const { path: inTransitPath } = findShortestPath(
+        const { path: pendingPath } = findShortestPath(
           currentPosition,
-          inTransitDeliveriesForNextPickup,
+          pendingDeliveriesForNextPickup,
           null,
           cumulativeTime
         );
         
-        for (const idx of inTransitPath) {
+        for (const idx of pendingPath) {
           const stop = stops[idx];
           optimizedRoute.push(idx);
           
@@ -791,7 +793,7 @@ Deno.serve(async (req) => {
           cumulativeTime += stop.delivery.extra_time || 5;
           currentPosition = { lat: stop.lat, lng: stop.lng };
           
-          console.log(`      📬 in_transit: ${stop.delivery.patient_name}`);
+          console.log(`      📦 pending: ${stop.delivery.patient_name}`);
         }
       } else if (availableOtherDeliveries.length > 0) {
         // Other deliveries available - check if pickup is urgent
