@@ -730,8 +730,9 @@ export default function DeliveryMap({
     const handleDriverLocationUpdate = (event) => {
       const { appUsers } = event.detail;
       if (appUsers && appUsers.length > 0) {
-        console.log('📍 [DeliveryMap] Received driver location update event - updating markers');
-        setRealtimeAppUsers(appUsers);
+        console.log('📍 [DeliveryMap] Received driver location update event - updating markers immediately');
+        // CRITICAL: Force re-render by setting a new array reference
+        setRealtimeAppUsers([...appUsers]);
       }
     };
 
@@ -741,7 +742,8 @@ export default function DeliveryMap({
 
   // Sync realtimeAppUsers with users prop when it changes
   useEffect(() => {
-    setRealtimeAppUsers(users);
+    console.log('📍 [DeliveryMap] Users prop updated - syncing to realtimeAppUsers');
+    setRealtimeAppUsers([...users]);
   }, [users]);
 
   // Add safety checks for required props
