@@ -725,6 +725,38 @@ export default function DeliveryMap({
   const [visibleBounds, setVisibleBounds] = useState(null);
   const [realtimeAppUsers, setRealtimeAppUsers] = useState(users);
 
+  // CRITICAL: Process driverLocations prop into realtimeAppUsers on mount and updates
+  useEffect(() => {
+    if (safeDriverLocations && safeDriverLocations.length > 0) {
+      console.log(`📍 [DeliveryMap] driverLocations prop has ${safeDriverLocations.length} entries - merging with users`);
+      
+      // Merge driverLocations data into users array (prefer driverLocations for location data)
+      const mergedUsers = (users || []).map(user => {
+        if (!user) return user;
+        const locationData = safeDriverLocations.find(loc => 
+          (loc.driver_id || loc.user_id || loc.id) === user.id
+        );
+        
+        if (locationData) {
+          return {
+            ...user,
+            current_latitude: locationData.latitude || locationData.current_latitude || user.current_latitude,
+            current_longitude: locationData.longitude || locationData.current_longitude || user.current_longitude,
+            location_updated_at: locationData.location_updated_at || user.location_updated_at,
+            driver_status: locationData.driver_status || user.driver_status,
+            location_tracking_enabled: locationData.location_tracking_enabled ?? user.location_tracking_enabled
+          };
+        }
+        
+        return user;
+      });
+      
+      setRealtimeAppUsers([...mergedUsers]);
+    } else {
+      setRealtimeAppUsers([...users]);
+    }
+  }, [users, safeDriverLocations]);
+
   // Listen for real-time driver location updates from SmartRefreshManager
   useEffect(() => {
     const handleDriverLocationUpdate = (event) => {
@@ -739,12 +771,6 @@ export default function DeliveryMap({
     window.addEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
     return () => window.removeEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
   }, []);
-
-  // Sync realtimeAppUsers with users prop when it changes
-  useEffect(() => {
-    console.log('📍 [DeliveryMap] Users prop updated - syncing to realtimeAppUsers');
-    setRealtimeAppUsers([...users]);
-  }, [users]);
 
   // Add safety checks for required props
   const safeDeliveries = Array.isArray(deliveries) ? deliveries : [];
@@ -1183,56 +1209,62 @@ export default function DeliveryMap({
     return selectedDate === today;
   }, [selectedDate]);
 
-  // Process driver locations - Show shared location markers for on-duty drivers with location sharing enabled
-  // CRITICAL: Always show markers if driver is on_duty with location_tracking_enabled, even if location is stale
+  // CRITICAL: Process ALL on_duty drivers from realtimeAppUsers, not just from driverLocations prop
+  // This ensures shared markers render even when driverLocations prop is empty
   const driverLocationMarkers = useMemo(() => {
     if (!isViewingCurrentDate) return [];
 
     const isAdmin = currentUser && userHasRole(currentUser, 'admin');
+    const isDriver = currentUser && userHasRole(currentUser, 'driver');
     const currentUserCityId = currentUser?.city_id;
     const fiveMinutesInMs = 5 * 60 * 1000;
     const now = Date.now();
 
-    console.log(`📍 [DeliveryMap] Processing ${safeDriverLocations.length} driver locations`);
+    console.log(`📍 [DeliveryMap] Processing driver locations from realtimeAppUsers (${safeUsers.length} users)`);
 
-    const markers = safeDriverLocations.map((location) => {
-      // CRITICAL: Check driver status and tracking first, before checking location coordinates
-      const driverId = location.driver_id || location.user_id || location.id;
-      const driver = safeUsers.find((u) => u && typeof u === 'object' && u.id === driverId);
+    // CRITICAL: Use realtimeAppUsers as the source of truth (contains merged location data)
+    const markers = safeUsers.map((user) => {
+      if (!user || typeof user !== 'object') return null;
       
-      if (!driver) {
-        console.log(`⚠️ [DeliveryMap] Driver not found for location: ${driverId}`);
-        return null;
-      }
+      const driverId = user.id || user.user_id;
+      if (!driverId) return null;
 
       const isCurrentUserMarker = driverId === currentUser?.id;
 
       // CRITICAL: On mobile, skip current user's shared marker (blue dot shows instead)
       // On desktop, ALWAYS include current user's shared marker
       if (isMobile && isCurrentUserMarker) {
-        console.log(`⏭️ [DeliveryMap] Skipping current user's shared marker on mobile (blue dot shown): ${driver.user_name}`);
+        console.log(`⏭️ [DeliveryMap] Skipping current user's shared marker on mobile (blue dot shown): ${user.user_name}`);
+        return null;
+      }
+      
+      // Skip inactive users
+      if (user.status === 'inactive') {
         return null;
       }
       
       // CRITICAL: Only show if on_duty AND location_tracking_enabled
-      if (location.driver_status !== 'on_duty') {
-        console.log(`⏭️ [DeliveryMap] Driver not on_duty: ${driver.user_name} (${location.driver_status})`);
+      if (user.driver_status !== 'on_duty') {
         return null;
       }
-      if (location.location_tracking_enabled !== true) {
-        console.log(`⏭️ [DeliveryMap] Location tracking disabled for: ${driver.user_name}`);
-        return null;
-      }
-
-      // CRITICAL: Now check for location data - if missing, skip (can't show marker without coordinates)
-      if (!location.latitude || !location.longitude) {
-        console.log(`⚠️ [DeliveryMap] No coordinates for driver: ${driver.user_name}`);
+      if (user.location_tracking_enabled !== true) {
         return null;
       }
 
-      // Permission filtering
-      if (!isAdmin && currentUserCityId !== driver.city_id) {
-        console.log(`⏭️ [DeliveryMap] Driver in different city: ${driver.user_name}`);
+      // CRITICAL: Check for location data - skip if missing
+      if (!user.current_latitude || !user.current_longitude) {
+        console.log(`⚠️ [DeliveryMap] No coordinates for driver: ${user.user_name || user.full_name}`);
+        return null;
+      }
+
+      // Permission filtering - drivers and admins see all shared locations in same city
+      if (!isAdmin && !isDriver) {
+        // Non-admin, non-driver users don't see any shared locations
+        return null;
+      }
+      
+      if (!isAdmin && currentUserCityId !== user.city_id) {
+        console.log(`⏭️ [DeliveryMap] Driver in different city: ${user.user_name || user.full_name}`);
         return null;
       }
 
@@ -1241,47 +1273,52 @@ export default function DeliveryMap({
         const dispatcherStoreIds = new Set(currentUser.store_ids || []);
         const hasDeliveryInDispatcherStore = safeDeliveries.some(delivery =>
           delivery &&
-          delivery.driver_id === driver.id &&
+          delivery.driver_id === driverId &&
           dispatcherStoreIds.has(delivery.store_id)
         );
 
         if (!hasDeliveryInDispatcherStore) {
-          console.log(`⏭️ [DeliveryMap] Driver not in dispatcher's stores: ${driver.user_name}`);
+          console.log(`⏭️ [DeliveryMap] Driver not in dispatcher's stores: ${user.user_name || user.full_name}`);
           return null;
         }
       }
 
       // CRITICAL: Determine if location is stale (>5 minutes old)
       let isStaleLocation = false;
-      if (location.location_updated_at) {
-        const locationAge = now - new Date(location.location_updated_at).getTime();
+      if (user.location_updated_at) {
+        const locationAge = now - new Date(user.location_updated_at).getTime();
         isStaleLocation = locationAge > fiveMinutesInMs;
       } else {
-        // No timestamp = consider stale
         isStaleLocation = true;
       }
 
-      const driverColor = getDriverColor(driver);
-      const driverName = driver.user_name || driver.full_name || 'Unknown Driver';
+      const driverColor = getDriverColor(user);
+      const driverName = user.user_name || user.full_name || 'Unknown Driver';
       const driverInitial = driverName.charAt(0).toUpperCase();
 
-      console.log(`✅ [DeliveryMap] Including driver location marker: ${driverName}`);
+      console.log(`✅ [DeliveryMap] Including driver location marker: ${driverName} (${isCurrentUserMarker ? 'SELF' : 'OTHER'})`);
 
       return {
-        ...location,
+        id: driverId,
+        user_id: driverId,
+        driver_id: driverId,
+        latitude: user.current_latitude,
+        longitude: user.current_longitude,
+        location_updated_at: user.location_updated_at,
         driver,
         driverColor,
         driverName,
         driverInitial,
         isSelf: isCurrentUserMarker,
-        driver_status: location.driver_status,
-        isStaleLocation // NEW: Flag for stale location
+        driver_status: user.driver_status,
+        location_tracking_enabled: user.location_tracking_enabled,
+        isStaleLocation
       };
     }).filter(Boolean);
 
     console.log(`📍 [DeliveryMap] Rendering ${markers.length} driver location markers`);
     return markers;
-  }, [safeDriverLocations, safeUsers, safeDeliveries, currentUser, isViewingCurrentDate, isMobile]);
+  }, [safeUsers, currentUser, isViewingCurrentDate, isMobile, safeDeliveries]);
 
   // UPDATED: Process current driver's live location for display - ONLY SHOW ON MOBILE, TODAY'S DATE
   const currentDriverMarker = useMemo(() => {
