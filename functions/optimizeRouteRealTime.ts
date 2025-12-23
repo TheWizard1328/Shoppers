@@ -660,18 +660,16 @@ Deno.serve(async (req) => {
         .map(d => d.idx)
     );
     
-    // CRITICAL: If isNextDelivery exists, RE-SORT pickups from isNextDelivery's position
-    // This ensures remaining pickups are prioritized correctly from where the route actually continues
-    if (isNextDeliveryStopData) {
-      console.log(`\n🔄 Re-sorting pickups from isNextDelivery location (${isNextDeliveryStopData.delivery.patient_name || 'Pickup'})...`);
-      sortedPickups = sortPickupsFromPosition(currentPosition);
-      unvisitedPickups = new Set(sortedPickups.map(p => p.idx));
-      
-      console.log('📦 Re-sorted pickup order (from isNextDelivery location):');
-      sortedPickups.forEach((p, i) => {
-        console.log(`   ${i+1}. ${p.delivery.patient_name || 'Pickup'} @ ${p.delivery.delivery_time_start || 'no time'}`);
-      });
-    }
+    // CRITICAL: Re-sort pickups to ensure correct order before optimization
+    // Sort by delivery_time_start (scheduled pickup time) - this is the primary sort
+    console.log(`\n🔄 Ensuring pickups are in correct scheduled order...`);
+    sortedPickups = sortPickupsFromPosition(currentPosition);
+    unvisitedPickups = new Set(sortedPickups.map(p => p.idx));
+    
+    console.log('📦 Pickup order by delivery_time_start:');
+    sortedPickups.forEach((p, i) => {
+      console.log(`   ${i+1}. ${p.delivery.patient_name || 'Pickup'} @ ${p.delivery.delivery_time_start || 'no time'}`);
+    });
 
     // HYBRID OPTIMIZATION:
     // - Pickups: Maintain original order by delivery_time_start (already sorted in sortedPickups)
