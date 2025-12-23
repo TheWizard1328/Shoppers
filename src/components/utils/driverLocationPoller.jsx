@@ -129,9 +129,13 @@ class DriverLocationPoller {
   notifySubscribers(activeDriversWithLocation) {
     // Convert array of users to array of location objects
     const currentUserId = this.currentUser?.id;
+    const currentUserUserId = this.currentUser?.user_id;
 
     const locationObjects = activeDriversWithLocation.map(user => {
-      const isSelf = user.user_id === currentUserId || user.id === currentUserId;
+      const isSelf = user.user_id === currentUserId || 
+                     user.id === currentUserId ||
+                     user.user_id === currentUserUserId ||
+                     user.id === currentUserUserId;
       const isOnBreak = user.driver_status === 'on_break';
 
       return {
