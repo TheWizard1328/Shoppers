@@ -1449,9 +1449,15 @@ export default function DeliveryMap({
     return homeMarkers;
   }, [safeDeliveries, safeUsers, showRoutes, currentUser, isViewingCurrentDate, isDriverViewingSelfToday]);
 
+  // CRITICAL: Store previous driverRoutes to prevent unnecessary recalculations
+  const prevDriverRoutesRef = useRef([]);
+  
   // Generate routes for each driver - NOW WITH ZOOM-BASED STYLING, CURRENT DATE ONLY for polylines
   const driverRoutes = useMemo(() => {
-    if (!showRoutes || currentZoom < ZOOM_LEVELS.HIDE_ROUTES) return [];
+    if (!showRoutes || currentZoom < ZOOM_LEVELS.HIDE_ROUTES) {
+      prevDriverRoutesRef.current = [];
+      return [];
+    }
     
     const showLivePolylines = isViewingCurrentDate;
     const isDispatcherNonAdmin = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
@@ -1651,6 +1657,18 @@ export default function DeliveryMap({
     });
     
     const sortedRoutes = routes.sort((a, b) => a.sortOrder - b.sortOrder);
+    
+    // CRITICAL: Only update ref if routes actually changed (deep comparison of driver IDs and stop counts)
+    const routesKey = sortedRoutes.map(r => `${r.driverId}:${r.totalStops}`).join('|');
+    const prevRoutesKey = prevDriverRoutesRef.current.map(r => `${r.driverId}:${r.totalStops}`).join('|');
+    
+    if (routesKey === prevRoutesKey) {
+      // Routes haven't changed - return cached version to prevent re-render
+      return prevDriverRoutesRef.current;
+    }
+    
+    // Routes changed - update cache and return new routes
+    prevDriverRoutesRef.current = sortedRoutes;
     return sortedRoutes;
   // CRITICAL: Use stable references for driverRoutes to prevent legend flickering
   }, [
