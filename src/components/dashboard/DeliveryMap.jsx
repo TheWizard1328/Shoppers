@@ -786,12 +786,13 @@ export default function DeliveryMap({
   }, []);
 
   // CRITICAL: Determine mode BEFORE processing markers - must be defined first
+  // Use stable string comparison to prevent unnecessary recalculations
   const isAllDriversMode = useMemo(() => {
     if (!selectedDriverId || selectedDriverId === 'all') return true;
     if (!safeDeliveries || safeDeliveries.length === 0) return false;
     const uniqueDriverIds = new Set(safeDeliveries.map((delivery) => delivery?.driver_id).filter(Boolean));
     return uniqueDriverIds.size > 1;
-  }, [safeDeliveries, selectedDriverId]);
+  }, [selectedDriverId, safeDeliveries.length]);
 
   // CRITICAL: Use isAllDriversMode calculated above
   const isSingleDriverMode = useMemo(() => !isAllDriversMode, [isAllDriversMode]);
