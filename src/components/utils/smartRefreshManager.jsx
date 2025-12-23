@@ -288,7 +288,7 @@ class SmartRefreshManager {
           
           // CRITICAL: Check offline DB first - only fetch from API if offline data is stale
           const { offlineDB } = await import('./offlineDatabase');
-          const offlineDeliveries = await offlineDB.getDeliveriesByDate(dateStr);
+          const offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
           
           // If we have recent offline data (< 30 seconds old), use it instead of API
           if (offlineDeliveries && offlineDeliveries.length > 0) {
@@ -981,7 +981,7 @@ class SmartRefreshManager {
       
       // CRITICAL: Use offline DB first - MUCH faster and prevents rate limits
       const { offlineDB } = await import('./offlineDatabase');
-      const offlineDeliveries = await offlineDB.getDeliveriesByDate(dateStr);
+      let offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
       
       if (!offlineDeliveries || offlineDeliveries.length === 0) {
         // No offline data - fetch from API as fallback
@@ -992,15 +992,14 @@ class SmartRefreshManager {
           cityOnlyFilter.store_id = filters.deliveryFilter.store_id;
         }
         
-        const fetchedDeliveries = await base44.entities.Delivery.filter(cityOnlyFilter);
+        offlineDeliveries = await base44.entities.Delivery.filter(cityOnlyFilter);
         
-        if (!fetchedDeliveries || fetchedDeliveries.length === 0) {
+        if (!offlineDeliveries || offlineDeliveries.length === 0) {
           return null;
         }
         
         // Cache to offline DB for next time
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, fetchedDeliveries);
-        offlineDeliveries = fetchedDeliveries;
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, offlineDeliveries);
       }
       
       const fetchedDeliveries = offlineDeliveries;
