@@ -1632,18 +1632,16 @@ export default function DeliveryMap({
             startToFirstStopCoordinates = [startPoint, firstStopCoordinates];
           }
         } else if (!isRouteStarted && firstStopCoordinates && route.driver && !isDispatcherNonAdmin && !isOtherDriverRoute) {
-          let startPoint = null;
-
-          if (currentUser && route.driver.id === currentUser.id && currentDriverLocation) {
-            startPoint = [currentDriverLocation.latitude, currentDriverLocation.longitude];
-          }
-          else if (route.driver.home_latitude && route.driver.home_longitude) {
-            startPoint = [route.driver.home_latitude, route.driver.home_longitude];
-          }
-
-          if (startPoint) {
+          // CRITICAL: For unstarted routes, only show home-to-first-stop line if NO live location available
+          // The blue dashed line from current location to next stop is drawn separately below
+          const hasLiveLocation = currentUser && route.driver.id === currentUser.id && currentDriverLocation?.latitude && currentDriverLocation?.longitude;
+          
+          // Only use home location if no live location is available
+          if (!hasLiveLocation && route.driver.home_latitude && route.driver.home_longitude) {
+            const startPoint = [route.driver.home_latitude, route.driver.home_longitude];
             startToFirstStopCoordinates = [startPoint, firstStopCoordinates];
           }
+          // If live location exists, don't set startToFirstStopCoordinates - the separate blue dashed line handles it
         }
       }
 
