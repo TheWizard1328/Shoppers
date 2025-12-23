@@ -1471,7 +1471,15 @@ export default function DeliveryMap({
     });
 
     return homeMarkers;
-  }, [safeDeliveries, safeUsers, showRoutes, currentUser, isViewingCurrentDate, isDriverViewingSelfToday]);
+  // CRITICAL: Use stable references to prevent home markers from blinking on refresh
+  }, [
+    safeDeliveries.map(d => d?.id).join(','),
+    safeUsers.map(u => `${u?.id}:${u?.home_latitude}:${u?.home_longitude}`).join(','),
+    showRoutes,
+    currentUser?.id,
+    isViewingCurrentDate,
+    isDriverViewingSelfToday
+  ]);
 
   // CRITICAL: Store previous driverRoutes to prevent unnecessary recalculations
   const prevDriverRoutesRef = useRef([]);
