@@ -772,7 +772,10 @@ export default function DeliveryMap({
 
   useEffect(() => {
     const fetchOtherDrivers = async () => {
-      if (!isDriverViewingSelfToday || !selectedDate) {
+      // CRITICAL: Only fetch other drivers for PURE drivers (not admin/dispatcher)
+      const isPureDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher');
+      
+      if (!isPureDriver || !isDriverViewingSelfToday || !selectedDate) {
         setOtherDriverDeliveries([]);
         return;
       }
@@ -794,16 +797,20 @@ export default function DeliveryMap({
   }, [isDriverViewingSelfToday, selectedDate, currentUser]);
 
   const { pickups, patientDeliveries } = useMemo(() => {
+    // CRITICAL: For drivers viewing ONLY their own route (not admin/dispatcher), show their markers + mini markers for other drivers
+    const isPureDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher');
+    
     let deliveriesToShow = safeDeliveries;
     
-    if (isDriverViewingSelfToday && otherDriverDeliveries.length > 0) {
+    // CRITICAL: Include other drivers' deliveries ONLY for pure drivers viewing self on today's date
+    if (isPureDriver && isDriverViewingSelfToday && otherDriverDeliveries.length > 0) {
       deliveriesToShow = [...safeDeliveries, ...otherDriverDeliveries];
     }
     
     const pickups = deliveriesToShow.filter((d) => d && !d.patient_id && d.store_id);
     const patientDeliveries = deliveriesToShow.filter((d) => d && d.patient_id);
     return { pickups, patientDeliveries };
-  }, [safeDeliveries, isDriverViewingSelfToday, otherDriverDeliveries]);
+  }, [safeDeliveries, isDriverViewingSelfToday, otherDriverDeliveries, currentUser]);
 
   // NEW: Fetch Google route polyline for display
   useEffect(() => {
@@ -888,8 +895,9 @@ export default function DeliveryMap({
 
       const hasNoPickup = delivery.patient_id && (!delivery.puid || delivery.puid.trim() === '');
 
-      // NEW: Determine if this marker belongs to another driver when viewing self
-      const isOtherDriver = isDriverViewingSelfToday && delivery.driver_id !== currentUser?.id;
+      // CRITICAL: Determine if this marker belongs to another driver when viewing self (pure drivers only)
+      const isPureDriver = userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher');
+      const isOtherDriver = isPureDriver && isDriverViewingSelfToday && delivery.driver_id !== currentUser?.id;
 
       let pinColor;
       if (hasNoPickup) {
@@ -933,8 +941,9 @@ export default function DeliveryMap({
       // Store pickups ALWAYS use store colors (both modes)
       const pinColor = getStoreColor(store);
 
-      // NEW: Determine if this marker belongs to another driver when viewing self
-      const isOtherDriver = isDriverViewingSelfToday && pickup.driver_id !== currentUser?.id;
+      // CRITICAL: Determine if this marker belongs to another driver when viewing self (pure drivers only)
+      const isPureDriver = userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher');
+      const isOtherDriver = isPureDriver && isDriverViewingSelfToday && pickup.driver_id !== currentUser?.id;
 
       return {
         ...pickup,
