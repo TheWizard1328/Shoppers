@@ -439,19 +439,55 @@ class ErrorBoundary extends React.Component {
       } catch (e) {
         // Ignore
       }
-      
+
       const errorToShow = this.state.error || cachedError;
-      
+
+      // Check if mobile device
+      const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+      // Check if app owner (from localStorage cache)
+      let isOwner = false;
+      try {
+        const userCache = sessionStorage.getItem('effectiveUserCache');
+        if (userCache) {
+          const parsed = JSON.parse(userCache);
+          isOwner = parsed?.user?.role === 'App Owner';
+        }
+      } catch (e) {
+        // Ignore
+      }
+
+      const showErrorDetails = isMobileDevice && isOwner && errorToShow;
+
+      const handleCopyError = () => {
+        const errorText = `Error Message:\n${errorToShow?.message || 'Unknown error'}\n\nStack Trace:\n${errorToShow?.stack || 'No stack trace'}`;
+        navigator.clipboard.writeText(errorText).then(() => {
+          alert('Error copied to clipboard');
+        }).catch(() => {
+          alert('Failed to copy error');
+        });
+      };
+
       return (
         <div className="h-screen flex items-center justify-center bg-slate-50 p-4">
           <div className="text-center max-w-2xl mx-auto">
             <h1 className="text-xl font-semibold text-slate-900 mb-2">Something went wrong</h1>
             <p className="text-slate-600 mb-4">An error occurred while loading the app.</p>
-            
-            {/* ALWAYS show error details - expanded by default */}
-            {errorToShow && (
+
+            {/* Show error details only on mobile for app owners */}
+            {showErrorDetails && (
               <div className="text-left mb-4 p-4 bg-red-50 rounded-lg border-2 border-red-300">
-                <div className="font-bold text-red-900 mb-3 text-lg">Error Details:</div>
+                <div className="flex justify-between items-center mb-3">
+                  <div className="font-bold text-red-900 text-lg">Error Details:</div>
+                  <Button
+                    onClick={handleCopyError}
+                    variant="outline"
+                    size="sm"
+                    className="text-red-700 border-red-300 hover:bg-red-100"
+                  >
+                    Copy Error
+                  </Button>
+                </div>
                 <div className="mb-2 p-2 bg-white rounded border border-red-200">
                   <div className="font-semibold text-red-900 text-sm mb-1">Message:</div>
                   <div className="text-sm text-red-800 break-words">
@@ -473,7 +509,7 @@ class ErrorBoundary extends React.Component {
                 )}
               </div>
             )}
-            
+
             <div className="flex gap-3 justify-center">
               <Button 
                 onClick={() => {
