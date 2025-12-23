@@ -1073,7 +1073,7 @@ export default function DeliveryMap({
       groupedPickupMarkers: groupedPickups,
       hasIncompleteStops
     };
-  }, [patientDeliveries, pickups, safePatients, safeStores, safeUsers, isSingleDriverMode, currentUser, safeDeliveries, isDriverViewingSelfToday]);
+  }, [patientDeliveries, pickups, safePatients, safeStores, safeUsers, isAllDriversMode, currentUser, safeDeliveries, isDriverViewingSelfToday]);
 
   const calculateFannedPosition = useCallback((originalLat, originalLng, markerIndex, totalMarkers, stopOrder) => {
     if (currentZoom < 11 || currentZoom > 18) {
