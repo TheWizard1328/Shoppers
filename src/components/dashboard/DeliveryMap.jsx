@@ -467,7 +467,7 @@ const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, nu
   });
 };
 
-const createDriverIcon = (driverStatus = 'on_duty', initial = '', isStaleLocation = false) => {
+const createDriverIcon = (driverStatus = 'on_duty', initial = '', isStaleLocation = false, isOnBreakSelf = false) => {
   const size = 15; // Reduced by 50% from 30 to 15
   
   // Green for on_duty, Orange for on_break, Grey for off_duty
@@ -478,9 +478,18 @@ const createDriverIcon = (driverStatus = 'on_duty', initial = '', isStaleLocatio
   };
   const color = statusColors[driverStatus] || statusColors['on_duty'];
   
-  // Orange outer ring for stale location (>5 minutes old)
-  const outerRingColor = isStaleLocation ? '#F97316' : 'white';
-  const outerRingWidth = isStaleLocation ? 3 : 2;
+  // CRITICAL: Blue ring for viewing own location while on break (from other device)
+  // Orange ring for stale location, White ring for fresh location
+  let outerRingColor = 'white';
+  let outerRingWidth = 2;
+  
+  if (isOnBreakSelf) {
+    outerRingColor = '#3B82F6'; // Blue for on_break self
+    outerRingWidth = 3;
+  } else if (isStaleLocation) {
+    outerRingColor = '#F97316'; // Orange for stale
+    outerRingWidth = 3;
+  }
   
   return L.divIcon({
     html: `
