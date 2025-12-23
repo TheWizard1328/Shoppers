@@ -62,7 +62,7 @@ class DriverLocationPoller {
     const currentUserCityId = this.currentUser?.city_id;
     const currentUserId = this.currentUser?.id;
 
-    // CRITICAL: Filter to drivers with on_duty status AND location_tracking_enabled
+    // CRITICAL: Filter to drivers with location data
     const activeDriversWithLocation = users.filter(user => {
       if (!user) return false;
 
@@ -72,15 +72,18 @@ class DriverLocationPoller {
       // CRITICAL: Skip if no valid coordinates
       if (!user.current_latitude || !user.current_longitude) return false;
 
-      // CRITICAL: Check if this is the current user viewing from another device
-      const isSelfOnOtherDevice = user.user_id === currentUserId || user.id === currentUserId;
+      // CRITICAL: Check if this is the current user
+      const isSelf = user.user_id === currentUserId || user.id === currentUserId;
 
-      // CRITICAL: Driver on break - only visible to self on other devices (with special styling)
+      // CRITICAL: Current user ALWAYS sees their own marker (regardless of status)
+      // This allows drivers to see their own location on other devices even when on break
+      if (isSelf) {
+        return true;
+      }
+
+      // CRITICAL: Driver on break - NOT visible to others
       if (user.driver_status === 'on_break') {
-        if (isSelfOnOtherDevice) {
-          return true; // Self can see own marker when on break
-        }
-        return false; // Others cannot see marker when driver is on break
+        return false;
       }
 
       // CRITICAL: Must be on_duty for others to see
@@ -90,17 +93,12 @@ class DriverLocationPoller {
       if (user.location_tracking_enabled !== true) return false;
 
       // PERMISSION FILTERING:
-      // 1. ALWAYS include current user's own shared location (shows on desktop/other devices)
-      if (isSelfOnOtherDevice) {
-        return true;
-      }
-
-      // 2. Admins can see ALL shared locations
+      // 1. Admins can see ALL shared locations
       if (isAdmin) {
         return true;
       }
 
-      // 3. Non-admins can only see locations from users in the same city
+      // 2. Non-admins can only see locations from users in the same city
       if (currentUserCityId && user.city_id === currentUserCityId) {
         return true;
       }
