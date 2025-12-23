@@ -65,35 +65,46 @@ class DriverLocationPoller {
     // CRITICAL: Filter to drivers with on_duty status AND location_tracking_enabled
     const activeDriversWithLocation = users.filter(user => {
       if (!user) return false;
-      
+
       // Skip inactive users
       if (user.status === 'inactive') return false;
-      
-      // CRITICAL: Must be on_duty
-      if (user.driver_status !== 'on_duty') return false;
-      
-      // CRITICAL: Must have location_tracking_enabled for shared markers
-      if (user.location_tracking_enabled !== true) return false;
-      
+
       // CRITICAL: Skip if no valid coordinates
       if (!user.current_latitude || !user.current_longitude) return false;
-      
+
+      // CRITICAL: Check if this is the current user viewing from another device
+      const isSelfOnOtherDevice = user.user_id === currentUserId || user.id === currentUserId;
+
+      // CRITICAL: Driver on break - only visible to self on other devices (with special styling)
+      if (user.driver_status === 'on_break') {
+        if (isSelfOnOtherDevice) {
+          return true; // Self can see own marker when on break
+        }
+        return false; // Others cannot see marker when driver is on break
+      }
+
+      // CRITICAL: Must be on_duty for others to see
+      if (user.driver_status !== 'on_duty') return false;
+
+      // CRITICAL: Must have location_tracking_enabled for shared markers
+      if (user.location_tracking_enabled !== true) return false;
+
       // PERMISSION FILTERING:
       // 1. ALWAYS include current user's own shared location (shows on desktop/other devices)
-      if (user.user_id === currentUserId || user.id === currentUserId) {
+      if (isSelfOnOtherDevice) {
         return true;
       }
-      
+
       // 2. Admins can see ALL shared locations
       if (isAdmin) {
         return true;
       }
-      
+
       // 3. Non-admins can only see locations from users in the same city
       if (currentUserCityId && user.city_id === currentUserCityId) {
         return true;
       }
-      
+
       return false;
     });
     
@@ -115,19 +126,27 @@ class DriverLocationPoller {
 
   notifySubscribers(activeDriversWithLocation) {
     // Convert array of users to array of location objects
-    const locationObjects = activeDriversWithLocation.map(user => ({
-      id: user.id,
-      user_id: user.id,
-      driver_id: user.id,
-      user_name: user.user_name || user.full_name,
-      latitude: user.current_latitude,
-      longitude: user.current_longitude,
-      current_latitude: user.current_latitude,
-      current_longitude: user.current_longitude,
-      location_updated_at: user.location_updated_at,
-      driver_status: user.driver_status,
-      location_tracking_enabled: user.location_tracking_enabled
-    }));
+    const currentUserId = this.currentUser?.id;
+
+    const locationObjects = activeDriversWithLocation.map(user => {
+      const isSelfOnOtherDevice = user.user_id === currentUserId || user.id === currentUserId;
+      const isOnBreak = user.driver_status === 'on_break';
+
+      return {
+        id: user.id,
+        user_id: user.id,
+        driver_id: user.id,
+        user_name: user.user_name || user.full_name,
+        latitude: user.current_latitude,
+        longitude: user.current_longitude,
+        current_latitude: user.current_latitude,
+        current_longitude: user.current_longitude,
+        location_updated_at: user.location_updated_at,
+        driver_status: user.driver_status,
+        location_tracking_enabled: user.location_tracking_enabled,
+        _isOnBreak: isOnBreak && isSelfOnOtherDevice // Special flag for styling
+      };
+    });
 
     this.subscribers.forEach(callback => {
       try {

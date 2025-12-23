@@ -1032,6 +1032,11 @@ export default function Layout({ children, currentPageName }) {
         if (locationUpdates?.hasChanges) {
           setAppUsers(locationUpdates.appUsers);
           updatedEntities.push('locations');
+
+          // CRITICAL: Dispatch event to update map immediately
+          window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+            detail: { appUsers: locationUpdates.appUsers }
+          }));
         }
 
         const activeDeliveryUpdates = await smartRefreshManager.refreshActiveDeliveryStatuses(deliveries, selectedDate, filters);
@@ -1051,7 +1056,14 @@ export default function Layout({ children, currentPageName }) {
           updateAppDataState(updates);
           if (updates.deliveries) updatedEntities.push('deliveries');
           if (updates.patients) updatedEntities.push('patients');
-          if (updates.appUsers) updatedEntities.push('appUsers');
+          if (updates.appUsers) {
+            updatedEntities.push('appUsers');
+
+            // CRITICAL: Dispatch event to update map immediately when AppUsers change
+            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+              detail: { appUsers: updates.appUsers }
+            }));
+          }
         }
 
         const hasAnyUpdates = locationUpdates?.hasChanges || activeDeliveryUpdates?.hasChanges || updates;

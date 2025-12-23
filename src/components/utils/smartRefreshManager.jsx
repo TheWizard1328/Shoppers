@@ -596,26 +596,24 @@ class SmartRefreshManager {
       this.markRefreshed('driverLocation');
       await this.waitForRateLimit();
       
-      const locationFilter = {
-        location_tracking_enabled: true,
-        driver_status: 'on_duty'
-      };
+      // CRITICAL: Fetch ALL AppUsers to detect status/tracking changes (not just on_duty)
+      const allAppUsers = await base44.entities.AppUser.list();
       
-      const activeDrivers = await base44.entities.AppUser.filter(locationFilter);
-      
-      if (!activeDrivers || activeDrivers.length === 0) {
+      if (!allAppUsers || allAppUsers.length === 0) {
         return null;
       }
       
       let hasLocationChanges = false;
       const updatedAppUsers = currentAppUsers.map(au => {
-        const activeDriver = activeDrivers.find(ad => ad.user_id === au.user_id);
-        if (activeDriver) {
-          if (au.current_latitude !== activeDriver.current_latitude ||
-              au.current_longitude !== activeDriver.current_longitude ||
-              au.driver_status !== activeDriver.driver_status) {
+        const serverVersion = allAppUsers.find(ad => ad.user_id === au.user_id);
+        if (serverVersion) {
+          // CRITICAL: Detect ANY change in location, status, or tracking enabled
+          if (au.current_latitude !== serverVersion.current_latitude ||
+              au.current_longitude !== serverVersion.current_longitude ||
+              au.driver_status !== serverVersion.driver_status ||
+              au.location_tracking_enabled !== serverVersion.location_tracking_enabled) {
             hasLocationChanges = true;
-            return { ...au, ...activeDriver };
+            return { ...au, ...serverVersion };
           }
         }
         return au;
