@@ -765,9 +765,18 @@ export default function DeliveryMap({
         return user;
       });
       
-      setRealtimeAppUsers([...mergedUsers]);
+      // CRITICAL: Only update state if data actually changed
+      setRealtimeAppUsers(prev => {
+        const prevKey = prev.map(u => `${u?.id}:${u?.current_latitude}:${u?.current_longitude}`).join('|');
+        const newKey = mergedUsers.map(u => `${u?.id}:${u?.current_latitude}:${u?.current_longitude}`).join('|');
+        return prevKey === newKey ? prev : mergedUsers;
+      });
     } else {
-      setRealtimeAppUsers([...users]);
+      setRealtimeAppUsers(prev => {
+        const prevKey = prev.map(u => `${u?.id}:${u?.current_latitude}:${u?.current_longitude}`).join('|');
+        const newKey = users.map(u => `${u?.id}:${u?.current_latitude}:${u?.current_longitude}`).join('|');
+        return prevKey === newKey ? prev : users;
+      });
     }
   }, [users, safeDriverLocations]);
 
@@ -776,8 +785,12 @@ export default function DeliveryMap({
     const handleDriverLocationUpdate = (event) => {
       const { appUsers } = event.detail;
       if (appUsers && appUsers.length > 0) {
-        // CRITICAL: Force re-render by setting a new array reference
-        setRealtimeAppUsers([...appUsers]);
+        // CRITICAL: Only update if data actually changed
+        setRealtimeAppUsers(prev => {
+          const prevKey = prev.map(u => `${u?.id}:${u?.current_latitude}:${u?.current_longitude}`).join('|');
+          const newKey = appUsers.map(u => `${u?.id}:${u?.current_latitude}:${u?.current_longitude}`).join('|');
+          return prevKey === newKey ? prev : appUsers;
+        });
       }
     };
 
