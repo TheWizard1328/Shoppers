@@ -2613,7 +2613,7 @@ export default function DeliveryMap({
                     <Activity className="w-3 h-3 animate-pulse" />
                     {statusLabel}
                   </div>
-                  {isOnBreak && (
+                  {isOnBreakSelf && (
                     <div className="text-[10px] mt-1 font-medium text-blue-600">
                       ☕ Viewing from other device
                     </div>
