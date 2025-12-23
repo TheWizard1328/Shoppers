@@ -621,14 +621,15 @@ class SmartRefreshManager {
         return au;
       });
       
-      // CRITICAL: Always dispatch event to driverLocationPoller with ALL appUsers
-      // The poller handles filtering logic - SmartRefresh should NOT filter stale markers
-      // This ensures markers persist even if location hasn't updated recently
-      console.log('📍 [SmartRefresh] Dispatching driver locations event with all AppUsers');
+      // CRITICAL: Always use updatedAppUsers (merged with server data) for consistency
+      // This prevents flickering between old and new data
+      const finalAppUsers = hasLocationChanges ? updatedAppUsers : currentAppUsers;
       
+      // CRITICAL: Always dispatch event to driverLocationPoller with consistent data
+      // The poller handles filtering logic - SmartRefresh should NOT filter stale markers
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-          detail: { appUsers: hasLocationChanges ? updatedAppUsers : currentAppUsers }
+          detail: { appUsers: finalAppUsers }
         }));
       }
       
