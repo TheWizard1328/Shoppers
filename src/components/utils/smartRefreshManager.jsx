@@ -596,8 +596,10 @@ class SmartRefreshManager {
       this.markRefreshed('driverLocation');
       await this.waitForRateLimit();
       
-      // CRITICAL: Fetch ALL AppUsers to detect status/tracking changes (not just on_duty)
-      const allAppUsers = await base44.entities.AppUser.list();
+      // CRITICAL: Only fetch drivers for location updates (more efficient)
+      const allAppUsers = await base44.entities.AppUser.filter({
+        app_roles: { $in: ['driver'] }
+      });
       
       if (!allAppUsers || allAppUsers.length === 0) {
         return null;
