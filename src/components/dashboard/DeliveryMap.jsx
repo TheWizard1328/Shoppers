@@ -853,15 +853,16 @@ export default function DeliveryMap({
     
     let deliveriesToShow = safeDeliveries;
     
-    // CRITICAL: Include other drivers' deliveries ONLY for pure drivers viewing self on today's date
-    if (isPureDriver && isDriverViewingSelfToday && otherDriverDeliveries.length > 0) {
+    // CRITICAL: Include other drivers' deliveries ONLY when showOtherDriverDeliveries is true (checkbox checked)
+    // AND for pure drivers viewing self on today's date
+    if (isPureDriver && isDriverViewingSelfToday && showOtherDriverDeliveries && otherDriverDeliveries.length > 0) {
       deliveriesToShow = [...safeDeliveries, ...otherDriverDeliveries];
     }
     
     const pickups = deliveriesToShow.filter((d) => d && !d.patient_id && d.store_id);
     const patientDeliveries = deliveriesToShow.filter((d) => d && d.patient_id);
     return { pickups, patientDeliveries };
-  }, [safeDeliveries, isDriverViewingSelfToday, otherDriverDeliveries, currentUser]);
+  }, [safeDeliveries, isDriverViewingSelfToday, otherDriverDeliveries, currentUser, showOtherDriverDeliveries]);
 
   // NEW: Fetch Google route polyline for display
   useEffect(() => {
