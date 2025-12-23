@@ -678,7 +678,8 @@ export default function DeliveryMap({
   stores = [],
   users = [], // This `users` prop is crucial, it contains merged AppUser data
   currentUser,
-  driverLocations = [], // Legacy prop for multiple driver locations
+  driverLocations = [], // Other driver locations - controlled by "Show All" checkbox
+  showOtherDriverDeliveries = false, // NEW: Whether to show other drivers' delivery/pickup markers
   currentDriverLocation = null, // NEW: Single driver location for current user
   center = [53.5461, -113.4938],
   zoom = 12,
