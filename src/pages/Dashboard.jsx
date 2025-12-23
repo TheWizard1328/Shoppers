@@ -44,6 +44,7 @@ import MapViewCycleFAB from "@/components/dashboard/MapViewCycleFAB";
 import { getOrGenerateRoutePolyline, getStoredRouteCoordinates } from "@/components/utils/routePolylineManager";
 import { determinePolylineSegment, fetchPolylineForSegment } from "@/components/utils/dynamicPolylineManager";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { driverLocationPoller } from "@/components/utils/driverLocationPoller";
 import { getAvailableDrivers } from "@/components/utils/driverSelectors";
 import RouteSummaryModal from "@/components/dashboard/RouteSummaryModal";
@@ -332,6 +333,10 @@ function Dashboard() {
   const [realTimeETAEnabled, setRealTimeETAEnabled] = useState(true);
   const [isReoptimizing, setIsReoptimizing] = useState(false);
   const [showQuickAdjustments, setShowQuickAdjustments] = useState(false);
+  const [showAllDriverMarkers, setShowAllDriverMarkers] = useState(() => {
+    const saved = localStorage.getItem('rxdeliver_show_all_driver_markers');
+    return saved !== null ? saved === 'true' : false;
+  });
 
   // Track previous map state for restoring when card is collapsed
   const [previousMapState, setPreviousMapState] = useState(null);
@@ -5826,6 +5831,28 @@ function Dashboard() {
                       </SelectContent>
                     </Select>
 
+                    {/* Show All Drivers Checkbox - Only for drivers */}
+                    {isDriver && (
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <Checkbox
+                          id="show-all-drivers"
+                          checked={showAllDriverMarkers}
+                          onCheckedChange={(checked) => {
+                            setShowAllDriverMarkers(checked);
+                            localStorage.setItem('rxdeliver_show_all_driver_markers', String(checked));
+                          }}
+                          className="h-4 w-4"
+                        />
+                        <label
+                          htmlFor="show-all-drivers"
+                          className="text-[10px] leading-tight cursor-pointer"
+                          style={{ color: 'var(--text-slate-600)' }}
+                        >
+                          Show<br />All
+                        </label>
+                      </div>
+                    )}
+
                     <Button
                     variant="outline"
                     size="sm"
@@ -5981,7 +6008,7 @@ function Dashboard() {
             stores={stores}
             users={drivers}
             currentUser={currentUser}
-            driverLocations={allDriverLocations}
+            driverLocations={showAllDriverMarkers ? allDriverLocations : []}
             currentDriverLocation={driverLocation}
             currentToNextPolyline={currentToNextPolyline}
             center={mapCenter}
