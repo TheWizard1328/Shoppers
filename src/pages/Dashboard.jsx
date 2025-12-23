@@ -1706,13 +1706,18 @@ function Dashboard() {
           hasDriverMarkers = true;
         }
 
-        // 2. SHARED DRIVER LOCATIONS: Only visible in all-drivers mode or admin/dispatcher
+        // 2. SHARED DRIVER LOCATIONS: Only include if checkbox is checked (for drivers) or in all-drivers mode
         if (isViewingToday && allDriverLocations && Array.isArray(allDriverLocations)) {
           allDriverLocations.forEach((location) => {
             if (!location?.latitude || !location?.longitude || !location?.driver_id) return;
 
             // Skip current user on mobile (blue dot shows instead when viewing self)
             if (isMobile && location.driver_id === currentUser?.id) return;
+
+            // CRITICAL: For drivers viewing self, only include if showAllDriverMarkers is true
+            if (isDriverViewingSelfToday && !showAllDriverMarkers) {
+              return; // Don't include any shared locations unless checkbox is checked
+            }
 
             // Must be on_duty and have tracking enabled
             if (location.driver_status !== 'on_duty') return;
@@ -1771,9 +1776,8 @@ function Dashboard() {
           });
         }
 
-        // 5. CRITICAL: Include other drivers' markers when viewing self today (faded markers)
-        // These are fetched by DeliveryMap and shown as faded markers - we must include them
-        if (isDriverViewingSelfToday) {
+        // 5. CRITICAL: Include other drivers' markers ONLY if checkbox is checked
+        if (isDriverViewingSelfToday && showAllDriverMarkers) {
           let otherDriverCount = 0;
 
           // Use deliveries from AppDataContext (contains ALL deliveries for the date)
