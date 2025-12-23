@@ -5860,7 +5860,7 @@ function Dashboard() {
                     }}
                     className="gap-2 h-8 flex-shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white">
                       <Truck className="w-3.5 h-3.5" />
-                      {showRoutes ? 'Hide Routes' : 'Show Routes'}
+                      {showRoutes ? 'Hide' : 'Show'}
                     </Button>
                   </div>
 
