@@ -785,7 +785,15 @@ export default function DeliveryMap({
     return () => window.removeEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
   }, []);
 
-  // CRITICAL: Use isAllDriversMode calculated above instead of recalculating
+  // CRITICAL: Determine mode BEFORE processing markers - must be defined first
+  const isAllDriversMode = useMemo(() => {
+    if (!selectedDriverId || selectedDriverId === 'all') return true;
+    if (!safeDeliveries || safeDeliveries.length === 0) return false;
+    const uniqueDriverIds = new Set(safeDeliveries.map((delivery) => delivery?.driver_id).filter(Boolean));
+    return uniqueDriverIds.size > 1;
+  }, [safeDeliveries, selectedDriverId]);
+
+  // CRITICAL: Use isAllDriversMode calculated above
   const isSingleDriverMode = useMemo(() => !isAllDriversMode, [isAllDriversMode]);
 
   const isDriverViewingSelfToday = useMemo(() => {
@@ -823,14 +831,6 @@ export default function DeliveryMap({
 
     fetchOtherDrivers();
   }, [isDriverViewingSelfToday, selectedDate, currentUser]);
-
-  // CRITICAL: Determine mode BEFORE processing markers
-  const isAllDriversMode = useMemo(() => {
-    if (!selectedDriverId || selectedDriverId === 'all') return true;
-    if (!safeDeliveries || safeDeliveries.length === 0) return false;
-    const uniqueDriverIds = new Set(safeDeliveries.map((delivery) => delivery?.driver_id).filter(Boolean));
-    return uniqueDriverIds.size > 1;
-  }, [safeDeliveries, selectedDriverId]);
 
   const { pickups, patientDeliveries } = useMemo(() => {
     // CRITICAL: For drivers viewing ONLY their own route (not admin/dispatcher), show their markers + mini markers for other drivers
