@@ -46,6 +46,19 @@ Deno.serve(async (req) => {
       delivery_date: deliveryDate,
     });
 
+    // CRITICAL: Early return if all deliveries are finished (route complete)
+    const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+    const hasActiveDeliveries = allDeliveriesForDay.some(d => !finishedStatuses.includes(d.status));
+    
+    if (!hasActiveDeliveries) {
+      console.log(`✅ Route complete - all ${allDeliveriesForDay.length} deliveries are finished. Skipping ETA calculation.`);
+      return Response.json({ 
+        message: 'Route complete - all deliveries finished',
+        etas: [],
+        routeComplete: true
+      });
+    }
+
     // Sort all deliveries by stop_order first
     const sortedAllDeliveries = [...allDeliveriesForDay].sort((a, b) => 
       (a.stop_order || Infinity) - (b.stop_order || Infinity)

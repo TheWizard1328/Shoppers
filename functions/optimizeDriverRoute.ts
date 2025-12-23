@@ -63,6 +63,19 @@ Deno.serve(async (req) => {
       });
     }
 
+    // CRITICAL: Early return if all deliveries are finished (route complete)
+    const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+    const hasActiveDeliveries = allDeliveries.some(d => !finishedStatuses.includes(d.status));
+    
+    if (!hasActiveDeliveries) {
+      console.log(`✅ Route complete - all ${allDeliveries.length} deliveries are finished. Skipping optimization.`);
+      return Response.json({ 
+        message: 'Route complete - all deliveries finished',
+        optimizedCount: 0,
+        routeComplete: true
+      });
+    }
+
     // Get patients and stores for coordinates and ISP detection
     const patientIds = [...new Set(allDeliveries.filter(d => d.patient_id).map(d => d.patient_id))];
     const patients = patientIds.length > 0 
