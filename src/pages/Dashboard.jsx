@@ -1353,25 +1353,28 @@ function Dashboard() {
     };
   }, [isDriver, currentUser, isMobile, deliveriesWithStopOrder, patients, stores, mapViewPhase, getMapPadding]);
 
-  // Track other drivers' locations via poller (for all-drivers mode)
+  // Track other drivers' locations via poller (for all-drivers mode or when checkbox is checked)
   useEffect(() => {
     if (!isDataLoaded || !currentUser || !deliveries || !drivers) {
       return;
     }
 
     driverLocationPoller.start(() => {
-
-
-
-
       // Callback provided for future use, but not actively calling refreshData
       // to prevent triggering auto-selection every 15 seconds
-    });const unsubscribe = driverLocationPoller.subscribe((locations) => {if (!locations || !Array.isArray(locations)) return;setAllDriverLocations(locations);});
+    });
+    
+    const unsubscribe = driverLocationPoller.subscribe((locations) => {
+      if (!locations || !Array.isArray(locations)) return;
+      setAllDriverLocations(locations);
+    });
+    
     return () => {
       unsubscribe();
       driverLocationPoller.stop();
     };
   }, [isDataLoaded, currentUser, deliveries, drivers]);
+  
   useEffect(() => {
     if (!isDataLoaded || !currentUser || !deliveries || !drivers) {
       return;
