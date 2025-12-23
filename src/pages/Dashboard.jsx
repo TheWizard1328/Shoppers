@@ -5618,16 +5618,16 @@ function Dashboard() {
 
                     const updates = await smartRefreshManager.performSmartRefresh(currentData, filters, false);
 
-                    // STEP 2: Run recursive route optimization
+                    // STEP 2: Run recursive route optimization (includes ETA updates)
                     try {
                       console.log('🔄 [Refresh Spinner] Running optimizeRouteRealTime...');
-                      await base44.functions.invoke('optimizeRouteRealTime', {
+                      const optimizeResponse = await base44.functions.invoke('optimizeRouteRealTime', {
                         driverId: activeDriverId,
                         deliveryDate: selectedDateStr,
                         currentLocalTime: currentLocalTime,
                         generatePolyline: false
                       });
-                      console.log('✅ [Refresh Spinner] Route optimized');
+                      console.log('✅ [Refresh Spinner] Route optimized - ETAs updated by backend');
                     } catch (optimizeError) {
                       console.warn('⚠️ [Refresh Spinner] Route optimizer failed:', optimizeError);
                     }
