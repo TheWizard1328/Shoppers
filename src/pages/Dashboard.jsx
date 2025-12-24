@@ -584,11 +584,13 @@ function Dashboard() {
     Object.keys(groupedByDriver).forEach((driverId) => {
       const driverDeliveries = groupedByDriver[driverId];
 
-      // CRITICAL: New sorting logic - completed by time, then isNextDelivery, then remaining by ETA
+      // CRITICAL: Separate pending from active deliveries
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+      const pendingDeliveries = driverDeliveries.filter((d) => d && d.status === 'pending');
+      const activeDeliveries = driverDeliveries.filter((d) => d && d.status !== 'pending');
 
-      const completedDeliveries = driverDeliveries.filter((d) => d && finishedStatuses.includes(d.status));
-      const incompleteDeliveries = driverDeliveries.filter((d) => d && !finishedStatuses.includes(d.status));
+      const completedDeliveries = activeDeliveries.filter((d) => d && finishedStatuses.includes(d.status));
+      const incompleteDeliveries = activeDeliveries.filter((d) => d && !finishedStatuses.includes(d.status));
 
       // Sort completed by actual_delivery_time
       completedDeliveries.sort((a, b) => {
@@ -609,10 +611,13 @@ function Dashboard() {
         return etaA.localeCompare(etaB);
       });
 
-      // Combine: completed + nextDelivery + remaining
-      const sortedDeliveries = nextDelivery ?
-      [...completedDeliveries, nextDelivery, ...incompleteDeliveries] :
-      [...completedDeliveries, ...incompleteDeliveries];
+      // Combine: completed + nextDelivery + remaining + pending at end
+      const sortedDeliveries = [
+        ...completedDeliveries,
+        ...(nextDelivery ? [nextDelivery] : []),
+        ...incompleteDeliveries,
+        ...pendingDeliveries // CRITICAL: Add pending deliveries at the end
+      ];
 
       // CRITICAL: Include ALL deliveries (including pending) in result
       let displayCounter = 1;
@@ -6349,11 +6354,11 @@ function Dashboard() {
                 }
 
                 // For pickups with status 'en_route', attach pending deliveries
-                if (!delivery.patient_id && delivery.status === 'en_route' && delivery.puid) {
-                  // CRITICAL: Use deliveriesWithStopOrder (filtered by date) instead of raw deliveries array
+                if (!delivery.patient_id && delivery.status === 'en_route' && delivery.stop_id) {
+                  // CRITICAL: Match by stop_id (not puid) - pending deliveries have puid that matches pickup's stop_id
                   const pendingDeliveriesForPickup = deliveriesWithStopOrder.filter((d) =>
                   d &&
-                  d.puid === delivery.puid &&
+                  d.puid === delivery.stop_id &&
                   d.status === 'pending' &&
                   d.patient_id // Only patient deliveries, not other pickups
                   );
