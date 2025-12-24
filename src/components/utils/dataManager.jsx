@@ -351,15 +351,15 @@ export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh 
 };
 
 /**
- * Load full month of deliveries (background)
+ * Load 3 months of deliveries (background) - expanded from 30 days for better historical data
  */
 export const loadFullMonthDeliveries = async (filters = {}, forceRefresh = false) => {
   const today = new Date();
   const todayStr = format(today, 'yyyy-MM-dd');
-  const last30Days = subDays(today, 30);
-  const last30DaysStr = format(last30Days, 'yyyy-MM-dd');
+  const last90Days = subDays(today, 90); // 3 months of history
+  const last90DaysStr = format(last90Days, 'yyyy-MM-dd');
 
-  const deliveries = await getDeliveriesForDateRange(last30DaysStr, todayStr, filters, forceRefresh);
+  const deliveries = await getDeliveriesForDateRange(last90DaysStr, todayStr, filters, forceRefresh);
   return deliveries;
 };
 
@@ -430,12 +430,12 @@ export const loadDeliveries = async (
       // Wait 1 second before loading past data
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Load past 30 days with 500ms pause between dates
-      const last30Days = subDays(today, 30);
+      // Load past 90 days (3 months) with 500ms pause between dates
+      const last90Days = subDays(today, 90);
       const yesterdayStr = format(subDays(today, 1), 'yyyy-MM-dd');
       
       const pastDeliveries = [];
-      for (let i = 29; i >= 1; i--) {
+      for (let i = 89; i >= 1; i--) {
         const date = subDays(today, i);
         const dateStr = format(date, 'yyyy-MM-dd');
         
