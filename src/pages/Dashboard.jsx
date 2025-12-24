@@ -5932,6 +5932,29 @@ function Dashboard() {
                           onCheckedChange={(checked) => {
                             setShowAllDriverMarkers(checked);
                             localStorage.setItem('rxdeliver_show_all_driver_markers', String(checked));
+                            
+                            // CRITICAL: Re-trigger FAB phase 1 to re-fit bounds with/without other drivers' markers
+                            if (mapViewPhase === 1) {
+                              setIsMapViewLocked(true);
+                              lastProgrammaticMapMoveRef.current = Date.now();
+                              window._lastProgrammaticMapMove = Date.now();
+                              setMapViewTrigger((prev) => prev + 1);
+                              
+                              // Auto-unlock after 3 seconds (Phase 1 behavior)
+                              if (mapLockTimeoutRef.current) {
+                                clearTimeout(mapLockTimeoutRef.current);
+                              }
+                              const lockDuration = 3000;
+                              const expiresAt = Date.now() + lockDuration;
+                              mapLockExpiresAtRef.current = expiresAt;
+                              mapLockTimeoutRef.current = setTimeout(() => {
+                                if (mapLockExpiresAtRef.current === expiresAt) {
+                                  setIsMapViewLocked(false);
+                                  mapLockExpiresAtRef.current = null;
+                                  mapLockTimeoutRef.current = null;
+                                }
+                              }, lockDuration);
+                            }
                           }}
                           className="h-4 w-4"
                         />
