@@ -571,23 +571,91 @@ Deno.serve(async (req) => {
     
     console.log('📦 Pickup order by delivery_time_start (STRICT - no distance sorting):');
     sortedPickups.forEach((p, i) => {
-      console.log(`   ${i+1}. ${p.delivery.patient_name || 'Pickup'} @ ${p.delivery.delivery_time_start || 'no time'} (current stop_order: ${p.delivery.stop_order})`);
+      console.log(`   ${i+1}. ${p.delivery.patient_name || 'Pickup'} @ ${p.delivery.delivery_time_start || 'no time'} (current stop_order: ${p.delivery.stop_order}) stop_id=${p.delivery.stop_id}`);
     });
 
-    // CRITICAL: STRICT STAGE-BASED OPTIMIZATION
-    // Since we ONLY have pickups (no patient deliveries right now), we need to just 
-    // assign stop_order based on the sorted pickup order
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // INTERLEAVED OPTIMIZATION STRATEGY
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // For each pickup in time order:
+    //   1. Find deliveries that belong to PREVIOUS pickups (already picked up)
+    //   2. Optimize those deliveries BEFORE this pickup if it saves time
+    //   3. Then do this pickup
+    //   4. Repeat
+    // ═══════════════════════════════════════════════════════════════════════════════
     
-    console.log('🎯 [Stage-Based Optimization] Starting STRICT time-ordered pickups...');
+    console.log('🎯 [Interleaved Optimization] Starting STRICT time-ordered pickups with interleaved deliveries...');
     console.log(`📦 ${sortedPickups.length} pickups (time-ordered)`);
     console.log(`📬 ${deliveryStops.length} deliveries (optimizable)`);
     
+    // Track which deliveries have been scheduled and which pickups have been done
+    const scheduledDeliveryIndices = new Set();
+    const completedPickupStopIds = new Set();
+    
     // STEP 1: Process each pickup in STRICT scheduled time order
-    for (const pickup of sortedPickups) {
-      console.log(`\n📦 Pickup: ${pickup.delivery.patient_name || 'Pickup'} @ ${pickup.delivery.delivery_time_start}`);
+    for (let pickupIndex = 0; pickupIndex < sortedPickups.length; pickupIndex++) {
+      const pickup = sortedPickups[pickupIndex];
       
-      // Add pickup to route (use the original index in stops array)
+      // BEFORE this pickup: Find deliveries from PREVIOUS pickups that can be done now
+      // These are deliveries whose puid matches a completed pickup's stop_id
+      const availableDeliveries = deliveryStops.filter(d => 
+        !scheduledDeliveryIndices.has(d.idx) && 
+        completedPickupStopIds.has(d.delivery.puid)
+      );
+      
+      if (availableDeliveries.length > 0) {
+        console.log(`\n📬 Before pickup ${pickupIndex + 1}: ${availableDeliveries.length} deliveries available from previous pickups`);
+        
+        // Calculate time until this pickup's window
+        let pickupWindowStart = Infinity;
+        if (pickup.delivery.delivery_time_start) {
+          const [h, m] = pickup.delivery.delivery_time_start.split(':').map(Number);
+          pickupWindowStart = h * 60 + m;
+        }
+        
+        // Optimize available deliveries and insert as many as we can before the pickup
+        const { path: deliveryPath } = findShortestPath(
+          currentPosition,
+          availableDeliveries,
+          { lat: pickup.lat, lng: pickup.lng }, // End at next pickup
+          cumulativeTime
+        );
+        
+        for (const idx of deliveryPath) {
+          const stop = stops[idx];
+          
+          // Calculate if we can do this delivery and still make the pickup on time
+          const travelToDelivery = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, stop.lat, stop.lng);
+          const travelToPickup = calculateCrowFliesDistance(stop.lat, stop.lng, pickup.lat, pickup.lng);
+          const deliveryTime = (travelToDelivery / 40) * 60 + (stop.delivery.extra_time || 5);
+          const timeToPickupAfter = (travelToPickup / 40) * 60;
+          
+          const arrivalAtPickup = cumulativeTime + deliveryTime + timeToPickupAfter;
+          
+          // Only add delivery if we can still make the pickup window (with 5 min buffer)
+          if (arrivalAtPickup <= pickupWindowStart + 5) {
+            optimizedRoute.push(idx);
+            scheduledDeliveryIndices.add(idx);
+            
+            cumulativeTime += (travelToDelivery / 40) * 60;
+            if (stop.timeWindow && cumulativeTime < stop.timeWindow.start) {
+              cumulativeTime = stop.timeWindow.start;
+            }
+            cumulativeTime += stop.delivery.extra_time || 5;
+            currentPosition = { lat: stop.lat, lng: stop.lng };
+            
+            console.log(`      📬 ${stop.delivery.patient_name} (interleaved before pickup)`);
+          } else {
+            console.log(`      ⏩ Skipping ${stop.delivery.patient_name} - would miss pickup window`);
+          }
+        }
+      }
+      
+      // NOW do this pickup
+      console.log(`\n📦 Pickup ${pickupIndex + 1}: ${pickup.delivery.patient_name || 'Pickup'} @ ${pickup.delivery.delivery_time_start}`);
+      
       optimizedRoute.push(pickup.idx);
+      completedPickupStopIds.add(pickup.delivery.stop_id);
       
       // Update position and time
       const travelDist = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, pickup.lat, pickup.lng);
@@ -605,51 +673,49 @@ Deno.serve(async (req) => {
       
       cumulativeTime += pickup.delivery.extra_time || 15;
       currentPosition = { lat: pickup.lat, lng: pickup.lng };
+    }
+    
+    // STEP 2: After all pickups, optimize remaining deliveries
+    const remainingDeliveries = deliveryStops.filter(d => !scheduledDeliveryIndices.has(d.idx));
+    
+    if (remainingDeliveries.length > 0) {
+      console.log(`\n📬 After all pickups: Optimizing ${remainingDeliveries.length} remaining deliveries...`);
       
-      // STEP 2: Find deliveries for this pickup and optimize them by distance
-      // CRITICAL: Match deliveries to pickup using delivery.puid === pickup.stop_id
-      const deliveriesForThisPickup = deliveryStops.filter(d => 
-        d.delivery.puid === pickup.delivery.stop_id
+      const { path: finalDeliveryPath } = findShortestPath(
+        currentPosition,
+        remainingDeliveries,
+        driverHomeLocation, // End at home
+        cumulativeTime
       );
       
-      if (deliveriesForThisPickup.length > 0) {
-        console.log(`   📬 Optimizing ${deliveriesForThisPickup.length} deliveries for this pickup...`);
+      for (const idx of finalDeliveryPath) {
+        const stop = stops[idx];
+        optimizedRoute.push(idx);
+        scheduledDeliveryIndices.add(idx);
         
-        // Optimize deliveries by shortest path from pickup
-        const { path: deliveryPath } = findShortestPath(
-          currentPosition,
-          deliveriesForThisPickup,
-          null, // No destination - will continue to next pickup
-          cumulativeTime
-        );
+        const travelDist = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, stop.lat, stop.lng);
+        cumulativeTime += (travelDist / 40) * 60;
         
-        for (const idx of deliveryPath) {
-          const stop = stops[idx];
-          optimizedRoute.push(idx);
-          
-          const travelDist = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, stop.lat, stop.lng);
-          cumulativeTime += (travelDist / 40) * 60;
-          
-          if (stop.timeWindow && cumulativeTime < stop.timeWindow.start) {
-            cumulativeTime = stop.timeWindow.start;
-          }
-          
-          cumulativeTime += stop.delivery.extra_time || 5;
-          currentPosition = { lat: stop.lat, lng: stop.lng };
-          
-          console.log(`      📬 ${stop.delivery.patient_name}`);
+        if (stop.timeWindow && cumulativeTime < stop.timeWindow.start) {
+          cumulativeTime = stop.timeWindow.start;
         }
+        
+        cumulativeTime += stop.delivery.extra_time || 5;
+        currentPosition = { lat: stop.lat, lng: stop.lng };
+        
+        console.log(`      📬 ${stop.delivery.patient_name}`);
       }
     }
 
-    console.log(`\n✅ [Stage-Based Optimization] Complete: ${optimizedRoute.length} stops in optimizedRoute`);
+    console.log(`\n✅ [Interleaved Optimization] Complete: ${optimizedRoute.length} stops in optimizedRoute`);
     console.log(`📋 Final optimizedRoute indices: ${optimizedRoute.join(', ')}`);
     
     // Debug: Show what the final order will be
     console.log('📋 Final route order:');
     optimizedRoute.forEach((idx, i) => {
       const stop = stops[idx];
-      console.log(`   #${startingStopOrder + i + 1}: ${stop.delivery.patient_name || 'Pickup'} @ ${stop.delivery.delivery_time_start || 'no time'}`);
+      const isPickup = !stop.delivery.patient_id;
+      console.log(`   #${startingStopOrder + i + 1}: ${isPickup ? '📦' : '📬'} ${stop.delivery.patient_name || 'Pickup'} @ ${stop.delivery.delivery_time_start || 'no time'}`);
     });
 
     // Check if route changed
