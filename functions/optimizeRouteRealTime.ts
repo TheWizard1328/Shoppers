@@ -526,36 +526,30 @@ Deno.serve(async (req) => {
       : null;
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    // STAGE-BASED RECURSIVE OPTIMIZATION
+    // STAGE-BASED OPTIMIZATION
     // ═══════════════════════════════════════════════════════════════════════════════
-    // Strategy: Optimize in STAGES, where each stage is:
-    //   Origin (current position) → Deliveries → Next Pickup (or Home if no more pickups)
-    // 
-    // CRITICAL: isNextDelivery stop is LOCKED and always comes first after driver location.
-    // Optimization only applies to stops AFTER the isNextDelivery stop.
+    // Strategy: Process ALL stops in delivery_time_start order
+    // isNextDelivery is handled separately (ETA calculated, but not in optimizedRoute)
     // ═══════════════════════════════════════════════════════════════════════════════
     
     const optimizedRoute = [];
-    const completedPickupStores = new Set();
     let currentPosition = { lat: driverLocation.lat, lng: driverLocation.lng };
     let cumulativeTime = currentMinutes;
 
-    // CRITICAL: If isNextDelivery exists, it's LOCKED as first stop - start optimization from there
+    // CRITICAL: Find isNextDelivery in stops array (for ETA calculation, but NOT added to optimizedRoute)
     let isNextDeliveryStopData = null;
+    let isNextDeliveryIdx = -1;
     if (isNextDeliveryStop) {
-      // Find isNextDelivery in the stops array
-      isNextDeliveryStopData = stops.find(s => s.delivery.id === isNextDeliveryStop.id);
+      for (let idx = 0; idx < stops.length; idx++) {
+        if (stops[idx].delivery.id === isNextDeliveryStop.id) {
+          isNextDeliveryStopData = stops[idx];
+          isNextDeliveryIdx = idx;
+          break;
+        }
+      }
       
       if (isNextDeliveryStopData) {
-        console.log(`🔒 [isNextDelivery LOCKED] ${isNextDeliveryStopData.delivery.patient_name || 'Pickup'} - maintaining position as Stop #${startingStopOrder + 1}`);
-        
-        // Add isNextDelivery to route first (it's locked)
-        optimizedRoute.push(isNextDeliveryStopData.idx);
-        
-        // If it's a pickup, mark that store's deliveries as available
-        if (isNextDeliveryStopData.delivery.puid && !isNextDeliveryStopData.delivery.patient_id) {
-          completedPickupStores.add(isNextDeliveryStopData.delivery.store_id);
-        }
+        console.log(`🔒 [isNextDelivery LOCKED] ${isNextDeliveryStopData.delivery.patient_name || 'Pickup'} - Stop #${startingStopOrder + 1} (idx=${isNextDeliveryIdx})`);
         
         // Update position to isNextDelivery location for subsequent optimization
         currentPosition = { lat: isNextDeliveryStopData.lat, lng: isNextDeliveryStopData.lng };
@@ -574,43 +568,38 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Pickups are already sorted by time from STEP 1, just filter out isNextDelivery
-    const sortedPickups = pickupStops.filter(p => !isNextDeliveryStopData || p.idx !== isNextDeliveryStopData.idx);
-    
-    console.log('📦 Pickup order by delivery_time_start (STRICT - no distance sorting):');
-    sortedPickups.forEach((p, i) => {
-      console.log(`   ${i+1}. ${p.delivery.patient_name || 'Pickup'} @ ${p.delivery.delivery_time_start || 'no time'} (current stop_order: ${p.delivery.stop_order}) stop_id=${p.delivery.stop_id}`);
-    });
-
     // ═══════════════════════════════════════════════════════════════════════════════
-    // TIME-SORTED OPTIMIZATION STRATEGY
+    // TIME-SORTED OPTIMIZATION
     // ═══════════════════════════════════════════════════════════════════════════════
-    // Since all stops are now sorted by delivery_time_start:
-    //   1. Process stops in time order
-    //   2. When we hit a pickup, add it to route
-    //   3. When we hit deliveries, batch them until the next pickup and optimize by distance
+    // All stops are already sorted by delivery_time_start in sortedStops
+    // Process them in order, batching consecutive deliveries for distance optimization
     // ═══════════════════════════════════════════════════════════════════════════════
     
-    console.log('🎯 [Time-Sorted Optimization] Processing stops in time order...');
-    console.log(`📦 ${sortedPickups.length} pickups, 📬 ${deliveryStops.length} deliveries`);
+    console.log('🎯 [Time-Sorted Optimization] Processing stops in delivery_time_start order...');
     
-    // Merge pickups and deliveries back together, maintaining time sort order
-    const allSortedStops = [...sortedStops].filter(stop => 
-      !isNextDeliveryStopData || stop.originalIdx !== isNextDeliveryStopData.idx
+    // Filter out isNextDelivery from sortedStops (it's handled separately)
+    const stopsToProcess = sortedStops.filter(stop => 
+      isNextDeliveryIdx === -1 || stop.originalIdx !== isNextDeliveryIdx
     );
+    
+    console.log(`📋 Processing ${stopsToProcess.length} stops (excluding isNextDelivery):`);
+    stopsToProcess.forEach((stop, i) => {
+      const isPickup = !stop.delivery.patient_id;
+      console.log(`   ${i+1}. ${isPickup ? '📦 PICKUP' : '📬 DELIVERY'}: ${stop.delivery.patient_name || 'Unknown'} @ ${stop.delivery.delivery_time_start || 'no time'} (originalIdx=${stop.originalIdx})`);
+    });
     
     // Track scheduled stops
     const scheduledIndices = new Set();
     
     // Process stops in batches: each pickup followed by its deliveries
     let i = 0;
-    while (i < allSortedStops.length) {
-      const stop = allSortedStops[i];
+    while (i < stopsToProcess.length) {
+      const stop = stopsToProcess[i];
       const isPickup = !stop.delivery.patient_id;
       
       if (isPickup) {
         // Add pickup to route
-        console.log(`\n📦 Pickup: ${stop.delivery.patient_name || 'Pickup'} @ ${stop.delivery.delivery_time_start}`);
+        console.log(`\n📦 Adding Pickup: ${stop.delivery.patient_name || 'Pickup'} @ ${stop.delivery.delivery_time_start} (originalIdx=${stop.originalIdx})`);
         optimizedRoute.push(stop.originalIdx);
         scheduledIndices.add(stop.originalIdx);
         
@@ -635,20 +624,22 @@ Deno.serve(async (req) => {
       } else {
         // Collect consecutive deliveries until the next pickup
         const deliveryBatch = [];
-        while (i < allSortedStops.length && allSortedStops[i].delivery.patient_id) {
-          if (!scheduledIndices.has(allSortedStops[i].originalIdx)) {
-            deliveryBatch.push({ ...allSortedStops[i], idx: allSortedStops[i].originalIdx });
+        while (i < stopsToProcess.length && stopsToProcess[i].delivery.patient_id) {
+          const deliveryStop = stopsToProcess[i];
+          if (!scheduledIndices.has(deliveryStop.originalIdx)) {
+            deliveryBatch.push({ ...deliveryStop, idx: deliveryStop.originalIdx });
           }
           i++;
         }
         
         if (deliveryBatch.length > 0) {
           console.log(`\n📬 Optimizing batch of ${deliveryBatch.length} deliveries by distance...`);
+          deliveryBatch.forEach(d => console.log(`      - ${d.delivery.patient_name} @ ${d.delivery.delivery_time_start || 'no time'}`));
           
           // Find the next pickup (if any) to use as destination hint
           let nextDestination = driverHomeLocation;
-          if (i < allSortedStops.length) {
-            const nextPickup = allSortedStops[i];
+          if (i < stopsToProcess.length && !stopsToProcess[i].delivery.patient_id) {
+            const nextPickup = stopsToProcess[i];
             nextDestination = { lat: nextPickup.lat, lng: nextPickup.lng };
           }
           
@@ -659,6 +650,8 @@ Deno.serve(async (req) => {
             nextDestination,
             cumulativeTime
           );
+          
+          console.log(`   📍 Optimized path: ${deliveryPath.join(' → ')}`);
           
           for (const idx of deliveryPath) {
             const deliveryStop = stops[idx];
@@ -675,7 +668,7 @@ Deno.serve(async (req) => {
             cumulativeTime += deliveryStop.delivery.extra_time || 5;
             currentPosition = { lat: deliveryStop.lat, lng: deliveryStop.lng };
             
-            console.log(`      📬 ${deliveryStop.delivery.patient_name}`);
+            console.log(`      ✅ Added: ${deliveryStop.delivery.patient_name} (idx=${idx})`);
           }
         }
       }
