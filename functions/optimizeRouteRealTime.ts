@@ -650,6 +650,7 @@ Deno.serve(async (req) => {
     // NOW use Google Directions API for sequential travel times between stops
     console.log('🌐 [optimizeRouteRealTime] Calling Google Directions API for sequential travel times...');
     const googleMapsKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
+    const allStopCoords = stops.map(s => ({ lat: s.lat, lng: s.lng }));
     const finalRouteCoords = optimizedRoute.map(idx => allStopCoords[idx]);
     
     // Build sequential route: driver location → all stops in order

@@ -40,21 +40,22 @@ export default function RealTimeRouteOptimizer({
       return;
     }
 
-    // CRITICAL: Skip optimization if no in-transit deliveries
-    // This preserves pickup order based on delivery_time_start until route actually starts
+    // CRITICAL: Skip optimization if route hasn't started at all
+    // Route is considered "started" if there are ANY in_transit or en_route stops
     try {
-      const inTransitDeliveries = await base44.entities.Delivery.filter({
+      const activeDeliveries = await base44.entities.Delivery.filter({
         driver_id: selectedDriverId,
         delivery_date: selectedDate,
-        status: 'in_transit'
+        status: { $in: ['in_transit', 'en_route'] }
       });
       
-      if (!inTransitDeliveries || inTransitDeliveries.length === 0) {
-        console.log('⏸️ [RealTimeRouteOptimizer] No in-transit deliveries - skipping to preserve pickup order');
+      if (!activeDeliveries || activeDeliveries.length === 0) {
+        console.log('⏸️ [RealTimeRouteOptimizer] No active deliveries (in_transit/en_route) - skipping');
         return;
       }
+      console.log(`✅ [RealTimeRouteOptimizer] Found ${activeDeliveries.length} active stops - running optimization`);
     } catch (error) {
-      console.error('Error checking in-transit deliveries:', error);
+      console.error('Error checking active deliveries:', error);
       return;
     }
 
