@@ -97,6 +97,9 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
 
   // Match font size calculation from regular markers (for numbers inside circles)
   const fontSize = 7; // Reduced from 9.5 for smaller circles
+  
+  // CRITICAL: Driver color index 2 (#D946EF - bright magenta) needs black text for readability
+  const textColor = driverColor === '#D946EF' ? 'black' : 'white';
 
   const icon = L.divIcon({
     html: `
@@ -111,7 +114,7 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
         padding-top: 1px;
         font-size: ${fontSize}px;
         font-weight: bold;
-        color: white;
+        color: ${textColor};
         box-shadow: 0 2px 5px rgba(0,0,0,0.3);
         border: 2px solid ${statusColor};
         opacity: ${isOtherDriver ? 0.75 : 1};
