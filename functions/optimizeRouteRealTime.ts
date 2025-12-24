@@ -634,9 +634,9 @@ Deno.serve(async (req) => {
       currentPosition = { lat: pickup.lat, lng: pickup.lng };
       
       // STEP 2: Find deliveries for this pickup and optimize them by distance
+      // CRITICAL: Match deliveries to pickup using delivery.puid === pickup.stop_id
       const deliveriesForThisPickup = deliveryStops.filter(d => 
-        d.delivery.puid === pickup.delivery.puid || 
-        d.delivery.store_id === pickup.delivery.store_id
+        d.delivery.puid === pickup.delivery.stop_id
       );
       
       if (deliveriesForThisPickup.length > 0) {
