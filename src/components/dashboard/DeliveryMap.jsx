@@ -1276,8 +1276,14 @@ export default function DeliveryMap({
 
   // CRITICAL: Process ALL on_duty drivers from realtimeAppUsers, not just from driverLocations prop
   // This ensures shared markers render even when driverLocations prop is empty
+  // Use ref to cache previous markers and only update when actual data changes
+  const prevDriverLocationMarkersRef = useRef([]);
+  
   const driverLocationMarkers = useMemo(() => {
-    if (!isViewingCurrentDate) return [];
+    if (!isViewingCurrentDate) {
+      prevDriverLocationMarkersRef.current = [];
+      return [];
+    }
 
     const isAdmin = currentUser && userHasRole(currentUser, 'admin');
     const isDriverRole = currentUser && userHasRole(currentUser, 'driver');
@@ -1300,12 +1306,8 @@ export default function DeliveryMap({
         return null;
       }
       
-      // On desktop: skip current user if they're on_duty with tracking enabled (they see their own real-time marker differently)
-      if (!isMobile && isCurrentUserMarker) {
-        if (user.driver_status === 'on_duty' && user.location_tracking_enabled === true) {
-          return null;
-        }
-      }
+      // CRITICAL: On desktop, ALWAYS show current user's shared marker if they have location data
+      // Don't skip based on on_duty status - if they have location, show it
       
       // Skip inactive users
       if (user.status === 'inactive') {
@@ -1388,6 +1390,15 @@ export default function DeliveryMap({
       };
     }).filter(Boolean);
 
+    // CRITICAL: Only update if markers actually changed to prevent blinking
+    const newKey = markers.map(m => `${m.id}:${m.latitude?.toFixed(5)}:${m.longitude?.toFixed(5)}:${m.driver_status}:${m.isStaleLocation}`).join('|');
+    const prevKey = prevDriverLocationMarkersRef.current.map(m => `${m.id}:${m.latitude?.toFixed(5)}:${m.longitude?.toFixed(5)}:${m.driver_status}:${m.isStaleLocation}`).join('|');
+    
+    if (newKey === prevKey && prevDriverLocationMarkersRef.current.length > 0) {
+      return prevDriverLocationMarkersRef.current;
+    }
+    
+    prevDriverLocationMarkersRef.current = markers;
     return markers;
   // CRITICAL: Use stable references - minimize dependencies to prevent blinking
   }, [
@@ -1395,14 +1406,8 @@ export default function DeliveryMap({
     isViewingCurrentDate,
     currentUser?.id,
     isMobile,
-    // Track user location data with stable key
-    JSON.stringify(safeUsers.map(u => ({
-      id: u?.id,
-      lat: u?.current_latitude,
-      lon: u?.current_longitude,
-      status: u?.driver_status,
-      tracking: u?.location_tracking_enabled
-    })))
+    // Track user location data with stable key - round coordinates to prevent micro-changes
+    safeUsers.map(u => `${u?.id}:${u?.current_latitude?.toFixed(5)}:${u?.current_longitude?.toFixed(5)}:${u?.driver_status}:${u?.location_tracking_enabled}`).join('|')
   ]);
 
   // UPDATED: Process current driver's live location for display - ONLY SHOW ON MOBILE, TODAY'S DATE
