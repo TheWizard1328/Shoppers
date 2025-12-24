@@ -2536,8 +2536,9 @@ export default function DeliveryMap({
                                 #{m.number || m.stop_order} - {m.markerType === 'pickup' ? m.store?.name : m.patient?.full_name}
                               </div>
                               {isFinished && finishedTime ? (
-                                <div className="text-[11px] text-emerald-600">
-                                  ✓ Finished: {finishedTime}
+                                <div className="flex items-center gap-1 text-[11px] text-emerald-600">
+                                  <Clock className="w-3 h-3" />
+                                  {finishedTime}
                                 </div>
                               ) : m.delivery_time_eta ? (
                                 <div className="text-[11px]" style={{ color: 'var(--text-slate-600)' }}>
@@ -2751,8 +2752,9 @@ export default function DeliveryMap({
                                 #{m.number || m.stop_order} - {m.markerType === 'pickup' ? m.store?.name : m.patient?.full_name}
                               </div>
                               {isFinished && finishedTime ? (
-                                <div className="text-[11px] text-emerald-600">
-                                  ✓ Finished: {finishedTime}
+                                <div className="flex items-center gap-1 text-[11px] text-emerald-600">
+                                  <Clock className="w-3 h-3" />
+                                  {finishedTime}
                                 </div>
                               ) : m.delivery_time_eta ? (
                                 <div className="text-[11px]" style={{ color: 'var(--text-slate-600)' }}>
