@@ -651,7 +651,9 @@ function Dashboard() {
       relevantDeliveries = relevantDeliveries.filter(d => d && dispatcherStoreIds.has(d.store_id));
     }
 
-    const safeDeliveries = relevantDeliveries;
+    // CRITICAL: Exclude store pickups (deliveries without patient_id) from all counts
+    const safeDeliveries = relevantDeliveries.filter(d => d && d.patient_id);
+    
     if (!Array.isArray(safeDeliveries)) return {
       total: 0,
       inTransit: 0,
@@ -697,19 +699,25 @@ function Dashboard() {
       return false;
     }).length;
 
-    // DISPATCHER: Calculate unique driver counts for superscript
+    // DISPATCHER: Calculate unique driver counts for superscript (from all deliveries, not just patient deliveries)
     let totalDrivers = 0;
     let inTransitDrivers = 0;
     let completedDrivers = 0;
 
     if (isDispatcher) {
-      const allDriverIds = new Set(safeDeliveries.map(d => d?.driver_id).filter(Boolean));
+      const allDriverIds = new Set(relevantDeliveries.map(d => d?.driver_id).filter(Boolean));
       totalDrivers = allDriverIds.size;
 
-      const inTransitDriverIds = new Set(inTransitDeliveries.map(d => d?.driver_id).filter(Boolean));
+      const inTransitAll = relevantDeliveries.filter((d) => d && (d.status === 'in_transit' || d.status === 'en_route'));
+      const inTransitDriverIds = new Set(inTransitAll.map(d => d?.driver_id).filter(Boolean));
       inTransitDrivers = inTransitDriverIds.size;
 
-      const completedDriverIds = new Set(completedDeliveries.map(d => d?.driver_id).filter(Boolean));
+      const completedAll = relevantDeliveries.filter((d) => {
+        if (!d || d.status !== 'completed') return false;
+        if (isReturn(d)) return false;
+        return true;
+      });
+      const completedDriverIds = new Set(completedAll.map(d => d?.driver_id).filter(Boolean));
       completedDrivers = completedDriverIds.size;
     }
 
