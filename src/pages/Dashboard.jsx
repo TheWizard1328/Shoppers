@@ -727,11 +727,15 @@ function Dashboard() {
       return drivers;
     }
 
-    // DISPATCHER: Only show drivers with deliveries in dispatcher's stores
+    // DISPATCHER: Show all drivers in the same city, highlight those with dispatcher's store deliveries
     if (userHasRole(currentUser, 'dispatcher')) {
+      const dispatcherCityId = currentUser.city_id;
       const dispatcherStoreIds = currentUser.store_ids || [];
 
-      // Get unique driver IDs that have deliveries for dispatcher's stores
+      // Get all drivers in the same city
+      const driversInCity = drivers.filter((d) => d && d.city_id === dispatcherCityId);
+
+      // Get unique driver IDs that have deliveries for dispatcher's stores (for highlighting)
       const driversWithStoreDeliveries = new Set(
         deliveries?.
         filter((d) => d && dispatcherStoreIds.includes(d.store_id)).
@@ -739,8 +743,11 @@ function Dashboard() {
         filter(Boolean)
       );
 
-      const filteredDrivers = drivers.filter((d) => d && driversWithStoreDeliveries.has(d.id));
-      return filteredDrivers;
+      // Enrich drivers with hasStoreDeliveries flag for green highlighting
+      return driversInCity.map((d) => ({
+        ...d,
+        _hasDispatcherStoreDeliveries: driversWithStoreDeliveries.has(d.id)
+      }));
     }
 
     // OTHER ROLES: Return all drivers
@@ -5916,7 +5923,7 @@ function Dashboard() {
                       <SelectContent className="z-[10001]" style={{ pointerEvents: 'auto', background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
                         <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Drivers</SelectItem>
                         {driversList.map((driver) =>
-                      <SelectItem key={driver.id} value={driver.id} style={{ color: 'var(--text-slate-900)' }}>
+                      <SelectItem key={driver.id} value={driver.id} style={{ color: driver._hasDispatcherStoreDeliveries ? '#10B981' : 'var(--text-slate-900)' }}>
                             {driver.user_name || driver.full_name}
                           </SelectItem>
                       )}
