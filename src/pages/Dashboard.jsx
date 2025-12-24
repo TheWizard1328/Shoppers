@@ -2655,14 +2655,21 @@ function Dashboard() {
         });
       }
 
-      // STEP 3: Update UI immediately with priority data
+      // STEP 3: Update UI immediately with priority data using flushSync for instant render
       if (updateDeliveriesLocally) {
         const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== dateStr);
         const mergedDeliveries = [...otherDateDeliveries, ...priorityDeliveries];
-        updateDeliveriesLocally(mergedDeliveries);
+        flushSync(() => {
+          updateDeliveriesLocally(mergedDeliveries, true);
+        });
       }
 
-      // STEP 4: Resume UI immediately (don't wait for background loads)
+      // STEP 4: Dispatch event to force map and stop cards to re-render
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { 
+        detail: { deliveryDate: dateStr, triggeredBy: 'dateChange' } 
+      }));
+
+      // STEP 5: Resume UI immediately (don't wait for background loads)
       setIsEntityUpdating(false);
 
       // STEP 5: Auto-select driver based on role
@@ -2764,7 +2771,10 @@ function Dashboard() {
     // Reset route summary tracking when driver changes
     hasShownSummaryRef.current.clear();
 
-    setSelectedDriverId(driverId);
+    // CRITICAL: Update state immediately for instant UI response
+    flushSync(() => {
+      setSelectedDriverId(driverId);
+    });
     globalFilters.setSelectedDriverId(driverId);
     setIsExpanded(false);
 
@@ -2794,14 +2804,21 @@ function Dashboard() {
         smartRefreshManager.clearPendingUpdates();
       }
 
-      // Update context with fresh deliveries
+      // Update context with fresh deliveries using flushSync for instant render
       if (updateDeliveriesLocally) {
         const otherDeliveries = deliveries.filter((d) =>
         d && d.delivery_date !== dateStr
         );
         const mergedDeliveries = [...otherDeliveries, ...freshDeliveries];
-        updateDeliveriesLocally(mergedDeliveries);
+        flushSync(() => {
+          updateDeliveriesLocally(mergedDeliveries, true);
+        });
       }
+
+      // Dispatch event to force map and stop cards to re-render
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { 
+        detail: { driverId, deliveryDate: dateStr, triggeredBy: 'driverChange' } 
+      }));
 
       // CRITICAL: Lock FAB and trigger map view after data loads
       setTimeout(() => {
