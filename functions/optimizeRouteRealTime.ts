@@ -477,16 +477,24 @@ Deno.serve(async (req) => {
       const aMinutes = parseTimeToMinutes(a.delivery.delivery_time_start);
       const bMinutes = parseTimeToMinutes(b.delivery.delivery_time_start);
       
+      // CRITICAL: Stops without a time go to the END (Infinity)
+      // Stops with earlier times come first
+      
       // If times are equal, pickups come before deliveries
       if (aMinutes === bMinutes) {
         const aIsPickup = !a.delivery.patient_id;
         const bIsPickup = !b.delivery.patient_id;
         if (aIsPickup && !bIsPickup) return -1; // pickup before delivery
         if (!aIsPickup && bIsPickup) return 1;  // delivery after pickup
+        return 0;
       }
       
+      // CRITICAL: Sort by time (ascending) - earlier times come first
+      // 6:00 AM (360 min) < 6:00 PM (1080 min)
       return aMinutes - bMinutes;
     });
+    
+    console.log(`📋 Sort verification: First stop time = ${parseTimeToMinutes(sortedStops[0]?.delivery?.delivery_time_start)} min, Last = ${parseTimeToMinutes(sortedStops[sortedStops.length-1]?.delivery?.delivery_time_start)} min`);
     
     console.log('📋 AFTER SORT - Stops sorted by delivery_time_start:');
     sortedStops.forEach((stop, i) => {
