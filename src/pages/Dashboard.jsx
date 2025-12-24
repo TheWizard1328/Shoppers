@@ -659,7 +659,7 @@ function Dashboard() {
       inTransit: 0,
       completed: 0,
       failed: 0, returned: 0,
-      totalDrivers: 0, inTransitDrivers: 0, completedDrivers: 0
+      totalDrivers: 0, inTransitDrivers: 0, completedDrivers: 0, totalPickups: 0
     };
 
     const patientMap = new Map((patients || []).filter((p) => p && p.id).map((p) => [p.id, p]));
@@ -699,6 +699,9 @@ function Dashboard() {
       return false;
     }).length;
 
+    // CRITICAL: Calculate pickup count for drivers (total pickups in route)
+    const totalPickups = relevantDeliveries.filter(d => d && !d.patient_id).length;
+
     // DISPATCHER: Calculate unique driver counts for superscript (from all deliveries, not just patient deliveries)
     let totalDrivers = 0;
     let inTransitDrivers = 0;
@@ -721,7 +724,7 @@ function Dashboard() {
       completedDrivers = completedDriverIds.size;
     }
 
-    return { total, inTransit, completed, failed, returned, totalDrivers, inTransitDrivers, completedDrivers };
+    return { total, inTransit, completed, failed, returned, totalDrivers, inTransitDrivers, completedDrivers, totalPickups };
   }, [filteredDeliveries, patients, isDispatcher, currentUser?.store_ids]);
 
   const isDateFinished = useMemo(() => {
@@ -817,11 +820,15 @@ function Dashboard() {
   }, [currentUser, selectedDate, deliveries]);
 
   const tooltipValues = useMemo(() => ({
-    total: isDispatcher ? `Total: ${stats.total} stops (${stats.totalDrivers} drivers)` : `Total: ${stats.total} stops`,
+    total: isDispatcher 
+      ? `Total: ${stats.total} stops (${stats.totalDrivers} drivers)` 
+      : (isDriver && stats.totalPickups > 0)
+        ? `Total: ${stats.total} stops (${stats.totalPickups} pickups)`
+        : `Total: ${stats.total} stops`,
     inTransit: isDispatcher ? `In-Transit: ${stats.inTransit} stops (${stats.inTransitDrivers} drivers)` : `In-Transit: ${stats.inTransit} stops`,
     completed: isDispatcher ? `Completed: ${stats.completed} stops (${stats.completedDrivers} drivers)` : `Completed: ${stats.completed} stops`,
     failed: `${stats.failed} Failed / ${stats.returned} Returned`
-  }), [stats, isDispatcher]);
+  }), [stats, isDispatcher, isDriver]);
 
   const nextStop = useMemo(() => {
     if (!isDriver || !currentUser || !filteredDeliveries || !Array.isArray(filteredDeliveries) || filteredDeliveries.length === 0) return null;
@@ -5950,7 +5957,7 @@ function Dashboard() {
                 <StatBadge
                   icon={Package}
                   value={stats.total}
-                  driverCount={isDispatcher ? stats.totalDrivers : undefined}
+                  driverCount={isDispatcher ? stats.totalDrivers : (isDriver && stats.totalPickups > 0 ? stats.totalPickups : undefined)}
                   color="blue"
                   label="Total"
                   tooltip={tooltipValues.total} />
