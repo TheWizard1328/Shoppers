@@ -1859,7 +1859,7 @@ export default function DeliveryForm({
         for (const updated of existingDeliveries) {
           try {
             console.log(`[AddToRoute] 🔄 Updating delivery ${updated.id}: ${updated.patient_name}`);
-            console.log(`   - Status: ${updated.status}`);
+            console.log(`   - Old Status: ${updated.status}`);
             console.log(`   - Time window: ${updated.time_window_start} - ${updated.time_window_end}`);
 
             // CRITICAL: Convert 'Staged' to 'pending' for existing deliveries (same logic as new deliveries)
@@ -1906,9 +1906,12 @@ export default function DeliveryForm({
               time_window_end: updated.time_window_end || ''
             };
 
-            // CRITICAL: Use local update to ensure immediate UI sync and offline support
-            await updateDeliveryLocal(updated.id, updateData);
-            console.log(`[AddToRoute] ✅ Updated delivery: ${updated.patient_name}`);
+            console.log(`[AddToRoute] 🔄 New Status will be: ${updateData.status}`);
+
+            // CRITICAL: Use backend update directly - local update doesn't work for pending deliveries
+            const { base44 } = await import('@/api/base44Client');
+            await base44.entities.Delivery.update(updated.id, updateData);
+            console.log(`[AddToRoute] ✅ Updated delivery: ${updated.patient_name} to status ${updateData.status}`);
           } catch (error) {
             // Skip deliveries that were deleted
             if (error.message?.includes('not found') || error.response?.status === 404) {
@@ -1921,6 +1924,10 @@ export default function DeliveryForm({
           }
         }
         console.log('[AddToRoute] ✅ All existing deliveries updated');
+        
+        // CRITICAL: Invalidate cache and trigger refresh for existing deliveries
+        const { invalidate } = await import('../utils/dataManager');
+        invalidate('Delivery');
       }
 
       // Then save new deliveries OR trigger data refresh
