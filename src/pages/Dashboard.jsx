@@ -727,18 +727,19 @@ function Dashboard() {
       return drivers;
     }
 
-    // DISPATCHER: Show all drivers in the same city, highlight those with dispatcher's store deliveries
+    // DISPATCHER: Show all drivers in the same city, highlight those with dispatcher's store deliveries for SELECTED DATE
     if (userHasRole(currentUser, 'dispatcher')) {
       const dispatcherCityId = currentUser.city_id;
       const dispatcherStoreIds = currentUser.store_ids || [];
+      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
 
       // Get all drivers in the same city
       const driversInCity = drivers.filter((d) => d && d.city_id === dispatcherCityId);
 
-      // Get unique driver IDs that have deliveries for dispatcher's stores (for highlighting)
+      // Get unique driver IDs that have deliveries for dispatcher's stores ON THE SELECTED DATE (for highlighting)
       const driversWithStoreDeliveries = new Set(
         deliveries?.
-        filter((d) => d && dispatcherStoreIds.includes(d.store_id)).
+        filter((d) => d && d.delivery_date === selectedDateStr && dispatcherStoreIds.includes(d.store_id)).
         map((d) => d.driver_id).
         filter(Boolean)
       );
@@ -752,7 +753,7 @@ function Dashboard() {
 
     // OTHER ROLES: Return all drivers
     return drivers;
-  }, [drivers, currentUser, deliveries]);
+  }, [drivers, currentUser, deliveries, selectedDate]);
 
   const shouldShowLocationToggle = useMemo(() =>
   isMobile && isDriver && !userHasRole(currentUser, 'dispatcher'),
