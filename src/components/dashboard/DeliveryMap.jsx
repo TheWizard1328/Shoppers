@@ -1181,19 +1181,8 @@ export default function DeliveryMap({
       if (onMapInteraction) onMapInteraction();
       
       if (fannedLocationKey === locationKey) {
-        // Already fanned - clicking again should select the marker
+        // Already fanned - clicking again should retract
         setFannedLocationKey(null);
-        
-        // CRITICAL: For pending deliveries, select the assigned pickup instead
-        if (marker.status === 'pending' && marker.puid) {
-          const assignedPickup = pickupMarkers.find(p => p && p.stop_id === marker.puid);
-          if (assignedPickup && onMarkerClick) {
-            onMarkerClick(assignedPickup);
-            return;
-          }
-        }
-        
-        if (onMarkerClick) onMarkerClick(marker);
         return;
       }
       
@@ -1240,7 +1229,7 @@ export default function DeliveryMap({
         setFannedLocationKey(locationKey);
       }
       
-      // Don't call onMarkerClick when first clicking cluster - only when already fanned
+      // Don't call onMarkerClick when clicking cluster
       return;
     }
     
@@ -2492,15 +2481,43 @@ export default function DeliveryMap({
                 }
               }}>
 
-              {/* Only show popup for non-clustered markers or expanded cluster markers - HIDE for simple circles */}
-              {!pickup.useSimpleCircle && (!isClustered || isFanned) && !pickup.isOtherDriver && ( // NEW: Don't show detailed popup for other drivers
-                <Popup
-                  autoPan={false}
-                  closeButton={false}
-                  offset={[0, -20]}
-                  className="custom-popup">
-                  <DeliveryPopup delivery={pickup} isPickup={true} />
-                </Popup>
+              {/* Show popup for non-clustered markers or expanded cluster markers */}
+              {!pickup.useSimpleCircle && !pickup.isOtherDriver && (
+                isClustered && !isFanned ? (
+                  // Clustered markers show unified popup with all marker info
+                  <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
+                    <div className="min-w-[200px] max-w-[300px] space-y-2">
+                      <div className="font-semibold text-sm pb-1 border-b" style={{ color: 'var(--text-slate-900)', borderColor: 'var(--border-slate-200)' }}>
+                        {pickup.duplicateCount} stops at this location
+                      </div>
+                      {(() => {
+                        const locationKey = `${pickup.latitude.toFixed(6)},${pickup.longitude.toFixed(6)}`;
+                        const pickupsAtLocation = groupedPickupMarkers.get(locationKey) || [];
+                        const deliveriesAtLocation = groupedDeliveryMarkers.get(locationKey) || [];
+                        const allMarkersAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation]
+                          .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+                        
+                        return allMarkersAtLocation.map((m, idx) => (
+                          <div key={`cluster-item-${m.id}`} className="text-xs py-1 border-b last:border-0" style={{ borderColor: 'var(--border-slate-200)' }}>
+                            <div className="font-medium" style={{ color: 'var(--text-slate-900)' }}>
+                              #{m.number || m.stop_order} - {m.markerType === 'pickup' ? m.store?.name : m.patient?.full_name}
+                            </div>
+                            {m.delivery_time_eta && (
+                              <div className="text-[11px]" style={{ color: 'var(--text-slate-600)' }}>
+                                ETA: {m.delivery_time_eta}
+                              </div>
+                            )}
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </Popup>
+                ) : (
+                  // Non-clustered or fanned markers show full details
+                  <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
+                    <DeliveryPopup delivery={pickup} isPickup={true} />
+                  </Popup>
+                )
               )}
               {/* NEW: Simple popup for other drivers' pickups */}
               {pickup.isOtherDriver && (
@@ -2670,15 +2687,43 @@ export default function DeliveryMap({
                 }
               }}>
 
-              {/* Only show popup for non-clustered markers or expanded cluster markers - HIDE for simple circles */}
-              {!delivery.useSimpleCircle && (!isClustered || isFanned) && !delivery.isOtherDriver && ( // NEW: Don't show detailed popup for other drivers
-                <Popup
-                  autoPan={false}
-                  closeButton={false}
-                  offset={[0, -20]}
-                  className="custom-popup">
-                  <DeliveryPopup delivery={delivery} isPickup={false} />
-                </Popup>
+              {/* Show popup for non-clustered markers or expanded cluster markers */}
+              {!delivery.useSimpleCircle && !delivery.isOtherDriver && (
+                isClustered && !isFanned ? (
+                  // Clustered markers show unified popup with all marker info
+                  <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
+                    <div className="min-w-[200px] max-w-[300px] space-y-2">
+                      <div className="font-semibold text-sm pb-1 border-b" style={{ color: 'var(--text-slate-900)', borderColor: 'var(--border-slate-200)' }}>
+                        {delivery.duplicateCount} stops at this location
+                      </div>
+                      {(() => {
+                        const locationKey = `${delivery.latitude.toFixed(6)},${delivery.longitude.toFixed(6)}`;
+                        const pickupsAtLocation = groupedPickupMarkers.get(locationKey) || [];
+                        const deliveriesAtLocation = groupedDeliveryMarkers.get(locationKey) || [];
+                        const allMarkersAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation]
+                          .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+                        
+                        return allMarkersAtLocation.map((m, idx) => (
+                          <div key={`cluster-item-${m.id}`} className="text-xs py-1 border-b last:border-0" style={{ borderColor: 'var(--border-slate-200)' }}>
+                            <div className="font-medium" style={{ color: 'var(--text-slate-900)' }}>
+                              #{m.number || m.stop_order} - {m.markerType === 'pickup' ? m.store?.name : m.patient?.full_name}
+                            </div>
+                            {m.delivery_time_eta && (
+                              <div className="text-[11px]" style={{ color: 'var(--text-slate-600)' }}>
+                                ETA: {m.delivery_time_eta}
+                              </div>
+                            )}
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </Popup>
+                ) : (
+                  // Non-clustered or fanned markers show full details
+                  <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
+                    <DeliveryPopup delivery={delivery} isPickup={false} />
+                  </Popup>
+                )
               )}
               {/* NEW: Simple popup for other drivers' deliveries */}
               {delivery.isOtherDriver && (
