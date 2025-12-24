@@ -442,29 +442,60 @@ Deno.serve(async (req) => {
       };
     }).filter(s => s.lat && s.lng);
 
-    // CRITICAL: Separate pickups and deliveries - pickups MUST be in scheduled time order (NEVER optimized by distance)
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // STEP 1: Sort ALL stops by delivery_time_start FIRST
+    // This ensures pickups come before their deliveries naturally
+    // ═══════════════════════════════════════════════════════════════════════════════
+    
+    console.log('📋 STEP 1: Sorting ALL stops by delivery_time_start...');
+    
+    // Sort stops by delivery_time_start
+    const sortedStops = [...stops].map((stop, originalIdx) => ({ ...stop, originalIdx }));
+    sortedStops.sort((a, b) => {
+      const aTimeStart = a.delivery.delivery_time_start;
+      const bTimeStart = b.delivery.delivery_time_start;
+      
+      let aMinutes = Infinity;
+      let bMinutes = Infinity;
+      
+      if (aTimeStart) {
+        const [aH, aM] = aTimeStart.split(':').map(Number);
+        aMinutes = aH * 60 + aM;
+      }
+      if (bTimeStart) {
+        const [bH, bM] = bTimeStart.split(':').map(Number);
+        bMinutes = bH * 60 + bM;
+      }
+      
+      return aMinutes - bMinutes;
+    });
+    
+    console.log('📋 Stops sorted by delivery_time_start:');
+    sortedStops.forEach((stop, i) => {
+      const isPickup = !stop.delivery.patient_id;
+      console.log(`   ${i+1}. ${isPickup ? '📦 PICKUP' : '📬 DELIVERY'}: ${stop.delivery.patient_name || 'Unknown'} @ ${stop.delivery.delivery_time_start || 'no time'}`);
+    });
+    
+    // Now separate into pickups and deliveries (maintaining time-sorted order)
     const pickupStops = [];
     const deliveryStops = [];
     
-    for (let i = 0; i < stops.length; i++) {
-      const stop = stops[i];
+    for (let i = 0; i < sortedStops.length; i++) {
+      const stop = sortedStops[i];
       
       // A pickup is identified by: NO patient_id (store pickup, not patient delivery)
-      // Pickups have store coordinates, deliveries have patient coordinates
       const isPickup = !stop.delivery.patient_id;
       
       if (isPickup) {
-        // Regular pickup - MUST preserve scheduled time order
-        pickupStops.push({ ...stop, idx: i });
-        console.log(`   [PICKUP] idx=${i}: ${stop.delivery.patient_name || 'Pickup'} @ ${stop.delivery.delivery_time_start || 'no time'} stop_id=${stop.delivery.stop_id}`);
+        pickupStops.push({ ...stop, idx: stop.originalIdx });
+        console.log(`   [PICKUP] originalIdx=${stop.originalIdx}: ${stop.delivery.patient_name || 'Pickup'} @ ${stop.delivery.delivery_time_start || 'no time'} stop_id=${stop.delivery.stop_id}`);
       } else {
-        // Patient delivery - can be optimized by distance
-        deliveryStops.push({ ...stop, idx: i });
-        console.log(`   [DELIVERY] idx=${i}: ${stop.delivery.patient_name} puid=${stop.delivery.puid}`);
+        deliveryStops.push({ ...stop, idx: stop.originalIdx });
+        console.log(`   [DELIVERY] originalIdx=${stop.originalIdx}: ${stop.delivery.patient_name} puid=${stop.delivery.puid} @ ${stop.delivery.delivery_time_start || 'no time'}`);
       }
     }
 
-    console.log(`📊 Stops breakdown: ${pickupStops.length} pickups (time-ordered), ${deliveryStops.length} deliveries (optimizable)`);
+    console.log(`📊 Stops breakdown: ${pickupStops.length} pickups (time-ordered), ${deliveryStops.length} deliveries`);
 
     if (stops.length === 0) {
       return Response.json({ 
