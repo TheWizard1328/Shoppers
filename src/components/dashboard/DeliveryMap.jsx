@@ -2802,14 +2802,26 @@ export default function DeliveryMap({
                       <Home className="w-3.5 h-3.5" />
                       {delivery.store?.name || 'Store'}
                     </div>
-                    {(delivery.delivery_time_eta || delivery.delivery_time_start || delivery.actual_delivery_time) && (
-                      <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-slate-600)' }}>
-                        <Clock className="w-3.5 h-3.5" />
-                        {delivery.actual_delivery_time 
-                          ? format(new Date(delivery.actual_delivery_time), 'HH:mm')
-                          : (delivery.delivery_time_eta || delivery.delivery_time_start)}
-                      </div>
-                    )}
+                    {(() => {
+                      const isFinished = FINISHED_STATUSES.includes(delivery.status);
+                      const finishedTime = delivery.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : null;
+                      
+                      if (isFinished && finishedTime) {
+                        return (
+                          <div className="flex items-center gap-1 text-xs text-emerald-600">
+                            <Clock className="w-3.5 h-3.5" />
+                            {finishedTime}
+                          </div>
+                        );
+                      } else if (delivery.delivery_time_eta) {
+                        return (
+                          <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-slate-600)' }}>
+                            ETA: {delivery.delivery_time_eta}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 </Popup>
               )}
