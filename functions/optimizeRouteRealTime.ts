@@ -565,14 +565,14 @@ Deno.serve(async (req) => {
     
     console.log('📦 Pickup order by delivery_time_start (STRICT - no distance sorting):');
     sortedPickups.forEach((p, i) => {
-      console.log(`   ${i+1}. ${p.delivery.patient_name || 'Pickup'} @ ${p.delivery.delivery_time_start || 'no time'}`);
+      console.log(`   ${i+1}. ${p.delivery.patient_name || 'Pickup'} @ ${p.delivery.delivery_time_start || 'no time'} (current stop_order: ${p.delivery.stop_order})`);
     });
 
     // CRITICAL: STRICT STAGE-BASED OPTIMIZATION
-    // Stage 1: Pickups in STRICT scheduled time order (NEVER optimized)
-    // Stage 2: Each pickup's deliveries optimized by distance from that pickup
+    // Since we ONLY have pickups (no patient deliveries right now), we need to just 
+    // assign stop_order based on the sorted pickup order
     
-    console.log('🎯 [Stage-Based Optimization] Starting STRICT time-ordered pickups with optimized deliveries...');
+    console.log('🎯 [Stage-Based Optimization] Starting STRICT time-ordered pickups...');
     console.log(`📦 ${sortedPickups.length} pickups (time-ordered)`);
     console.log(`📬 ${deliveryStops.length} deliveries (optimizable)`);
     
@@ -580,7 +580,7 @@ Deno.serve(async (req) => {
     for (const pickup of sortedPickups) {
       console.log(`\n📦 Pickup: ${pickup.delivery.patient_name || 'Pickup'} @ ${pickup.delivery.delivery_time_start}`);
       
-      // Add pickup to route
+      // Add pickup to route (use the original index in stops array)
       optimizedRoute.push(pickup.idx);
       
       // Update position and time
@@ -592,7 +592,7 @@ Deno.serve(async (req) => {
         const [h, m] = pickup.delivery.delivery_time_start.split(':').map(Number);
         const pickupMinutes = h * 60 + m;
         if (cumulativeTime < pickupMinutes) {
-          console.log(`   ⏰ Waiting ${pickupMinutes - cumulativeTime} min for pickup window`);
+          console.log(`   ⏰ Waiting ${Math.round(pickupMinutes - cumulativeTime)} min for pickup window`);
           cumulativeTime = pickupMinutes;
         }
       }
@@ -636,7 +636,15 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`\n✅ [Stage-Based Optimization] Complete: ${optimizedRoute.length} stops optimized using recursive shortest-path`);
+    console.log(`\n✅ [Stage-Based Optimization] Complete: ${optimizedRoute.length} stops in optimizedRoute`);
+    console.log(`📋 Final optimizedRoute indices: ${optimizedRoute.join(', ')}`);
+    
+    // Debug: Show what the final order will be
+    console.log('📋 Final route order:');
+    optimizedRoute.forEach((idx, i) => {
+      const stop = stops[idx];
+      console.log(`   #${startingStopOrder + i + 1}: ${stop.delivery.patient_name || 'Pickup'} @ ${stop.delivery.delivery_time_start || 'no time'}`);
+    });
 
     // Check if route changed
     const oldOrder = stops.map(s => s.currentOrder).join(',');
