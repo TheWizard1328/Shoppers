@@ -765,11 +765,14 @@ Deno.serve(async (req) => {
     // CRITICAL: ETAs must be calculated SEQUENTIALLY from isNextDelivery (or driver if no isNextDelivery)
     // Each stop's ETA = previous stop's ETA + service time + travel time to this stop
     const updates = [];
+    
+    // CRITICAL: Adjust starting stop order - if isNextDelivery exists, it took one slot
+    const optimizedStartingOrder = isNextDeliveryStopData ? startingStopOrder + 1 : startingStopOrder;
 
     for (let i = 0; i < optimizedRoute.length; i++) {
       const stopIdx = optimizedRoute[i];
       const stop = stops[stopIdx];
-      const newStopOrder = startingStopOrder + i + 1;
+      const newStopOrder = optimizedStartingOrder + i + 1;
 
       // Get real travel time from Google Directions API legs
       // directionsLegs[i] = travel time from previous point to this stop
