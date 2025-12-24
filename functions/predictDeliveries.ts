@@ -1,4 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 import { format } from 'npm:date-fns@3.6.0';
 
 Deno.serve(async (req) => {
@@ -141,7 +141,8 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Failed to fetch historical deliveries', details: histError.message }, { status: 500 });
     }
 
-    // Fetch existing deliveries for target date (all drivers) to check for duplicates
+    // Fetch existing deliveries for target date (ALL drivers, ALL statuses) to check for duplicates
+    // CRITICAL: This ensures we don't project deliveries that are already assigned to ANY driver
     let existingDeliveries;
     try {
       let rawExisting = await base44.asServiceRole.entities.Delivery.filter({
@@ -160,13 +161,30 @@ Deno.serve(async (req) => {
       }
       
       existingDeliveries = Array.isArray(rawExisting) ? rawExisting : [];
-      console.log('[predictDeliveries] Existing deliveries for target date:', existingDeliveries.length);
+      console.log('[predictDeliveries] Existing deliveries for target date (all drivers):', existingDeliveries.length);
+      
+      // Log breakdown by status for debugging
+      const statusCounts = {};
+      existingDeliveries.forEach(d => {
+        if (d && d.status) {
+          statusCounts[d.status] = (statusCounts[d.status] || 0) + 1;
+        }
+      });
+      console.log('[predictDeliveries] Existing deliveries by status:', statusCounts);
+      
     } catch (existError) {
       console.error('[predictDeliveries] Error fetching existing deliveries:', existError);
       return Response.json({ error: 'Failed to fetch existing deliveries', details: existError.message }, { status: 500 });
     }
 
-    const existingPatientIds = new Set(existingDeliveries.map(d => d && d.patient_id).filter(Boolean));
+    // CRITICAL: Exclude patients who already have deliveries for this date (regardless of driver or status)
+    // This prevents duplicate predictions for patients already in any driver's route
+    const existingPatientIds = new Set(
+      existingDeliveries
+        .filter(d => d && d.patient_id && d.status !== 'cancelled') // Only exclude non-cancelled deliveries
+        .map(d => d.patient_id)
+    );
+    console.log('[predictDeliveries] Patient IDs already scheduled (excluding cancelled):', existingPatientIds.size);
 
     const predictions = [];
     const targetDayOfWeek = targetDate.getDay(); // 0=Sunday, 6=Saturday
