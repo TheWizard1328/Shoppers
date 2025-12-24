@@ -69,7 +69,7 @@ import QuickRouteAdjustments from '../components/dashboard/QuickRouteAdjustments
 import { driverActivityMonitor } from '@/components/utils/driverActivityMonitor';
 
 // FIXED: StatBadge - always render with consistent hook structure
-const StatBadge = ({ icon: Icon, value, color, label, tooltip, pickupCount, driverCount }) => {
+const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount }) => {
   // ALWAYS calculate color class (hook-like behavior should be consistent)
   const colorClasses = useMemo(() => ({
     blue: "bg-blue-100 text-blue-600",
@@ -86,11 +86,6 @@ const StatBadge = ({ icon: Icon, value, color, label, tooltip, pickupCount, driv
         <Icon className="w-3.5 h-3.5" />
       </div>
       <div className="relative">
-        {pickupCount !== undefined && pickupCount > 0 &&
-      <span className="absolute -top-1 -left-1 text-[9px] font-bold" style={{ color: 'var(--text-slate-500)' }}>
-            {pickupCount}
-          </span>
-      }
         {driverCount !== undefined && driverCount > 0 &&
       <span className="absolute -top-1 -right-1 text-[9px] font-bold" style={{ color: 'var(--text-slate-500)' }}>
             {driverCount}
@@ -648,11 +643,19 @@ function Dashboard() {
 
 
   const stats = useMemo(() => {
-    const safeDeliveries = filteredDeliveries || [];
+    // DISPATCHER: Filter to only dispatcher's store deliveries
+    let relevantDeliveries = filteredDeliveries || [];
+    
+    if (isDispatcher && currentUser?.store_ids) {
+      const dispatcherStoreIds = new Set(currentUser.store_ids);
+      relevantDeliveries = relevantDeliveries.filter(d => d && dispatcherStoreIds.has(d.store_id));
+    }
+
+    const safeDeliveries = relevantDeliveries;
     if (!Array.isArray(safeDeliveries)) return {
-      total: 0, totalPickups: 0,
-      inTransit: 0, inTransitPickups: 0,
-      completed: 0, completedPickups: 0,
+      total: 0,
+      inTransit: 0,
+      completed: 0,
       failed: 0, returned: 0,
       totalDrivers: 0, inTransitDrivers: 0, completedDrivers: 0
     };
@@ -666,39 +669,30 @@ function Dashboard() {
       const patientName = delivery.patient_name || '';
       const patientFullName = patient?.full_name || '';
 
-      // Check for "(RTN)" marker (case-insensitive)
       if (notes.toLowerCase().includes('(rtn)') || patientName.toLowerCase().includes('(rtn)') || patientFullName.toLowerCase().includes('(rtn)')) {
         return true;
       }
 
-      // Check for "Return" as a word (case-insensitive) - look for word boundaries
       const returnRegex = /\breturn\b/i;
       return returnRegex.test(notes) || returnRegex.test(patientName) || returnRegex.test(patientFullName);
     };
 
     const total = safeDeliveries.length;
-    const totalPickups = safeDeliveries.filter((d) => d && !d.patient_id).length;
 
     const inTransitDeliveries = safeDeliveries.filter((d) => d && (d.status === 'in_transit' || d.status === 'en_route'));
     const inTransit = inTransitDeliveries.length;
-    const inTransitPickups = inTransitDeliveries.filter((d) => !d.patient_id).length;
 
-    // CRITICAL: Only count 'completed' status, explicitly exclude returns
     const completedDeliveries = safeDeliveries.filter((d) => {
       if (!d || d.status !== 'completed') return false;
-      // Exclude returns from completed count
       if (isReturn(d)) return false;
       return true;
     });
     const completed = completedDeliveries.length;
-    const completedPickups = completedDeliveries.filter((d) => !d.patient_id).length;
 
     const returned = safeDeliveries.filter(isReturn).length;
     const failed = safeDeliveries.filter((d) => {
       if (!d) return false;
-      // Failed deliveries (not returns)
       if (d.status === 'failed' && !isReturn(d)) return true;
-      // Cancelled pickups (no patient_id)
       if (d.status === 'cancelled' && !d.patient_id) return true;
       return false;
     }).length;
@@ -719,8 +713,8 @@ function Dashboard() {
       completedDrivers = completedDriverIds.size;
     }
 
-    return { total, totalPickups, inTransit, inTransitPickups, completed, completedPickups, failed, returned, totalDrivers, inTransitDrivers, completedDrivers };
-  }, [filteredDeliveries, patients, isDispatcher]);
+    return { total, inTransit, completed, failed, returned, totalDrivers, inTransitDrivers, completedDrivers };
+  }, [filteredDeliveries, patients, isDispatcher, currentUser?.store_ids]);
 
   const isDateFinished = useMemo(() => {
     const today = startOfDay(new Date());
@@ -815,11 +809,11 @@ function Dashboard() {
   }, [currentUser, selectedDate, deliveries]);
 
   const tooltipValues = useMemo(() => ({
-    total: `Total: ${stats.total - stats.totalPickups} deliveries${stats.totalPickups > 0 ? ` + ${stats.totalPickups} pickups` : ''}`,
-    inTransit: `In-Transit: ${stats.inTransit - stats.inTransitPickups} deliveries${stats.inTransitPickups > 0 ? ` + ${stats.inTransitPickups} pickups` : ''}`,
-    completed: `Completed: ${stats.completed - stats.completedPickups} deliveries${stats.completedPickups > 0 ? ` + ${stats.completedPickups} pickups` : ''}`,
+    total: isDispatcher ? `Total: ${stats.total} stops (${stats.totalDrivers} drivers)` : `Total: ${stats.total} stops`,
+    inTransit: isDispatcher ? `In-Transit: ${stats.inTransit} stops (${stats.inTransitDrivers} drivers)` : `In-Transit: ${stats.inTransit} stops`,
+    completed: isDispatcher ? `Completed: ${stats.completed} stops (${stats.completedDrivers} drivers)` : `Completed: ${stats.completed} stops`,
     failed: `${stats.failed} Failed / ${stats.returned} Returned`
-  }), [stats]);
+  }), [stats, isDispatcher]);
 
   const nextStop = useMemo(() => {
     if (!isDriver || !currentUser || !filteredDeliveries || !Array.isArray(filteredDeliveries) || filteredDeliveries.length === 0) return null;
@@ -5886,24 +5880,21 @@ function Dashboard() {
               <div className="flex items-center gap-2 flex-wrap">
                 <StatBadge
                   icon={Package}
-                  value={stats.total - stats.totalPickups}
-                  pickupCount={stats.totalPickups}
+                  value={stats.total}
                   driverCount={isDispatcher ? stats.totalDrivers : undefined}
                   color="blue"
                   label="Total"
                   tooltip={tooltipValues.total} />
                 <StatBadge
                   icon={Truck}
-                  value={stats.inTransit - stats.inTransitPickups}
-                  pickupCount={stats.inTransitPickups}
+                  value={stats.inTransit}
                   driverCount={isDispatcher ? stats.inTransitDrivers : undefined}
                   color="purple"
                   label="In Transit"
                   tooltip={tooltipValues.inTransit} />
                 <StatBadge
                   icon={CheckCircle}
-                  value={stats.completed - stats.completedPickups}
-                  pickupCount={stats.completedPickups}
+                  value={stats.completed}
                   driverCount={isDispatcher ? stats.completedDrivers : undefined}
                   color="green"
                   label="Completed"
