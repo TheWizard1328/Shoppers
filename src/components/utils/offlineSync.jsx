@@ -14,6 +14,7 @@ const { Patient: PatientEntity, Delivery: DeliveryEntity } = { Patient, Delivery
 const BATCH_SIZE = 500; // Fetch records in batches to avoid memory issues
 const SYNC_DELAY_BETWEEN_BATCHES = 1500; // 1500ms delay between batches to avoid rate limits
 const FULL_SYNC_CHECK_INTERVAL = 24 * 60 * 60 * 1000; // Check for full sync every 24 hours
+const LOCAL_CACHE_DAYS = 90; // 3 months of historical data in local cache
 
 let syncInProgress = false;
 let syncPaused = false; // CRITICAL: Pause sync during route optimization
@@ -232,8 +233,8 @@ const syncDeliveries = async (selectedDate = null, forceFullSync = false) => {
       }
     }
     
-    // Past dates (1 to 30 days ago, skipping today and selected date)
-    for (let i = 1; i <= 30; i++) {
+    // Past dates (1 to 90 days ago, skipping today and selected date) - 3 months of history
+    for (let i = 1; i <= LOCAL_CACHE_DAYS; i++) {
       const pastDate = new Date(today);
       pastDate.setDate(today.getDate() - i);
       const pastDateStr = format(pastDate, 'yyyy-MM-dd');
@@ -570,7 +571,7 @@ export const performBidirectionalSync = async () => {
       datesToCheck.push(format(futureDate, 'yyyy-MM-dd'));
     }
     
-    for (let i = 1; i <= 30; i++) {
+    for (let i = 1; i <= LOCAL_CACHE_DAYS; i++) {
       const pastDate = new Date(today);
       pastDate.setDate(today.getDate() - i);
       datesToCheck.push(format(pastDate, 'yyyy-MM-dd'));
