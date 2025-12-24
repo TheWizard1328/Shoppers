@@ -36,8 +36,8 @@ const DRIVER_COLORS = [
 
 // Helper function to determine text color for driver colors
 const getDriverTextColor = (driverColor) => {
-  // Bright magenta needs black text for readability
-  if (driverColor === '#D946EF') return 'black';
+  // Electric Cyan needs black text for readability
+  if (driverColor === '#7FDBFF') return 'black';
   return 'white';
 };
 
