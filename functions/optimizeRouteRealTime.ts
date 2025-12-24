@@ -449,19 +449,18 @@ Deno.serve(async (req) => {
     for (let i = 0; i < stops.length; i++) {
       const stop = stops[i];
       
-      // A pickup is identified by: has puid AND no patient_id (store pickup, not patient delivery)
-      const isPickup = stop.delivery.puid && !stop.delivery.patient_id;
+      // A pickup is identified by: NO patient_id (store pickup, not patient delivery)
+      // Pickups have store coordinates, deliveries have patient coordinates
+      const isPickup = !stop.delivery.patient_id;
       
       if (isPickup) {
         // Regular pickup - MUST preserve scheduled time order
         pickupStops.push({ ...stop, idx: i });
-        console.log(`   [PICKUP] idx=${i}: ${stop.delivery.patient_name || 'Pickup'} @ ${stop.delivery.delivery_time_start || 'no time'}`);
-      } else if (stop.delivery.patient_id) {
-        // Patient delivery - can be optimized
-        deliveryStops.push({ ...stop, idx: i });
-        console.log(`   [DELIVERY] idx=${i}: ${stop.delivery.patient_name}`);
+        console.log(`   [PICKUP] idx=${i}: ${stop.delivery.patient_name || 'Pickup'} @ ${stop.delivery.delivery_time_start || 'no time'} stop_id=${stop.delivery.stop_id}`);
       } else {
-        console.log(`   [UNKNOWN] idx=${i}: ${stop.delivery.patient_name || 'Unknown'} puid=${stop.delivery.puid} patient_id=${stop.delivery.patient_id}`);
+        // Patient delivery - can be optimized by distance
+        deliveryStops.push({ ...stop, idx: i });
+        console.log(`   [DELIVERY] idx=${i}: ${stop.delivery.patient_name} puid=${stop.delivery.puid}`);
       }
     }
 
