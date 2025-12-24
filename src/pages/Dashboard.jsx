@@ -6338,9 +6338,15 @@ function Dashboard() {
 
             <HorizontalStopCards
               pickupCards={deliveriesWithStopOrder.
-              filter((delivery) => delivery && delivery.status !== 'pending') // Hide pending deliveries from cards
+              filter((delivery) => delivery) // CRITICAL: Show ALL deliveries (including pending) - filtering handled in map below
               .map((delivery) => {
                 if (!delivery) return delivery;
+
+                // CRITICAL: Hide pending patient deliveries from cards (they attach to pickups)
+                // BUT keep pending pickups visible (they can exist independently)
+                if (delivery.status === 'pending' && delivery.patient_id) {
+                  return null; // Filter out pending patient deliveries
+                }
 
                 // For pickups with status 'en_route', attach pending deliveries
                 if (!delivery.patient_id && delivery.status === 'en_route' && delivery.puid) {
@@ -6405,7 +6411,7 @@ function Dashboard() {
                 }
 
                 return delivery;
-              })}
+              }).filter(Boolean)} // CRITICAL: Filter out null entries (pending patient deliveries)
               onCardClick={handleCardClick}
               selectedCardId={selectedCardId}
               stores={stores}
