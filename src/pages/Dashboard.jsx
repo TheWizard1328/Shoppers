@@ -5934,26 +5934,34 @@ function Dashboard() {
                             localStorage.setItem('rxdeliver_show_all_driver_markers', String(checked));
                             
                             // CRITICAL: Re-trigger FAB phase 1 to re-fit bounds with/without other drivers' markers
+                            // Delay activation to allow state to propagate, then unlock after 500ms
                             if (mapViewPhase === 1) {
-                              setIsMapViewLocked(true);
-                              lastProgrammaticMapMoveRef.current = Date.now();
-                              window._lastProgrammaticMapMove = Date.now();
-                              setMapViewTrigger((prev) => prev + 1);
-                              
-                              // Auto-unlock after 3 seconds (Phase 1 behavior)
+                              // Clear any existing timers
                               if (mapLockTimeoutRef.current) {
                                 clearTimeout(mapLockTimeoutRef.current);
+                                mapLockTimeoutRef.current = null;
                               }
-                              const lockDuration = 3000;
-                              const expiresAt = Date.now() + lockDuration;
-                              mapLockExpiresAtRef.current = expiresAt;
-                              mapLockTimeoutRef.current = setTimeout(() => {
-                                if (mapLockExpiresAtRef.current === expiresAt) {
-                                  setIsMapViewLocked(false);
-                                  mapLockExpiresAtRef.current = null;
-                                  mapLockTimeoutRef.current = null;
-                                }
-                              }, lockDuration);
+                              mapLockExpiresAtRef.current = null;
+                              
+                              // Delay FAB activation by 300ms to allow markers to update
+                              setTimeout(() => {
+                                setIsMapViewLocked(true);
+                                lastProgrammaticMapMoveRef.current = Date.now();
+                                window._lastProgrammaticMapMove = Date.now();
+                                setMapViewTrigger((prev) => prev + 1);
+                                
+                                // Auto-unlock after 500ms
+                                const lockDuration = 500;
+                                const expiresAt = Date.now() + lockDuration;
+                                mapLockExpiresAtRef.current = expiresAt;
+                                mapLockTimeoutRef.current = setTimeout(() => {
+                                  if (mapLockExpiresAtRef.current === expiresAt) {
+                                    setIsMapViewLocked(false);
+                                    mapLockExpiresAtRef.current = null;
+                                    mapLockTimeoutRef.current = null;
+                                  }
+                                }, lockDuration);
+                              }, 300);
                             }
                           }}
                           className="h-4 w-4"
