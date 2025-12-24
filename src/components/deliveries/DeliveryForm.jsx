@@ -1966,6 +1966,28 @@ export default function DeliveryForm({
         console.log('[AddToRoute] 🔄 Triggering data refresh for existing delivery updates...');
         const { invalidate } = await import('../utils/dataManager');
         invalidate('Delivery');
+        
+        // Wait for mutations to propagate
+        await new Promise((resolve) => setTimeout(resolve, 300));
+
+        // Notify FAB system that data is ready
+        const { fabControlEvents } = await import('../utils/fabControlEvents');
+        fabControlEvents.notifyDataReady();
+        console.log('[AddToRoute] ✅ FAB activated after updating existing deliveries');
+
+        // Clear staged deliveries and close form
+        console.log('[AddToRoute] 🧹 Clearing staged deliveries and closing form...');
+        setStagedDeliveries([]);
+        setProjectedDeliveries([]);
+        setHasPendingDeletes(false);
+        setHasChanges(false);
+        hasLoadedPending.current = false;
+        predictionsStopped.current = false;
+        setIsLoadingPredictions(true);
+        console.log('[AddToRoute] ✅ Staged deliveries cleared');
+
+        onCancel(); // Close form after successful update
+        return; // CRITICAL: Exit early to prevent duplicate processing
       }
 
       // Wait for mutations to propagate
