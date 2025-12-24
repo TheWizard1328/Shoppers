@@ -3266,10 +3266,12 @@ function Dashboard() {
               continue;
             }
 
+            // CRITICAL: Use the status from DeliveryForm (already converted from 'Staged' to 'pending' or 'in_transit')
+            // Do NOT override with hardcoded 'pending' - respect what DeliveryForm sent
             stopsToProcess.push({
               isNew: true,
               ...newDelivery,
-              status: 'pending',
+              status: newDelivery.status || 'pending', // Use delivered status or fallback to 'pending'
               latitude: patient.latitude,
               longitude: patient.longitude,
               extra_time: newDelivery.extra_time || 5
