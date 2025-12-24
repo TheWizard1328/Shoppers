@@ -1693,6 +1693,28 @@ export default function RouteImport({
         filesCompleted: prev.totalFiles,
         currentFile: ''
       }));
+
+      // CRITICAL: Save all created/updated deliveries to offline database immediately
+      // This ensures they're available in the UI without waiting for Smart Refresh
+      try {
+        const allImportedDeliveries = [...deliveriesToCreateFiltered, ...deliveriesToUpdateFiltered];
+        if (allImportedDeliveries.length > 0) {
+          console.log(`📱 [RouteImport] Saving ${allImportedDeliveries.length} deliveries to offline database...`);
+          
+          // Clean the deliveries before saving to offline DB
+          const cleanedForOffline = allImportedDeliveries.map(d => {
+            const { _changes, action, _matchReason, ...deliveryData } = d;
+            return cleanDeliveryData(deliveryData);
+          });
+          
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, cleanedForOffline);
+          console.log(`✅ [RouteImport] Successfully saved ${cleanedForOffline.length} deliveries to offline database`);
+        }
+      } catch (offlineError) {
+        console.warn('⚠️ [RouteImport] Failed to save to offline database:', offlineError.message);
+        // Don't fail the import, just log the warning
+      }
+
       setImportResult(overallResults);
       setProgressPercent(100);
       setProgressMessage('Import complete!');
