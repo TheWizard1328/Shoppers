@@ -2499,7 +2499,7 @@ export default function DeliveryMap({
               {!pickup.useSimpleCircle && !pickup.isOtherDriver && (
                 isClustered && !isFanned ? (
                   // Clustered markers show unified popup with all marker info
-                  <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
+                  <Popup autoPan={true} autoPanPadding={[50, 50]} closeButton={false} offset={[0, -20]} className="custom-popup">
                     <div className="min-w-[200px] max-w-[300px] space-y-2">
                       <div className="font-semibold text-sm pb-1 border-b" style={{ color: 'var(--text-slate-900)', borderColor: 'var(--border-slate-200)' }}>
                         {pickup.duplicateCount} stops at this location
@@ -2528,14 +2528,14 @@ export default function DeliveryMap({
                   </Popup>
                 ) : (
                   // Non-clustered or fanned markers show full details
-                  <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
+                  <Popup autoPan={true} autoPanPadding={[50, 50]} closeButton={false} offset={[0, -20]} className="custom-popup">
                     <DeliveryPopup delivery={pickup} isPickup={true} />
                   </Popup>
                 )
               )}
               {/* NEW: Simple popup for other drivers' pickups */}
               {pickup.isOtherDriver && (
-                <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
+                <Popup autoPan={true} autoPanPadding={[50, 50]} closeButton={false} offset={[0, -20]} className="custom-popup">
                   <div className="min-w-[150px] space-y-1.5">
                     <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                       <Truck className="w-3.5 h-3.5" />
@@ -2705,7 +2705,7 @@ export default function DeliveryMap({
               {!delivery.useSimpleCircle && !delivery.isOtherDriver && (
                 isClustered && !isFanned ? (
                   // Clustered markers show unified popup with all marker info
-                  <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
+                  <Popup autoPan={true} autoPanPadding={[50, 50]} closeButton={false} offset={[0, -20]} className="custom-popup">
                     <div className="min-w-[200px] max-w-[300px] space-y-2">
                       <div className="font-semibold text-sm pb-1 border-b" style={{ color: 'var(--text-slate-900)', borderColor: 'var(--border-slate-200)' }}>
                         {delivery.duplicateCount} stops at this location
@@ -2734,14 +2734,14 @@ export default function DeliveryMap({
                   </Popup>
                 ) : (
                   // Non-clustered or fanned markers show full details
-                  <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
+                  <Popup autoPan={true} autoPanPadding={[50, 50]} closeButton={false} offset={[0, -20]} className="custom-popup">
                     <DeliveryPopup delivery={delivery} isPickup={false} />
                   </Popup>
                 )
               )}
               {/* NEW: Simple popup for other drivers' deliveries */}
               {delivery.isOtherDriver && (
-                <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
+                <Popup autoPan={true} autoPanPadding={[50, 50]} closeButton={false} offset={[0, -20]} className="custom-popup">
                   <div className="min-w-[150px] space-y-1.5">
                     <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                       <Truck className="w-3.5 h-3.5" />
