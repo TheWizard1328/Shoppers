@@ -2470,8 +2470,6 @@ export default function DeliveryMap({
               eventHandlers={pickup.isOtherDriver ? {
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
-                  e.target.openPopup();
-                  setTimeout(() => e.target.closePopup(), 3000);
                 },
                 mouseover: (e) => e.target.openPopup(),
                 mouseout: (e) => e.target.closePopup()
@@ -2484,6 +2482,8 @@ export default function DeliveryMap({
                   L.DomEvent.stopPropagation(e);
                   handleMarkerClickForFanning(pickup, 'pickup');
                 },
+                mouseover: (e) => e.target.openPopup(),
+                mouseout: (e) => e.target.closePopup(),
                 dragend: (e) => handleMarkerDragEnd(pickup.id, e, 'pickup')
               }}
               ref={(ref) => {
@@ -2502,10 +2502,10 @@ export default function DeliveryMap({
                   <DeliveryPopup delivery={pickup} isPickup={true} />
                 </Popup>
               )}
-              {/* NEW: Simple popup for other drivers' deliveries */}
+              {/* NEW: Simple popup for other drivers' pickups */}
               {pickup.isOtherDriver && (
                 <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
-                  <div className="min-w-[150px] space-y-1">
+                  <div className="min-w-[150px] space-y-1.5">
                     <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                       <Truck className="w-3.5 h-3.5" />
                       {pickup.driver?.user_name || 'Unknown'}
@@ -2514,6 +2514,14 @@ export default function DeliveryMap({
                       <Home className="w-3.5 h-3.5" />
                       {pickup.store?.name || 'Store'}
                     </div>
+                    {(pickup.delivery_time_eta || pickup.delivery_time_start || pickup.actual_delivery_time) && (
+                      <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-slate-600)' }}>
+                        <Clock className="w-3.5 h-3.5" />
+                        {pickup.actual_delivery_time 
+                          ? format(new Date(pickup.actual_delivery_time), 'HH:mm')
+                          : (pickup.delivery_time_eta || pickup.delivery_time_start)}
+                      </div>
+                    )}
                   </div>
                 </Popup>
               )}
@@ -2640,8 +2648,6 @@ export default function DeliveryMap({
               eventHandlers={delivery.isOtherDriver ? {
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
-                  e.target.openPopup();
-                  setTimeout(() => e.target.closePopup(), 3000);
                 },
                 mouseover: (e) => e.target.openPopup(),
                 mouseout: (e) => e.target.closePopup()
@@ -2654,6 +2660,8 @@ export default function DeliveryMap({
                   L.DomEvent.stopPropagation(e);
                   handleMarkerClickForFanning(delivery, 'delivery');
                 },
+                mouseover: (e) => e.target.openPopup(),
+                mouseout: (e) => e.target.closePopup(),
                 dragend: (e) => handleMarkerDragEnd(delivery.id, e, 'delivery')
               }}
               ref={(ref) => {
@@ -2675,15 +2683,27 @@ export default function DeliveryMap({
               {/* NEW: Simple popup for other drivers' deliveries */}
               {delivery.isOtherDriver && (
                 <Popup autoPan={false} closeButton={false} offset={[0, -20]} className="custom-popup">
-                  <div className="min-w-[150px] space-y-1">
+                  <div className="min-w-[150px] space-y-1.5">
                     <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                       <Truck className="w-3.5 h-3.5" />
                       {delivery.driver?.user_name || 'Unknown'}
                     </div>
                     <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-slate-600)' }}>
-                      <Home className="w-3.5 h-3.5" />
+                      <Package className="w-3.5 h-3.5" />
                       {delivery.patient?.full_name || 'Patient'}
                     </div>
+                    <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-slate-600)' }}>
+                      <Home className="w-3.5 h-3.5" />
+                      {delivery.store?.name || 'Store'}
+                    </div>
+                    {(delivery.delivery_time_eta || delivery.delivery_time_start || delivery.actual_delivery_time) && (
+                      <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-slate-600)' }}>
+                        <Clock className="w-3.5 h-3.5" />
+                        {delivery.actual_delivery_time 
+                          ? format(new Date(delivery.actual_delivery_time), 'HH:mm')
+                          : (delivery.delivery_time_eta || delivery.delivery_time_start)}
+                      </div>
+                    )}
                   </div>
                 </Popup>
               )}
