@@ -699,8 +699,14 @@ function Dashboard() {
       return false;
     }).length;
 
-    // CRITICAL: Calculate pickup count for drivers (total pickups in route)
+    // CRITICAL: Calculate pickup counts for drivers (total, in_transit, completed pickups)
     const totalPickups = relevantDeliveries.filter(d => d && !d.patient_id).length;
+    const inTransitPickups = relevantDeliveries.filter(d => 
+      d && !d.patient_id && (d.status === 'in_transit' || d.status === 'en_route')
+    ).length;
+    const completedPickups = relevantDeliveries.filter(d => 
+      d && !d.patient_id && d.status === 'completed'
+    ).length;
 
     // DISPATCHER: Calculate unique driver counts for superscript (from all deliveries, not just patient deliveries)
     let totalDrivers = 0;
@@ -724,7 +730,11 @@ function Dashboard() {
       completedDrivers = completedDriverIds.size;
     }
 
-    return { total, inTransit, completed, failed, returned, totalDrivers, inTransitDrivers, completedDrivers, totalPickups };
+    return { 
+      total, inTransit, completed, failed, returned, 
+      totalDrivers, inTransitDrivers, completedDrivers, 
+      totalPickups, inTransitPickups, completedPickups 
+    };
   }, [filteredDeliveries, patients, isDispatcher, currentUser?.store_ids]);
 
   const isDateFinished = useMemo(() => {
@@ -825,8 +835,16 @@ function Dashboard() {
       : (isDriver && stats.totalPickups > 0)
         ? `Total: ${stats.total} stops (${stats.totalPickups} pickups)`
         : `Total: ${stats.total} stops`,
-    inTransit: isDispatcher ? `In-Transit: ${stats.inTransit} stops (${stats.inTransitDrivers} drivers)` : `In-Transit: ${stats.inTransit} stops`,
-    completed: isDispatcher ? `Completed: ${stats.completed} stops (${stats.completedDrivers} drivers)` : `Completed: ${stats.completed} stops`,
+    inTransit: isDispatcher 
+      ? `In-Transit: ${stats.inTransit} stops (${stats.inTransitDrivers} drivers)` 
+      : (isDriver && stats.inTransitPickups > 0)
+        ? `In-Transit: ${stats.inTransit} stops (${stats.inTransitPickups} pickups)`
+        : `In-Transit: ${stats.inTransit} stops`,
+    completed: isDispatcher 
+      ? `Completed: ${stats.completed} stops (${stats.completedDrivers} drivers)` 
+      : (isDriver && stats.completedPickups > 0)
+        ? `Completed: ${stats.completed} stops (${stats.completedPickups} pickups)`
+        : `Completed: ${stats.completed} stops`,
     failed: `${stats.failed} Failed / ${stats.returned} Returned`
   }), [stats, isDispatcher, isDriver]);
 
@@ -5964,14 +5982,14 @@ function Dashboard() {
                 <StatBadge
                   icon={Truck}
                   value={stats.inTransit}
-                  driverCount={isDispatcher ? stats.inTransitDrivers : undefined}
+                  driverCount={isDispatcher ? stats.inTransitDrivers : (isDriver && stats.inTransitPickups > 0 ? stats.inTransitPickups : undefined)}
                   color="purple"
                   label="In Transit"
                   tooltip={tooltipValues.inTransit} />
                 <StatBadge
                   icon={CheckCircle}
                   value={stats.completed}
-                  driverCount={isDispatcher ? stats.completedDrivers : undefined}
+                  driverCount={isDispatcher ? stats.completedDrivers : (isDriver && stats.completedPickups > 0 ? stats.completedPickups : undefined)}
                   color="green"
                   label="Completed"
                   tooltip={tooltipValues.completed} />
