@@ -2672,7 +2672,10 @@ function Dashboard() {
       // STEP 5: Resume UI immediately (don't wait for background loads)
       setIsEntityUpdating(false);
 
-      // STEP 5: Auto-select driver based on role
+      // STEP 5.5: Wait for UI to fully render before triggering map
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // STEP 6: Auto-select driver based on role
       const today = startOfDay(new Date());
       const selected = startOfDay(date);
       const isPastDate = selected < today;
@@ -2716,7 +2719,7 @@ function Dashboard() {
         }
       }
 
-      // STEP 6: Trigger map view (non-blocking)
+      // STEP 7: Trigger map view (non-blocking, delayed for rendering)
       setTimeout(() => {
         setIsMapViewLocked(true);
         lastProgrammaticMapMoveRef.current = Date.now();
@@ -2749,9 +2752,9 @@ function Dashboard() {
 
         // CRITICAL: Notify that date change data is ready
         fabControlEvents.notifyDataReady();
-      }, 100);
+      }, 500); // Increased delay to ensure rendering is complete
 
-      // STEP 7: Background loads (non-blocking)
+      // STEP 8: Background loads (non-blocking)
       Promise.all([
       // Load other dates in background if needed
       selectedDriverId !== 'all' ? base44.entities.Delivery.filter({ delivery_date: dateStr }) : Promise.resolve(null)]
@@ -2820,7 +2823,7 @@ function Dashboard() {
         detail: { driverId, deliveryDate: dateStr, triggeredBy: 'driverChange' } 
       }));
 
-      // CRITICAL: Lock FAB and trigger map view after data loads
+      // CRITICAL: Lock FAB and trigger map view after data loads and UI renders
       setTimeout(() => {
 
         // Clear existing timers
@@ -2860,7 +2863,7 @@ function Dashboard() {
 
         // CRITICAL: Notify that driver change data is ready
         fabControlEvents.notifyDataReady();
-      }, 300);
+      }, 500); // Increased delay to ensure rendering is complete
     } catch (error) {
       console.error('❌ [Dashboard] Instant refresh failed:', error);
     } finally {
