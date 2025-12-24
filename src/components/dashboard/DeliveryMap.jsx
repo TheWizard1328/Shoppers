@@ -105,7 +105,8 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
   // Match font size calculation from regular markers (for numbers inside circles)
   const fontSize = 7; // Reduced from 9.5 for smaller circles
   
-  // CRITICAL: Determine text color based on driver color
+  // CRITICAL: Determine text color based on the background (driver) color
+  // borderColor is passed in as the driver/pin color
   const textColor = getDriverTextColor(borderColor);
 
   const icon = L.divIcon({
@@ -113,7 +114,7 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
       <div class="simple-circle-marker" style="
         width: ${baseSize}px;
         height: ${baseSize}px;
-        background-color: ${driverColor};
+        background-color: ${borderColor};
         border-radius: 50%;
         display: flex;
         align-items: center;
