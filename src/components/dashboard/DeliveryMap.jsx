@@ -848,7 +848,8 @@ export default function DeliveryMap({
       // CRITICAL: Fetch other drivers for any user with driver role viewing their own route
       const isDriver = currentUser && userHasRole(currentUser, 'driver');
       
-      if (!isDriver || !isDriverViewingSelf || !selectedDate) {
+      // CRITICAL: Also fetch when showOtherDriverDeliveries is true (checkbox checked)
+      if (!isDriver || !isDriverViewingSelf || !selectedDate || !showOtherDriverDeliveries) {
         setOtherDriverDeliveries([]);
         return;
       }
@@ -867,7 +868,7 @@ export default function DeliveryMap({
     };
 
     fetchOtherDrivers();
-  }, [isDriverViewingSelf, selectedDate, currentUser]);
+  }, [isDriverViewingSelf, selectedDate, currentUser, showOtherDriverDeliveries]);
 
   const { pickups, patientDeliveries } = useMemo(() => {
     // CRITICAL: For any driver viewing their own route, show their markers + mini markers for other drivers
