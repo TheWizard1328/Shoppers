@@ -1862,8 +1862,27 @@ export default function DeliveryForm({
             console.log(`   - Status: ${updated.status}`);
             console.log(`   - Time window: ${updated.time_window_start} - ${updated.time_window_end}`);
 
+            // CRITICAL: Convert 'Staged' to 'pending' for existing deliveries (same logic as new deliveries)
+            let finalStatus = updated.status;
+            if (finalStatus === 'Staged') {
+              // Check if this is an InterStore delivery
+              const patientName = (updated.patient_name || '').toLowerCase();
+              const deliveryNotes = (updated.delivery_notes || '').toLowerCase();
+              const patientNotes = (updated.delivery_instructions || '').toLowerCase();
+              const deliveryAddress = (updated.delivery_address || '').toLowerCase();
+              
+              const isInterStore = patientName.includes('interstore') || 
+                                   deliveryNotes.includes('interstore') || 
+                                   patientNotes.includes('interstore') ||
+                                   deliveryAddress.includes('(isp)') || 
+                                   deliveryAddress.includes('(isd)');
+              
+              finalStatus = isInterStore ? 'in_transit' : 'pending';
+              console.log(`[AddToRoute] 🔄 Converting Staged → ${finalStatus} for: ${updated.patient_name}`);
+            }
+
             const updateData = {
-              status: updated.status,
+              status: finalStatus,
               delivery_notes: updated.delivery_notes || '',
               prescription_number: updated.prescription_number || '',
               cod_total_amount_required: updated.cod_total_amount_required || 0,
