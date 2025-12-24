@@ -69,12 +69,13 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Failed to fetch patients', details: patientError.message }, { status: 500 });
     }
     
-    // Filter patients by store_ids if provided, and exclude inactive patients
+    // Filter patients by store_ids if provided, and ALWAYS exclude inactive patients
     const relevantPatients = store_ids && store_ids.length > 0
-      ? patients.filter(p => p && store_ids.includes(p.store_id) && p.status !== 'inactive')
-      : patients.filter(p => p && p.status !== 'inactive');
+      ? patients.filter(p => p && store_ids.includes(p.store_id) && p.status === 'active')
+      : patients.filter(p => p && p.status === 'active');
 
-    console.log('[predictDeliveries] Relevant patients:', relevantPatients.length);
+    console.log('[predictDeliveries] Relevant active patients:', relevantPatients.length);
+    console.log('[predictDeliveries] Excluded inactive patients:', patients.length - relevantPatients.length);
 
     const targetDate = new Date(delivery_date + 'T00:00:00');
     
@@ -194,8 +195,10 @@ Deno.serve(async (req) => {
     for (const patient of relevantPatients) {
       if (!patient) continue;
 
-      // Skip if patient is inactive (redundant check, but kept for safety)
-      if (patient.status === 'inactive') continue;
+      // Skip if patient is inactive - CRITICAL: inactive patients should never appear in projections
+      if (patient.status === 'inactive') {
+        continue;
+      }
 
       // Skip if already has a delivery scheduled for this date
       if (existingPatientIds.has(patient.id)) continue;
