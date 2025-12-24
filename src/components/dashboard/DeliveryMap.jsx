@@ -27,12 +27,19 @@ L.Icon.Default.mergeOptions({
 const DRIVER_COLORS = [
   '', // Blank color storage for unused 0 index - will be handled by getDriverColor fallback
   '#F012BE', // Hot Pink (Index 1)
-  '#D946EF', // Bright Magenta (Index 2)
+  '#D946EF', // Bright Magenta (Index 2) - needs black text
   '#7FDBFF', // Electric Cyan (Index 3)
   '#0074D9', // Deep Blue (Index 4)
   '#B10DC9', // Royal Purple (Index 5)
   '#001F3F'  // Navy Blue (Index 6)
 ];
+
+// Helper function to determine text color for driver colors
+const getDriverTextColor = (driverColor) => {
+  // Bright magenta needs black text for readability
+  if (driverColor === '#D946EF') return 'black';
+  return 'white';
+};
 
 // NEW: Zoom level thresholds for dynamic display
 const ZOOM_LEVELS = {
@@ -98,8 +105,8 @@ const createSimpleCircleIcon = (status, number, zoomLevel, isMobile = false, bor
   // Match font size calculation from regular markers (for numbers inside circles)
   const fontSize = 7; // Reduced from 9.5 for smaller circles
   
-  // CRITICAL: Driver color index 2 (#D946EF - bright magenta) needs black text for readability
-  const textColor = driverColor === '#D946EF' ? 'black' : 'white';
+  // CRITICAL: Determine text color based on driver color
+  const textColor = getDriverTextColor(borderColor);
 
   const icon = L.divIcon({
     html: `
