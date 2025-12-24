@@ -1240,13 +1240,51 @@ function Dashboard() {
     return () => clearInterval(interval);
   }, [currentUser, fetchPolylineCount]);
 
-  // Get driver's device GPS location for blue dot display (always, regardless of duty status)
+  // Get driver's location for blue dot display
+  // MOBILE: Use device GPS
+  // NON-MOBILE: Use shared location from AppUser entity
   useEffect(() => {
     if (!isDriver || !currentUser) return;
 
     let watchId = null;
 
     const startWatchingPosition = () => {
+      // NON-MOBILE: Use shared location from AppUser entity (no device GPS)
+      if (!isMobile) {
+        console.log('🖥️ [Dashboard] Non-mobile device - using shared location from AppUser');
+        
+        // Set up interval to poll AppUser for shared location
+        const pollSharedLocation = async () => {
+          try {
+            const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
+            const appUser = appUsers?.[0];
+            
+            if (appUser?.current_latitude && appUser?.current_longitude && appUser?.location_updated_at) {
+              const newLocation = {
+                latitude: appUser.current_latitude,
+                longitude: appUser.current_longitude,
+                timestamp: appUser.location_updated_at,
+                accuracy: null, // Shared location doesn't have accuracy
+                source: 'shared_location'
+              };
+              setDriverLocation(newLocation);
+            } else {
+              setDriverLocation(null);
+            }
+          } catch (error) {
+            console.warn('⚠️ [Dashboard] Failed to fetch shared location:', error);
+          }
+        };
+        
+        // Initial poll
+        pollSharedLocation();
+        
+        // Poll every 30 seconds
+        const interval = setInterval(pollSharedLocation, 30000);
+        return () => clearInterval(interval);
+      }
+      
+      // MOBILE: Use device GPS
       if (!navigator.geolocation) {
         console.warn('⚠️ [Dashboard] Geolocation not available on this device');
         return;
@@ -1259,7 +1297,7 @@ function Dashboard() {
             longitude: position.coords.longitude,
             timestamp: new Date(position.timestamp).toISOString(),
             accuracy: position.coords.accuracy,
-            source: 'device_gps' // Always from device for drivers
+            source: 'device_gps'
           };
 
           setDriverLocation(newLocation);
@@ -1407,9 +1445,12 @@ function Dashboard() {
       );
     };
 
-    startWatchingPosition();
+    const cleanup = startWatchingPosition();
 
     return () => {
+      if (cleanup) {
+        cleanup(); // For non-mobile interval cleanup
+      }
       if (watchId !== null) {
         navigator.geolocation.clearWatch(watchId);
       }
