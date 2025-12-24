@@ -420,16 +420,16 @@ const ColumnVisibilityControl = ({ config, visibleColumns, onToggle }) => {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
+        <Button variant="outline" size="sm" className="gap-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
           <Settings className="w-4 h-4" />
           Columns ({visibleColumns.length}/{config.length})
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-64 p-2" align="end">
+      <PopoverContent className="w-64 p-2" align="end" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
         <div className="space-y-2">
-          <h4 className="font-semibold text-sm mb-3 px-1">Toggle Columns</h4>
+          <h4 className="font-semibold text-sm mb-3 px-1" style={{ color: 'var(--text-slate-900)' }}>Toggle Columns</h4>
           {config.map(column => (
-            <div key={column.id} className="flex items-center gap-2 p-1 hover:bg-slate-50 rounded-sm">
+            <div key={column.id} className="flex items-center gap-2 p-1 rounded-sm" style={{ ':hover': { background: 'var(--bg-slate-50)' } }}>
               <Checkbox
                 id={`column-${column.id}`}
                 checked={visibleColumns.includes(column.id)}
@@ -438,7 +438,8 @@ const ColumnVisibilityControl = ({ config, visibleColumns, onToggle }) => {
               />
               <label
                 htmlFor={`column-${column.id}`}
-                className={`text-sm cursor-pointer ${column.alwaysVisible ? 'text-slate-400' : ''}`}
+                className="text-sm cursor-pointer"
+                style={{ color: column.alwaysVisible ? 'var(--text-slate-400)' : 'var(--text-slate-900)' }}
               >
                 {column.label}
                 {column.alwaysVisible && ' (required)'}
@@ -748,9 +749,9 @@ const DeliveryDataTable = ({
   const isSomeSelected = selectedDeliveries.size > 0 && selectedDeliveries.size < (deliveries || []).length;
 
   return (
-    <Card>
+    <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
       <CardHeader>
-        <CardTitle className="flex items-center justify-between">
+        <CardTitle className="flex items-center justify-between" style={{ color: 'var(--text-slate-900)' }}>
           <span>Deliveries</span>
           <div className="flex gap-2">
             <ColumnVisibilityControl
@@ -812,7 +813,7 @@ const DeliveryDataTable = ({
             )}
           </div>
         </CardTitle>
-        <CardDescription>Filtered and sorted list of deliveries by year, month, and driver.</CardDescription>
+        <CardDescription style={{ color: 'var(--text-slate-500)' }}>Filtered and sorted list of deliveries by year, month, and driver.</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="flex flex-wrap gap-3 mb-4">
@@ -865,7 +866,7 @@ const DeliveryDataTable = ({
           />
         </div>
 
-        <div className="mb-2 text-sm text-slate-600">
+        <div className="mb-2 text-sm" style={{ color: 'var(--text-slate-600)' }}>
           {(() => {
             const pickups = (deliveries || []).filter(d => !d.patient_id).length;
             const patientDeliveries = (deliveries || []).filter(d => d.patient_id).length;
@@ -881,10 +882,10 @@ const DeliveryDataTable = ({
           })()}
         </div>
 
-        <div className="border rounded-md overflow-hidden">
+        <div className="border rounded-md overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
           <div className="overflow-x-auto" style={{ maxHeight: '600px' }}>
             <table className="w-full text-sm table-fixed">
-              <thead className="bg-slate-100 border-b sticky top-0 z-10">
+              <thead className="border-b sticky top-0 z-10" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-200)' }}>
                 <tr>
                   <ResizableColumnHeader width={columnWidths.checkbox} onResize={(w) => updateColumnWidth('checkbox', w)}>
                     <Checkbox
@@ -956,7 +957,7 @@ const DeliveryDataTable = ({
                     const dateTime = getDeliveryDateTime(delivery);
                     const driverName = getDriverName(delivery);
                     return (
-                      <tr key={delivery.id} className="border-b hover:bg-slate-50">
+                      <tr key={delivery.id} className="border-b" style={{ borderColor: 'var(--border-slate-200)', ':hover': { background: 'var(--bg-slate-50)' } }}>
                         <td className="p-2">
                           <Checkbox
                             checked={selectedDeliveries.has(delivery.id)}
@@ -966,8 +967,8 @@ const DeliveryDataTable = ({
                         {visibleColumns.includes('date') && (
                           <td className="p-2">
                             <div className="flex flex-col">
-                              <span className="font-medium">{dateTime.date}</span>
-                              <span className="text-xs text-slate-600">{dateTime.time}</span>
+                              <span className="font-medium" style={{ color: 'var(--text-slate-900)' }}>{dateTime.date}</span>
+                              <span className="text-xs" style={{ color: 'var(--text-slate-600)' }}>{dateTime.time}</span>
                             </div>
                           </td>
                         )}
@@ -1005,8 +1006,8 @@ const DeliveryDataTable = ({
                         {visibleColumns.includes('delivery_to') && (
                           <td className="p-2">
                             <div className="flex flex-col">
-                              <span className="font-medium">{info.name}</span>
-                              <span className="text-xs text-slate-600">{info.address}</span>
+                              <span className="font-medium" style={{ color: 'var(--text-slate-900)' }}>{info.name}</span>
+                              <span className="text-xs" style={{ color: 'var(--text-slate-600)' }}>{info.address}</span>
                             </div>
                           </td>
                         )}
@@ -1072,7 +1073,7 @@ const DeliveryDataTable = ({
                     );
                   })
                 ) : (
-                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500">No deliveries found.</td></tr>
+                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center" style={{ color: 'var(--text-slate-500)' }}>No deliveries found.</td></tr>
                 )}
               </tbody>
             </table>
@@ -1118,6 +1119,12 @@ const PatientDataTable = ({
 
   const [duplicateFilter, setDuplicateFilter] = useState('none');
   const [storeFilter, setStoreFilter] = useState('all');
+
+  // Card styling for dark mode
+  const cardStyle = { background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' };
+  const textPrimary = { color: 'var(--text-slate-900)' };
+  const textSecondary = { color: 'var(--text-slate-600)' };
+  const textMuted = { color: 'var(--text-slate-500)' };
 
   const getSortIcon = (columnName) => {
     if (sortColumn === columnName) {
@@ -1327,9 +1334,9 @@ const PatientDataTable = ({
   const isSomeSelected = selectedPatients.size > 0 && selectedPatients.size < filteredPatients.length;
 
   return (
-    <Card>
+    <Card style={cardStyle}>
       <CardHeader>
-        <CardTitle className="flex items-center justify-between">
+        <CardTitle className="flex items-center justify-between" style={textPrimary}>
           <span>Patients</span>
           <div className="flex gap-2">
             <ColumnVisibilityControl
@@ -1359,7 +1366,7 @@ const PatientDataTable = ({
             )}
           </div>
         </CardTitle>
-        <CardDescription>Filtered and sorted list of patients.</CardDescription>
+        <CardDescription style={textMuted}>Filtered and sorted list of patients.</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-3 mb-4">
@@ -1434,10 +1441,10 @@ const PatientDataTable = ({
           </div>
         </div>
 
-        <div className="border rounded-md overflow-hidden">
+        <div className="border rounded-md overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
           <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
             <table className="w-full text-sm table-fixed">
-              <thead className="bg-slate-100 border-b sticky top-0 z-10">
+              <thead className="border-b sticky top-0 z-10" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-200)' }}>
                 <tr>
                   <ResizableColumnHeader width={columnWidths.checkbox} onResize={(w) => updateColumnWidth('checkbox', w)}>
                     <Checkbox
@@ -1448,14 +1455,14 @@ const PatientDataTable = ({
                   </ResizableColumnHeader>
                   {visibleColumns.includes('id') && (
                     <ResizableColumnHeader width={columnWidths.id} onResize={(w) => updateColumnWidth('id', w)}>
-                      <Button variant="ghost" onClick={() => onSortChange('id')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">
+                      <Button variant="ghost" onClick={() => onSortChange('id')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold" style={textPrimary}>
                         System ID {getSortIcon('id')}
                       </Button>
                     </ResizableColumnHeader>
                   )}
                   {visibleColumns.includes('full_name') && (
                     <ResizableColumnHeader width={columnWidths.full_name} onResize={(w) => updateColumnWidth('full_name', w)}>
-                      <Button variant="ghost" onClick={() => onSortChange('full_name')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold">
+                      <Button variant="ghost" onClick={() => onSortChange('full_name')} className="p-0 h-auto group flex items-center hover:text-emerald-600 transition-colors font-semibold" style={textPrimary}>
                         Full Name {getSortIcon('full_name')}
                       </Button>
                     </ResizableColumnHeader>
@@ -1525,7 +1532,7 @@ const PatientDataTable = ({
                     const patientStore = stores.find(s => s.id === patient.store_id);
 
                     return (
-                      <tr key={patient.id} className="border-t hover:bg-slate-50">
+                      <tr key={patient.id} className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                         <td className="p-3">
                           <Checkbox
                             checked={selectedPatients.has(patient.id)}
@@ -1533,51 +1540,51 @@ const PatientDataTable = ({
                           />
                         </td>
                         {visibleColumns.includes('id') && (
-                          <td className="p-3 font-mono text-xs text-slate-700 select-all">
+                          <td className="p-3 font-mono text-xs select-all" style={{ color: 'var(--text-slate-700)' }}>
                             {patient.id}
                           </td>
                         )}
                         {visibleColumns.includes('full_name') && (
-                          <td className={`p-3 ${isDuplicateName ? 'bg-yellow-50' : ''}`}>
+                          <td className={`p-3 ${isDuplicateName ? 'bg-yellow-50' : ''}`} style={textPrimary}>
                             {patient.full_name}
                             {isDuplicateName && <Badge variant="destructive" className="ml-2 text-xs">Dup</Badge>}
                           </td>
                         )}
                         {visibleColumns.includes('patient_id') && (
-                          <td className={`p-3 font-mono text-xs ${isDuplicatePid ? 'bg-yellow-50' : ''}`}>
+                          <td className={`p-3 font-mono text-xs ${isDuplicatePid ? 'bg-yellow-50' : ''}`} style={textPrimary}>
                             {patient.patient_id || '-'}
                             {isDuplicatePid && <Badge variant="destructive" className="ml-2 text-xs">Dup</Badge>}
                           </td>
                         )}
                         {visibleColumns.includes('phone') && (
-                          <td className={`p-3 ${isDuplicatePhone ? 'bg-yellow-50' : ''}`}>
+                          <td className={`p-3 ${isDuplicatePhone ? 'bg-yellow-50' : ''}`} style={textPrimary}>
                             {patient.phone}
                             {isDuplicatePhone && <Badge variant="destructive" className="ml-2 text-xs">Dup</Badge>}
                           </td>
                         )}
                         {visibleColumns.includes('address') && (
-                          <td className={`p-3 ${isDuplicateAddress ? 'bg-yellow-50' : ''}`}>
+                          <td className={`p-3 ${isDuplicateAddress ? 'bg-yellow-50' : ''}`} style={textPrimary}>
                             {patient.address}
                             {isDuplicateAddress && <Badge variant="destructive" className="ml-2 text-xs">Dup</Badge>}
                           </td>
                         )}
                         {visibleColumns.includes('unit') && (
-                          <td className="p-3 text-xs">{patient.unit_number || '-'}</td>
+                          <td className="p-3 text-xs" style={textPrimary}>{patient.unit_number || '-'}</td>
                         )}
                         {visibleColumns.includes('store') && (
                           <td className="p-3">
                             {patientStore ? (
                               <div className="flex flex-col">
-                                <span className="font-medium">{patientStore.name}</span>
-                                <span className="text-xs text-slate-500 font-mono">{patientStore.id}</span>
+                                <span className="font-medium" style={textPrimary}>{patientStore.name}</span>
+                                <span className="text-xs font-mono" style={textMuted}>{patientStore.id}</span>
                               </div>
                             ) : (
-                              <span className="text-slate-400">Unassigned</span>
+                              <span style={{ color: 'var(--text-slate-400)' }}>Unassigned</span>
                             )}
                           </td>
                         )}
                         {visibleColumns.includes('last_delivery_date') && (
-                          <td className="p-3 text-sm">
+                          <td className="p-3 text-sm" style={textPrimary}>
                             {patient.last_delivery_date ? (() => {
                               const dateObj = parseFlexibleDate(patient.last_delivery_date);
                               if (dateObj && !isNaN(dateObj.getTime())) {
@@ -1585,7 +1592,7 @@ const PatientDataTable = ({
                               }
                               return <span className="text-amber-600 text-xs" title="Unrecognized date format">{patient.last_delivery_date}</span>;
                             })() : (
-                              <span className="text-slate-400">Never</span>
+                              <span style={{ color: 'var(--text-slate-400)' }}>Never</span>
                             )}
                           </td>
                         )}
@@ -1615,7 +1622,7 @@ const PatientDataTable = ({
                     );
                   })
                 ) : (
-                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500">No patients found.</td></tr>
+                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center" style={textMuted}>No patients found.</td></tr>
                 )}
               </tbody>
             </table>
@@ -1682,9 +1689,9 @@ const StoreDataTable = ({ stores, onEdit, onDelete, onDeleteSelected, isLoadingD
   const isSomeSelected = selectedStores.size > 0 && selectedStores.size < (stores || []).length;
 
   return (
-    <Card>
+    <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
       <CardHeader>
-        <CardTitle className="flex items-center justify-between">
+        <CardTitle className="flex items-center justify-between" style={{ color: 'var(--text-slate-900)' }}>
           <span>Stores</span>
           <div className="flex gap-2">
             <ColumnVisibilityControl
@@ -1704,13 +1711,13 @@ const StoreDataTable = ({ stores, onEdit, onDelete, onDeleteSelected, isLoadingD
             )}
           </div>
         </CardTitle>
-        <CardDescription>List of all stores.</CardDescription>
+        <CardDescription style={{ color: 'var(--text-slate-500)' }}>List of all stores.</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="border rounded-md overflow-hidden">
+        <div className="border rounded-md overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
           <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
             <table className="w-full text-sm table-fixed">
-              <thead className="bg-slate-100 sticky top-0 z-10">
+              <thead className="sticky top-0 z-10" style={{ background: 'var(--bg-slate-100)' }}>
                 <tr>
                   <ResizableColumnHeader width={columnWidths.checkbox} onResize={(w) => updateColumnWidth('checkbox', w)}>
                     <Checkbox
@@ -1761,7 +1768,7 @@ const StoreDataTable = ({ stores, onEdit, onDelete, onDeleteSelected, isLoadingD
                   <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading stores...</td></tr>
                 ) : stores.length > 0 ? (
                   stores.map(store => (
-                    <tr key={store.id} className="border-t hover:bg-slate-50">
+                    <tr key={store.id} className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                       <td className="p-2">
                         <Checkbox
                           checked={selectedStores.has(store.id)}
@@ -1769,33 +1776,33 @@ const StoreDataTable = ({ stores, onEdit, onDelete, onDeleteSelected, isLoadingD
                         />
                       </td>
                       {visibleColumns.includes('id') && (
-                        <td className="p-3 font-mono text-xs text-slate-500" title={store.id}>{store.id.substring(0, 8)}...</td>
+                        <td className="p-3 font-mono text-xs" style={{ color: 'var(--text-slate-500)' }} title={store.id}>{store.id.substring(0, 8)}...</td>
                       )}
                       {visibleColumns.includes('name') && (
-                        <td className="p-3">{store.name}</td>
+                        <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{store.name}</td>
                       )}
                       {visibleColumns.includes('abbreviation') && (
-                        <td className="p-3">{store.abbreviation}</td>
+                        <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{store.abbreviation}</td>
                       )}
                       {visibleColumns.includes('address') && (
-                        <td className="p-3">{store.address}</td>
+                        <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{store.address}</td>
                       )}
                       {visibleColumns.includes('phone') && (
-                        <td className="p-3">{store.phone}</td>
+                        <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{store.phone}</td>
                       )}
                       {visibleColumns.includes('city') && (
-                        <td className="p-3">{store.city_id || '-'}</td>
+                        <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{store.city_id || '-'}</td>
                       )}
                       {visibleColumns.includes('actions') && (
                         <td className="p-3 text-right">
-                          <Button variant="outline" size="sm" onClick={() => onEdit(store)}>Edit</Button>
+                          <Button variant="outline" size="sm" onClick={() => onEdit(store)} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>Edit</Button>
                           <Button variant="destructive" size="sm" className="ml-2" onClick={() => onDelete(store)}>Delete</Button>
                         </td>
                       )}
                     </tr>
                   ))
                 ) : (
-                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500">No stores found.</td></tr>
+                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center" style={{ color: 'var(--text-slate-500)' }}>No stores found.</td></tr>
                 )}
               </tbody>
             </table>
@@ -1866,9 +1873,9 @@ const UserDataTable = ({ users, onEdit, onDelete, onDeleteSelected, isLoadingDat
   const isSomeSelected = selectedUsers.size > 0 && selectedUsers.size < (users || []).length;
 
   return (
-    <Card>
+    <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
       <CardHeader>
-        <CardTitle className="flex items-center justify-between">
+        <CardTitle className="flex items-center justify-between" style={{ color: 'var(--text-slate-900)' }}>
           <span>App Users</span>
           <div className="flex gap-2">
             <ColumnVisibilityControl
@@ -1888,13 +1895,13 @@ const UserDataTable = ({ users, onEdit, onDelete, onDeleteSelected, isLoadingDat
             )}
           </div>
         </CardTitle>
-        <CardDescription>List of all application users.</CardDescription>
+        <CardDescription style={{ color: 'var(--text-slate-500)' }}>List of all application users.</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="border rounded-md overflow-hidden">
+        <div className="border rounded-md overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
           <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
             <table className="w-full text-sm table-fixed">
-              <thead className="bg-slate-100 sticky top-0 z-10">
+              <thead className="sticky top-0 z-10" style={{ background: 'var(--bg-slate-100)' }}>
                 <tr>
                   <ResizableColumnHeader width={columnWidths.checkbox} onResize={(w) => updateColumnWidth('checkbox', w)}>
                     <Checkbox
@@ -1965,7 +1972,7 @@ const UserDataTable = ({ users, onEdit, onDelete, onDeleteSelected, isLoadingDat
                   <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading app users...</td></tr>
                 ) : users.length > 0 ? (
                   users.map(user => (
-                    <tr key={user.id} className="border-t hover:bg-slate-50">
+                    <tr key={user.id} className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                       <td className="p-2">
                         <Checkbox
                           checked={selectedUsers.has(user.id)}
@@ -1973,19 +1980,19 @@ const UserDataTable = ({ users, onEdit, onDelete, onDeleteSelected, isLoadingDat
                         />
                       </td>
                       {visibleColumns.includes('id') && (
-                        <td className="p-3 font-mono text-xs text-slate-500" title={user.id}>{user.id.substring(0, 8)}...</td>
+                        <td className="p-3 font-mono text-xs" style={{ color: 'var(--text-slate-500)' }} title={user.id}>{user.id.substring(0, 8)}...</td>
                       )}
                       {visibleColumns.includes('user_name') && (
-                        <td className="p-3">{user.user_name}</td>
+                        <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{user.user_name}</td>
                       )}
                       {visibleColumns.includes('phone') && (
-                        <td className="p-3">{user.phone}</td>
+                        <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{user.phone}</td>
                       )}
                       {visibleColumns.includes('roles') && (
-                        <td className="p-3">{user.app_roles ? user.app_roles.join(', ') : 'N/A'}</td>
+                        <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{user.app_roles ? user.app_roles.join(', ') : 'N/A'}</td>
                       )}
                       {visibleColumns.includes('status') && (
-                        <td className="p-3">{user.status}</td>
+                        <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{user.status}</td>
                       )}
                       {visibleColumns.includes('location_tracking') && (
                         <td className="p-3">
@@ -1995,7 +2002,7 @@ const UserDataTable = ({ users, onEdit, onDelete, onDeleteSelected, isLoadingDat
                         </td>
                       )}
                       {visibleColumns.includes('home_coords') && (
-                        <td className="p-3 font-mono text-xs">
+                        <td className="p-3 font-mono text-xs" style={{ color: 'var(--text-slate-900)' }}>
                           {user.home_latitude && user.home_longitude 
                             ? `${user.home_latitude.toFixed(5)}, ${user.home_longitude.toFixed(5)}`
                             : '-'
@@ -2003,7 +2010,7 @@ const UserDataTable = ({ users, onEdit, onDelete, onDeleteSelected, isLoadingDat
                         </td>
                       )}
                       {visibleColumns.includes('current_coords') && (
-                        <td className="p-3 font-mono text-xs">
+                        <td className="p-3 font-mono text-xs" style={{ color: 'var(--text-slate-900)' }}>
                           {user.current_latitude && user.current_longitude 
                             ? `${user.current_latitude.toFixed(5)}, ${user.current_longitude.toFixed(5)}`
                             : '-'
@@ -2011,10 +2018,10 @@ const UserDataTable = ({ users, onEdit, onDelete, onDeleteSelected, isLoadingDat
                         </td>
                       )}
                       {visibleColumns.includes('city') && (
-                        <td className="p-3">{user.city_id || '-'}</td>
+                        <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{user.city_id || '-'}</td>
                       )}
                       {visibleColumns.includes('stores') && (
-                        <td className="p-3">
+                        <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>
                           {user.store_ids && user.store_ids.length > 0
                             ? user.store_ids.map(id => id.substring(0,4)).join(', ') + '...'
                             : '-'
@@ -2023,14 +2030,14 @@ const UserDataTable = ({ users, onEdit, onDelete, onDeleteSelected, isLoadingDat
                       )}
                       {visibleColumns.includes('actions') && (
                         <td className="p-3 text-right">
-                          <Button variant="outline" size="sm" onClick={() => onEdit(user)}>Edit</Button>
+                          <Button variant="outline" size="sm" onClick={() => onEdit(user)} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>Edit</Button>
                           <Button variant="destructive" size="sm" className="ml-2" onClick={() => onDelete(user)}>Delete</Button>
                         </td>
                       )}
                     </tr>
                   ))
                 ) : (
-                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500">No app users found.</td></tr>
+                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center" style={{ color: 'var(--text-slate-500)' }}>No app users found.</td></tr>
                 )}
               </tbody>
             </table>
@@ -2207,9 +2214,9 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
   const displayedSettings = viewMode === 'cloud' ? userSettings : localUserSettings;
 
   return (
-    <Card>
+    <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
       <CardHeader>
-        <CardTitle className="flex items-center justify-between">
+        <CardTitle className="flex items-center justify-between" style={{ color: 'var(--text-slate-900)' }}>
           <div className="flex items-center gap-2">
             <Settings className="w-5 h-5" />
             User Settings
@@ -2222,6 +2229,7 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
               variant={viewMode === 'cloud' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setViewMode('cloud')}
+              style={viewMode !== 'cloud' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' } : {}}
             >
               Cloud ({userSettings.length})
             </Button>
@@ -2229,6 +2237,7 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
               variant={viewMode === 'local' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setViewMode('local')}
+              style={viewMode !== 'local' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' } : {}}
             >
               Local ({localUserSettings.length})
             </Button>
@@ -2239,7 +2248,7 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
             />
           </div>
         </CardTitle>
-        <CardDescription>
+        <CardDescription style={{ color: 'var(--text-slate-500)' }}>
           View and manage per-user, per-device settings. Toggle between Cloud (backend) and Local (IndexedDB) storage.
         </CardDescription>
       </CardHeader>
@@ -2247,17 +2256,17 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
         {isLoading ? (
           <div className="flex justify-center items-center h-40">
             <Loader2 className="w-6 h-6 animate-spin text-emerald-500" />
-            <span className="ml-2 text-slate-600">Loading user settings...</span>
+            <span className="ml-2" style={{ color: 'var(--text-slate-600)' }}>Loading user settings...</span>
           </div>
         ) : displayedSettings.length === 0 ? (
-          <div className="text-center py-8 text-slate-500">
+          <div className="text-center py-8" style={{ color: 'var(--text-slate-500)' }}>
             No {viewMode} user settings found.
           </div>
         ) : (
-          <div className="border rounded-md overflow-hidden">
+          <div className="border rounded-md overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
             <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
               <table className="w-full text-sm table-fixed">
-                <thead className="bg-slate-100 sticky top-0 z-10">
+                <thead className="sticky top-0 z-10" style={{ background: 'var(--bg-slate-100)' }}>
                   <tr>
                     {visibleColumns.includes('user_name') && (
                       <ResizableColumnHeader width={columnWidths.user_name} onResize={(w) => updateColumnWidth('user_name', w)}>
@@ -2313,23 +2322,23 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
                       : '-';
                     
                     return (
-                      <tr key={setting.id} className="border-t hover:bg-slate-50">
+                      <tr key={setting.id} className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                         {visibleColumns.includes('user_name') && (
-                          <td className="p-3 font-medium">{getUserName(setting.user_id)}</td>
+                          <td className="p-3 font-medium" style={{ color: 'var(--text-slate-900)' }}>{getUserName(setting.user_id)}</td>
                         )}
                         {visibleColumns.includes('device_id') && (
-                          <td className="p-3 font-mono text-xs text-slate-500" title={setting.device_id}>
+                          <td className="p-3 font-mono text-xs" style={{ color: 'var(--text-slate-500)' }} title={setting.device_id}>
                             {setting.device_id ? setting.device_id.substring(0, 16) + '...' : '-'}
                           </td>
                         )}
                         {visibleColumns.includes('selected_driver') && (
-                          <td className="p-3">{selectedDriverName}</td>
+                          <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{selectedDriverName}</td>
                         )}
                         {visibleColumns.includes('selected_date') && (
-                          <td className="p-3">{setting.selected_date || '-'}</td>
+                          <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{setting.selected_date || '-'}</td>
                         )}
                         {visibleColumns.includes('sidebar_width') && (
-                          <td className="p-3">{setting.sidebar_width || 240}px</td>
+                          <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{setting.sidebar_width || 240}px</td>
                         )}
                         {visibleColumns.includes('theme') && (
                           <td className="p-3">
@@ -2337,12 +2346,12 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
                           </td>
                         )}
                         {visibleColumns.includes('created') && (
-                          <td className="p-3 text-xs text-slate-600">
+                          <td className="p-3 text-xs" style={{ color: 'var(--text-slate-600)' }}>
                             {setting.created ? format(new Date(setting.created), 'MMM d, yyyy h:mm a') : '-'}
                           </td>
                         )}
                         {visibleColumns.includes('updated') && (
-                          <td className="p-3 text-xs text-slate-600">
+                          <td className="p-3 text-xs" style={{ color: 'var(--text-slate-600)' }}>
                             {setting.updated ? format(new Date(setting.updated), 'MMM d, yyyy h:mm a') : '-'}
                           </td>
                         )}
@@ -2424,9 +2433,9 @@ const CityDataTable = ({ cities, onEdit, onDelete, onDeleteSelected, isLoadingDa
   const isSomeSelected = selectedCities.size > 0 && selectedCities.size < (cities || []).length;
 
   return (
-    <Card>
+    <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
       <CardHeader>
-        <CardTitle className="flex items-center justify-between">
+        <CardTitle className="flex items-center justify-between" style={{ color: 'var(--text-slate-900)' }}>
           <span>Cities</span>
           <div className="flex gap-2">
             <ColumnVisibilityControl
@@ -2446,13 +2455,13 @@ const CityDataTable = ({ cities, onEdit, onDelete, onDeleteSelected, isLoadingDa
             )}
           </div>
         </CardTitle>
-        <CardDescription>List of all cities.</CardDescription>
+        <CardDescription style={{ color: 'var(--text-slate-500)' }}>List of all cities.</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="border rounded-md overflow-hidden">
+        <div className="border rounded-md overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
           <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
             <table className="w-full text-sm table-fixed">
-              <thead className="bg-slate-100 sticky top-0 z-10">
+              <thead className="sticky top-0 z-10" style={{ background: 'var(--bg-slate-100)' }}>
                 <tr>
                   <ResizableColumnHeader width={columnWidths.checkbox} onResize={(w) => updateColumnWidth('checkbox', w)}>
                     <Checkbox
@@ -2493,7 +2502,7 @@ const CityDataTable = ({ cities, onEdit, onDelete, onDeleteSelected, isLoadingDa
                   <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500"><Loader2 className="w-5 h-5 inline mr-2 animate-spin" />Loading cities...</td></tr>
                 ) : cities.length > 0 ? (
                   cities.map(city => (
-                    <tr key={city.id} className="border-t hover:bg-slate-50">
+                    <tr key={city.id} className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                       <td className="p-2">
                         <Checkbox
                           checked={selectedCities.has(city.id)}
@@ -2501,27 +2510,27 @@ const CityDataTable = ({ cities, onEdit, onDelete, onDeleteSelected, isLoadingDa
                         />
                       </td>
                       {visibleColumns.includes('id') && (
-                        <td className="p-3 font-mono text-xs text-slate-500" title={city.id}>{city.id.substring(0, 8)}...</td>
+                        <td className="p-3 font-mono text-xs" style={{ color: 'var(--text-slate-500)' }} title={city.id}>{city.id.substring(0, 8)}...</td>
                       )}
                       {visibleColumns.includes('name') && (
-                        <td className="p-3">{city.name}</td>
+                        <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{city.name}</td>
                       )}
                       {visibleColumns.includes('province') && (
-                        <td className="p-3">{city.province}</td>
+                        <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{city.province}</td>
                       )}
                       {visibleColumns.includes('country') && (
-                        <td className="p-3">{city.country}</td>
+                        <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{city.country}</td>
                       )}
                       {visibleColumns.includes('actions') && (
                         <td className="p-3 text-right">
-                          <Button variant="outline" size="sm" onClick={() => onEdit(city)}>Edit</Button>
+                          <Button variant="outline" size="sm" onClick={() => onEdit(city)} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>Edit</Button>
                           <Button variant="destructive" size="sm" className="ml-2" onClick={() => onDelete(city)}>Delete</Button>
                         </td>
                       )}
                     </tr>
                   ))
                 ) : (
-                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center text-slate-500">No cities found.</td></tr>
+                  <tr><td colSpan={visibleColumns.length + 1} className="p-3 text-center" style={{ color: 'var(--text-slate-500)' }}>No cities found.</td></tr>
                 )}
               </tbody>
             </table>
@@ -3943,27 +3952,27 @@ export default function AdminUtilities() {
 
   if (initialLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
         <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
-        <span className="ml-3 text-lg text-slate-600">Loading initial data...</span>
+        <span className="ml-3 text-lg" style={{ color: 'var(--text-slate-600)' }}>Loading initial data...</span>
       </div>
     );
   }
 
   if (!hasAccess) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <Card className="p-8 text-center">
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
+        <Card className="p-8 text-center" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-500" />
-          <h2 className="text-xl font-bold text-slate-900 mb-2">Access Denied</h2>
-          <p className="text-slate-600">Only app owners can access this page.</p>
+          <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--text-slate-900)' }}>Access Denied</h2>
+          <p style={{ color: 'var(--text-slate-600)' }}>Only app owners can access this page.</p>
         </Card>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-3">
+    <div className="min-h-screen p-3" style={{ background: 'var(--bg-slate-50)' }}>
       <div className="max-w-full mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div className="relative">
@@ -3972,9 +3981,9 @@ export default function AdminUtilities() {
                 <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
               </div>
             )}
-            <h1 className="text-3xl font-bold text-slate-900">Admin Utilities</h1>
+            <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Admin Utilities</h1>
           </div>
-          <Button onClick={handleRefreshAllData} variant="outline" disabled={isRefreshing}>
+          <Button onClick={handleRefreshAllData} variant="outline" disabled={isRefreshing} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
             <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
             {isRefreshing ? 'Refreshing...' : 'Refresh All Data'}
           </Button>
