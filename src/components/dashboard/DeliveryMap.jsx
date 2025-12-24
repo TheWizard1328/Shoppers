@@ -2499,7 +2499,9 @@ export default function DeliveryMap({
               } : pickup.useSimpleCircle ? {
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
-                }
+                },
+                mouseover: (e) => e.target.openPopup(),
+                mouseout: (e) => e.target.closePopup()
               } : {
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
@@ -2727,7 +2729,9 @@ export default function DeliveryMap({
               } : delivery.useSimpleCircle ? {
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
-                }
+                },
+                mouseover: (e) => e.target.openPopup(),
+                mouseout: (e) => e.target.closePopup()
               } : {
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
