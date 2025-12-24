@@ -2569,9 +2569,20 @@ export default function DeliveryMap({
               {pickup.useSimpleCircle && !pickup.isOtherDriver && (
                 <Popup autoPan={true} autoPanPadding={[50, 50]} closeButton={false} offset={[0, -10]} className="custom-popup">
                   <div className="min-w-[150px] space-y-1.5">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                      <Home className="w-3.5 h-3.5" />
-                      {pickup.store?.name || 'Store'}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                        <Home className="w-3.5 h-3.5" />
+                        {pickup.store?.name || 'Store'}
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                        pickup.status === 'completed' ? 'text-emerald-700 bg-emerald-100' :
+                        pickup.status === 'failed' || pickup.status === 'cancelled' ? 'text-red-700 bg-red-100' :
+                        pickup.status === 'returned' ? 'text-orange-700 bg-orange-100' :
+                        pickup.status === 'in_transit' ? 'text-blue-700 bg-blue-100' :
+                        'text-slate-600 bg-slate-100'
+                      }`}>
+                        {pickup.status}
+                      </span>
                     </div>
                     <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-slate-600)' }}>
                       <Truck className="w-3.5 h-3.5" />
@@ -2834,13 +2845,20 @@ export default function DeliveryMap({
               {delivery.useSimpleCircle && !delivery.isOtherDriver && (
                 <Popup autoPan={true} autoPanPadding={[50, 50]} closeButton={false} offset={[0, -10]} className="custom-popup">
                   <div className="min-w-[150px] space-y-1.5">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--text-slate-900)' }}>
-                      <Package className="w-3.5 h-3.5" />
-                      {delivery.patient?.full_name || 'Patient'}
-                    </div>
-                    <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-slate-600)' }}>
-                      <Home className="w-3.5 h-3.5" />
-                      {delivery.store?.name || 'Store'}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--text-slate-900)' }}>
+                        <Home className="w-3.5 h-3.5" />
+                        {delivery.store?.name || 'Store'}
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                        delivery.status === 'completed' ? 'text-emerald-700 bg-emerald-100' :
+                        delivery.status === 'failed' || delivery.status === 'cancelled' ? 'text-red-700 bg-red-100' :
+                        delivery.status === 'returned' ? 'text-orange-700 bg-orange-100' :
+                        delivery.status === 'in_transit' ? 'text-blue-700 bg-blue-100' :
+                        'text-slate-600 bg-slate-100'
+                      }`}>
+                        {delivery.status}
+                      </span>
                     </div>
                     <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-slate-600)' }}>
                       <Truck className="w-3.5 h-3.5" />
