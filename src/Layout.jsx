@@ -939,10 +939,12 @@ export default function Layout({ children, currentPageName }) {
   // Granular delivery update function for immediate UI synchronization
   const updateDeliveriesLocally = useCallback((newDeliveries, isFullReplacement = false) => {
     if (isFullReplacement) {
-      setDeliveries(newDeliveries.filter(Boolean));
+      // CRITICAL: Force new array reference to trigger React re-render
+      setDeliveries([...newDeliveries.filter(Boolean)]);
     } else {
       setDeliveries(prevDeliveries => {
         const updatesMap = new Map(newDeliveries.map(u => [u.id, u]));
+        // CRITICAL: Create new array with spread to ensure React detects change
         return prevDeliveries.map(delivery => {
           if (!delivery) return delivery;
           const update = updatesMap.get(delivery.id);
