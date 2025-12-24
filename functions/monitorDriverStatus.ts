@@ -34,7 +34,8 @@ Deno.serve(async (req) => {
     
     // Get all AppUsers who are drivers and currently on_duty
     const allAppUsers = await base44.asServiceRole.entities.AppUser.filter({
-      driver_status: 'on_duty'
+      driver_status: 'on_duty',
+      location_tracking_enabled: true
     });
     
     // Filter to only those with driver role
@@ -121,7 +122,8 @@ Deno.serve(async (req) => {
       // Update the driver's status
       try {
         await base44.asServiceRole.entities.AppUser.update(driver.id, {
-          driver_status: newStatus
+          driver_status: newStatus,
+          location_tracking_enabled: false
         });
         
         updatedDrivers.push({
