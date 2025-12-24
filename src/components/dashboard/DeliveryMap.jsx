@@ -999,6 +999,9 @@ export default function DeliveryMap({
       let pinColor;
       if (hasNoPickup) {
         pinColor = '#FBBF24';
+      } else if (isStopInDispatcherStore) {
+        // Dispatcher's own stores - ALWAYS use store colors regardless of driver
+        pinColor = store ? getStoreColor(store) : '#6B7280';
       } else if (isAllDriversMode) {
         // All drivers mode - use driver colors
         pinColor = enrichedDriver && typeof enrichedDriver === 'object' ? getDriverColor(enrichedDriver) : '#607D8B';
