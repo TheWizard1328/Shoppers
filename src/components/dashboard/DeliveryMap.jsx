@@ -781,6 +781,9 @@ export default function DeliveryMap({
     }
   }, [users, safeDriverLocations]);
 
+  // State to force re-render of driverRoutes when deliveries update
+  const [routeRenderKey, setRouteRenderKey] = useState(0);
+
   // Listen for real-time driver location updates from SmartRefreshManager
   useEffect(() => {
     const handleDriverLocationUpdate = (event) => {
@@ -795,11 +798,13 @@ export default function DeliveryMap({
       }
     };
 
-    // NEW: Listen for delivery updates to force marker re-render
+    // NEW: Listen for delivery updates to force complete route recalculation
     const handleDeliveriesUpdate = (event) => {
-      console.log('🗺️ [DeliveryMap] Deliveries updated - forcing marker recalculation');
-      // Force marker recalculation by updating users state
-      setRealtimeAppUsers(prev => [...prev]);
+      console.log('🗺️ [DeliveryMap] Deliveries updated - forcing route line recalculation');
+      // CRITICAL: Clear cached routes to force full recalculation
+      prevDriverRoutesRef.current = [];
+      // Force re-render by incrementing key
+      setRouteRenderKey(prev => prev + 1);
     };
 
     window.addEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
@@ -1740,7 +1745,8 @@ export default function DeliveryMap({
     currentDriverLocation?.latitude,
     currentDriverLocation?.longitude,
     isViewingCurrentDate,
-    isDriverViewingSelfToday
+    isDriverViewingSelfToday,
+    routeRenderKey // CRITICAL: Force recalculation when deliveries update
   ]);
   
   // Pass driver routes to parent component
