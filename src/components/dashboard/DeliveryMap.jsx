@@ -827,22 +827,28 @@ export default function DeliveryMap({
   // CRITICAL: Use isAllDriversMode calculated above
   const isSingleDriverMode = useMemo(() => !isAllDriversMode, [isAllDriversMode]);
 
-  const isDriverViewingSelfToday = useMemo(() => {
+  // CRITICAL: Check if current user is a driver viewing their own route (any date)
+  const isDriverViewingSelf = useMemo(() => {
     if (!currentUser || !userHasRole(currentUser, 'driver')) return false;
     if (!selectedDriverId || selectedDriverId === 'all') return false;
-    if (selectedDriverId !== currentUser.id) return false;
+    return selectedDriverId === currentUser.id;
+  }, [currentUser, selectedDriverId]);
+
+  // Legacy: Keep for backwards compatibility with home route logic (today only)
+  const isDriverViewingSelfToday = useMemo(() => {
+    if (!isDriverViewingSelf) return false;
     const today = format(new Date(), 'yyyy-MM-dd');
     return selectedDate === today;
-  }, [currentUser, selectedDriverId, selectedDate]);
+  }, [isDriverViewingSelf, selectedDate]);
 
   const [otherDriverDeliveries, setOtherDriverDeliveries] = useState([]);
 
   useEffect(() => {
     const fetchOtherDrivers = async () => {
-      // CRITICAL: Only fetch other drivers for PURE drivers (not admin/dispatcher)
-      const isPureDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher');
+      // CRITICAL: Fetch other drivers for any user with driver role viewing their own route
+      const isDriver = currentUser && userHasRole(currentUser, 'driver');
       
-      if (!isPureDriver || !isDriverViewingSelfToday || !selectedDate) {
+      if (!isDriver || !isDriverViewingSelf || !selectedDate) {
         setOtherDriverDeliveries([]);
         return;
       }
@@ -861,24 +867,24 @@ export default function DeliveryMap({
     };
 
     fetchOtherDrivers();
-  }, [isDriverViewingSelfToday, selectedDate, currentUser]);
+  }, [isDriverViewingSelf, selectedDate, currentUser]);
 
   const { pickups, patientDeliveries } = useMemo(() => {
-    // CRITICAL: For drivers viewing ONLY their own route (not admin/dispatcher), show their markers + mini markers for other drivers
-    const isPureDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher');
+    // CRITICAL: For any driver viewing their own route, show their markers + mini markers for other drivers
+    const isDriver = currentUser && userHasRole(currentUser, 'driver');
     
     let deliveriesToShow = safeDeliveries;
     
-    // CRITICAL: Include other drivers' deliveries ONLY when showOtherDriverDeliveries is true (checkbox checked)
-    // AND for pure drivers viewing self on today's date
-    if (isPureDriver && isDriverViewingSelfToday && showOtherDriverDeliveries && otherDriverDeliveries.length > 0) {
+    // CRITICAL: Include other drivers' deliveries when showOtherDriverDeliveries is true (checkbox checked)
+    // AND for any driver viewing their own route (any date)
+    if (isDriver && isDriverViewingSelf && showOtherDriverDeliveries && otherDriverDeliveries.length > 0) {
       deliveriesToShow = [...safeDeliveries, ...otherDriverDeliveries];
     }
     
     const pickups = deliveriesToShow.filter((d) => d && !d.patient_id && d.store_id);
     const patientDeliveries = deliveriesToShow.filter((d) => d && d.patient_id);
     return { pickups, patientDeliveries };
-  }, [safeDeliveries, isDriverViewingSelfToday, otherDriverDeliveries, currentUser, showOtherDriverDeliveries]);
+  }, [safeDeliveries, isDriverViewingSelf, otherDriverDeliveries, currentUser, showOtherDriverDeliveries]);
 
   // NEW: Fetch Google route polyline for display
   useEffect(() => {
@@ -966,9 +972,9 @@ export default function DeliveryMap({
 
       const hasNoPickup = delivery.patient_id && (!delivery.puid || delivery.puid.trim() === '');
 
-      // CRITICAL: Determine if this marker belongs to another driver when viewing self (pure drivers only)
-      const isPureDriver = userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher');
-      const isOtherDriver = isPureDriver && isDriverViewingSelfToday && delivery.driver_id !== currentUser?.id;
+      // CRITICAL: Determine if this marker belongs to another driver when viewing self (any driver)
+      const isDriver = userHasRole(currentUser, 'driver');
+      const isOtherDriver = isDriver && isDriverViewingSelf && delivery.driver_id !== currentUser?.id;
 
       // CRITICAL: Determine pin color based on mode - calculate ONCE, before rendering
       let pinColor;
@@ -1015,9 +1021,9 @@ export default function DeliveryMap({
       // Store pickups ALWAYS use store colors (both modes)
       const pinColor = getStoreColor(store);
 
-      // CRITICAL: Determine if this marker belongs to another driver when viewing self (pure drivers only)
-      const isPureDriver = userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher');
-      const isOtherDriver = isPureDriver && isDriverViewingSelfToday && pickup.driver_id !== currentUser?.id;
+      // CRITICAL: Determine if this marker belongs to another driver when viewing self (any driver)
+      const isDriver = userHasRole(currentUser, 'driver');
+      const isOtherDriver = isDriver && isDriverViewingSelf && pickup.driver_id !== currentUser?.id;
 
       // CRITICAL: Pin color for pickups - ALWAYS use store color (never driver color)
       const pickupPinColor = getStoreColor(store);
@@ -1116,7 +1122,7 @@ export default function DeliveryMap({
     safePatients.map(p => p?.id).join(','),
     isAllDriversMode,
     currentUser?.id,
-    isDriverViewingSelfToday,
+    isDriverViewingSelf,
     showOtherDriverDeliveries // CRITICAL: Re-render when checkbox changes
   ]);
 
