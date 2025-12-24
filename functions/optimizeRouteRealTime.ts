@@ -309,8 +309,14 @@ Deno.serve(async (req) => {
     const allDeliveries = await base44.asServiceRole.entities.Delivery.filter({
       driver_id: driverId,
       delivery_date: deliveryDate
-    });
+    }, 'stop_order'); // Sort by stop_order to preserve existing order
     console.log('📦 [optimizeRouteRealTime] Deliveries found:', allDeliveries?.length || 0);
+    
+    // Log current stop orders for debugging
+    console.log('📋 Current stop orders:');
+    allDeliveries.forEach(d => {
+      console.log(`   #${d.stop_order}: ${d.patient_name || 'Pickup'} @ ${d.delivery_time_start || 'no time'} [${d.status}]`);
+    });
 
     if (!allDeliveries || allDeliveries.length === 0) {
       console.warn('⚠️ [optimizeRouteRealTime] No deliveries found');
@@ -477,45 +483,6 @@ Deno.serve(async (req) => {
     }
 
     // OPTIMIZATION: Use crow-flies distance for initial route optimization
-    console.log('📐 [optimizeRouteRealTime] Building crow-flies distance matrix...');
-    const allStopCoords = stops.map(s => ({ lat: s.lat, lng: s.lng }));
-    const origins = [driverLocation, ...allStopCoords];
-    const destinations = allStopCoords;
-
-    // Build crow-flies distance/time matrix
-    const crowFliesMatrix = origins.map(origin => 
-      destinations.map(dest => {
-        const distanceKm = calculateCrowFliesDistance(origin.lat, origin.lng, dest.lat, dest.lng);
-        // Estimate duration: 40 km/h average speed = 1.5 minutes per km
-        const durationSeconds = (distanceKm / 40) * 60 * 60;
-        return {
-          duration: durationSeconds,
-          distance: distanceKm * 1000 // Convert to meters for consistency
-        };
-      })
-    );
-    console.log('✅ [optimizeRouteRealTime] Crow-flies matrix built (no API calls used)');
-
-    // Group flexible deliveries by their pickup store (for immediate assignment after pickup)
-    const flexibleDeliveriesByPickup = new Map();
-    deliveryStopsWithoutTimeConstraints.forEach(d => {
-      const key = d.delivery.store_id;
-      if (!flexibleDeliveriesByPickup.has(key)) {
-        flexibleDeliveriesByPickup.set(key, []);
-      }
-      flexibleDeliveriesByPickup.get(key).push(d);
-    });
-    
-    // Group time-constrained deliveries by store (may be moved to other stages)
-    const constrainedDeliveriesByPickup = new Map();
-    deliveryStopsWithTimeConstraints.forEach(d => {
-      const key = d.delivery.store_id;
-      if (!constrainedDeliveriesByPickup.has(key)) {
-        constrainedDeliveriesByPickup.set(key, []);
-      }
-      constrainedDeliveriesByPickup.get(key).push(d);
-    });
-
     // Get driver's home location for end-of-route optimization
     const driverHomeLocation = (driverAppUser.home_latitude && driverAppUser.home_longitude) 
       ? { lat: driverAppUser.home_latitude, lng: driverAppUser.home_longitude }
