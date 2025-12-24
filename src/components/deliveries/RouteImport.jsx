@@ -16,6 +16,7 @@ import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { batchUpdateAMPM, determineDeliveryAMPM, getPickupStopIdForDelivery } from '../utils/ampmUtils';
 import { getAllDriverUsers } from '../utils/driverSelectors';
+import { offlineDB } from '../utils/offlineDatabase';
 
 // Utility function for delay
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
