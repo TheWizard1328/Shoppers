@@ -1786,7 +1786,7 @@ function Dashboard() {
           }
         }
 
-        // 4. Add all VISIBLE delivery/pickup markers (including other drivers when viewing self)
+        // 4. Add all VISIBLE delivery/pickup markers for current driver
         if (deliveriesWithStopOrder && Array.isArray(deliveriesWithStopOrder)) {
           deliveriesWithStopOrder.forEach((delivery) => {
             if (!delivery) return;
@@ -1807,11 +1807,11 @@ function Dashboard() {
           });
         }
 
-        // 5. CRITICAL: Include other drivers' markers ONLY if checkbox is checked
-        if (isDriverViewingSelfToday && showAllDriverMarkers) {
-          let otherDriverCount = 0;
-
-          // Use deliveries from AppDataContext (contains ALL deliveries for the date)
+        // 5. CRITICAL: Include other drivers' markers AND home markers ONLY if checkbox is checked
+        const isDriverViewingSelfAnyDate = isDriver && selectedDriverId === currentUser?.id && selectedDriverId !== 'all';
+        
+        if (isDriverViewingSelfAnyDate && showAllDriverMarkers) {
+          // 5a. Add other drivers' delivery/pickup markers
           if (deliveries && Array.isArray(deliveries)) {
             deliveries.forEach((delivery) => {
               if (!delivery) return;
@@ -1834,19 +1834,39 @@ function Dashboard() {
                 if (patient?.latitude && patient?.longitude) {
                   allCoordinates.push([patient.latitude, patient.longitude]);
                   hasStopMarkers = true;
-                  otherDriverCount++;
                 }
               } else if (delivery.store_id) {
                 const store = stores.find((s) => s && s.id === delivery.store_id);
                 if (store?.latitude && store?.longitude) {
                   allCoordinates.push([store.latitude, store.longitude]);
                   hasStopMarkers = true;
-                  otherDriverCount++;
                 }
               }
             });
           }
 
+          // 5b. Add other drivers' home markers if they have active stops
+          if (isViewingToday && users && Array.isArray(users)) {
+            const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+            const otherDriversWithStops = new Set();
+            
+            // Find all drivers with active stops on this date (excluding current user)
+            deliveries.forEach((d) => {
+              if (!d || d.delivery_date !== selectedDateStr) return;
+              if (d.driver_id === currentUser?.id) return;
+              if (!finishedStatuses.includes(d.status)) {
+                otherDriversWithStops.add(d.driver_id);
+              }
+            });
+
+            // Add home locations for those drivers
+            otherDriversWithStops.forEach((driverId) => {
+              const driver = users.find((u) => u && u.id === driverId);
+              if (driver?.home_latitude && driver?.home_longitude) {
+                allCoordinates.push([driver.home_latitude, driver.home_longitude]);
+              }
+            });
+          }
         }
 
         // Get current city center
