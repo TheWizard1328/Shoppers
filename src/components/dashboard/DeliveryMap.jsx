@@ -2019,22 +2019,27 @@ export default function DeliveryMap({
             {!isPickup && delivery.unit_number && <span className="ml-1">#{delivery.unit_number}</span>}
           </p>
 
-          {delivery.delivery_time_start && (
-            <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-slate-600)' }}>
-              <Clock className="w-3.5 h-3.5 flex-shrink-0" />
-              <span>
-                {delivery.delivery_time_start}
-                {delivery.delivery_time_end && ` - ${delivery.delivery_time_end}`}
-              </span>
-            </div>
-          )}
-
-          {delivery.delivery_time_eta && delivery.delivery_time_eta !== delivery.delivery_time_start && (
-            <div className="flex items-center gap-1 text-xs text-purple-600 font-medium">
-              <Clock className="w-3.5 h-3.5 flex-shrink-0" />
-              <span>ETA: {delivery.delivery_time_eta}</span>
-            </div>
-          )}
+          {(() => {
+            const isFinished = FINISHED_STATUSES.includes(delivery.status);
+            const finishedTime = delivery.actual_delivery_time ? format(new Date(delivery.actual_delivery_time), 'HH:mm') : null;
+            
+            if (isFinished && finishedTime) {
+              return (
+                <div className="flex items-center gap-1 text-xs text-emerald-600 font-medium">
+                  <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>{finishedTime}</span>
+                </div>
+              );
+            } else if (delivery.delivery_time_eta) {
+              return (
+                <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-slate-600)' }}>
+                  <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>ETA: {delivery.delivery_time_eta}</span>
+                </div>
+              );
+            }
+            return null;
+          })()}
 
           {driver && (
             <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-slate-600)' }}>
