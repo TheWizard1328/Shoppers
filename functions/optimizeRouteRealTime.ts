@@ -445,29 +445,54 @@ Deno.serve(async (req) => {
     // ═══════════════════════════════════════════════════════════════════════════════
     // STEP 1: Sort ALL stops by delivery_time_start FIRST
     // This ensures pickups come before their deliveries naturally
+    // CRITICAL: Only INCOMPLETE stops are being sorted here - completed stops are handled above
     // ═══════════════════════════════════════════════════════════════════════════════
     
-    console.log('📋 STEP 1: Sorting ALL stops by delivery_time_start...');
+    console.log('📋 STEP 1: Sorting INCOMPLETE stops by delivery_time_start...');
+    console.log(`📊 Total incomplete stops to sort: ${stops.length}`);
     
-    // Helper to parse time to minutes
+    // Helper to parse time to minutes - handles HH:mm format
     const parseTimeToMinutes = (timeStr) => {
-      if (!timeStr) return Infinity;
-      const [h, m] = timeStr.split(':').map(Number);
+      if (!timeStr || typeof timeStr !== 'string') return Infinity;
+      const parts = timeStr.split(':');
+      if (parts.length < 2) return Infinity;
+      const h = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      if (isNaN(h) || isNaN(m)) return Infinity;
       return h * 60 + m;
     };
     
-    // Sort stops by delivery_time_start
+    // Debug: Log all stops BEFORE sorting with their parsed times
+    console.log('📋 BEFORE SORT - All incomplete stops with parsed delivery_time_start:');
+    stops.forEach((stop, idx) => {
+      const isPickup = !stop.delivery.patient_id;
+      const timeStr = stop.delivery.delivery_time_start;
+      const parsedMinutes = parseTimeToMinutes(timeStr);
+      console.log(`   idx=${idx}: ${isPickup ? '📦 PICKUP' : '📬 DELIVERY'}: ${stop.delivery.patient_name || 'Unknown'} | delivery_time_start="${timeStr}" → ${parsedMinutes} min | status=${stop.delivery.status}`);
+    });
+    
+    // Sort stops by delivery_time_start - map with originalIdx to track position in stops array
     const sortedStops = [...stops].map((stop, originalIdx) => ({ ...stop, originalIdx }));
     sortedStops.sort((a, b) => {
       const aMinutes = parseTimeToMinutes(a.delivery.delivery_time_start);
       const bMinutes = parseTimeToMinutes(b.delivery.delivery_time_start);
+      
+      // If times are equal, pickups come before deliveries
+      if (aMinutes === bMinutes) {
+        const aIsPickup = !a.delivery.patient_id;
+        const bIsPickup = !b.delivery.patient_id;
+        if (aIsPickup && !bIsPickup) return -1; // pickup before delivery
+        if (!aIsPickup && bIsPickup) return 1;  // delivery after pickup
+      }
+      
       return aMinutes - bMinutes;
     });
     
-    console.log('📋 Stops sorted by delivery_time_start:');
+    console.log('📋 AFTER SORT - Stops sorted by delivery_time_start:');
     sortedStops.forEach((stop, i) => {
       const isPickup = !stop.delivery.patient_id;
-      console.log(`   ${i+1}. ${isPickup ? '📦 PICKUP' : '📬 DELIVERY'}: ${stop.delivery.patient_name || 'Unknown'} @ ${stop.delivery.delivery_time_start || 'no time'} stop_id=${stop.delivery.stop_id || 'N/A'} puid=${stop.delivery.puid || 'N/A'}`);
+      const parsedMinutes = parseTimeToMinutes(stop.delivery.delivery_time_start);
+      console.log(`   ${i+1}. ${isPickup ? '📦 PICKUP' : '📬 DELIVERY'}: ${stop.delivery.patient_name || 'Unknown'} @ ${stop.delivery.delivery_time_start || 'no time'} (${parsedMinutes} min) | originalIdx=${stop.originalIdx}`);
     });
 
     console.log(`📊 Total stops to optimize: ${sortedStops.length}`);
