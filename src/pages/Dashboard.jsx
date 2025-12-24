@@ -69,7 +69,7 @@ import QuickRouteAdjustments from '../components/dashboard/QuickRouteAdjustments
 import { driverActivityMonitor } from '@/components/utils/driverActivityMonitor';
 
 // FIXED: StatBadge - always render with consistent hook structure
-const StatBadge = ({ icon: Icon, value, color, label, tooltip, pickupCount }) => {
+const StatBadge = ({ icon: Icon, value, color, label, tooltip, pickupCount, driverCount }) => {
   // ALWAYS calculate color class (hook-like behavior should be consistent)
   const colorClasses = useMemo(() => ({
     blue: "bg-blue-100 text-blue-600",
@@ -89,6 +89,11 @@ const StatBadge = ({ icon: Icon, value, color, label, tooltip, pickupCount }) =>
         {pickupCount !== undefined && pickupCount > 0 &&
       <span className="absolute -top-1 -left-1 text-[9px] font-bold" style={{ color: 'var(--text-slate-500)' }}>
             {pickupCount}
+          </span>
+      }
+        {driverCount !== undefined && driverCount > 0 &&
+      <span className="absolute -top-1 -right-1 text-[9px] font-bold" style={{ color: 'var(--text-slate-500)' }}>
+            {driverCount}
           </span>
       }
         <span className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{value}</span>
@@ -648,7 +653,8 @@ function Dashboard() {
       total: 0, totalPickups: 0,
       inTransit: 0, inTransitPickups: 0,
       completed: 0, completedPickups: 0,
-      failed: 0, returned: 0
+      failed: 0, returned: 0,
+      totalDrivers: 0, inTransitDrivers: 0, completedDrivers: 0
     };
 
     const patientMap = new Map((patients || []).filter((p) => p && p.id).map((p) => [p.id, p]));
@@ -697,8 +703,24 @@ function Dashboard() {
       return false;
     }).length;
 
-    return { total, totalPickups, inTransit, inTransitPickups, completed, completedPickups, failed, returned };
-  }, [filteredDeliveries, patients]);
+    // DISPATCHER: Calculate unique driver counts for superscript
+    let totalDrivers = 0;
+    let inTransitDrivers = 0;
+    let completedDrivers = 0;
+
+    if (isDispatcher) {
+      const allDriverIds = new Set(safeDeliveries.map(d => d?.driver_id).filter(Boolean));
+      totalDrivers = allDriverIds.size;
+
+      const inTransitDriverIds = new Set(inTransitDeliveries.map(d => d?.driver_id).filter(Boolean));
+      inTransitDrivers = inTransitDriverIds.size;
+
+      const completedDriverIds = new Set(completedDeliveries.map(d => d?.driver_id).filter(Boolean));
+      completedDrivers = completedDriverIds.size;
+    }
+
+    return { total, totalPickups, inTransit, inTransitPickups, completed, completedPickups, failed, returned, totalDrivers, inTransitDrivers, completedDrivers };
+  }, [filteredDeliveries, patients, isDispatcher]);
 
   const isDateFinished = useMemo(() => {
     const today = startOfDay(new Date());
@@ -5866,6 +5888,7 @@ function Dashboard() {
                   icon={Package}
                   value={stats.total - stats.totalPickups}
                   pickupCount={stats.totalPickups}
+                  driverCount={isDispatcher ? stats.totalDrivers : undefined}
                   color="blue"
                   label="Total"
                   tooltip={tooltipValues.total} />
@@ -5873,6 +5896,7 @@ function Dashboard() {
                   icon={Truck}
                   value={stats.inTransit - stats.inTransitPickups}
                   pickupCount={stats.inTransitPickups}
+                  driverCount={isDispatcher ? stats.inTransitDrivers : undefined}
                   color="purple"
                   label="In Transit"
                   tooltip={tooltipValues.inTransit} />
@@ -5880,6 +5904,7 @@ function Dashboard() {
                   icon={CheckCircle}
                   value={stats.completed - stats.completedPickups}
                   pickupCount={stats.completedPickups}
+                  driverCount={isDispatcher ? stats.completedDrivers : undefined}
                   color="green"
                   label="Completed"
                   tooltip={tooltipValues.completed} />
