@@ -2741,18 +2741,27 @@ export default function DeliveryMap({
                         const allMarkersAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation]
                           .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
                         
-                        return allMarkersAtLocation.map((m, idx) => (
-                          <div key={`cluster-item-${m.id}`} className="text-xs py-1 border-b last:border-0" style={{ borderColor: 'var(--border-slate-200)' }}>
-                            <div className="font-medium" style={{ color: 'var(--text-slate-900)' }}>
-                              #{m.number || m.stop_order} - {m.markerType === 'pickup' ? m.store?.name : m.patient?.full_name}
-                            </div>
-                            {m.delivery_time_eta && (
-                              <div className="text-[11px]" style={{ color: 'var(--text-slate-600)' }}>
-                                ETA: {m.delivery_time_eta}
+                        return allMarkersAtLocation.map((m, idx) => {
+                          const isFinished = FINISHED_STATUSES.includes(m.status);
+                          const finishedTime = m.actual_delivery_time ? format(new Date(m.actual_delivery_time), 'HH:mm') : null;
+                          
+                          return (
+                            <div key={`cluster-item-${m.id}`} className="text-xs py-1 border-b last:border-0" style={{ borderColor: 'var(--border-slate-200)' }}>
+                              <div className="font-medium" style={{ color: 'var(--text-slate-900)' }}>
+                                #{m.number || m.stop_order} - {m.markerType === 'pickup' ? m.store?.name : m.patient?.full_name}
                               </div>
-                            )}
-                          </div>
-                        ));
+                              {isFinished && finishedTime ? (
+                                <div className="text-[11px] text-emerald-600">
+                                  ✓ Finished: {finishedTime}
+                                </div>
+                              ) : m.delivery_time_eta ? (
+                                <div className="text-[11px]" style={{ color: 'var(--text-slate-600)' }}>
+                                  ETA: {m.delivery_time_eta}
+                                </div>
+                              ) : null}
+                            </div>
+                          );
+                        });
                       })()}
                     </div>
                   </Popup>
