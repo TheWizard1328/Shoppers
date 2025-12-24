@@ -958,6 +958,13 @@ export default function DeliveryMap({
       const driver = safeUsers.find((u) => u && typeof u === 'object' && u.id === delivery.driver_id);
       const store = safeStores.find((s) => s && s.id === delivery.store_id);
 
+      // CRITICAL: Enrich driver data with denormalized driver_name if driver not found
+      const enrichedDriver = driver || (delivery.driver_name ? { 
+        id: delivery.driver_id, 
+        user_name: delivery.driver_name,
+        full_name: delivery.driver_name 
+      } : null);
+
       const isFirstTime = isFirstTimeDelivery(delivery);
 
       const isCurrentUserDispatcher = userHasRole(currentUser, 'dispatcher');
@@ -982,7 +989,7 @@ export default function DeliveryMap({
         pinColor = '#FBBF24';
       } else if (isAllDriversMode) {
         // All drivers mode - use driver colors
-        pinColor = driver && typeof driver === 'object' ? getDriverColor(driver) : '#607D8B';
+        pinColor = enrichedDriver && typeof enrichedDriver === 'object' ? getDriverColor(enrichedDriver) : '#607D8B';
       } else {
         // Single driver mode - use store colors
         pinColor = store ? getStoreColor(store) : '#6B7280';
@@ -993,7 +1000,7 @@ export default function DeliveryMap({
         latitude: patient.latitude,
         longitude: patient.longitude,
         patient,
-        driver,
+        driver: enrichedDriver, // Use enriched driver
         store,
         pinColor,
         number: delivery.display_stop_order || delivery.stop_order || 0,
@@ -1015,6 +1022,13 @@ export default function DeliveryMap({
       // FIXED: Find driver by ID only, don't require user_name in find condition
       const driver = safeUsers.find((u) => u && typeof u === 'object' && u.id === pickup.driver_id);
 
+      // CRITICAL: Enrich driver data with denormalized driver_name if driver not found
+      const enrichedDriver = driver || (pickup.driver_name ? { 
+        id: pickup.driver_id, 
+        user_name: pickup.driver_name,
+        full_name: pickup.driver_name 
+      } : null);
+
       // CRITICAL: Pickups should NEVER use simple circles - they always show full store pickup markers
       const useSimpleCircle = false;
 
@@ -1034,7 +1048,7 @@ export default function DeliveryMap({
         longitude: store.longitude,
         store,
         pinColor: pickupPinColor, // CRITICAL: Always store color for pickups
-        driver,
+        driver: enrichedDriver, // Use enriched driver
         number: pickup.display_stop_order || pickup.stop_order || 0,
         markerType: 'pickup',
         useSimpleCircle,
