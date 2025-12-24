@@ -574,31 +574,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    // CRITICAL: Sort pickups STRICTLY by delivery_time_start (scheduled pickup time)
-    // NEVER sort by distance - this causes AM and PM pickups to be mixed
-    const sortedPickups = [...pickupStops]
-      .filter(p => !isNextDeliveryStopData || p.idx !== isNextDeliveryStopData.idx) // Exclude isNextDelivery if it was a pickup
-      .sort((a, b) => {
-        // Parse delivery_time_start for both pickups
-        const aTimeStart = a.delivery.delivery_time_start;
-        const bTimeStart = b.delivery.delivery_time_start;
-        
-        // Convert to minutes for comparison
-        let aMinutes = Infinity;
-        let bMinutes = Infinity;
-        
-        if (aTimeStart) {
-          const [aH, aM] = aTimeStart.split(':').map(Number);
-          aMinutes = aH * 60 + aM;
-        }
-        if (bTimeStart) {
-          const [bH, bM] = bTimeStart.split(':').map(Number);
-          bMinutes = bH * 60 + bM;
-        }
-        
-        // CRITICAL: ONLY sort by scheduled time - NO distance tiebreaker
-        return aMinutes - bMinutes;
-      });
+    // Pickups are already sorted by time from STEP 1, just filter out isNextDelivery
+    const sortedPickups = pickupStops.filter(p => !isNextDeliveryStopData || p.idx !== isNextDeliveryStopData.idx);
     
     console.log('📦 Pickup order by delivery_time_start (STRICT - no distance sorting):');
     sortedPickups.forEach((p, i) => {
