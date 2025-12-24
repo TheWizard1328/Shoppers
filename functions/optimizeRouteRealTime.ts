@@ -436,45 +436,23 @@ Deno.serve(async (req) => {
       };
     }).filter(s => s.lat && s.lng);
 
-    // Separate pickups, deliveries with time constraints, and ISPs
+    // CRITICAL: Separate pickups and deliveries - pickups MUST be in scheduled time order (NEVER optimized by distance)
     const pickupStops = [];
-    const deliveryStopsWithTimeConstraints = [];
-    const deliveryStopsWithoutTimeConstraints = [];
-    const ispDeliveryStops = [];
+    const deliveryStops = [];
     
     for (let i = 0; i < stops.length; i++) {
       const stop = stops[i];
-      const notes = (stop.delivery.delivery_notes || '').toLowerCase();
-      const patientName = (stop.delivery.patient_name || '').toLowerCase();
-      const patientAddress = (stop.delivery.address || '').toLowerCase();
-      
-      // Detect ISP deliveries - check notes, patient name, and address
-      const isISP = notes.includes('interstore') || notes.includes('isp') || notes.includes('isd') ||
-                    patientName.includes('interstore') || patientName.includes('isp') || patientName.includes('isd') ||
-                    patientAddress.includes('interstore') || patientAddress.includes('isp') || patientAddress.includes('isd');
       
       if (stop.delivery.puid && !stop.delivery.patient_id) {
-        // Regular pickup
-        pickupStops.push({ ...stop, idx: i, isISP: false });
-      } else if (isISP) {
-        // ISP delivery - optimize between stages
-        ispDeliveryStops.push({ ...stop, idx: i, isISP: true });
+        // Regular pickup - MUST preserve scheduled time order
+        pickupStops.push({ ...stop, idx: i });
       } else if (stop.delivery.patient_id) {
-        // Patient delivery - check if it has a preset delivery_time_start
-        const patient = patientMap.get(stop.delivery.patient_id);
-        const hasPresetTimeStart = patient?.time_window_start || stop.delivery.time_window_start;
-        
-        if (hasPresetTimeStart) {
-          // Has time constraint - may need to move to different stage
-          deliveryStopsWithTimeConstraints.push({ ...stop, idx: i, isISP: false });
-        } else {
-          // No time constraint - flexible positioning after pickup
-          deliveryStopsWithoutTimeConstraints.push({ ...stop, idx: i, isISP: false });
-        }
+        // Patient delivery - can be optimized
+        deliveryStops.push({ ...stop, idx: i });
       }
     }
 
-    console.log(`📊 Stops breakdown: ${pickupStops.length} pickups, ${deliveryStopsWithTimeConstraints.length} deliveries w/ time constraints, ${deliveryStopsWithoutTimeConstraints.length} deliveries flexible, ${ispDeliveryStops.length} ISP deliveries`);
+    console.log(`📊 Stops breakdown: ${pickupStops.length} pickups (time-ordered), ${deliveryStops.length} deliveries (optimizable)`);
 
     if (stops.length === 0) {
       return Response.json({ 
@@ -592,261 +570,102 @@ Deno.serve(async (req) => {
       }
     }
 
-    // CRITICAL: Sort pickups AFTER determining currentPosition (which is after isNextDelivery)
-    // This ensures distances are calculated from the correct starting point
-    // Sort pickups by delivery_time_start (scheduled pickup time), then by distance as tiebreaker
-    const sortPickupsFromPosition = (position) => {
-      return [...pickupStops]
-        .filter(p => !isNextDeliveryStopData || p.idx !== isNextDeliveryStopData.idx) // Exclude isNextDelivery if it was a pickup
-        .sort((a, b) => {
-          // Parse delivery_time_start for both pickups
-          const aTimeStart = a.delivery.delivery_time_start;
-          const bTimeStart = b.delivery.delivery_time_start;
-          
-          // Convert to minutes for comparison
-          let aMinutes = Infinity;
-          let bMinutes = Infinity;
-          
-          if (aTimeStart) {
-            const [aH, aM] = aTimeStart.split(':').map(Number);
-            aMinutes = aH * 60 + aM;
-          }
-          if (bTimeStart) {
-            const [bH, bM] = bTimeStart.split(':').map(Number);
-            bMinutes = bH * 60 + bM;
-          }
-          
-          // Primary sort: by scheduled pickup time
-          if (aMinutes !== bMinutes) {
-            return aMinutes - bMinutes;
-          }
-          
-          // Tiebreaker: by distance from provided position
-          const distA = calculateCrowFliesDistance(position.lat, position.lng, a.lat, a.lng);
-          const distB = calculateCrowFliesDistance(position.lat, position.lng, b.lat, b.lng);
-          return distA - distB;
-        });
-    };
+    // CRITICAL: Sort pickups STRICTLY by delivery_time_start (scheduled pickup time)
+    // NEVER sort by distance - this causes AM and PM pickups to be mixed
+    const sortedPickups = [...pickupStops]
+      .filter(p => !isNextDeliveryStopData || p.idx !== isNextDeliveryStopData.idx) // Exclude isNextDelivery if it was a pickup
+      .sort((a, b) => {
+        // Parse delivery_time_start for both pickups
+        const aTimeStart = a.delivery.delivery_time_start;
+        const bTimeStart = b.delivery.delivery_time_start;
+        
+        // Convert to minutes for comparison
+        let aMinutes = Infinity;
+        let bMinutes = Infinity;
+        
+        if (aTimeStart) {
+          const [aH, aM] = aTimeStart.split(':').map(Number);
+          aMinutes = aH * 60 + aM;
+        }
+        if (bTimeStart) {
+          const [bH, bM] = bTimeStart.split(':').map(Number);
+          bMinutes = bH * 60 + bM;
+        }
+        
+        // CRITICAL: ONLY sort by scheduled time - NO distance tiebreaker
+        return aMinutes - bMinutes;
+      });
     
-    // Initial sort using current position (will be updated after isNextDelivery is processed)
-    let sortedPickups = sortPickupsFromPosition(currentPosition);
-    
-    console.log('📦 Initial pickup order by delivery_time_start (from driver location):');
+    console.log('📦 Pickup order by delivery_time_start (STRICT - no distance sorting):');
     sortedPickups.forEach((p, i) => {
       console.log(`   ${i+1}. ${p.delivery.patient_name || 'Pickup'} @ ${p.delivery.delivery_time_start || 'no time'}`);
     });
 
-    console.log('🎯 [Stage-Based Optimization] Starting recursive optimization...');
-    console.log(`📊 Total: ${pickupStops.length} pickups, ${deliveryStopsWithoutTimeConstraints.length} flexible, ${deliveryStopsWithTimeConstraints.length} constrained, ${ispDeliveryStops.length} ISPs`);
-    if (isNextDeliveryStopData) {
-      console.log(`🔒 isNextDelivery is locked - optimizing ${stops.length - 1} remaining stops`);
-    }
-
-    // Track unvisited stops (exclude isNextDelivery if it exists)
-    let unvisitedPickups = new Set(sortedPickups.map(p => p.idx));
-    const unvisitedFlexible = new Set(
-      deliveryStopsWithoutTimeConstraints
-        .filter(d => !isNextDeliveryStopData || d.idx !== isNextDeliveryStopData.idx)
-        .map(d => d.idx)
-    );
-    const unvisitedConstrained = new Set(
-      deliveryStopsWithTimeConstraints
-        .filter(d => !isNextDeliveryStopData || d.idx !== isNextDeliveryStopData.idx)
-        .map(d => d.idx)
-    );
-    const unvisitedISPs = new Set(
-      ispDeliveryStops
-        .filter(d => !isNextDeliveryStopData || d.idx !== isNextDeliveryStopData.idx)
-        .map(d => d.idx)
-    );
+    // CRITICAL: STRICT STAGE-BASED OPTIMIZATION
+    // Stage 1: Pickups in STRICT scheduled time order (NEVER optimized)
+    // Stage 2: Each pickup's deliveries optimized by distance from that pickup
     
-    // CRITICAL: Re-sort pickups to ensure correct order before optimization
-    // Sort by delivery_time_start (scheduled pickup time) - this is the primary sort
-    console.log(`\n🔄 Ensuring pickups are in correct scheduled order...`);
-    sortedPickups = sortPickupsFromPosition(currentPosition);
-    unvisitedPickups = new Set(sortedPickups.map(p => p.idx));
+    console.log('🎯 [Stage-Based Optimization] Starting STRICT time-ordered pickups with optimized deliveries...');
+    console.log(`📦 ${sortedPickups.length} pickups (time-ordered)`);
+    console.log(`📬 ${deliveryStops.length} deliveries (optimizable)`);
     
-    console.log('📦 Pickup order by delivery_time_start:');
-    sortedPickups.forEach((p, i) => {
-      console.log(`   ${i+1}. ${p.delivery.patient_name || 'Pickup'} @ ${p.delivery.delivery_time_start || 'no time'}`);
-    });
-
-    // FULL SHORTEST-PATH OPTIMIZATION:
-    // Optimize ALL stops together (pickups + in_transit + en_route deliveries)
-    // ONLY constraint: PENDING deliveries must remain locked to their pickup (not optimized)
-    
-    // Separate pending deliveries (locked) from everything else (optimizable)
-    const pendingDeliveries = [];
-    const optimizableStops = [];
-    
-    for (const pickup of pickupStops) {
-      // Check if this pickup has PENDING deliveries
-      const pendingForThisPickup = [];
+    // STEP 1: Process each pickup in STRICT scheduled time order
+    for (const pickup of sortedPickups) {
+      console.log(`\n📦 Pickup: ${pickup.delivery.patient_name || 'Pickup'} @ ${pickup.delivery.delivery_time_start}`);
       
-      for (const idx of unvisitedFlexible) {
-        const deliv = deliveryStopsWithoutTimeConstraints.find(d => d.idx === idx);
-        if (deliv && deliv.delivery.store_id === pickup.delivery.store_id && deliv.delivery.status === 'pending') {
-          pendingForThisPickup.push(deliv);
-        }
-      }
-      for (const idx of unvisitedConstrained) {
-        const deliv = deliveryStopsWithTimeConstraints.find(d => d.idx === idx);
-        if (deliv && deliv.delivery.store_id === pickup.delivery.store_id && deliv.delivery.status === 'pending') {
-          pendingForThisPickup.push(deliv);
-        }
-      }
+      // Add pickup to route
+      optimizedRoute.push(pickup.idx);
       
-      if (pendingForThisPickup.length > 0) {
-        // This pickup has pending deliveries - lock them together
-        pendingDeliveries.push({ pickup, pendingStops: pendingForThisPickup });
-      } else {
-        // Pickup has no pending deliveries - it's free to optimize
-        optimizableStops.push(pickup);
-      }
-    }
-    
-    // Add all non-pending deliveries (in_transit, en_route) to optimizable list
-    for (const idx of unvisitedFlexible) {
-      const deliv = deliveryStopsWithoutTimeConstraints.find(d => d.idx === idx);
-      if (deliv && deliv.delivery.status !== 'pending') {
-        optimizableStops.push(deliv);
-      }
-    }
-    for (const idx of unvisitedConstrained) {
-      const deliv = deliveryStopsWithTimeConstraints.find(d => d.idx === idx);
-      if (deliv && deliv.delivery.status !== 'pending') {
-        optimizableStops.push(deliv);
-      }
-    }
-    for (const idx of unvisitedISPs) {
-      const isp = ispDeliveryStops.find(d => d.idx === idx);
-      if (isp) {
-        optimizableStops.push(isp);
-      }
-    }
-    
-    console.log(`\n🎯 [Full Optimization] Optimizing ${optimizableStops.length} stops (pickups + in_transit/en_route deliveries)`);
-    console.log(`   🔒 ${pendingDeliveries.length} pickup groups with pending deliveries (locked)`);
-    
-    // STEP 1: Optimize all free stops together
-    if (optimizableStops.length > 0) {
-      const { path: optimizedPath } = findShortestPath(
-        currentPosition,
-        optimizableStops,
-        driverHomeLocation,
-        cumulativeTime
-      );
-      
-      console.log(`   ✅ Optimal path: ${optimizedPath.length} stops optimized`);
-      
-      for (const idx of optimizedPath) {
-        const stop = stops[idx];
-        optimizedRoute.push(idx);
-        
-        unvisitedPickups.delete(idx);
-        unvisitedFlexible.delete(idx);
-        unvisitedConstrained.delete(idx);
-        unvisitedISPs.delete(idx);
-        
-        const travelDist = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, stop.lat, stop.lng);
-        cumulativeTime += (travelDist / 40) * 60;
-        
-        if (stop.timeWindow && cumulativeTime < stop.timeWindow.start) {
-          cumulativeTime = stop.timeWindow.start;
-        }
-        
-        cumulativeTime += stop.delivery.extra_time || 5;
-        currentPosition = { lat: stop.lat, lng: stop.lng };
-        
-        const stopType = stop.delivery.patient_id ? '📬' : '📦';
-        console.log(`      ${stopType} ${stop.delivery.patient_name || 'Pickup'} [${stop.delivery.status}]`);
-      }
-    }
-    
-    // STEP 2: Add locked pickup groups (pickup + pending deliveries) at the end
-    for (const group of pendingDeliveries) {
-      console.log(`\n   🔒 Adding locked group: ${group.pickup.delivery.patient_name || 'Pickup'} + ${group.pendingStops.length} pending`);
-      
-      // Add pickup first
-      optimizedRoute.push(group.pickup.idx);
-      unvisitedPickups.delete(group.pickup.idx);
-      
-      const travelDist = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, group.pickup.lat, group.pickup.lng);
+      // Update position and time
+      const travelDist = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, pickup.lat, pickup.lng);
       cumulativeTime += (travelDist / 40) * 60;
       
-      if (group.pickup.delivery.delivery_time_start) {
-        const [h, m] = group.pickup.delivery.delivery_time_start.split(':').map(Number);
-        if (cumulativeTime < h * 60 + m) {
-          cumulativeTime = h * 60 + m;
+      // Wait for pickup time window if needed
+      if (pickup.delivery.delivery_time_start) {
+        const [h, m] = pickup.delivery.delivery_time_start.split(':').map(Number);
+        const pickupMinutes = h * 60 + m;
+        if (cumulativeTime < pickupMinutes) {
+          console.log(`   ⏰ Waiting ${pickupMinutes - cumulativeTime} min for pickup window`);
+          cumulativeTime = pickupMinutes;
         }
       }
       
-      cumulativeTime += group.pickup.delivery.extra_time || 15;
-      currentPosition = { lat: group.pickup.lat, lng: group.pickup.lng };
+      cumulativeTime += pickup.delivery.extra_time || 15;
+      currentPosition = { lat: pickup.lat, lng: pickup.lng };
       
-      // Add pending deliveries immediately after
-      const { path: pendingPath } = findShortestPath(
-        currentPosition,
-        group.pendingStops,
-        driverHomeLocation,
-        cumulativeTime
+      // STEP 2: Find deliveries for this pickup and optimize them by distance
+      const deliveriesForThisPickup = deliveryStops.filter(d => 
+        d.delivery.puid === pickup.delivery.puid || 
+        d.delivery.store_id === pickup.delivery.store_id
       );
       
-      for (const idx of pendingPath) {
-        const stop = stops[idx];
-        optimizedRoute.push(idx);
+      if (deliveriesForThisPickup.length > 0) {
+        console.log(`   📬 Optimizing ${deliveriesForThisPickup.length} deliveries for this pickup...`);
         
-        unvisitedFlexible.delete(idx);
-        unvisitedConstrained.delete(idx);
+        // Optimize deliveries by shortest path from pickup
+        const { path: deliveryPath } = findShortestPath(
+          currentPosition,
+          deliveriesForThisPickup,
+          null, // No destination - will continue to next pickup
+          cumulativeTime
+        );
         
-        const travelDist = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, stop.lat, stop.lng);
-        cumulativeTime += (travelDist / 40) * 60;
-        
-        if (stop.timeWindow && cumulativeTime < stop.timeWindow.start) {
-          cumulativeTime = stop.timeWindow.start;
+        for (const idx of deliveryPath) {
+          const stop = stops[idx];
+          optimizedRoute.push(idx);
+          
+          const travelDist = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, stop.lat, stop.lng);
+          cumulativeTime += (travelDist / 40) * 60;
+          
+          if (stop.timeWindow && cumulativeTime < stop.timeWindow.start) {
+            cumulativeTime = stop.timeWindow.start;
+          }
+          
+          cumulativeTime += stop.delivery.extra_time || 5;
+          currentPosition = { lat: stop.lat, lng: stop.lng };
+          
+          console.log(`      📬 ${stop.delivery.patient_name}`);
         }
-        
-        cumulativeTime += stop.delivery.extra_time || 5;
-        currentPosition = { lat: stop.lat, lng: stop.lng };
-        
-        console.log(`      📦 pending: ${stop.delivery.patient_name}`);
-      }
-    }
-
-    // Final pass: any remaining deliveries after all pickups
-    const remainingDeliveries = [];
-    for (const idx of unvisitedFlexible) {
-      const stop = stops[idx];
-      remainingDeliveries.push({ ...stop, idx });
-    }
-    for (const idx of unvisitedConstrained) {
-      const stop = stops[idx];
-      remainingDeliveries.push({ ...stop, idx });
-    }
-    for (const idx of unvisitedISPs) {
-      const stop = stops[idx];
-      remainingDeliveries.push({ ...stop, idx });
-    }
-
-    if (remainingDeliveries.length > 0) {
-      console.log(`\n📍 [Final Stage] ${remainingDeliveries.length} remaining deliveries → Home`);
-      
-      const { path: finalPath } = findShortestPath(
-        currentPosition,
-        remainingDeliveries,
-        driverHomeLocation,
-        cumulativeTime
-      );
-      
-      for (const idx of finalPath) {
-        optimizedRoute.push(idx);
-        unvisitedFlexible.delete(idx);
-        unvisitedConstrained.delete(idx);
-        unvisitedISPs.delete(idx);
-        
-        const stop = stops[idx];
-        currentPosition = { lat: stop.lat, lng: stop.lng };
-        console.log(`      📬 ${stop.delivery.patient_name || 'Delivery'}`);
       }
     }
 
