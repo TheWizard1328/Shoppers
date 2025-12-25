@@ -1161,7 +1161,6 @@ export default function RouteImport({
   const previewStats = useMemo(() => {
     const creates = filteredPreviewDeliveries.filter((d) => d.action === 'create').length;
     const updates = filteredPreviewDeliveries.filter((d) => d.action === 'update').length;
-    const completed = filteredPreviewDeliveries.filter((d) => d.status === 'completed').length;
 
     const failed = filteredPreviewDeliveries.filter((d) => d.status === 'failed').length;
 
@@ -1171,6 +1170,18 @@ export default function RouteImport({
       const patientNameReturn = (d.patient_name || '').toLowerCase().includes('return');
       // CRITICAL: Return is identified by markers in notes/patient name, NOT by status
       return notesReturn || addressReturn || patientNameReturn;
+    }).length;
+
+    // CRITICAL: Completed = all deliveries MINUS failed MINUS returned
+    const completed = filteredPreviewDeliveries.filter((d) => {
+      if (d.status === 'failed') return false;
+      
+      const notesReturn = (d.delivery_notes || '').toLowerCase().includes('return');
+      const addressReturn = (d.delivery_address || '').toLowerCase().includes('rtn');
+      const patientNameReturn = (d.patient_name || '').toLowerCase().includes('return');
+      if (notesReturn || addressReturn || patientNameReturn) return false;
+      
+      return true;
     }).length;
 
     return { creates, updates, completed, failed, returned, skipped: previewData.skippedItems.length };
