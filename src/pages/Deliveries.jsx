@@ -492,6 +492,7 @@ export default function DeliveriesPage() {
     
     if (contextDeliveries.length > 0) {
       setAllDeliveries(contextDeliveries);
+      setRefreshKey(prev => prev + 1); // Force driver card stats to recalculate
     }
 
     if (contextPatients.length > 0) {
@@ -2748,7 +2749,11 @@ export default function DeliveriesPage() {
   allPatients,
   currentUser?.id,
   selectedOverviewYear,
-  selectedCityId
+  selectedCityId,
+  contextDeliveries,
+  contextPatients,
+  contextUsers,
+  refreshKey
   ]);
 
   const canCreateDeliveries = useMemo(() => {
