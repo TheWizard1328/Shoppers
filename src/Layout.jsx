@@ -829,13 +829,14 @@ export default function Layout({ children, currentPageName }) {
     useEffect(() => {
       if (!currentUser) return;
 
-      // Start background sync after 5 seconds to avoid blocking initial load
+      // CRITICAL: Delay background sync much longer (60 seconds) to avoid rate limits on initial load
+      // The UI already loads from IndexedDB immediately via dataManager.getData()
       const syncTimer = setTimeout(() => {
         const selectedDateStr = globalFilters.getSelectedDate();
         const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
 
         performInitialSync(selectedDate).catch(() => {});
-      }, 5000);
+      }, 60000);
 
       // Set up periodic mutation processing (every 60 seconds to avoid rate limits)
       const mutationSyncInterval = setInterval(() => {
@@ -1115,6 +1116,7 @@ export default function Layout({ children, currentPageName }) {
       }
     });
 
+    // CRITICAL: Delay unified refresh startup to avoid competing with initial data load
     const startupTimer = setTimeout(() => {
     const performUnifiedRefresh = async () => {
       if (!smartRefreshManager._enabled) return;
@@ -1220,7 +1222,7 @@ export default function Layout({ children, currentPageName }) {
     };
 
       refreshIntervalRef.current = setInterval(performUnifiedRefresh, 15000); // 15 seconds
-    }, 500);
+      }, 10000); // Wait 10 seconds before starting unified refresh
 
     return () => {
       clearTimeout(startupTimer);
