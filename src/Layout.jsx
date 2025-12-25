@@ -2425,6 +2425,7 @@ export default function Layout({ children, currentPageName }) {
                         <div className="hidden lg:flex">
                           <DriverStatusToggle 
                             currentUser={currentUser}
+                            vertical={true}
                             onStatusChange={async (newStatus) => {
                               clearUserCache();
                               const refreshedUser = await getEffectiveUser();

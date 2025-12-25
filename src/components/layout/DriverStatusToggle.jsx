@@ -16,7 +16,7 @@ import { loadUserSettings, getSetting } from "../utils/userSettingsManager";
  * Center: On Duty (Green) - Enables location sharing
  * Right: On Break (Blue) - Disables location sharing
  */
-export default function DriverStatusToggle({ currentUser, onStatusChange, onBreakStart, onBreakEnd }) {
+export default function DriverStatusToggle({ currentUser, onStatusChange, onBreakStart, onBreakEnd, vertical = false }) {
   const [status, setStatus] = useState(currentUser?.driver_status || 'off_duty');
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatus, setPendingStatus] = useState(null);
@@ -369,7 +369,8 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
     <div className="flex items-center">
       <div 
         className={cn(
-          "relative flex flex-col items-center w-8 h-24 rounded-full p-0.5 transition-all",
+          "relative flex items-center rounded-full p-0.5 transition-all",
+          vertical ? "flex-col w-8 h-24" : "flex-row h-8 w-24",
           isUpdating && "opacity-50 pointer-events-none"
         )}
         style={{ background: 'var(--bg-slate-200)' }}
@@ -377,11 +378,15 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
         {/* Sliding indicator */}
         <div 
           className={cn(
-            "absolute w-7 h-8 rounded-full transition-all duration-200 ease-out shadow-sm",
+            "absolute rounded-full transition-all duration-200 ease-out shadow-sm",
             currentConfig.activeColor,
-            status === 'off_duty' && 'top-0.5',
-            status === 'on_duty' && 'top-[calc(33.33%-2px)]',
-            status === 'on_break' && 'top-[calc(66.66%-4px)]'
+            vertical ? "w-7 h-8" : "h-7 w-8",
+            vertical && status === 'off_duty' && 'top-0.5',
+            vertical && status === 'on_duty' && 'top-[calc(33.33%-2px)]',
+            vertical && status === 'on_break' && 'top-[calc(66.66%-4px)]',
+            !vertical && status === 'off_duty' && 'left-0.5',
+            !vertical && status === 'on_duty' && 'left-[calc(33.33%-2px)]',
+            !vertical && status === 'on_break' && 'left-[calc(66.66%-4px)]'
           )}
         />
         
@@ -390,7 +395,8 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
           onClick={() => handleStatusChange('off_duty')}
           disabled={isUpdating}
           className={cn(
-            "relative z-10 flex-1 w-full flex items-center justify-center text-[10px] font-bold rounded-full transition-colors",
+            "relative z-10 flex-1 flex items-center justify-center text-[10px] font-bold rounded-full transition-colors",
+            vertical ? "w-full" : "h-full",
             status === 'off_duty' ? 'text-white' : ''
           )}
           style={status !== 'off_duty' ? { color: 'var(--text-slate-500)' } : {}}
@@ -404,7 +410,8 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
           onClick={() => handleStatusChange('on_duty')}
           disabled={isUpdating}
           className={cn(
-            "relative z-10 flex-1 w-full flex items-center justify-center text-[10px] font-bold rounded-full transition-colors",
+            "relative z-10 flex-1 flex items-center justify-center text-[10px] font-bold rounded-full transition-colors",
+            vertical ? "w-full" : "h-full",
             status === 'on_duty' ? 'text-white' : ''
           )}
           style={status !== 'on_duty' ? { color: 'var(--text-slate-500)' } : {}}
@@ -418,7 +425,8 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
           onClick={() => handleStatusChange('on_break')}
           disabled={isUpdating}
           className={cn(
-            "relative z-10 flex-1 w-full flex items-center justify-center text-[10px] font-bold rounded-full transition-colors",
+            "relative z-10 flex-1 flex items-center justify-center text-[10px] font-bold rounded-full transition-colors",
+            vertical ? "w-full" : "h-full",
             status === 'on_break' ? 'text-white' : ''
           )}
           style={status !== 'on_break' ? { color: 'var(--text-slate-500)' } : {}}
