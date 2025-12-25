@@ -779,7 +779,7 @@ export default function Layout({ children, currentPageName }) {
     useEffect(() => {
       if (!currentUser) return;
 
-      // Poll for sync broadcasts every 10 seconds
+      // CRITICAL: Poll for sync broadcasts every 30 seconds to reduce API load
       const pollForBroadcasts = async () => {
         try {
           const broadcasts = await base44.entities.SyncBroadcast.filter(
@@ -817,10 +817,12 @@ export default function Layout({ children, currentPageName }) {
         }
       };
 
-      // Poll every 10 seconds
-      const pollInterval = setInterval(pollForBroadcasts, 10000);
+      // CRITICAL: Delay initial poll by 20 seconds, then poll every 30 seconds
+      const initialPollTimer = setTimeout(pollForBroadcasts, 20000);
+      const pollInterval = setInterval(pollForBroadcasts, 30000);
 
       return () => {
+        clearTimeout(initialPollTimer);
         clearInterval(pollInterval);
       };
     }, [currentUser]);

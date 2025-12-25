@@ -439,8 +439,8 @@ export const loadDeliveries = async (
       // Add selected date deliveries first
       selectedDateDeliveries.forEach(d => deliveryMap.set(d.id, d));
 
-      // Wait 2 seconds before background load
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // CRITICAL: Wait 15 seconds before background load to avoid competing with initial load
+      await new Promise(resolve => setTimeout(resolve, 15000));
 
       // CHUNK 1: Today + next 6 days (7-day priority window)
       const future6Days = new Date(today);
@@ -457,8 +457,8 @@ export const loadDeliveries = async (
       // Update UI with priority data immediately
       onFullMonthLoadComplete(Array.from(deliveryMap.values()));
 
-      // Wait before loading historical data
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // CRITICAL: Increased delays to 10 seconds between chunks to avoid rate limits
+      await new Promise(resolve => setTimeout(resolve, 10000));
 
       // CHUNK 2: Past 30 days (days 1-30)
       const past30Start = subDays(today, 30);
@@ -474,7 +474,7 @@ export const loadDeliveries = async (
       onFullMonthLoadComplete(Array.from(deliveryMap.values()));
 
       // Wait before next chunk
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await new Promise(resolve => setTimeout(resolve, 10000));
 
       // CHUNK 3: Past 31-60 days
       const past60Start = subDays(today, 60);
@@ -490,7 +490,7 @@ export const loadDeliveries = async (
       onFullMonthLoadComplete(Array.from(deliveryMap.values()));
 
       // Wait before next chunk
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await new Promise(resolve => setTimeout(resolve, 10000));
 
       // CHUNK 4: Past 61-90 days
       const past90Start = subDays(today, 90);
