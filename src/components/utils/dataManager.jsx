@@ -399,64 +399,36 @@ export const loadDeliveries = async (
   // CRITICAL: Immediately refresh UI with fresh data from server
   onInitialLoadComplete(selectedDateDeliveries);
   
-  // BACKGROUND: Load future + past data after UI is ready
+  // BACKGROUND: Load entire date range in ONE API call after UI is ready
   setTimeout(async () => {
     try {
-      // Wait 1 second before starting background loads
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Load next 7 days with 3s pause between dates to prevent rate limiting
-      const futureDeliveries = [];
-      for (let i = 1; i <= 7; i++) {
-        const futureDate = new Date(today);
-        futureDate.setDate(today.getDate() + i);
-        const futureDateStr = format(futureDate, 'yyyy-MM-dd');
+      // Wait 2 seconds before background load
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
-        try {
-          const dayDeliveries = await loadDeliveriesForDate(futureDateStr, priorityFilters, forceRefresh);
-          futureDeliveries.push(...dayDeliveries);
+      // Calculate date range: 30 days back + 7 days forward
+      const past30Days = subDays(today, 30);
+      const future7Days = new Date(today);
+      future7Days.setDate(today.getDate() + 7);
 
-          if (i < 7) {
-            await new Promise(resolve => setTimeout(resolve, 3000));
-          }
-        } catch (error) {
-          if (error.response?.status === 429 || error.message?.includes('429')) {
-            console.warn(`⏰ Rate limit - waiting 15s before continuing...`);
-            await new Promise(resolve => setTimeout(resolve, 15000));
-          }
-        }
-      }
+      // SINGLE API CALL for entire range - no more per-day fetching!
+      const allRangeDeliveries = await getDeliveriesForDateRange(
+        format(past30Days, 'yyyy-MM-dd'),
+        format(future7Days, 'yyyy-MM-dd'),
+        backgroundFilters,
+        forceRefresh
+      );
 
-      // Wait 5 seconds before loading past data
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      // Merge with selected date deliveries (deduplicate by ID)
+      const deliveryMap = new Map();
+      allRangeDeliveries.forEach(d => deliveryMap.set(d.id, d));
+      selectedDateDeliveries.forEach(d => deliveryMap.set(d.id, d));
 
-      // Load past 30 days (reduced from 90) with 3s pause between dates
-      const pastDeliveries = [];
-      for (let i = 30; i >= 1; i--) {
-        const date = subDays(today, i);
-        const dateStr = format(date, 'yyyy-MM-dd');
-
-        try {
-          const dayDeliveries = await loadDeliveriesForDate(dateStr, backgroundFilters, forceRefresh);
-          pastDeliveries.push(...dayDeliveries);
-
-          if (i > 1) {
-            await new Promise(resolve => setTimeout(resolve, 3000));
-          }
-        } catch (dateError) {
-          console.error(`  ❌ Error loading ${dateStr}:`, dateError);
-          if (dateError.response?.status === 429 || dateError.message?.includes('429')) {
-            console.warn(`⏰ Rate limit - waiting 15s before continuing...`);
-            await new Promise(resolve => setTimeout(resolve, 15000));
-          }
-        }
-      }
-      
-      // Combine all: past + selected + future
-      const allDeliveries = [...pastDeliveries, ...selectedDateDeliveries, ...futureDeliveries];
+      const allDeliveries = Array.from(deliveryMap.values());
       onFullMonthLoadComplete(allDeliveries);
     } catch (error) {
       console.error('❌ [dataManager] Error in background load:', error);
+      // Still provide selected date data on error
+      onFullMonthLoadComplete(selectedDateDeliveries);
     }
   }, 0);
 
