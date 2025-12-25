@@ -390,6 +390,25 @@ const updateMutationRetry = async (mutationId, retryCount) => {
 };
 
 /**
+ * Get a single record by ID
+ */
+const getById = async (storeName, recordId) => {
+  try {
+    const db = await openDatabase();
+    const transaction = db.transaction([storeName], 'readonly');
+    const store = transaction.objectStore(storeName);
+
+    return new Promise((resolve, reject) => {
+      const request = store.get(recordId);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    return null;
+  }
+};
+
+/**
  * Delete a single record from a store by ID
  */
 const deleteRecord = async (storeName, recordId) => {
@@ -413,6 +432,7 @@ export const offlineDB = {
   openDatabase,
   bulkSave,
   getAll,
+  getById,
   getByIndex,
   getByDate,
   getByCompoundIndex,
