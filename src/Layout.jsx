@@ -775,20 +775,20 @@ export default function Layout({ children, currentPageName }) {
     initializeDailyCleanup();
     }, []);
 
-    // Initialize real-time sync listener
+    // Initialize real-time sync listener - TARGETED refresh based on broadcast entity
     useEffect(() => {
       if (!currentUser) return;
 
-      // CRITICAL: Poll for sync broadcasts every 30 seconds to reduce API load
+      // CRITICAL: Poll for sync broadcasts every 60 seconds - use targeted refresh
       const pollForBroadcasts = async () => {
         try {
           const broadcasts = await base44.entities.SyncBroadcast.filter(
             {
-              created_date: { $gte: new Date(Date.now() - 60000).toISOString() },
+              created_date: { $gte: new Date(Date.now() - 120000).toISOString() },
               triggered_by: { $ne: currentUser.id }
             },
             '-created_date',
-            10
+            5
           );
 
           if (broadcasts && broadcasts.length > 0) {
@@ -797,17 +797,15 @@ export default function Layout({ children, currentPageName }) {
             // Dispatch event for yellow spinner
             window.dispatchEvent(new CustomEvent('realtimeSyncRefresh'));
 
-            // Force immediate refresh
-            smartRefreshManager.lastRefreshTimes = {
-              driverLocation: 0,
-              activeDeliveries: 0,
-              todayDeliveries: 0,
-              appUsers: 0,
-              patients: 0,
-              stores: 0
-            };
+            // CRITICAL: Targeted refresh - only reset timers for entities that changed
+            // This prevents unnecessary API calls for unchanged data
+            const changedEntities = new Set(broadcasts.map(b => b.entity_name));
+            
+            changedEntities.forEach(entityName => {
+              smartRefreshManager.handleBroadcastRefresh(entityName, 'broadcast');
+            });
 
-            console.log('🔄 [RealtimeSync] Forced immediate smart refresh');
+            console.log(`🎯 [RealtimeSync] Targeted refresh for: ${[...changedEntities].join(', ')}`);
           }
         } catch (error) {
           // Silently handle errors - don't spam console
@@ -817,9 +815,9 @@ export default function Layout({ children, currentPageName }) {
         }
       };
 
-      // CRITICAL: Delay initial poll by 20 seconds, then poll every 30 seconds
-      const initialPollTimer = setTimeout(pollForBroadcasts, 20000);
-      const pollInterval = setInterval(pollForBroadcasts, 30000);
+      // CRITICAL: Delay initial poll by 30 seconds, then poll every 60 seconds
+      const initialPollTimer = setTimeout(pollForBroadcasts, 30000);
+      const pollInterval = setInterval(pollForBroadcasts, 60000);
 
       return () => {
         clearTimeout(initialPollTimer);
