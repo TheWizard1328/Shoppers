@@ -1925,7 +1925,11 @@ function Dashboard() {
         const isDriverViewingSelfAnyDate = isDriver && selectedDriverId === currentUser?.id && selectedDriverId !== 'all';
         
         console.log(`🗺️ [Phase 1] isDriverViewingSelfAnyDate: ${isDriverViewingSelfAnyDate}, showAllDriverMarkers: ${showAllDriverMarkers}`);
+        console.log(`🗺️ [Phase 1] Total deliveries available: ${deliveries?.length || 0}`);
+        
         if (isDriverViewingSelfAnyDate && showAllDriverMarkers) {
+          let otherDriverMarkersAdded = 0;
+          
           // Add other drivers' delivery/pickup markers
           if (deliveries && Array.isArray(deliveries)) {
             deliveries.forEach((delivery) => {
@@ -1949,17 +1953,19 @@ function Dashboard() {
                 if (patient?.latitude && patient?.longitude) {
                   allCoordinates.push([patient.latitude, patient.longitude]);
                   hasStopMarkers = true;
+                  otherDriverMarkersAdded++;
                 }
               } else if (delivery.store_id) {
                 const store = stores.find((s) => s && s.id === delivery.store_id);
                 if (store?.latitude && store?.longitude) {
                   allCoordinates.push([store.latitude, store.longitude]);
                   hasStopMarkers = true;
+                  otherDriverMarkersAdded++;
                 }
               }
             });
           }
-          console.log(`🗺️ [Phase 1] Added other drivers' ${hasStopMarkers ? 'delivery' : 'NO delivery'} markers`);
+          console.log(`🗺️ [Phase 1] Added ${otherDriverMarkersAdded} other driver markers from ${deliveries?.length || 0} total deliveries`);
         }
 
         // Get current city center
