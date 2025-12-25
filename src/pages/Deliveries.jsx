@@ -3624,22 +3624,6 @@ export default function DeliveriesPage() {
               <AnimatePresence mode="wait">
                 {renderDeliveries(filteredAndSortedDeliveries)}
               </AnimatePresence>
-
-              {activeDriver && activeDriverDeliveries.length === 0 && projectedRoutes.pickups.length > 0 &&
-            <div className="mt-4">
-                  <h3 className="text-sm font-semibold text-slate-700 mb-2">Projected Route</h3>
-                  <div className="flex gap-4 overflow-x-auto custom-scrollbar">
-                    {projectedRoutes.pickups.map((p) =>
-                <ProjectedPickupCard
-                  key={p.id}
-                  pickup={p}
-                  stopOrder={projectedRoutes.stopOrderMap[p.id]}
-                  stopOrderMap={projectedRoutes.stopOrderMap} />
-
-                )}
-                  </div>
-                </div>
-            }
             </>
           }
         </div>
