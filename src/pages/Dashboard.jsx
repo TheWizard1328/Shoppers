@@ -1903,7 +1903,7 @@ function Dashboard() {
           }
         }
 
-        // 4. Add all VISIBLE delivery/pickup markers for current driver
+        // 4. Add ALL delivery/pickup markers for selected driver(s)
         if (deliveriesWithStopOrder && Array.isArray(deliveriesWithStopOrder)) {
           deliveriesWithStopOrder.forEach((delivery) => {
             if (!delivery) return;
@@ -1922,6 +1922,7 @@ function Dashboard() {
               }
             }
           });
+          console.log(`🗺️ [Phase 1] Added ${allCoordinates.length} delivery/pickup markers for selected driver(s)`);
         }
 
         // 5. CRITICAL: Include other drivers' delivery markers ONLY if checkbox is checked
