@@ -2254,30 +2254,30 @@ function Dashboard() {
     return () => clearTimeout(timer);
   }, [renderSequence.driverLiveLocation, renderSequence.sharedLocations, allDriverLocations.length, isDataLoaded]);
 
-  // RENDER SEQUENCE EFFECT 7: Wait for full deliveries to load (background load complete)
+  // RENDER SEQUENCE EFFECT 7: Wait for selected date deliveries to be ready
   useEffect(() => {
     if (!renderSequence.sharedLocations) return;
     if (renderSequence.fullDeliveriesLoaded) return;
 
-    // Wait for full deliveries to load (background load gives us all data for other drivers)
-    // Initial load: ~72 deliveries (selected date only)
-    // After background load: ~4000+ deliveries (full month)
-    const hasFullDeliveries = deliveries.length >= 500;
+    // CRITICAL: Wait for deliveries for the SELECTED DATE to be loaded
+    // This is what we need for FAB phase 1 bounds calculation - NOT historical data
+    const selectedDateDeliveries = deliveries.filter(d => d && d.delivery_date === selectedDate);
+    const hasSelectedDateDeliveries = selectedDateDeliveries.length > 0;
 
-    if (hasFullDeliveries) {
-      console.log(`✅ [Render Sequence 7] Full deliveries loaded (${deliveries.length} deliveries)`);
+    if (hasSelectedDateDeliveries && dataReadyForSelectedDate) {
+      console.log(`✅ [Render Sequence 7] Selected date deliveries ready (${selectedDateDeliveries.length} for ${selectedDate})`);
       setRenderSequence((prev) => ({ ...prev, fullDeliveriesLoaded: true }));
       return;
     }
 
-    // Timeout after 5 seconds if deliveries don't load
+    // Timeout after 3 seconds - proceed anyway if no deliveries exist for this date
     const timer = setTimeout(() => {
-      console.log(`⏱️ [Render Sequence 7] Timeout - proceeding with partial deliveries (${deliveries.length})`);
+      console.log(`⏱️ [Render Sequence 7] Timeout - proceeding (${selectedDateDeliveries.length} deliveries for ${selectedDate})`);
       setRenderSequence((prev) => ({ ...prev, fullDeliveriesLoaded: true }));
-    }, 5000);
+    }, 3000);
 
     return () => clearTimeout(timer);
-  }, [renderSequence.sharedLocations, renderSequence.fullDeliveriesLoaded, deliveries.length]);
+  }, [renderSequence.sharedLocations, renderSequence.fullDeliveriesLoaded, deliveries, selectedDate, dataReadyForSelectedDate]);
 
   // RENDER SEQUENCE EFFECT 8: Activate FAB Phase (FINAL STEP)
   // Apply initial map view on first load - WAIT for full render sequence
