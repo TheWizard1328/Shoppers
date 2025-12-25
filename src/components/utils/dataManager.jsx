@@ -351,16 +351,49 @@ export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh 
 };
 
 /**
- * Load 3 months of deliveries (background) - expanded from 30 days for better historical data
+ * Load 90 days of deliveries (background) in chunks to avoid rate limits
  */
 export const loadFullMonthDeliveries = async (filters = {}, forceRefresh = false) => {
   const today = new Date();
-  const todayStr = format(today, 'yyyy-MM-dd');
-  const last90Days = subDays(today, 90); // 3 months of history
-  const last90DaysStr = format(last90Days, 'yyyy-MM-dd');
-
-  const deliveries = await getDeliveriesForDateRange(last90DaysStr, todayStr, filters, forceRefresh);
-  return deliveries;
+  const deliveryMap = new Map();
+  
+  // Chunk 1: Past 30 days
+  const past30Start = subDays(today, 30);
+  const chunk1 = await getDeliveriesForDateRange(
+    format(past30Start, 'yyyy-MM-dd'),
+    format(today, 'yyyy-MM-dd'),
+    filters,
+    forceRefresh
+  );
+  chunk1.forEach(d => deliveryMap.set(d.id, d));
+  
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  
+  // Chunk 2: Past 31-60 days
+  const past60Start = subDays(today, 60);
+  const past31Day = subDays(today, 31);
+  const chunk2 = await getDeliveriesForDateRange(
+    format(past60Start, 'yyyy-MM-dd'),
+    format(past31Day, 'yyyy-MM-dd'),
+    filters,
+    forceRefresh
+  );
+  chunk2.forEach(d => deliveryMap.set(d.id, d));
+  
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  
+  // Chunk 3: Past 61-90 days
+  const past90Start = subDays(today, 90);
+  const past61Day = subDays(today, 61);
+  const chunk3 = await getDeliveriesForDateRange(
+    format(past90Start, 'yyyy-MM-dd'),
+    format(past61Day, 'yyyy-MM-dd'),
+    filters,
+    forceRefresh
+  );
+  chunk3.forEach(d => deliveryMap.set(d.id, d));
+  
+  return Array.from(deliveryMap.values());
 };
 
 /**
@@ -399,32 +432,81 @@ export const loadDeliveries = async (
   // CRITICAL: Immediately refresh UI with fresh data from server
   onInitialLoadComplete(selectedDateDeliveries);
   
-  // BACKGROUND: Load entire date range in ONE API call after UI is ready
+  // BACKGROUND: Load deliveries in optimized chunks after UI is ready
   setTimeout(async () => {
     try {
+      const deliveryMap = new Map();
+      // Add selected date deliveries first
+      selectedDateDeliveries.forEach(d => deliveryMap.set(d.id, d));
+
       // Wait 2 seconds before background load
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Calculate date range: 30 days back + 7 days forward
-      const past30Days = subDays(today, 30);
-      const future7Days = new Date(today);
-      future7Days.setDate(today.getDate() + 7);
+      // CHUNK 1: Today + next 6 days (7-day priority window)
+      const future6Days = new Date(today);
+      future6Days.setDate(today.getDate() + 6);
 
-      // SINGLE API CALL for entire range - no more per-day fetching!
-      const allRangeDeliveries = await getDeliveriesForDateRange(
-        format(past30Days, 'yyyy-MM-dd'),
-        format(future7Days, 'yyyy-MM-dd'),
+      const priorityDeliveries = await getDeliveriesForDateRange(
+        format(today, 'yyyy-MM-dd'),
+        format(future6Days, 'yyyy-MM-dd'),
+        priorityFilters,
+        forceRefresh
+      );
+      priorityDeliveries.forEach(d => deliveryMap.set(d.id, d));
+
+      // Update UI with priority data immediately
+      onFullMonthLoadComplete(Array.from(deliveryMap.values()));
+
+      // Wait before loading historical data
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      // CHUNK 2: Past 30 days (days 1-30)
+      const past30Start = subDays(today, 30);
+      const past1Day = subDays(today, 1);
+
+      const chunk1Deliveries = await getDeliveriesForDateRange(
+        format(past30Start, 'yyyy-MM-dd'),
+        format(past1Day, 'yyyy-MM-dd'),
         backgroundFilters,
         forceRefresh
       );
+      chunk1Deliveries.forEach(d => deliveryMap.set(d.id, d));
+      onFullMonthLoadComplete(Array.from(deliveryMap.values()));
 
-      // Merge with selected date deliveries (deduplicate by ID)
-      const deliveryMap = new Map();
-      allRangeDeliveries.forEach(d => deliveryMap.set(d.id, d));
-      selectedDateDeliveries.forEach(d => deliveryMap.set(d.id, d));
+      // Wait before next chunk
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
-      const allDeliveries = Array.from(deliveryMap.values());
-      onFullMonthLoadComplete(allDeliveries);
+      // CHUNK 3: Past 31-60 days
+      const past60Start = subDays(today, 60);
+      const past31Day = subDays(today, 31);
+
+      const chunk2Deliveries = await getDeliveriesForDateRange(
+        format(past60Start, 'yyyy-MM-dd'),
+        format(past31Day, 'yyyy-MM-dd'),
+        backgroundFilters,
+        forceRefresh
+      );
+      chunk2Deliveries.forEach(d => deliveryMap.set(d.id, d));
+      onFullMonthLoadComplete(Array.from(deliveryMap.values()));
+
+      // Wait before next chunk
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      // CHUNK 4: Past 61-90 days
+      const past90Start = subDays(today, 90);
+      const past61Day = subDays(today, 61);
+
+      const chunk3Deliveries = await getDeliveriesForDateRange(
+        format(past90Start, 'yyyy-MM-dd'),
+        format(past61Day, 'yyyy-MM-dd'),
+        backgroundFilters,
+        forceRefresh
+      );
+      chunk3Deliveries.forEach(d => deliveryMap.set(d.id, d));
+
+      // Final update with all data
+      onFullMonthLoadComplete(Array.from(deliveryMap.values()));
+
     } catch (error) {
       console.error('❌ [dataManager] Error in background load:', error);
       // Still provide selected date data on error
