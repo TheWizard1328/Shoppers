@@ -2267,24 +2267,29 @@ function Dashboard() {
 
     const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
     
-    // CRITICAL: Always check for ALL drivers' deliveries (data is pre-loaded)
+    // CRITICAL: Count expected deliveries based on mode
     const allSelectedDateDeliveries = deliveries.filter(d => d && d.delivery_date === selectedDateStr);
-    const hasAnyDeliveries = allSelectedDateDeliveries.length > 0;
+    
+    // For "Show All" mode or "All Drivers", expect deliveries from multiple drivers
+    const uniqueDrivers = new Set(allSelectedDateDeliveries.map(d => d.driver_id).filter(Boolean));
+    const expectedDeliveryCount = showAllDriverMarkers || selectedDriverId === 'all' ? 30 : 5;
+    
+    const hasEnoughData = allSelectedDateDeliveries.length >= expectedDeliveryCount;
 
-    if (hasAnyDeliveries && dataReadyForSelectedDate) {
-      console.log(`✅ [Render Sequence 7] All drivers' deliveries ready for ${selectedDateStr} (${allSelectedDateDeliveries.length} total)`);
+    if (hasEnoughData && dataReadyForSelectedDate) {
+      console.log(`✅ [Render Sequence 7] All drivers' deliveries ready for ${selectedDateStr} (${allSelectedDateDeliveries.length} total from ${uniqueDrivers.size} drivers)`);
       setRenderSequence((prev) => ({ ...prev, fullDeliveriesLoaded: true }));
       return;
     }
 
-    // Timeout after 500ms for initial load - proceed anyway
+    // CRITICAL: Wait longer (2 seconds) to allow all deliveries to load
     const timer = setTimeout(() => {
-      console.log(`⏱️ [Render Sequence 7] Timeout - proceeding (${allSelectedDateDeliveries.length} deliveries)`);
+      console.log(`⏱️ [Render Sequence 7] Timeout - proceeding (${allSelectedDateDeliveries.length} deliveries from ${uniqueDrivers.size} drivers)`);
       setRenderSequence((prev) => ({ ...prev, fullDeliveriesLoaded: true }));
-    }, 500);
+    }, 2000);
 
     return () => clearTimeout(timer);
-  }, [renderSequence.sharedLocations, renderSequence.fullDeliveriesLoaded, deliveries, selectedDate, dataReadyForSelectedDate]);
+  }, [renderSequence.sharedLocations, renderSequence.fullDeliveriesLoaded, deliveries, selectedDate, dataReadyForSelectedDate, showAllDriverMarkers, selectedDriverId]);
 
   // RENDER SEQUENCE EFFECT 8: Activate FAB Phase (FINAL STEP)
   // Apply initial map view on first load - WAIT for full render sequence
