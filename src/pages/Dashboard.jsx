@@ -2863,16 +2863,7 @@ function Dashboard() {
         fabControlEvents.notifyDataReady();
       }, 500); // Increased delay to ensure rendering is complete
 
-      // STEP 8: Background loads (non-blocking)
-      Promise.all([
-      // Load other dates in background if needed
-      selectedDriverId !== 'all' ? base44.entities.Delivery.filter({ delivery_date: dateStr }) : Promise.resolve(null)]
-      ).then(([allDateDeliveries]) => {
-        if (allDateDeliveries && updateDeliveriesLocally) {
-          const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== dateStr);
-          updateDeliveriesLocally([...otherDateDeliveries, ...allDateDeliveries]);
-        }
-      }).catch((err) => console.warn('Background loads failed:', err));
+      // STEP 8: No background loads needed - we already loaded all drivers' deliveries
 
     } catch (error) {
       console.error('❌ [Dashboard] Date change failed:', error);
