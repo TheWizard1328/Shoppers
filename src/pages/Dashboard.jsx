@@ -2285,11 +2285,11 @@ function Dashboard() {
     return () => clearTimeout(timer);
   }, [renderSequence.sharedLocations, renderSequence.fullDeliveriesLoaded, deliveries.length]);
 
-  // RENDER SEQUENCE EFFECT 7: Activate FAB Phase (FINAL STEP)
+  // RENDER SEQUENCE EFFECT 8: Activate FAB Phase (FINAL STEP)
   // Apply initial map view on first load - WAIT for full render sequence
   useEffect(() => {
-    // CRITICAL: Wait for full render sequence before activating FAB phase
-    if (!renderSequence.sharedLocations || renderSequence.fabPhaseReady) {
+    // CRITICAL: Wait for full render sequence INCLUDING full deliveries before activating FAB phase
+    if (!renderSequence.fullDeliveriesLoaded || renderSequence.fabPhaseReady) {
       return;
     }
 
@@ -2298,7 +2298,8 @@ function Dashboard() {
       return;
     }
 
-    console.log('✅ [Render Sequence 7] All elements rendered - activating FAB phase');
+    console.log('✅ [Render Sequence 8] All elements rendered - activating FAB phase');
+    console.log(`   - deliveries count: ${deliveries.length}`);
     console.log(`   - allDriverLocations count: ${allDriverLocations.length}`);
     console.log(`   - showAllDriverMarkers: ${showAllDriverMarkers}`);
     console.log(`   - deliveriesWithStopOrder count: ${deliveriesWithStopOrder.length}`);
