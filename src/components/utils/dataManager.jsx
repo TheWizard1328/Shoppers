@@ -405,52 +405,49 @@ export const loadDeliveries = async (
       // Wait 1 second before starting background loads
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Load next 7 days with 800ms pause between dates
+      // Load next 7 days with 3s pause between dates to prevent rate limiting
       const futureDeliveries = [];
       for (let i = 1; i <= 7; i++) {
         const futureDate = new Date(today);
         futureDate.setDate(today.getDate() + i);
         const futureDateStr = format(futureDate, 'yyyy-MM-dd');
-        
+
         try {
           const dayDeliveries = await loadDeliveriesForDate(futureDateStr, priorityFilters, forceRefresh);
           futureDeliveries.push(...dayDeliveries);
-          
+
           if (i < 7) {
-            await new Promise(resolve => setTimeout(resolve, 800));
+            await new Promise(resolve => setTimeout(resolve, 3000));
           }
         } catch (error) {
           if (error.response?.status === 429 || error.message?.includes('429')) {
-            console.warn(`⏰ Rate limit - waiting 5s before continuing...`);
-            await new Promise(resolve => setTimeout(resolve, 5000));
+            console.warn(`⏰ Rate limit - waiting 15s before continuing...`);
+            await new Promise(resolve => setTimeout(resolve, 15000));
           }
         }
       }
-      
-      // Wait 1 second before loading past data
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Load past 90 days (3 months) with 800ms pause between dates
-      const last90Days = subDays(today, 90);
-      const yesterdayStr = format(subDays(today, 1), 'yyyy-MM-dd');
-      
+
+      // Wait 5 seconds before loading past data
+      await new Promise(resolve => setTimeout(resolve, 5000));
+
+      // Load past 30 days (reduced from 90) with 3s pause between dates
       const pastDeliveries = [];
-      for (let i = 89; i >= 1; i--) {
+      for (let i = 30; i >= 1; i--) {
         const date = subDays(today, i);
         const dateStr = format(date, 'yyyy-MM-dd');
-        
+
         try {
           const dayDeliveries = await loadDeliveriesForDate(dateStr, backgroundFilters, forceRefresh);
           pastDeliveries.push(...dayDeliveries);
-          
+
           if (i > 1) {
-            await new Promise(resolve => setTimeout(resolve, 800));
+            await new Promise(resolve => setTimeout(resolve, 3000));
           }
         } catch (dateError) {
           console.error(`  ❌ Error loading ${dateStr}:`, dateError);
           if (dateError.response?.status === 429 || dateError.message?.includes('429')) {
-            console.warn(`⏰ Rate limit - waiting 5s before continuing...`);
-            await new Promise(resolve => setTimeout(resolve, 5000));
+            console.warn(`⏰ Rate limit - waiting 15s before continuing...`);
+            await new Promise(resolve => setTimeout(resolve, 15000));
           }
         }
       }
