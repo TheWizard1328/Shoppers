@@ -261,7 +261,8 @@ const syncDeliveries = async (selectedDate = null, forceFullSync = false) => {
       console.log(`   ✅ Fetched ${priorityDeliveries.length} priority deliveries`);
       notifySyncStatus({ entity: 'Delivery', status: 'fetching', count: allDeliveries.length, progress: 10 });
       
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // CRITICAL: Increased delay to 8 seconds between chunks to avoid rate limits
+      await new Promise(resolve => setTimeout(resolve, 8000));
       
       // CHUNK 2: Past 1-30 days
       if (!syncPaused) {
@@ -279,7 +280,8 @@ const syncDeliveries = async (selectedDate = null, forceFullSync = false) => {
         console.log(`   ✅ Fetched ${chunk2Deliveries.length} deliveries (days 1-30)`);
         notifySyncStatus({ entity: 'Delivery', status: 'fetching', count: allDeliveries.length, progress: 40 });
         
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        // CRITICAL: Increased delay to 8 seconds between chunks
+        await new Promise(resolve => setTimeout(resolve, 8000));
       }
       
       // CHUNK 3: Past 31-60 days
@@ -298,7 +300,8 @@ const syncDeliveries = async (selectedDate = null, forceFullSync = false) => {
         console.log(`   ✅ Fetched ${chunk3Deliveries.length} deliveries (days 31-60)`);
         notifySyncStatus({ entity: 'Delivery', status: 'fetching', count: allDeliveries.length, progress: 70 });
         
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        // CRITICAL: Increased delay to 8 seconds between chunks
+        await new Promise(resolve => setTimeout(resolve, 8000));
       }
       
       // CHUNK 4: Past 61-90 days
@@ -520,7 +523,7 @@ export const performInitialSync = async (selectedDate = null) => {
 
   try {
     await processPendingMutations();
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 5000));
 
     const needsPatientFullSync = await needsFullSync('Patient');
     const needsDeliveryFullSync = await needsFullSync('Delivery');
@@ -528,7 +531,8 @@ export const performInitialSync = async (selectedDate = null) => {
     const results = { patients: null, deliveries: null };
 
     results.patients = await syncPatients(needsPatientFullSync);
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    // CRITICAL: Increased delay to 10 seconds between entity syncs to avoid rate limits
+    await new Promise(resolve => setTimeout(resolve, 10000));
     results.deliveries = await syncDeliveries(selectedDate, needsDeliveryFullSync);
 
     const syncSummary = {
