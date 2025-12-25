@@ -196,9 +196,15 @@ export default function PatientImport({ onImportComplete, onImportStart, current
     console.log(`[PatientImport] Extracted recurring for ${fullName}:`, recurring);
     console.log(`[PatientImport] Extracted preferences for ${fullName}:`, preferences);
 
-    // Determine if patient should be inactive based on name/notes keywords
+    // Determine if patient should be inactive based on:
+    // 1. Col 19 = 'X' (explicit inactive flag)
+    // 2. Name contains '(Old'
+    // 3. Notes contains '(Deceased'
     let status = 'active';
-    if (fullName && fullName.includes('(Old')) {
+    const inactiveFlag = getMappedValue('inactive_flag');
+    if (inactiveFlag && inactiveFlag.toUpperCase() === 'X') {
+      status = 'inactive';
+    } else if (fullName && fullName.includes('(Old')) {
       status = 'inactive';
     } else if (notesStr && notesStr.includes('(Deceased')) {
       status = 'inactive';
