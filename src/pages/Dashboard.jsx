@@ -1778,13 +1778,7 @@ function Dashboard() {
       return;
     }
 
-    // CRITICAL: Wait for full deliveries data to be loaded before running Phase 1 bounds
-    // Initial load only has ~72 deliveries (selected date), need to wait for background load (~4000+)
-    // This ensures other drivers' markers are included on initial load
-    if (mapViewPhase === 1 && deliveries.length < 500) {
-      console.log(`⏸️ [Phase 1] Waiting for full deliveries data (currently ${deliveries.length}, need 500+)...`);
-      return;
-    }
+    // REMOVED: Delivery count check - now handled by render sequence effect 7
 
     // Mark that this positioning is from a FAB interaction (prevents unlock on programmatic map moves)
     mapPositioningTriggerRef.current = 'fab';
