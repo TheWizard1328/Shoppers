@@ -1218,6 +1218,8 @@ export default function DeliveryForm({
     console.log('📦 PUID in staged:', staged.puid);
     console.log('📦 Store ID in staged:', staged.store_id);
     console.log('📦 AMPM in staged:', staged.ampm_deliveries);
+    console.log('📦 Driver ID in staged:', staged.driver_id);
+    console.log('📦 Driver Name in staged:', staged.driver_name);
     console.log('📦 Full staged object keys:', Object.keys(staged));
     console.log('📦 Has ID (is pending)?:', !!staged.id);
 
@@ -1231,9 +1233,13 @@ export default function DeliveryForm({
     let formDataToSet = {
       ...staged,
       puid: staged.puid || '', // Ensure PUID is explicitly set from staged item
+      driver_id: staged.driver_id || '', // CRITICAL: Ensure driver_id is explicitly set from staged item
+      driver_name: staged.driver_name || '', // CRITICAL: Ensure driver_name is explicitly set from staged item
       cod_total_amount_required: staged.cod_total_amount_required > 0 ? staged.cod_total_amount_required * 100 : 0
     };
     console.log('📦 formDataToSet.puid:', formDataToSet.puid);
+    console.log('📦 formDataToSet.driver_id:', formDataToSet.driver_id);
+    console.log('📦 formDataToSet.driver_name:', formDataToSet.driver_name);
     console.log('📦 formDataToSet after spread:', formDataToSet);
 
     // If it's a patient delivery and has a PUID, find the parent pickup to get the correct AM/PM slot.
