@@ -81,6 +81,7 @@ const needsFullSync = async (entity) => {
 
 /**
  * Sync Patients to IndexedDB - FULL or INCREMENTAL
+ * Uses chunked fetching (500 records per batch) to avoid rate limits
  */
 const syncPatients = async (forceFullSync = false) => {
   // CRITICAL: Check if sync is paused
@@ -93,11 +94,47 @@ const syncPatients = async (forceFullSync = false) => {
   notifySyncStatus({ entity: 'Patient', status: 'syncing', progress: 0, syncType: isFullSync ? 'full' : 'incremental' });
 
   try {
-    let patients;
+    let patients = [];
     
     if (isFullSync) {
-      patients = await Patient.list();
+      // CHUNKED FETCHING: Fetch patients in batches of 500 to avoid rate limits
+      let skip = 0;
+      let hasMore = true;
+      let chunkIndex = 0;
+      
+      console.log('📥 [OfflineSync] Starting chunked patient fetch (500 per batch)...');
+      
+      while (hasMore) {
+        if (syncPaused) {
+          console.log('⏸️ [OfflineSync] syncPatients interrupted during fetch - sync paused');
+          return { success: true, partial: true, count: patients.length };
+        }
+        
+        const chunk = await Patient.list('-created_date', BATCH_SIZE, skip);
+        
+        if (chunk.length === 0) {
+          hasMore = false;
+        } else {
+          patients.push(...chunk);
+          skip += chunk.length;
+          chunkIndex++;
+          
+          console.log(`   Chunk ${chunkIndex}: fetched ${chunk.length} patients (total: ${patients.length})`);
+          notifySyncStatus({ entity: 'Patient', status: 'fetching', count: patients.length });
+          
+          // If we got less than BATCH_SIZE, we've reached the end
+          if (chunk.length < BATCH_SIZE) {
+            hasMore = false;
+          } else {
+            // Wait between chunks to avoid rate limits
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+        }
+      }
+      
+      console.log(`✅ [OfflineSync] Fetched all ${patients.length} patients in ${chunkIndex} chunks`);
     } else {
+      // Incremental sync - fetch all and filter (smaller dataset expected)
       const lastSync = await offlineDB.getSyncStatus('Patient');
       const lastSyncDate = lastSync?.lastSync || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       const allPatients = await Patient.list();
@@ -119,6 +156,7 @@ const syncPatients = async (forceFullSync = false) => {
       const recordsToDelete = localPatients.filter(p => !p.id.startsWith('temp_') && !backendIds.has(p.id));
       
       if (recordsToDelete.length > 0) {
+        console.log(`🗑️ [OfflineSync] Removing ${recordsToDelete.length} deleted patients from IndexedDB...`);
         const db = await offlineDB.openDatabase();
         const transaction = db.transaction([offlineDB.STORES.PATIENTS], 'readwrite');
         const store = transaction.objectStore(offlineDB.STORES.PATIENTS);
@@ -175,6 +213,7 @@ const syncPatients = async (forceFullSync = false) => {
     notifySyncStatus({ entity: 'Patient', status: 'synced', count: totalSaved, syncType: isFullSync ? 'full' : 'incremental' });
     return { success: true, count: totalSaved, syncType: isFullSync ? 'full' : 'incremental' };
   } catch (error) {
+    console.error('❌ [OfflineSync] Patient sync error:', error);
     notifySyncStatus({ entity: 'Patient', status: 'error', error: error.message });
     return { success: false, error: error.message };
   }
@@ -182,7 +221,7 @@ const syncPatients = async (forceFullSync = false) => {
 
 /**
  * Sync Deliveries to IndexedDB - FULL or INCREMENTAL
- * FULL SYNC: All dates (7 future + 30 past)
+ * FULL SYNC: Today + 6 days future, then 90 days past in 30-day chunks
  * INCREMENTAL SYNC: Priority dates + changed dates only
  */
 const syncDeliveries = async (selectedDate = null, forceFullSync = false) => {
@@ -202,63 +241,136 @@ const syncDeliveries = async (selectedDate = null, forceFullSync = false) => {
 
     let totalSaved = 0;
     const allDeliveries = [];
-    let consecutiveDaysWithoutChanges = 0;
 
-    const selectedDateDeliveries = await Delivery.filter({ delivery_date: selectedDateStr });
-    
-    if (selectedDateDeliveries.length > 0) {
-      allDeliveries.push(...selectedDateDeliveries);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-
-    if (selectedDateStr !== todayStr) {
-      const todayDeliveries = await Delivery.filter({ delivery_date: todayStr });
+    if (isFullSync) {
+      // CHUNKED FETCHING: Use date range queries instead of per-day fetching
+      console.log('📥 [OfflineSync] Starting chunked delivery fetch...');
       
-      if (todayDeliveries.length > 0) {
-        allDeliveries.push(...todayDeliveries);
+      // CHUNK 1: Today + next 6 days (7-day priority window)
+      const future6Days = new Date(today);
+      future6Days.setDate(today.getDate() + 6);
+      
+      console.log(`   Chunk 1: ${todayStr} to ${format(future6Days, 'yyyy-MM-dd')} (7 days)`);
+      const priorityDeliveries = await Delivery.filter({
+        delivery_date: {
+          $gte: todayStr,
+          $lte: format(future6Days, 'yyyy-MM-dd')
+        }
+      });
+      allDeliveries.push(...priorityDeliveries);
+      console.log(`   ✅ Fetched ${priorityDeliveries.length} priority deliveries`);
+      notifySyncStatus({ entity: 'Delivery', status: 'fetching', count: allDeliveries.length, progress: 10 });
+      
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // CHUNK 2: Past 1-30 days
+      if (!syncPaused) {
+        const past30Start = subDays(today, 30);
+        const past1Day = subDays(today, 1);
+        
+        console.log(`   Chunk 2: ${format(past30Start, 'yyyy-MM-dd')} to ${format(past1Day, 'yyyy-MM-dd')} (30 days)`);
+        const chunk2Deliveries = await Delivery.filter({
+          delivery_date: {
+            $gte: format(past30Start, 'yyyy-MM-dd'),
+            $lte: format(past1Day, 'yyyy-MM-dd')
+          }
+        });
+        allDeliveries.push(...chunk2Deliveries);
+        console.log(`   ✅ Fetched ${chunk2Deliveries.length} deliveries (days 1-30)`);
+        notifySyncStatus({ entity: 'Delivery', status: 'fetching', count: allDeliveries.length, progress: 40 });
+        
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      }
+      
+      // CHUNK 3: Past 31-60 days
+      if (!syncPaused) {
+        const past60Start = subDays(today, 60);
+        const past31Day = subDays(today, 31);
+        
+        console.log(`   Chunk 3: ${format(past60Start, 'yyyy-MM-dd')} to ${format(past31Day, 'yyyy-MM-dd')} (30 days)`);
+        const chunk3Deliveries = await Delivery.filter({
+          delivery_date: {
+            $gte: format(past60Start, 'yyyy-MM-dd'),
+            $lte: format(past31Day, 'yyyy-MM-dd')
+          }
+        });
+        allDeliveries.push(...chunk3Deliveries);
+        console.log(`   ✅ Fetched ${chunk3Deliveries.length} deliveries (days 31-60)`);
+        notifySyncStatus({ entity: 'Delivery', status: 'fetching', count: allDeliveries.length, progress: 70 });
+        
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      }
+      
+      // CHUNK 4: Past 61-90 days
+      if (!syncPaused) {
+        const past90Start = subDays(today, 90);
+        const past61Day = subDays(today, 61);
+        
+        console.log(`   Chunk 4: ${format(past90Start, 'yyyy-MM-dd')} to ${format(past61Day, 'yyyy-MM-dd')} (30 days)`);
+        const chunk4Deliveries = await Delivery.filter({
+          delivery_date: {
+            $gte: format(past90Start, 'yyyy-MM-dd'),
+            $lte: format(past61Day, 'yyyy-MM-dd')
+          }
+        });
+        allDeliveries.push(...chunk4Deliveries);
+        console.log(`   ✅ Fetched ${chunk4Deliveries.length} deliveries (days 61-90)`);
+        notifySyncStatus({ entity: 'Delivery', status: 'fetching', count: allDeliveries.length, progress: 90 });
+      }
+      
+      console.log(`✅ [OfflineSync] Fetched all ${allDeliveries.length} deliveries in 4 chunks`);
+      
+    } else {
+      // INCREMENTAL SYNC: Priority dates + changed dates only
+      let consecutiveDaysWithoutChanges = 0;
+      
+      const selectedDateDeliveries = await Delivery.filter({ delivery_date: selectedDateStr });
+      if (selectedDateDeliveries.length > 0) {
+        allDeliveries.push(...selectedDateDeliveries);
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
-    }
-    
-    // Build date list: 7 days forward, then 30 days back
-    const datesToSync = [];
-    
-    // Future dates (1 to 7 days ahead, skipping today and selected date)
-    for (let i = 1; i <= 7; i++) {
-      const futureDate = new Date(today);
-      futureDate.setDate(today.getDate() + i);
-      const futureDateStr = format(futureDate, 'yyyy-MM-dd');
-      if (futureDateStr !== selectedDateStr) {
-        datesToSync.push(futureDateStr);
-      }
-    }
-    
-    // Past dates (1 to 90 days ago, skipping today and selected date) - 3 months of history
-    for (let i = 1; i <= LOCAL_CACHE_DAYS; i++) {
-      const pastDate = new Date(today);
-      pastDate.setDate(today.getDate() - i);
-      const pastDateStr = format(pastDate, 'yyyy-MM-dd');
-      if (pastDateStr !== selectedDateStr) {
-        datesToSync.push(pastDateStr);
-      }
-    }
 
-    const earlyExitThreshold = isFullSync ? Infinity : 10;
-
-    for (let i = 0; i < datesToSync.length; i++) {
-      // Check pause state before each date
-      if (syncPaused) {
-        console.log('⏸️ [OfflineSync] syncDeliveries interrupted - sync paused mid-operation');
-        break;
+      if (selectedDateStr !== todayStr) {
+        const todayDeliveries = await Delivery.filter({ delivery_date: todayStr });
+        if (todayDeliveries.length > 0) {
+          allDeliveries.push(...todayDeliveries);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
       }
-
-      const dateStr = datesToSync[i];
-      const localDeliveriesForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
-      const backendDeliveriesForDate = await Delivery.filter({ delivery_date: dateStr });
       
-      if (isFullSync) {
-        allDeliveries.push(...backendDeliveriesForDate);
-      } else {
+      // Build date list: 6 days forward, then 90 days back
+      const datesToSync = [];
+      
+      for (let i = 1; i <= 6; i++) {
+        const futureDate = new Date(today);
+        futureDate.setDate(today.getDate() + i);
+        const futureDateStr = format(futureDate, 'yyyy-MM-dd');
+        if (futureDateStr !== selectedDateStr) {
+          datesToSync.push(futureDateStr);
+        }
+      }
+      
+      for (let i = 1; i <= LOCAL_CACHE_DAYS; i++) {
+        const pastDate = new Date(today);
+        pastDate.setDate(today.getDate() - i);
+        const pastDateStr = format(pastDate, 'yyyy-MM-dd');
+        if (pastDateStr !== selectedDateStr) {
+          datesToSync.push(pastDateStr);
+        }
+      }
+
+      const earlyExitThreshold = 10;
+
+      for (let i = 0; i < datesToSync.length; i++) {
+        if (syncPaused) {
+          console.log('⏸️ [OfflineSync] syncDeliveries interrupted - sync paused mid-operation');
+          break;
+        }
+
+        const dateStr = datesToSync[i];
+        const localDeliveriesForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
+        const backendDeliveriesForDate = await Delivery.filter({ delivery_date: dateStr });
+        
         const hasChanges = checkForChanges(localDeliveriesForDate, backendDeliveriesForDate);
         
         if (hasChanges) {
@@ -272,14 +384,12 @@ const syncDeliveries = async (selectedDate = null, forceFullSync = false) => {
         if (consecutiveDaysWithoutChanges >= earlyExitThreshold) {
           break;
         }
+        
+        const progress = Math.round(((i + 1) / datesToSync.length) * 100);
+        notifySyncStatus({ entity: 'Delivery', status: 'syncing', progress, count: allDeliveries.length, syncType: 'incremental' });
+        
+        await new Promise(resolve => setTimeout(resolve, 1500));
       }
-      
-      // Progress notification
-      const progress = Math.round(((i + 1) / datesToSync.length) * 100);
-      notifySyncStatus({ entity: 'Delivery', status: 'syncing', progress, count: allDeliveries.length, syncType: isFullSync ? 'full' : 'incremental' });
-      
-      // Rate limit protection (longer delay for full sync to be safe)
-      await new Promise(resolve => setTimeout(resolve, isFullSync ? 2000 : 1500));
     }
 
     // CRITICAL: Remove temp IDs before saving backend data to prevent duplicates
@@ -319,7 +429,6 @@ const syncDeliveries = async (selectedDate = null, forceFullSync = false) => {
     }
 
     for (let i = 0; i < batches.length; i++) {
-      // Check pause state before each batch
       if (syncPaused) {
         console.log('⏸️ [OfflineSync] syncDeliveries batch interrupted - sync paused');
         return { success: true, partial: true, count: totalSaved };
@@ -351,6 +460,7 @@ const syncDeliveries = async (selectedDate = null, forceFullSync = false) => {
     notifySyncStatus({ entity: 'Delivery', status: 'synced', count: totalSaved, syncType: isFullSync ? 'full' : 'incremental' });
     return { success: true, count: totalSaved, syncType: isFullSync ? 'full' : 'incremental' };
   } catch (error) {
+    console.error('❌ [OfflineSync] Delivery sync error:', error);
     notifySyncStatus({ entity: 'Delivery', status: 'error', error: error.message });
     return { success: false, error: error.message };
   }
