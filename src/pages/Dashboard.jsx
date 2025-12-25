@@ -2892,18 +2892,15 @@ function Dashboard() {
     try {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
-      let freshDeliveries;
+      // CRITICAL: ALWAYS load ALL drivers' deliveries for selected date
+      // This ensures "Show All" checkbox has complete data
+      const freshDeliveries = await base44.entities.Delivery.filter({
+        delivery_date: dateStr
+      });
+      
       if (driverId && driverId !== 'all') {
-        freshDeliveries = await base44.entities.Delivery.filter({
-          driver_id: driverId,
-          delivery_date: dateStr
-        });
         smartRefreshManager.clearPendingUpdatesForDriver(driverId, dateStr);
       } else {
-        // For "all drivers", fetch all deliveries for the date
-        freshDeliveries = await base44.entities.Delivery.filter({
-          delivery_date: dateStr
-        });
         smartRefreshManager.clearPendingUpdates();
       }
 
