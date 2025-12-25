@@ -1439,7 +1439,7 @@ export default function RouteImport({
       console.log(`📤 [RouteImport] Batch updating AM/PM for ${deliveriesToUpdateFiltered.length} deliveries to update...`);
       batchUpdateAMPM(deliveriesToUpdateFiltered);
 
-      // BATCH CREATE: Use bulkCreate for new deliveries (much faster than individual creates)
+      // BATCH CREATE: Use bulkCreate DIRECTLY to backend (skip offline DB for imports)
       if (deliveriesToCreateFiltered.length > 0) {
         setImportProgress((prev) => ({
           ...prev,
@@ -1447,13 +1447,13 @@ export default function RouteImport({
           total: deliveriesToCreateFiltered.length,
           current: 0
         }));
-        setProgressMessage(`Creating ${deliveriesToCreateFiltered.length} new deliveries using batch insert...`);
+        setProgressMessage(`Creating ${deliveriesToCreateFiltered.length} new deliveries...`);
 
         // Clean all deliveries for batch creation
         const cleanedDeliveries = deliveriesToCreateFiltered.map(cleanDeliveryData);
 
-        // Batch create in chunks of 50 to avoid API limits
-        const BATCH_SIZE = 50;
+        // Batch create in chunks of 25 to avoid API limits (smaller chunks = less rate limiting)
+        const BATCH_SIZE = 25;
         const batches = [];
         for (let i = 0; i < cleanedDeliveries.length; i += BATCH_SIZE) {
           batches.push(cleanedDeliveries.slice(i, i + BATCH_SIZE));
@@ -1465,24 +1465,20 @@ export default function RouteImport({
         for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
           const batch = batches[batchIndex];
           try {
-            console.log(`📤 [RouteImport] Batch ${batchIndex + 1}/${batches.length}: Writing ${batch.length} deliveries to offline DB...`);
+            console.log(`📤 [RouteImport] Batch ${batchIndex + 1}/${batches.length}: Creating ${batch.length} deliveries on backend...`);
 
-            // Generate temp IDs and save to offline DB
-            const deliveriesWithTempIds = batch.map(d => ({
-              ...d,
-              id: `temp_delivery_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-              created_date: new Date().toISOString(),
-              updated_date: new Date().toISOString(),
-              _isLocal: true
-            }));
-            
-            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveriesWithTempIds);
+            // CRITICAL: Create directly on backend using bulkCreate
+            const createdDeliveries = await retryWithBackoff(async () => {
+              return await base44.entities.Delivery.bulkCreate(batch);
+            }, 3, 2000, 2);
+
+            // Save backend records to IndexedDB for local cache
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, createdDeliveries);
 
             // Count successful creates
             batch.forEach((cleanData) => {
               overallResults.created++;
               overallResults.completed++;
-              // CRITICAL: Check for return markers in notes/patient name, NOT status
               if (isReturnDelivery(cleanData, freshPatients, freshStores)) {
                 overallResults.returned++;
               }
@@ -1495,30 +1491,27 @@ export default function RouteImport({
               current: totalCreated
             }));
 
-            console.log(`✅ [RouteImport] Batch ${batchIndex + 1} complete: ${batch.length} deliveries written to offline DB`);
+            console.log(`✅ [RouteImport] Batch ${batchIndex + 1} complete: ${batch.length} deliveries created on backend`);
 
-            // Minimal delay between batches
+            // Delay between batches to avoid rate limits
             if (batchIndex < batches.length - 1) {
-              await delay(100);
+              await delay(1500);
             }
           } catch (error) {
-            console.warn(`⚠️ Batch ${batchIndex + 1} offline save failed, falling back to individual saves:`, error.message);
+            console.warn(`⚠️ Batch ${batchIndex + 1} bulkCreate failed, falling back to individual creates:`, error.message);
 
-            // Fallback: try individual offline saves for this batch
+            // Fallback: try individual backend creates for this batch
             for (const cleanData of batch) {
               try {
-                const deliveryWithTempId = {
-                  ...cleanData,
-                  id: `temp_delivery_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                  created_date: new Date().toISOString(),
-                  updated_date: new Date().toISOString(),
-                  _isLocal: true
-                };
+                const createdDelivery = await retryWithBackoff(async () => {
+                  return await base44.entities.Delivery.create(cleanData);
+                }, 3, 1000, 2);
                 
-                await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [deliveryWithTempId]);
+                // Save to IndexedDB
+                await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [createdDelivery]);
+                
                 overallResults.created++;
                 overallResults.completed++;
-                // CRITICAL: Check for return markers in notes/patient name, NOT status
                 if (isReturnDelivery(cleanData, freshPatients, freshStores)) {
                   overallResults.returned++;
                 }
@@ -1528,12 +1521,11 @@ export default function RouteImport({
                   created: totalCreated,
                   current: totalCreated
                 }));
-                await delay(50);
+                await delay(500);
               } catch (individualError) {
-                console.warn(`⚠️ Individual offline save failed for ${cleanData.delivery_id || 'unknown'}:`, individualError.message);
+                console.warn(`⚠️ Individual create failed for ${cleanData.delivery_id || 'unknown'}:`, individualError.message);
                 failedCreations.push({ data: cleanData, error: individualError.message });
 
-                // Check for Invalid time value error and show detailed popup
                 if (individualError.message && individualError.message.includes('Invalid time value')) {
                   setImportError({
                     message: `Invalid time value error`,
