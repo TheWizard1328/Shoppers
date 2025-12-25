@@ -1836,7 +1836,7 @@ function Dashboard() {
             // Skip current user on mobile (blue dot shows instead when viewing self)
             if (isMobile && location.driver_id === currentUser?.id) return;
 
-            // CRITICAL: For drivers viewing self, only include if showAllDriverMarkers is true
+            // CRITICAL: Check showAllDriverMarkers state - only include if checkbox is checked
             if (isDriverViewingSelfToday && !showAllDriverMarkers) {
               return; // Don't include any shared locations unless checkbox is checked
             }
@@ -1901,6 +1901,7 @@ function Dashboard() {
         // 5. CRITICAL: Include other drivers' markers AND home markers ONLY if checkbox is checked
         const isDriverViewingSelfAnyDate = isDriver && selectedDriverId === currentUser?.id && selectedDriverId !== 'all';
         
+        // CRITICAL: Check showAllDriverMarkers state - include other drivers only if checkbox is checked
         if (isDriverViewingSelfAnyDate && showAllDriverMarkers) {
           // 5a. Add other drivers' delivery/pickup markers
           if (deliveries && Array.isArray(deliveries)) {
@@ -6046,24 +6047,31 @@ function Dashboard() {
                             setShowAllDriverMarkers(checked);
                             localStorage.setItem('rxdeliver_show_all_driver_markers', String(checked));
                             
-                            // CRITICAL: Re-trigger FAB phase 1 to re-fit bounds with/without other drivers' markers
-                            // Delay activation to allow state to propagate, then unlock after 500ms
-                            if (mapViewPhase === 1) {
-                              // Clear any existing timers
-                              if (mapLockTimeoutRef.current) {
-                                clearTimeout(mapLockTimeoutRef.current);
-                                mapLockTimeoutRef.current = null;
-                              }
-                              mapLockExpiresAtRef.current = null;
+                            // CRITICAL: Close stats card when checkbox is toggled
+                            setIsExpanded(false);
+                            
+                            // CRITICAL: Re-trigger FAB to re-fit bounds with/without other drivers' markers
+                            // Works for ALL phases (1, 2, and 3)
+                            // Clear any existing timers
+                            if (mapLockTimeoutRef.current) {
+                              clearTimeout(mapLockTimeoutRef.current);
+                              mapLockTimeoutRef.current = null;
+                            }
+                            mapLockExpiresAtRef.current = null;
+                            
+                            // Delay FAB activation by 300ms to allow markers to update
+                            setTimeout(() => {
+                              setIsMapViewLocked(true);
+                              lastProgrammaticMapMoveRef.current = Date.now();
+                              window._lastProgrammaticMapMove = Date.now();
+                              setMapViewTrigger((prev) => prev + 1);
                               
-                              // Delay FAB activation by 300ms to allow markers to update
-                              setTimeout(() => {
-                                setIsMapViewLocked(true);
-                                lastProgrammaticMapMoveRef.current = Date.now();
-                                window._lastProgrammaticMapMove = Date.now();
-                                setMapViewTrigger((prev) => prev + 1);
-                                
-                                // Auto-unlock after 500ms
+                              // CRITICAL: Set appropriate timer based on phase
+                              if (mapViewPhase === 2) {
+                                // Phase 2 - NO timer, stays locked permanently
+                                console.log('🔵 [Show All Checkbox] Phase 2 - locked permanently');
+                              } else if (mapViewPhase === 1 || mapViewPhase === 3) {
+                                // Phase 1 & 3 - Auto-unlock after 500ms
                                 const lockDuration = 500;
                                 const expiresAt = Date.now() + lockDuration;
                                 mapLockExpiresAtRef.current = expiresAt;
@@ -6074,8 +6082,8 @@ function Dashboard() {
                                     mapLockTimeoutRef.current = null;
                                   }
                                 }, lockDuration);
-                              }, 300);
-                            }
+                              }
+                            }, 300);
                           }}
                           className="h-4 w-4"
                         />
