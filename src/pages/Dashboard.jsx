@@ -1777,6 +1777,13 @@ function Dashboard() {
       return;
     }
 
+    // CRITICAL: Wait for deliveries data to be populated before running Phase 1 bounds
+    // This ensures other drivers' markers are included on initial load
+    if (mapViewPhase === 1 && deliveries.length === 0) {
+      console.log('⏸️ [Phase 1] Waiting for deliveries data to populate...');
+      return;
+    }
+
     // Mark that this positioning is from a FAB interaction (prevents unlock on programmatic map moves)
     mapPositioningTriggerRef.current = 'fab';
     lastProgrammaticMapMoveRef.current = Date.now();
