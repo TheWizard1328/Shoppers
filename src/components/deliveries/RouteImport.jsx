@@ -2356,33 +2356,17 @@ export default function RouteImport({
                   </Button>
                   <Button
                   onClick={async () => {
-                    console.log('🔄 [RouteImport] Done clicked - syncing to backend and refreshing...');
+                    console.log('✅ [RouteImport] Done clicked - data already synced to backend during import');
                     
-                    // CRITICAL: Sync offline data to backend BEFORE triggering refresh
-                    try {
-                      const { processPendingMutations, performBidirectionalSync } = await import('../utils/offlineSync');
-                      
-                      // First, process any pending mutations (sync local changes to backend)
-                      console.log('📤 [RouteImport] Processing pending mutations...');
-                      await processPendingMutations();
-                      
-                      // Wait for backend to process
-                      await new Promise(resolve => setTimeout(resolve, 2000));
-                      
-                      // Now do a bidirectional sync to ensure consistency
-                      console.log('🔄 [RouteImport] Performing bidirectional sync...');
-                      await performBidirectionalSync();
-                      
-                    } catch (syncError) {
-                      console.warn('⚠️ [RouteImport] Sync error (will still refresh):', syncError);
-                    }
-                    
+                    // Data is already on backend from handleConfirmImport
+                    // Just trigger parent refresh callback
                     if (onImportComplete) {
                       await onImportComplete();
                     }
-                    console.log('✅ [RouteImport] Import complete with full refresh');
+                    console.log('✅ [RouteImport] Import complete - triggering parent refresh');
                   }}
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-700">
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                  disabled={isProcessing}>
                     Done - Close Import
                   </Button>
                 </> :
