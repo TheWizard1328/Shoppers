@@ -2420,6 +2420,21 @@ export default function Layout({ children, currentPageName }) {
                     </div>
 
                     <div className="flex items-center gap-2">
+                      {/* Driver Status Toggle - Show in sidebar on wider mobile screens (when mobile header is hidden) */}
+                      {isMobile && currentUser && userHasRole(currentUser, 'driver') && (
+                        <div className="hidden lg:flex">
+                          <DriverStatusToggle 
+                            currentUser={currentUser}
+                            onStatusChange={async (newStatus) => {
+                              clearUserCache();
+                              const refreshedUser = await getEffectiveUser();
+                              if (refreshedUser) {
+                                setCurrentUser(refreshedUser);
+                              }
+                            }}
+                          />
+                        </div>
+                      )}
 
                       {!sidebarOpen && userHasRole(currentUser, 'admin') && cities && cities.length > 0 && (
                         <DropdownMenu>
