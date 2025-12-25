@@ -42,6 +42,26 @@ Deno.serve(async (req) => {
     // Fetch recurring patients
     const patients = await base44.entities.Patient.filter(patientFilter, 'full_name', 500);
 
+    // CRITICAL: Fetch all deliveries for selected date to exclude patients already on routes
+    // This includes: pending, in_transit, en_route, completed, failed statuses
+    let existingDeliveriesFilter = {
+      delivery_date: selectedDate
+    };
+    if (storeIds && storeIds.length > 0) {
+      existingDeliveriesFilter.store_id = { $in: storeIds };
+    }
+    
+    const existingDeliveries = await base44.entities.Delivery.filter(existingDeliveriesFilter, '-created_date', 1000);
+    
+    // Build set of patient IDs that already have deliveries on selected date
+    const patientsWithDeliveries = new Set();
+    for (const delivery of existingDeliveries) {
+      if (delivery && delivery.patient_id) {
+        patientsWithDeliveries.add(delivery.patient_id);
+      }
+    }
+    console.log(`[Predictions] Found ${patientsWithDeliveries.size} patients already with deliveries on ${selectedDate}`);
+
     // Filter patients based on their recurring schedule
     const predictions = [];
     const excludeSet = new Set(excludePatientIds);
