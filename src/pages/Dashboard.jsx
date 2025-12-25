@@ -1925,16 +1925,18 @@ function Dashboard() {
           console.log(`🗺️ [Phase 1] Added ${allCoordinates.length} delivery/pickup markers for selected driver(s)`);
         }
 
-        // 5. CRITICAL: Include other drivers' delivery markers ONLY if checkbox is checked
+        // 5. CRITICAL: Include other drivers' delivery markers when in All Drivers mode OR Show All is checked
         const isDriverViewingSelfAnyDate = isDriver && selectedDriverId === currentUser?.id && selectedDriverId !== 'all';
+        const shouldShowAllMarkers = (selectedDriverId === 'all') || (isDriverViewingSelfAnyDate && showAllDriverMarkers);
         
-        console.log(`🗺️ [Phase 1] isDriverViewingSelfAnyDate: ${isDriverViewingSelfAnyDate}, showAllDriverMarkers: ${showAllDriverMarkers}`);
+        console.log(`🗺️ [Phase 1] isDriverViewingSelfAnyDate: ${isDriverViewingSelfAnyDate}, showAllDriverMarkers: ${showAllDriverMarkers}, shouldShowAllMarkers: ${shouldShowAllMarkers}`);
         console.log(`🗺️ [Phase 1] Total deliveries available: ${deliveries?.length || 0}`);
+        console.log(`🗺️ [Phase 1] deliveriesWithStopOrder length: ${deliveriesWithStopOrder?.length || 0}`);
         
-        if (isDriverViewingSelfAnyDate && showAllDriverMarkers) {
+        if (shouldShowAllMarkers) {
           let otherDriverMarkersAdded = 0;
           
-          // Add other drivers' delivery/pickup markers
+          // Add ALL drivers' delivery/pickup markers for selected date
           if (deliveries && Array.isArray(deliveries)) {
             deliveries.forEach((delivery) => {
               if (!delivery) return;
@@ -1944,9 +1946,15 @@ function Dashboard() {
                 return;
               }
 
-              // Skip own deliveries (already included)
-              if (delivery.driver_id === currentUser?.id) {
+              // Skip own deliveries IF we're in single driver mode (already included in deliveriesWithStopOrder)
+              if (isDriverViewingSelfAnyDate && delivery.driver_id === currentUser?.id) {
                 return;
+              }
+
+              // For "All Drivers" mode, skip if already in deliveriesWithStopOrder
+              if (selectedDriverId === 'all') {
+                const alreadyIncluded = deliveriesWithStopOrder.some(d => d?.id === delivery.id);
+                if (alreadyIncluded) return;
               }
 
               // Skip if no driver assigned
