@@ -167,8 +167,8 @@ export default function DateListPanel({
               }
                 </div>
                 
-                {/* Delete route button - only show if no completed deliveries and a driver is selected */}
-                {canDelete && selectedDriverId && selectedDriverId !== 'all' && onDeleteRoute &&
+                {/* Delete route button - show if a specific driver is selected */}
+                {selectedDriverId && selectedDriverId !== 'all' && onDeleteRoute &&
                   <Button
                     variant="ghost"
                     size="sm"
