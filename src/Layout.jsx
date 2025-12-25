@@ -86,9 +86,10 @@ import { ResizableDivider } from './components/ui/resizable-divider';
       import { isMobileDevice } from './components/utils/deviceUtils';
       import MessageNotificationBalloon from './components/messaging/MessageNotificationBalloon';
       import { initializeDailyCleanup } from './components/utils/messageCleaner';
-import { performInitialSync, processPendingMutations } from './components/utils/offlineSync';
-import OfflineSyncIndicator from './components/layout/OfflineSyncIndicator';
-import { subscribeMutations } from './components/utils/offlineMutations';
+            import { performInitialSync, processPendingMutations } from './components/utils/offlineSync';
+            import OfflineSyncIndicator from './components/layout/OfflineSyncIndicator';
+            import { subscribeMutations } from './components/utils/offlineMutations';
+            import { realtimeSyncManager } from './components/utils/realtimeSync';
 
 // App version will be loaded from AppSettings
 const DEFAULT_APP_VERSION = 'v1.0.0';
@@ -773,6 +774,53 @@ export default function Layout({ children, currentPageName }) {
     useEffect(() => {
     initializeDailyCleanup();
     }, []);
+
+    // Initialize real-time sync listener
+    useEffect(() => {
+      if (!currentUser) return;
+
+      // Poll for sync broadcasts every 10 seconds
+      const pollForBroadcasts = async () => {
+        try {
+          const broadcasts = await base44.entities.SyncBroadcast.filter(
+            {
+              created_date: { $gte: new Date(Date.now() - 60000).toISOString() },
+              triggered_by: { $ne: currentUser.id }
+            },
+            '-created_date',
+            10
+          );
+
+          if (broadcasts && broadcasts.length > 0) {
+            console.log(`📢 [RealtimeSync] Received ${broadcasts.length} broadcast(s) from other devices`);
+
+            // Force immediate refresh
+            smartRefreshManager.lastRefreshTimes = {
+              driverLocation: 0,
+              activeDeliveries: 0,
+              todayDeliveries: 0,
+              appUsers: 0,
+              patients: 0,
+              stores: 0
+            };
+
+            console.log('🔄 [RealtimeSync] Forced immediate smart refresh');
+          }
+        } catch (error) {
+          // Silently handle errors - don't spam console
+          if (!error.message?.includes('429') && !error.message?.includes('Rate limit')) {
+            console.warn('⚠️ [RealtimeSync] Poll error:', error.message);
+          }
+        }
+      };
+
+      // Poll every 10 seconds
+      const pollInterval = setInterval(pollForBroadcasts, 10000);
+
+      return () => {
+        clearInterval(pollInterval);
+      };
+    }, [currentUser]);
 
     // Initialize offline database sync
     useEffect(() => {

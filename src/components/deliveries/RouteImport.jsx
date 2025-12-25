@@ -1746,6 +1746,7 @@ export default function RouteImport({
       try {
         const { processPendingMutations, performBidirectionalSync } = await import('../utils/offlineSync');
         const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+        const { realtimeSyncManager } = await import('../utils/realtimeSync');
         
         // Pause smart refresh during sync
         smartRefreshManager.pause();
@@ -1762,11 +1763,18 @@ export default function RouteImport({
         console.log('🔄 [RouteImport] Performing bidirectional sync...');
         await performBidirectionalSync();
         
+        // CRITICAL: Broadcast change to all other devices
+        console.log('📡 [RouteImport] Broadcasting import completion to all devices...');
+        await realtimeSyncManager.broadcastChange('Delivery', 'bulk_create', {
+          count: overallResults.created + overallResults.updated,
+          dateRange: selectedDateStr
+        });
+        
         // Resume smart refresh
         smartRefreshManager.resume();
         console.log('▶️ [RouteImport] Resumed smart refresh');
         
-        console.log("✅ [RouteImport] Backend sync complete - data is now consistent");
+        console.log("✅ [RouteImport] Backend sync complete - all devices notified");
       } catch (syncError) {
         console.error('❌ [RouteImport] Backend sync failed:', syncError);
         // Resume smart refresh even on error
@@ -1781,7 +1789,7 @@ export default function RouteImport({
       
       setImportResult(overallResults);
       setProgressPercent(100);
-      setProgressMessage('Import complete and synced to backend!');
+      setProgressMessage('Import complete and synced to all devices!');
 
     } catch (error) {
       console.error("❌ Overall import error:", error);
