@@ -1736,11 +1736,41 @@ export default function RouteImport({
         currentFile: ''
       }));
 
-      console.log("📱 [RouteImport] Offline import complete. Smart refresh will sync to backend.");
+      console.log("📱 [RouteImport] Offline import complete. Syncing to backend...");
+      
+      // CRITICAL: Sync to backend IMMEDIATELY after import completes
+      // This prevents the "disappearing data" issue where smart refresh overwrites local data
+      setProgressMessage('Syncing to backend...');
+      
+      try {
+        const { processPendingMutations } = await import('../utils/offlineSync');
+        
+        // Pause smart refresh during sync
+        const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+        smartRefreshManager.pause();
+        
+        // Sync local changes to backend
+        await processPendingMutations();
+        
+        // Wait a moment for backend to process
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        // Resume smart refresh
+        smartRefreshManager.resume();
+        
+        console.log("✅ [RouteImport] Backend sync complete");
+      } catch (syncError) {
+        console.warn('⚠️ [RouteImport] Backend sync error:', syncError);
+        // Resume smart refresh even on error
+        try {
+          const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+          smartRefreshManager.resume();
+        } catch (e) {}
+      }
       
       setImportResult(overallResults);
       setProgressPercent(100);
-      setProgressMessage('Import complete - changes will sync to backend automatically!');
+      setProgressMessage('Import complete!');
 
     } catch (error) {
       console.error("❌ Overall import error:", error);
@@ -2357,7 +2387,27 @@ export default function RouteImport({
                   </Button>
                   <Button
                   onClick={async () => {
-                    console.log('🔄 [RouteImport] Done clicked - triggering full historical refresh...');
+                    console.log('🔄 [RouteImport] Done clicked - syncing to backend and refreshing...');
+                    
+                    // CRITICAL: Sync offline data to backend BEFORE triggering refresh
+                    try {
+                      const { processPendingMutations, performBidirectionalSync } = await import('../utils/offlineSync');
+                      
+                      // First, process any pending mutations (sync local changes to backend)
+                      console.log('📤 [RouteImport] Processing pending mutations...');
+                      await processPendingMutations();
+                      
+                      // Wait for backend to process
+                      await new Promise(resolve => setTimeout(resolve, 2000));
+                      
+                      // Now do a bidirectional sync to ensure consistency
+                      console.log('🔄 [RouteImport] Performing bidirectional sync...');
+                      await performBidirectionalSync();
+                      
+                    } catch (syncError) {
+                      console.warn('⚠️ [RouteImport] Sync error (will still refresh):', syncError);
+                    }
+                    
                     if (onImportComplete) {
                       await onImportComplete();
                     }
