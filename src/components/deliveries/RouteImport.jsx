@@ -1765,9 +1765,10 @@ export default function RouteImport({
         
         // CRITICAL: Broadcast change to all other devices
         console.log('📡 [RouteImport] Broadcasting import completion to all devices...');
+        const importDates = [...new Set(filteredPreviewDeliveries.map(d => d.delivery_date))].sort();
         await realtimeSyncManager.broadcastChange('Delivery', 'bulk_create', {
           count: overallResults.created + overallResults.updated,
-          dateRange: selectedDateStr
+          dateRange: importDates.length > 0 ? `${importDates[0]} to ${importDates[importDates.length - 1]}` : 'unknown'
         });
         
         // Resume smart refresh
