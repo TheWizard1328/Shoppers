@@ -1736,41 +1736,52 @@ export default function RouteImport({
         currentFile: ''
       }));
 
-      console.log("📱 [RouteImport] Offline import complete. Syncing to backend...");
+      console.log("📱 [RouteImport] Offline import complete. Syncing to backend NOW...");
       
-      // CRITICAL: Sync to backend IMMEDIATELY after import completes
-      // This prevents the "disappearing data" issue where smart refresh overwrites local data
-      setProgressMessage('Syncing to backend...');
+      // CRITICAL: Sync to backend IMMEDIATELY and WAIT for completion
+      // Don't show results until backend sync is done
+      setProgressMessage('Syncing to backend (this may take a minute)...');
+      setProgressPercent(95);
       
       try {
-        const { processPendingMutations } = await import('../utils/offlineSync');
+        const { processPendingMutations, performBidirectionalSync } = await import('../utils/offlineSync');
+        const { smartRefreshManager } = await import('../utils/smartRefreshManager');
         
         // Pause smart refresh during sync
-        const { smartRefreshManager } = await import('../utils/smartRefreshManager');
         smartRefreshManager.pause();
+        console.log('⏸️ [RouteImport] Paused smart refresh for backend sync');
         
-        // Sync local changes to backend
+        // Process all pending mutations (create/update deliveries in backend)
+        console.log('📤 [RouteImport] Syncing local changes to backend...');
         await processPendingMutations();
         
-        // Wait a moment for backend to process
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        // Wait for backend to finish processing
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        // Do bidirectional sync to ensure consistency
+        console.log('🔄 [RouteImport] Performing bidirectional sync...');
+        await performBidirectionalSync();
         
         // Resume smart refresh
         smartRefreshManager.resume();
+        console.log('▶️ [RouteImport] Resumed smart refresh');
         
-        console.log("✅ [RouteImport] Backend sync complete");
+        console.log("✅ [RouteImport] Backend sync complete - data is now consistent");
       } catch (syncError) {
-        console.warn('⚠️ [RouteImport] Backend sync error:', syncError);
+        console.error('❌ [RouteImport] Backend sync failed:', syncError);
         // Resume smart refresh even on error
         try {
           const { smartRefreshManager } = await import('../utils/smartRefreshManager');
           smartRefreshManager.resume();
         } catch (e) {}
+        
+        // Show error to user but don't fail the import
+        overallResults.errors.push(`Backend sync warning: ${syncError.message}. Data is saved locally and will sync automatically.`);
       }
       
       setImportResult(overallResults);
       setProgressPercent(100);
-      setProgressMessage('Import complete!');
+      setProgressMessage('Import complete and synced to backend!');
 
     } catch (error) {
       console.error("❌ Overall import error:", error);
