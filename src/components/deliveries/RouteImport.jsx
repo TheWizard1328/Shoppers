@@ -1620,7 +1620,7 @@ export default function RouteImport({
         }
       }
 
-      // Retry failed operations
+      // Retry failed operations - directly on backend
       const totalFailed = failedCreations.length + failedUpdates.length;
       if (totalFailed > 0) {
         console.log(`🔄 [RouteImport] Retrying ${totalFailed} failed operations (${failedCreations.length} creates, ${failedUpdates.length} updates)...`);
@@ -1636,21 +1636,18 @@ export default function RouteImport({
           const { data: cleanData } = failedCreations[i];
 
           try {
-            console.log(`🔄 [RouteImport] Retrying offline save ${i + 1}/${failedCreations.length}: ${cleanData.patient_name || 'Store Pickup'}`);
+            console.log(`🔄 [RouteImport] Retrying create ${i + 1}/${failedCreations.length}: ${cleanData.patient_name || 'Store Pickup'}`);
 
-            const deliveryWithTempId = {
-              ...cleanData,
-              id: `temp_delivery_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-              created_date: new Date().toISOString(),
-              updated_date: new Date().toISOString(),
-              _isLocal: true
-            };
+            // Retry on backend
+            const createdDelivery = await retryWithBackoff(async () => {
+              return await base44.entities.Delivery.create(cleanData);
+            }, 3, 2000, 2);
             
-            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [deliveryWithTempId]);
+            // Save to IndexedDB
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [createdDelivery]);
 
             overallResults.created++;
             overallResults.completed++;
-            // CRITICAL: Check for return markers in notes/patient name, NOT status
             if (isReturnDelivery(cleanData, freshPatients, freshStores)) {
               overallResults.returned++;
             }
@@ -1659,14 +1656,14 @@ export default function RouteImport({
               created: prev.created + 1,
               current: i + 1
             }));
-            console.log(`✅ [RouteImport] Retry offline save successful for ${cleanData.patient_name || 'Store Pickup'}`);
+            console.log(`✅ [RouteImport] Retry create successful for ${cleanData.patient_name || 'Store Pickup'}`);
           } catch (error) {
-            console.error(`❌ Retry offline save failed for delivery ${cleanData.delivery_id || 'unknown'}:`, error);
-            overallResults.errors.push(`Failed to save offline ${cleanData.patient_name || 'Store Pickup'} (${cleanData.delivery_id || 'no ID'}): ${error.message}`);
+            console.error(`❌ Retry create failed for delivery ${cleanData.delivery_id || 'unknown'}:`, error);
+            overallResults.errors.push(`Failed to create ${cleanData.patient_name || 'Store Pickup'} (${cleanData.delivery_id || 'no ID'}): ${error.message}`);
             overallResults.failed++;
             setImportProgress((prev) => ({ ...prev, errors: prev.errors + 1, current: i + 1 }));
           }
-          await delay(50);
+          await delay(1000);
         }
 
         const failedUpdateOffset = failedCreations.length;
@@ -1679,21 +1676,18 @@ export default function RouteImport({
               throw new Error('Missing delivery ID');
             }
 
-            console.log(`🔄 [RouteImport] Retrying offline update ${i + 1}/${failedUpdates.length}: ${updatePayload.patient_name || 'Store Pickup'}`);
+            console.log(`🔄 [RouteImport] Retrying update ${i + 1}/${failedUpdates.length}: ${updatePayload.patient_name || 'Store Pickup'}`);
 
-            const existingDelivery = await offlineDB.getById(offlineDB.STORES.DELIVERIES, id);
-            if (existingDelivery) {
-              const updatedDelivery = {
-                ...existingDelivery,
-                ...cleanDeliveryData(updatePayload),
-                updated_date: new Date().toISOString()
-              };
-              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
-            }
+            // Retry on backend
+            const updatedDelivery = await retryWithBackoff(async () => {
+              return await base44.entities.Delivery.update(id, cleanDeliveryData(updatePayload));
+            }, 3, 2000, 2);
+            
+            // Save to IndexedDB
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
 
             overallResults.updated++;
             overallResults.completed++;
-            // CRITICAL: Check for return markers in notes/patient name, NOT status
             if (isReturnDelivery(updatePayload, freshPatients, freshStores)) {
               overallResults.returned++;
             }
@@ -1702,14 +1696,14 @@ export default function RouteImport({
               updated: prev.updated + 1,
               current: failedUpdateOffset + i + 1
             }));
-            console.log(`✅ [RouteImport] Retry offline update successful for ${updatePayload.patient_name || 'Store Pickup'}`);
+            console.log(`✅ [RouteImport] Retry update successful for ${updatePayload.patient_name || 'Store Pickup'}`);
           } catch (error) {
-            console.error(`❌ Retry offline update failed for delivery ID ${id}:`, error);
-            overallResults.errors.push(`Failed to update offline ${deliveryData.patient_name || 'Store Pickup'} (ID ${id}): ${error.message}`);
+            console.error(`❌ Retry update failed for delivery ID ${id}:`, error);
+            overallResults.errors.push(`Failed to update ${deliveryData.patient_name || 'Store Pickup'} (ID ${id}): ${error.message}`);
             overallResults.failed++;
             setImportProgress((prev) => ({ ...prev, errors: prev.errors + 1, current: failedUpdateOffset + i + 1 }));
           }
-          await delay(50);
+          await delay(1000);
         }
       }
 
