@@ -794,6 +794,9 @@ export default function Layout({ children, currentPageName }) {
           if (broadcasts && broadcasts.length > 0) {
             console.log(`📢 [RealtimeSync] Received ${broadcasts.length} broadcast(s) from other devices`);
 
+            // Dispatch event for yellow spinner
+            window.dispatchEvent(new CustomEvent('realtimeSyncRefresh'));
+
             // Force immediate refresh
             smartRefreshManager.lastRefreshTimes = {
               driverLocation: 0,
