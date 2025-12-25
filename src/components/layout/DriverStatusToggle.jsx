@@ -369,7 +369,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
     <div className="flex items-center">
       <div 
         className={cn(
-          "relative flex items-center h-8 w-24 rounded-full p-0.5 transition-all",
+          "relative flex flex-col items-center w-8 h-24 rounded-full p-0.5 transition-all",
           isUpdating && "opacity-50 pointer-events-none"
         )}
         style={{ background: 'var(--bg-slate-200)' }}
@@ -377,11 +377,11 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
         {/* Sliding indicator */}
         <div 
           className={cn(
-            "absolute h-7 w-8 rounded-full transition-all duration-200 ease-out shadow-sm",
+            "absolute w-7 h-8 rounded-full transition-all duration-200 ease-out shadow-sm",
             currentConfig.activeColor,
-            status === 'off_duty' && 'left-0.5',
-            status === 'on_duty' && 'left-[calc(33.33%-2px)]',
-            status === 'on_break' && 'left-[calc(66.66%-4px)]'
+            status === 'off_duty' && 'top-0.5',
+            status === 'on_duty' && 'top-[calc(33.33%-2px)]',
+            status === 'on_break' && 'top-[calc(66.66%-4px)]'
           )}
         />
         
@@ -390,7 +390,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
           onClick={() => handleStatusChange('off_duty')}
           disabled={isUpdating}
           className={cn(
-            "relative z-10 flex-1 h-full flex items-center justify-center text-[10px] font-bold rounded-full transition-colors",
+            "relative z-10 flex-1 w-full flex items-center justify-center text-[10px] font-bold rounded-full transition-colors",
             status === 'off_duty' ? 'text-white' : ''
           )}
           style={status !== 'off_duty' ? { color: 'var(--text-slate-500)' } : {}}
@@ -404,7 +404,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
           onClick={() => handleStatusChange('on_duty')}
           disabled={isUpdating}
           className={cn(
-            "relative z-10 flex-1 h-full flex items-center justify-center text-[10px] font-bold rounded-full transition-colors",
+            "relative z-10 flex-1 w-full flex items-center justify-center text-[10px] font-bold rounded-full transition-colors",
             status === 'on_duty' ? 'text-white' : ''
           )}
           style={status !== 'on_duty' ? { color: 'var(--text-slate-500)' } : {}}
@@ -418,7 +418,7 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
           onClick={() => handleStatusChange('on_break')}
           disabled={isUpdating}
           className={cn(
-            "relative z-10 flex-1 h-full flex items-center justify-center text-[10px] font-bold rounded-full transition-colors",
+            "relative z-10 flex-1 w-full flex items-center justify-center text-[10px] font-bold rounded-full transition-colors",
             status === 'on_break' ? 'text-white' : ''
           )}
           style={status !== 'on_break' ? { color: 'var(--text-slate-500)' } : {}}
