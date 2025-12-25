@@ -88,7 +88,7 @@ import { ResizableDivider } from './components/ui/resizable-divider';
       import { initializeDailyCleanup } from './components/utils/messageCleaner';
             import { performInitialSync, processPendingMutations } from './components/utils/offlineSync';
             import OfflineSyncIndicator from './components/layout/OfflineSyncIndicator';
-            import { subscribeMutations } from './components/utils/offlineMutations';
+            import { subscribeMutations } from './components/utils/entityMutations';
             import { realtimeSyncManager } from './components/utils/realtimeSync';
 
 // App version will be loaded from AppSettings
@@ -842,19 +842,16 @@ export default function Layout({ children, currentPageName }) {
         processPendingMutations().catch(() => {});
       }, 60000);
 
-      // Subscribe to local mutations and refresh UI IMMEDIATELY
+      // Subscribe to ALL entity mutations and refresh UI IMMEDIATELY
       const unsubscribeMutations = subscribeMutations(async (mutation) => {
+        console.log('🔔 [Layout] Mutation received:', mutation.entity, mutation.type, mutation.id);
+
         // CRITICAL: Handle 'replace' mutations to swap temp IDs with real backend IDs
         if (mutation.type === 'replace') {
-          
           if (mutation.entity === 'Patient') {
-            setPatients(prevPatients => 
-              prevPatients.map(p => p?.id === mutation.oldId ? mutation.data : p)
-            );
+            setPatients(prev => prev.map(p => p?.id === mutation.oldId ? mutation.data : p));
           } else if (mutation.entity === 'Delivery') {
-            setDeliveries(prevDeliveries => 
-              prevDeliveries.map(d => d?.id === mutation.oldId ? mutation.data : d)
-            );
+            setDeliveries(prev => prev.map(d => d?.id === mutation.oldId ? mutation.data : d));
           }
           return;
         }
@@ -862,38 +859,60 @@ export default function Layout({ children, currentPageName }) {
         // CRITICAL: Handle 'delete' mutations - remove from UI state immediately
         if (mutation.type === 'delete') {
           if (mutation.entity === 'Patient') {
-            setPatients(prevPatients => 
-              prevPatients.filter(p => p?.id !== mutation.id)
-            );
+            setPatients(prev => prev.filter(p => p?.id !== mutation.id));
           } else if (mutation.entity === 'Delivery') {
-            setDeliveries(prevDeliveries => 
-              prevDeliveries.filter(d => d?.id !== mutation.id)
-            );
+            setDeliveries(prev => prev.filter(d => d?.id !== mutation.id));
+          } else if (mutation.entity === 'Store') {
+            setStores(prev => prev.filter(s => s?.id !== mutation.id));
+          } else if (mutation.entity === 'City') {
+            setCities(prev => prev.filter(c => c?.id !== mutation.id));
+          } else if (mutation.entity === 'AppUser') {
+            setAppUsers(prev => prev.filter(a => a?.id !== mutation.id));
+            setUsers(prev => prev.filter(u => u?.id !== mutation.id));
           }
           return;
         }
 
-        // CRITICAL: Update UI state immediately from local database with proper deduplication
-        if (mutation.entity === 'Patient') {
-          try {
-            const freshPatients = await getData('Patient', null, null, false);
-            setPatients(prevPatients => {
-              const map = new Map();
-              prevPatients.forEach(p => p && map.set(p.id, p));
-              freshPatients.forEach(p => p && map.set(p.id, p));
-              return Array.from(map.values());
+        // CRITICAL: Handle 'create' and 'update' mutations
+        if (mutation.type === 'create') {
+          if (mutation.entity === 'Patient') {
+            setPatients(prev => {
+              const exists = prev.some(p => p?.id === mutation.id);
+              return exists ? prev : [...prev, mutation.data];
             });
-          } catch (error) {}
-        } else if (mutation.entity === 'Delivery') {
-          try {
-            const freshDeliveries = await getData('Delivery', null, null, false);
-            setDeliveries(prevDeliveries => {
-              const map = new Map();
-              prevDeliveries.forEach(d => d && map.set(d.id, d));
-              freshDeliveries.forEach(d => d && map.set(d.id, d));
-              return Array.from(map.values());
+          } else if (mutation.entity === 'Delivery') {
+            setDeliveries(prev => {
+              const exists = prev.some(d => d?.id === mutation.id);
+              return exists ? prev : [...prev, mutation.data];
             });
-          } catch (error) {}
+          } else if (mutation.entity === 'Store') {
+            setStores(prev => {
+              const exists = prev.some(s => s?.id === mutation.id);
+              return exists ? prev : [...prev, mutation.data];
+            });
+          } else if (mutation.entity === 'City') {
+            setCities(prev => {
+              const exists = prev.some(c => c?.id === mutation.id);
+              return exists ? prev : [...prev, mutation.data];
+            });
+          } else if (mutation.entity === 'AppUser') {
+            setAppUsers(prev => {
+              const exists = prev.some(a => a?.id === mutation.id);
+              return exists ? prev : [...prev, mutation.data];
+            });
+          }
+        } else if (mutation.type === 'update') {
+          if (mutation.entity === 'Patient') {
+            setPatients(prev => prev.map(p => p?.id === mutation.id ? { ...p, ...mutation.data } : p));
+          } else if (mutation.entity === 'Delivery') {
+            setDeliveries(prev => prev.map(d => d?.id === mutation.id ? { ...d, ...mutation.data } : d));
+          } else if (mutation.entity === 'Store') {
+            setStores(prev => prev.map(s => s?.id === mutation.id ? { ...s, ...mutation.data } : s));
+          } else if (mutation.entity === 'City') {
+            setCities(prev => prev.map(c => c?.id === mutation.id ? { ...c, ...mutation.data } : c));
+          } else if (mutation.entity === 'AppUser') {
+            setAppUsers(prev => prev.map(a => a?.id === mutation.id ? { ...a, ...mutation.data } : a));
+          }
         }
       });
 
