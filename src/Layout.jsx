@@ -905,13 +905,28 @@ export default function Layout({ children, currentPageName }) {
       };
       window.addEventListener('offlineSyncComplete', handleSyncComplete);
 
+      // Listen for import completion to update UI immediately
+      const handleDeliveriesImported = (event) => {
+        const { deliveries } = event.detail || {};
+        if (deliveries && deliveries.length > 0) {
+          console.log(`📥 [Layout] Received ${deliveries.length} imported deliveries - updating UI immediately`);
+          setDeliveries(prevDeliveries => {
+            const map = new Map(prevDeliveries.map(d => [d.id, d]));
+            deliveries.forEach(d => map.set(d.id, d));
+            return Array.from(map.values());
+          });
+        }
+      };
+      window.addEventListener('deliveriesImported', handleDeliveriesImported);
+
       return () => {
         clearTimeout(syncTimer);
         clearInterval(mutationSyncInterval);
         unsubscribeMutations();
         window.removeEventListener('offlineSyncComplete', handleSyncComplete);
+        window.removeEventListener('deliveriesImported', handleDeliveriesImported);
       };
-    }, [currentUser]);
+      }, [currentUser]);
 
     // Fetch unread message count - only when messaging panel is closed
   // When panel is open, ConversationsList handles the count
