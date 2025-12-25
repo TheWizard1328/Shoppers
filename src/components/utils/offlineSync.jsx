@@ -511,6 +511,8 @@ const checkForChanges = (localRecords, backendRecords) => {
 
 /**
  * Perform initial sync if needed - FULL or INCREMENTAL based on last sync time
+ * CRITICAL: This is a BACKGROUND sync - the UI uses cached IndexedDB data first
+ * Only run this AFTER the UI is loaded and displayed to prevent rate limits
  */
 export const performInitialSync = async (selectedDate = null) => {
   if (syncInProgress || syncPaused) {
@@ -518,10 +520,34 @@ export const performInitialSync = async (selectedDate = null) => {
     return;
   }
 
+  // CRITICAL: Check if we have recent data - if so, skip sync entirely for now
+  const patientStatus = await offlineDB.getSyncStatus('Patient');
+  const deliveryStatus = await offlineDB.getSyncStatus('Delivery');
+  
+  const hasRecentPatientSync = patientStatus?.lastSync && 
+    (Date.now() - new Date(patientStatus.lastSync).getTime()) < 5 * 60 * 1000; // 5 minutes
+  const hasRecentDeliverySync = deliveryStatus?.lastSync && 
+    (Date.now() - new Date(deliveryStatus.lastSync).getTime()) < 5 * 60 * 1000; // 5 minutes
+  
+  if (hasRecentPatientSync && hasRecentDeliverySync) {
+    console.log('⏭️ [OfflineSync] Skipping initial sync - data synced within last 5 minutes');
+    return { patients: { skipped: true }, deliveries: { skipped: true } };
+  }
+
   syncInProgress = true;
   notifySyncStatus({ status: 'starting' });
 
   try {
+    // CRITICAL: Wait 30 seconds before starting background sync to let UI load first
+    console.log('⏳ [OfflineSync] Waiting 30s before starting background sync to avoid rate limits...');
+    await new Promise(resolve => setTimeout(resolve, 30000));
+    
+    // Check again if sync was paused during wait
+    if (syncPaused) {
+      console.log('⏸️ [OfflineSync] Sync was paused during wait period');
+      return;
+    }
+
     await processPendingMutations();
     await new Promise(resolve => setTimeout(resolve, 5000));
 
@@ -531,8 +557,8 @@ export const performInitialSync = async (selectedDate = null) => {
     const results = { patients: null, deliveries: null };
 
     results.patients = await syncPatients(needsPatientFullSync);
-    // CRITICAL: Increased delay to 10 seconds between entity syncs to avoid rate limits
-    await new Promise(resolve => setTimeout(resolve, 10000));
+    // CRITICAL: Increased delay to 15 seconds between entity syncs to avoid rate limits
+    await new Promise(resolve => setTimeout(resolve, 15000));
     results.deliveries = await syncDeliveries(selectedDate, needsDeliveryFullSync);
 
     const syncSummary = {
@@ -544,7 +570,8 @@ export const performInitialSync = async (selectedDate = null) => {
     return results;
   } catch (error) {
     notifySyncStatus({ status: 'error', error: error.message });
-    throw error;
+    // Don't throw - this is a background operation
+    return { error: error.message };
   } finally {
     syncInProgress = false;
   }
