@@ -2226,15 +2226,21 @@ function Dashboard() {
     if (!renderSequence.driverLiveLocation) return;
     if (renderSequence.sharedLocations) return;
 
-    // Shared locations are loaded via driverLocationPoller - consider ready after poller starts
-    // or if allDriverLocations has been populated
-    const hasSharedLocations = allDriverLocations.length > 0 || !isDataLoaded;
+    // CRITICAL: Wait for allDriverLocations to populate OR timeout after 3 seconds
+    // This ensures FAB phase 1 sees other drivers' markers on initial load
+    const hasSharedLocations = allDriverLocations.length > 0;
 
-    // Always mark as ready after a short delay to not block forever
-    const timer = setTimeout(() => {
-      console.log('✅ [Render Sequence 6] Shared Driver Locations ready');
+    if (hasSharedLocations) {
+      console.log(`✅ [Render Sequence 6] Shared Driver Locations ready (${allDriverLocations.length} locations)`);
       setRenderSequence((prev) => ({ ...prev, sharedLocations: true }));
-    }, allDriverLocations.length > 0 ? 0 : 500);
+      return;
+    }
+
+    // Wait longer for locations to load before timing out
+    const timer = setTimeout(() => {
+      console.log('⏱️ [Render Sequence 6] Timeout - proceeding without shared locations');
+      setRenderSequence((prev) => ({ ...prev, sharedLocations: true }));
+    }, 3000); // Increased to 3 seconds
 
     return () => clearTimeout(timer);
   }, [renderSequence.driverLiveLocation, renderSequence.sharedLocations, allDriverLocations.length, isDataLoaded]);
@@ -2253,6 +2259,9 @@ function Dashboard() {
     }
 
     console.log('✅ [Render Sequence 7] All elements rendered - activating FAB phase');
+    console.log(`   - allDriverLocations count: ${allDriverLocations.length}`);
+    console.log(`   - showAllDriverMarkers: ${showAllDriverMarkers}`);
+    console.log(`   - deliveriesWithStopOrder count: ${deliveriesWithStopOrder.length}`);
 
     // CRITICAL: Notify fabControlEvents that initial data is ready
     // This allows other components to know when dashboard is fully loaded
