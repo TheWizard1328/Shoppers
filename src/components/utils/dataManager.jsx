@@ -37,7 +37,7 @@ const DELIVERY_RANGE_CACHE_DURATION = 30 * 60 * 1000; // 30 minutes for historic
 
 // Rate limit protection - track last API call time
 let lastApiCallTime = 0;
-const MIN_API_INTERVAL = 300; // Increased to 300ms between API calls to prevent rate limiting
+const MIN_API_INTERVAL = 1000; // 1 second between API calls to prevent rate limiting
 
 const waitForRateLimit = async () => {
   const now = Date.now();
