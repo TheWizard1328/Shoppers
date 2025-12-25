@@ -2275,26 +2275,33 @@ function Dashboard() {
 
     const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
     
-    // CRITICAL: Count expected deliveries based on mode
+    // CRITICAL: Count ALL deliveries for selected date from full deliveries array
     const allSelectedDateDeliveries = deliveries.filter(d => d && d.delivery_date === selectedDateStr);
-    
-    // For "Show All" mode or "All Drivers", expect deliveries from multiple drivers
     const uniqueDrivers = new Set(allSelectedDateDeliveries.map(d => d.driver_id).filter(Boolean));
-    const expectedDeliveryCount = showAllDriverMarkers || selectedDriverId === 'all' ? 30 : 5;
     
-    const hasEnoughData = allSelectedDateDeliveries.length >= expectedDeliveryCount;
+    console.log(`🔍 [Render Sequence 7] Checking data readiness: ${allSelectedDateDeliveries.length} deliveries from ${uniqueDrivers.size} drivers`);
+    console.log(`🔍 [Render Sequence 7] Mode: ${selectedDriverId === 'all' ? 'All Drivers' : showAllDriverMarkers ? 'Show All' : 'Single Driver'}`);
+    
+    // CRITICAL: For "Show All" or "All Drivers" mode, wait until we have deliveries from at least 2 drivers
+    // AND total count is close to what we expect (72 deliveries expected based on logs)
+    const expectedMinimumCount = showAllDriverMarkers || selectedDriverId === 'all' ? 60 : 5;
+    const expectedDriverCount = showAllDriverMarkers || selectedDriverId === 'all' ? 2 : 1;
+    
+    const hasEnoughDeliveries = allSelectedDateDeliveries.length >= expectedMinimumCount;
+    const hasEnoughDrivers = uniqueDrivers.size >= expectedDriverCount;
+    const hasRequiredData = hasEnoughDeliveries && hasEnoughDrivers && dataReadyForSelectedDate;
 
-    if (hasEnoughData && dataReadyForSelectedDate) {
+    if (hasRequiredData) {
       console.log(`✅ [Render Sequence 7] All drivers' deliveries ready for ${selectedDateStr} (${allSelectedDateDeliveries.length} total from ${uniqueDrivers.size} drivers)`);
       setRenderSequence((prev) => ({ ...prev, fullDeliveriesLoaded: true }));
       return;
     }
 
-    // CRITICAL: Wait longer (2 seconds) to allow all deliveries to load
+    // CRITICAL: Wait 3 seconds to allow background loading to complete
     const timer = setTimeout(() => {
-      console.log(`⏱️ [Render Sequence 7] Timeout - proceeding (${allSelectedDateDeliveries.length} deliveries from ${uniqueDrivers.size} drivers)`);
+      console.log(`⏱️ [Render Sequence 7] Timeout - proceeding anyway (${allSelectedDateDeliveries.length} deliveries from ${uniqueDrivers.size} drivers)`);
       setRenderSequence((prev) => ({ ...prev, fullDeliveriesLoaded: true }));
-    }, 2000);
+    }, 3000);
 
     return () => clearTimeout(timer);
   }, [renderSequence.sharedLocations, renderSequence.fullDeliveriesLoaded, deliveries, selectedDate, dataReadyForSelectedDate, showAllDriverMarkers, selectedDriverId]);
