@@ -2260,6 +2260,31 @@ function Dashboard() {
     return () => clearTimeout(timer);
   }, [renderSequence.driverLiveLocation, renderSequence.sharedLocations, allDriverLocations.length, isDataLoaded]);
 
+  // RENDER SEQUENCE EFFECT 7: Wait for full deliveries to load (background load complete)
+  useEffect(() => {
+    if (!renderSequence.sharedLocations) return;
+    if (renderSequence.fullDeliveriesLoaded) return;
+
+    // Wait for full deliveries to load (background load gives us all data for other drivers)
+    // Initial load: ~72 deliveries (selected date only)
+    // After background load: ~4000+ deliveries (full month)
+    const hasFullDeliveries = deliveries.length >= 500;
+
+    if (hasFullDeliveries) {
+      console.log(`✅ [Render Sequence 7] Full deliveries loaded (${deliveries.length} deliveries)`);
+      setRenderSequence((prev) => ({ ...prev, fullDeliveriesLoaded: true }));
+      return;
+    }
+
+    // Timeout after 5 seconds if deliveries don't load
+    const timer = setTimeout(() => {
+      console.log(`⏱️ [Render Sequence 7] Timeout - proceeding with partial deliveries (${deliveries.length})`);
+      setRenderSequence((prev) => ({ ...prev, fullDeliveriesLoaded: true }));
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, [renderSequence.sharedLocations, renderSequence.fullDeliveriesLoaded, deliveries.length]);
+
   // RENDER SEQUENCE EFFECT 7: Activate FAB Phase (FINAL STEP)
   // Apply initial map view on first load - WAIT for full render sequence
   useEffect(() => {
