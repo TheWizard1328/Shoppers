@@ -2192,19 +2192,24 @@ function Dashboard() {
     setRenderSequence((prev) => ({ ...prev, fabs: true }));
   }, [renderSequence.statsAndCards, renderSequence.fabs]);
 
-  // RENDER SEQUENCE EFFECT 3: Track Map Markers ready (including home locations)
+  // RENDER SEQUENCE EFFECT 3: Track Map Markers ready (including ALL delivery/patient markers)
   useEffect(() => {
     if (!renderSequence.fabs) return;
     if (renderSequence.mapMarkers) return;
 
-    // Map markers are ready once we have deliveries data and stores/patients loaded
-    const hasRequiredData = deliveriesWithStopOrder.length > 0 || stores.length > 0;
+    // CRITICAL: Map markers ready ONLY when we have deliveries AND patients loaded
+    // This ensures both pickup AND patient delivery markers are rendered
+    const hasDeliveries = deliveriesWithStopOrder.length > 0;
+    const hasPatients = patients.length > 0;
+    const hasStores = stores.length > 0;
+    
+    const hasRequiredData = (hasDeliveries && hasPatients && hasStores) || (!hasDeliveries && hasStores);
 
     if (hasRequiredData) {
-      console.log('✅ [Render Sequence 3] Map Markers ready');
+      console.log(`✅ [Render Sequence 3] Map Markers ready (${deliveriesWithStopOrder.length} deliveries, ${patients.length} patients, ${stores.length} stores)`);
       setRenderSequence((prev) => ({ ...prev, mapMarkers: true }));
     }
-  }, [renderSequence.fabs, renderSequence.mapMarkers, deliveriesWithStopOrder.length, stores.length]);
+  }, [renderSequence.fabs, renderSequence.mapMarkers, deliveriesWithStopOrder.length, patients.length, stores.length]);
 
   // RENDER SEQUENCE EFFECT 4: Track Route Lines ready
   useEffect(() => {
