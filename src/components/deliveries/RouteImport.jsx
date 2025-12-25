@@ -1248,24 +1248,24 @@ export default function RouteImport({
       setProgressMessage(`Date range: ${minDate} to ${maxDate}`);
       setProgressPercent(10);
 
-      console.log(`[RouteImport] Fetching fresh store data from ALL cities...`);
-      setProgressMessage('Fetching store data from all cities...');
-      // CRITICAL: Fetch ALL stores without any city filter
-      const freshStoresAll = await base44.entities.Store.list('-created_date');
+      console.log(`[RouteImport] Loading cached store data...`);
+      setProgressMessage('Loading store data from cache...');
+      // CRITICAL: Use getData instead of direct API call - respects rate limiting
+      const freshStoresAll = await getData('Store', '-created_date', null, false);
       freshStoresRef.current = freshStoresAll || [];
       setAllStores(freshStoresAll || []);
-      console.log(`[RouteImport] Fresh store data loaded: ${freshStoresAll?.length || 0} stores from ALL cities`);
+      console.log(`[RouteImport] Store data loaded: ${freshStoresAll?.length || 0} stores`);
       if (freshStoresAll && freshStoresAll.length > 0) {
         console.log(`[RouteImport] Store abbreviations available:`, freshStoresAll.map((s) => `${s.abbreviation || 'N/A'} (${s.name})`).slice(0, 30));
       }
       setProgressPercent(15);
 
-      console.log(`[RouteImport] Fetching fresh patient data from ALL stores/cities...`);
-      setProgressMessage('Fetching patient data from all stores...');
-      // CRITICAL: Fetch ALL patients without any filter - ensures we can match any patient
-      const freshPatients = await base44.entities.Patient.list('-created_date');
+      console.log(`[RouteImport] Loading cached patient data...`);
+      setProgressMessage('Loading patient data from cache...');
+      // CRITICAL: Use getData instead of direct API call - respects rate limiting
+      const freshPatients = await getData('Patient', '-created_date', null, false);
       setPatients(freshPatients);
-      console.log(`[RouteImport] Fresh patient data loaded: ${freshPatients?.length || 0} patients from ALL stores`);
+      console.log(`[RouteImport] Patient data loaded: ${freshPatients?.length || 0} patients`);
       setProgressPercent(20);
 
       if (!freshPatients || freshPatients.length === 0) {
@@ -1426,10 +1426,10 @@ export default function RouteImport({
       // CRITICAL: Import to offline DB first, let smart refresh sync to backend
       const { offlineDB } = await import('../utils/offlineDatabase');
 
-      setProgressMessage('Fetching latest patient and store data from ALL cities...');
-      // CRITICAL: Fetch ALL patients and stores without filters
-      const freshPatients = await base44.entities.Patient.list('-created_date');
-      const freshStores = await base44.entities.Store.list('-created_date');
+      setProgressMessage('Loading latest patient and store data from cache...');
+      // CRITICAL: Use getData to respect rate limiting
+      const freshPatients = await getData('Patient', '-created_date', null, false);
+      const freshStores = await getData('Store', '-created_date', null, false);
 
       const deliveriesToCreateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'create');
       const deliveriesToUpdateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'update');
