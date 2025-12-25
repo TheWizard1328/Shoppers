@@ -6099,15 +6099,42 @@ function Dashboard() {
                         <Checkbox
                           id="show-all-drivers"
                           checked={showAllDriverMarkers}
-                          onCheckedChange={(checked) => {
+                          onCheckedChange={async (checked) => {
                             setShowAllDriverMarkers(checked);
                             localStorage.setItem('rxdeliver_show_all_driver_markers', String(checked));
                             
                             // CRITICAL: Close stats card when checkbox is toggled
                             setIsExpanded(false);
                             
-                            // CRITICAL: Re-trigger FAB to re-fit bounds with/without other drivers' markers
-                            // Works for ALL phases (1, 2, and 3)
+                            // CRITICAL: When checking "Show All", fetch full date deliveries FIRST
+                            if (checked) {
+                              console.log('📥 [Show All] Fetching all drivers deliveries...');
+                              setIsEntityUpdating(true);
+                              
+                              try {
+                                const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+                                const allDateDeliveries = await base44.entities.Delivery.filter({
+                                  delivery_date: selectedDateStr
+                                });
+                                
+                                console.log(`✅ [Show All] Loaded ${allDateDeliveries.length} total deliveries`);
+                                
+                                // Update context with full deliveries
+                                if (updateDeliveriesLocally) {
+                                  const otherDateDeliveries = deliveries.filter(d => d && d.delivery_date !== selectedDateStr);
+                                  const mergedDeliveries = [...otherDateDeliveries, ...allDateDeliveries];
+                                  updateDeliveriesLocally(mergedDeliveries, true);
+                                }
+                                
+                                // Wait for UI to update
+                                await new Promise(resolve => setTimeout(resolve, 300));
+                              } catch (error) {
+                                console.error('❌ [Show All] Failed to load deliveries:', error);
+                              } finally {
+                                setIsEntityUpdating(false);
+                              }
+                            }
+                            
                             // Clear any existing timers
                             if (mapLockTimeoutRef.current) {
                               clearTimeout(mapLockTimeoutRef.current);
@@ -6115,7 +6142,7 @@ function Dashboard() {
                             }
                             mapLockExpiresAtRef.current = null;
                             
-                            // Delay FAB activation by 300ms to allow markers to update
+                            // Delay FAB activation to allow markers to render
                             setTimeout(() => {
                               setIsMapViewLocked(true);
                               lastProgrammaticMapMoveRef.current = Date.now();
@@ -6139,7 +6166,7 @@ function Dashboard() {
                                   }
                                 }, lockDuration);
                               }
-                            }, 300);
+                            }, 600);
                           }}
                           className="h-4 w-4"
                         />
