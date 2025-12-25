@@ -653,6 +653,10 @@ export default function PatientImport({ onImportComplete, onImportStart, current
       onImportStart();
     }
     console.log("PatientImport: Paused smart refresh");
+    
+    // CRITICAL: Import to offline DB first, let smart refresh sync to backend
+    const { offlineDB } = await import('../utils/offlineDatabase');
+    const { pauseOfflineMutations, resumeOfflineMutations } = await import('../utils/offlineMutations');
     setShowPreview(false);
     setIsProcessing(true);
     setImportResult(null);
@@ -742,34 +746,41 @@ export default function PatientImport({ onImportComplete, onImportStart, current
         }
 
         try {
-          console.log(`PatientImport: Attempting bulk create for ${patientsForBulkCreate.length} new patients.`);
-          const createdPatients = await retryWithBackoff(async () => {
-            return await Patient.bulkCreate(patientsForBulkCreate);
-          }, 5, 2000);
-          totalCreated += createdPatients.length;
-          console.log(`PatientImport: Successfully bulk created ${createdPatients.length} patients.`);
+          console.log(`PatientImport: Writing ${patientsForBulkCreate.length} new patients to offline DB...`);
+          
+          // Generate temp IDs and save to offline DB
+          const patientsWithTempIds = patientsForBulkCreate.map(p => ({
+            ...p,
+            id: `temp_patient_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            created_date: new Date().toISOString(),
+            updated_date: new Date().toISOString(),
+            _isLocal: true
+          }));
+          
+          await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientsWithTempIds);
+          totalCreated += patientsWithTempIds.length;
+          console.log(`PatientImport: Successfully wrote ${patientsWithTempIds.length} patients to offline DB.`);
 
           setImportProgress((prev) => ({
             ...prev,
-            created: prev.created + createdPatients.length,
-            current: patientsForBulkCreate.length // All patients processed in this bulk op
+            created: prev.created + patientsWithTempIds.length,
+            current: patientsForBulkCreate.length
           }));
         } catch (error) {
-          console.error("PatientImport: Bulk create failed, queuing for individual retry:", error);
-          // For each patient in the failed bulk operation, add a specific error and queue for retry
+          console.error("PatientImport: Offline bulk save failed:", error);
           patientsForBulkCreate.forEach((patientData, index) => {
-            const originalPreviewItem = previewChanges.toCreate[index]; // Use original item for file/row context
-            const errorMsg = `Creation failed for ${patientData.full_name} (${patientData.address}) from ${originalPreviewItem?.fileName || 'Unknown'} Row ${originalPreviewItem?.rowNumber || 0}: ${error.message}`;
-            importErrors.push(errorMsg); // Add specific error to the list
+            const originalPreviewItem = previewChanges.toCreate[index];
+            const errorMsg = `Offline save failed for ${patientData.full_name} (${patientData.address}) from ${originalPreviewItem?.fileName || 'Unknown'} Row ${originalPreviewItem?.rowNumber || 0}: ${error.message}`;
+            importErrors.push(errorMsg);
 
             failedCreations.push({
               data: patientData,
               fileName: originalPreviewItem?.fileName || 'Unknown',
               rowNumber: originalPreviewItem?.rowNumber || 0,
-              errorMsg: errorMsg // Store the exact error message for potential removal later
+              errorMsg: errorMsg
             });
           });
-          setImportProgress((prev) => ({ ...prev, errors: importErrors.length })); // Update total error count
+          setImportProgress((prev) => ({ ...prev, errors: importErrors.length }));
         }
       }
 
@@ -862,23 +873,22 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
             await delay(delayMs); // Apply the current adaptive delay
           } catch (error) {
-            console.error(`PatientImport: Update failed for patient ${id}, queuing for retry:`, error);
+            console.error(`PatientImport: Update failed for patient ${id}:`, error);
             const errorMsg = `Update failed for patient ID ${id} (${patientData.full_name}) from ${item.fileName} Row ${item.rowNumber}: ${error.message}`;
-            importErrors.push(errorMsg); // Add specific error message to the list
-            setImportProgress((prev) => ({ ...prev, errors: importErrors.length })); // Update error count
+            importErrors.push(errorMsg);
+            setImportProgress((prev) => ({ ...prev, errors: importErrors.length }));
             segmentFailures++;
 
-            // Add to retry queue, include the specific patient data at this point
             failedUpdates.push({ ...item, data: patientData, errorMsg: errorMsg });
 
-            await delay(1000); // Longer fixed pause after a failure
+            await delay(300);
           }
         }
       }
 
-      // --- Retry failed creations ---
+      // --- Retry failed creations (offline DB) ---
       if (failedCreations.length > 0) {
-        console.log(`PatientImport: Starting retry for ${failedCreations.length} failed creations...`);
+        console.log(`PatientImport: Retrying ${failedCreations.length} failed offline saves...`);
         setImportProgress((prev) => ({
           ...prev,
           phase: 'retrying creations',
@@ -888,52 +898,55 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
         for (let i = 0; i < failedCreations.length; i++) {
           const item = failedCreations[i];
-          const patientData = item.data; // Use the patientData that was passed to the failed create
+          const patientData = item.data;
 
           try {
-            console.log(`PatientImport: Retrying creation of patient ${i + 1}/${failedCreations.length}: ${patientData.full_name}`);
-            await retryWithBackoff(async () => {
-              await Patient.create(patientData);
-            }, 3, 1500); // More retries, longer base delay for these individual attempts
-
+            console.log(`PatientImport: Retrying offline save ${i + 1}/${failedCreations.length}: ${patientData.full_name}`);
+            
+            const patientWithTempId = {
+              ...patientData,
+              id: `temp_patient_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              created_date: new Date().toISOString(),
+              updated_date: new Date().toISOString(),
+              _isLocal: true
+            };
+            
+            await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [patientWithTempId]);
             totalCreated++;
-            console.log(`PatientImport: Retry creation successful for patient ${patientData.full_name}`);
+            console.log(`PatientImport: Retry offline save successful for ${patientData.full_name}`);
 
-            // Find and remove the specific error message from the importErrors array
             const errorIndex = importErrors.indexOf(item.errorMsg);
             if (errorIndex > -1) {
-              importErrors.splice(errorIndex, 1); // Remove the error from the list
+              importErrors.splice(errorIndex, 1);
             }
 
             setImportProgress((prev) => ({
               ...prev,
-              created: prev.created + 1, // Reflect new successful creation in progress
-              errors: importErrors.length, // Update error count based on current array size
+              created: prev.created + 1,
+              errors: importErrors.length,
               current: i + 1
             }));
 
-            await delay(500); // Small delay between retries
+            await delay(100);
           } catch (retryError) {
-            console.error(`PatientImport: Final creation failed for patient ${patientData.full_name}:`, retryError);
-            // If it fails again, update the error message in the importErrors array
-            const newErrorMsg = `Final retry creation failed for ${patientData.full_name} (${patientData.address}) from ${item.fileName} Row ${item.rowNumber}: ${retryError.message}`;
+            console.error(`PatientImport: Final offline save failed for ${patientData.full_name}:`, retryError);
+            const newErrorMsg = `Final retry failed for ${patientData.full_name} (${patientData.address}) from ${item.fileName} Row ${item.rowNumber}: ${retryError.message}`;
             const errorIndex = importErrors.indexOf(item.errorMsg);
             if (errorIndex > -1) {
-              importErrors[errorIndex] = newErrorMsg; // Replace old error with new final error
+              importErrors[errorIndex] = newErrorMsg;
             } else {
-              importErrors.push(newErrorMsg); // Should not happen if errorMsg is always present
-              // No need to increment errors count here if it was already an error that got replaced
+              importErrors.push(newErrorMsg);
             }
 
-            setImportProgress((prev) => ({ ...prev, errors: importErrors.length, current: i + 1 })); // Update error count based on current array size and current progress
-            await delay(1000); // Longer delay on failure
+            setImportProgress((prev) => ({ ...prev, errors: importErrors.length, current: i + 1 }));
+            await delay(200);
           }
         }
       }
 
-      // --- Retry failed updates ---
+      // --- Retry failed updates (offline DB) ---
       if (failedUpdates.length > 0) {
-        console.log(`PatientImport: Starting retry for ${failedUpdates.length} failed updates...`);
+        console.log(`PatientImport: Retrying ${failedUpdates.length} failed offline updates...`);
         setImportProgress((prev) => ({
           ...prev,
           phase: 'retrying updates',
@@ -944,44 +957,47 @@ export default function PatientImport({ onImportComplete, onImportStart, current
         for (let i = 0; i < failedUpdates.length; i++) {
           const item = failedUpdates[i];
           const { id } = item;
-          const patientData = item.data; // Use the patientData that was passed to the failed update
+          const patientData = item.data;
 
           try {
-            console.log(`PatientImport: Retrying update of patient ${i + 1}/${failedUpdates.length}: ${patientData.full_name} (ID: ${id})`);
-            await retryWithBackoff(async () => {
-              await Patient.update(id, patientData);
-            }, 3, 1500); // More retries, longer base delay
+            console.log(`PatientImport: Retrying offline update ${i + 1}/${failedUpdates.length}: ${patientData.full_name} (ID: ${id})`);
+            
+            const existingPatient = await offlineDB.getById(offlineDB.STORES.PATIENTS, id);
+            if (existingPatient) {
+              const updatedPatient = {
+                ...existingPatient,
+                ...patientData,
+                updated_date: new Date().toISOString()
+              };
+              await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [updatedPatient]);
+              totalUpdated++;
+              console.log(`PatientImport: Retry offline update successful for ${patientData.full_name}`);
 
-            totalUpdated++;
-            console.log(`PatientImport: Retry update successful for patient ${patientData.full_name}`);
+              const errorIndex = importErrors.indexOf(item.errorMsg);
+              if (errorIndex > -1) {
+                importErrors.splice(errorIndex, 1);
+              }
 
-            // Find and remove the specific error message from the importErrors array
-            const errorIndex = importErrors.indexOf(item.errorMsg);
-            if (errorIndex > -1) {
-              importErrors.splice(errorIndex, 1); // Remove the error from the list
+              setImportProgress((prev) => ({
+                ...prev,
+                updated: prev.updated + 1,
+                errors: importErrors.length,
+                current: i + 1
+              }));
             }
 
-            setImportProgress((prev) => ({
-              ...prev,
-              updated: prev.updated + 1, // Reflect new successful update in progress
-              errors: importErrors.length, // Update error count based on current array size
-              current: i + 1
-            }));
-
-            await delay(500);
+            await delay(100);
           } catch (retryError) {
-            console.error(`PatientImport: Final update failed for patient ${patientData.full_name}:`, retryError);
-            // If it fails again, update the error message in the importErrors array
+            console.error(`PatientImport: Final offline update failed for ${patientData.full_name}:`, retryError);
             const newErrorMsg = `Final retry update failed for patient ID ${id} (${patientData.full_name}) from ${item.fileName} Row ${item.rowNumber}: ${retryError.message}`;
             const errorIndex = importErrors.indexOf(item.errorMsg);
             if (errorIndex > -1) {
-              importErrors[errorIndex] = newErrorMsg; // Replace old error with new final error
+              importErrors[errorIndex] = newErrorMsg;
             } else {
-              importErrors.push(newErrorMsg); // Should not happen if errorMsg is always present
-              // No need to increment errors count here if it was already an error that got replaced
+              importErrors.push(newErrorMsg);
             }
-            setImportProgress((prev) => ({ ...prev, errors: importErrors.length, current: i + 1 })); // Update error count based on current array size and current progress
-            await delay(1000);
+            setImportProgress((prev) => ({ ...prev, errors: importErrors.length, current: i + 1 }));
+            await delay(200);
           }
         }
       }
@@ -1013,8 +1029,10 @@ export default function PatientImport({ onImportComplete, onImportStart, current
         errors: importErrors.length
       }));
 
+      console.log("PatientImport: Offline import complete. Smart refresh will sync to backend.");
+      
       if (onImportComplete) {
-        console.log("PatientImport: Import complete, calling onImportComplete callback.");
+        console.log("PatientImport: Calling onImportComplete callback.");
         onImportComplete(aggregatedResults);
       }
       console.log("PatientImport: Import process finished successfully:", aggregatedResults);
