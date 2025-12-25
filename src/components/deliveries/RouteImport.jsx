@@ -1550,7 +1550,7 @@ export default function RouteImport({
         }
       }
 
-      // Updates still need to be individual (no bulk update API for different records)
+      // Updates: Update directly on backend (not just offline DB)
       if (deliveriesToUpdateFiltered.length > 0) {
         setImportProgress((prev) => ({
           ...prev,
@@ -1571,24 +1571,18 @@ export default function RouteImport({
 
             const cleanPayload = cleanDeliveryData(updatePayload);
 
-            console.log(`🔄 [RouteImport] Updating delivery ${i + 1}/${deliveriesToUpdateFiltered.length} in offline DB: ${cleanPayload.patient_name || 'Store Pickup'}`);
+            console.log(`🔄 [RouteImport] Updating delivery ${i + 1}/${deliveriesToUpdateFiltered.length} on backend: ${cleanPayload.patient_name || 'Store Pickup'}`);
             
-            // Update in offline DB
-            const existingDelivery = await offlineDB.getById(offlineDB.STORES.DELIVERIES, id);
-            if (existingDelivery) {
-              const updatedDelivery = {
-                ...existingDelivery,
-                ...cleanPayload,
-                updated_date: new Date().toISOString()
-              };
-              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
-            } else {
-              console.warn(`⚠️ Delivery ${id} not found in offline DB, skipping update`);
-            }
+            // CRITICAL: Update directly on backend
+            const updatedDelivery = await retryWithBackoff(async () => {
+              return await base44.entities.Delivery.update(id, cleanPayload);
+            }, 3, 1000, 2);
+            
+            // Update IndexedDB with backend response
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
 
             overallResults.updated++;
             overallResults.completed++;
-            // CRITICAL: Check for return markers in notes/patient name, NOT status
             if (isReturnDelivery(cleanPayload, freshPatients, freshStores)) {
               overallResults.returned++;
             }
@@ -1597,13 +1591,12 @@ export default function RouteImport({
               updated: prev.updated + 1,
               current: i + 1
             }));
-            await delay(50);
+            await delay(300);
           } catch (error) {
-            console.warn(`⚠️ Offline update failed for delivery ID ${deliveryData.id}:`, error.message);
+            console.warn(`⚠️ Backend update failed for delivery ID ${deliveryData.id}:`, error.message);
             failedUpdates.push({ data: deliveryData, error: error.message });
             setImportProgress((prev) => ({ ...prev, current: i + 1 }));
 
-            // Check for Invalid time value error and show detailed popup
             if (error.message && error.message.includes('Invalid time value')) {
               setImportError({
                 message: `Invalid time value error`,
@@ -1622,7 +1615,7 @@ export default function RouteImport({
               });
               throw new Error(`Import stopped due to invalid time value. See error details.`);
             }
-            await delay(100);
+            await delay(500);
           }
         }
       }
