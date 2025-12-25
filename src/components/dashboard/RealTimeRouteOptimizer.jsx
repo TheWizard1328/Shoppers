@@ -160,22 +160,32 @@ export default function RealTimeRouteOptimizer({
           className="fixed top-20 left-4 right-4 z-[10000] mx-auto max-w-md"
           style={{ transform: 'none' }}
         >
-          <div className="rounded-xl shadow-2xl p-4 border-2 bg-blue-50 border-blue-500">
+          <div 
+            className="rounded-xl shadow-2xl p-4 border-2"
+            style={{ 
+              background: 'var(--bg-white)', 
+              borderColor: 'var(--border-slate-300)',
+              boxShadow: '0 25px 50px -12px var(--shadow-color)'
+            }}
+          >
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-blue-100">
+              <div 
+                className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                style={{ background: 'var(--bg-slate-100)' }}
+              >
                 <Route className="w-5 h-5 text-blue-600" />
               </div>
 
               <div className="flex-1 min-w-0">
-                <h4 className="font-bold text-sm mb-1 text-blue-900">
+                <h4 className="font-bold text-sm mb-1" style={{ color: 'var(--text-slate-900)' }}>
                   Route Optimized
                 </h4>
                 
-                <p className="text-sm text-slate-700 mb-2">
+                <p className="text-sm mb-2" style={{ color: 'var(--text-slate-600)' }}>
                   {notification.updates.length} stop{notification.updates.length !== 1 ? 's' : ''} resequenced based on current traffic
                 </p>
 
-                <div className="flex items-center gap-2 text-xs text-blue-700">
+                <div className="flex items-center gap-2 text-xs text-blue-600">
                   <CheckCircle className="w-4 h-4" />
                   <span className="font-semibold">Estimated time saved</span>
                 </div>
@@ -183,7 +193,8 @@ export default function RealTimeRouteOptimizer({
 
               <button
                 onClick={() => setNotification(null)}
-                className="text-slate-400 hover:text-slate-600 transition-colors flex-shrink-0"
+                className="transition-colors flex-shrink-0"
+                style={{ color: 'var(--text-slate-400)' }}
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
