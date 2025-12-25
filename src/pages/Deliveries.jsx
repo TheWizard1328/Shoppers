@@ -3142,6 +3142,10 @@ export default function DeliveriesPage() {
                     updateDeliveriesLocally(remainingDeliveries, true);
                   }
 
+                  // Step 5: Force refresh date list stats
+                  console.log('🗑️ [DeleteRoute] Step 5: Refreshing date list...');
+                  setRefreshKey(prev => prev + 1);
+
                   console.log(`✅ [DeleteRoute] Route deleted successfully`);
                 } catch (error) {
                   console.error('❌ [DeleteRoute] Error:', error);
