@@ -3735,7 +3735,7 @@ export default function DeliveryForm({
                 {/* Staged Panel - STATIC */}
                 {!delivery && !useMobileLayout &&
                 <div className="w-[21rem] flex-shrink-0 p-3 rounded-lg border-2 flex flex-col h-full" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                    <Label className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>Staged: (S: {stagedDeliveries.length} P: {projectedDeliveries.length})</Label>
+                    <Label className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>Staged: (S: {sortedStagedDeliveries.length} P: {sortedProjectedDeliveries.length})</Label>
                     <div className="space-y-1 flex-1 overflow-y-auto min-h-0 custom-scrollbar">
                       {sortedStagedDeliveries.map((staged) => {
                       const stagedStore = stores?.find((s) => s && s.id === staged.store_id);
@@ -3944,7 +3944,7 @@ export default function DeliveryForm({
                   className="absolute right-0 top-0 bottom-0 w-[75%] shadow-2xl flex flex-col" style={{ background: 'var(--bg-white)' }}>
 
                     <div className="border-b p-4 flex items-center justify-between" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
-                      <h3 className="text-lg font-semibold" style={{ color: 'var(--text-slate-900)' }}>Staged: (S: {stagedDeliveries.length} P: {projectedDeliveries.length})</h3>
+                      <h3 className="text-lg font-semibold" style={{ color: 'var(--text-slate-900)' }}>Staged: (S: {sortedStagedDeliveries.length} P: {sortedProjectedDeliveries.length})</h3>
                       <Button variant="ghost" size="icon" onClick={() => setShowStagedPanel(false)}>
                         <X className="w-4 h-4" />
                       </Button>
@@ -4152,7 +4152,7 @@ export default function DeliveryForm({
                 className="gap-2"
                 style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                   <Package className="w-4 h-4" />
-                  Staged: (S: {stagedDeliveries.length} P: {projectedDeliveries.length})
+                  Staged: (S: {sortedStagedDeliveries.length} P: {sortedProjectedDeliveries.length})
                 </Button>
               }
               <div className="flex gap-2 ml-auto">
