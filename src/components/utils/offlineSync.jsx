@@ -421,6 +421,11 @@ const syncDeliveries = async (selectedDate = null, forceFullSync = false) => {
         }
         
         console.log(`✅ [OfflineSync] Removed ${recordsToDelete.length} deleted deliveries from IndexedDB`);
+        
+        // CRITICAL: Notify UI to update after deletions
+        window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', {
+          detail: { deletedIds: recordsToDelete.map(r => r.id), count: recordsToDelete.length }
+        }));
       }
     }
     

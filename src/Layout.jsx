@@ -942,6 +942,16 @@ export default function Layout({ children, currentPageName }) {
       };
       window.addEventListener('offlineSyncComplete', handleSyncComplete);
 
+      // Listen for offline deletions and update UI immediately
+      const handleOfflineDeliveriesDeleted = (event) => {
+        const { deletedIds } = event.detail || {};
+        if (deletedIds && deletedIds.length > 0) {
+          console.log(`🗑️ [Layout] Removing ${deletedIds.length} deleted deliveries from UI`);
+          setDeliveries(prevDeliveries => prevDeliveries.filter(d => !deletedIds.includes(d?.id)));
+        }
+      };
+      window.addEventListener('offlineDeliveriesDeleted', handleOfflineDeliveriesDeleted);
+
       // Listen for import completion to update UI immediately
       const handleDeliveriesImported = (event) => {
         const { deliveries } = event.detail || {};
@@ -962,6 +972,7 @@ export default function Layout({ children, currentPageName }) {
         unsubscribeMutations();
         window.removeEventListener('offlineSyncComplete', handleSyncComplete);
         window.removeEventListener('deliveriesImported', handleDeliveriesImported);
+        window.removeEventListener('offlineDeliveriesDeleted', handleOfflineDeliveriesDeleted);
       };
       }, [currentUser]);
 
