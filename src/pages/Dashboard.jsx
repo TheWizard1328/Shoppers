@@ -2420,9 +2420,10 @@ function Dashboard() {
     }
     mapLockExpiresAtRef.current = null;
 
+    // CRITICAL: Initial load/refresh uses 500ms timeout, user clicks use 3s
     // Set timer for phase 1 & 3, permanent lock for phase 2
     if (phaseToApply === 1 || phaseToApply === 3) {
-      const lockDuration = 3000;
+      const lockDuration = 500; // 500ms for initial load
       const expiresAt = Date.now() + lockDuration;
       mapLockExpiresAtRef.current = expiresAt;
 
@@ -2431,11 +2432,11 @@ function Dashboard() {
           setIsMapViewLocked(false);
           mapLockExpiresAtRef.current = null;
           mapLockTimeoutRef.current = null;
-          console.log(`⏰ [FAB Initial] Phase ${phaseToApply} auto-unlocked after 3 seconds`);
+          console.log(`⏰ [FAB Initial] Phase ${phaseToApply} auto-unlocked after 500ms`);
         }
       }, lockDuration);
 
-      console.log(`🔵 [FAB Initial] Phase ${phaseToApply} locked - will auto-unlock in 3 seconds`);
+      console.log(`🔵 [FAB Initial] Phase ${phaseToApply} locked - will auto-unlock in 500ms`);
     } else if (phaseToApply === 2) {
       // Phase 2 - NO timer, stays locked PERMANENTLY
       console.log(`🔵 [FAB Initial] Phase 2 locked PERMANENTLY - unlocks only on FAB click`);
