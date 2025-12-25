@@ -2261,23 +2261,40 @@ function Dashboard() {
 
     // CRITICAL: Wait for deliveries for the SELECTED DATE to be loaded
     // This is what we need for FAB phase 1 bounds calculation - NOT historical data
-    const selectedDateDeliveries = deliveries.filter(d => d && d.delivery_date === selectedDate);
+    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+    
+    // Filter deliveries based on current filter mode
+    let selectedDateDeliveries;
+    if (selectedDriverId === 'all') {
+      // All Drivers mode: get all deliveries for selected date
+      selectedDateDeliveries = deliveries.filter(d => d && d.delivery_date === selectedDateStr);
+    } else if (showAllDriverMarkers) {
+      // Show All checkbox checked: get all deliveries for selected date
+      selectedDateDeliveries = deliveries.filter(d => d && d.delivery_date === selectedDateStr);
+    } else {
+      // Single driver mode: get only selected driver's deliveries
+      selectedDateDeliveries = deliveries.filter(d => 
+        d && d.delivery_date === selectedDateStr && d.driver_id === selectedDriverId
+      );
+    }
+    
     const hasSelectedDateDeliveries = selectedDateDeliveries.length > 0;
 
     if (hasSelectedDateDeliveries && dataReadyForSelectedDate) {
-      console.log(`✅ [Render Sequence 7] Selected date deliveries ready (${selectedDateDeliveries.length} for ${selectedDate})`);
+      console.log(`✅ [Render Sequence 7] Selected date deliveries ready (${selectedDateDeliveries.length} for ${selectedDateStr})`);
+      console.log(`   - Mode: ${selectedDriverId === 'all' ? 'All Drivers' : showAllDriverMarkers ? 'Show All' : 'Single Driver'}`);
       setRenderSequence((prev) => ({ ...prev, fullDeliveriesLoaded: true }));
       return;
     }
 
     // Timeout after 3 seconds - proceed anyway if no deliveries exist for this date
     const timer = setTimeout(() => {
-      console.log(`⏱️ [Render Sequence 7] Timeout - proceeding (${selectedDateDeliveries.length} deliveries for ${selectedDate})`);
+      console.log(`⏱️ [Render Sequence 7] Timeout - proceeding (${selectedDateDeliveries.length} deliveries for ${selectedDateStr})`);
       setRenderSequence((prev) => ({ ...prev, fullDeliveriesLoaded: true }));
     }, 3000);
 
     return () => clearTimeout(timer);
-  }, [renderSequence.sharedLocations, renderSequence.fullDeliveriesLoaded, deliveries, selectedDate, dataReadyForSelectedDate]);
+  }, [renderSequence.sharedLocations, renderSequence.fullDeliveriesLoaded, deliveries, selectedDate, dataReadyForSelectedDate, selectedDriverId, showAllDriverMarkers]);
 
   // RENDER SEQUENCE EFFECT 8: Activate FAB Phase (FINAL STEP)
   // Apply initial map view on first load - WAIT for full render sequence
