@@ -1472,8 +1472,11 @@ export default function RouteImport({
               return await base44.entities.Delivery.bulkCreate(batch);
             }, 3, 2000, 2);
 
-            // Save backend records to IndexedDB for local cache
+            // Save backend records to IndexedDB for instant UI update
             await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, createdDeliveries);
+            
+            // Dispatch event to trigger UI refresh
+            window.dispatchEvent(new CustomEvent('deliveriesImported', { detail: { deliveries: createdDeliveries } }));
 
             // Count successful creates
             batch.forEach((cleanData) => {
@@ -1578,8 +1581,11 @@ export default function RouteImport({
               return await base44.entities.Delivery.update(id, cleanPayload);
             }, 3, 1000, 2);
             
-            // Update IndexedDB with backend response
+            // Update IndexedDB with backend response for instant UI update
             await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
+            
+            // Dispatch event to trigger UI refresh
+            window.dispatchEvent(new CustomEvent('deliveriesImported', { detail: { deliveries: [updatedDelivery] } }));
 
             overallResults.updated++;
             overallResults.completed++;
