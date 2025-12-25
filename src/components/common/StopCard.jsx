@@ -418,19 +418,19 @@ export default function StopCard({
         // Check for a return delivery - look for "Patient Return" in notes with failed patient's name
         const notesLower = (d.delivery_notes || '').toLowerCase();
         const patientNotesLower = (() => {
-          const returnPatient = patients.find(p => p?.id === d.patient_id);
+          const returnPatient = patients.find((p) => p?.id === d.patient_id);
           return (returnPatient?.notes || '').toLowerCase();
         })();
-        
+
         // Check if this delivery's notes contain "Patient Return" AND the failed patient's name
         const hasPatientReturnMarker = notesLower.includes('patient return') || patientNotesLower.includes('patient return');
         const hasFailedPatientName = notesLower.includes(failedPatientName.toLowerCase()) || patientNotesLower.includes(failedPatientName.toLowerCase());
-        
+
         // Legacy check: old style return detection
         const legacyNotesMatch = notesLower.includes(failedPatientName.toLowerCase());
         const sidMatch = d.stop_id === delivery.stop_id;
-        
-        if ((hasPatientReturnMarker && hasFailedPatientName) || ((legacyNotesMatch || sidMatch) && !d.patient_id)) {
+
+        if (hasPatientReturnMarker && hasFailedPatientName || (legacyNotesMatch || sidMatch) && !d.patient_id) {
           futureReturnExists = true;
         }
       }
@@ -494,13 +494,13 @@ export default function StopCard({
   // Assigned driver (even if admin) sees "Accept All", non-driver admin/dispatcher sees "Assign All"
   const acceptButtonText = useMemo(() => {
     if (!currentUser || !delivery) return 'Assign All';
-    
+
     // If current user is the assigned driver, show "Accept All"
     const isAssignedDriver = delivery.driver_id === currentUser.id && userHasRole(currentUser, 'driver');
     if (isAssignedDriver) {
       return 'Accept All';
     }
-    
+
     // Non-driver admin/dispatcher sees "Assign All"
     return 'Assign All';
   }, [currentUser, delivery?.driver_id]);
@@ -896,7 +896,7 @@ export default function StopCard({
                                     generatePolyline: false
                                   });
                                   console.log('✅ [Completed] Route optimized');
-                                  
+
                                   // CRITICAL: Refresh UI to show reordered stops
                                   invalidate('Delivery');
                                   await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
@@ -1571,7 +1571,7 @@ export default function StopCard({
                               generatePolyline: false
                             });
                             console.log('✅ [Accept/Assign All] Route optimized');
-                            
+
                             // CRITICAL: Refresh UI to show reordered stops
                             invalidate('Delivery');
                             await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
@@ -1589,7 +1589,7 @@ export default function StopCard({
 
                           // Sort pending by patient name for consistent TR# assignment
                           const sortedPending = [...allPendingDeliveries].sort((a, b) =>
-                            (a.patient_name || '').localeCompare(b.patient_name || '')
+                          (a.patient_name || '').localeCompare(b.patient_name || '')
                           );
 
                           // Assign sequential TR#s
@@ -1920,16 +1920,16 @@ export default function StopCard({
                           // CRITICAL: For pickups with pending deliveries, force Accept All FIRST
                           if (isPickup && pendingPickups && pendingPickups.length > 0) {
                             // Check if there are pending deliveries that haven't been accepted yet
-                            const hasPendingDeliveries = pendingPickups.some(p => p.status === 'pending');
-                            
+                            const hasPendingDeliveries = pendingPickups.some((p) => p.status === 'pending');
+
                             if (hasPendingDeliveries) {
                               console.log('⚠️ [Complete Pickup] Pending deliveries detected - triggering Accept All first...');
-                              
+
                               // Simulate Accept All button click
                               const allPendingDeliveries = pendingPickups.filter((p) => p.status === 'pending');
                               const pickupTR = parseInt(delivery.tracking_number, 10);
                               const baseTR = isNaN(pickupTR) ? 0 : pickupTR;
-                              
+
                               const now = new Date();
                               const currentMinutes = now.getHours() * 60 + now.getMinutes();
                               const startMinutes = currentMinutes + 5;
@@ -1958,7 +1958,7 @@ export default function StopCard({
 
                               // Assign sequential TR#s
                               const sortedPending = [...allPendingDeliveries].sort((a, b) =>
-                                (a.patient_name || '').localeCompare(b.patient_name || '')
+                              (a.patient_name || '').localeCompare(b.patient_name || '')
                               );
 
                               for (let i = 0; i < sortedPending.length; i++) {
@@ -1970,7 +1970,7 @@ export default function StopCard({
 
                               // Refresh data
                               await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                              
+
                               console.log('✅ [Complete Pickup] Accept All completed - now completing pickup...');
                             }
                           }
@@ -2078,9 +2078,9 @@ export default function StopCard({
                         console.log('🟢 [START] Step 5a: Setting delivery_time_start to current time...');
                         const now = new Date();
                         const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                        
-                        await updateDeliveryLocal(delivery.id, { 
-                          delivery_time_start: currentLocalTime 
+
+                        await updateDeliveryLocal(delivery.id, {
+                          delivery_time_start: currentLocalTime
                         }, { skipSmartRefresh: true });
                         console.log(`  ✅ delivery_time_start set to ${currentLocalTime}`);
 
@@ -2110,7 +2110,7 @@ export default function StopCard({
                             generatePolyline: false
                           });
                           console.log('✅ [Start Button] Route optimized');
-                          
+
                           // CRITICAL: Refresh UI to show reordered stops
                           invalidate('Delivery');
                           await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
@@ -2182,7 +2182,7 @@ export default function StopCard({
                         <DropdownMenuTrigger asChild>
                           <Button
                           variant="ghost"
-                          size="icon" className="bg-transparent text-sm font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground h-8 w-8 border border-slate-300 hover:bg-slate-100 relative z-[100]"
+                          size="icon" className="bg-transparent text-sm font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground h-8 w-8 border border-slate-300 hover:bg-slate-100 relative z-[10]"
 
                           onClick={(e) => e.stopPropagation()}>
                             <MoreVertical className="w-4 h-4" />
@@ -2216,25 +2216,25 @@ export default function StopCard({
 
                             try {
                               console.log('🔄 [RESTART] Restarting delivery:', delivery.id);
-                              
+
                               // Step 1: Clear all isNextDelivery flags for this driver/date
                               const driverDeliveries = allDeliveries.filter((d) =>
-                                d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+                              d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
                               );
-                              
+
                               for (const d of driverDeliveries) {
                                 if (d.isNextDelivery) {
                                   await updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true });
                                 }
                               }
-                              
+
                               // Step 2: Set restarted delivery to in_transit/en_route and isNextDelivery: true
                               const newStatus = isPickup ? 'en_route' : 'in_transit';
                               await updateDeliveryLocal(delivery.id, {
                                 status: newStatus,
                                 isNextDelivery: true
                               }, { skipSmartRefresh: true });
-                              
+
                               // Step 3: Run recursive route optimization
                               try {
                                 const now = new Date();
@@ -2247,7 +2247,7 @@ export default function StopCard({
                                   generatePolyline: false
                                 });
                                 console.log('✅ [Restart Delivery] Route optimized');
-                                
+
                                 // CRITICAL: Refresh UI to show reordered stops
                                 invalidate('Delivery');
                                 await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
@@ -2255,16 +2255,16 @@ export default function StopCard({
                               } catch (optimizeError) {
                                 console.warn('⚠️ [Restart Delivery] Route optimizer failed:', optimizeError);
                               }
-                              
+
                               // Step 4: Refresh data and sync UI
                               invalidate('Delivery');
                               await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                              
+
                               console.log('✅ [RESTART] Delivery restarted successfully');
                             } finally {
                               setIsEntityUpdating(false);
                               await new Promise((resolve) => setTimeout(resolve, 100));
-                              
+
                               // CRITICAL: Reactivate FAB after restart (skip card scroll - FAB handles it)
                               fabControlEvents.reactivateFAB(true);
                             }
