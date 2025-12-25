@@ -1736,61 +1736,55 @@ export default function RouteImport({
         currentFile: ''
       }));
 
-      console.log("📱 [RouteImport] Offline import complete. Syncing to backend NOW...");
+      console.log("📱 [RouteImport] Offline import complete. Starting background sync...");
       
-      // CRITICAL: Sync to backend IMMEDIATELY and WAIT for completion
-      // Don't show results until backend sync is done
-      setProgressMessage('Syncing to backend (this may take a minute)...');
-      setProgressPercent(95);
-      
-      try {
-        const { processPendingMutations, performBidirectionalSync } = await import('../utils/offlineSync');
-        const { smartRefreshManager } = await import('../utils/smartRefreshManager');
-        const { realtimeSyncManager } = await import('../utils/realtimeSync');
-        
-        // Pause smart refresh during sync
-        smartRefreshManager.pause();
-        console.log('⏸️ [RouteImport] Paused smart refresh for backend sync');
-        
-        // Process all pending mutations (create/update deliveries in backend)
-        console.log('📤 [RouteImport] Syncing local changes to backend...');
-        await processPendingMutations();
-        
-        // Wait for backend to finish processing
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        
-        // Do bidirectional sync to ensure consistency
-        console.log('🔄 [RouteImport] Performing bidirectional sync...');
-        await performBidirectionalSync();
-        
-        // CRITICAL: Broadcast change to all other devices
-        console.log('📡 [RouteImport] Broadcasting import completion to all devices...');
-        const importDates = [...new Set(filteredPreviewDeliveries.map(d => d.delivery_date))].sort();
-        await realtimeSyncManager.broadcastChange('Delivery', 'bulk_create', {
-          count: overallResults.created + overallResults.updated,
-          dateRange: importDates.length > 0 ? `${importDates[0]} to ${importDates[importDates.length - 1]}` : 'unknown'
-        });
-        
-        // Resume smart refresh
-        smartRefreshManager.resume();
-        console.log('▶️ [RouteImport] Resumed smart refresh');
-        
-        console.log("✅ [RouteImport] Backend sync complete - all devices notified");
-      } catch (syncError) {
-        console.error('❌ [RouteImport] Backend sync failed:', syncError);
-        // Resume smart refresh even on error
-        try {
-          const { smartRefreshManager } = await import('../utils/smartRefreshManager');
-          smartRefreshManager.resume();
-        } catch (e) {}
-        
-        // Show error to user but don't fail the import
-        overallResults.errors.push(`Backend sync warning: ${syncError.message}. Data is saved locally and will sync automatically.`);
-      }
-      
+      // CRITICAL: Show results IMMEDIATELY - don't block on backend sync
       setImportResult(overallResults);
       setProgressPercent(100);
-      setProgressMessage('Import complete and synced to all devices!');
+      setProgressMessage('Import complete! Syncing in background...');
+      
+      // Background sync - non-blocking
+      const importDates = [...new Set(filteredPreviewDeliveries.map(d => d.delivery_date))].sort();
+      setTimeout(async () => {
+        try {
+          const { processPendingMutations, performBidirectionalSync } = await import('../utils/offlineSync');
+          const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+          const { realtimeSyncManager } = await import('../utils/realtimeSync');
+          
+          // Pause smart refresh during sync
+          smartRefreshManager.pause();
+          console.log('⏸️ [RouteImport] Paused smart refresh for background sync');
+          
+          // Process all pending mutations (create/update deliveries in backend)
+          console.log('📤 [RouteImport] Background: Syncing local changes to backend...');
+          await processPendingMutations();
+          
+          // Wait briefly for backend to process
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // Do bidirectional sync to ensure consistency
+          console.log('🔄 [RouteImport] Background: Performing bidirectional sync...');
+          await performBidirectionalSync();
+          
+          // Broadcast change to all other devices
+          console.log('📡 [RouteImport] Broadcasting import completion to all devices...');
+          await realtimeSyncManager.broadcastChange('Delivery', 'bulk_create', {
+            count: overallResults.created + overallResults.updated,
+            dateRange: importDates.length > 0 ? `${importDates[0]} to ${importDates[importDates.length - 1]}` : 'unknown'
+          });
+          
+          // Resume smart refresh
+          smartRefreshManager.resume();
+          console.log('✅ [RouteImport] Background sync complete');
+        } catch (syncError) {
+          console.warn('⚠️ [RouteImport] Background sync error (will retry later):', syncError.message);
+          // Resume smart refresh even on error
+          try {
+            const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+            smartRefreshManager.resume();
+          } catch (e) {}
+        }
+      }, 100);
 
     } catch (error) {
       console.error("❌ Overall import error:", error);
