@@ -1777,10 +1777,11 @@ function Dashboard() {
       return;
     }
 
-    // CRITICAL: Wait for deliveries data to be populated before running Phase 1 bounds
+    // CRITICAL: Wait for full deliveries data to be loaded before running Phase 1 bounds
+    // Initial load only has ~72 deliveries (selected date), need to wait for background load (~4000+)
     // This ensures other drivers' markers are included on initial load
-    if (mapViewPhase === 1 && deliveries.length === 0) {
-      console.log('⏸️ [Phase 1] Waiting for deliveries data to populate...');
+    if (mapViewPhase === 1 && deliveries.length < 500) {
+      console.log(`⏸️ [Phase 1] Waiting for full deliveries data (currently ${deliveries.length}, need 500+)...`);
       return;
     }
 
