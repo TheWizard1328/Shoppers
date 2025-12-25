@@ -3191,19 +3191,31 @@ export default function DeliveryForm({
                   <Select
                       value={formData.driver_id || 'all'}
                       onValueChange={(driverId) => {
-                        if (driverId === 'all') {
-                          setFormData((prev) => ({
-                            ...prev,
-                            driver_id: '',
-                            driver_name: ''
+                        const newDriverId = driverId === 'all' ? '' : driverId;
+                        const driver = driverId === 'all' ? null : allDrivers.find((d) => d.id === driverId);
+                        const newDriverName = driver ? getDriverNameForStorage(driver) : '';
+
+                        // Update form data
+                        setFormData((prev) => ({
+                          ...prev,
+                          driver_id: newDriverId,
+                          driver_name: newDriverName
+                        }));
+
+                        // CRITICAL: If editing a staged item, update that item's driver assignment
+                        if (editingStagedId) {
+                          setStagedDeliveries((prev) => prev.map((staged) => {
+                            if (staged._tempId === editingStagedId) {
+                              console.log(`🚗 [DeliveryForm] Updating staged item driver: ${staged.patient_name} → ${newDriverName || 'All Drivers'}`);
+                              return {
+                                ...staged,
+                                driver_id: newDriverId,
+                                driver_name: newDriverName
+                              };
+                            }
+                            return staged;
                           }));
-                        } else {
-                          const driver = allDrivers.find((d) => d.id === driverId);
-                          setFormData((prev) => ({
-                            ...prev,
-                            driver_id: driverId,
-                            driver_name: driver ? getDriverNameForStorage(driver) : ''
-                          }));
+                          setHasChanges(true);
                         }
                       }}
                       disabled={isSaving}>
