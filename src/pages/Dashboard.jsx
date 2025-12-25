@@ -2259,42 +2259,52 @@ function Dashboard() {
     if (!renderSequence.sharedLocations) return;
     if (renderSequence.fullDeliveriesLoaded) return;
 
-    // CRITICAL: Wait for deliveries for the SELECTED DATE to be loaded
-    // This is what we need for FAB phase 1 bounds calculation - NOT historical data
     const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
     
-    // Filter deliveries based on current filter mode
-    let selectedDateDeliveries;
+    // CRITICAL: Determine expected delivery count based on mode
+    let expectedDeliveryDrivers = [];
+    
     if (selectedDriverId === 'all') {
-      // All Drivers mode: get all deliveries for selected date
-      selectedDateDeliveries = deliveries.filter(d => d && d.delivery_date === selectedDateStr);
+      // All Drivers mode: expect deliveries from all active drivers
+      expectedDeliveryDrivers = drivers.map(d => d?.id).filter(Boolean);
     } else if (showAllDriverMarkers) {
-      // Show All checkbox checked: get all deliveries for selected date
-      selectedDateDeliveries = deliveries.filter(d => d && d.delivery_date === selectedDateStr);
+      // Show All checkbox: expect deliveries from all drivers (not just selected one)
+      expectedDeliveryDrivers = drivers.map(d => d?.id).filter(Boolean);
     } else {
-      // Single driver mode: get only selected driver's deliveries
-      selectedDateDeliveries = deliveries.filter(d => 
-        d && d.delivery_date === selectedDateStr && d.driver_id === selectedDriverId
-      );
+      // Single driver mode: expect only selected driver's deliveries
+      expectedDeliveryDrivers = [selectedDriverId];
     }
     
-    const hasSelectedDateDeliveries = selectedDateDeliveries.length > 0;
+    // Count unique drivers in loaded deliveries for selected date
+    const loadedDrivers = new Set(
+      deliveries
+        .filter(d => d && d.delivery_date === selectedDateStr)
+        .map(d => d.driver_id)
+        .filter(Boolean)
+    );
+    
+    const selectedDateDeliveries = deliveries.filter(d => d && d.delivery_date === selectedDateStr);
+    
+    // CRITICAL: For "Show All" mode, wait until we have deliveries from multiple drivers
+    const hasRequiredData = showAllDriverMarkers || selectedDriverId === 'all'
+      ? loadedDrivers.size > 1 || selectedDateDeliveries.length >= 10 // Wait for multiple drivers or enough deliveries
+      : selectedDateDeliveries.length > 0; // Single driver: just need any deliveries
 
-    if (hasSelectedDateDeliveries && dataReadyForSelectedDate) {
-      console.log(`✅ [Render Sequence 7] Selected date deliveries ready (${selectedDateDeliveries.length} for ${selectedDateStr})`);
+    if (hasRequiredData && dataReadyForSelectedDate) {
+      console.log(`✅ [Render Sequence 7] Selected date deliveries ready (${selectedDateDeliveries.length} deliveries from ${loadedDrivers.size} drivers for ${selectedDateStr})`);
       console.log(`   - Mode: ${selectedDriverId === 'all' ? 'All Drivers' : showAllDriverMarkers ? 'Show All' : 'Single Driver'}`);
       setRenderSequence((prev) => ({ ...prev, fullDeliveriesLoaded: true }));
       return;
     }
 
-    // Timeout after 3 seconds - proceed anyway if no deliveries exist for this date
+    // Timeout after 3 seconds - proceed anyway
     const timer = setTimeout(() => {
-      console.log(`⏱️ [Render Sequence 7] Timeout - proceeding (${selectedDateDeliveries.length} deliveries for ${selectedDateStr})`);
+      console.log(`⏱️ [Render Sequence 7] Timeout - proceeding (${selectedDateDeliveries.length} deliveries from ${loadedDrivers.size} drivers)`);
       setRenderSequence((prev) => ({ ...prev, fullDeliveriesLoaded: true }));
     }, 3000);
 
     return () => clearTimeout(timer);
-  }, [renderSequence.sharedLocations, renderSequence.fullDeliveriesLoaded, deliveries, selectedDate, dataReadyForSelectedDate, selectedDriverId, showAllDriverMarkers]);
+  }, [renderSequence.sharedLocations, renderSequence.fullDeliveriesLoaded, deliveries, selectedDate, dataReadyForSelectedDate, selectedDriverId, showAllDriverMarkers, drivers]);
 
   // RENDER SEQUENCE EFFECT 8: Activate FAB Phase (FINAL STEP)
   // Apply initial map view on first load - WAIT for full render sequence
