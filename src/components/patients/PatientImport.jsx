@@ -29,7 +29,8 @@ export default function PatientImport({ onImportComplete, onImportStart, current
     time_window_start: '15',
     time_window_end: '16',
     latitude: '17',
-    longitude: '18'
+    longitude: '18',
+    inactive_flag: '19'  // Col 19: 'X' = inactive patient
   };
 
   const [isProcessing, setIsProcessing] = useState(false);
