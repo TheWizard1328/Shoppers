@@ -22,15 +22,17 @@ class SmartRefreshManager {
     this.minRefreshInterval = 90000; // 90 seconds minimum between full refreshes (increased to reduce rate limits)
     this.lastFullRefreshTime = 0; // Track full refresh separately
     
-    // Real-time refresh intervals (milliseconds) - ALL SET TO 15 SECONDS
+    // Real-time refresh intervals (milliseconds)
+    // CRITICAL: Reduced frequency to prevent rate limits
+    // Historical data (90 days, patients) should ONLY be loaded on Dashboard mount, NOT every poll
     this.intervals = {
-      driverLocation: 15000,     // 15s - driver GPS locations
-      activeDeliveries: 15000,   // 15s - today's active delivery statuses
-      todayDeliveries: 15000,    // 15s - today's delivery changes only
-      appUsers: 15000,           // 15s - driver status, assignments
-      todayPatients: 15000,      // 15s - patients on today's routes only
-      patients: 60000,           // 60s - all other patients
-      stores: 60000              // 60s - store data
+      driverLocation: 15000,     // 15s - driver GPS locations (critical for live tracking)
+      activeDeliveries: 15000,   // 15s - today's active delivery statuses only
+      todayDeliveries: 30000,    // 30s - today's delivery changes only
+      appUsers: 30000,           // 30s - driver status, assignments
+      todayPatients: 120000,     // 2min - patients on today's routes only (rarely change)
+      patients: 300000,          // 5min - all other patients (ONLY on explicit refresh)
+      stores: 300000             // 5min - store data (rarely changes)
     };
     
     // Track last refresh time for each entity type
@@ -1090,8 +1092,9 @@ class SmartRefreshManager {
   }
 
   /**
-   * PRIORITY smart refresh - selected date deliveries + patients FIRST, then UI update
-   * Focuses on dashboard data only (other pages handle their own fetching)
+   * LIGHTWEIGHT smart refresh - ONLY today's deliveries and driver locations
+   * CRITICAL: Does NOT refresh patients or historical data - that's done on Dashboard mount only
+   * Historical 90-day data and full patient lists should NEVER be fetched in the polling loop
    */
   async performSmartRefresh(currentData, filters, isEntityUpdating = false) {
     // CRITICAL: When disabled, skip background polling
@@ -1123,32 +1126,18 @@ class SmartRefreshManager {
     const updates = {};
     
     try {
-      // PRIORITY 1: Refresh selected date deliveries FIRST - SKIP, use offline DB only
-      // The offline sync handles backend synchronization in the background
-      // Smart refresh should ONLY update from offline DB to prevent rate limits
-      
-      // PRIORITY 2: Refresh patients on selected date route SECOND
-      if (this.shouldRefresh('todayPatients') && updates.deliveries) {
-        this.markRefreshed('todayPatients');
-        
-        const dateStr = format(filters.selectedDate, 'yyyy-MM-dd');
-        const todayDeliveries = updates.deliveries.filter(d => d && d.delivery_date === dateStr);
-        
-        const patientUpdate = await this.refreshTodayPatients(
-          currentData.patients || [],
-          todayDeliveries
-        );
-        
-        if (patientUpdate?.hasChanges) {
-          updates.patients = patientUpdate.patients;
-        }
-      }
-      
-      // PRIORITY 3: AppUsers (driver status, locations) - still handled by separate methods
+      // CRITICAL: Smart refresh should ONLY poll for:
+      // 1. Driver locations (handled separately by refreshDriverLocations)
+      // 2. Active delivery statuses for TODAY only (handled by refreshActiveDeliveryStatuses)
+      //
+      // It should NEVER poll for:
+      // - Historical 90-day delivery data (loaded once on Dashboard mount)
+      // - Full patient list (loaded once on Dashboard mount)
+      // - Store data (loaded once on app init)
+      //
+      // These are triggered by broadcast events from other devices when they make changes
       
       const hasAnyUpdates = Object.keys(updates).length > 0;
-      if (hasAnyUpdates) {
-      }
       return hasAnyUpdates ? updates : null;
       
     } catch (error) {
@@ -1160,6 +1149,41 @@ class SmartRefreshManager {
       return null;
     } finally {
       this.isRefreshing = false;
+    }
+  }
+  
+  /**
+   * Handle broadcast from another device - refresh ONLY the specific entity that changed
+   * This is the smart approach: instead of polling everything, we listen for targeted updates
+   */
+  async handleBroadcastRefresh(entityName, operation, metadata = {}) {
+    console.log(`📡 [SmartRefresh] Handling broadcast: ${entityName} ${operation}`, metadata);
+    
+    switch (entityName) {
+      case 'Delivery':
+        // Reset delivery refresh timer to force immediate refresh
+        this.lastRefreshTimes.activeDeliveries = 0;
+        this.lastRefreshTimes.todayDeliveries = 0;
+        break;
+        
+      case 'Patient':
+        // Reset patient refresh timer
+        this.lastRefreshTimes.todayPatients = 0;
+        break;
+        
+      case 'AppUser':
+        // Reset AppUser refresh timer
+        this.lastRefreshTimes.appUsers = 0;
+        this.lastRefreshTimes.driverLocation = 0;
+        break;
+        
+      case 'Store':
+        // Reset store refresh timer
+        this.lastRefreshTimes.stores = 0;
+        break;
+        
+      default:
+        console.log(`📡 [SmartRefresh] Unknown entity in broadcast: ${entityName}`);
     }
   }
 }
