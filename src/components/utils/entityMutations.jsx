@@ -448,6 +448,60 @@ export const batchCreateDeliveries = async (deliveriesData, options = {}) => {
   }
 };
 
+/**
+ * Batch delete deliveries (local-first)
+ */
+export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
+  if (mutationsPaused) throw new Error('Mutations are paused');
+  await pauseSmartRefresh();
+
+  try {
+    console.log(`🗑️ [EntityMutations] Batch deleting ${deliveryIds.length} deliveries...`);
+    
+    // Remove all from IndexedDB
+    const db = await offlineDB.openDatabase();
+    const tx = db.transaction([offlineDB.STORES.DELIVERIES], 'readwrite');
+    const store = tx.objectStore(offlineDB.STORES.DELIVERIES);
+    
+    for (const id of deliveryIds) {
+      await new Promise((resolve, reject) => {
+        const req = store.delete(id);
+        req.onsuccess = resolve;
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    // Sync to backend (batch delete via delete_entities tool)
+    try {
+      // Use Base44 SDK to batch delete (query-based delete)
+      const deletePromises = deliveryIds.map(id => base44.entities.Delivery.delete(id));
+      await Promise.all(deletePromises);
+      console.log(`✅ [EntityMutations] Batch deleted ${deliveryIds.length} deliveries from backend`);
+      
+      await broadcastChange('Delivery', 'bulk_delete', { count: deliveryIds.length, ids: deliveryIds, ...options });
+    } catch (error) {
+      console.warn('⚠️ [EntityMutations] Batch delete sync failed, queuing:', error.message);
+      for (const id of deliveryIds) {
+        await offlineDB.addPendingMutation({ operation: 'delete', entity: 'Delivery', recordId: id });
+      }
+    }
+
+    // CRITICAL: Single UI notification for all deletes (batched)
+    notifyMutation({ 
+      type: 'batch_delete', 
+      entity: 'Delivery', 
+      ids: deliveryIds,
+      data: null 
+    });
+
+    await restartSmartRefresh();
+    return true;
+  } catch (error) {
+    await restartSmartRefresh();
+    throw error;
+  }
+};
+
 // ========================================
 // ONLINE-ONLY ENTITIES (Store, City, AppUser, etc.)
 // ========================================
