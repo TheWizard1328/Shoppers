@@ -90,20 +90,30 @@ export default function ETANotification({
         <div 
           className={`rounded-xl shadow-2xl p-4 border-2 ${
             type === 'critical' 
-              ? 'bg-red-50 border-red-500' 
+              ? 'border-red-500' 
               : isDelay 
-                ? 'bg-yellow-50 border-yellow-500' 
-                : 'bg-green-50 border-green-500'
+                ? 'border-yellow-500' 
+                : 'border-green-500'
           }`}
+          style={{
+            background: type === 'critical' 
+              ? 'var(--bg-white)' 
+              : isDelay 
+                ? 'var(--bg-white)' 
+                : 'var(--bg-white)'
+          }}
         >
           <div className="flex items-start gap-3">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-              type === 'critical' 
-                ? 'bg-red-100' 
-                : isDelay 
-                  ? 'bg-yellow-100' 
-                  : 'bg-green-100'
-            }`}>
+            <div 
+              className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+              style={{
+                background: type === 'critical' 
+                  ? 'var(--bg-slate-100)' 
+                  : isDelay 
+                    ? 'var(--bg-slate-100)' 
+                    : 'var(--bg-slate-100)'
+              }}
+            >
               {type === 'critical' ? (
                 <AlertTriangle className="w-5 h-5 text-red-600" />
               ) : isDelay ? (
@@ -114,36 +124,39 @@ export default function ETANotification({
             </div>
 
             <div className="flex-1 min-w-0">
-              <h4 className={`font-bold text-sm mb-1 ${
-                type === 'critical' 
-                  ? 'text-red-900' 
-                  : isDelay 
-                    ? 'text-yellow-900' 
-                    : 'text-green-900'
-              }`}>
+              <h4 
+                className="font-bold text-sm mb-1"
+                style={{
+                  color: type === 'critical' 
+                    ? '#dc2626' 
+                    : isDelay 
+                      ? '#ca8a04' 
+                      : '#16a34a'
+                }}
+              >
                 ETA {isDelay ? 'Delayed' : 'Improved'}
               </h4>
               
-              <p className="text-sm text-slate-700 mb-2">
+              <p className="text-sm mb-2" style={{ color: 'var(--text-slate-700)' }}>
                 <span className="font-semibold">{deliveryId}</span>
-                {patientName && <span className="text-slate-600"> • {patientName}</span>}
+                {patientName && <span style={{ color: 'var(--text-slate-600)' }}> • {patientName}</span>}
               </p>
 
               <div className="flex items-center gap-4 text-xs">
                 <div>
-                  <span className="text-slate-500">Previous:</span>
-                  <span className="font-mono font-semibold ml-1 text-slate-700">{oldEta}</span>
+                  <span style={{ color: 'var(--text-slate-500)' }}>Previous:</span>
+                  <span className="font-mono font-semibold ml-1" style={{ color: 'var(--text-slate-700)' }}>{oldEta}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500">Updated:</span>
+                  <span style={{ color: 'var(--text-slate-500)' }}>Updated:</span>
                   <span className={`font-mono font-semibold ml-1 ${
-                    isDelay ? 'text-red-700' : 'text-green-700'
+                    isDelay ? 'text-red-600' : 'text-green-600'
                   }`}>{newEta}</span>
                 </div>
               </div>
 
               <div className={`text-xs font-semibold mt-2 ${
-                isDelay ? 'text-yellow-700' : 'text-green-700'
+                isDelay ? 'text-yellow-600' : 'text-green-600'
               }`}>
                 {isDelay ? '+' : ''}{diffMinutes} minutes
               </div>
@@ -154,7 +167,8 @@ export default function ETANotification({
                 setNotification(null);
                 if (onDismiss) onDismiss();
               }}
-              className="text-slate-400 hover:text-slate-600 transition-colors flex-shrink-0"
+              className="transition-colors flex-shrink-0"
+              style={{ color: 'var(--text-slate-400)' }}
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
