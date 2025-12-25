@@ -388,19 +388,11 @@ function Dashboard() {
     cardExpanded ? stopCardsCurrHeight + 10 : stopCardsBaseHeight + 10 :
     20;
 
-    console.log('[Padding] - cardExpanded:', cardExpanded);
-    console.log('[Padding] - hasVisibleCards:', hasVisibleCards);
-    console.log('[Padding] - top:', topPadding, 'bottom:', bottomPadding);
-    console.log('[Padding] - statsCardBaseHeight:', statsCardBaseHeight);
-    console.log('[Padding] - stopCardsBaseHeight:', stopCardsBaseHeight);
-    console.log('[Padding] - statsCardCurrHeight:', statsCardCurrHeight);
-    console.log('[Padding] - stopCardsCurrHeight:', stopCardsCurrHeight);
-
     return {
       paddingTopLeft: [25, topPadding],
       paddingBottomRight: [25, bottomPadding]
     };
-  }, [isMobile, areCardsVisible, stopCardsBaseHeight]);
+  }, [isMobile, deliveriesWithStopOrder.length, stopCardsBaseHeight]);
 
   // Start driver activity monitor for pure drivers
   useEffect(() => {
@@ -1807,14 +1799,12 @@ function Dashboard() {
         const isViewingToday = todayStr === selectedDateStr;
 
         // CRITICAL: Check if driver is viewing their own route specifically
-        // FIXED: Allow any user (even admin/dispatcher) when they select themselves
         const isDriverViewingSelfToday =
         selectedDriverId === currentUser?.id &&
         selectedDriverId !== 'all' &&
         isViewingToday;
 
         // 1. BLUE DOT: Include driver's live location when visible on mobile
-        // The blue dot is rendered when: mobile + driver + viewing today + viewing self
         const shouldIncludeBlueDot =
         isMobile &&
         isDriver &&
@@ -1828,17 +1818,18 @@ function Dashboard() {
           hasDriverMarkers = true;
         }
 
-        // 2. SHARED DRIVER LOCATIONS: Only include if checkbox is checked (for drivers) or in all-drivers mode
+        // 2. SHARED DRIVER LOCATIONS: Check checkbox state and include accordingly
+        console.log(`🗺️ [Phase 1] showAllDriverMarkers: ${showAllDriverMarkers}, isDriverViewingSelfToday: ${isDriverViewingSelfToday}`);
         if (isViewingToday && allDriverLocations && Array.isArray(allDriverLocations)) {
           allDriverLocations.forEach((location) => {
             if (!location?.latitude || !location?.longitude || !location?.driver_id) return;
 
-            // Skip current user on mobile (blue dot shows instead when viewing self)
+            // Skip current user on mobile (blue dot shows instead)
             if (isMobile && location.driver_id === currentUser?.id) return;
 
-            // CRITICAL: Check showAllDriverMarkers state - only include if checkbox is checked
+            // CRITICAL: For drivers viewing self, check showAllDriverMarkers
             if (isDriverViewingSelfToday && !showAllDriverMarkers) {
-              return; // Don't include any shared locations unless checkbox is checked
+              return;
             }
 
             // Must be on_duty and have tracking enabled
@@ -1860,11 +1851,12 @@ function Dashboard() {
             hasDriverMarkers = true;
           });
         }
+        console.log(`🗺️ [Phase 1] Added ${hasDriverMarkers ? 'shared driver' : 'NO shared driver'} locations`);
 
         // 3. HOME LOCATIONS: Only when viewing own route as driver
         const isDispatcherNonAdmin = isDispatcher && !isAdmin;
-        if (isViewingToday && !isDispatcherNonAdmin && isDriverViewingSelfToday) {
-          // Only include current driver's home when viewing their own route
+        if (isViewingToday && !isDispatcherNonAdmin && isDriverViewingSelfToday && !showAllDriverMarkers) {
+          // Only include current driver's home when viewing their own route (and checkbox unchecked)
           if (currentUser?.home_latitude && currentUser?.home_longitude) {
             const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
             const hasActiveStops = deliveriesWithStopOrder.some((d) =>
@@ -1874,6 +1866,38 @@ function Dashboard() {
             if (hasActiveStops) {
               allCoordinates.push([currentUser.home_latitude, currentUser.home_longitude]);
             }
+          }
+        } else if (isViewingToday && !isDispatcherNonAdmin && isDriverViewingSelfToday && showAllDriverMarkers) {
+          // CRITICAL: When checkbox is checked, include ALL drivers' home markers
+          if (users && Array.isArray(users)) {
+            const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+            
+            // Add current driver's home
+            if (currentUser?.home_latitude && currentUser?.home_longitude) {
+              const hasActiveStops = deliveriesWithStopOrder.some((d) =>
+              d && !finishedStatuses.includes(d.status) && d.driver_id === currentUser.id
+              );
+              if (hasActiveStops) {
+                allCoordinates.push([currentUser.home_latitude, currentUser.home_longitude]);
+              }
+            }
+            
+            // Add other drivers' home markers if they have active stops
+            const otherDriversWithStops = new Set();
+            deliveries.forEach((d) => {
+              if (!d || d.delivery_date !== selectedDateStr) return;
+              if (d.driver_id === currentUser?.id) return;
+              if (!finishedStatuses.includes(d.status)) {
+                otherDriversWithStops.add(d.driver_id);
+              }
+            });
+
+            otherDriversWithStops.forEach((driverId) => {
+              const driver = users.find((u) => u && u.id === driverId);
+              if (driver?.home_latitude && driver?.home_longitude) {
+                allCoordinates.push([driver.home_latitude, driver.home_longitude]);
+              }
+            });
           }
         }
 
@@ -1898,27 +1922,27 @@ function Dashboard() {
           });
         }
 
-        // 5. CRITICAL: Include other drivers' markers AND home markers ONLY if checkbox is checked
+        // 5. CRITICAL: Include other drivers' delivery markers ONLY if checkbox is checked
         const isDriverViewingSelfAnyDate = isDriver && selectedDriverId === currentUser?.id && selectedDriverId !== 'all';
         
-        // CRITICAL: Check showAllDriverMarkers state - include other drivers only if checkbox is checked
+        console.log(`🗺️ [Phase 1] isDriverViewingSelfAnyDate: ${isDriverViewingSelfAnyDate}, showAllDriverMarkers: ${showAllDriverMarkers}`);
         if (isDriverViewingSelfAnyDate && showAllDriverMarkers) {
-          // 5a. Add other drivers' delivery/pickup markers
+          // Add other drivers' delivery/pickup markers
           if (deliveries && Array.isArray(deliveries)) {
             deliveries.forEach((delivery) => {
               if (!delivery) return;
 
-              // CRITICAL: Only include deliveries for the selected date
+              // Only include deliveries for the selected date
               if (delivery.delivery_date !== selectedDateStr) {
                 return;
               }
 
-              // Skip own deliveries (already included in deliveriesWithStopOrder)
+              // Skip own deliveries (already included)
               if (delivery.driver_id === currentUser?.id) {
                 return;
               }
 
-              // CRITICAL: Skip if no driver assigned
+              // Skip if no driver assigned
               if (!delivery.driver_id) return;
 
               if (delivery.patient_id) {
@@ -1936,29 +1960,7 @@ function Dashboard() {
               }
             });
           }
-
-          // 5b. Add other drivers' home markers if they have active stops
-          if (isViewingToday && users && Array.isArray(users)) {
-            const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-            const otherDriversWithStops = new Set();
-            
-            // Find all drivers with active stops on this date (excluding current user)
-            deliveries.forEach((d) => {
-              if (!d || d.delivery_date !== selectedDateStr) return;
-              if (d.driver_id === currentUser?.id) return;
-              if (!finishedStatuses.includes(d.status)) {
-                otherDriversWithStops.add(d.driver_id);
-              }
-            });
-
-            // Add home locations for those drivers
-            otherDriversWithStops.forEach((driverId) => {
-              const driver = users.find((u) => u && u.id === driverId);
-              if (driver?.home_latitude && driver?.home_longitude) {
-                allCoordinates.push([driver.home_latitude, driver.home_longitude]);
-              }
-            });
-          }
+          console.log(`🗺️ [Phase 1] Added other drivers' ${hasStopMarkers ? 'delivery' : 'NO delivery'} markers`);
         }
 
         // Get current city center
@@ -2055,10 +2057,9 @@ function Dashboard() {
         }
         // CASE 3: Normal case with stop markers
         else if (allCoordinates.length > 0) {
+          console.log(`🗺️ [Phase 1] Fitting ${allCoordinates.length} coordinates (hasStopMarkers: ${hasStopMarkers}, hasDriverMarkers: ${hasDriverMarkers})`);
 
           // Calculate span to determine appropriate maxZoom
-          // Prevent over-zooming when stops are close together
-          // Prevent under-zooming when stops are far apart
           let minLat = Infinity,maxLat = -Infinity,minLon = Infinity,maxLon = -Infinity;
           allCoordinates.forEach(([lat, lon]) => {
             minLat = Math.min(minLat, lat);
@@ -2071,14 +2072,11 @@ function Dashboard() {
           const lonSpan = maxLon - minLon;
           const maxSpan = Math.max(latSpan, lonSpan);
 
-          // Dynamic zoom calculation based on geographic spread and screen size
-          // Convert degrees to km (1 degree ≈ 111km) and use logarithmic scale
-          // Mobile needs tighter zoom (higher numbers), desktop can zoom out more (lower numbers)
           const spanKm = maxSpan * 111.0;
           const baseZoom = 16 - Math.log2(spanKm + 1) * 1.5;
-          const screenAdjustment = isMobile ? 0.5 : -0.5; // Mobile +0.5 zoom, Desktop -0.5 zoom
+          const screenAdjustment = isMobile ? 0.5 : -0.5;
           const phase1MaxZoom = Math.max(8.0, Math.min(15, Math.round((baseZoom + screenAdjustment) * 10) / 10)).toFixed(1);
-          console.info('phase1MaxZoom: ', phase1MaxZoom);
+          console.log(`🗺️ [Phase 1] maxZoom: ${phase1MaxZoom}, span: ${spanKm.toFixed(2)}km`);
 
           const padding = getMapPadding(false);
 
@@ -2358,6 +2356,13 @@ function Dashboard() {
     // Trigger map view
     setMapViewTrigger((prev) => prev + 1);
 
+    // CRITICAL: Clear any existing timers first
+    if (mapLockTimeoutRef.current) {
+      clearTimeout(mapLockTimeoutRef.current);
+      mapLockTimeoutRef.current = null;
+    }
+    mapLockExpiresAtRef.current = null;
+
     // Set timer for phase 1 & 3, permanent lock for phase 2
     if (phaseToApply === 1 || phaseToApply === 3) {
       const lockDuration = 3000;
@@ -2376,12 +2381,6 @@ function Dashboard() {
       console.log(`🔵 [FAB Initial] Phase ${phaseToApply} locked - will auto-unlock in 3 seconds`);
     } else if (phaseToApply === 2) {
       // Phase 2 - NO timer, stays locked PERMANENTLY
-      // CRITICAL: Clear any timers to prevent accidental unlock
-      if (mapLockTimeoutRef.current) {
-        clearTimeout(mapLockTimeoutRef.current);
-        mapLockTimeoutRef.current = null;
-      }
-      mapLockExpiresAtRef.current = null;
       console.log(`🔵 [FAB Initial] Phase 2 locked PERMANENTLY - unlocks only on FAB click`);
     }
 

@@ -450,6 +450,11 @@ const syncDeliveries = async (selectedDate = null, forceFullSync = false) => {
         await new Promise(resolve => setTimeout(resolve, SYNC_DELAY_BETWEEN_BATCHES));
       }
     }
+    
+    console.log(`✅ [OfflineSync] Saved ${totalSaved} deliveries to IndexedDB`);
+    
+    // CRITICAL: Trigger UI update after syncing deliveries
+    window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
 
     // Update sync status with full sync marker
     const syncStatusUpdate = {
