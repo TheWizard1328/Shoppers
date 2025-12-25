@@ -2758,18 +2758,11 @@ function Dashboard() {
       // STEP 1: Clear pending updates for clean slate
       smartRefreshManager.clearPendingUpdates();
 
-      // STEP 2: Priority load - selected driver first for instant UI
-      let priorityDeliveries;
-      if (selectedDriverId && selectedDriverId !== 'all') {
-        priorityDeliveries = await base44.entities.Delivery.filter({
-          delivery_date: dateStr,
-          driver_id: selectedDriverId
-        });
-      } else {
-        priorityDeliveries = await base44.entities.Delivery.filter({
-          delivery_date: dateStr
-        });
-      }
+      // STEP 2: ALWAYS load ALL drivers' deliveries for selected date
+      // This ensures "Show All" checkbox has complete data
+      const priorityDeliveries = await base44.entities.Delivery.filter({
+        delivery_date: dateStr
+      });
 
       // STEP 3: Update UI immediately with priority data using flushSync for instant render
       if (updateDeliveriesLocally) {
