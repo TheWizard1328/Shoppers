@@ -873,6 +873,15 @@ export default function Layout({ children, currentPageName }) {
           return;
         }
 
+        // CRITICAL: Handle 'batch_delete' mutations - remove multiple items at once
+        if (mutation.type === 'batch_delete') {
+          const idsToDelete = new Set(mutation.ids || []);
+          if (mutation.entity === 'Delivery') {
+            setDeliveries(prev => prev.filter(d => !idsToDelete.has(d?.id)));
+          }
+          return;
+        }
+
         // CRITICAL: Handle 'create' and 'update' mutations
         if (mutation.type === 'create') {
           if (mutation.entity === 'Patient') {

@@ -598,6 +598,7 @@ export {
   updateDelivery as updateDeliveryLocal,
   deleteDelivery as deleteDeliveryLocal,
   batchCreateDeliveries as batchCreateDeliveriesLocal,
+  batchDeleteDeliveries as batchDeleteDeliveriesLocal,
   pauseMutations as pauseOfflineMutations,
   resumeMutations as resumeOfflineMutations,
   areMutationsPaused as areOfflineMutationsPaused
