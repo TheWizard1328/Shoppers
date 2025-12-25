@@ -1933,10 +1933,35 @@ function Dashboard() {
         console.log(`🗺️ [Phase 1] Total deliveries available: ${deliveries?.length || 0}`);
         console.log(`🗺️ [Phase 1] deliveriesWithStopOrder length: ${deliveriesWithStopOrder?.length || 0}`);
         
-        if (shouldShowAllMarkers) {
+        // CRITICAL: For "All Drivers" mode, we need to add patient coordinates from deliveriesWithStopOrder
+        // because Step 4 above only adds 9 coordinates (pickup stores), not the patient delivery locations
+        if (selectedDriverId === 'all' && deliveriesWithStopOrder && deliveriesWithStopOrder.length > 0) {
+          let allDriversMarkersAdded = 0;
+          
+          deliveriesWithStopOrder.forEach((delivery) => {
+            if (!delivery) return;
+            
+            // Add patient location for deliveries (not pickups)
+            if (delivery.patient_id) {
+              const patient = patients.find((p) => p && p.id === delivery.patient_id);
+              if (patient?.latitude && patient?.longitude) {
+                // Check if this coordinate is already added
+                const alreadyAdded = allCoordinates.some(c => 
+                  Math.abs(c[0] - patient.latitude) < 0.0001 && Math.abs(c[1] - patient.longitude) < 0.0001
+                );
+                if (!alreadyAdded) {
+                  allCoordinates.push([patient.latitude, patient.longitude]);
+                  hasStopMarkers = true;
+                  allDriversMarkersAdded++;
+                }
+              }
+            }
+          });
+          console.log(`🗺️ [Phase 1] Added ${allDriversMarkersAdded} patient markers for All Drivers mode`);
+        } else if (shouldShowAllMarkers && isDriverViewingSelfAnyDate) {
+          // Driver viewing self with "Show All" checkbox - add other drivers' markers
           let otherDriverMarkersAdded = 0;
           
-          // Add ALL drivers' delivery/pickup markers for selected date
           if (deliveries && Array.isArray(deliveries)) {
             deliveries.forEach((delivery) => {
               if (!delivery) return;
@@ -1946,15 +1971,9 @@ function Dashboard() {
                 return;
               }
 
-              // Skip own deliveries IF we're in single driver mode (already included in deliveriesWithStopOrder)
-              if (isDriverViewingSelfAnyDate && delivery.driver_id === currentUser?.id) {
+              // Skip own deliveries (already included)
+              if (delivery.driver_id === currentUser?.id) {
                 return;
-              }
-
-              // For "All Drivers" mode, skip if already in deliveriesWithStopOrder
-              if (selectedDriverId === 'all') {
-                const alreadyIncluded = deliveriesWithStopOrder.some(d => d?.id === delivery.id);
-                if (alreadyIncluded) return;
               }
 
               // Skip if no driver assigned
