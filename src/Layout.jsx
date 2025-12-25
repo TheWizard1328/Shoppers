@@ -786,10 +786,10 @@ export default function Layout({ children, currentPageName }) {
         performInitialSync(selectedDate).catch(() => {});
       }, 5000);
 
-      // Set up periodic mutation processing (every 30 seconds)
+      // Set up periodic mutation processing (every 60 seconds to avoid rate limits)
       const mutationSyncInterval = setInterval(() => {
         processPendingMutations().catch(() => {});
-      }, 30000);
+      }, 60000);
 
       // Subscribe to local mutations and refresh UI IMMEDIATELY
       const unsubscribeMutations = subscribeMutations(async (mutation) => {

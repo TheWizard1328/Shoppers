@@ -513,14 +513,18 @@ export const processPendingMutations = async () => {
 
       await offlineDB.removePendingMutation(mutation.mutationId);
       successCount++;
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // CRITICAL: Longer delay between mutations to prevent rate limits
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
     } catch (error) {
       await offlineDB.updateMutationRetry(mutation.mutationId, (mutation.retryCount || 0) + 1);
       failCount++;
       
       if (error.response?.status === 429 || error.message?.includes('429')) {
-        break;
+        console.log('⏰ [OfflineSync] Rate limit hit - waiting 10s before continuing...');
+        await new Promise(resolve => setTimeout(resolve, 10000));
+      } else {
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
     }
   }
