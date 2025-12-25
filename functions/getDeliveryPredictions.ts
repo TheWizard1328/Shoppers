@@ -68,6 +68,16 @@ Deno.serve(async (req) => {
 
     for (const patient of patients) {
       if (!patient || excludeSet.has(patient.id)) continue;
+      
+      // CRITICAL: Skip patients who already have a delivery on this date (in any driver's route)
+      if (patientsWithDeliveries.has(patient.id)) {
+        continue;
+      }
+      
+      // CRITICAL: Skip inactive patients
+      if (patient.status === 'inactive') {
+        continue;
+      }
 
       // Check if this patient should have a delivery on the selected date
       let shouldDeliver = false;
