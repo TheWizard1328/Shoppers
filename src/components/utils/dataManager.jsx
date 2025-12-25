@@ -37,7 +37,7 @@ const DELIVERY_RANGE_CACHE_DURATION = 30 * 60 * 1000; // 30 minutes for historic
 
 // Rate limit protection - track last API call time
 let lastApiCallTime = 0;
-const MIN_API_INTERVAL = 150; // Minimum 150ms between API calls
+const MIN_API_INTERVAL = 300; // Increased to 300ms between API calls to prevent rate limiting
 
 const waitForRateLimit = async () => {
   const now = Date.now();
@@ -405,7 +405,7 @@ export const loadDeliveries = async (
       // Wait 1 second before starting background loads
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Load next 7 days with 500ms pause between dates
+      // Load next 7 days with 800ms pause between dates
       const futureDeliveries = [];
       for (let i = 1; i <= 7; i++) {
         const futureDate = new Date(today);
@@ -417,12 +417,12 @@ export const loadDeliveries = async (
           futureDeliveries.push(...dayDeliveries);
           
           if (i < 7) {
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 800));
           }
         } catch (error) {
           if (error.response?.status === 429 || error.message?.includes('429')) {
-            console.warn(`⏰ Rate limit - waiting 3s before continuing...`);
-            await new Promise(resolve => setTimeout(resolve, 3000));
+            console.warn(`⏰ Rate limit - waiting 5s before continuing...`);
+            await new Promise(resolve => setTimeout(resolve, 5000));
           }
         }
       }
@@ -430,7 +430,7 @@ export const loadDeliveries = async (
       // Wait 1 second before loading past data
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Load past 90 days (3 months) with 500ms pause between dates
+      // Load past 90 days (3 months) with 800ms pause between dates
       const last90Days = subDays(today, 90);
       const yesterdayStr = format(subDays(today, 1), 'yyyy-MM-dd');
       
@@ -444,13 +444,13 @@ export const loadDeliveries = async (
           pastDeliveries.push(...dayDeliveries);
           
           if (i > 1) {
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 800));
           }
         } catch (dateError) {
           console.error(`  ❌ Error loading ${dateStr}:`, dateError);
           if (dateError.response?.status === 429 || dateError.message?.includes('429')) {
-            console.warn(`⏰ Rate limit - waiting 3s before continuing...`);
-            await new Promise(resolve => setTimeout(resolve, 3000));
+            console.warn(`⏰ Rate limit - waiting 5s before continuing...`);
+            await new Promise(resolve => setTimeout(resolve, 5000));
           }
         }
       }

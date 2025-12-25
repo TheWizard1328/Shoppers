@@ -1283,35 +1283,23 @@ function Dashboard() {
       if (!isMobile) {
         console.log('🖥️ [Dashboard] Non-mobile device - using shared location from AppUser');
         
-        // Set up interval to poll AppUser for shared location
-        const pollSharedLocation = async () => {
-          try {
-            const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
-            const appUser = appUsers?.[0];
-            
-            if (appUser?.current_latitude && appUser?.current_longitude && appUser?.location_updated_at) {
-              const newLocation = {
-                latitude: appUser.current_latitude,
-                longitude: appUser.current_longitude,
-                timestamp: appUser.location_updated_at,
-                accuracy: null, // Shared location doesn't have accuracy
-                source: 'shared_location'
-              };
-              setDriverLocation(newLocation);
-            } else {
-              setDriverLocation(null);
-            }
-          } catch (error) {
-            console.warn('⚠️ [Dashboard] Failed to fetch shared location:', error);
-          }
-        };
+        // Use AppUser data from context instead of polling
+        const appUser = appUsers?.find(au => au?.user_id === currentUser.id);
         
-        // Initial poll
-        pollSharedLocation();
+        if (appUser?.current_latitude && appUser?.current_longitude && appUser?.location_updated_at) {
+          const newLocation = {
+            latitude: appUser.current_latitude,
+            longitude: appUser.current_longitude,
+            timestamp: appUser.location_updated_at,
+            accuracy: null,
+            source: 'shared_location'
+          };
+          setDriverLocation(newLocation);
+        } else {
+          setDriverLocation(null);
+        }
         
-        // Poll every 30 seconds
-        const interval = setInterval(pollSharedLocation, 30000);
-        return () => clearInterval(interval);
+        return () => {};
       }
       
       // MOBILE: Use device GPS
@@ -1485,7 +1473,7 @@ function Dashboard() {
         navigator.geolocation.clearWatch(watchId);
       }
     };
-  }, [isDriver, currentUser, isMobile, deliveriesWithStopOrder, patients, stores, mapViewPhase, getMapPadding]);
+  }, [isDriver, currentUser, isMobile, deliveriesWithStopOrder, patients, stores, mapViewPhase, getMapPadding, appUsers]);
 
   // Track other drivers' locations via poller (for all-drivers mode or when checkbox is checked)
   useEffect(() => {
