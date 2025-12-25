@@ -1054,7 +1054,7 @@ export default function DeliveriesPage() {
 
       return { date, total, done, failed: failedByStatus, returned, displayLabel, actualDeliveries: deliveriesOnDate.length };
     });
-  }, [filteredDatesByMonth, groupedDeliveries, effectivePatients, selectedYear, selectedMonth]);
+  }, [filteredDatesByMonth, groupedDeliveries, effectivePatients, selectedYear, selectedMonth, refreshKey]);
 
   useEffect(() => {
     if (isDriverOverviewMode || isLoading || !dateListWithStats.length || isLoadingData) {
