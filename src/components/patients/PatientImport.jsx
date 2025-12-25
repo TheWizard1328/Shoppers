@@ -1335,6 +1335,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
                                         <li>Col 16: Time Window End</li>
                                         <li>Col 17: Latitude</li>
                                         <li>Col 18: Longitude</li>
+                                        <li>Col 19: Inactive ('X' = inactive)</li>
                                         <li>Col 20: Patient ID (PID)</li>
                                     </ul>
                                 </div>
