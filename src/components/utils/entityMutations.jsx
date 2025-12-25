@@ -76,15 +76,18 @@ const notifyMutation = (mutation) => {
  */
 const broadcastChange = async (entityName, operation, metadata = {}) => {
   try {
+    // CRITICAL: Get current user for broadcast
+    const currentUser = await base44.auth.me();
+    
     await base44.entities.SyncBroadcast.create({
       entity_name: entityName,
       operation: operation,
-      triggered_by: metadata.userId || 'unknown',
-      triggered_by_name: metadata.userName || 'Unknown User',
+      triggered_by: currentUser?.id || 'unknown',
+      triggered_by_name: currentUser?.full_name || 'Unknown User',
       timestamp: new Date().toISOString(),
       metadata: metadata
     });
-    console.log(`📡 [EntityMutations] Broadcasted ${operation} for ${entityName}`);
+    console.log(`📡 [EntityMutations] Broadcasted ${operation} for ${entityName} by ${currentUser?.full_name || 'unknown'}`);
   } catch (error) {
     // Don't throw - broadcasting is best-effort
     console.warn('⚠️ [EntityMutations] Broadcast failed:', error.message);

@@ -792,20 +792,28 @@ export default function Layout({ children, currentPageName }) {
           );
 
           if (broadcasts && broadcasts.length > 0) {
-            console.log(`📢 [RealtimeSync] Received ${broadcasts.length} broadcast(s) from other devices`);
+            console.log(`📢 [RealtimeSync] Received ${broadcasts.length} broadcast(s) from other devices:`, 
+              broadcasts.map(b => `${b.entity_name} (${b.operation}) by ${b.triggered_by_name}`));
 
             // Dispatch event for yellow spinner
             window.dispatchEvent(new CustomEvent('realtimeSyncRefresh'));
 
             // CRITICAL: Targeted refresh - only reset timers for entities that changed
-            // This prevents unnecessary API calls for unchanged data
             const changedEntities = new Set(broadcasts.map(b => b.entity_name));
             
             changedEntities.forEach(entityName => {
               smartRefreshManager.handleBroadcastRefresh(entityName, 'broadcast');
             });
 
-            console.log(`🎯 [RealtimeSync] Targeted refresh for: ${[...changedEntities].join(', ')}`);
+            console.log(`🎯 [RealtimeSync] Forced immediate refresh for entities: ${[...changedEntities].join(', ')}`);
+            
+            // CRITICAL: Trigger full data reload after broadcast
+            if (triggerFullDataLoadRef.current) {
+              console.log('🔄 [RealtimeSync] Triggering full data reload...');
+              setTimeout(() => {
+                triggerFullDataLoadRef.current(true);
+              }, 2000);
+            }
           }
         } catch (error) {
           // Silently handle errors - don't spam console
