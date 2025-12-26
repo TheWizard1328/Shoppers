@@ -19,7 +19,6 @@ Deno.serve(async (req) => {
     const device_id = payload.device_id || null;
 
     console.log(`📡 [Broadcast] ${user.full_name} (device: ${device_id || 'unknown'}) triggered ${operation} on ${entity_name}`);
-    console.log(`📡 [Broadcast] Metadata:`, JSON.stringify(metadata));
 
     // Store broadcast event in a dedicated entity for polling
     // CRITICAL: Store fields at top level, not nested in 'data'
@@ -33,20 +32,19 @@ Deno.serve(async (req) => {
       metadata: metadata || {}
     };
     
-    console.log(`📡 [Broadcast] Creating record:`, JSON.stringify(broadcastRecord));
-    
     await base44.asServiceRole.entities.SyncBroadcast.create(broadcastRecord);
 
-    console.log(`✅ [Broadcast] Event stored - other devices will pick it up on next poll`);
+    console.log(`✅ [Broadcast] Event stored - other devices will pick it up via adaptive polling`);
 
     return Response.json({ 
       success: true,
-      message: 'Broadcast sent'
+      message: 'Broadcast sent',
+      // Return flag so client knows to trigger fast polling
+      triggerFastPolling: true
     });
 
   } catch (error) {
     console.error('❌ [Broadcast] Error:', error.message);
-    console.error('❌ [Broadcast] Stack:', error.stack);
     return Response.json({ 
       error: error.message 
     }, { status: 500 });
