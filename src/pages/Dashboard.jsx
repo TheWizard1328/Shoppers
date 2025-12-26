@@ -879,13 +879,13 @@ function Dashboard() {
     }
 
     // Fallback: if backend hasn't marked one yet, find first incomplete (EXCLUDE PENDING)
-    const unfinishedStops = filteredDeliveries.filter((d) => {
+    const unfinishedStops = (filteredDeliveries || []).filter((d) => {
       if (!d) return false;
       return d.driver_id === currentUser.id &&
       !['completed', 'failed', 'cancelled', 'returned', 'pending'].includes(d.status);
     });
 
-    if (unfinishedStops.length === 0) return null;
+    if (!unfinishedStops || unfinishedStops.length === 0) return null;
 
     const sortedStops = [...unfinishedStops].sort((a, b) => {
       if (!a || !b) return 0;
@@ -893,7 +893,7 @@ function Dashboard() {
       return (a.delivery_time_start || '').localeCompare(b.delivery_time_start || '');
     });
 
-    return sortedStops.length > 0 ? sortedStops[0] : null;
+    return sortedStops && sortedStops.length > 0 ? sortedStops[0] : null;
   }, [isDriver, filteredDeliveries, currentUser]);
 
   const nextStopCoordinates = useMemo(() => {
