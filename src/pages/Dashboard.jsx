@@ -2217,19 +2217,12 @@ function Dashboard() {
 
     const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
     
-    // CRITICAL: Count deliveries based on actual mode
-    let deliveriesToCheck = [];
-    if (selectedDriverId === 'all' || showAllDriverMarkers) {
-      // Need all deliveries for date
-      deliveriesToCheck = deliveries.filter(d => d && d.delivery_date === selectedDateStr);
-    } else {
-      // Single driver mode - use filtered deliveries
-      deliveriesToCheck = deliveriesWithStopOrder;
-    }
-    
+    // CRITICAL: Always check full deliveries array when loading/refreshing
+    // This ensures "Show All" checkbox has complete data available
+    const deliveriesToCheck = deliveries.filter(d => d && d.delivery_date === selectedDateStr);
     const uniqueDrivers = new Set(deliveriesToCheck.map(d => d?.driver_id).filter(Boolean));
     
-    console.log(`🔍 [Render Sequence 7] Checking: ${deliveriesToCheck.length} deliveries, ${uniqueDrivers.size} drivers (mode: ${selectedDriverId === 'all' ? 'All' : showAllDriverMarkers ? 'Show All' : 'Single'})`);
+    console.log(`🔍 [Render Sequence 7] Checking: ${deliveriesToCheck.length} deliveries, ${uniqueDrivers.size} drivers for ${selectedDateStr}`);
     
     // CRITICAL: Mark ready when we have data (no artificial waiting)
     if (deliveriesToCheck.length > 0 && patients.length > 0 && stores.length > 0) {
@@ -2245,7 +2238,7 @@ function Dashboard() {
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [renderSequence.sharedLocations, renderSequence.fullDeliveriesLoaded, deliveries, deliveriesWithStopOrder, selectedDate, patients.length, stores.length, showAllDriverMarkers, selectedDriverId]);
+  }, [renderSequence.sharedLocations, renderSequence.fullDeliveriesLoaded, deliveries, selectedDate, patients.length, stores.length]);
 
   // RENDER SEQUENCE EFFECT 8: Activate FAB Phase (FINAL STEP)
   // Apply initial map view on first load - WAIT for full render sequence
