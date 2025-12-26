@@ -1029,6 +1029,7 @@ export default function Layout({ children, currentPageName }) {
         window.removeEventListener('offlineSyncComplete', handleSyncComplete);
         window.removeEventListener('deliveriesImported', handleDeliveriesImported);
         window.removeEventListener('offlineDeliveriesDeleted', handleOfflineDeliveriesDeleted);
+        window.removeEventListener('deliveriesUpdated', handleDeliveriesUpdated);
       };
       }, [currentUser]);
 
