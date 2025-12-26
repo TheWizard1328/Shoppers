@@ -188,6 +188,7 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
             const fetchStats = async () => {
               try {
                 setHasError(false);
+                setIsLoading(true);
 
                 // CRITICAL: Pass selected driver ID directly - backend handles filtering
                 // When 'all' is selected → driverId=null (show all drivers)
@@ -228,15 +229,15 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
                 }
             };
 
+            // CRITICAL: Fetch immediately when driver changes
+            fetchStats();
+
             // Listen for manual refresh requests (e.g., after imports)
             window.addEventListener('refreshDeliveryStats', fetchStats);
 
-            // Delay initial fetch slightly to avoid competing with layout init
-            const initialTimer = setTimeout(fetchStats, 1000);
             // Refresh stats every 60 seconds
             const interval = setInterval(fetchStats, 60000);
             return () => {
-              clearTimeout(initialTimer);
               clearInterval(interval);
               window.removeEventListener('refreshDeliveryStats', fetchStats);
             };
