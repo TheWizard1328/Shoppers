@@ -2297,29 +2297,31 @@ function Dashboard() {
     // This allows other components to know when dashboard is fully loaded
     fabControlEvents.notifyDataReady();
 
-    // CASE 1: No deliveries - set phase 1 locked, will unlock on pan/zoom
-    if (deliveriesWithStopOrder.length === 0) {
-      setMapViewPhase(1);
-      setIsMapViewLocked(true);
-      setInitialMapViewApplied(true);
-      setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
+    // CRITICAL: Delay FAB activation to ensure map has fully rendered all markers
+    setTimeout(() => {
+      // CASE 1: No deliveries - set phase 1 locked, will unlock on pan/zoom
+      if (deliveriesWithStopOrder.length === 0) {
+        setMapViewPhase(1);
+        setIsMapViewLocked(true);
+        setInitialMapViewApplied(true);
+        setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
 
-      if (mapLockTimeoutRef.current) {
-        clearTimeout(mapLockTimeoutRef.current);
-        mapLockTimeoutRef.current = null;
+        if (mapLockTimeoutRef.current) {
+          clearTimeout(mapLockTimeoutRef.current);
+          mapLockTimeoutRef.current = null;
+        }
+        mapLockExpiresAtRef.current = null;
+
+        setMapViewTrigger((prev) => prev + 1);
+        console.log('🔵 [FAB Initial] No deliveries - Phase 1 locked, will unlock on pan/zoom');
+        return;
       }
-      mapLockExpiresAtRef.current = null;
 
-      setMapViewTrigger((prev) => prev + 1);
-      console.log('🔵 [FAB Initial] No deliveries - Phase 1 locked, will unlock on pan/zoom');
-      return;
-    }
+      // CASE 2: Has deliveries - apply saved phase
+      const phaseToApply = savedFabPhaseRef.current;
 
-    // CASE 2: Has deliveries - apply saved phase
-    const phaseToApply = savedFabPhaseRef.current;
-
-    // For phase 2, require nextStop coordinates
-    if (phaseToApply === 2 && !nextStopCoordinates) {
+      // For phase 2, require nextStop coordinates
+      if (phaseToApply === 2 && !nextStopCoordinates) {
       console.log('⚠️ [FAB Initial] Phase 2 requested but no next stop - using Phase 1');
       setMapViewPhase(1);
       setIsMapViewLocked(true);
@@ -2435,6 +2437,7 @@ function Dashboard() {
         }
       }
     }, 500);
+    }, 800); // Delay FAB activation by 800ms to ensure all markers are rendered
   }, [renderSequence.fullDeliveriesLoaded, renderSequence.fabPhaseReady, initialMapViewApplied, deliveriesWithStopOrder.length, isDriver, driverLocation, deliveriesWithStopOrder, nextStopCoordinates, deliveries.length, allDriverLocations.length, showAllDriverMarkers]);
 
   // CRITICAL: Dedicated effect to scroll to next delivery card on initial load
