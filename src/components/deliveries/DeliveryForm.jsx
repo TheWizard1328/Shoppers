@@ -2178,10 +2178,7 @@ export default function DeliveryForm({
         console.log('✉️ [DeliveryForm] Sent driver reassignment message');
       }
 
-      // CRITICAL: Invalidate caches (smart refresh restart is handled by updateDeliveryLocal)
-      const { invalidate } = await import('../utils/dataManager');
-      invalidate('Delivery');
-      invalidate('Patient');
+
 
       // CRITICAL: Always reorder stops after any delivery update or status change
       if (delivery && delivery.driver_id && delivery.delivery_date) {
