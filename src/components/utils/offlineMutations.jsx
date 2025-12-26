@@ -195,6 +195,14 @@ export const updatePatientLocal = async (patientId, updates) => {
     throw new Error('Mutations are paused during route optimization');
   }
 
+  // CRITICAL: Register pending update BEFORE anything else to protect from smart refresh
+  try {
+    const { smartRefreshManager } = await import('./smartRefreshManager');
+    smartRefreshManager.registerPendingPatientUpdate(patientId);
+  } catch (error) {
+    console.warn('⚠️ [OfflineMutations] Failed to register pending patient update:', error);
+  }
+
   // CRITICAL: Pause smart refresh during mutation
   await pauseSmartRefresh();
 
