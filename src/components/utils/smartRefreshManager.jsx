@@ -868,14 +868,29 @@ class SmartRefreshManager {
       
 
       
-      const diff = diffEntityArrays(currentPatients, updatedPatients);
+      // CRITICAL: Filter out patients with pending local updates before merging
+      const filteredUpdatedPatients = updatedPatients.filter(p => !this.hasPendingPatientUpdate(p.id));
+      
+      const diff = diffEntityArrays(currentPatients, filteredUpdatedPatients);
       
       if (diff.toUpdate.length === 0 && diff.toAdd.length === 0) {
         return null;
       }
       
       logDiffStats('Patient', diff);
-      const mergedPatients = mergeEntityChanges(currentPatients, diff);
+      
+      // CRITICAL: Preserve local versions of protected patients during merge
+      let mergedPatients = mergeEntityChanges(currentPatients, diff);
+      mergedPatients = mergedPatients.map(p => {
+        if (this.hasPendingPatientUpdate(p.id)) {
+          const localVersion = currentPatients.find(cp => cp.id === p.id);
+          if (localVersion) {
+            console.log(`🛡️ [SmartRefresh] Preserving local patient ${p.id} - has pending update`);
+            return localVersion;
+          }
+        }
+        return p;
+      });
       
       return {
         hasChanges: true,
