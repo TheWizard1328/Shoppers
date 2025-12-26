@@ -1614,8 +1614,8 @@ export default function DeliveryMap({
 
       // CRITICAL: Calculate totalDriverStops using Dashboard stats rules
       // Patient deliveries + completed/cancelled after hours pickups
-      const patientDeliveryCount = driverPatientDeliveries.length;
-      const completedOrCancelledAfterHours = driverPickups.filter(p => {
+      const patientDeliveryCount = (driverPatientDeliveries || []).length;
+      const completedOrCancelledAfterHours = (driverPickups || []).filter(p => {
         if (!p) return false;
         return p.after_hours_pickup && (p.status === 'completed' || p.status === 'cancelled');
       }).length;
