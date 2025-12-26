@@ -50,6 +50,8 @@ export default function PatientImport({ onImportComplete, onImportStart, current
   });
   const [showPreview, setShowPreview] = useState(false);
   const [previewChanges, setPreviewChanges] = useState({ toCreate: [], toUpdate: [], errors: [] });
+  const [showMissingPatients, setShowMissingPatients] = useState(false);
+  const [missingPatients, setMissingPatients] = useState([]);
 
   useEffect(() => {
     console.log("PatientImport: Component mounted, loading stores.");
