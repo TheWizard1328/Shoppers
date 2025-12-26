@@ -1938,10 +1938,8 @@ function Dashboard() {
         console.log(`🗺️ [Phase 1] Total deliveries available: ${deliveries?.length || 0}`);
         console.log(`🗺️ [Phase 1] deliveriesWithStopOrder length: ${deliveriesWithStopOrder?.length || 0}`);
         
-        // CRITICAL: For "All Drivers" mode, deliveriesWithStopOrder already has ALL deliveries for ALL drivers
-        // Step 4 above already added patient+pickup markers - no need to add more
-        // The issue is Step 4 is filtering by selectedDriver, so it's not adding all markers
-        console.log(`🗺️ [Phase 1] deliveriesWithStopOrder already includes all markers from filteredDeliveries`); else if (shouldShowAllMarkers && isDriverViewingSelfAnyDate) {
+        // CRITICAL: For "All Drivers" mode or "Show All" checkbox, add other drivers' delivery markers
+        if (shouldShowAllMarkers && isDriverViewingSelfAnyDate) {
           // Driver viewing self with "Show All" checkbox - add other drivers' markers
           let otherDriverMarkersAdded = 0;
           
