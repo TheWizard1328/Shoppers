@@ -1835,22 +1835,10 @@ function Dashboard() {
         }
         console.log(`🗺️ [Phase 1] Added ${hasDriverMarkers ? 'shared driver' : 'NO shared driver'} locations`);
 
-        // 3. HOME LOCATIONS: Only when viewing own route as driver
+        // 3. HOME LOCATIONS: Include when showing all markers
         const isDispatcherNonAdmin = isDispatcher && !isAdmin;
-        if (isViewingToday && !isDispatcherNonAdmin && isDriverViewingSelfToday && !showAllDriverMarkers) {
-          // Only include current driver's home when viewing their own route (and checkbox unchecked)
-          if (currentUser?.home_latitude && currentUser?.home_longitude) {
-            const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-            const hasActiveStops = deliveriesWithStopOrder.some((d) =>
-            d && !finishedStatuses.includes(d.status) && d.driver_id === currentUser.id
-            );
-
-            if (hasActiveStops) {
-              allCoordinates.push([currentUser.home_latitude, currentUser.home_longitude]);
-            }
-          }
-        } else if (isViewingToday && !isDispatcherNonAdmin && isDriverViewingSelfToday && showAllDriverMarkers) {
-          // CRITICAL: When checkbox is checked, include ALL drivers' home markers
+        if (isViewingToday && !isDispatcherNonAdmin && shouldShowAllMarkersForBounds) {
+          // Include ALL drivers' home markers when showing all
           if (users && Array.isArray(users)) {
             const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
             
@@ -1880,6 +1868,18 @@ function Dashboard() {
                 allCoordinates.push([driver.home_latitude, driver.home_longitude]);
               }
             });
+          }
+        } else if (isViewingToday && !isDispatcherNonAdmin && !shouldShowAllMarkersForBounds) {
+          // Single driver mode - only current driver's home
+          if (currentUser?.home_latitude && currentUser?.home_longitude) {
+            const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+            const hasActiveStops = deliveriesWithStopOrder.some((d) =>
+            d && !finishedStatuses.includes(d.status) && d.driver_id === currentUser.id
+            );
+
+            if (hasActiveStops) {
+              allCoordinates.push([currentUser.home_latitude, currentUser.home_longitude]);
+            }
           }
         }
 
