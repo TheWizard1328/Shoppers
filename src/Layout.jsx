@@ -150,95 +150,96 @@ const createMergedUser = (authUser, appUser) => {
 
 const QuickStats = ({ currentUser, storeIds = [] }) => {
   const [selectedDateStr, setSelectedDateStr] = useState(() => globalFilters.getSelectedDate());
+  const [selectedDriverId, setSelectedDriverIdLocal] = useState(() => globalFilters.getSelectedDriverId());
   const [stats, setStats] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const lastFetchRef = useRef({ date: null, driver: null, timestamp: 0 });
 
+  // Subscribe to global filter changes (not polling)
   useEffect(() => {
-    const checkDateChange = () => {
+    const unsubscribe = globalFilters.subscribe(() => {
       const currentDateStr = globalFilters.getSelectedDate();
+      const currentDriverId = globalFilters.getSelectedDriverId();
+      
       if (currentDateStr !== selectedDateStr) {
         setSelectedDateStr(currentDateStr);
       }
+      if (currentDriverId !== selectedDriverId) {
+        setSelectedDriverIdLocal(currentDriverId);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [selectedDateStr, selectedDriverId]);
+
+  // Fetch stats - only when filters change or on delivery events
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const fetchStats = async (force = false) => {
+      // Skip if same filters and fetched within last 30 seconds (unless forced)
+      const now = Date.now();
+      if (!force && 
+          lastFetchRef.current.date === selectedDateStr && 
+          lastFetchRef.current.driver === selectedDriverId &&
+          now - lastFetchRef.current.timestamp < 30000) {
+        return;
+      }
+
+      try {
+        setHasError(false);
+        if (!stats) setIsLoading(true); // Only show loading on first load
+
+        const driverId = selectedDriverId === 'all' ? null : selectedDriverId;
+
+        let filteredStoreIds = [];
+        if (userHasRole(currentUser, 'admin')) {
+          filteredStoreIds = storeIds;
+        } else if (userHasRole(currentUser, 'dispatcher')) {
+          filteredStoreIds = (currentUser.store_ids || []).filter(Boolean);
+        } else if (userHasRole(currentUser, 'driver')) {
+          filteredStoreIds = storeIds;
+        }
+
+        const response = await base44.functions.invoke('getDeliveryStats', {
+          selectedDate: selectedDateStr,
+          driverId: driverId,
+          storeIds: filteredStoreIds.length > 0 ? filteredStoreIds : null
+        });
+
+        const data = response?.data || response;
+        if (data && data.today) {
+          setStats(data);
+          lastFetchRef.current = { date: selectedDateStr, driver: selectedDriverId, timestamp: now };
+        } else {
+          setHasError(true);
+        }
+      } catch (error) {
+        if (error.response?.status !== 500) {
+          console.warn('Stats fetch error:', error.message);
+        }
+        setHasError(true);
+      } finally {
+        setIsLoading(false);
+      }
     };
 
-    const interval = setInterval(checkDateChange, 100);
-    return () => clearInterval(interval);
-  }, [selectedDateStr]);
+    // Initial fetch
+    fetchStats();
 
-  // Fetch stats from backend function (lightweight - no full data load)
-          // Listen for driver filter changes
-          const [selectedDriverId, setSelectedDriverIdLocal] = useState(() => globalFilters.getSelectedDriverId());
+    // Listen for delivery changes (imports, status changes, etc.)
+    const handleDeliveryChange = () => fetchStats(true);
+    window.addEventListener('refreshDeliveryStats', handleDeliveryChange);
+    window.addEventListener('deliveriesImported', handleDeliveryChange);
+    window.addEventListener('offlineSyncComplete', handleDeliveryChange);
 
-          useEffect(() => {
-            const checkDriverChange = () => {
-              const currentDriverId = globalFilters.getSelectedDriverId();
-              if (currentDriverId !== selectedDriverId) {
-                setSelectedDriverIdLocal(currentDriverId);
-              }
-            };
-
-            const interval = setInterval(checkDriverChange, 100);
-            return () => clearInterval(interval);
-          }, [selectedDriverId]);
-
-          useEffect(() => {
-            if (!currentUser) return;
-
-            const fetchStats = async () => {
-              try {
-                setHasError(false);
-                setIsLoading(true);
-
-                // CRITICAL: Pass selected driver ID directly - backend handles filtering
-                // When 'all' is selected → driverId=null (show all drivers)
-                // When specific driver selected → driverId=that driver (show only that driver)
-                const driverId = selectedDriverId === 'all' ? null : selectedDriverId;
-
-                // Store filtering based on user role
-                let filteredStoreIds = [];
-                if (userHasRole(currentUser, 'admin')) {
-                  filteredStoreIds = storeIds;
-                } else if (userHasRole(currentUser, 'dispatcher')) {
-                  filteredStoreIds = (currentUser.store_ids || []).filter(Boolean);
-                } else if (userHasRole(currentUser, 'driver')) {
-                  filteredStoreIds = storeIds;
-                }
-
-                const response = await base44.functions.invoke('getDeliveryStats', {
-                  selectedDate: selectedDateStr,
-                  driverId: driverId,
-                  storeIds: filteredStoreIds.length > 0 ? filteredStoreIds : null
-                });
-
-                const data = response?.data || response;
-                if (data && data.today) {
-                  setStats(data);
-                } else {
-                  setHasError(true);
-                }
-                } catch (error) {
-                // Silently handle errors - stats will show "Unable to load"
-                // Don't spam console for expected transient errors
-                if (error.response?.status !== 500) {
-                  console.warn('Stats fetch error:', error.message);
-                }
-                setHasError(true);
-                } finally {
-                setIsLoading(false);
-                }
-            };
-
-            // CRITICAL: Fetch immediately when driver changes
-            fetchStats();
-
-            // Listen for manual refresh requests (e.g., after imports)
-            window.addEventListener('refreshDeliveryStats', fetchStats);
-
-            return () => {
-              window.removeEventListener('refreshDeliveryStats', fetchStats);
-            };
-            }, [currentUser, selectedDateStr, storeIds, selectedDriverId]);
+    return () => {
+      window.removeEventListener('refreshDeliveryStats', handleDeliveryChange);
+      window.removeEventListener('deliveriesImported', handleDeliveryChange);
+      window.removeEventListener('offlineSyncComplete', handleDeliveryChange);
+    };
+  }, [currentUser, selectedDateStr, storeIds, selectedDriverId]);
 
   const StatItem = ({ icon: Icon, label, value, colorClass }) =>
       <div className="flex items-center justify-between text-sm">
