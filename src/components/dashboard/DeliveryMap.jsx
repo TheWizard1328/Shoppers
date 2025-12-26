@@ -1592,19 +1592,22 @@ export default function DeliveryMap({
 
     // Sort stops by stop_order and create route lines
     const routes = Object.values(routesByDriver).map((route) => {
-    // CRITICAL: Count stops using After Hours rules
-    // Patient deliveries + completed/cancelled after hours pickups
-    const totalDriverStops = safeDeliveries.filter(d => {
-      if (!d || d.driver_id !== route.driverId) return false;
-      // Patient deliveries count
-      if (d.patient_id) return true;
-      // After hours pickups - completed OR cancelled count
-      if (d.after_hours_pickup && (d.status === 'completed' || d.status === 'cancelled')) return true;
-      return false;
-    }).length;
-
     // Find ALL pickup locations for this driver
     const driverPickups = pickupMarkers.filter((p) => p.driver_id === route.driverId);
+
+    // CRITICAL: Count stops using After Hours rules
+    // Patient deliveries + completed/cancelled after hours pickups
+    const patientDeliveryCount = safeDeliveries.filter(d => {
+      if (!d || d.driver_id !== route.driverId) return false;
+      return d.patient_id; // Only patient deliveries
+    }).length;
+    
+    const afterHoursPickupCount = driverPickups.filter(p => {
+      if (!p) return false;
+      return p.after_hours_pickup && (p.status === 'completed' || p.status === 'cancelled');
+    }).length;
+    
+    const totalDriverStops = patientDeliveryCount + afterHoursPickupCount;
 
     // Check if all stops (deliveries + pickups) are finished
     const allDeliveriesFinished = route.stops.every((d) => FINISHED_STATUSES.includes(d.status));
