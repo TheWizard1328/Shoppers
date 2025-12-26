@@ -797,17 +797,32 @@ export default function Layout({ children, currentPageName }) {
       const pollForBroadcasts = async () => {
         try {
           const broadcasts = await base44.entities.SyncBroadcast.filter(
-            {
-              created_date: { $gte: new Date(Date.now() - 120000).toISOString() },
-              triggered_by: { $ne: currentUser.id }
-            },
-            '-created_date',
-            5
-          );
+              {
+                created_date: { $gte: new Date(Date.now() - 120000).toISOString() }
+              },
+              '-created_date',
+              10
+            );
 
-          if (broadcasts && broadcasts.length > 0) {
-            console.log(`📢 [RealtimeSync] Received ${broadcasts.length} broadcast(s) from other devices:`, 
-              broadcasts.map(b => `${b.entity_name} (${b.operation}) by ${b.triggered_by_name}`));
+            // CRITICAL: Filter out own broadcasts client-side (handle both flat and nested structures)
+            const otherUserBroadcasts = broadcasts.filter(b => {
+              // Handle nested data structure (from older records)
+              const triggeredBy = b.triggered_by || b.data?.triggered_by;
+              return triggeredBy !== currentUser.id;
+            });
+
+            if (otherUserBroadcasts && otherUserBroadcasts.length > 0) {
+              // CRITICAL: Normalize broadcast data (handle both flat and nested structures)
+              const normalizedBroadcasts = otherUserBroadcasts.map(b => ({
+                entity_name: b.entity_name || b.data?.entity_name,
+                operation: b.operation || b.data?.operation,
+                triggered_by: b.triggered_by || b.data?.triggered_by,
+                triggered_by_name: b.triggered_by_name || b.data?.triggered_by_name,
+                metadata: b.metadata || b.data?.metadata || {}
+              }));
+
+              console.log(`📢 [RealtimeSync] Received ${normalizedBroadcasts.length} broadcast(s) from other devices:`, 
+                normalizedBroadcasts.map(b => `${b.entity_name} (${b.operation}) by ${b.triggered_by_name}`));
 
             // Dispatch event for yellow spinner
             window.dispatchEvent(new CustomEvent('realtimeSyncRefresh'));
