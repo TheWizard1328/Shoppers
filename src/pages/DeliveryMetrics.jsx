@@ -410,9 +410,15 @@ export default function DeliveryMetrics() {
       return hasPatient && wasAttempted && hasTimestamp;
     });
 
-    const totalDeliveries = relevantDeliveries.length;
-    const completedDeliveries = relevantDeliveries.filter((d) => d.status === 'completed').length;
-    const failedDeliveries = relevantDeliveries.filter((d) => d.status === 'failed').length;
+    // After-hours pickups count
+    const afterHoursPickups = relevantDeliveries.filter((d) => d.after_hours_pickup && !d.patient_id).length;
+    
+    // Completed and failed only count patient deliveries (not after-hours pickups)
+    const completedDeliveries = relevantDeliveries.filter((d) => d.status === 'completed' && d.patient_id).length;
+    const failedDeliveries = relevantDeliveries.filter((d) => d.status === 'failed' && d.patient_id).length;
+    
+    // Total = Completed + Failed + After Hours Pickups
+    const totalDeliveries = completedDeliveries + failedDeliveries + afterHoursPickups;
     const returnedDeliveries = relevantDeliveries.filter((d) => {
       const patient = patients.find((p) => p.id === d.patient_id);
       const notesReturn = (d.delivery_notes || '').toLowerCase().includes('return');
