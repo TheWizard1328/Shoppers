@@ -345,24 +345,26 @@ export default function DeliveryMetrics() {
     if (selectedDriver !== 'all') {
       const driver = drivers.find((d) => d.id === selectedDriver);
       if (driver) {
+        const driverName = getDriverDisplayName(driver);
         console.log('🔍 DRIVER FILTER ACTIVE');
         console.log('  Selected driver ID:', selectedDriver);
-        console.log('  Selected driver name:', getDriverDisplayName(driver));
+        console.log('  Selected driver name:', driverName);
         console.log('  Driver IDs in current period:', [...new Set(relevantDeliveries.map(d => d.driver_id))]);
+        console.log('  Driver names in current period:', [...new Set(relevantDeliveries.map(d => d.driver_name))]);
         
         const beforeCount = relevantDeliveries.length;
+        // CRITICAL: Match by driver_id OR driver_name (deliveries may have either)
         relevantDeliveries = relevantDeliveries.filter((d) => {
-          const match = d.driver_id === selectedDriver;
-          if (!match && relevantDeliveries.length < 3) {
-            console.log('  ❌ Delivery driver_id:', d.driver_id, 'does not match', selectedDriver);
-          }
-          return match;
+          const matchById = d.driver_id === selectedDriver;
+          const matchByName = d.driver_name && driverName && 
+            d.driver_name.toLowerCase() === driverName.toLowerCase();
+          return matchById || matchByName;
         });
         console.log('  📊 Deliveries before filter:', beforeCount);
         console.log('  📊 Deliveries after filter:', relevantDeliveries.length);
         
         if (relevantDeliveries.length === 0) {
-          console.error('⚠️ NO DELIVERIES FOUND for driver:', selectedDriver, getDriverDisplayName(driver));
+          console.error('⚠️ NO DELIVERIES FOUND for driver:', selectedDriver, driverName);
         }
       } else {
         console.error('⚠️ Driver not found in drivers list for ID:', selectedDriver);
