@@ -1236,6 +1236,7 @@ class SmartRefreshManager {
   /**
    * Handle broadcast from another device - refresh ONLY the specific entity that changed
    * This is the smart approach: instead of polling everything, we listen for targeted updates
+   * CRITICAL: For creates/updates, we need to fetch from API, not offline DB (which won't have the new data)
    */
   async handleBroadcastRefresh(entityName, operation, metadata = {}) {
     console.log(`📡 [SmartRefresh] Handling broadcast: ${entityName} ${operation}`, metadata);
@@ -1245,11 +1246,36 @@ class SmartRefreshManager {
       if (entityName === 'Delivery') {
         this.deletedDeliveryIds.add(metadata.id);
         console.log(`🗑️ [SmartRefresh] Marked delivery ${metadata.id} as deleted`);
+        
+        // Also remove from offline DB immediately
+        try {
+          const { offlineDB } = await import('./offlineDatabase');
+          const db = await offlineDB.openDatabase();
+          const tx = db.transaction([offlineDB.STORES.DELIVERIES], 'readwrite');
+          tx.objectStore(offlineDB.STORES.DELIVERIES).delete(metadata.id);
+        } catch (e) {
+          console.warn('⚠️ [SmartRefresh] Failed to remove deleted delivery from offline DB');
+        }
       } else if (entityName === 'Patient') {
         this.deletedPatientIds.add(metadata.id);
         console.log(`🗑️ [SmartRefresh] Marked patient ${metadata.id} as deleted`);
+        
+        // Also remove from offline DB immediately
+        try {
+          const { offlineDB } = await import('./offlineDatabase');
+          const db = await offlineDB.openDatabase();
+          const tx = db.transaction([offlineDB.STORES.PATIENTS], 'readwrite');
+          tx.objectStore(offlineDB.STORES.PATIENTS).delete(metadata.id);
+        } catch (e) {
+          console.warn('⚠️ [SmartRefresh] Failed to remove deleted patient from offline DB');
+        }
       }
     }
+    
+    // CRITICAL: Mark that we need to fetch from API (not offline DB) for this entity
+    // because the offline DB won't have the new/updated data yet
+    this._pendingApiFetch = this._pendingApiFetch || new Set();
+    this._pendingApiFetch.add(entityName);
     
     switch (entityName) {
       case 'Delivery':
@@ -1261,6 +1287,7 @@ class SmartRefreshManager {
       case 'Patient':
         // Reset patient refresh timer
         this.lastRefreshTimes.todayPatients = 0;
+        this.lastRefreshTimes.patients = 0;
         break;
         
       case 'AppUser':
@@ -1277,6 +1304,18 @@ class SmartRefreshManager {
       default:
         console.log(`📡 [SmartRefresh] Unknown entity in broadcast: ${entityName}`);
     }
+  }
+  
+  /**
+   * Check if we should skip offline DB and fetch from API
+   * (called after receiving a broadcast for this entity)
+   */
+  shouldFetchFromApi(entityName) {
+    if (this._pendingApiFetch && this._pendingApiFetch.has(entityName)) {
+      this._pendingApiFetch.delete(entityName);
+      return true;
+    }
+    return false;
   }
   
   /**
