@@ -11,8 +11,11 @@ Deno.serve(async (req) => {
     }
 
     const payload = await req.json();
-    const { entity_name, operation, metadata } = payload;
-    const timestamp = new Date().toISOString();
+    // Accept both 'entity_name' and 'entity' for compatibility
+    const entity_name = payload.entity_name || payload.entity;
+    const operation = payload.operation;
+    const metadata = payload.metadata || payload.data || {};
+    const timestamp = payload.timestamp || new Date().toISOString();
 
     console.log(`📡 [Broadcast] ${user.full_name} triggered ${operation} on ${entity_name} at ${timestamp}`);
 
