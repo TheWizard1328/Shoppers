@@ -167,13 +167,27 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
   }, [selectedDateStr]);
 
   // Fetch stats from backend function (lightweight - no full data load)
+          // Listen for driver filter changes
+          const [selectedDriverId, setSelectedDriverIdLocal] = useState(() => globalFilters.getSelectedDriverId());
+
+          useEffect(() => {
+            const checkDriverChange = () => {
+              const currentDriverId = globalFilters.getSelectedDriverId();
+              if (currentDriverId !== selectedDriverId) {
+                setSelectedDriverIdLocal(currentDriverId);
+              }
+            };
+
+            const interval = setInterval(checkDriverChange, 100);
+            return () => clearInterval(interval);
+          }, [selectedDriverId]);
+
           useEffect(() => {
             if (!currentUser) return;
 
             const fetchStats = async () => {
               try {
                 setHasError(false);
-                const selectedDriverId = globalFilters.getSelectedDriverId();
 
                 // CRITICAL: Pass selected driver ID directly - backend handles filtering
                 // When 'all' is selected → driverId=null (show all drivers)
