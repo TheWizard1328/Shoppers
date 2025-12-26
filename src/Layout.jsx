@@ -87,10 +87,10 @@ import { ResizableDivider } from './components/ui/resizable-divider';
                   import MessageNotificationBalloon from './components/messaging/MessageNotificationBalloon';
                   import { initializeDailyCleanup } from './components/utils/messageCleaner';
                   import { toast } from 'sonner';
-            import { performInitialSync, processPendingMutations } from './components/utils/offlineSync';
-            import OfflineSyncIndicator from './components/layout/OfflineSyncIndicator';
-            import { subscribeMutations } from './components/utils/entityMutations';
-            import { realtimeSyncManager } from './components/utils/realtimeSync';
+import { performInitialSync, processPendingMutations } from './components/utils/offlineSync';
+import OfflineSyncIndicator from './components/layout/OfflineSyncIndicator';
+import { subscribeMutations } from './components/utils/entityMutations';
+import { realtimeSyncManager } from './components/utils/realtimeSync';
 
 // App version will be loaded from AppSettings
 const DEFAULT_APP_VERSION = 'v1.0.0';
