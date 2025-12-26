@@ -284,8 +284,8 @@ Deno.serve(async (req) => {
     // TODAY'S STATS - Counts deliveries only (excludes pickups)
     // ===========================================
     
-    // Completed: Only completed deliveries (has patient_id), excludes pickups
-    const todayCompleted = todayDeliveries.filter(d => d && d.patient_id && isCompleted(d)).length;
+    // Completed: Only completed deliveries (has patient_id) OR after-hours pickups
+    const todayCompleted = todayDeliveries.filter(d => d && (d.patient_id || d.after_hours_pickup) && isCompleted(d)).length;
     
     // Active Stops: Everything in progress (pickups, deliveries, pending)
     const todayActiveStops = todayDeliveries.filter(isInProgress).length;
