@@ -2259,6 +2259,14 @@ function Dashboard() {
     console.log(`   - showAllDriverMarkers: ${showAllDriverMarkers}`);
     console.log(`   - deliveriesWithStopOrder count: ${deliveriesWithStopOrder.length}`);
 
+    // CRITICAL: Ensure we have ALL drivers' deliveries loaded when Show All is checked
+    const shouldHaveAllDeliveries = selectedDriverId === 'all' || showAllDriverMarkers;
+    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+    const deliveriesForDate = deliveries.filter(d => d && d.delivery_date === selectedDateStr);
+    
+    console.log(`   - shouldHaveAllDeliveries: ${shouldHaveAllDeliveries}`);
+    console.log(`   - deliveriesForDate count: ${deliveriesForDate.length}`);
+
     // CRITICAL: Notify fabControlEvents that initial data is ready
     // This allows other components to know when dashboard is fully loaded
     fabControlEvents.notifyDataReady();
