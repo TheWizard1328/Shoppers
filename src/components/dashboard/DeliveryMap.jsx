@@ -1624,6 +1624,13 @@ export default function DeliveryMap({
       let deliveriesToRoute = isRouteCompleted ? route.stops : route.stops.filter((delivery) => delivery && !FINISHED_STATUSES.includes(delivery.status) && delivery.status !== 'pending');
       let pickupsToRoute = isRouteCompleted ? driverPickups : driverPickups.filter((p) => p && !FINISHED_STATUSES.includes(p.status) && p.status !== 'pending');
 
+      // CRITICAL: Recalculate totalDriverStops AFTER we have driverPickups
+      const afterHoursPickupCount = driverPickups.filter(p => {
+        if (!p) return false;
+        return p.after_hours_pickup && (p.status === 'completed' || p.status === 'cancelled');
+      }).length;
+      const recalculatedTotalStops = patientDeliveryCount + afterHoursPickupCount;
+
       // Use isRouteStarted that's already defined above
       const routeHasActuallyStarted = isRouteStarted;
 
@@ -1750,7 +1757,7 @@ export default function DeliveryMap({
         isCompleted: isRouteCompleted,
         isRouteStarted, // NEW: Track if route has started
         pickupCount: driverPickups.length,
-        totalStops: totalDriverStops, // FIXED: Use total count including deliveries without coordinates
+        totalStops: recalculatedTotalStops, // FIXED: Use recalculated count including after hours pickups
         // NEW: Zoom-based styling
         routeWeight,
         routeOpacity,
