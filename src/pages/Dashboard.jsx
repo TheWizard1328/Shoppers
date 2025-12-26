@@ -1883,22 +1883,19 @@ function Dashboard() {
           }
         }
 
-        // 4. Add ALL delivery/pickup markers for selected driver(s)
-        // CRITICAL: Determine which deliveries to show based on mode
+        // 4. Add delivery/pickup markers based on mode
+        // CRITICAL: When "Show All" is checked OR "All Drivers" selected, show ALL deliveries for date
         let deliveriesToMap = [];
         
-        if (selectedDriverId === 'all') {
-          // All Drivers mode - show all deliveries for selected date
-          deliveriesToMap = deliveries.filter(d => d && d.delivery_date === selectedDateStr);
-        } else if (showAllDriverMarkers && isDriver && selectedDriverId === currentUser?.id) {
-          // Driver viewing self with "Show All" - show all deliveries for selected date
+        if (shouldShowAllMarkersForBounds) {
+          // Show all deliveries for selected date
           deliveriesToMap = deliveries.filter(d => d && d.delivery_date === selectedDateStr);
         } else {
           // Single driver mode - show only that driver's deliveries
           deliveriesToMap = deliveriesWithStopOrder;
         }
         
-        console.log(`🗺️ [Phase 1] Processing ${deliveriesToMap.length} deliveries (mode: ${selectedDriverId === 'all' ? 'All Drivers' : showAllDriverMarkers ? 'Show All' : 'Single Driver'})`);
+        console.log(`🗺️ [Phase 1] Processing ${deliveriesToMap.length} deliveries (mode: ${shouldShowAllMarkersForBounds ? 'All Markers' : 'Single Driver'})`);
         
         let coordsAdded = 0;
         
@@ -1906,8 +1903,6 @@ function Dashboard() {
           deliveriesToMap.forEach((delivery) => {
             if (!delivery) return;
 
-            // CRITICAL: Use coordinates stored directly on delivery record
-            // Every delivery has GPS coords - no need to lookup patient/store
             if (delivery.patient_id) {
               const patient = patients.find((p) => p && p.id === delivery.patient_id);
               if (patient?.latitude && patient?.longitude) {
@@ -1925,56 +1920,6 @@ function Dashboard() {
             }
           });
           console.log(`🗺️ [Phase 1] Added ${coordsAdded} stop markers`);
-        }
-
-        // 5. CRITICAL: Include other drivers' delivery markers when in All Drivers mode OR Show All is checked
-        const isDriverViewingSelfAnyDate = isDriver && selectedDriverId === currentUser?.id && selectedDriverId !== 'all';
-        const shouldShowAllMarkers = (selectedDriverId === 'all') || (isDriverViewingSelfAnyDate && showAllDriverMarkers);
-        
-        console.log(`🗺️ [Phase 1] isDriverViewingSelfAnyDate: ${isDriverViewingSelfAnyDate}, showAllDriverMarkers: ${showAllDriverMarkers}, shouldShowAllMarkers: ${shouldShowAllMarkers}`);
-        console.log(`🗺️ [Phase 1] Total deliveries available: ${deliveries?.length || 0}`);
-        console.log(`🗺️ [Phase 1] deliveriesWithStopOrder length: ${deliveriesWithStopOrder?.length || 0}`);
-        
-        // CRITICAL: For "All Drivers" mode or "Show All" checkbox, add other drivers' delivery markers
-        if (shouldShowAllMarkers && isDriverViewingSelfAnyDate) {
-          // Driver viewing self with "Show All" checkbox - add other drivers' markers
-          let otherDriverMarkersAdded = 0;
-          
-          if (deliveries && Array.isArray(deliveries)) {
-            deliveries.forEach((delivery) => {
-              if (!delivery) return;
-
-              // Only include deliveries for the selected date
-              if (delivery.delivery_date !== selectedDateStr) {
-                return;
-              }
-
-              // Skip own deliveries (already included)
-              if (delivery.driver_id === currentUser?.id) {
-                return;
-              }
-
-              // Skip if no driver assigned
-              if (!delivery.driver_id) return;
-
-              if (delivery.patient_id) {
-                const patient = patients.find((p) => p && p.id === delivery.patient_id);
-                if (patient?.latitude && patient?.longitude) {
-                  allCoordinates.push([patient.latitude, patient.longitude]);
-                  hasStopMarkers = true;
-                  otherDriverMarkersAdded++;
-                }
-              } else if (delivery.store_id) {
-                const store = stores.find((s) => s && s.id === delivery.store_id);
-                if (store?.latitude && store?.longitude) {
-                  allCoordinates.push([store.latitude, store.longitude]);
-                  hasStopMarkers = true;
-                  otherDriverMarkersAdded++;
-                }
-              }
-            });
-          }
-          console.log(`🗺️ [Phase 1] Added ${otherDriverMarkersAdded} other driver markers from ${deliveries?.length || 0} total deliveries`);
         }
 
         // Get current city center
