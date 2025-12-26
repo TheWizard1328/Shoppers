@@ -130,10 +130,10 @@ class RealtimeSyncManager {
     try {
       // Use backend function to broadcast change
       await base44.functions.invoke('broadcastEntityChange', {
-        entity: entityName,
+        entity_name: entityName,
         operation: operation, // 'create', 'update', 'delete', 'bulk_create'
         timestamp: new Date().toISOString(),
-        data: data
+        metadata: data
       });
       
       console.log(`📡 [RealtimeSync] Broadcasted ${operation} for ${entityName}`);
