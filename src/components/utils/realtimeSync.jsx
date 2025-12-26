@@ -1,6 +1,6 @@
 // Real-time sync manager - broadcasts entity changes to all connected devices
 import { base44 } from '@/api/base44Client';
-import { getOrCreateDeviceId } from './userSettingsManager';
+import { getDeviceId } from './userSettingsManager';
 
 class RealtimeSyncManager {
   constructor() {
@@ -20,7 +20,7 @@ class RealtimeSyncManager {
    */
   async initDeviceId() {
     if (!this.deviceId) {
-      this.deviceId = await getOrCreateDeviceId();
+      this.deviceId = await getDeviceId();
     }
     return this.deviceId;
   }
