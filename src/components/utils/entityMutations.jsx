@@ -74,30 +74,17 @@ const notifyMutation = (mutation) => {
 
 /**
  * Broadcast change to other devices
+ * Uses realtimeSyncManager which includes device_id and triggers fast polling
  */
 const broadcastChange = async (entityName, operation, metadata = {}) => {
   try {
-    // CRITICAL: Get current user for broadcast
-    const currentUser = await base44.auth.me();
-    
-    const broadcastData = {
-      entity_name: entityName,
-      operation: operation,
-      triggered_by: currentUser?.id || 'unknown',
-      triggered_by_name: currentUser?.full_name || 'Unknown User',
-      timestamp: new Date().toISOString(),
-      metadata: metadata
-    };
-    
-    console.log(`📡 [EntityMutations] Broadcasting ${operation} for ${entityName} by ${currentUser?.full_name}:`, broadcastData);
-    
-    await base44.entities.SyncBroadcast.create(broadcastData);
-    
-    console.log(`✅ [EntityMutations] Broadcast created successfully`);
+    // Use the centralized realtimeSyncManager for broadcasting
+    // This ensures device_id is included and triggers fast polling on all devices
+    await realtimeSyncManager.broadcastChange(entityName, operation, metadata);
+    console.log(`✅ [EntityMutations] Broadcast sent via realtimeSyncManager`);
   } catch (error) {
     console.error('❌ [EntityMutations] Broadcast FAILED:', error);
     console.error('   Error details:', error.message);
-    console.error('   Error response:', error.response);
   }
 };
 
