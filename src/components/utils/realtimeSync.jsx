@@ -1,18 +1,22 @@
 // Real-time sync manager - broadcasts entity changes to all connected devices
+// Uses hybrid adaptive polling: fast (10s) after local changes, slow (60s) otherwise
 import { base44 } from '@/api/base44Client';
 import { getDeviceId } from './userSettingsManager';
+
+// Polling intervals
+const FAST_POLL_INTERVAL = 10000;  // 10 seconds after local change
+const SLOW_POLL_INTERVAL = 60000; // 60 seconds normally
+const FAST_POLL_DURATION = 30000; // Stay fast for 30 seconds after local change
 
 class RealtimeSyncManager {
   constructor() {
     this.listeners = new Set();
-    this.ws = null;
-    this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 5;
-    this.reconnectDelay = 2000;
-    this.isConnected = false;
-    this.lastMessageTime = 0;
-    this.heartbeatInterval = null;
     this.deviceId = null;
+    this.lastLocalChangeTime = 0;
+    this.lastProcessedBroadcastIds = new Set();
+    this.pollInterval = null;
+    this.isPolling = false;
+    this.currentUserId = null;
   }
 
   /**
@@ -26,113 +30,140 @@ class RealtimeSyncManager {
   }
 
   /**
-   * Initialize WebSocket connection for real-time updates
+   * Start adaptive polling for sync broadcasts
    */
-  async connect() {
+  startPolling(userId) {
+    if (this.isPolling) return;
+    
+    this.currentUserId = userId;
+    this.isPolling = true;
+    console.log('🔄 [RealtimeSync] Starting adaptive polling...');
+    
+    // Initial poll after short delay
+    setTimeout(() => this.poll(), 5000);
+    
+    // Set up adaptive interval
+    this.scheduleNextPoll();
+  }
+
+  /**
+   * Stop polling
+   */
+  stopPolling() {
+    this.isPolling = false;
+    if (this.pollInterval) {
+      clearTimeout(this.pollInterval);
+      this.pollInterval = null;
+    }
+    console.log('⏹️ [RealtimeSync] Stopped polling');
+  }
+
+  /**
+   * Schedule the next poll based on recent activity
+   */
+  scheduleNextPoll() {
+    if (!this.isPolling) return;
+    
+    const timeSinceLocalChange = Date.now() - this.lastLocalChangeTime;
+    const interval = timeSinceLocalChange < FAST_POLL_DURATION ? FAST_POLL_INTERVAL : SLOW_POLL_INTERVAL;
+    
+    this.pollInterval = setTimeout(() => {
+      this.poll();
+      this.scheduleNextPoll();
+    }, interval);
+  }
+
+  /**
+   * Trigger fast polling mode (called after local changes)
+   */
+  triggerFastPolling() {
+    this.lastLocalChangeTime = Date.now();
+    console.log('⚡ [RealtimeSync] Fast polling mode activated for 30 seconds');
+    
+    // Reschedule to use fast interval immediately
+    if (this.pollInterval) {
+      clearTimeout(this.pollInterval);
+      this.scheduleNextPoll();
+    }
+    
+    // Also do an immediate poll
+    setTimeout(() => this.poll(), 1000);
+  }
+
+  /**
+   * Poll for new broadcasts from other devices
+   */
+  async poll() {
+    if (!this.isPolling || !this.currentUserId) return;
+    
     try {
-      // Get app info for WebSocket connection
-      const appId = await this.getAppId();
-      if (!appId) {
-        console.warn('⚠️ [RealtimeSync] No app ID available, skipping WebSocket connection');
-        return;
+      // Ensure device ID is initialized
+      if (!this.deviceId) {
+        this.deviceId = await getDeviceId();
       }
 
-      const wsUrl = `wss://api.base44.com/ws/${appId}/sync`;
-      console.log('🔌 [RealtimeSync] Connecting to WebSocket:', wsUrl);
+      // Fetch recent broadcasts (last 2 minutes)
+      const broadcasts = await base44.entities.SyncBroadcast.filter(
+        {
+          created_date: { $gte: new Date(Date.now() - 120000).toISOString() }
+        },
+        '-created_date',
+        20
+      );
 
-      this.ws = new WebSocket(wsUrl);
-
-      this.ws.onopen = () => {
-        console.log('✅ [RealtimeSync] WebSocket connected');
-        this.isConnected = true;
-        this.reconnectAttempts = 0;
-        this.startHeartbeat();
-      };
-
-      this.ws.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data);
-          this.lastMessageTime = Date.now();
-          
-          if (message.type === 'entity_updated') {
-            console.log('📢 [RealtimeSync] Entity update received:', message.entity);
-            this.notifyListeners(message);
-          }
-        } catch (error) {
-          console.error('❌ [RealtimeSync] Error parsing message:', error);
+      // Filter out:
+      // 1. Broadcasts from THIS DEVICE
+      // 2. Broadcasts we've already processed
+      // 3. Broadcasts from the same user (fallback if no device_id)
+      const newBroadcasts = broadcasts.filter(b => {
+        // Skip if already processed
+        if (this.lastProcessedBroadcastIds.has(b.id)) return false;
+        
+        const broadcastDeviceId = b.device_id || b.data?.device_id;
+        const triggeredBy = b.triggered_by || b.data?.triggered_by;
+        
+        // Filter by device if available, otherwise by user
+        if (broadcastDeviceId && this.deviceId) {
+          return broadcastDeviceId !== this.deviceId;
         }
-      };
+        return triggeredBy !== this.currentUserId;
+      });
 
-      this.ws.onerror = (error) => {
-        console.error('❌ [RealtimeSync] WebSocket error:', error);
-      };
-
-      this.ws.onclose = () => {
-        console.log('🔌 [RealtimeSync] WebSocket disconnected');
-        this.isConnected = false;
-        this.stopHeartbeat();
-        this.attemptReconnect();
-      };
-
-    } catch (error) {
-      console.error('❌ [RealtimeSync] Connection error:', error);
-    }
-  }
-
-  /**
-   * Get app ID from Base44 SDK
-   */
-  async getAppId() {
-    try {
-      // Extract app ID from SDK or environment
-      const envAppId = import.meta.env?.VITE_BASE44_APP_ID;
-      if (envAppId) return envAppId;
-      
-      // Fallback: try to get from SDK internals
-      return null;
-    } catch (error) {
-      console.error('❌ [RealtimeSync] Error getting app ID:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Start heartbeat to keep connection alive
-   */
-  startHeartbeat() {
-    this.heartbeatInterval = setInterval(() => {
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({ type: 'ping' }));
+      if (newBroadcasts.length > 0) {
+        console.log(`📢 [RealtimeSync] Found ${newBroadcasts.length} new broadcast(s) from other devices`);
+        
+        // Mark as processed
+        newBroadcasts.forEach(b => this.lastProcessedBroadcastIds.add(b.id));
+        
+        // Keep only last 100 processed IDs to prevent memory bloat
+        if (this.lastProcessedBroadcastIds.size > 100) {
+          const ids = Array.from(this.lastProcessedBroadcastIds);
+          this.lastProcessedBroadcastIds = new Set(ids.slice(-50));
+        }
+        
+        // Normalize and notify listeners
+        const normalizedBroadcasts = newBroadcasts.map(b => ({
+          id: b.id,
+          entity_name: b.entity_name || b.data?.entity_name || 'Unknown',
+          operation: b.operation || b.data?.operation || 'unknown',
+          triggered_by: b.triggered_by || b.data?.triggered_by,
+          triggered_by_name: b.triggered_by_name || b.data?.triggered_by_name || 'Unknown',
+          device_id: b.device_id || b.data?.device_id,
+          metadata: b.metadata || b.data?.metadata || {}
+        }));
+        
+        // Notify all listeners
+        this.notifyListeners({
+          type: 'broadcasts_received',
+          broadcasts: normalizedBroadcasts
+        });
       }
-    }, 30000); // 30 seconds
-  }
-
-  /**
-   * Stop heartbeat
-   */
-  stopHeartbeat() {
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval);
-      this.heartbeatInterval = null;
+    } catch (error) {
+      // Silently handle errors - don't spam console
+      if (!error.message?.includes('429') && !error.message?.includes('Rate limit')) {
+        console.warn('⚠️ [RealtimeSync] Poll error:', error.message);
+      }
     }
-  }
-
-  /**
-   * Attempt to reconnect with exponential backoff
-   */
-  attemptReconnect() {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('❌ [RealtimeSync] Max reconnect attempts reached');
-      return;
-    }
-
-    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts);
-    console.log(`🔄 [RealtimeSync] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
-
-    setTimeout(() => {
-      this.reconnectAttempts++;
-      this.connect();
-    }, delay);
   }
 
   /**
@@ -153,6 +184,9 @@ class RealtimeSyncManager {
       });
       
       console.log(`📡 [RealtimeSync] Broadcasted ${operation} for ${entityName} (device: ${this.deviceId})`);
+      
+      // Trigger fast polling on all devices after a broadcast
+      this.triggerFastPolling();
     } catch (error) {
       console.warn('⚠️ [RealtimeSync] Broadcast failed:', error);
       // Don't throw - broadcasting is best-effort
@@ -160,9 +194,9 @@ class RealtimeSyncManager {
   }
 
   /**
-   * Get current device ID
+   * Get current device ID (sync version)
    */
-  getDeviceId() {
+  getDeviceIdSync() {
     return this.deviceId;
   }
 
@@ -188,15 +222,10 @@ class RealtimeSyncManager {
   }
 
   /**
-   * Disconnect WebSocket
+   * Disconnect/cleanup
    */
   disconnect() {
-    this.stopHeartbeat();
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
-    }
-    this.isConnected = false;
+    this.stopPolling();
   }
 }
 
