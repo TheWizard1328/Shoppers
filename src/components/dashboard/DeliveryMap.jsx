@@ -905,21 +905,20 @@ export default function DeliveryMap({
   // 1. We have deliveries to display
   // 2. We're in single driver mode
   // 3. showRoutes is enabled
-  if (!safeDeliveries || !safeDeliveries.length || !isSingleDriverMode || !showRoutes) {
+  if (!safeDeliveries.length || !isSingleDriverMode || !showRoutes) {
     setGoogleRouteCoordinates(null);
     return;
   }
 
-  // Get the driver ID from deliveries - safely access first element
-  const firstDelivery = safeDeliveries[0];
-  const driverId = firstDelivery?.driver_id;
+  // Get the driver ID from deliveries
+  const driverId = safeDeliveries[0]?.driver_id;
   if (!driverId) {
     setGoogleRouteCoordinates(null);
     return;
   }
 
   // Get delivery date
-  const deliveryDate = firstDelivery?.delivery_date;
+  const deliveryDate = safeDeliveries[0]?.delivery_date;
   if (!deliveryDate) {
     setGoogleRouteCoordinates(null);
     return;
@@ -1593,10 +1592,8 @@ export default function DeliveryMap({
 
     // Sort stops by stop_order and create route lines
     const routes = Object.values(routesByDriver).map((route) => {
-    // CRITICAL: Find ALL deliveries for this driver from safeDeliveries (to get pickups and accurate counts)
-    const allDriverDeliveries = (safeDeliveries || []).filter((d) => d && d.driver_id === route.driverId);
-    const driverPickups = allDriverDeliveries.filter((d) => !d.patient_id);
-    const driverPatientDeliveries = allDriverDeliveries.filter((d) => d.patient_id);
+    // Find ALL pickup locations for this driver
+    const driverPickups = pickupMarkers.filter((p) => p.driver_id === route.driverId);
 
     // Check if all stops (deliveries + pickups) are finished
     const allDeliveriesFinished = route.stops.every((d) => FINISHED_STATUSES.includes(d.status));
@@ -1615,8 +1612,8 @@ export default function DeliveryMap({
 
       // CRITICAL: Calculate totalDriverStops using Dashboard stats rules
       // Patient deliveries + completed/cancelled after hours pickups
-      const patientDeliveryCount = (driverPatientDeliveries || []).length;
-      const completedOrCancelledAfterHours = (driverPickups || []).filter(p => {
+      const patientDeliveryCount = route.stops.filter(d => d && d.patient_id).length;
+      const completedOrCancelledAfterHours = driverPickups.filter(p => {
         if (!p) return false;
         return p.after_hours_pickup && (p.status === 'completed' || p.status === 'cancelled');
       }).length;
@@ -2539,11 +2536,9 @@ export default function DeliveryMap({
                         const pickupsAtLocation = groupedPickupMarkers.get(locationKey) || [];
                         const deliveriesAtLocation = groupedDeliveryMarkers.get(locationKey) || [];
                         const allMarkersAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation]
-                          .filter(Boolean)
-                          .sort((a, b) => ((a?.stop_order || 0) - (b?.stop_order || 0)));
+                          .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
                         
-                        return (allMarkersAtLocation || []).map((m, idx) => {
-                          if (!m) return null;
+                        return allMarkersAtLocation.map((m, idx) => {
                           const isFinished = FINISHED_STATUSES.includes(m.status);
                           const finishedTime = m.actual_delivery_time ? format(new Date(m.actual_delivery_time), 'HH:mm') : null;
                           
@@ -2817,11 +2812,9 @@ export default function DeliveryMap({
                         const pickupsAtLocation = groupedPickupMarkers.get(locationKey) || [];
                         const deliveriesAtLocation = groupedDeliveryMarkers.get(locationKey) || [];
                         const allMarkersAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation]
-                          .filter(Boolean)
-                          .sort((a, b) => ((a?.stop_order || 0) - (b?.stop_order || 0)));
+                          .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
                         
-                        return (allMarkersAtLocation || []).map((m, idx) => {
-                          if (!m) return null;
+                        return allMarkersAtLocation.map((m, idx) => {
                           const isFinished = FINISHED_STATUSES.includes(m.status);
                           const finishedTime = m.actual_delivery_time ? format(new Date(m.actual_delivery_time), 'HH:mm') : null;
                           
