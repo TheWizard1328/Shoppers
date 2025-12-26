@@ -701,7 +701,13 @@ function Dashboard() {
       if (isReturn(d)) return false;
       return true;
     });
-    const completed = completedDeliveries.length;
+    
+    // CRITICAL: After Hours Pickups count as completed (they are store pickups without patient_id)
+    const afterHoursPickupsCompleted = relevantDeliveries.filter(d => 
+      d && !d.patient_id && d.after_hours_pickup === true && d.status === 'completed'
+    ).length;
+    
+    const completed = completedDeliveries.length + afterHoursPickupsCompleted;
 
     const returned = safeDeliveries.filter(isReturn).length;
     const failed = safeDeliveries.filter((d) => {
