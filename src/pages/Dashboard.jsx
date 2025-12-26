@@ -893,7 +893,7 @@ function Dashboard() {
       return (a.delivery_time_start || '').localeCompare(b.delivery_time_start || '');
     });
 
-    return sortedStops[0];
+    return sortedStops.length > 0 ? sortedStops[0] : null;
   }, [isDriver, filteredDeliveries, currentUser]);
 
   const nextStopCoordinates = useMemo(() => {
