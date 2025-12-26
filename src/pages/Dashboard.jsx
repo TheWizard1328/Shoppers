@@ -2255,6 +2255,21 @@ function Dashboard() {
     return () => clearTimeout(timer);
   }, [renderSequence.sharedLocations, renderSequence.fullDeliveriesLoaded, deliveries, selectedDate, patients.length, stores.length]);
 
+  // Save map state when navigating away from Dashboard
+  useEffect(() => {
+    return () => {
+      // Save current map state to sessionStorage on unmount
+      if (mapCenter && mapZoom) {
+        sessionStorage.setItem('rxdeliver_dashboard_map_state', JSON.stringify({
+          center: mapCenter,
+          zoom: mapZoom,
+          phase: mapViewPhase,
+          timestamp: Date.now()
+        }));
+      }
+    };
+  }, [mapCenter, mapZoom, mapViewPhase]);
+
   // RENDER SEQUENCE EFFECT 8: Activate FAB Phase (FINAL STEP)
   // Apply initial map view on first load - WAIT for full render sequence
   useEffect(() => {
@@ -2265,6 +2280,20 @@ function Dashboard() {
 
     if (initialMapViewApplied) {
       setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
+      return;
+    }
+    
+    // CRITICAL: Restore saved map state if returning from another page
+    if (savedMapViewOnUnmount && savedMapViewOnUnmount.center && savedMapViewOnUnmount.zoom) {
+      console.log('🗺️ [Dashboard] Restoring map state from previous session');
+      setMapCenter(savedMapViewOnUnmount.center);
+      setMapZoom(savedMapViewOnUnmount.zoom);
+      setMapViewPhase(savedMapViewOnUnmount.phase || 1);
+      setInitialMapViewApplied(true);
+      setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
+      setIsMapViewLocked(false); // Unlock FAB so user can interact immediately
+      // Clear saved state after using it
+      sessionStorage.removeItem('rxdeliver_dashboard_map_state');
       return;
     }
 
