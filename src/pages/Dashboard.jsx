@@ -346,6 +346,21 @@ function Dashboard() {
   // Track if we've done initial driver selection (prevent re-running on data changes)
   const hasSetInitialDriverDashboard = useRef(false);
 
+  // CRITICAL: Save map state when unmounting, restore when mounting
+  const [savedMapViewOnUnmount, setSavedMapViewOnUnmount] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('rxdeliver_dashboard_map_state');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Only restore if saved within last 2 minutes
+        if (Date.now() - parsed.timestamp < 120000) {
+          return parsed;
+        }
+      }
+    } catch (e) {}
+    return null;
+  });
+
   // Track phase before break for restoration
   const phaseBeforeBreakRef = useRef(null);
 
