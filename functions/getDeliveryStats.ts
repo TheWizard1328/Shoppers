@@ -284,8 +284,15 @@ Deno.serve(async (req) => {
     // TODAY'S STATS - Counts deliveries only (excludes pickups)
     // ===========================================
     
-    // Completed: Only completed deliveries (has patient_id) OR after-hours pickups
-    const todayCompleted = todayDeliveries.filter(d => d && (d.patient_id || d.after_hours_pickup) && isCompleted(d)).length;
+    // Completed: Only completed deliveries (has patient_id) OR after-hours pickups (completed OR cancelled)
+    const todayCompleted = todayDeliveries.filter(d => {
+      if (!d) return false;
+      // Patient deliveries - must be completed and not returns
+      if (d.patient_id) return isCompleted(d);
+      // After hours pickups - completed OR cancelled count as completed
+      if (d.after_hours_pickup) return d.status === 'completed' || d.status === 'cancelled';
+      return false;
+    }).length;
     
     // Active Stops: Everything in progress (pickups, deliveries, pending)
     const todayActiveStops = todayDeliveries.filter(isInProgress).length;
