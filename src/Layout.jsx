@@ -796,14 +796,21 @@ export default function Layout({ children, currentPageName }) {
       // CRITICAL: Poll for sync broadcasts every 60 seconds - use targeted refresh
       const pollForBroadcasts = async () => {
         try {
+          // CRITICAL: SyncBroadcast stores data at TOP LEVEL, not nested
+          // Filter by created_date (recent broadcasts) and exclude own broadcasts
           const broadcasts = await base44.entities.SyncBroadcast.filter(
             {
-              created_date: { $gte: new Date(Date.now() - 120000).toISOString() },
-              triggered_by: { $ne: currentUser.id }
+              created_date: { $gte: new Date(Date.now() - 120000).toISOString() }
             },
             '-created_date',
-            5
+            10
           );
+
+          // Filter out own broadcasts (check both formats)
+          const otherBroadcasts = broadcasts.filter(b => {
+            const triggeredBy = b.triggered_by || b.data?.triggered_by;
+            return triggeredBy !== currentUser.id;
+          });
 
           if (broadcasts && broadcasts.length > 0) {
             // CRITICAL: Handle both old format (data.entity_name) and new format (entity_name at top level)
