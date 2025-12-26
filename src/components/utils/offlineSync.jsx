@@ -866,6 +866,33 @@ const mergeData = async (localRecords, backendRecords, entityName) => {
 };
 
 /**
+ * Handle a delete broadcast from another device
+ * This removes the record from IndexedDB immediately
+ */
+export const handleDeleteBroadcast = async (entityName, recordId) => {
+  if (!entityName || !recordId) return;
+  
+  try {
+    const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : offlineDB.STORES.DELIVERIES;
+    const db = await offlineDB.openDatabase();
+    const transaction = db.transaction([storeName], 'readwrite');
+    const store = transaction.objectStore(storeName);
+    
+    await new Promise((resolve, reject) => {
+      const request = store.delete(recordId);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+    
+    console.log(`🗑️ [OfflineSync] Deleted ${entityName} ${recordId} from IndexedDB via broadcast`);
+    return true;
+  } catch (error) {
+    console.error(`❌ [OfflineSync] Failed to delete ${entityName} ${recordId} from IndexedDB:`, error);
+    return false;
+  }
+};
+
+/**
  * Get sync statistics including full sync status
  */
 export const getSyncStats = async () => {
