@@ -235,10 +235,7 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
             // Listen for manual refresh requests (e.g., after imports)
             window.addEventListener('refreshDeliveryStats', fetchStats);
 
-            // Refresh stats every 60 seconds
-            const interval = setInterval(fetchStats, 60000);
             return () => {
-              clearInterval(interval);
               window.removeEventListener('refreshDeliveryStats', fetchStats);
             };
             }, [currentUser, selectedDateStr, storeIds, selectedDriverId]);

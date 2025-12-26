@@ -82,7 +82,10 @@ Deno.serve(async (req) => {
       if (storeIds && Array.isArray(storeIds) && storeIds.length > 0) {
         baseFilter.store_id = { $in: storeIds };
       }
-      // Admins always see totals - do NOT filter by driverId for stats
+      // CRITICAL: If specific driver selected, filter by that driver
+      if (driverId && driverId !== 'all') {
+        baseFilter.driver_id = driverId;
+      }
     } else if (isDispatcher && !isDriver) {
       // Dispatchers only see their assigned stores
       if (userStoreIds.length > 0) {
