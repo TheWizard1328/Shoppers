@@ -13,6 +13,7 @@
 
 import { base44 } from '@/api/base44Client';
 import { offlineDB } from './offlineDatabase';
+import { realtimeSyncManager } from './realtimeSync';
 
 // ========================================
 // LISTENERS & STATE
