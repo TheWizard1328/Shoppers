@@ -1857,6 +1857,20 @@ export default function DeliveryMap({
       }
     } catch (error) {}
   }, [map, shouldFitBounds, stopCardsHeight, onBoundsFitted]);
+  
+  // CRITICAL: Apply center/zoom directly when provided (overrides shouldFitBounds)
+  useEffect(() => {
+    if (!map) return;
+    
+    // Only apply if center AND zoom are both provided
+    if (center && zoom) {
+      try {
+        map.setView(center, zoom, { animate: true, duration: 0.8 });
+      } catch (error) {
+        console.warn('Map setView error:', error);
+      }
+    }
+  }, [map, center, zoom]);
 
   // Handle marker drag end
   const handleMarkerDragEnd = useCallback((markerId, event, type) => {
