@@ -1212,9 +1212,21 @@ class SmartRefreshManager {
   /**
    * Handle broadcast from another device - refresh ONLY the specific entity that changed
    * This is the smart approach: instead of polling everything, we listen for targeted updates
+   * CRITICAL: For deletes, we must also invalidate the dataManager cache
    */
   async handleBroadcastRefresh(entityName, operation, metadata = {}) {
     console.log(`📡 [SmartRefresh] Handling broadcast: ${entityName} ${operation}`, metadata);
+    
+    // CRITICAL: For delete operations, invalidate dataManager cache to force fresh fetch
+    if (operation === 'delete' || operation === 'bulk_delete') {
+      try {
+        const { invalidate } = await import('./dataManager');
+        invalidate(entityName);
+        console.log(`🗑️ [SmartRefresh] Invalidated cache for ${entityName} due to delete broadcast`);
+      } catch (e) {
+        console.warn('⚠️ [SmartRefresh] Failed to invalidate cache:', e);
+      }
+    }
     
     switch (entityName) {
       case 'Delivery':
@@ -1226,6 +1238,7 @@ class SmartRefreshManager {
       case 'Patient':
         // Reset patient refresh timer
         this.lastRefreshTimes.todayPatients = 0;
+        this.lastRefreshTimes.patients = 0;
         break;
         
       case 'AppUser':
