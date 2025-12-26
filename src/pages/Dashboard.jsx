@@ -2879,9 +2879,6 @@ function Dashboard() {
     // Reset route summary tracking when driver changes
     hasShownSummaryRef.current.clear();
 
-    // CRITICAL: Prevent FAB from triggering during state transition
-    lastAppliedTriggerRef.current = mapViewTrigger;
-
     // CRITICAL: Update state immediately for instant UI response
     flushSync(() => {
       setSelectedDriverId(driverId);
