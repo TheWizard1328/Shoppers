@@ -812,6 +812,15 @@ export default function Layout({ children, currentPageName }) {
             // Dispatch event for yellow spinner
             window.dispatchEvent(new CustomEvent('realtimeSyncRefresh'));
 
+            // Show toast for App Owners only
+            if (realUser && isAppOwner(realUser)) {
+              const broadcastSummary = broadcasts.map(b => `${b.entity_name} (${b.operation})`).join(', ');
+              toast.info(`📡 Sync broadcast received: ${broadcastSummary}`, {
+                duration: 5000,
+                description: `From: ${broadcasts.map(b => b.triggered_by_name).join(', ')}`
+              });
+            }
+
             // CRITICAL: Handle delete broadcasts immediately - remove from IndexedDB and UI
             for (const broadcast of broadcasts) {
               if (broadcast.operation === 'delete' && broadcast.metadata?.id) {
