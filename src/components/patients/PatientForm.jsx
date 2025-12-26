@@ -432,11 +432,14 @@ export default function PatientForm({
 
     try {
       // STEP 1: Save to offline database (creates mutation)
+      let savedPatientId;
       if (patient) {
         await updatePatientLocal(patient.id, dataToSave);
+        savedPatientId = patient.id;
         console.log('  ✅ Updated patient in offline DB');
       } else {
         const savedPatient = await createPatientLocal(dataToSave);
+        savedPatientId = savedPatient.id;
         console.log('  ✅ Created patient in offline DB');
         if (returnPatientOnSave) {
           onSave(savedPatient, true);
@@ -450,19 +453,39 @@ export default function PatientForm({
       await processPendingMutations();
       console.log('  ✅ Synced to backend');
 
-      // STEP 3: Broadcast change to other devices
-      const { base44 } = await import('@/api/base44Client');
-      await base44.functions.invoke('broadcastEntityChange', {
-        entity_name: 'Patient',
-        operation: patient ? 'update' : 'create',
-        metadata: { id: patient?.id, updated_fields: Object.keys(dataToSave) }
-      });
-      console.log('  📡 Broadcasted to other devices');
+      // STEP 3: Broadcast change to other devices (non-blocking)
+      try {
+        const { base44 } = await import('@/api/base44Client');
+        await base44.functions.invoke('broadcastEntityChange', {
+          entity_name: 'Patient',
+          operation: patient ? 'update' : 'create',
+          metadata: { id: savedPatientId }
+        });
+        console.log('  📡 Broadcasted to other devices');
+      } catch (broadcastError) {
+        console.warn('  ⚠️ Broadcast failed (non-critical):', broadcastError.message);
+      }
 
-      // STEP 4: Invalidate cache and close form
+      // STEP 4: Force refresh from backend to get latest data
+      const { base44 } = await import('@/api/base44Client');
+      console.log('  🔄 Fetching latest patient data...');
+      const freshPatient = await base44.entities.Patient.get(savedPatientId);
+      console.log('  ✅ Fresh patient data fetched');
+
+      // STEP 5: Update offline database with fresh data
+      const { offlineDB } = await import('../utils/offlineDatabase');
+      await offlineDB.saveRecord(offlineDB.STORES.PATIENTS, freshPatient);
+      console.log('  ✅ Offline DB updated with fresh data');
+
+      // STEP 6: Invalidate cache and trigger UI update
       const { invalidate } = await import('../utils/dataManager');
       invalidate('Patient');
       console.log('  ✅ Cache invalidated');
+
+      // STEP 7: Call parent onSave if provided (triggers parent refresh)
+      if (onSave && !returnPatientOnSave) {
+        await onSave(dataToSave);
+      }
       
       onCancel();
     } catch (error) {
