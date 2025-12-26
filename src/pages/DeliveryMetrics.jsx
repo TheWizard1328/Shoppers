@@ -216,6 +216,22 @@ export default function DeliveryMetrics() {
     loadData();
   }, [currentUser]); // Trigger reload when currentUser changes. No need for startDate/endDate here as filtering is moved.
 
+  // Listen for broadcast sync events to refresh data
+  useEffect(() => {
+    const handleBroadcastRefresh = () => {
+      console.log('📢 [DeliveryMetrics] Received broadcast refresh event, reloading data...');
+      loadData();
+    };
+
+    window.addEventListener('realtimeSyncRefresh', handleBroadcastRefresh);
+    window.addEventListener('refreshDeliveryStats', handleBroadcastRefresh);
+
+    return () => {
+      window.removeEventListener('realtimeSyncRefresh', handleBroadcastRefresh);
+      window.removeEventListener('refreshDeliveryStats', handleBroadcastRefresh);
+    };
+  }, [currentUser]);
+
   const loadData = async () => {
     if (!currentUser) return;
 
