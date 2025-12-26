@@ -722,9 +722,13 @@ function Dashboard() {
     const inTransitPickups = relevantDeliveries.filter(d => 
       d && !d.patient_id && (d.status === 'in_transit' || d.status === 'en_route')
     ).length;
-    const completedPickups = relevantDeliveries.filter(d => 
-      d && !d.patient_id && d.status === 'completed'
-    ).length;
+    // Completed pickups: completed OR (after hours pickup + cancelled)
+    const completedPickups = relevantDeliveries.filter(d => {
+      if (!d || d.patient_id) return false;
+      if (d.status === 'completed') return true;
+      if (d.after_hours_pickup && d.status === 'cancelled') return true;
+      return false;
+    }).length;
 
     // DISPATCHER: Calculate unique driver counts for superscript (from all deliveries, not just patient deliveries)
     let totalDrivers = 0;
