@@ -2456,11 +2456,11 @@ function Dashboard() {
     }
 
     const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-    const incompleteDeliveries = deliveriesWithStopOrder.
+    const incompleteDeliveries = (deliveriesWithStopOrder || []).
     filter((d) => d && !finishedStatuses.includes(d.status)).
     sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
-    if (incompleteDeliveries.length === 0) {
+    if (!incompleteDeliveries || incompleteDeliveries.length === 0) {
       hasScrolledToNextCardRef.current = true;
       return;
     }
@@ -2632,11 +2632,11 @@ function Dashboard() {
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
 
       // Find first incomplete delivery
-      const incompleteDeliveries = deliveriesWithStopOrder.
+      const incompleteDeliveries = (deliveriesWithStopOrder || []).
       filter((d) => d && !finishedStatuses.includes(d.status)).
       sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
 
-      if (incompleteDeliveries.length === 0) {
+      if (!incompleteDeliveries || incompleteDeliveries.length === 0) {
         return;
       }
 
@@ -5844,9 +5844,10 @@ function Dashboard() {
 
                     // Find first incomplete and mark as next (NO reordering, SKIP PENDING)
                     const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-                    const firstIncomplete = updatedDeliveries.
-                    filter((d) => !finishedStatuses.includes(d.status) && d.status !== 'pending').
-                    sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0))[0];
+                    const incompleteFiltered = (updatedDeliveries || []).
+                    filter((d) => d && !finishedStatuses.includes(d.status) && d.status !== 'pending').
+                    sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+                    const firstIncomplete = incompleteFiltered.length > 0 ? incompleteFiltered[0] : null;
 
                     if (firstIncomplete) {
                       await base44.entities.Delivery.update(firstIncomplete.id, { isNextDelivery: true });
