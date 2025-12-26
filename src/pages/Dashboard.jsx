@@ -1788,11 +1788,8 @@ function Dashboard() {
         const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
         const isViewingToday = todayStr === selectedDateStr;
 
-        // CRITICAL: Check if driver is viewing their own route specifically
-        const isDriverViewingSelfToday =
-        selectedDriverId === currentUser?.id &&
-        selectedDriverId !== 'all' &&
-        isViewingToday;
+        // CRITICAL: Treat "Show All" mode same as "All Drivers" mode for map bounds
+        const shouldShowAllMarkersForBounds = selectedDriverId === 'all' || showAllDriverMarkers;
 
         // 1. BLUE DOT: Include driver's live location when visible on mobile
         const shouldIncludeBlueDot =
