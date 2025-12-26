@@ -632,20 +632,30 @@ export default function DeliveryMetrics() {
 
           if (isPrevious) {
             dayData.prevTotal++;
-            if (delivery.status === 'completed') dayData.prevCompleted++;
-            if (delivery.status === 'failed') dayData.prevFailed++;
             const patient = patients.find((p) => p.id === delivery.patient_id);
             const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return');
             const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
-            if (notesReturn || addressReturn) dayData.prevReturned++;
+            const isReturned = notesReturn || addressReturn;
+            
+            if (isReturned) {
+              dayData.prevReturned++;
+            } else if (delivery.status === 'completed') {
+              dayData.prevCompleted++;
+            }
+            if (delivery.status === 'failed') dayData.prevFailed++;
           } else {
             dayData.total++;
-            if (delivery.status === 'completed') dayData.completed++;
-            if (delivery.status === 'failed') dayData.failed++;
             const patient = patients.find((p) => p.id === delivery.patient_id);
             const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return');
             const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
-            if (notesReturn || addressReturn) dayData.returned++;
+            const isReturned = notesReturn || addressReturn;
+            
+            if (isReturned) {
+              dayData.returned++;
+            } else if (delivery.status === 'completed') {
+              dayData.completed++;
+            }
+            if (delivery.status === 'failed') dayData.failed++;
           }
         });
       };
