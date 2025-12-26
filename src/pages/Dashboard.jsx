@@ -2891,6 +2891,9 @@ function Dashboard() {
     // Reset route summary tracking when driver changes
     hasShownSummaryRef.current.clear();
 
+    // CRITICAL: Prevent FAB from triggering during state transition
+    lastAppliedTriggerRef.current = mapViewTrigger;
+
     // CRITICAL: Update state immediately for instant UI response
     flushSync(() => {
       setSelectedDriverId(driverId);
@@ -2937,9 +2940,8 @@ function Dashboard() {
         detail: { driverId, deliveryDate: dateStr, triggeredBy: 'driverChange' } 
       }));
 
-      // CRITICAL: Lock FAB and trigger map view after data loads and UI renders
+      // CRITICAL: Lock FAB and trigger map view ONCE after render complete
       setTimeout(() => {
-
         // Clear existing timers
         if (mapLockTimeoutRef.current) {
           clearTimeout(mapLockTimeoutRef.current);
@@ -2949,19 +2951,18 @@ function Dashboard() {
 
         // Lock FAB and trigger map view
         setIsMapViewLocked(true);
+        lastProgrammaticMapMoveRef.current = Date.now();
+        window._lastProgrammaticMapMove = Date.now();
         setMapViewTrigger((prev) => prev + 1);
 
         // CRITICAL: Handle timer logic - ONLY Phase 1 & 3 get timers, Phase 2 stays locked
         if (mapViewPhase === 2) {
-          // Phase 2 - NO timer at all, stays locked PERMANENTLY
           if (mapLockTimeoutRef.current) {
             clearTimeout(mapLockTimeoutRef.current);
             mapLockTimeoutRef.current = null;
           }
           mapLockExpiresAtRef.current = null;
-          console.log('🔵 [Driver Change] Phase 2 - NO TIMER - stays locked until FAB click');
         } else if (mapViewPhase === 1 || mapViewPhase === 3) {
-          // Phase 1 & 3 - Set 3-second unlock timer
           const lockDuration = 3000;
           const expiresAt = Date.now() + lockDuration;
           mapLockExpiresAtRef.current = expiresAt;
@@ -2974,10 +2975,7 @@ function Dashboard() {
             }
           }, lockDuration);
         }
-
-        // CRITICAL: Notify that driver change data is ready
-        fabControlEvents.notifyDataReady();
-      }, 500); // Increased delay to ensure rendering is complete
+      }, 500);
     } catch (error) {
       console.error('❌ [Dashboard] Instant refresh failed:', error);
     } finally {
