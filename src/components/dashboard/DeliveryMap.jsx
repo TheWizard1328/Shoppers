@@ -1562,7 +1562,11 @@ export default function DeliveryMap({
     // Group deliveries by driver
     const routesByDriver = {};
 
-    deliveryMarkers.forEach((delivery) => {
+    // CRITICAL: Start with ALL deliveries for the selected date (not just deliveryMarkers)
+    // This ensures we count ALL patient deliveries for each driver
+    const allDeliveriesForDriver = safeDeliveries.filter(d => d && d.patient_id);
+
+    allDeliveriesForDriver.forEach((delivery) => {
     if (!delivery) return;
     const driverId = delivery.driver_id || 'unassigned';
     if (!routesByDriver[driverId]) {
@@ -1574,7 +1578,7 @@ export default function DeliveryMap({
         (driverForRoute && typeof driverForRoute === 'object' ? getDriverColor(driverForRoute) : '#607D8B')
         :
         // Single driver mode - use first delivery's store color
-        delivery.pinColor;
+        delivery.pinColor || (delivery.store_id ? getStoreColor(safeStores.find(s => s?.id === delivery.store_id)) : '#6B7280');
 
       const driverDisplayName = driverForRoute ? (driverForRoute.user_name || driverForRoute.full_name || 'Unknown') : 'Unassigned';
 
@@ -1592,8 +1596,8 @@ export default function DeliveryMap({
 
     // Sort stops by stop_order and create route lines
     const routes = Object.values(routesByDriver).map((route) => {
-    // Find ALL pickup locations for this driver
-    const driverPickups = pickupMarkers.filter((p) => p.driver_id === route.driverId);
+    // Find ALL pickup locations for this driver (from ALL deliveries, not just markers)
+    const driverPickups = safeDeliveries.filter((d) => d && !d.patient_id && d.driver_id === route.driverId);
 
     // Check if all stops (deliveries + pickups) are finished
     const allDeliveriesFinished = route.stops.every((d) => FINISHED_STATUSES.includes(d.status));
