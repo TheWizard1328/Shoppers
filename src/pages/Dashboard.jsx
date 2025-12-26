@@ -1909,6 +1909,10 @@ function Dashboard() {
           ? deliveries.filter(d => d && d.delivery_date === selectedDateStr)
           : deliveriesWithStopOrder;
         
+        let coordsAdded = 0;
+        let missingPatients = 0;
+        let missingStores = 0;
+        
         if (deliveriesToMap && Array.isArray(deliveriesToMap)) {
           deliveriesToMap.forEach((delivery) => {
             if (!delivery) return;
@@ -1918,16 +1922,22 @@ function Dashboard() {
               if (patient?.latitude && patient?.longitude) {
                 allCoordinates.push([patient.latitude, patient.longitude]);
                 hasStopMarkers = true;
+                coordsAdded++;
+              } else {
+                missingPatients++;
               }
             } else if (delivery.store_id) {
               const store = stores.find((s) => s && s.id === delivery.store_id);
               if (store?.latitude && store?.longitude) {
                 allCoordinates.push([store.latitude, store.longitude]);
                 hasStopMarkers = true;
+                coordsAdded++;
+              } else {
+                missingStores++;
               }
             }
           });
-          console.log(`🗺️ [Phase 1] Added ${allCoordinates.length} delivery/pickup markers (from ${deliveriesToMap.length} deliveries)`);
+          console.log(`🗺️ [Phase 1] Added ${coordsAdded} markers from ${deliveriesToMap.length} deliveries (${missingPatients} missing patients, ${missingStores} missing stores)`);
         }
 
         // 5. CRITICAL: Include other drivers' delivery markers when in All Drivers mode OR Show All is checked
