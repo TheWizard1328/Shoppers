@@ -905,20 +905,21 @@ export default function DeliveryMap({
   // 1. We have deliveries to display
   // 2. We're in single driver mode
   // 3. showRoutes is enabled
-  if (!safeDeliveries.length || !isSingleDriverMode || !showRoutes) {
+  if (!safeDeliveries || !safeDeliveries.length || !isSingleDriverMode || !showRoutes) {
     setGoogleRouteCoordinates(null);
     return;
   }
 
-  // Get the driver ID from deliveries
-  const driverId = safeDeliveries[0]?.driver_id;
+  // Get the driver ID from deliveries - safely access first element
+  const firstDelivery = safeDeliveries[0];
+  const driverId = firstDelivery?.driver_id;
   if (!driverId) {
     setGoogleRouteCoordinates(null);
     return;
   }
 
   // Get delivery date
-  const deliveryDate = safeDeliveries[0]?.delivery_date;
+  const deliveryDate = firstDelivery?.delivery_date;
   if (!deliveryDate) {
     setGoogleRouteCoordinates(null);
     return;
