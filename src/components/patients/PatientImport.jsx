@@ -9,6 +9,7 @@ import { Upload, CheckCircle, XCircle, AlertCircle, X, ArrowRight } from "lucide
 import { cleanAddressAndNotes } from "../utils/addressParser";
 import { base44 } from "@/api/base44Client";
 import { Badge } from "@/components/ui/badge";
+import MissingPatientsPopup from "./MissingPatientsPopup";
 
 export default function PatientImport({ onImportComplete, onImportStart, currentUser, onClose }) {
   const [files, setFiles] = useState([]);
