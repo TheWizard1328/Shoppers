@@ -1469,20 +1469,6 @@ export default function Patients() {
   // Show import button only for users with dual admin access
   const showImportButton = canAccessImports(currentUser);
 
-  console.log(`[Patients] Render state:`, {
-    inOverviewContext,
-    storeFilter,
-    searchTerm,
-    filteredPatientsCount: filteredPatients.length,
-    isLoading,
-    hasAccess,
-    isAdmin,
-    isAppOwner: isAppOwner(currentUser),
-    userRole,
-    showImportButton,
-    importInProgress
-  });
-
   // Function to render either the dispatcher message or the admin store overview
   const renderStoreOverviewCards = useCallback(() => {
     // This function will be the main conditional render for the overview vs list.
