@@ -937,7 +937,13 @@ export default function DeliveryMetrics() {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey={isWeeklyRangeForChart ? "day" : "date"} />
                     <YAxis />
-                    <Tooltip />
+                    <Tooltip 
+                      formatter={(value, name, props) => {
+                        // Don't modify the displayed value, just show it as-is
+                        return [value, name];
+                      }}
+                      labelFormatter={(label) => label}
+                    />
                     <Legend />
                     <Line type="monotone" dataKey="completed" stroke="#10b981" name="Completed" strokeWidth={2} />
                     <Line type="monotone" dataKey="failed" stroke="#ef4444" name="Failed" strokeWidth={2} />
