@@ -1904,8 +1904,13 @@ function Dashboard() {
         }
 
         // 4. Add ALL delivery/pickup markers for selected driver(s)
-        if (deliveriesWithStopOrder && Array.isArray(deliveriesWithStopOrder)) {
-          deliveriesWithStopOrder.forEach((delivery) => {
+        // CRITICAL: For "All Drivers" mode, use full deliveries array (not filtered)
+        const deliveriesToMap = selectedDriverId === 'all' 
+          ? deliveries.filter(d => d && d.delivery_date === selectedDateStr)
+          : deliveriesWithStopOrder;
+        
+        if (deliveriesToMap && Array.isArray(deliveriesToMap)) {
+          deliveriesToMap.forEach((delivery) => {
             if (!delivery) return;
 
             if (delivery.patient_id) {
@@ -1922,7 +1927,7 @@ function Dashboard() {
               }
             }
           });
-          console.log(`🗺️ [Phase 1] Added ${allCoordinates.length} delivery/pickup markers for selected driver(s)`);
+          console.log(`🗺️ [Phase 1] Added ${allCoordinates.length} delivery/pickup markers (from ${deliveriesToMap.length} deliveries)`);
         }
 
         // 5. CRITICAL: Include other drivers' delivery markers when in All Drivers mode OR Show All is checked
