@@ -10,18 +10,20 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { entity, operation, timestamp, data } = await req.json();
+    const payload = await req.json();
+    const { entity_name, operation, metadata } = payload;
+    const timestamp = new Date().toISOString();
 
-    console.log(`📡 [Broadcast] ${user.full_name} triggered ${operation} on ${entity} at ${timestamp}`);
+    console.log(`📡 [Broadcast] ${user.full_name} triggered ${operation} on ${entity_name} at ${timestamp}`);
 
     // Store broadcast event in a dedicated entity for polling
     await base44.asServiceRole.entities.SyncBroadcast.create({
-      entity_name: entity,
+      entity_name: entity_name,
       operation: operation,
       triggered_by: user.id,
       triggered_by_name: user.full_name,
       timestamp: timestamp,
-      metadata: data || {}
+      metadata: metadata || {}
     });
 
     console.log(`✅ [Broadcast] Event stored - other devices will pick it up on next poll`);
