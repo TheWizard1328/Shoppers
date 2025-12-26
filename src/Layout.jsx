@@ -823,6 +823,9 @@ export default function Layout({ children, currentPageName }) {
           if (broadcast.operation === 'delete' && broadcast.metadata?.id) {
             console.log(`🗑️ [RealtimeSync] Processing delete broadcast for ${broadcast.entity_name} ${broadcast.metadata.id}`);
 
+            // Track deletion in smartRefreshManager to prevent resurrection
+            smartRefreshManager.handleBroadcastRefresh(broadcast.entity_name, 'delete', { id: broadcast.metadata.id });
+
             const { handleDeleteBroadcast } = await import('./components/utils/offlineSync');
             await handleDeleteBroadcast(broadcast.entity_name, broadcast.metadata.id);
 
@@ -831,6 +834,9 @@ export default function Layout({ children, currentPageName }) {
             } else if (broadcast.entity_name === 'Delivery') {
               setDeliveries(prev => prev.filter(d => d?.id !== broadcast.metadata.id));
             }
+          } else if (broadcast.operation === 'create' && broadcast.metadata?.id) {
+            // For creates, ensure smart refresh picks up new items immediately
+            smartRefreshManager.handleBroadcastRefresh(broadcast.entity_name, 'create', broadcast.metadata);
           }
         }
 
