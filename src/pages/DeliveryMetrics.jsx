@@ -374,6 +374,9 @@ export default function DeliveryMetrics() {
     if (prevStartDate && prevEndDate) {
       prevRelevantDeliveries = deliveries.filter((d) => {
         if (!d.delivery_date) return false;
+        // Only include deliveries with patient OR after_hours_pickup
+        if (!d.patient_id && !d.after_hours_pickup) return false;
+        
         const deliveryDate = new Date(d.delivery_date + 'T00:00:00');
         const start = new Date(prevStartDate.getFullYear(), prevStartDate.getMonth(), prevStartDate.getDate());
         const end = new Date(prevEndDate.getFullYear(), prevEndDate.getMonth(), prevEndDate.getDate(), 23, 59, 59);
