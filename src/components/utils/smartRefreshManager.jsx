@@ -823,6 +823,15 @@ class SmartRefreshManager {
         }
       });
       
+      // CRITICAL: Filter out deleted patients that might have come from stale data
+      mergedPatients = mergedPatients.filter(p => {
+        if (p && this.isPatientDeleted(p.id)) {
+          console.log(`🗑️ [SmartRefresh] Filtering out deleted patient ${p.id} from refresh`);
+          return false;
+        }
+        return true;
+      });
+      
       // CRITICAL: Sync to offline database after changes
       try {
         const { offlineManager } = await import('./offlineManager');
@@ -1130,8 +1139,18 @@ class SmartRefreshManager {
         }
       });
       
+      // CRITICAL: Filter out deleted deliveries that might have come from stale offline DB
+      const filteredCurrentDateDeliveries = updatedCurrentDateDeliveries.filter(d => {
+        if (d && this.isDeliveryDeleted(d.id)) {
+          console.log(`🗑️ [SmartRefresh] Filtering out deleted delivery ${d.id} from refresh`);
+          hasChanges = true;
+          return false;
+        }
+        return true;
+      });
+      
       // CRITICAL: Merge back with other dates
-      const updatedDeliveries = [...otherDateDeliveries, ...updatedCurrentDateDeliveries];
+      const updatedDeliveries = [...otherDateDeliveries, ...filteredCurrentDateDeliveries];
       
       if (!hasChanges) {
         return null;
