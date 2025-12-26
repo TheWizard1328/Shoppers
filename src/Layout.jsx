@@ -793,11 +793,22 @@ export default function Layout({ children, currentPageName }) {
     useEffect(() => {
       if (!currentUser) return;
 
+      // Get current device ID for filtering
+      let currentDeviceId = null;
+      realtimeSyncManager.initDeviceId().then(id => {
+        currentDeviceId = id;
+      });
+
       // CRITICAL: Poll for sync broadcasts every 60 seconds - use targeted refresh
       const pollForBroadcasts = async () => {
         try {
+          // Ensure we have device ID
+          if (!currentDeviceId) {
+            currentDeviceId = await realtimeSyncManager.initDeviceId();
+          }
+
           // CRITICAL: SyncBroadcast stores data at TOP LEVEL, not nested
-          // Filter by created_date (recent broadcasts) and exclude own broadcasts
+          // Filter by created_date (recent broadcasts)
           const broadcasts = await base44.entities.SyncBroadcast.filter(
             {
               created_date: { $gte: new Date(Date.now() - 120000).toISOString() }
@@ -806,8 +817,15 @@ export default function Layout({ children, currentPageName }) {
             10
           );
 
-          // Filter out own broadcasts (check both formats)
+          // Filter out broadcasts from THIS DEVICE (not just this user)
+          // This allows cross-device sync for the same user
           const otherBroadcasts = broadcasts.filter(b => {
+            const broadcastDeviceId = b.device_id || b.data?.device_id;
+            // If broadcast has device_id, filter by device; otherwise fall back to user filter
+            if (broadcastDeviceId && currentDeviceId) {
+              return broadcastDeviceId !== currentDeviceId;
+            }
+            // Fallback for old broadcasts without device_id
             const triggeredBy = b.triggered_by || b.data?.triggered_by;
             return triggeredBy !== currentUser.id;
           });
