@@ -1,5 +1,6 @@
 // Real-time sync manager - broadcasts entity changes to all connected devices
 import { base44 } from '@/api/base44Client';
+import { getOrCreateDeviceId } from './userSettingsManager';
 
 class RealtimeSyncManager {
   constructor() {
@@ -11,6 +12,17 @@ class RealtimeSyncManager {
     this.isConnected = false;
     this.lastMessageTime = 0;
     this.heartbeatInterval = null;
+    this.deviceId = null;
+  }
+
+  /**
+   * Initialize device ID for cross-device sync filtering
+   */
+  async initDeviceId() {
+    if (!this.deviceId) {
+      this.deviceId = await getOrCreateDeviceId();
+    }
+    return this.deviceId;
   }
 
   /**
@@ -128,19 +140,30 @@ class RealtimeSyncManager {
    */
   async broadcastChange(entityName, operation, data) {
     try {
+      // Ensure device ID is initialized
+      await this.initDeviceId();
+      
       // Use backend function to broadcast change
       await base44.functions.invoke('broadcastEntityChange', {
         entity_name: entityName,
         operation: operation, // 'create', 'update', 'delete', 'bulk_create'
         timestamp: new Date().toISOString(),
+        device_id: this.deviceId,
         metadata: data
       });
       
-      console.log(`📡 [RealtimeSync] Broadcasted ${operation} for ${entityName}`);
+      console.log(`📡 [RealtimeSync] Broadcasted ${operation} for ${entityName} (device: ${this.deviceId})`);
     } catch (error) {
       console.warn('⚠️ [RealtimeSync] Broadcast failed:', error);
       // Don't throw - broadcasting is best-effort
     }
+  }
+
+  /**
+   * Get current device ID
+   */
+  getDeviceId() {
+    return this.deviceId;
   }
 
   /**

@@ -16,8 +16,9 @@ Deno.serve(async (req) => {
     const operation = payload.operation;
     const metadata = payload.metadata || payload.data || {};
     const timestamp = payload.timestamp || new Date().toISOString();
+    const device_id = payload.device_id || null;
 
-    console.log(`📡 [Broadcast] ${user.full_name} triggered ${operation} on ${entity_name}`);
+    console.log(`📡 [Broadcast] ${user.full_name} (device: ${device_id || 'unknown'}) triggered ${operation} on ${entity_name}`);
     console.log(`📡 [Broadcast] Metadata:`, JSON.stringify(metadata));
 
     // Store broadcast event in a dedicated entity for polling
@@ -27,6 +28,7 @@ Deno.serve(async (req) => {
       operation: String(operation || 'unknown'),
       triggered_by: String(user.id),
       triggered_by_name: String(user.full_name || 'Unknown'),
+      device_id: device_id ? String(device_id) : null,
       timestamp: String(timestamp),
       metadata: metadata || {}
     };
