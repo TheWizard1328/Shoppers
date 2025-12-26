@@ -787,8 +787,14 @@ class SmartRefreshManager {
       
 
       
-      // BIDIRECTIONAL: Merge updates into full patient list (keep local if newer)
+      // BIDIRECTIONAL: Merge updates into full patient list (keep local if newer OR protected)
       const mergedPatients = currentPatients.map(p => {
+        // CRITICAL: Skip if patient has pending local update (just edited by user)
+        if (this.hasPendingPatientUpdate(p.id)) {
+          console.log(`🛡️ [SmartRefresh] Keeping local patient ${p.id} - has pending update`);
+          return p;
+        }
+        
         const serverVersion = updatedPatients.find(u => u.id === p.id);
         
         if (serverVersion) {
