@@ -449,36 +449,6 @@ function Dashboard() {
           savedFabPhaseRef.current = 1; // Default to phase 1 if no saved preference
         }
 
-        // CRITICAL: When "Show All" checkbox is checked, ensure full deliveries are loaded
-        // This prevents initial load from only having single driver's data
-        if (showAllDriverMarkers && deliveries) {
-          console.log('📥 [Settings Load] Show All is checked - ensuring full deliveries loaded');
-          const selectedDateStr = globalFilters.getSelectedDate() || format(new Date(), 'yyyy-MM-dd');
-          const deliveriesForDate = deliveries.filter(d => d && d.delivery_date === selectedDateStr);
-          
-          // If we only have single driver's deliveries, fetch all
-          const uniqueDrivers = new Set(deliveriesForDate.map(d => d?.driver_id).filter(Boolean));
-          if (uniqueDrivers.size === 1 && selectedDriverId !== 'all') {
-            console.log('⚠️ [Settings Load] Only have single driver data - fetching all drivers...');
-            try {
-              const allDateDeliveries = await base44.entities.Delivery.filter({
-                delivery_date: selectedDateStr
-              });
-              
-              console.log(`✅ [Settings Load] Loaded ${allDateDeliveries.length} total deliveries`);
-              
-              // Update context with full deliveries
-              if (updateDeliveriesLocally) {
-                const otherDateDeliveries = deliveries.filter(d => d && d.delivery_date !== selectedDateStr);
-                const mergedDeliveries = [...otherDateDeliveries, ...allDateDeliveries];
-                updateDeliveriesLocally(mergedDeliveries, true);
-              }
-            } catch (error) {
-              console.error('❌ [Settings Load] Failed to load full deliveries:', error);
-            }
-          }
-        }
-
         // CRITICAL: Mark settings as loaded BEFORE setting driver
         // This prevents race conditions with auto-selection logic
         setUserSettingsLoaded(true);
