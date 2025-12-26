@@ -428,21 +428,47 @@ export default function PatientForm({
     dataToSave.dont_ring_bell = !!dataToSave.dont_ring_bell;
     dataToSave.back_door = !!dataToSave.back_door;
 
-    // Use local-first saves
-    if (patient) {
-      await updatePatientLocal(patient.id, dataToSave);
-    } else {
-      const savedPatient = await createPatientLocal(dataToSave);
-      if (returnPatientOnSave) {
-        onSave(savedPatient, true);
-        return;
-      }
-    }
+    console.log('💾 [PatientForm] Saving patient...');
 
-    // Invalidate cache for UI refresh
-    const { invalidate } = await import('../utils/dataManager');
-    invalidate('Patient');
-    onCancel();
+    try {
+      // STEP 1: Save to offline database (creates mutation)
+      if (patient) {
+        await updatePatientLocal(patient.id, dataToSave);
+        console.log('  ✅ Updated patient in offline DB');
+      } else {
+        const savedPatient = await createPatientLocal(dataToSave);
+        console.log('  ✅ Created patient in offline DB');
+        if (returnPatientOnSave) {
+          onSave(savedPatient, true);
+          return;
+        }
+      }
+
+      // STEP 2: Trigger immediate sync to backend
+      const { processPendingMutations } = await import('../utils/offlineSync');
+      console.log('  🔄 Syncing to backend...');
+      await processPendingMutations();
+      console.log('  ✅ Synced to backend');
+
+      // STEP 3: Broadcast change to other devices
+      const { base44 } = await import('@/api/base44Client');
+      await base44.functions.invoke('broadcastEntityChange', {
+        entity_name: 'Patient',
+        operation: patient ? 'update' : 'create',
+        metadata: { id: patient?.id, updated_fields: Object.keys(dataToSave) }
+      });
+      console.log('  📡 Broadcasted to other devices');
+
+      // STEP 4: Invalidate cache and close form
+      const { invalidate } = await import('../utils/dataManager');
+      invalidate('Patient');
+      console.log('  ✅ Cache invalidated');
+      
+      onCancel();
+    } catch (error) {
+      console.error('❌ [PatientForm] Save error:', error);
+      alert(`Failed to save patient: ${error.message}`);
+    }
   };
 
   const isFormValid = formData.full_name && formData.address && formData.store_id;
