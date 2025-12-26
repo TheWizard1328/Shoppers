@@ -812,8 +812,9 @@ export default function Layout({ children, currentPageName }) {
             return triggeredBy !== currentUser.id;
           });
 
-          if (broadcasts && broadcasts.length > 0) {
-            // CRITICAL: Handle both old format (data.entity_name) and new format (entity_name at top level)
+          if (otherBroadcasts && otherBroadcasts.length > 0) {
+          // CRITICAL: Handle both old format (data.entity_name) and new format (entity_name at top level)
+          const broadcasts = otherBroadcasts;
             const normalizedBroadcasts = broadcasts.map(b => ({
               entity_name: b.entity_name || b.data?.entity_name || 'Unknown',
               operation: b.operation || b.data?.operation || 'unknown',
