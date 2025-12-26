@@ -4,8 +4,8 @@ import { base44 } from '@/api/base44Client';
 import { getDeviceId } from './userSettingsManager';
 
 // Polling intervals
-const FAST_POLL_INTERVAL = 5000;  // 5 seconds after local change
-const SLOW_POLL_INTERVAL = 15000; // 15 seconds normally
+const FAST_POLL_INTERVAL = 15000; // 15 seconds after local change
+const SLOW_POLL_INTERVAL = 30000; // 30 seconds normally
 const FAST_POLL_DURATION = 30000; // Stay fast for 30 seconds after local change
 
 class RealtimeSyncManager {
