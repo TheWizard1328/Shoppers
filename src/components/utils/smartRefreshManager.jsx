@@ -58,6 +58,9 @@ class SmartRefreshManager {
     // CRITICAL: Track deliveries that have pending local updates
     // This prevents smart refresh from overwriting them with stale DB data
     this.pendingLocalUpdates = new Map(); // deliveryId -> { expiresAt, driverId, deliveryDate }
+    
+    // CRITICAL: Track patients that have pending local updates
+    this.pendingPatientUpdates = new Map(); // patientId -> { expiresAt }
   }
   
   /**
