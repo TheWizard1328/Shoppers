@@ -638,24 +638,39 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
       // Find patients in database that are NOT in the imported CSV
       // These are patients that exist but weren't included in the import file
-      const importedPatientPids = new Set(); // PIDs from CSV
+      const importedPatientPids = new Set(); // PIDs from CSV (cleaned, case-sensitive)
       const importedPatientKeys = new Set(); // For fallback matching (store+name+address) - only for rows WITHOUT PID
       
-      // Collect all patient identifiers from the import (both toCreate and toUpdate)
-      [...toCreate, ...toUpdate].forEach(item => {
-        const data = item.data;
-        if (data.patient_id) {
-          // Clean and add PID
-          const cleanPid = String(data.patient_id).trim().replace(/[^A-Za-z0-9]/g, '');
-          if (cleanPid) {
-            importedPatientPids.add(cleanPid);
+      // Collect all patient identifiers from ALL CSV data (processed rows)
+      // We need to collect from the raw processed data, not just toCreate/toUpdate
+      // because toUpdate only contains patients WITH changes
+      
+      // Re-process all files to get ALL patient PIDs from CSV
+      for (const file of files) {
+        const text = await file.text();
+        const lines = text.split('\n').filter((line) => line.trim());
+        const dataLines = lines.slice(1); // Skip header
+        
+        for (let i = 0; i < dataLines.length; i++) {
+          try {
+            const values = parseCSVLine(dataLines[i]);
+            const patientData = processCsvRowToPatient(values, fieldMapping, stores);
+            
+            if (patientData.patient_id) {
+              const cleanPid = String(patientData.patient_id).trim().replace(/[^A-Za-z0-9]/g, '');
+              if (cleanPid) {
+                importedPatientPids.add(cleanPid);
+              }
+            } else if (patientData.store_id && patientData.full_name) {
+              // Only use fallback key if NO PID in CSV row
+              const key = `${patientData.store_id}_${(patientData.full_name || '').toLowerCase().trim()}_${(patientData.address || '').toLowerCase().trim()}`;
+              importedPatientKeys.add(key);
+            }
+          } catch (err) {
+            // Skip rows with parsing errors
           }
-        } else {
-          // Only use fallback key if NO PID in CSV row
-          const key = `${data.store_id}_${(data.full_name || '').toLowerCase().trim()}_${(data.address || '').toLowerCase().trim()}`;
-          importedPatientKeys.add(key);
         }
-      });
+      }
       
       console.log(`PatientImport: Collected ${importedPatientPids.size} PIDs and ${importedPatientKeys.size} fallback keys from CSV`);
       
