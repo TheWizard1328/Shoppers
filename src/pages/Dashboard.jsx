@@ -702,9 +702,9 @@ function Dashboard() {
       return true;
     });
     
-    // CRITICAL: After Hours Pickups count as completed (they are store pickups without patient_id)
+    // CRITICAL: After Hours Pickups count as completed (completed OR cancelled status)
     const afterHoursPickupsCompleted = relevantDeliveries.filter(d => 
-      d && !d.patient_id && d.after_hours_pickup === true && d.status === 'completed'
+      d && !d.patient_id && d.after_hours_pickup === true && (d.status === 'completed' || d.status === 'cancelled')
     ).length;
     
     const completed = completedDeliveries.length + afterHoursPickupsCompleted;
