@@ -1035,7 +1035,7 @@ class SmartRefreshManager {
 
   /**
    * Fast delivery status refresh - polls for status changes on active deliveries
-   * CRITICAL: Uses offline database to minimize API calls
+   * CRITICAL: Uses offline database to minimize API calls, BUT fetches from API after broadcasts
    */
   async refreshActiveDeliveryStatuses(currentDeliveries, selectedDate, filters = {}) {
     try {
@@ -1052,12 +1052,15 @@ class SmartRefreshManager {
       
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
       
-      // CRITICAL: Use offline DB first - MUCH faster and prevents rate limits
-      const { offlineDB } = await import('./offlineDatabase');
-      let offlineDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
+      // CRITICAL: Check if we received a broadcast and need to fetch from API
+      const needsApiFetch = this.shouldFetchFromApi('Delivery');
       
-      if (!offlineDeliveries || offlineDeliveries.length === 0) {
-        // No offline data - fetch from API as fallback
+      const { offlineDB } = await import('./offlineDatabase');
+      let fetchedDeliveries;
+      
+      if (needsApiFetch) {
+        // Broadcast received - fetch from API to get the new/updated data
+        console.log(`📡 [SmartRefresh] Fetching deliveries from API after broadcast`);
         await this.waitForRateLimit();
         const cityOnlyFilter = { delivery_date: dateStr };
         
@@ -1065,17 +1068,33 @@ class SmartRefreshManager {
           cityOnlyFilter.store_id = filters.deliveryFilter.store_id;
         }
         
-        offlineDeliveries = await base44.entities.Delivery.filter(cityOnlyFilter);
+        fetchedDeliveries = await base44.entities.Delivery.filter(cityOnlyFilter);
         
-        if (!offlineDeliveries || offlineDeliveries.length === 0) {
-          return null;
+        if (fetchedDeliveries && fetchedDeliveries.length > 0) {
+          // Update offline DB with fresh API data
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, fetchedDeliveries);
         }
+      } else {
+        // No broadcast - use offline DB first (faster, prevents rate limits)
+        fetchedDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
         
-        // Cache to offline DB for next time
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, offlineDeliveries);
+        if (!fetchedDeliveries || fetchedDeliveries.length === 0) {
+          // No offline data - fetch from API as fallback
+          await this.waitForRateLimit();
+          const cityOnlyFilter = { delivery_date: dateStr };
+          
+          if (filters.deliveryFilter && filters.deliveryFilter.store_id) {
+            cityOnlyFilter.store_id = filters.deliveryFilter.store_id;
+          }
+          
+          fetchedDeliveries = await base44.entities.Delivery.filter(cityOnlyFilter);
+          
+          if (fetchedDeliveries && fetchedDeliveries.length > 0) {
+            // Cache to offline DB for next time
+            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, fetchedDeliveries);
+          }
+        }
       }
-      
-      const fetchedDeliveries = offlineDeliveries;
       
       if (!fetchedDeliveries || fetchedDeliveries.length === 0) {
         return null;
