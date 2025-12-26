@@ -713,12 +713,17 @@ export default function DeliveryMetrics() {
           const date = delivery.delivery_date;
           if (prevDailyStats[date]) {
             prevDailyStats[date].total++;
-            if (delivery.status === 'completed') prevDailyStats[date].completed++;
-            if (delivery.status === 'failed') prevDailyStats[date].failed++;
             const patient = patients.find((p) => p.id === delivery.patient_id);
             const notesReturn = (delivery.delivery_notes || '').toLowerCase().includes('return');
             const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
-            if (notesReturn || addressReturn) prevDailyStats[date].returned++;
+            const isReturned = notesReturn || addressReturn;
+            
+            if (isReturned) {
+              prevDailyStats[date].returned++;
+            } else if (delivery.status === 'completed') {
+              prevDailyStats[date].completed++;
+            }
+            if (delivery.status === 'failed') prevDailyStats[date].failed++;
           }
         });
       }
