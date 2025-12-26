@@ -1805,19 +1805,14 @@ function Dashboard() {
           hasDriverMarkers = true;
         }
 
-        // 2. SHARED DRIVER LOCATIONS: Check checkbox state and include accordingly
-        console.log(`🗺️ [Phase 1] showAllDriverMarkers: ${showAllDriverMarkers}, isDriverViewingSelfToday: ${isDriverViewingSelfToday}`);
-        if (isViewingToday && allDriverLocations && Array.isArray(allDriverLocations)) {
+        // 2. SHARED DRIVER LOCATIONS: Include when in "All Drivers" mode OR "Show All" is checked
+        console.log(`🗺️ [Phase 1] shouldShowAllMarkersForBounds: ${shouldShowAllMarkersForBounds}`);
+        if (isViewingToday && shouldShowAllMarkersForBounds && allDriverLocations && Array.isArray(allDriverLocations)) {
           allDriverLocations.forEach((location) => {
             if (!location?.latitude || !location?.longitude || !location?.driver_id) return;
 
             // Skip current user on mobile (blue dot shows instead)
             if (isMobile && location.driver_id === currentUser?.id) return;
-
-            // CRITICAL: For drivers viewing self, check showAllDriverMarkers
-            if (isDriverViewingSelfToday && !showAllDriverMarkers) {
-              return;
-            }
 
             // Must be on_duty and have tracking enabled
             if (location.driver_status !== 'on_duty') return;
