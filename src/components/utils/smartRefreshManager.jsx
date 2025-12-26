@@ -1210,52 +1210,11 @@ class SmartRefreshManager {
   }
   
   /**
-   * Track deleted IDs to prevent smart refresh from re-adding them
-   * These are cleared after 5 minutes (should be enough for full sync)
-   */
-  deletedIds = new Map(); // entityName -> Set of deleted IDs with expiry
-  
-  /**
-   * Register a deleted ID to prevent smart refresh from re-adding it
-   */
-  registerDeletedId(entityName, recordId) {
-    if (!this.deletedIds.has(entityName)) {
-      this.deletedIds.set(entityName, new Map());
-    }
-    // Expires after 5 minutes
-    this.deletedIds.get(entityName).set(recordId, Date.now() + 5 * 60 * 1000);
-    console.log(`🗑️ [SmartRefresh] Registered deleted ${entityName} ${recordId} - will be blocked from refresh for 5 minutes`);
-  }
-  
-  /**
-   * Check if an ID was recently deleted
-   */
-  isDeletedId(entityName, recordId) {
-    const entityDeletes = this.deletedIds.get(entityName);
-    if (!entityDeletes) return false;
-    
-    const expiry = entityDeletes.get(recordId);
-    if (!expiry) return false;
-    
-    if (Date.now() > expiry) {
-      entityDeletes.delete(recordId);
-      return false;
-    }
-    
-    return true;
-  }
-  
-  /**
    * Handle broadcast from another device - refresh ONLY the specific entity that changed
    * This is the smart approach: instead of polling everything, we listen for targeted updates
    */
   async handleBroadcastRefresh(entityName, operation, metadata = {}) {
     console.log(`📡 [SmartRefresh] Handling broadcast: ${entityName} ${operation}`, metadata);
-    
-    // CRITICAL: If this is a delete operation, register the ID to prevent re-adding
-    if (operation === 'delete' && metadata?.id) {
-      this.registerDeletedId(entityName, metadata.id);
-    }
     
     switch (entityName) {
       case 'Delivery':
