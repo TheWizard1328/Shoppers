@@ -4865,17 +4865,49 @@ function Dashboard() {
       }
       console.log('  ✅ UI updated');
 
-      // Step 4: Run smart refresh
-      console.log('🗑️ [DELETE] Step 4: Running smart refresh...');
-      smartRefreshManager.lastRefreshTimes = {
-        driverLocation: 0,
-        activeDeliveries: 0,
-        todayDeliveries: 0,
-        appUsers: 0,
-        patients: 0,
-        stores: 0
-      };
-      console.log('  ✅ Smart refresh triggered');
+      // Step 4: Recalculate stop orders for remaining deliveries
+      console.log('🔄 [DELETE] Step 4: Recalculating stop orders...');
+      await recalculateStopOrders(driverId, deliveryDate);
+      console.log('  ✅ Stop orders recalculated');
+
+      // Step 5: Re-optimize route and update ETAs (mobile drivers only)
+      if (isMobile && userHasRole(currentUser, 'driver')) {
+        console.log('📡 [DELETE] Step 5: Re-optimizing route and updating ETAs...');
+        try {
+          const now = new Date();
+          const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+          
+          // Re-optimize the route
+          await base44.functions.invoke('optimizeRouteRealTime', {
+            driverId: driverId,
+            deliveryDate: deliveryDate,
+            currentLocalTime: localTimeString,
+            deviceTime: now.toISOString()
+          });
+          
+          // Update ETAs
+          await base44.functions.invoke('calculateRealTimeETA', {
+            driverId: driverId,
+            deliveryDate: deliveryDate,
+            currentLocalTime: localTimeString
+          });
+          
+          console.log('  ✅ Route optimized and ETAs updated');
+        } catch (optimizeError) {
+          console.warn('  ⚠️ Route optimization failed:', optimizeError.message);
+        }
+      }
+
+      // Step 6: Refresh data and update map
+      console.log('🔄 [DELETE] Step 6: Refreshing data and updating map...');
+      invalidateDeliveriesForDate(deliveryDate);
+      await refreshData();
+      
+      // Force map to re-render route lines
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { 
+        detail: { driverId, deliveryDate, triggeredBy: 'deleteDelivery' } 
+      }));
+      console.log('  ✅ Data refreshed and map updated');
 
       console.log('✅ [DELETE] Complete');
 
