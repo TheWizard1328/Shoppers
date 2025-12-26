@@ -638,34 +638,47 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
       // Find patients in database that are NOT in the imported CSV
       // These are patients that exist but weren't included in the import file
-      const importedPatientIds = new Set();
-      const importedPatientKeys = new Set(); // For fallback matching (store+name+address)
+      const importedPatientPids = new Set(); // PIDs from CSV
+      const importedPatientKeys = new Set(); // For fallback matching (store+name+address) - only for rows WITHOUT PID
       
-      // Collect all patient identifiers from the import
+      // Collect all patient identifiers from the import (both toCreate and toUpdate)
       [...toCreate, ...toUpdate].forEach(item => {
         const data = item.data;
         if (data.patient_id) {
-          importedPatientIds.add(String(data.patient_id).trim().replace(/[^A-Za-z0-9]/g, ''));
+          // Clean and add PID
+          const cleanPid = String(data.patient_id).trim().replace(/[^A-Za-z0-9]/g, '');
+          if (cleanPid) {
+            importedPatientPids.add(cleanPid);
+          }
+        } else {
+          // Only use fallback key if NO PID in CSV row
+          const key = `${data.store_id}_${(data.full_name || '').toLowerCase().trim()}_${(data.address || '').toLowerCase().trim()}`;
+          importedPatientKeys.add(key);
         }
-        // Also track by store+name+address for patients without PID
-        const key = `${data.store_id}_${(data.full_name || '').toLowerCase()}_${(data.address || '').toLowerCase()}`;
-        importedPatientKeys.add(key);
       });
+      
+      console.log(`PatientImport: Collected ${importedPatientPids.size} PIDs and ${importedPatientKeys.size} fallback keys from CSV`);
       
       // Find patients in database not in import
       const missingFromImport = existingPatients.filter(p => {
         // Skip if patient is already inactive
         if (p.status === 'inactive') return false;
         
-        // Check by PID first
+        // PRIMARY: Check by PID if database patient has one
         if (p.patient_id) {
           const dbPid = String(p.patient_id).trim().replace(/[^A-Za-z0-9]/g, '');
-          if (importedPatientIds.has(dbPid)) return false;
+          if (dbPid && importedPatientPids.has(dbPid)) {
+            return false; // Found in CSV by PID
+          }
         }
         
-        // Fallback check by store+name+address
-        const key = `${p.store_id}_${(p.full_name || '').toLowerCase()}_${(p.address || '').toLowerCase()}`;
-        if (importedPatientKeys.has(key)) return false;
+        // FALLBACK: Only if DB patient has no PID, check by store+name+address
+        if (!p.patient_id) {
+          const key = `${p.store_id}_${(p.full_name || '').toLowerCase().trim()}_${(p.address || '').toLowerCase().trim()}`;
+          if (importedPatientKeys.has(key)) {
+            return false; // Found in CSV by fallback key
+          }
+        }
         
         // Patient exists in DB but not in import
         return true;
