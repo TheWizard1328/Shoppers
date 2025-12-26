@@ -6234,7 +6234,12 @@ function Dashboard() {
                         {route.driverName}
                       </span>
                       <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
-                        ({route.stops.length})
+                        ({route.stops.filter(d => {
+                          // Count patient deliveries + completed/cancelled after hours pickups
+                          if (d.patient_id) return true;
+                          if (d.after_hours_pickup && (d.status === 'completed' || d.status === 'cancelled')) return true;
+                          return false;
+                        }).length})
                       </span>
                     </div>
               )}
