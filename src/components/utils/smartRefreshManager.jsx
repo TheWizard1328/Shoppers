@@ -766,6 +766,9 @@ class SmartRefreshManager {
         return null;
       }
       
+      // CRITICAL: Check if we received a broadcast and need fresh data
+      const needsApiFetch = this.shouldFetchFromApi('Patient');
+      
       // Filter current patients to only those on today's routes
       const todayCurrentPatients = currentPatients.filter(p => 
         p && todayPatientIds.includes(p.id)
@@ -773,15 +776,20 @@ class SmartRefreshManager {
       
       const lastTimestamp = getLatestUpdateTimestamp(todayCurrentPatients);
       
-      if (!lastTimestamp) {
+      // If no timestamp but we need API fetch (broadcast received), still proceed
+      if (!lastTimestamp && !needsApiFetch) {
         return null;
       }
       
       // Only fetch patients that are on today's routes AND updated recently
       const queryFilter = {
-        id: { $in: todayPatientIds },
-        updated_date: { $gte: lastTimestamp.toISOString() }
+        id: { $in: todayPatientIds }
       };
+      
+      // Only add timestamp filter if we're not responding to a broadcast
+      if (lastTimestamp && !needsApiFetch) {
+        queryFilter.updated_date = { $gte: lastTimestamp.toISOString() };
+      }
       
       await this.waitForRateLimit();
       const updatedPatients = await base44.entities.Patient.filter(queryFilter);
