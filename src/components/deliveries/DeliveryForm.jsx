@@ -2142,6 +2142,23 @@ export default function DeliveryForm({
         console.log('📝 [DeliveryForm] Updating delivery via local-first mutation...');
         await updateDeliveryLocal(delivery.id, dataToSave);
         console.log('✅ [DeliveryForm] Delivery updated in both offline and online DBs');
+        
+        // CRITICAL: Force UI refresh after update
+        const { invalidate } = await import('../utils/dataManager');
+        invalidate('Delivery');
+        
+        // Wait for mutation to propagate
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        
+        // CRITICAL: Dispatch event to trigger data reload in context/layout
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { 
+          detail: { 
+            deliveryId: delivery.id, 
+            driverId: dataToSave.driver_id || delivery.driver_id, 
+            deliveryDate: dataToSave.delivery_date || delivery.delivery_date, 
+            triggeredBy: 'deliveryFormUpdate' 
+          } 
+        }));
       } else {
         await onSave(dataToSave);
       }
