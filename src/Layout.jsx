@@ -240,7 +240,7 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
               clearInterval(interval);
               window.removeEventListener('refreshDeliveryStats', fetchStats);
             };
-          }, [currentUser, selectedDateStr, storeIds]);
+            }, [currentUser, selectedDateStr, storeIds, selectedDriverId]);
 
   const StatItem = ({ icon: Icon, label, value, colorClass }) =>
       <div className="flex items-center justify-between text-sm">
