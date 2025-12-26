@@ -636,9 +636,54 @@ export default function PatientImport({ onImportComplete, onImportStart, current
         }
       }
 
+      // Find patients in database that are NOT in the imported CSV
+      // These are patients that exist but weren't included in the import file
+      const importedPatientIds = new Set();
+      const importedPatientKeys = new Set(); // For fallback matching (store+name+address)
+      
+      // Collect all patient identifiers from the import
+      [...toCreate, ...toUpdate].forEach(item => {
+        const data = item.data;
+        if (data.patient_id) {
+          importedPatientIds.add(String(data.patient_id).trim().replace(/[^A-Za-z0-9]/g, ''));
+        }
+        // Also track by store+name+address for patients without PID
+        const key = `${data.store_id}_${(data.full_name || '').toLowerCase()}_${(data.address || '').toLowerCase()}`;
+        importedPatientKeys.add(key);
+      });
+      
+      // Find patients in database not in import
+      const missingFromImport = existingPatients.filter(p => {
+        // Skip if patient is already inactive
+        if (p.status === 'inactive') return false;
+        
+        // Check by PID first
+        if (p.patient_id) {
+          const dbPid = String(p.patient_id).trim().replace(/[^A-Za-z0-9]/g, '');
+          if (importedPatientIds.has(dbPid)) return false;
+        }
+        
+        // Fallback check by store+name+address
+        const key = `${p.store_id}_${(p.full_name || '').toLowerCase()}_${(p.address || '').toLowerCase()}`;
+        if (importedPatientKeys.has(key)) return false;
+        
+        // Patient exists in DB but not in import
+        return true;
+      });
+      
+      console.log(`PatientImport: Found ${missingFromImport.length} patients in database not in CSV`);
+      setMissingPatients(missingFromImport);
+      
       setPreviewChanges({ toCreate, toUpdate, errors });
-      setShowPreview(true);
-      console.log(`PatientImport: Preview generation complete. To Create: ${toCreate.length}, To Update: ${toUpdate.length}, Errors: ${errors.length}`);
+      
+      // Show missing patients popup first if there are any
+      if (missingFromImport.length > 0) {
+        setShowMissingPatients(true);
+      } else {
+        setShowPreview(true);
+      }
+      
+      console.log(`PatientImport: Preview generation complete. To Create: ${toCreate.length}, To Update: ${toUpdate.length}, Errors: ${errors.length}, Missing: ${missingFromImport.length}`);
 
     } catch (error) {
       console.error("PatientImport: Preview generation error:", error);
