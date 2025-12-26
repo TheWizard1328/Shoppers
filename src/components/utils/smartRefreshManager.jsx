@@ -61,6 +61,11 @@ class SmartRefreshManager {
     
     // CRITICAL: Track patients that have pending local updates
     this.pendingPatientUpdates = new Map(); // patientId -> { expiresAt }
+    
+    // CRITICAL: Track IDs that were deleted via broadcast
+    // These should be removed from UI even if smart refresh brings them back from stale offline DB
+    this.deletedDeliveryIds = new Set();
+    this.deletedPatientIds = new Set();
   }
   
   /**
