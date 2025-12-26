@@ -1001,6 +1001,27 @@ export default function Layout({ children, currentPageName }) {
       };
       window.addEventListener('deliveriesImported', handleDeliveriesImported);
 
+      // Listen for delivery updates from DeliveryForm and trigger refresh
+      const handleDeliveriesUpdated = async (event) => {
+        const { deliveryId, driverId, deliveryDate, triggeredBy } = event.detail || {};
+        console.log(`🔄 [Layout] Delivery updated event: ${deliveryId} (${triggeredBy})`);
+
+        if (deliveryDate && driverId) {
+          // Invalidate and refresh data for this date/driver
+          invalidate('Delivery');
+          if (triggerFullDataLoadRef.current) {
+            triggerFullDataLoadRef.current(true);
+          }
+        } else if (deliveryId) {
+          // Single delivery update - fetch fresh data
+          invalidate('Delivery');
+          if (triggerFullDataLoadRef.current) {
+            triggerFullDataLoadRef.current(true);
+          }
+        }
+      };
+      window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
+
       return () => {
         clearTimeout(syncTimer);
         clearInterval(mutationSyncInterval);
