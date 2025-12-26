@@ -1129,6 +1129,21 @@ export default function PatientImport({ onImportComplete, onImportStart, current
     }
   };
 
+  // Show missing patients popup first
+  if (showMissingPatients) {
+    return (
+      <MissingPatientsPopup
+        missingPatients={missingPatients}
+        stores={stores}
+        onClose={() => setShowMissingPatients(false)}
+        onContinue={() => {
+          setShowMissingPatients(false);
+          setShowPreview(true);
+        }}
+      />
+    );
+  }
+
   if (showPreview) {
     return (
       <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[9999] overflow-hidden">
