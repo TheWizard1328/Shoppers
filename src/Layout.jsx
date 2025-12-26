@@ -812,15 +812,33 @@ export default function Layout({ children, currentPageName }) {
             // Dispatch event for yellow spinner
             window.dispatchEvent(new CustomEvent('realtimeSyncRefresh'));
 
+            // CRITICAL: Handle delete broadcasts immediately - remove from IndexedDB and UI
+            for (const broadcast of broadcasts) {
+              if (broadcast.operation === 'delete' && broadcast.metadata?.id) {
+                console.log(`🗑️ [RealtimeSync] Processing delete broadcast for ${broadcast.entity_name} ${broadcast.metadata.id}`);
+
+                // Import and call handleDeleteBroadcast
+                const { handleDeleteBroadcast } = await import('./components/utils/offlineSync');
+                await handleDeleteBroadcast(broadcast.entity_name, broadcast.metadata.id);
+
+                // Update UI state immediately
+                if (broadcast.entity_name === 'Patient') {
+                  setPatients(prev => prev.filter(p => p?.id !== broadcast.metadata.id));
+                } else if (broadcast.entity_name === 'Delivery') {
+                  setDeliveries(prev => prev.filter(d => d?.id !== broadcast.metadata.id));
+                }
+              }
+            }
+
             // CRITICAL: Targeted refresh - only reset timers for entities that changed
             const changedEntities = new Set(broadcasts.map(b => b.entity_name));
-            
+
             changedEntities.forEach(entityName => {
               smartRefreshManager.handleBroadcastRefresh(entityName, 'broadcast');
             });
 
             console.log(`🎯 [RealtimeSync] Forced immediate refresh for entities: ${[...changedEntities].join(', ')}`);
-            
+
             // CRITICAL: Trigger full data reload after broadcast
             if (triggerFullDataLoadRef.current) {
               console.log('🔄 [RealtimeSync] Triggering full data reload...');
