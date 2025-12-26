@@ -841,19 +841,24 @@ export default function Layout({ children, currentPageName }) {
         }
 
         // CRITICAL: Targeted refresh - only reset timers for entities that changed
-        const changedEntities = new Set(normalizedBroadcasts.map(b => b.entity_name));
-        changedEntities.forEach(entityName => {
-          smartRefreshManager.handleBroadcastRefresh(entityName, 'broadcast');
-        });
+        // Handle create/update operations that weren't already handled above
+        const changedEntities = new Set();
+        for (const broadcast of normalizedBroadcasts) {
+          changedEntities.add(broadcast.entity_name);
+          if (broadcast.operation !== 'delete') {
+            // For non-delete operations, mark that we need API fetch
+            smartRefreshManager.handleBroadcastRefresh(broadcast.entity_name, broadcast.operation, broadcast.metadata);
+          }
+        }
 
         console.log(`🎯 [RealtimeSync] Forced immediate refresh for entities: ${[...changedEntities].join(', ')}`);
 
-        // CRITICAL: Trigger full data reload after broadcast
+        // CRITICAL: Trigger full data reload after broadcast to get new/updated items
         if (triggerFullDataLoadRef.current) {
           console.log('🔄 [RealtimeSync] Triggering full data reload...');
           setTimeout(() => {
             triggerFullDataLoadRef.current(true);
-          }, 1000);
+          }, 500); // Reduced delay for faster sync
         }
       });
 
