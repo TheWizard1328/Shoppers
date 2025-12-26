@@ -1592,8 +1592,8 @@ export default function DeliveryMap({
 
     // Sort stops by stop_order and create route lines
     const routes = Object.values(routesByDriver).map((route) => {
-    // CRITICAL: Find ALL deliveries for this driver from safeDeliveries (to get pickups)
-    const allDriverDeliveries = safeDeliveries.filter((d) => d && d.driver_id === route.driverId);
+    // CRITICAL: Find ALL deliveries for this driver from safeDeliveries (to get pickups and accurate counts)
+    const allDriverDeliveries = (safeDeliveries || []).filter((d) => d && d.driver_id === route.driverId);
     const driverPickups = allDriverDeliveries.filter((d) => !d.patient_id);
     const driverPatientDeliveries = allDriverDeliveries.filter((d) => d.patient_id);
 
