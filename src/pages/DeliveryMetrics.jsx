@@ -386,8 +386,13 @@ export default function DeliveryMetrics() {
       });
 
       if (selectedDriver !== 'all') {
+        const driver = drivers.find((drv) => drv.id === selectedDriver);
+        const driverName = driver ? getDriverDisplayName(driver) : null;
         prevRelevantDeliveries = prevRelevantDeliveries.filter((d) => {
-          return d.driver_id === selectedDriver;
+          const matchById = d.driver_id === selectedDriver;
+          const matchByName = d.driver_name && driverName && 
+            d.driver_name.toLowerCase() === driverName.toLowerCase();
+          return matchById || matchByName;
         });
       }
       console.log('📊 Relevant deliveries for previous period:', prevRelevantDeliveries.length);
