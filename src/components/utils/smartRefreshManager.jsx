@@ -121,6 +121,39 @@ class SmartRefreshManager {
   }
   
   /**
+   * Register a pending local update for a patient
+   * This prevents smart refresh from overwriting it for 60 seconds
+   */
+  registerPendingPatientUpdate(patientId) {
+    const expiresAt = Date.now() + 60000; // 60 second protection window
+    this.pendingPatientUpdates.set(patientId, { expiresAt });
+    console.log(`🛡️ [SmartRefresh] Protected patient ${patientId} from overwrite for 60s`);
+  }
+  
+  /**
+   * Check if a patient has a pending local update
+   */
+  hasPendingPatientUpdate(patientId) {
+    const entry = this.pendingPatientUpdates.get(patientId);
+    if (!entry) return false;
+    
+    // Check if protection window expired
+    if (Date.now() > entry.expiresAt) {
+      this.pendingPatientUpdates.delete(patientId);
+      return false;
+    }
+    
+    return true;
+  }
+  
+  /**
+   * Clear pending patient update
+   */
+  clearPendingPatientUpdate(patientId) {
+    this.pendingPatientUpdates.delete(patientId);
+  }
+  
+  /**
    * Get count of pending updates (for debugging)
    */
   getPendingUpdateCount() {
