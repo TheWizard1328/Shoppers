@@ -336,10 +336,15 @@ Deno.serve(async (req) => {
     // MONTH STATS - Only counts DELIVERIES (patient_id OR after_hours_pickup)
     // ===========================================
     
-    // Completed: Only paid deliveries that are completed
-    const monthCompleted = monthDeliveries.filter(d => 
-      isPaidDelivery(d) && isCompleted(d)
-    ).length;
+    // Completed: Only paid deliveries that are completed OR after-hours pickups (completed/cancelled)
+    const monthCompleted = monthDeliveries.filter(d => {
+      if (!d) return false;
+      // Patient deliveries - must be completed and not returns
+      if (d.patient_id) return isCompleted(d);
+      // After hours pickups - completed OR cancelled count as completed
+      if (d.after_hours_pickup) return d.status === 'completed' || d.status === 'cancelled';
+      return false;
+    }).length;
     
     // Failed: Only paid deliveries that failed (not returns)
     const monthFailed = monthDeliveries.filter(d => 
