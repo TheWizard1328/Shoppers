@@ -2279,14 +2279,6 @@ function Dashboard() {
       return;
     }
     
-    // CRITICAL: Restore saved FAB phase if returning from another page
-    if (savedFabPhaseOnUnmount) {
-      console.log(`🗺️ [Dashboard] Restoring FAB Phase ${savedFabPhaseOnUnmount} from previous session`);
-      savedFabPhaseRef.current = savedFabPhaseOnUnmount;
-      // Clear saved state after using it
-      sessionStorage.removeItem('rxdeliver_dashboard_fab_phase');
-    }
-
     console.log('✅ [Render Sequence 8] All elements rendered - activating FAB phase');
     console.log(`   - deliveries count: ${deliveries.length}`);
     console.log(`   - allDriverLocations count: ${allDriverLocations.length}`);
@@ -2372,9 +2364,17 @@ function Dashboard() {
       return;
     }
 
-    // Apply the saved phase
-    console.log(`🔵 [FAB Initial] Applying saved phase ${phaseToApply}`);
-    setMapViewPhase(phaseToApply);
+    // CRITICAL: Check if we have a saved phase from previous session (higher priority)
+    let finalPhase = phaseToApply;
+    if (savedFabPhaseOnUnmount) {
+      console.log(`🗺️ [FAB Initial] Using saved phase ${savedFabPhaseOnUnmount} from previous session`);
+      finalPhase = savedFabPhaseOnUnmount;
+      sessionStorage.removeItem('rxdeliver_dashboard_fab_phase');
+    }
+
+    // Apply the phase
+    console.log(`🔵 [FAB Initial] Applying phase ${finalPhase}`);
+    setMapViewPhase(finalPhase);
     setIsMapViewLocked(true);
     setInitialMapViewApplied(true);
     setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
@@ -2396,10 +2396,15 @@ function Dashboard() {
     }
     mapLockExpiresAtRef.current = null;
 
-    // CRITICAL: Initial load/refresh uses 500ms timeout, user clicks use 3s
-    // Set timer for phase 1 & 3, permanent lock for phase 2
-    if (phaseToApply === 1 || phaseToApply === 3) {
-      const lockDuration = 500; // 500ms for initial load
+    // CRITICAL: Returning from another page - delay longer before unlocking
+    const wasReturning = !!savedFabPhaseOnUnmount;
+    
+    // CRITICAL: Different unlock timers based on context
+    // - Returning from another page: 2000ms (let user see where they were)
+    // - Fresh load: 500ms (quick unlock)
+    const lockDuration = wasReturning ? 2000 : 500;
+    
+    if (finalPhase === 1 || finalPhase === 3) {
       const expiresAt = Date.now() + lockDuration;
       mapLockExpiresAtRef.current = expiresAt;
 
@@ -2408,12 +2413,12 @@ function Dashboard() {
           setIsMapViewLocked(false);
           mapLockExpiresAtRef.current = null;
           mapLockTimeoutRef.current = null;
-          console.log(`⏰ [FAB Initial] Phase ${phaseToApply} auto-unlocked after 500ms`);
+          console.log(`⏰ [FAB Initial] Phase ${finalPhase} auto-unlocked after ${lockDuration}ms`);
         }
       }, lockDuration);
 
-      console.log(`🔵 [FAB Initial] Phase ${phaseToApply} locked - will auto-unlock in 500ms`);
-    } else if (phaseToApply === 2) {
+      console.log(`🔵 [FAB Initial] Phase ${finalPhase} locked - will auto-unlock in ${lockDuration}ms`);
+    } else if (finalPhase === 2) {
       // Phase 2 - NO timer, stays locked PERMANENTLY
       console.log(`🔵 [FAB Initial] Phase 2 locked PERMANENTLY - unlocks only on FAB click`);
     }
