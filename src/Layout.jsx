@@ -853,12 +853,10 @@ export default function Layout({ children, currentPageName }) {
 
         console.log(`🎯 [RealtimeSync] Forced immediate refresh for entities: ${[...changedEntities].join(', ')}`);
 
-        // CRITICAL: Trigger full data reload after broadcast to get new/updated items
+        // CRITICAL: Trigger full data reload IMMEDIATELY after broadcast
         if (triggerFullDataLoadRef.current) {
-          console.log('🔄 [RealtimeSync] Triggering full data reload...');
-          setTimeout(() => {
-            triggerFullDataLoadRef.current(true);
-          }, 500); // Reduced delay for faster sync
+          console.log('🔄 [RealtimeSync] Triggering immediate data reload...');
+          triggerFullDataLoadRef.current(true);
         }
       });
 
