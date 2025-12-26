@@ -1221,6 +1221,17 @@ class SmartRefreshManager {
   async handleBroadcastRefresh(entityName, operation, metadata = {}) {
     console.log(`📡 [SmartRefresh] Handling broadcast: ${entityName} ${operation}`, metadata);
     
+    // CRITICAL: Track deletions to prevent smart refresh from resurrecting deleted items
+    if (operation === 'delete' && metadata?.id) {
+      if (entityName === 'Delivery') {
+        this.deletedDeliveryIds.add(metadata.id);
+        console.log(`🗑️ [SmartRefresh] Marked delivery ${metadata.id} as deleted`);
+      } else if (entityName === 'Patient') {
+        this.deletedPatientIds.add(metadata.id);
+        console.log(`🗑️ [SmartRefresh] Marked patient ${metadata.id} as deleted`);
+      }
+    }
+    
     switch (entityName) {
       case 'Delivery':
         // Reset delivery refresh timer to force immediate refresh
@@ -1247,6 +1258,28 @@ class SmartRefreshManager {
       default:
         console.log(`📡 [SmartRefresh] Unknown entity in broadcast: ${entityName}`);
     }
+  }
+  
+  /**
+   * Check if a delivery was deleted via broadcast
+   */
+  isDeliveryDeleted(deliveryId) {
+    return this.deletedDeliveryIds.has(deliveryId);
+  }
+  
+  /**
+   * Check if a patient was deleted via broadcast
+   */
+  isPatientDeleted(patientId) {
+    return this.deletedPatientIds.has(patientId);
+  }
+  
+  /**
+   * Clear deleted ID tracking (e.g., after confirmed sync)
+   */
+  clearDeletedIds() {
+    this.deletedDeliveryIds.clear();
+    this.deletedPatientIds.clear();
   }
 }
 
