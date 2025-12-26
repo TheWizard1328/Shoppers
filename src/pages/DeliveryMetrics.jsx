@@ -307,8 +307,13 @@ export default function DeliveryMetrics() {
     const dec2025Dates = allDatesInDataset.filter(d => d.startsWith('2025-12'));
     console.log('📅 December 2025 dates available:', dec2025Dates);
 
+    // CRITICAL: Filter to only include deliveries (has patient_id) OR after_hours_pickup
+    // Excludes regular pickups from all stats
     let relevantDeliveries = deliveries.filter((d) => {
       if (!d.delivery_date) return false;
+      // Only include deliveries with patient OR after_hours_pickup
+      if (!d.patient_id && !d.after_hours_pickup) return false;
+      
       // CRITICAL: Parse dates as YYYY-MM-DD strings for comparison to avoid timezone issues
       const deliveryDate = d.delivery_date; // e.g., '2025-12-04'
       const startDateStr = format(startDate, 'yyyy-MM-dd');
