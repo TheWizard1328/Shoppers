@@ -432,9 +432,15 @@ export default function DeliveryMetrics() {
 
     console.log('📊 Stats - Total:', totalDeliveries, 'Completed:', completedDeliveries, 'Failed:', failedDeliveries, 'Returned:', returnedDeliveries);
 
-    const prevTotalDeliveries = prevRelevantDeliveries.length;
-    const prevCompletedDeliveries = prevRelevantDeliveries.filter((d) => d.status === 'completed').length;
-    const prevFailedDeliveries = prevRelevantDeliveries.filter((d) => d.status === 'failed').length;
+    // Previous period after-hours pickups
+    const prevAfterHoursPickups = prevRelevantDeliveries.filter((d) => d.after_hours_pickup && !d.patient_id).length;
+    
+    // Previous period completed and failed only count patient deliveries
+    const prevCompletedDeliveries = prevRelevantDeliveries.filter((d) => d.status === 'completed' && d.patient_id).length;
+    const prevFailedDeliveries = prevRelevantDeliveries.filter((d) => d.status === 'failed' && d.patient_id).length;
+    
+    // Previous Total = Completed + Failed + After Hours Pickups
+    const prevTotalDeliveries = prevCompletedDeliveries + prevFailedDeliveries + prevAfterHoursPickups;
     const prevReturnedDeliveries = prevRelevantDeliveries.filter((d) => {
       const patient = patients.find((p) => p.id === d.patient_id);
       const notesReturn = (d.delivery_notes || '').toLowerCase().includes('return');
