@@ -17,17 +17,23 @@ Deno.serve(async (req) => {
     const metadata = payload.metadata || payload.data || {};
     const timestamp = payload.timestamp || new Date().toISOString();
 
-    console.log(`📡 [Broadcast] ${user.full_name} triggered ${operation} on ${entity_name} at ${timestamp}`);
+    console.log(`📡 [Broadcast] ${user.full_name} triggered ${operation} on ${entity_name}`);
+    console.log(`📡 [Broadcast] Metadata:`, JSON.stringify(metadata));
 
     // Store broadcast event in a dedicated entity for polling
-    await base44.asServiceRole.entities.SyncBroadcast.create({
-      entity_name: entity_name,
-      operation: operation,
-      triggered_by: user.id,
-      triggered_by_name: user.full_name,
-      timestamp: timestamp,
+    // CRITICAL: Store fields at top level, not nested in 'data'
+    const broadcastRecord = {
+      entity_name: String(entity_name || 'Unknown'),
+      operation: String(operation || 'unknown'),
+      triggered_by: String(user.id),
+      triggered_by_name: String(user.full_name || 'Unknown'),
+      timestamp: String(timestamp),
       metadata: metadata || {}
-    });
+    };
+    
+    console.log(`📡 [Broadcast] Creating record:`, JSON.stringify(broadcastRecord));
+    
+    await base44.asServiceRole.entities.SyncBroadcast.create(broadcastRecord);
 
     console.log(`✅ [Broadcast] Event stored - other devices will pick it up on next poll`);
 
@@ -37,7 +43,8 @@ Deno.serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('❌ [Broadcast] Error:', error);
+    console.error('❌ [Broadcast] Error:', error.message);
+    console.error('❌ [Broadcast] Stack:', error.stack);
     return Response.json({ 
       error: error.message 
     }, { status: 500 });
