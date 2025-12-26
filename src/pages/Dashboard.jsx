@@ -1746,20 +1746,19 @@ function Dashboard() {
   const lastAppliedTriggerRef = useRef(0);
 
   useEffect(() => {
-
-    // CRITICAL: Only run map positioning when mapViewTrigger changes (FAB clicked or data reloaded)
-    // Skip if mapViewTrigger hasn't changed to prevent re-running
+    // CRITICAL: Only run when mapViewTrigger changes - prevent re-runs from data updates
     if (mapViewTrigger === 0 || mapViewTrigger === lastAppliedTriggerRef.current) {
       return;
     }
 
-    // Skip if mapViewPhase is 0 (reset state - should not happen with new logic)
     if (mapViewPhase === 0) {
       return;
     }
 
-    // Update last applied trigger
+    // Update last applied trigger FIRST
     lastAppliedTriggerRef.current = mapViewTrigger;
+    
+    console.log(`🗺️ [Map Position Effect] Running for trigger ${mapViewTrigger}, phase ${mapViewPhase}`);
 
     // CRITICAL: Only skip phase 2 & 3 if not driver or no location
     // Phase 1 can run for dispatchers/admins without driver location
