@@ -346,15 +346,15 @@ function Dashboard() {
   // Track if we've done initial driver selection (prevent re-running on data changes)
   const hasSetInitialDriverDashboard = useRef(false);
 
-  // CRITICAL: Save map state when unmounting, restore when mounting
-  const [savedMapViewOnUnmount, setSavedMapViewOnUnmount] = useState(() => {
+  // CRITICAL: Save FAB phase when unmounting, restore when mounting
+  const [savedFabPhaseOnUnmount, setSavedFabPhaseOnUnmount] = useState(() => {
     try {
-      const saved = sessionStorage.getItem('rxdeliver_dashboard_map_state');
+      const saved = sessionStorage.getItem('rxdeliver_dashboard_fab_phase');
       if (saved) {
         const parsed = JSON.parse(saved);
         // Only restore if saved within last 2 minutes
         if (Date.now() - parsed.timestamp < 120000) {
-          return parsed;
+          return parsed.phase;
         }
       }
     } catch (e) {}
@@ -2255,20 +2255,16 @@ function Dashboard() {
     return () => clearTimeout(timer);
   }, [renderSequence.sharedLocations, renderSequence.fullDeliveriesLoaded, deliveries, selectedDate, patients.length, stores.length]);
 
-  // Save map state when navigating away from Dashboard
+  // Save FAB phase when navigating away from Dashboard
   useEffect(() => {
     return () => {
-      // Save current map state to sessionStorage on unmount
-      if (mapCenter && mapZoom) {
-        sessionStorage.setItem('rxdeliver_dashboard_map_state', JSON.stringify({
-          center: mapCenter,
-          zoom: mapZoom,
-          phase: mapViewPhase,
-          timestamp: Date.now()
-        }));
-      }
+      // Save current FAB phase to sessionStorage on unmount
+      sessionStorage.setItem('rxdeliver_dashboard_fab_phase', JSON.stringify({
+        phase: mapViewPhase,
+        timestamp: Date.now()
+      }));
     };
-  }, [mapCenter, mapZoom, mapViewPhase]);
+  }, [mapViewPhase]);
 
   // RENDER SEQUENCE EFFECT 8: Activate FAB Phase (FINAL STEP)
   // Apply initial map view on first load - WAIT for full render sequence
@@ -2283,18 +2279,12 @@ function Dashboard() {
       return;
     }
     
-    // CRITICAL: Restore saved map state if returning from another page
-    if (savedMapViewOnUnmount && savedMapViewOnUnmount.center && savedMapViewOnUnmount.zoom) {
-      console.log('🗺️ [Dashboard] Restoring map state from previous session');
-      setMapCenter(savedMapViewOnUnmount.center);
-      setMapZoom(savedMapViewOnUnmount.zoom);
-      setMapViewPhase(savedMapViewOnUnmount.phase || 1);
-      setInitialMapViewApplied(true);
-      setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
-      setIsMapViewLocked(false); // Unlock FAB so user can interact immediately
+    // CRITICAL: Restore saved FAB phase if returning from another page
+    if (savedFabPhaseOnUnmount) {
+      console.log(`🗺️ [Dashboard] Restoring FAB Phase ${savedFabPhaseOnUnmount} from previous session`);
+      savedFabPhaseRef.current = savedFabPhaseOnUnmount;
       // Clear saved state after using it
-      sessionStorage.removeItem('rxdeliver_dashboard_map_state');
-      return;
+      sessionStorage.removeItem('rxdeliver_dashboard_fab_phase');
     }
 
     console.log('✅ [Render Sequence 8] All elements rendered - activating FAB phase');
