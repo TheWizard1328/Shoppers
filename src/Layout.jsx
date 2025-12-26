@@ -789,125 +789,71 @@ export default function Layout({ children, currentPageName }) {
     initializeDailyCleanup();
     }, []);
 
-    // Initialize real-time sync listener - TARGETED refresh based on broadcast entity
+    // Initialize real-time sync listener - ADAPTIVE POLLING for near-instant sync
     useEffect(() => {
       if (!currentUser) return;
 
-      // Get current device ID for filtering
-      let currentDeviceId = null;
-      realtimeSyncManager.initDeviceId().then(id => {
-        currentDeviceId = id;
-      });
+      // Start adaptive polling (fast after changes, slow otherwise)
+      realtimeSyncManager.startPolling(currentUser.id);
 
-      // CRITICAL: Poll for sync broadcasts every 60 seconds - use targeted refresh
-      const pollForBroadcasts = async () => {
-        try {
-          // Ensure we have device ID
-          if (!currentDeviceId) {
-            currentDeviceId = await realtimeSyncManager.initDeviceId();
-          }
+      // Subscribe to broadcast notifications
+      const unsubscribe = realtimeSyncManager.subscribe(async (message) => {
+        if (message.type !== 'broadcasts_received' || !message.broadcasts?.length) return;
 
-          // CRITICAL: SyncBroadcast stores data at TOP LEVEL, not nested
-          // Filter by created_date (recent broadcasts)
-          const broadcasts = await base44.entities.SyncBroadcast.filter(
-            {
-              created_date: { $gte: new Date(Date.now() - 120000).toISOString() }
-            },
-            '-created_date',
-            10
-          );
+        const normalizedBroadcasts = message.broadcasts;
 
-          // Filter out broadcasts from THIS DEVICE (not just this user)
-          // This allows cross-device sync for the same user
-          const otherBroadcasts = broadcasts.filter(b => {
-            const broadcastDeviceId = b.device_id || b.data?.device_id;
-            // If broadcast has device_id, filter by device; otherwise fall back to user filter
-            if (broadcastDeviceId && currentDeviceId) {
-              return broadcastDeviceId !== currentDeviceId;
-            }
-            // Fallback for old broadcasts without device_id
-            const triggeredBy = b.triggered_by || b.data?.triggered_by;
-            return triggeredBy !== currentUser.id;
+        console.log(`📢 [RealtimeSync] Processing ${normalizedBroadcasts.length} broadcast(s) from other devices:`, 
+          normalizedBroadcasts.map(b => `${b.entity_name} (${b.operation}) by ${b.triggered_by_name}`));
+
+        // Dispatch event for yellow spinner
+        window.dispatchEvent(new CustomEvent('realtimeSyncRefresh'));
+
+        // Show toast for App Owners
+        const currentUserForToast = realUser || currentUser;
+        if (currentUserForToast && isAppOwner(currentUserForToast)) {
+          const broadcastSummary = normalizedBroadcasts.map(b => `${b.entity_name} (${b.operation})`).join(', ');
+          toast.info(`📡 Sync broadcast received: ${broadcastSummary}`, {
+            duration: 5000,
+            description: `From: ${normalizedBroadcasts.map(b => b.triggered_by_name).join(', ')}`
           });
+        }
 
-          if (otherBroadcasts && otherBroadcasts.length > 0) {
-          // CRITICAL: Handle both old format (data.entity_name) and new format (entity_name at top level)
-          const broadcasts = otherBroadcasts;
-            const normalizedBroadcasts = broadcasts.map(b => ({
-              entity_name: b.entity_name || b.data?.entity_name || 'Unknown',
-              operation: b.operation || b.data?.operation || 'unknown',
-              triggered_by: b.triggered_by || b.data?.triggered_by,
-              triggered_by_name: b.triggered_by_name || b.data?.triggered_by_name || 'Unknown',
-              metadata: b.metadata || b.data?.metadata || {}
-            }));
-            
-            console.log(`📢 [RealtimeSync] Received ${normalizedBroadcasts.length} broadcast(s) from other devices:`, 
-              normalizedBroadcasts.map(b => `${b.entity_name} (${b.operation}) by ${b.triggered_by_name}`));
+        // CRITICAL: Handle delete broadcasts immediately - remove from IndexedDB and UI
+        for (const broadcast of normalizedBroadcasts) {
+          if (broadcast.operation === 'delete' && broadcast.metadata?.id) {
+            console.log(`🗑️ [RealtimeSync] Processing delete broadcast for ${broadcast.entity_name} ${broadcast.metadata.id}`);
 
-            // Dispatch event for yellow spinner
-            window.dispatchEvent(new CustomEvent('realtimeSyncRefresh'));
+            const { handleDeleteBroadcast } = await import('./components/utils/offlineSync');
+            await handleDeleteBroadcast(broadcast.entity_name, broadcast.metadata.id);
 
-            // Show toast for App Owners - ALWAYS when they receive broadcasts
-                    const currentUserForToast = realUser || currentUser;
-                    if (currentUserForToast && isAppOwner(currentUserForToast)) {
-                      const broadcastSummary = normalizedBroadcasts.map(b => `${b.entity_name} (${b.operation})`).join(', ');
-                      toast.info(`📡 Sync broadcast received: ${broadcastSummary}`, {
-                        duration: 5000,
-                        description: `From: ${normalizedBroadcasts.map(b => b.triggered_by_name).join(', ')}`
-                      });
-                      console.log('🔔 [RealtimeSync] Toast shown for App Owner');
-                    }
-
-            // CRITICAL: Handle delete broadcasts immediately - remove from IndexedDB and UI
-            for (const broadcast of normalizedBroadcasts) {
-              if (broadcast.operation === 'delete' && broadcast.metadata?.id) {
-                console.log(`🗑️ [RealtimeSync] Processing delete broadcast for ${broadcast.entity_name} ${broadcast.metadata.id}`);
-
-                // Import and call handleDeleteBroadcast
-                const { handleDeleteBroadcast } = await import('./components/utils/offlineSync');
-                await handleDeleteBroadcast(broadcast.entity_name, broadcast.metadata.id);
-
-                // Update UI state immediately
-                if (broadcast.entity_name === 'Patient') {
-                  setPatients(prev => prev.filter(p => p?.id !== broadcast.metadata.id));
-                } else if (broadcast.entity_name === 'Delivery') {
-                  setDeliveries(prev => prev.filter(d => d?.id !== broadcast.metadata.id));
-                }
-              }
+            if (broadcast.entity_name === 'Patient') {
+              setPatients(prev => prev.filter(p => p?.id !== broadcast.metadata.id));
+            } else if (broadcast.entity_name === 'Delivery') {
+              setDeliveries(prev => prev.filter(d => d?.id !== broadcast.metadata.id));
             }
-
-            // CRITICAL: Targeted refresh - only reset timers for entities that changed
-            const changedEntities = new Set(normalizedBroadcasts.map(b => b.entity_name));
-
-            changedEntities.forEach(entityName => {
-              smartRefreshManager.handleBroadcastRefresh(entityName, 'broadcast');
-            });
-
-            console.log(`🎯 [RealtimeSync] Forced immediate refresh for entities: ${[...changedEntities].join(', ')}`);
-
-            // CRITICAL: Trigger full data reload after broadcast
-            if (triggerFullDataLoadRef.current) {
-              console.log('🔄 [RealtimeSync] Triggering full data reload...');
-              setTimeout(() => {
-                triggerFullDataLoadRef.current(true);
-              }, 2000);
-            }
-          }
-        } catch (error) {
-          // Silently handle errors - don't spam console
-          if (!error.message?.includes('429') && !error.message?.includes('Rate limit')) {
-            console.warn('⚠️ [RealtimeSync] Poll error:', error.message);
           }
         }
-      };
 
-      // CRITICAL: Delay initial poll by 30 seconds, then poll every 60 seconds
-      const initialPollTimer = setTimeout(pollForBroadcasts, 30000);
-      const pollInterval = setInterval(pollForBroadcasts, 60000);
+        // CRITICAL: Targeted refresh - only reset timers for entities that changed
+        const changedEntities = new Set(normalizedBroadcasts.map(b => b.entity_name));
+        changedEntities.forEach(entityName => {
+          smartRefreshManager.handleBroadcastRefresh(entityName, 'broadcast');
+        });
+
+        console.log(`🎯 [RealtimeSync] Forced immediate refresh for entities: ${[...changedEntities].join(', ')}`);
+
+        // CRITICAL: Trigger full data reload after broadcast
+        if (triggerFullDataLoadRef.current) {
+          console.log('🔄 [RealtimeSync] Triggering full data reload...');
+          setTimeout(() => {
+            triggerFullDataLoadRef.current(true);
+          }, 1000);
+        }
+      });
 
       return () => {
-        clearTimeout(initialPollTimer);
-        clearInterval(pollInterval);
+        unsubscribe();
+        realtimeSyncManager.stopPolling();
       };
     }, [currentUser]);
 
