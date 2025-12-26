@@ -1481,23 +1481,23 @@ export default function Layout({ children, currentPageName }) {
 
       allStores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
 
-      // CRITICAL: Load deliveries for selected date FIRST (instant UI)
+      // CRITICAL: ALWAYS load ALL drivers' deliveries for selected date (no driver filtering)
+      // Dashboard will filter locally based on driver selection
       let cityStoreFilter = {};
       const cityStoreIds = allStores.map(s => s?.id).filter(Boolean);
       if (cityStoreIds.length > 0) {
         cityStoreFilter.store_id = { $in: cityStoreIds };
       }
 
-      let priorityFilter = { ...cityStoreFilter };
-      if (selectedDriverId && selectedDriverId !== 'all') {
-        priorityFilter.driver_id = selectedDriverId;
-      }
+      // CRITICAL: Don't filter by driver here - load ALL drivers' data for city
+      // This ensures "Show All" checkbox and map markers have complete data
+      const priorityFilter = { ...cityStoreFilter };
 
       // Load deliveries with instant UI callback
       await loadDeliveries(
         selectedDateStr,
         priorityFilter,
-        cityStoreFilter,
+        priorityFilter,
         forceRefresh,
         // Instant UI callback
         (initialDeliveries) => {
