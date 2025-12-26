@@ -474,7 +474,7 @@ export default function PatientForm({
 
       // STEP 5: Update offline database with fresh data
       const { offlineDB } = await import('../utils/offlineDatabase');
-      await offlineDB.saveRecord(offlineDB.STORES.PATIENTS, freshPatient);
+      await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [freshPatient]);
       console.log('  ✅ Offline DB updated with fresh data');
 
       // STEP 6: Invalidate cache and trigger UI update
