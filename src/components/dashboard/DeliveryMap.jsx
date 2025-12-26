@@ -2539,9 +2539,11 @@ export default function DeliveryMap({
                         const pickupsAtLocation = groupedPickupMarkers.get(locationKey) || [];
                         const deliveriesAtLocation = groupedDeliveryMarkers.get(locationKey) || [];
                         const allMarkersAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation]
-                          .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+                          .filter(Boolean)
+                          .sort((a, b) => ((a?.stop_order || 0) - (b?.stop_order || 0)));
                         
-                        return allMarkersAtLocation.map((m, idx) => {
+                        return (allMarkersAtLocation || []).map((m, idx) => {
+                          if (!m) return null;
                           const isFinished = FINISHED_STATUSES.includes(m.status);
                           const finishedTime = m.actual_delivery_time ? format(new Date(m.actual_delivery_time), 'HH:mm') : null;
                           
@@ -2815,9 +2817,11 @@ export default function DeliveryMap({
                         const pickupsAtLocation = groupedPickupMarkers.get(locationKey) || [];
                         const deliveriesAtLocation = groupedDeliveryMarkers.get(locationKey) || [];
                         const allMarkersAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation]
-                          .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+                          .filter(Boolean)
+                          .sort((a, b) => ((a?.stop_order || 0) - (b?.stop_order || 0)));
                         
-                        return allMarkersAtLocation.map((m, idx) => {
+                        return (allMarkersAtLocation || []).map((m, idx) => {
+                          if (!m) return null;
                           const isFinished = FINISHED_STATUSES.includes(m.status);
                           const finishedTime = m.actual_delivery_time ? format(new Date(m.actual_delivery_time), 'HH:mm') : null;
                           
