@@ -306,7 +306,7 @@ export const deletePatientLocal = async (patientId) => {
       await base44.entities.Patient.delete(patientId);
       console.log('✅ [Sync] Patient deletion synced to backend immediately:', patientId);
       
-      // Broadcast to other devices
+      // Broadcast to other devices - CRITICAL: Include the ID so other devices can delete from IndexedDB
       const { realtimeSyncManager } = await import('./realtimeSync');
       await realtimeSyncManager.broadcastChange('Patient', 'delete', { id: patientId });
       
