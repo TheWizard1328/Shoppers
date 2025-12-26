@@ -1910,34 +1910,35 @@ function Dashboard() {
           : deliveriesWithStopOrder;
         
         let coordsAdded = 0;
-        let missingPatients = 0;
-        let missingStores = 0;
+        let deliveriesProcessed = 0;
         
         if (deliveriesToMap && Array.isArray(deliveriesToMap)) {
           deliveriesToMap.forEach((delivery) => {
             if (!delivery) return;
+            deliveriesProcessed++;
+
+            // CRITICAL: Deliveries already have coordinates stored in denormalized fields
+            // Use patient/store lookup only as fallback
+            let lat = null;
+            let lon = null;
 
             if (delivery.patient_id) {
               const patient = patients.find((p) => p && p.id === delivery.patient_id);
-              if (patient?.latitude && patient?.longitude) {
-                allCoordinates.push([patient.latitude, patient.longitude]);
-                hasStopMarkers = true;
-                coordsAdded++;
-              } else {
-                missingPatients++;
-              }
+              lat = patient?.latitude;
+              lon = patient?.longitude;
             } else if (delivery.store_id) {
               const store = stores.find((s) => s && s.id === delivery.store_id);
-              if (store?.latitude && store?.longitude) {
-                allCoordinates.push([store.latitude, store.longitude]);
-                hasStopMarkers = true;
-                coordsAdded++;
-              } else {
-                missingStores++;
-              }
+              lat = store?.latitude;
+              lon = store?.longitude;
+            }
+
+            if (lat && lon) {
+              allCoordinates.push([lat, lon]);
+              hasStopMarkers = true;
+              coordsAdded++;
             }
           });
-          console.log(`🗺️ [Phase 1] Added ${coordsAdded} markers from ${deliveriesToMap.length} deliveries (${missingPatients} missing patients, ${missingStores} missing stores)`);
+          console.log(`🗺️ [Phase 1] Added ${coordsAdded} markers from ${deliveriesProcessed}/${deliveriesToMap.length} deliveries`);
         }
 
         // 5. CRITICAL: Include other drivers' delivery markers when in All Drivers mode OR Show All is checked
