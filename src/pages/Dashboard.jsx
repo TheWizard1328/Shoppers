@@ -2927,6 +2927,9 @@ function Dashboard() {
 
       // CRITICAL: Lock FAB and trigger map view ONCE after render complete
       setTimeout(() => {
+        // Get next trigger value BEFORE incrementing
+        const nextTrigger = mapViewTrigger + 1;
+        
         // Clear existing timers
         if (mapLockTimeoutRef.current) {
           clearTimeout(mapLockTimeoutRef.current);
@@ -2934,11 +2937,16 @@ function Dashboard() {
         }
         mapLockExpiresAtRef.current = null;
 
-        // Lock FAB and trigger map view
+        // Lock FAB BEFORE setting trigger
         setIsMapViewLocked(true);
         lastProgrammaticMapMoveRef.current = Date.now();
         window._lastProgrammaticMapMove = Date.now();
-        setMapViewTrigger((prev) => prev + 1);
+        
+        // CRITICAL: Set lastAppliedTriggerRef to prevent double-run
+        lastAppliedTriggerRef.current = nextTrigger;
+        
+        // Then trigger map view
+        setMapViewTrigger(nextTrigger);
 
         // CRITICAL: Handle timer logic - ONLY Phase 1 & 3 get timers, Phase 2 stays locked
         if (mapViewPhase === 2) {
