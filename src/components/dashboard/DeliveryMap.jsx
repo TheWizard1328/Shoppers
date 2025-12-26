@@ -1610,12 +1610,14 @@ export default function DeliveryMap({
       let deliveriesToRoute = isRouteCompleted ? route.stops : route.stops.filter((delivery) => delivery && !FINISHED_STATUSES.includes(delivery.status) && delivery.status !== 'pending');
       let pickupsToRoute = isRouteCompleted ? driverPickups : driverPickups.filter((p) => p && !FINISHED_STATUSES.includes(p.status) && p.status !== 'pending');
 
-      // CRITICAL: Calculate totalDriverStops including after hours pickups
+      // CRITICAL: Calculate totalDriverStops using Dashboard stats rules
+      // Patient deliveries + completed/cancelled after hours pickups
+      const patientDeliveryCount = route.stops.filter(d => d && d.patient_id).length;
       const completedOrCancelledAfterHours = driverPickups.filter(p => {
         if (!p) return false;
         return p.after_hours_pickup && (p.status === 'completed' || p.status === 'cancelled');
       }).length;
-      const totalDriverStopsWithAfterHours = route.stops.length + completedOrCancelledAfterHours;
+      const totalDriverStopsWithAfterHours = patientDeliveryCount + completedOrCancelledAfterHours;
 
       // Use isRouteStarted that's already defined above
       const routeHasActuallyStarted = isRouteStarted;
