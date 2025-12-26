@@ -966,26 +966,15 @@ function Dashboard() {
   const prevSelectedDateRef = useRef(format(selectedDate, 'yyyy-MM-dd'));
   const pendingMapRepositionRef = useRef(false);
 
-  // Effect to detect driver/date changes and trigger repositioning AFTER data loads
+  // Effect to detect driver/date changes - DISABLED to prevent double render
+  // Map repositioning is now handled directly in handleDriverChange and handleDateChange
   useEffect(() => {
     const currentDateStr = format(selectedDate, 'yyyy-MM-dd');
-
-    // Check if driver or date changed
-    const driverChanged = prevSelectedDriverIdRef.current !== selectedDriverId;
-    const dateChanged = prevSelectedDateRef.current !== currentDateStr;
-
-    // Update refs
+    
+    // Update refs only (no map trigger)
     prevSelectedDriverIdRef.current = selectedDriverId;
     prevSelectedDateRef.current = currentDateStr;
-
-    // Only reposition if we actually have data loaded
-    if ((driverChanged || dateChanged) && isDataLoaded && deliveriesWithStopOrder.length > 0) {
-      // Trigger immediately without the flag system
-      if (mapViewPhase > 0) {
-        setMapViewTrigger((prev) => prev + 1);
-      }
-    }
-  }, [selectedDriverId, selectedDate, isDataLoaded, deliveriesWithStopOrder.length, mapViewPhase]);
+  }, [selectedDriverId, selectedDate]);
 
 
 
