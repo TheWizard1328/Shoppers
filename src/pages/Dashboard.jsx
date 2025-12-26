@@ -2875,30 +2875,37 @@ function Dashboard() {
     }
   };
 
+  const driverChangeInProgressRef = useRef(false);
+
   const handleDriverChange = async (driverId) => {
-    // Reset route summary tracking when driver changes
-    hasShownSummaryRef.current.clear();
-
-    // CRITICAL: Update state immediately for instant UI response
-    flushSync(() => {
-      setSelectedDriverId(driverId);
-    });
-    globalFilters.setSelectedDriverId(driverId);
-    setIsExpanded(false);
-
-    // Save to user settings
-    if (currentUser?.id) {
-      saveSetting(currentUser.id, 'selected_driver_id', driverId);
+    // CRITICAL: Prevent overlapping driver changes
+    if (driverChangeInProgressRef.current) {
+      console.log('⚠️ [Driver Change] Already in progress - ignoring duplicate call');
+      return;
     }
 
-    // CRITICAL: Instant refresh when driver changes
-    setIsEntityUpdating(true);
+    driverChangeInProgressRef.current = true;
+    hasShownSummaryRef.current.clear();
+
+    // CRITICAL: Increment trigger IMMEDIATELY to block map effect
+    const nextTrigger = mapViewTrigger + 1;
+    lastAppliedTriggerRef.current = nextTrigger;
 
     try {
+      flushSync(() => {
+        setSelectedDriverId(driverId);
+      });
+      globalFilters.setSelectedDriverId(driverId);
+      setIsExpanded(false);
+
+      if (currentUser?.id) {
+        saveSetting(currentUser.id, 'selected_driver_id', driverId);
+      }
+
+      setIsEntityUpdating(true);
+
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
-      // CRITICAL: ALWAYS load ALL drivers' deliveries for selected date
-      // This ensures "Show All" checkbox has complete data
       const freshDeliveries = await base44.entities.Delivery.filter({
         delivery_date: dateStr
       });
@@ -2909,7 +2916,6 @@ function Dashboard() {
         smartRefreshManager.clearPendingUpdates();
       }
 
-      // Update context with fresh deliveries using flushSync for instant render
       if (updateDeliveriesLocally) {
         const otherDeliveries = deliveries.filter((d) =>
         d && d.delivery_date !== dateStr
@@ -2920,59 +2926,49 @@ function Dashboard() {
         });
       }
 
-      // Dispatch event to force map and stop cards to re-render
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { 
         detail: { driverId, deliveryDate: dateStr, triggeredBy: 'driverChange' } 
       }));
 
-      // CRITICAL: Lock FAB and trigger map view ONCE after render complete
-      setTimeout(() => {
-        // Get next trigger value BEFORE incrementing
-        const nextTrigger = mapViewTrigger + 1;
-        
-        // Clear existing timers
+      // Wait for render to complete
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // CRITICAL: Only trigger map ONCE
+      if (mapLockTimeoutRef.current) {
+        clearTimeout(mapLockTimeoutRef.current);
+        mapLockTimeoutRef.current = null;
+      }
+      mapLockExpiresAtRef.current = null;
+
+      setIsMapViewLocked(true);
+      lastProgrammaticMapMoveRef.current = Date.now();
+      window._lastProgrammaticMapMove = Date.now();
+      setMapViewTrigger(nextTrigger);
+
+      if (mapViewPhase === 2) {
         if (mapLockTimeoutRef.current) {
           clearTimeout(mapLockTimeoutRef.current);
           mapLockTimeoutRef.current = null;
         }
         mapLockExpiresAtRef.current = null;
+      } else if (mapViewPhase === 1 || mapViewPhase === 3) {
+        const lockDuration = 3000;
+        const expiresAt = Date.now() + lockDuration;
+        mapLockExpiresAtRef.current = expiresAt;
 
-        // Lock FAB BEFORE setting trigger
-        setIsMapViewLocked(true);
-        lastProgrammaticMapMoveRef.current = Date.now();
-        window._lastProgrammaticMapMove = Date.now();
-        
-        // CRITICAL: Set lastAppliedTriggerRef to prevent double-run
-        lastAppliedTriggerRef.current = nextTrigger;
-        
-        // Then trigger map view
-        setMapViewTrigger(nextTrigger);
-
-        // CRITICAL: Handle timer logic - ONLY Phase 1 & 3 get timers, Phase 2 stays locked
-        if (mapViewPhase === 2) {
-          if (mapLockTimeoutRef.current) {
-            clearTimeout(mapLockTimeoutRef.current);
+        mapLockTimeoutRef.current = setTimeout(() => {
+          if (mapLockExpiresAtRef.current === expiresAt) {
+            setIsMapViewLocked(false);
+            mapLockExpiresAtRef.current = null;
             mapLockTimeoutRef.current = null;
           }
-          mapLockExpiresAtRef.current = null;
-        } else if (mapViewPhase === 1 || mapViewPhase === 3) {
-          const lockDuration = 3000;
-          const expiresAt = Date.now() + lockDuration;
-          mapLockExpiresAtRef.current = expiresAt;
-
-          mapLockTimeoutRef.current = setTimeout(() => {
-            if (mapLockExpiresAtRef.current === expiresAt) {
-              setIsMapViewLocked(false);
-              mapLockExpiresAtRef.current = null;
-              mapLockTimeoutRef.current = null;
-            }
-          }, lockDuration);
-        }
-      }, 500);
+        }, lockDuration);
+      }
     } catch (error) {
-      console.error('❌ [Dashboard] Instant refresh failed:', error);
+      console.error('❌ [Dashboard] Driver change failed:', error);
     } finally {
       setIsEntityUpdating(false);
+      driverChangeInProgressRef.current = false;
     }
   };
 
