@@ -13,7 +13,6 @@
 
 import { base44 } from '@/api/base44Client';
 import { offlineDB } from './offlineDatabase';
-import { realtimeSyncManager } from './realtimeSync';
 
 // ========================================
 // LISTENERS & STATE
@@ -72,21 +71,7 @@ const notifyMutation = (mutation) => {
   });
 };
 
-/**
- * Broadcast change to other devices
- * Uses realtimeSyncManager which includes device_id and triggers fast polling
- */
-const broadcastChange = async (entityName, operation, metadata = {}) => {
-  try {
-    // Use the centralized realtimeSyncManager for broadcasting
-    // This ensures device_id is included and triggers fast polling on all devices
-    await realtimeSyncManager.broadcastChange(entityName, operation, metadata);
-    console.log(`✅ [EntityMutations] Broadcast sent via realtimeSyncManager`);
-  } catch (error) {
-    console.error('❌ [EntityMutations] Broadcast FAILED:', error);
-    console.error('   Error details:', error.message);
-  }
-};
+// Broadcast functionality removed
 
 /**
  * Pause smart refresh manager before mutation
@@ -157,8 +142,7 @@ export const createPatient = async (patientData, options = {}) => {
       // Notify UI to replace temp with real
       notifyMutation({ type: 'replace', entity: 'Patient', oldId: tempId, newId: backendPatient.id, data: backendPatient });
       
-      // Broadcast to other devices
-      await broadcastChange('Patient', 'create', { id: backendPatient.id, ...options });
+      // Broadcast removed
       
       await restartSmartRefresh();
       return backendPatient;
@@ -204,7 +188,7 @@ export const updatePatient = async (patientId, updates, options = {}) => {
     // Sync to backend
     try {
       await base44.entities.Patient.update(patientId, updates);
-      await broadcastChange('Patient', 'update', { id: patientId, ...options });
+      // Broadcast removed
     } catch (error) {
       console.warn('⚠️ [EntityMutations] Patient update sync failed, queuing:', error.message);
       await offlineDB.addPendingMutation({ operation: 'update', entity: 'Patient', recordId: patientId, payload: updates });
@@ -241,7 +225,7 @@ export const deletePatient = async (patientId, options = {}) => {
     // Sync to backend
     try {
       await base44.entities.Patient.delete(patientId);
-      await broadcastChange('Patient', 'delete', { id: patientId, ...options });
+      // Broadcast removed
     } catch (error) {
       console.warn('⚠️ [EntityMutations] Patient delete sync failed, queuing:', error.message);
       await offlineDB.addPendingMutation({ operation: 'delete', entity: 'Patient', recordId: patientId });
@@ -288,7 +272,7 @@ export const createDelivery = async (deliveryData, options = {}) => {
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [backendDelivery]);
       
       notifyMutation({ type: 'replace', entity: 'Delivery', oldId: tempId, newId: backendDelivery.id, data: backendDelivery });
-      await broadcastChange('Delivery', 'create', { id: backendDelivery.id, delivery_date: backendDelivery.delivery_date, ...options });
+      // Broadcast removed
       
       await restartSmartRefresh();
       return backendDelivery;
@@ -322,7 +306,7 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
         const backendDelivery = await base44.entities.Delivery.update(deliveryId, updates);
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [backendDelivery]);
         notifyMutation({ type: 'update', entity: 'Delivery', id: deliveryId, data: backendDelivery });
-        await broadcastChange('Delivery', 'update', { id: deliveryId, ...options });
+        // Broadcast removed
         if (!skipSmartRefresh) await restartSmartRefresh();
         return backendDelivery;
       } catch (error) {
@@ -340,7 +324,7 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
 
     try {
       await base44.entities.Delivery.update(deliveryId, updates);
-      await broadcastChange('Delivery', 'update', { id: deliveryId, ...options });
+      // Broadcast removed
     } catch (error) {
       console.warn('⚠️ [EntityMutations] Delivery update sync failed, queuing:', error.message);
       await offlineDB.addPendingMutation({ operation: 'update', entity: 'Delivery', recordId: deliveryId, payload: updates });
@@ -373,7 +357,7 @@ export const deleteDelivery = async (deliveryId, options = {}) => {
 
     try {
       await base44.entities.Delivery.delete(deliveryId);
-      await broadcastChange('Delivery', 'delete', { id: deliveryId, ...options });
+      // Broadcast removed
     } catch (error) {
       console.warn('⚠️ [EntityMutations] Delivery delete sync failed, queuing:', error.message);
       await offlineDB.addPendingMutation({ operation: 'delete', entity: 'Delivery', recordId: deliveryId });
@@ -428,7 +412,7 @@ export const batchCreateDeliveries = async (deliveriesData, options = {}) => {
         notifyMutation({ type: 'replace', entity: 'Delivery', oldId: localDeliveries[i].id, newId: backend.id, data: backend });
       });
       
-      await broadcastChange('Delivery', 'bulk_create', { count: backendDeliveries.length, ...options });
+      // Broadcast removed
       await restartSmartRefresh();
       return backendDeliveries;
     } catch (error) {
@@ -475,7 +459,7 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
       await Promise.all(deletePromises);
       console.log(`✅ [EntityMutations] Batch deleted ${deliveryIds.length} deliveries from backend`);
       
-      await broadcastChange('Delivery', 'bulk_delete', { count: deliveryIds.length, ids: deliveryIds, ...options });
+      // Broadcast removed
     } catch (error) {
       console.warn('⚠️ [EntityMutations] Batch delete sync failed, queuing:', error.message);
       for (const id of deliveryIds) {
@@ -512,7 +496,7 @@ export const createEntity = async (entityName, data, options = {}) => {
   try {
     const result = await base44.entities[entityName].create(data);
     notifyMutation({ type: 'create', entity: entityName, id: result.id, data: result });
-    await broadcastChange(entityName, 'create', { id: result.id, ...options });
+    // Broadcast removed
     return result;
   } catch (error) {
     console.error(`❌ [EntityMutations] Failed to create ${entityName}:`, error);
@@ -529,7 +513,7 @@ export const updateEntity = async (entityName, entityId, updates, options = {}) 
   try {
     const result = await base44.entities[entityName].update(entityId, updates);
     notifyMutation({ type: 'update', entity: entityName, id: entityId, data: result });
-    await broadcastChange(entityName, 'update', { id: entityId, ...options });
+    // Broadcast removed
     return result;
   } catch (error) {
     console.error(`❌ [EntityMutations] Failed to update ${entityName}:`, error);
@@ -546,7 +530,7 @@ export const deleteEntity = async (entityName, entityId, options = {}) => {
   try {
     await base44.entities[entityName].delete(entityId);
     notifyMutation({ type: 'delete', entity: entityName, id: entityId, data: null });
-    await broadcastChange(entityName, 'delete', { id: entityId, ...options });
+    // Broadcast removed
     return true;
   } catch (error) {
     console.error(`❌ [EntityMutations] Failed to delete ${entityName}:`, error);
