@@ -2215,7 +2215,7 @@ export default function Layout({ children, currentPageName }) {
             bottom: 0 !important;
             width: 280px !important;
             max-width: 80vw !important;
-            z-index: 100000 !important;
+            z-index: 50000 !important;
             transform: translateX(-100%) !important;
             transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
             background: var(--bg-white) !important;
@@ -2271,7 +2271,7 @@ export default function Layout({ children, currentPageName }) {
           position: fixed;
           inset: 0;
           background: rgba(0, 0, 0, 0.5);
-          z-index: 99999;
+          z-index: 49999;
           animation: fadeIn 0.2s ease-out;
         }
 
