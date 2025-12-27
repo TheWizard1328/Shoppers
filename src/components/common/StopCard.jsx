@@ -1068,65 +1068,58 @@ export default function StopCard({
           </div>}
 
           {/* Delete Confirmation Dialog - Portal to body for proper z-index */}
-          <AnimatePresence>
-            {showDeleteConfirm && ReactDOM.createPortal(
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+          {showDeleteConfirm && ReactDOM.createPortal(
+            <div
               className="fixed inset-0 flex items-center justify-center"
               style={{ background: 'rgba(0, 0, 0, 0.6)', zIndex: 999999, pointerEvents: 'auto' }}
               onClick={() => setShowDeleteConfirm(false)}>
-                <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
+              <div
                 onClick={(e) => e.stopPropagation()}
                 className="rounded-lg shadow-xl p-6 max-w-md w-full mx-4" style={{ background: 'var(--bg-white)' }}>
-                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-red-600">
-                    <Trash2 className="w-5 h-5" />
-                    Confirm Delete
-                  </h3>
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-red-600">
+                  <Trash2 className="w-5 h-5" />
+                  Confirm Delete
+                </h3>
 
-                  <div className="space-y-3 mb-6">
-                    <p className="text-slate-700">
-                      Are you sure you want to delete this {isPickup ? 'pickup' : 'delivery'}?
-                    </p>
+                <div className="space-y-3 mb-6">
+                  <p className="text-slate-700">
+                    Are you sure you want to delete this {isPickup ? 'pickup' : 'delivery'}?
+                  </p>
 
-                    <div className="rounded-lg p-3 space-y-1 text-sm" style={{ background: 'var(--bg-slate-50)' }}>
-                      <div>
-                        <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Name:</span>
-                        <p className="pl-16" style={{ color: 'var(--text-slate-900)' }}>{displayName}</p>
-                      </div>
-
-                      {displayAddress &&
+                  <div className="rounded-lg p-3 space-y-1 text-sm" style={{ background: 'var(--bg-slate-50)' }}>
                     <div>
-                          <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Address:</span>
-                          <p className="pl-16" style={{ color: 'var(--text-slate-900)' }}>{displayAddress}</p>
-                        </div>
-                    }
-
-                      {delivery.tracking_number &&
-                    <div>
-                          <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Tr#:</span>
-                          <p className="pl-16" style={{ color: 'var(--text-slate-900)' }}>{delivery.tracking_number}</p>
-                        </div>
-                    }
+                      <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Name:</span>
+                      <p className="pl-16" style={{ color: 'var(--text-slate-900)' }}>{displayName}</p>
                     </div>
 
-                    <p className="text-sm text-red-600 font-medium">
-                      This action cannot be undone.
-                    </p>
+                    {displayAddress &&
+                      <div>
+                        <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Address:</span>
+                        <p className="pl-16" style={{ color: 'var(--text-slate-900)' }}>{displayAddress}</p>
+                      </div>
+                    }
+
+                    {delivery.tracking_number &&
+                      <div>
+                        <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Tr#:</span>
+                        <p className="pl-16" style={{ color: 'var(--text-slate-900)' }}>{delivery.tracking_number}</p>
+                      </div>
+                    }
                   </div>
 
-                  <div className="flex gap-3">
-                    <Button
+                  <p className="text-sm text-red-600 font-medium">
+                    This action cannot be undone.
+                  </p>
+                </div>
+
+                <div className="flex gap-3">
+                  <Button
                     variant="outline"
                     className="flex-1"
                     onClick={() => setShowDeleteConfirm(false)}>
-                      Cancel
-                    </Button>
-                    <Button
+                    Cancel
+                  </Button>
+                  <Button
                     className="flex-1 bg-red-600 hover:bg-red-700"
                     onClick={async () => {
                       setIsEntityUpdating(true);
@@ -1147,16 +1140,14 @@ export default function StopCard({
                         setIsEntityUpdating(false);
                       }
                     }}>
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Delete
-                    </Button>
-                  </div>
-                </motion.div>
-              </motion.div>
-              , document.body
-            )
-            }
-          </AnimatePresence>
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )}
 
           {/* Failure Reason Dialog */}
           <FailureReasonDialog
@@ -1235,87 +1226,78 @@ export default function StopCard({
           
 
           {/* Return Confirmation Dialog - Portal to body for proper z-index */}
-          <AnimatePresence>
-            {showReturnConfirm && returnPatient && ReactDOM.createPortal(
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+          {showReturnConfirm && returnPatient && ReactDOM.createPortal(
+            <div
               className="fixed inset-0 flex items-center justify-center"
               style={{ background: 'rgba(0, 0, 0, 0.6)', zIndex: 999999, pointerEvents: 'auto' }}
               onClick={handleCancelReturn}>
-                <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
+              <div
                 onClick={(e) => e.stopPropagation()}
                 className="rounded-lg shadow-xl p-6 max-w-md w-full mx-4" style={{ background: 'var(--bg-white)' }}>
-                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <Undo2 className="w-5 h-5 text-orange-600" />
-                    Confirm Return Delivery
-                  </h3>
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <Undo2 className="w-5 h-5 text-orange-600" />
+                  Confirm Return Delivery
+                </h3>
 
-                  <div className="space-y-3 mb-6 text-sm">
-                    <p className="text-slate-600">A new return delivery will be created with the following details:</p>
+                <div className="space-y-3 mb-6 text-sm">
+                  <p className="text-slate-600">A new return delivery will be created with the following details:</p>
 
-                    <div className="rounded-lg p-3 space-y-2" style={{ background: 'var(--bg-slate-50)' }}>
-                      <div>
-                        <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Return To: {returnPatient.full_name}</span>
-                        <p style={{ color: 'var(--text-slate-900)' }}></p>
-                      </div>
+                  <div className="rounded-lg p-3 space-y-2" style={{ background: 'var(--bg-slate-50)' }}>
+                    <div>
+                      <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Return To: {returnPatient.full_name}</span>
+                      <p style={{ color: 'var(--text-slate-900)' }}></p>
+                    </div>
 
-                      <div>
-                        <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Address: {returnPatient.address || store?.address || 'N/A'}</span>
-                        <p style={{ color: 'var(--text-slate-900)' }}></p>
-                      </div>
+                    <div>
+                      <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Address: {returnPatient.address || store?.address || 'N/A'}</span>
+                      <p style={{ color: 'var(--text-slate-900)' }}></p>
+                    </div>
 
-                      <div>
-                        <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Phone: {formatPhoneNumber(returnPatient.phone || store?.phone || 'N/A')}</span>
-                        <p style={{ color: 'var(--text-slate-900)' }}></p>
-                      </div>
+                    <div>
+                      <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Phone: {formatPhoneNumber(returnPatient.phone || store?.phone || 'N/A')}</span>
+                      <p style={{ color: 'var(--text-slate-900)' }}></p>
+                    </div>
 
-                      <div>
-                        <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Delivery Date: {delivery.delivery_date}</span>
-                        <p style={{ color: 'var(--text-slate-900)' }}></p>
-                      </div>
+                    <div>
+                      <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Delivery Date: {delivery.delivery_date}</span>
+                      <p style={{ color: 'var(--text-slate-900)' }}></p>
+                    </div>
 
-                      <div>
-                        <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Assigned Driver: {getDriverDisplayName(driver) || 'N/A'}</span>
-                        <p style={{ color: 'var(--text-slate-900)' }}></p>
-                      </div>
+                    <div>
+                      <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Assigned Driver: {getDriverDisplayName(driver) || 'N/A'}</span>
+                      <p style={{ color: 'var(--text-slate-900)' }}></p>
+                    </div>
 
-                      <div>
-                        <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Notes:</span>
-                        <p className="text-xs" style={{ color: 'var(--text-slate-900)' }}>PATIENT RETURN For: {patient?.full_name || delivery.patient_name || 'Unknown'}</p>
-                      </div>
+                    <div>
+                      <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Notes:</span>
+                      <p className="text-xs" style={{ color: 'var(--text-slate-900)' }}>PATIENT RETURN For: {patient?.full_name || delivery.patient_name || 'Unknown'}</p>
+                    </div>
 
-                      <div>
-                        <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Tracking Number:</span>
-                        <p className="italic" style={{ color: 'var(--text-slate-500)' }}>Will be assigned when saved</p>
-                      </div>
+                    <div>
+                      <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Tracking Number:</span>
+                      <p className="italic" style={{ color: 'var(--text-slate-500)' }}>Will be assigned when saved</p>
                     </div>
                   </div>
+                </div>
 
-                  <div className="flex gap-3">
-                    <Button
+                <div className="flex gap-3">
+                  <Button
                     variant="outline"
                     className="flex-1"
                     onClick={handleCancelReturn}>
-                      Cancel
-                    </Button>
-                    <Button
+                    Cancel
+                  </Button>
+                  <Button
                     className="flex-1 bg-orange-600 hover:bg-orange-700"
                     onClick={handleConfirmReturn}>
-                      <Undo2 className="w-4 h-4 mr-2" />
-                      Create Return
-                    </Button>
-                  </div>
-                </motion.div>
-              </motion.div>
-              , document.body
-            )
-            }
-          </AnimatePresence>
+                    <Undo2 className="w-4 h-4 mr-2" />
+                    Create Return
+                  </Button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )}
 
           {/* BODY SECTION - Expandable */}
           <AnimatePresence>
