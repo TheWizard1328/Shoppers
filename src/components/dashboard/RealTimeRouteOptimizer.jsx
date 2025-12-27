@@ -40,8 +40,8 @@ export default function RealTimeRouteOptimizer({
       return;
     }
 
-    // CRITICAL: Skip optimization if route hasn't started at all
-    // Route is considered "started" if there are ANY in_transit or en_route stops
+    // CRITICAL: Only optimize when route has active stops (in_transit or en_route)
+    // Skip if all stops are pending, staged, completed, failed, etc.
     try {
       const activeDeliveries = await base44.entities.Delivery.filter({
         driver_id: selectedDriverId,
