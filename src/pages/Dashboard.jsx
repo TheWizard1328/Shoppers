@@ -54,6 +54,14 @@ import { reorderStops } from "@/components/utils/stopReorderer";
 import { recalculateAndUpdateStopOrders, updateNextDeliveryFlags } from "@/components/utils/stopOrderManager";
 import { loadUserSettings, saveSetting, getSetting } from "@/components/utils/userSettingsManager";
 import { fabControlEvents } from "@/components/utils/fabControlEvents";
+import { 
+  notifyDriverStarted, 
+  notifyDriverCompleted, 
+  notifyDriverFailed, 
+  notifyDriverRetry, 
+  notifyDriverReturn,
+  getDispatchersForStore
+} from "@/components/utils/deliveryMessaging";
 import RouteNotification from "@/components/dashboard/RouteNotification";
 import ProactiveAlertSystem from "@/components/dashboard/ProactiveAlertSystem";
 import SmartRefreshIndicator from "@/components/layout/SmartRefreshIndicator";
@@ -4945,6 +4953,20 @@ function Dashboard() {
         delivery_notes: ''
       });
 
+      // Send notification: Driver retrying delivery
+      try {
+        const deliveryStore = stores.find(s => s?.id === originalDelivery?.store_id);
+        await notifyDriverRetry({
+          driver: currentUser,
+          patientName: originalDelivery?.patient_name || 'Unknown',
+          delivery: originalDelivery,
+          store: deliveryStore,
+          appUsers: appUsers
+        });
+      } catch (notifyError) {
+        console.warn('⚠️ [RESTART] Failed to send notification:', notifyError);
+      }
+
       // Recalculate stop orders
       await recalculateStopOrders(driverId, deliveryDate);
 
@@ -5219,6 +5241,35 @@ function Dashboard() {
         console.log(`🔓 [STATUS] Phase ${currentPhase} - leaving unlocked after status update`);
       }
 
+      // Send notification for completed/failed deliveries
+      if (['completed', 'failed'].includes(newStatus)) {
+        try {
+          const deliveryStore = stores.find(s => s?.id === targetDelivery?.store_id);
+          const patientName = targetDelivery?.patient_name || 'Unknown';
+          
+          if (newStatus === 'completed') {
+            await notifyDriverCompleted({
+              driver: currentUser,
+              patientName,
+              delivery: targetDelivery,
+              store: deliveryStore,
+              appUsers: appUsers
+            });
+          } else if (newStatus === 'failed') {
+            await notifyDriverFailed({
+              driver: currentUser,
+              patientName,
+              delivery: targetDelivery,
+              store: deliveryStore,
+              appUsers: appUsers,
+              failureReason: extraData?.delivery_notes || null
+            });
+          }
+        } catch (notifyError) {
+          console.warn('⚠️ [STATUS] Failed to send notification:', notifyError);
+        }
+      }
+
       // CRITICAL: Scroll to next delivery card after status update (completion)
       if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
         setTimeout(() => {
@@ -5316,6 +5367,20 @@ function Dashboard() {
 
       // Create the return delivery for today
       await createDeliveryLocal(returnDeliveryData);
+      
+      // Send notification: Driver initiated return
+      try {
+        await notifyDriverReturn({
+          driver: currentUser,
+          patientName: returnPatient.full_name,
+          delivery: originalDelivery,
+          store: store,
+          appUsers: appUsers
+        });
+      } catch (notifyError) {
+        console.warn('⚠️ [RETURN] Failed to send notification:', notifyError);
+      }
+      
       // Invalidate caches for both dates
       invalidateDeliveriesForDate(originalDelivery.delivery_date);
       invalidateDeliveriesForDate(currentDate);
@@ -5512,6 +5577,21 @@ function Dashboard() {
       console.log('═══════════════════════════════════════════════════');
       console.log('✅ [START] ========== START DELIVERY COMPLETE ==========');
       console.log('═══════════════════════════════════════════════════');
+
+      // Send notification: Driver started delivery
+      try {
+        const deliveryFromUI = deliveriesWithStopOrder.find((d) => d?.id === deliveryId);
+        const deliveryStore = stores.find(s => s?.id === deliveryFromUI?.store_id);
+        await notifyDriverStarted({
+          driver: currentUser,
+          patientName: deliveryFromUI?.patient_name || 'Unknown',
+          delivery: deliveryFromUI,
+          store: deliveryStore,
+          appUsers: appUsers
+        });
+      } catch (notifyError) {
+        console.warn('⚠️ [START] Failed to send notification:', notifyError);
+      }
 
       // Check if route is complete after starting
       const allDriverDeliveriesForStart = deliveries.filter((d) =>
