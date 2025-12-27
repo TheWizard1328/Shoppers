@@ -6361,8 +6361,7 @@ function Dashboard() {
           </div>
         }
 
-        {/* Desktop: Offline Sync Indicator */}
-        {!isMobile && <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} />}
+
 
         {/* Real-time ETA Tracker */}
         {realTimeETAEnabled && selectedDriverId && selectedDriverId !== 'all' &&
