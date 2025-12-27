@@ -66,8 +66,6 @@ import ProactiveAlertSystem from "@/components/dashboard/ProactiveAlertSystem";
 import SmartRefreshIndicator from "@/components/layout/SmartRefreshIndicator";
 import { offlineManager } from "@/components/utils/offlineManager";
 import { offlineDeliveryManager } from "@/components/utils/offlineDeliveryManager";
-import OfflineIndicator from "@/components/dashboard/OfflineIndicator";
-import OfflineSyncIndicator from '@/components/layout/OfflineSyncIndicator';
 import DashboardOfflineSync from '@/components/dashboard/DashboardOfflineSync';
 import ETATracker from '../components/dashboard/ETATracker';
 import ETANotification from '../components/dashboard/ETANotification';
