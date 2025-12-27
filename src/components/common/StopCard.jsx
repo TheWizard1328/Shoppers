@@ -1066,14 +1066,14 @@ export default function StopCard({
             </div>
           </div>}
 
-          {/* Delete Confirmation Dialog */}
+          {/* Delete Confirmation Dialog - z-index must be higher than sidebar (100000) */}
           <AnimatePresence>
             {showDeleteConfirm &&
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 flex items-center justify-center z-[99999] pointer-events-auto"
+              className="fixed inset-0 flex items-center justify-center z-[100002] pointer-events-auto"
               style={{ background: 'rgba(0, 0, 0, 0.6)' }}
               onClick={() => setShowDeleteConfirm(false)}>
                 <motion.div
@@ -1231,14 +1231,14 @@ export default function StopCard({
             statusType={pendingFailureStatus} />
           
 
-          {/* Return Confirmation Dialog */}
+          {/* Return Confirmation Dialog - z-index must be higher than sidebar (100000) */}
           <AnimatePresence>
             {showReturnConfirm && returnPatient &&
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 flex items-center justify-center z-[99999] pointer-events-auto"
+              className="fixed inset-0 flex items-center justify-center z-[100002] pointer-events-auto"
               style={{ background: 'rgba(0, 0, 0, 0.6)' }}
               onClick={handleCancelReturn}>
                 <motion.div
