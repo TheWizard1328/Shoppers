@@ -133,9 +133,7 @@ export const createPatientLocal = async (patientData) => {
       const backendPatient = await base44.entities.Patient.create(patientData);
       console.log('✅ [Sync] Patient synced to backend immediately:', tempId, '→', backendPatient.id);
       
-      // Broadcast to other devices
-      const { realtimeSyncManager } = await import('./realtimeSync');
-      await realtimeSyncManager.broadcastChange('Patient', 'create', { id: backendPatient.id });
+      // Broadcast removed
       
       // CRITICAL: Remove temp record from IndexedDB
       const db = await offlineDB.openDatabase();
@@ -243,9 +241,7 @@ export const updatePatientLocal = async (patientId, updates) => {
       await base44.entities.Patient.update(patientId, updates);
       console.log('✅ [Sync] Patient synced to backend immediately:', patientId);
       
-      // Broadcast to other devices
-      const { realtimeSyncManager } = await import('./realtimeSync');
-      await realtimeSyncManager.broadcastChange('Patient', 'update', { id: patientId });
+      // Broadcast removed
       
       // Restart smart refresh after sync
       await restartSmartRefresh();
@@ -314,9 +310,7 @@ export const deletePatientLocal = async (patientId) => {
       await base44.entities.Patient.delete(patientId);
       console.log('✅ [Sync] Patient deletion synced to backend immediately:', patientId);
       
-      // Broadcast to other devices - CRITICAL: Include the ID so other devices can delete from IndexedDB
-      const { realtimeSyncManager } = await import('./realtimeSync');
-      await realtimeSyncManager.broadcastChange('Patient', 'delete', { id: patientId });
+      // Broadcast removed
       
       // Restart smart refresh after sync
       await restartSmartRefresh();
@@ -386,9 +380,7 @@ export const createDeliveryLocal = async (deliveryData) => {
       const backendDelivery = await base44.entities.Delivery.create(deliveryData);
       console.log('✅ [Sync] Delivery synced to backend immediately:', tempId, '→', backendDelivery.id);
       
-      // Broadcast to other devices
-      const { realtimeSyncManager } = await import('./realtimeSync');
-      await realtimeSyncManager.broadcastChange('Delivery', 'create', { id: backendDelivery.id, delivery_date: backendDelivery.delivery_date });
+      // Broadcast removed
       
       // CRITICAL: Remove temp record from IndexedDB
       const db = await offlineDB.openDatabase();
@@ -475,9 +467,7 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
         const backendDelivery = await base44.entities.Delivery.update(deliveryId, updates);
         console.log('✅ [Sync] Delivery updated on backend:', deliveryId);
         
-        // Broadcast to other devices
-        const { realtimeSyncManager } = await import('./realtimeSync');
-        await realtimeSyncManager.broadcastChange('Delivery', 'update', { id: deliveryId });
+        // Broadcast removed
 
         // Add to IndexedDB
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [backendDelivery]);
@@ -541,9 +531,7 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
       console.log('✅ [Sync] Delivery synced to backend immediately:', deliveryId);
       backendSyncSuccess = true;
       
-      // Broadcast to other devices
-      const { realtimeSyncManager } = await import('./realtimeSync');
-      await realtimeSyncManager.broadcastChange('Delivery', 'update', { id: deliveryId });
+      // Broadcast removed
     } catch (error) {
       console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
       // Queue for backend sync if immediate sync fails
@@ -614,9 +602,7 @@ export const deleteDeliveryLocal = async (deliveryId) => {
       await base44.entities.Delivery.delete(deliveryId);
       console.log('✅ [Sync] Delivery deletion synced to backend immediately:', deliveryId);
       
-      // Broadcast to other devices
-      const { realtimeSyncManager } = await import('./realtimeSync');
-      await realtimeSyncManager.broadcastChange('Delivery', 'delete', { id: deliveryId });
+      // Broadcast removed
     } catch (error) {
       console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
       // Queue for backend sync if immediate sync fails
@@ -692,9 +678,7 @@ export const batchCreateDeliveriesLocal = async (deliveriesData) => {
       const backendDeliveries = await base44.entities.Delivery.bulkCreate(deliveriesData);
       console.log(`✅ [Sync] ${localDeliveries.length} deliveries synced to backend immediately`);
       
-      // Broadcast to other devices
-      const { realtimeSyncManager } = await import('./realtimeSync');
-      await realtimeSyncManager.broadcastChange('Delivery', 'bulk_create', { count: backendDeliveries.length });
+      // Broadcast removed
       
       // CRITICAL: Remove all temp records from IndexedDB
       const db = await offlineDB.openDatabase();
