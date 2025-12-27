@@ -28,7 +28,7 @@ class SmartRefreshManager {
     this.intervals = {
       driverLocation: 15000,     // 15s - driver GPS locations (critical for live tracking)
       activeDeliveries: 15000,   // 15s - today's active delivery statuses only
-      todayDeliveries: 30000,    // 30s - today's delivery changes only
+      todayDeliveries: 15000,    // 15s - today's delivery changes only
       appUsers: 30000,           // 30s - driver status, assignments
       todayPatients: 120000,     // 2min - patients on today's routes only (rarely change)
       patients: 300000,          // 5min - all other patients (ONLY on explicit refresh)
