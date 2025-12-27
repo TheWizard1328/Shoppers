@@ -2140,25 +2140,12 @@ export default function DeliveryForm({
       // offlineMutations handles: pausing smart refresh, saving to offline DB, syncing to backend, restarting smart refresh
       if (delivery?.id) {
         console.log('📝 [DeliveryForm] Updating delivery via local-first mutation...');
-        await updateDeliveryLocal(delivery.id, dataToSave);
-        console.log('✅ [DeliveryForm] Delivery updated in both offline and online DBs');
+        const updatedDelivery = await updateDeliveryLocal(delivery.id, dataToSave);
+        console.log('✅ [DeliveryForm] Delivery updated - UI should update immediately via mutation notification');
         
-        // CRITICAL: Force UI refresh after update
-        const { invalidate } = await import('../utils/dataManager');
-        invalidate('Delivery');
-        
-        // Wait for mutation to propagate
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        
-        // CRITICAL: Dispatch event to trigger data reload in context/layout
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { 
-          detail: { 
-            deliveryId: delivery.id, 
-            driverId: dataToSave.driver_id || delivery.driver_id, 
-            deliveryDate: dataToSave.delivery_date || delivery.delivery_date, 
-            triggeredBy: 'deliveryFormUpdate' 
-          } 
-        }));
+        // NOTE: updateDeliveryLocal already notifies mutation listeners immediately after local save
+        // The Layout component subscribes to these mutations and updates state instantly
+        // No need to invalidate cache or dispatch events - mutation notification handles it
       } else {
         await onSave(dataToSave);
       }
