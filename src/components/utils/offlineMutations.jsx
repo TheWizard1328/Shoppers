@@ -523,13 +523,20 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
     console.log('✅ [OfflineMutations] Delivery updated locally:', deliveryId);
 
-    // CRITICAL: Sync to backend BEFORE notifying UI (ensures DB consistency)
-    let backendSyncSuccess = false;
+    // CRITICAL: Notify listeners IMMEDIATELY after local save for instant UI update
+    notifyMutation({ 
+      type: 'update', 
+      entity: 'Delivery', 
+      id: deliveryId,
+      data: updatedDelivery 
+    });
+    console.log('🔔 [OfflineMutations] UI notified immediately after local save');
+
+    // CRITICAL: Sync to backend in background (don't block UI update)
     try {
       const { base44 } = await import('@/api/base44Client');
       await base44.entities.Delivery.update(deliveryId, updates);
       console.log('✅ [Sync] Delivery synced to backend immediately:', deliveryId);
-      backendSyncSuccess = true;
       
       // Broadcast removed
     } catch (error) {
@@ -542,14 +549,6 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
         payload: updates
       });
     }
-    
-    // CRITICAL: Notify listeners AFTER backend sync attempt for consistent state
-    notifyMutation({ 
-      type: 'update', 
-      entity: 'Delivery', 
-      id: deliveryId,
-      data: updatedDelivery 
-    });
 
     // CRITICAL: Restart smart refresh after mutation (unless skipped)
     if (!skipSmartRefresh) {
