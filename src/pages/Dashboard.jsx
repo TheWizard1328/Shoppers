@@ -6856,7 +6856,7 @@ function Dashboard() {
       }
 
       {/* Quick Route Adjustments Dialog */}
-      {isMobile && isDriver &&
+      {isDriver &&
       <Dialog open={showQuickAdjustments} onOpenChange={setShowQuickAdjustments}>
           <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto z-[10001]">
             <DialogHeader>
