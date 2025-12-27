@@ -1914,9 +1914,8 @@ export default function DeliveryForm({
 
             console.log(`[AddToRoute] 🔄 New Status will be: ${updateData.status}`);
 
-            // CRITICAL: Use backend update directly - local update doesn't work for pending deliveries
-            const { base44 } = await import('@/api/base44Client');
-            await base44.entities.Delivery.update(updated.id, updateData);
+            // CRITICAL: Use updateDeliveryLocal for offline-first updates with immediate UI sync
+            await updateDeliveryLocal(updated.id, updateData);
             console.log(`[AddToRoute] ✅ Updated delivery: ${updated.patient_name} to status ${updateData.status}`);
           } catch (error) {
             // Skip deliveries that were deleted
@@ -1930,10 +1929,6 @@ export default function DeliveryForm({
           }
         }
         console.log('[AddToRoute] ✅ All existing deliveries updated');
-        
-        // CRITICAL: Invalidate cache and trigger refresh for existing deliveries
-        const { invalidate } = await import('../utils/dataManager');
-        invalidate('Delivery');
       }
 
       // Then save new deliveries OR trigger data refresh
