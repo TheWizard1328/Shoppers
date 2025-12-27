@@ -925,9 +925,9 @@ function Dashboard() {
     const ratio = screenWidth / cardWidth;
 
     if (ratio < 2) {
-      return 'absolute top-2 left-1/2 -translate-x-1/2 z-[600]';
+      return 'absolute top-2 left-1/2 -translate-x-1/2';
     } else {
-      return 'absolute top-2 left-2 z-[600]';
+      return 'absolute top-2 left-2';
     }
   }, [screenWidth, cardWidth]);
 
@@ -5840,8 +5840,8 @@ function Dashboard() {
         }
       </AnimatePresence>
 
-      <div className={statsCardPositioning}>
-        <div className="flex flex-col items-center gap-1 z-[200] max-w-[340px]"
+      <div className={statsCardPositioning} style={{ zIndex: 600 }}>
+        <div className="flex flex-col items-center gap-1 max-w-[340px]"
 
         style={{ opacity: statsPanelOpacity, transition: 'opacity 0.5s ease-in-out' }}
         onMouseEnter={() => handleStatsPanelInteraction(true)}
