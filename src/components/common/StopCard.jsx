@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import ReactDOM from "react-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -1066,9 +1067,9 @@ export default function StopCard({
             </div>
           </div>}
 
-          {/* Delete Confirmation Dialog - z-index must be higher than all UI elements */}
+          {/* Delete Confirmation Dialog - Portal to body for proper z-index */}
           <AnimatePresence>
-            {showDeleteConfirm &&
+            {showDeleteConfirm && ReactDOM.createPortal(
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1231,9 +1232,9 @@ export default function StopCard({
             statusType={pendingFailureStatus} />
           
 
-          {/* Return Confirmation Dialog - z-index must be higher than all UI elements */}
+          {/* Return Confirmation Dialog - Portal to body for proper z-index */}
           <AnimatePresence>
-            {showReturnConfirm && returnPatient &&
+            {showReturnConfirm && returnPatient && ReactDOM.createPortal(
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1308,8 +1309,9 @@ export default function StopCard({
                     </Button>
                   </div>
                 </motion.div>
-              </motion.div>
-            }
+              </motion.div>,
+              document.body
+            )}
           </AnimatePresence>
 
           {/* BODY SECTION - Expandable */}
