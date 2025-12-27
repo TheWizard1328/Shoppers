@@ -1152,9 +1152,10 @@ export default function StopCard({
                     </Button>
                   </div>
                 </motion.div>
-              </motion.div>,
-              document.body
-            )}
+              </motion.div>
+              , document.body
+            )
+            }
           </AnimatePresence>
 
           {/* Failure Reason Dialog */}
