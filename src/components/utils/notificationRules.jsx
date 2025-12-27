@@ -28,7 +28,7 @@ export const notificationRules = {
   [NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ALL]: {
     enabled: true,
     inApp: true,
-    recipients: ['dispatchers'],
+    recipients: ['dispatchers', 'appowner'],
     buildMessage: ({ driverName }) => 
       `${driverName} has accepted all pending deliveries.`
   },
@@ -36,7 +36,7 @@ export const notificationRules = {
   [NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ONE]: {
     enabled: true,
     inApp: true,
-    recipients: ['dispatchers'],
+    recipients: ['dispatchers', 'appowner'],
     buildMessage: ({ driverName, patientName }) => 
       `${driverName} has accepted delivery for ${patientName || 'Unknown Patient'}.`
   },
@@ -44,7 +44,7 @@ export const notificationRules = {
   [NOTIFICATION_EVENTS.DISPATCHER_ASSIGNED_ALL]: {
     enabled: true,
     inApp: true,
-    recipients: ['driver'],
+    recipients: ['driver', 'appowner'],
     buildMessage: ({ storeName, deliveryList }) => 
       `${storeName} has assigned you the following deliveries:${deliveryList}`
   },
@@ -52,7 +52,7 @@ export const notificationRules = {
   [NOTIFICATION_EVENTS.DRIVER_STARTED]: {
     enabled: true,
     inApp: true,
-    recipients: ['dispatchers'],
+    recipients: ['dispatchers', 'appowner'],
     buildMessage: ({ driverName, patientName }) => 
       `${driverName} has moved ${patientName || 'Unknown Patient'} to next delivery.`
   },
@@ -60,7 +60,7 @@ export const notificationRules = {
   [NOTIFICATION_EVENTS.DRIVER_COMPLETED]: {
     enabled: true,
     inApp: true,
-    recipients: ['dispatchers'],
+    recipients: ['dispatchers', 'appowner'],
     buildMessage: ({ driverName, patientName }) => 
       `${driverName} has completed delivery for ${patientName || 'Unknown Patient'}.`
   },
@@ -68,7 +68,7 @@ export const notificationRules = {
   [NOTIFICATION_EVENTS.DRIVER_FAILED]: {
     enabled: true,
     inApp: true,
-    recipients: ['dispatchers'],
+    recipients: ['dispatchers', 'appowner'],
     buildMessage: ({ driverName, patientName }) => 
       `${driverName} failed to complete delivery for ${patientName || 'Unknown Patient'}.`
   },
@@ -76,7 +76,7 @@ export const notificationRules = {
   [NOTIFICATION_EVENTS.DRIVER_RETRY]: {
     enabled: true,
     inApp: true,
-    recipients: ['dispatchers'],
+    recipients: ['dispatchers', 'appowner'],
     buildMessage: ({ driverName, patientName }) => 
       `${driverName} is now retrying delivery for ${patientName || 'Unknown Patient'}.`
   },
@@ -84,7 +84,7 @@ export const notificationRules = {
   [NOTIFICATION_EVENTS.DRIVER_RETURN]: {
     enabled: true,
     inApp: true,
-    recipients: ['dispatchers'],
+    recipients: ['dispatchers', 'appowner'],
     buildMessage: ({ driverName, patientName }) => 
       `${driverName} is En Route to return delivery for ${patientName || 'Unknown Patient'}.`
   }

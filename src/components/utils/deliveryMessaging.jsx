@@ -81,6 +81,55 @@ export function getDispatchersForStore(storeId, appUsers) {
 }
 
 /**
+ * Get app owners (platform admins with user.role === 'admin')
+ * Note: This requires fetching from User entity, not AppUser
+ */
+export async function getAppOwners() {
+  try {
+    const users = await base44.entities.User.list();
+    return users.filter(user => user?.role === 'admin');
+  } catch (error) {
+    console.error('[deliveryMessaging] Failed to fetch app owners:', error);
+    return [];
+  }
+}
+
+/**
+ * Get all recipients based on recipient types array
+ */
+export async function getRecipientsForEvent(recipientTypes, { storeId, appUsers, driverId }) {
+  const recipients = [];
+  const seenIds = new Set();
+
+  for (const type of recipientTypes) {
+    let users = [];
+    
+    if (type === 'dispatchers') {
+      users = getDispatchersForStore(storeId, appUsers);
+      users = users.map(u => ({ id: u.user_id, name: u.user_name }));
+    } else if (type === 'appowner') {
+      const owners = await getAppOwners();
+      users = owners.map(u => ({ id: u.id, name: u.full_name }));
+    } else if (type === 'driver' && driverId) {
+      const driver = appUsers?.find(u => u?.user_id === driverId);
+      if (driver) {
+        users = [{ id: driver.user_id, name: driver.user_name }];
+      }
+    }
+    
+    // Deduplicate
+    for (const user of users) {
+      if (user?.id && !seenIds.has(user.id)) {
+        seenIds.add(user.id);
+        recipients.push(user);
+      }
+    }
+  }
+  
+  return recipients;
+}
+
+/**
  * Build special badges string for a delivery
  */
 export function buildSpecialBadges(delivery, patient) {
@@ -203,7 +252,7 @@ async function getStoreUser(store) {
 
 /**
  * 1. Driver accepts all pending deliveries
- * Message FROM driver TO dispatchers
+ * Message FROM driver TO configured recipients
  */
 export async function notifyDriverAcceptedAll({
   driver,
@@ -212,28 +261,34 @@ export async function notifyDriverAcceptedAll({
 }) {
   if (!(await shouldNotify(NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ALL, 'inApp'))) return;
 
-  const dispatchers = getDispatchersForStore(store?.id, appUsers);
-  if (!dispatchers || dispatchers.length === 0) return;
+  const recipientTypes = getRecipients(NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ALL) || [];
+  const recipients = await getRecipientsForEvent(recipientTypes, { 
+    storeId: store?.id, 
+    appUsers,
+    driverId: driver?.id 
+  });
+  
+  if (!recipients || recipients.length === 0) return;
 
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
   const messageData = { driverName };
 
-  // Send to each dispatcher
-  for (const dispatcher of dispatchers) {
+  for (const recipient of recipients) {
+    if (recipient.id === driver?.id) continue; // Don't notify self
     await sendNotification({
       event: NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ALL,
       messageData,
       senderId: driver?.id,
       senderName: driverName,
-      receiverId: dispatcher.user_id,
-      receiverName: dispatcher.user_name
+      receiverId: recipient.id,
+      receiverName: recipient.name
     });
   }
 }
 
 /**
  * 2. Driver accepts single delivery
- * Message FROM driver TO dispatchers
+ * Message FROM driver TO configured recipients
  */
 export async function notifyDriverAcceptedOne({
   driver,
@@ -243,21 +298,27 @@ export async function notifyDriverAcceptedOne({
 }) {
   if (!(await shouldNotify(NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ONE, 'inApp'))) return;
 
-  const dispatchers = getDispatchersForStore(store?.id, appUsers);
-  if (!dispatchers || dispatchers.length === 0) return;
+  const recipientTypes = getRecipients(NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ONE) || [];
+  const recipients = await getRecipientsForEvent(recipientTypes, { 
+    storeId: store?.id, 
+    appUsers,
+    driverId: driver?.id 
+  });
+  
+  if (!recipients || recipients.length === 0) return;
 
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
   const messageData = { driverName, patientName };
 
-  // Send to each dispatcher
-  for (const dispatcher of dispatchers) {
+  for (const recipient of recipients) {
+    if (recipient.id === driver?.id) continue;
     await sendNotification({
       event: NOTIFICATION_EVENTS.DRIVER_ACCEPTED_ONE,
       messageData,
       senderId: driver?.id,
       senderName: driverName,
-      receiverId: dispatcher.user_id,
-      receiverName: dispatcher.user_name
+      receiverId: recipient.id,
+      receiverName: recipient.name
     });
   }
 }
@@ -304,7 +365,7 @@ export async function notifyDispatcherAssignedAll({
 
 /**
  * 4. Driver starts delivery (moves to next)
- * Message FROM driver TO dispatchers
+ * Message FROM driver TO configured recipients
  */
 export async function notifyDriverStarted({
   driver,
@@ -315,28 +376,34 @@ export async function notifyDriverStarted({
 }) {
   if (!(await shouldNotify(NOTIFICATION_EVENTS.DRIVER_STARTED, 'inApp'))) return;
 
-  const dispatchers = getDispatchersForStore(store?.id, appUsers);
-  if (!dispatchers || dispatchers.length === 0) return;
+  const recipientTypes = getRecipients(NOTIFICATION_EVENTS.DRIVER_STARTED) || [];
+  const recipients = await getRecipientsForEvent(recipientTypes, { 
+    storeId: store?.id, 
+    appUsers,
+    driverId: driver?.id 
+  });
+  
+  if (!recipients || recipients.length === 0) return;
 
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
   const messageData = { driverName, patientName };
 
-  // Send to each dispatcher
-  for (const dispatcher of dispatchers) {
+  for (const recipient of recipients) {
+    if (recipient.id === driver?.id) continue;
     await sendNotification({
       event: NOTIFICATION_EVENTS.DRIVER_STARTED,
       messageData,
       senderId: driver?.id,
       senderName: driverName,
-      receiverId: dispatcher.user_id,
-      receiverName: dispatcher.user_name
+      receiverId: recipient.id,
+      receiverName: recipient.name
     });
   }
 }
 
 /**
  * 5. Driver completes delivery
- * Message FROM driver TO dispatchers
+ * Message FROM driver TO configured recipients
  */
 export async function notifyDriverCompleted({
   driver,
@@ -347,28 +414,34 @@ export async function notifyDriverCompleted({
 }) {
   if (!(await shouldNotify(NOTIFICATION_EVENTS.DRIVER_COMPLETED, 'inApp'))) return;
 
-  const dispatchers = getDispatchersForStore(store?.id, appUsers);
-  if (!dispatchers || dispatchers.length === 0) return;
+  const recipientTypes = getRecipients(NOTIFICATION_EVENTS.DRIVER_COMPLETED) || [];
+  const recipients = await getRecipientsForEvent(recipientTypes, { 
+    storeId: store?.id, 
+    appUsers,
+    driverId: driver?.id 
+  });
+  
+  if (!recipients || recipients.length === 0) return;
 
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
   const messageData = { driverName, patientName };
 
-  // Send to each dispatcher
-  for (const dispatcher of dispatchers) {
+  for (const recipient of recipients) {
+    if (recipient.id === driver?.id) continue;
     await sendNotification({
       event: NOTIFICATION_EVENTS.DRIVER_COMPLETED,
       messageData,
       senderId: driver?.id,
       senderName: driverName,
-      receiverId: dispatcher.user_id,
-      receiverName: dispatcher.user_name
+      receiverId: recipient.id,
+      receiverName: recipient.name
     });
   }
 }
 
 /**
  * 6. Driver marks delivery as failed
- * Message FROM driver TO dispatchers
+ * Message FROM driver TO configured recipients
  */
 export async function notifyDriverFailed({
   driver,
@@ -380,8 +453,14 @@ export async function notifyDriverFailed({
 }) {
   if (!(await shouldNotify(NOTIFICATION_EVENTS.DRIVER_FAILED, 'inApp'))) return;
 
-  const dispatchers = getDispatchersForStore(store?.id, appUsers);
-  if (!dispatchers || dispatchers.length === 0) return;
+  const recipientTypes = getRecipients(NOTIFICATION_EVENTS.DRIVER_FAILED) || [];
+  const recipients = await getRecipientsForEvent(recipientTypes, { 
+    storeId: store?.id, 
+    appUsers,
+    driverId: driver?.id 
+  });
+  
+  if (!recipients || recipients.length === 0) return;
 
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
   const reasonText = failureReason ? `\nReason: ${failureReason}` : '';
@@ -392,13 +471,13 @@ export async function notifyDriverFailed({
     store ? ` (${store.name})` : ''
   }${trackingNum}${reasonText}`;
 
-  // Send to each dispatcher - directly as message content
-  for (const dispatcher of dispatchers) {
+  for (const recipient of recipients) {
+    if (recipient.id === driver?.id) continue;
     await sendDeliveryMessage({
       senderId: driver?.id,
       senderName: driverName,
-      receiverId: dispatcher.user_id,
-      receiverName: dispatcher.user_name,
+      receiverId: recipient.id,
+      receiverName: recipient.name,
       content: customContent
     });
   }
@@ -406,7 +485,7 @@ export async function notifyDriverFailed({
 
 /**
  * 7. Driver retries delivery
- * Message FROM driver TO dispatchers
+ * Message FROM driver TO configured recipients
  */
 export async function notifyDriverRetry({
   driver,
@@ -417,28 +496,34 @@ export async function notifyDriverRetry({
 }) {
   if (!(await shouldNotify(NOTIFICATION_EVENTS.DRIVER_RETRY, 'inApp'))) return;
 
-  const dispatchers = getDispatchersForStore(store?.id, appUsers);
-  if (!dispatchers || dispatchers.length === 0) return;
+  const recipientTypes = getRecipients(NOTIFICATION_EVENTS.DRIVER_RETRY) || [];
+  const recipients = await getRecipientsForEvent(recipientTypes, { 
+    storeId: store?.id, 
+    appUsers,
+    driverId: driver?.id 
+  });
+  
+  if (!recipients || recipients.length === 0) return;
 
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
   const messageData = { driverName, patientName };
 
-  // Send to each dispatcher
-  for (const dispatcher of dispatchers) {
+  for (const recipient of recipients) {
+    if (recipient.id === driver?.id) continue;
     await sendNotification({
       event: NOTIFICATION_EVENTS.DRIVER_RETRY,
       messageData,
       senderId: driver?.id,
       senderName: driverName,
-      receiverId: dispatcher.user_id,
-      receiverName: dispatcher.user_name
+      receiverId: recipient.id,
+      receiverName: recipient.name
     });
   }
 }
 
 /**
  * 8. Driver initiates return
- * Message FROM driver TO dispatchers
+ * Message FROM driver TO configured recipients
  */
 export async function notifyDriverReturn({
   driver,
@@ -449,21 +534,27 @@ export async function notifyDriverReturn({
 }) {
   if (!(await shouldNotify(NOTIFICATION_EVENTS.DRIVER_RETURN, 'inApp'))) return;
 
-  const dispatchers = getDispatchersForStore(store?.id, appUsers);
-  if (!dispatchers || dispatchers.length === 0) return;
+  const recipientTypes = getRecipients(NOTIFICATION_EVENTS.DRIVER_RETURN) || [];
+  const recipients = await getRecipientsForEvent(recipientTypes, { 
+    storeId: store?.id, 
+    appUsers,
+    driverId: driver?.id 
+  });
+  
+  if (!recipients || recipients.length === 0) return;
 
   const driverName = driver?.user_name || driver?.full_name || 'Driver';
   const messageData = { driverName, patientName };
 
-  // Send to each dispatcher
-  for (const dispatcher of dispatchers) {
+  for (const recipient of recipients) {
+    if (recipient.id === driver?.id) continue;
     await sendNotification({
       event: NOTIFICATION_EVENTS.DRIVER_RETURN,
       messageData,
       senderId: driver?.id,
       senderName: driverName,
-      receiverId: dispatcher.user_id,
-      receiverName: dispatcher.user_name
+      receiverId: recipient.id,
+      receiverName: recipient.name
     });
   }
 }
