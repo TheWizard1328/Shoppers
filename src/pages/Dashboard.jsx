@@ -4877,32 +4877,32 @@ function Dashboard() {
       await recalculateStopOrders(driverId, deliveryDate);
       console.log('  ✅ Stop orders recalculated');
 
-      // Step 5: Re-optimize route and update ETAs (mobile drivers only)
-      if (isMobile && userHasRole(currentUser, 'driver')) {
-        console.log('📡 [DELETE] Step 5: Re-optimizing route and updating ETAs...');
-        try {
-          const now = new Date();
-          const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-          
-          // Re-optimize the route
-          await base44.functions.invoke('optimizeRouteRealTime', {
-            driverId: driverId,
-            deliveryDate: deliveryDate,
-            currentLocalTime: localTimeString,
-            deviceTime: now.toISOString()
-          });
-          
-          // Update ETAs
-          await base44.functions.invoke('calculateRealTimeETA', {
-            driverId: driverId,
-            deliveryDate: deliveryDate,
-            currentLocalTime: localTimeString
-          });
-          
-          console.log('  ✅ Route optimized and ETAs updated');
-        } catch (optimizeError) {
-          console.warn('  ⚠️ Route optimization failed:', optimizeError.message);
-        }
+      // Step 5: Re-optimize route and update ETAs
+      console.log('📡 [DELETE] Step 5: Re-optimizing route and updating ETAs...');
+      try {
+        const now = new Date();
+        const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        
+        // Re-optimize the route
+        await base44.functions.invoke('optimizeRouteRealTime', {
+          driverId: driverId,
+          deliveryDate: deliveryDate,
+          currentLocalTime: localTimeString,
+          deviceTime: now.toISOString(),
+          generatePolyline: true
+        });
+        console.log('  ✅ Route optimized');
+        
+        // Update ETAs
+        await base44.functions.invoke('calculateRealTimeETA', {
+          driverId: driverId,
+          deliveryDate: deliveryDate,
+          currentLocalTime: localTimeString
+        });
+        console.log('  ✅ ETAs updated');
+        
+      } catch (optimizeError) {
+        console.warn('  ⚠️ Route optimization/ETA update failed:', optimizeError.message);
       }
 
       // Step 6: Refresh data and update map
