@@ -40,6 +40,14 @@ export default function RealTimeRouteOptimizer({
       return;
     }
 
+    // CRITICAL: Only optimize TODAY's date - skip past and future dates
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    if (selectedDate !== todayStr) {
+      console.log('⏸️ [RealTimeRouteOptimizer] Skipping - not today\'s date (selected:', selectedDate, ', today:', todayStr, ')');
+      return;
+    }
+
     // CRITICAL: Only optimize when route has active stops (in_transit or en_route)
     // Skip if all stops are pending, staged, completed, failed, etc.
     try {
