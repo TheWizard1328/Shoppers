@@ -1739,18 +1739,7 @@ export default function RouteImport({
       setProgressPercent(100);
       setProgressMessage('Import complete!');
       
-      // Broadcast to other devices and refresh local cache
-      const importDates = [...new Set(filteredPreviewDeliveries.map(d => d.delivery_date))].sort();
-      try {
-        const { realtimeSyncManager } = await import('../utils/realtimeSync');
-        console.log('📡 [RouteImport] Broadcasting import completion to all devices...');
-        await realtimeSyncManager.broadcastChange('Delivery', 'bulk_create', {
-          count: overallResults.created + overallResults.updated,
-          dateRange: importDates.length > 0 ? `${importDates[0]} to ${importDates[importDates.length - 1]}` : 'unknown'
-        });
-      } catch (broadcastError) {
-        console.warn('⚠️ [RouteImport] Broadcast failed:', broadcastError.message);
-      }
+      // Broadcast removed - relying on smart refresh only
 
     } catch (error) {
       console.error("❌ Overall import error:", error);
