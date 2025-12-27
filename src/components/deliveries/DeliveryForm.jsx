@@ -31,7 +31,7 @@ import {
   updateDeliveryLocal,
   deleteDeliveryLocal,
   batchCreateDeliveriesLocal } from
-'../utils/offlineMutations';
+'../utils/entityMutations';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
 <div className="flex items-center space-x-2">
