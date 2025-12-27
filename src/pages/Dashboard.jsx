@@ -39,7 +39,6 @@ import { useAppData } from '@/components/utils/AppDataContext';
 import { optimizeRoute, calculateRouteStats } from '@/components/utils/routeOptimizer';
 import { flushSync } from "react-dom";
 import { determineAMPMFromTime } from '@/components/utils/ampmUtils';
-import AIDriverAssistant from "@/components/dashboard/AIDriverAssistant";
 import MapViewCycleFAB from "@/components/dashboard/MapViewCycleFAB";
 import { getOrGenerateRoutePolyline, getStoredRouteCoordinates } from "@/components/utils/routePolylineManager";
 import { determinePolylineSegment, fetchPolylineForSegment } from "@/components/utils/dynamicPolylineManager";
@@ -6649,21 +6648,6 @@ function Dashboard() {
 
         </DialogContent>
       </Dialog>
-
-      <AnimatePresence>
-        {showAIAssistant && isAIEnabled && userHasRole(currentUser, 'driver') &&
-        <AIDriverAssistant
-          currentUser={currentUser}
-          deliveries={filteredDeliveries}
-          patients={patients}
-          stores={stores}
-          drivers={drivers}
-          currentLocation={driverLocation}
-          selectedDate={selectedDate}
-          onClose={() => setShowAIAssistant(false)} />
-
-        }
-      </AnimatePresence>
 
       {(isDriver || isDispatcher) && (deliveriesWithStopOrder.length === 0 || stopCardsBaseHeight > 0) &&
       <>
