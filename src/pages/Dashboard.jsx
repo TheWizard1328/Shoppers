@@ -66,8 +66,6 @@ import ProactiveAlertSystem from "@/components/dashboard/ProactiveAlertSystem";
 import SmartRefreshIndicator from "@/components/layout/SmartRefreshIndicator";
 import { offlineManager } from "@/components/utils/offlineManager";
 import { offlineDeliveryManager } from "@/components/utils/offlineDeliveryManager";
-import DashboardOfflineSync from '@/components/dashboard/DashboardOfflineSync';
-//import DashboardOfflineSync from '@/components/layout/OfflineSyncIndicator';
 import ETATracker from '../components/dashboard/ETATracker';
 import ETANotification from '../components/dashboard/ETANotification';
 import RealTimeRouteOptimizer from '../components/dashboard/RealTimeRouteOptimizer';
@@ -6313,13 +6311,6 @@ function Dashboard() {
                     </>
                 }
 
-                  {/* Mobile: Offline Sync Indicator in expanded section */}
-                  {isMobile &&
-                <>
-                      <div className="border-t border-slate-200 mt-2 pt-2"></div>
-                      <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} />
-                    </>
-                }
                 </motion.div>
               }
                 </AnimatePresence>
@@ -6367,9 +6358,6 @@ function Dashboard() {
             </div>
           </div>
         }
-
-        {/* Desktop: Offline Sync Indicator */}
-        {!isMobile && <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} />}
 
         {/* Real-time ETA Tracker */}
         {realTimeETAEnabled && selectedDriverId && selectedDriverId !== 'all' &&
