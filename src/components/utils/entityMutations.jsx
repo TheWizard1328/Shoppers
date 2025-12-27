@@ -175,7 +175,7 @@ export const updatePatient = async (patientId, updates, options = {}) => {
       const backendPatient = await base44.entities.Patient.update(patientId, updates);
       await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [backendPatient]);
       notifyMutation({ type: 'update', entity: 'Patient', id: patientId, data: backendPatient });
-      await broadcastChange('Patient', 'update', { id: patientId, ...options });
+      // Broadcast removed
       await restartSmartRefresh();
       return backendPatient;
     }
