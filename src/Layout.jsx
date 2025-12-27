@@ -90,7 +90,6 @@ import { ResizableDivider } from './components/ui/resizable-divider';
 import { performInitialSync, processPendingMutations } from './components/utils/offlineSync';
 import OfflineSyncIndicator from './components/layout/OfflineSyncIndicator';
 import { subscribeMutations } from './components/utils/entityMutations';
-import { realtimeSyncManager } from './components/utils/realtimeSync';
 
 // App version will be loaded from AppSettings
 const DEFAULT_APP_VERSION = 'v1.0.0';
@@ -789,82 +788,7 @@ export default function Layout({ children, currentPageName }) {
     initializeDailyCleanup();
     }, []);
 
-    // Initialize real-time sync listener - ADAPTIVE POLLING for near-instant sync
-    useEffect(() => {
-      if (!currentUser) return;
-
-      // Start adaptive polling (fast after changes, slow otherwise)
-      realtimeSyncManager.startPolling(currentUser.id);
-
-      // Subscribe to broadcast notifications
-      const unsubscribe = realtimeSyncManager.subscribe(async (message) => {
-        if (message.type !== 'broadcasts_received' || !message.broadcasts?.length) return;
-
-        const normalizedBroadcasts = message.broadcasts;
-
-        console.log(`📢 [RealtimeSync] Processing ${normalizedBroadcasts.length} broadcast(s) from other devices:`, 
-          normalizedBroadcasts.map(b => `${b.entity_name} (${b.operation}) by ${b.triggered_by_name}`));
-
-        // Dispatch event for yellow spinner
-        window.dispatchEvent(new CustomEvent('realtimeSyncRefresh'));
-
-        // Show toast for App Owners
-        const currentUserForToast = realUser || currentUser;
-        if (currentUserForToast && isAppOwner(currentUserForToast)) {
-          const broadcastSummary = normalizedBroadcasts.map(b => `${b.entity_name} (${b.operation})`).join(', ');
-          toast.info(`📡 Sync broadcast received: ${broadcastSummary}`, {
-            duration: 5000,
-            description: `From: ${normalizedBroadcasts.map(b => b.triggered_by_name).join(', ')}`
-          });
-        }
-
-        // CRITICAL: Handle delete broadcasts immediately - remove from IndexedDB and UI
-        for (const broadcast of normalizedBroadcasts) {
-          if (broadcast.operation === 'delete' && broadcast.metadata?.id) {
-            console.log(`🗑️ [RealtimeSync] Processing delete broadcast for ${broadcast.entity_name} ${broadcast.metadata.id}`);
-
-            // Track deletion in smartRefreshManager to prevent resurrection
-            smartRefreshManager.handleBroadcastRefresh(broadcast.entity_name, 'delete', { id: broadcast.metadata.id });
-
-            const { handleDeleteBroadcast } = await import('./components/utils/offlineSync');
-            await handleDeleteBroadcast(broadcast.entity_name, broadcast.metadata.id);
-
-            if (broadcast.entity_name === 'Patient') {
-              setPatients(prev => prev.filter(p => p?.id !== broadcast.metadata.id));
-            } else if (broadcast.entity_name === 'Delivery') {
-              setDeliveries(prev => prev.filter(d => d?.id !== broadcast.metadata.id));
-            }
-          } else if (broadcast.operation === 'create' && broadcast.metadata?.id) {
-            // For creates, ensure smart refresh picks up new items immediately
-            smartRefreshManager.handleBroadcastRefresh(broadcast.entity_name, 'create', broadcast.metadata);
-          }
-        }
-
-        // CRITICAL: Targeted refresh - only reset timers for entities that changed
-        // Handle create/update operations that weren't already handled above
-        const changedEntities = new Set();
-        for (const broadcast of normalizedBroadcasts) {
-          changedEntities.add(broadcast.entity_name);
-          if (broadcast.operation !== 'delete') {
-            // For non-delete operations, mark that we need API fetch
-            smartRefreshManager.handleBroadcastRefresh(broadcast.entity_name, broadcast.operation, broadcast.metadata);
-          }
-        }
-
-        console.log(`🎯 [RealtimeSync] Forced immediate refresh for entities: ${[...changedEntities].join(', ')}`);
-
-        // CRITICAL: Trigger full data reload IMMEDIATELY after broadcast
-        if (triggerFullDataLoadRef.current) {
-          console.log('🔄 [RealtimeSync] Triggering immediate data reload...');
-          triggerFullDataLoadRef.current(true);
-        }
-      });
-
-      return () => {
-        unsubscribe();
-        realtimeSyncManager.stopPolling();
-      };
-    }, [currentUser]);
+    // Real-time sync broadcasts removed - relying on smart refresh only
 
     // Initialize offline database sync
     useEffect(() => {
