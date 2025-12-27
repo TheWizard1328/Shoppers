@@ -321,6 +321,10 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
 
     const updated = { ...existing, ...updates, updated_date: new Date().toISOString() };
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updated]);
+    
+    // CRITICAL: Notify UI IMMEDIATELY after local save for instant UI update
+    console.log('🔔 [EntityMutations] Notifying UI immediately after local save for:', deliveryId);
+    notifyMutation({ type: 'update', entity: 'Delivery', id: deliveryId, data: updated });
 
     try {
       await base44.entities.Delivery.update(deliveryId, updates);
@@ -329,8 +333,6 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
       console.warn('⚠️ [EntityMutations] Delivery update sync failed, queuing:', error.message);
       await offlineDB.addPendingMutation({ operation: 'update', entity: 'Delivery', recordId: deliveryId, payload: updates });
     }
-    
-    notifyMutation({ type: 'update', entity: 'Delivery', id: deliveryId, data: updated });
     if (!skipSmartRefresh) await restartSmartRefresh();
     return updated;
   } catch (error) {
