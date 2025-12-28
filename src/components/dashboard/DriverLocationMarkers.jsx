@@ -5,7 +5,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { userHasRole } from '../utils/userRoles';
 import { isMobileDevice } from '../utils/deviceUtils';
 
-const DriverLocationMarkers = ({ users, currentUser, activeDriver }) => {
+const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = [] }) => {
   const isMobile = isMobileDevice();
   const [visibleDrivers, setVisibleDrivers] = useState([]);
   const markersRef = useRef({});
@@ -14,9 +14,13 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver }) => {
     // Filter drivers to show based on sharing settings and user permissions
     const now = Date.now();
     const maxStaleTime = 5 * 60 * 1000; // 5 minutes
+    const maxIdleTime = 30 * 60 * 1000; // 30 minutes for idle check
     
     const isAdmin = currentUser && userHasRole(currentUser, 'admin');
     const currentUserCityId = currentUser?.city_id;
+    
+    // Get today's date for checking active stops
+    const todayStr = new Date().toISOString().split('T')[0];
     
     const validDrivers = (users || []).filter(user => {
       if (!user) return false;
@@ -32,6 +36,12 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver }) => {
         return false;
       }
       
+      // CRITICAL: Hide markers for drivers who are off_duty (offline)
+      const driverStatus = user.driver_status ?? 'off_duty';
+      if (driverStatus === 'off_duty') {
+        return false;
+      }
+      
       // CRITICAL: Only show if location_tracking_enabled is true (sharing is ON)
       if (user.location_tracking_enabled !== true) {
         return false;
@@ -42,11 +52,27 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver }) => {
         return false;
       }
       
-      // Check if location data is too old (stale)
+      // Check if location data is too old (stale) - 5 minutes
       if (user.location_updated_at) {
         const locationAge = now - new Date(user.location_updated_at).getTime();
         if (locationAge > maxStaleTime) {
           return false;
+        }
+        
+        // CRITICAL: If driver hasn't moved for 30+ min, is online (not on_break), 
+        // and has no active stops - hide the marker
+        if (driverStatus !== 'on_break' && locationAge > maxIdleTime) {
+          // Check if driver has any active (non-completed) stops today
+          const driverActiveStops = (deliveries || []).filter(d => 
+            d && 
+            d.driver_id === user.id && 
+            d.delivery_date === todayStr &&
+            !['completed', 'failed', 'cancelled', 'returned'].includes(d.status)
+          );
+          
+          if (driverActiveStops.length === 0) {
+            return false;
+          }
         }
       }
       
@@ -74,7 +100,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver }) => {
       }
     });
     
-  }, [users, currentUser, isMobile]);
+  }, [users, currentUser, isMobile, deliveries]);
 
   // Listen for location cleared events
   useEffect(() => {
