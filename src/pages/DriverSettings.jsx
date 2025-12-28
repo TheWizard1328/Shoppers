@@ -1,16 +1,41 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Truck, Search, Phone, MapPin, User, Circle } from 'lucide-react';
+import { Truck, Search, Phone, MapPin, User, Circle, RefreshCw } from 'lucide-react';
 import { useAppData } from '../components/utils/AppDataContext';
 import { formatPhoneNumber } from '../components/utils/phoneFormatter';
 import { getDriverDisplayName } from '../components/utils/driverUtils';
 import { sortUsers } from '../components/utils/sorting';
+import { base44 } from '@/api/base44Client';
 
 export default function DriverSettings() {
   const { users, appUsers, stores } = useAppData();
   const [searchQuery, setSearchQuery] = useState('');
+  const [freshAppUsers, setFreshAppUsers] = useState([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Fetch fresh AppUser data on mount and periodically for accurate driver_status
+  useEffect(() => {
+    const fetchFreshAppUsers = async () => {
+      try {
+        const freshData = await base44.entities.AppUser.list();
+        setFreshAppUsers(freshData || []);
+      } catch (error) {
+        console.warn('Failed to fetch fresh AppUser data:', error);
+      }
+    };
+
+    fetchFreshAppUsers();
+    const interval = setInterval(fetchFreshAppUsers, 10000); // Refresh every 10 seconds
+    return () => clearInterval(interval);
+  }, []);
+
+  // Merge fresh AppUser data with context appUsers
+  const mergedAppUsers = useMemo(() => {
+    if (freshAppUsers.length > 0) return freshAppUsers;
+    return appUsers;
+  }, [freshAppUsers, appUsers]);
 
   // Get all users with driver role
   const drivers = useMemo(() => {
@@ -48,11 +73,10 @@ export default function DriverSettings() {
     }
   };
 
-  // Get driver duty status info - check both appUsers array and driver object itself
+  // Get driver duty status info - use fresh AppUser data for accurate status
   const getDriverDutyStatus = (driver) => {
-    // First check appUsers array for most up-to-date status
-    const appUser = appUsers.find(au => au?.user_id === driver.id);
-    // Then check if driver object has driver_status directly (merged user)
+    // CRITICAL: Use mergedAppUsers (fresh data) for accurate driver_status
+    const appUser = mergedAppUsers.find(au => au?.user_id === driver.id);
     const driverStatus = appUser?.driver_status ?? driver.driver_status ?? 'off_duty';
     
     switch (driverStatus) {
@@ -101,8 +125,8 @@ export default function DriverSettings() {
           </Card>
         ) : (
           filteredDrivers.map(driver => {
-            // Get latest appUser data for this driver
-            const latestAppUser = appUsers.find(au => au?.user_id === driver.id);
+            // Get latest appUser data for this driver from fresh data
+            const latestAppUser = mergedAppUsers.find(au => au?.user_id === driver.id);
             const dutyStatus = getDriverDutyStatus(driver);
             
             return (
