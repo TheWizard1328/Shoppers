@@ -2759,63 +2759,6 @@ export default function DeliveryForm({
       }
     }
   }, [formData, stores, patients, drivers, allDeliveries, stagedDeliveries]);
-      delivery_date: formData.delivery_date,
-      delivery_time_start: patient.time_window_start || '',
-      delivery_time_end: patient.time_window_end || (patient.time_window_start ? '' : ''),
-      time_window_start: patient.time_window_start || '',
-      time_window_end: patient.time_window_end || (patient.time_window_start ? '' : ''),
-      puid: puid || '',
-      ampm_deliveries: timeSlot,
-      status: 'Staged',
-      driver_id: autoSelectedDriverId,
-      driver_name: autoSelectedDriverName,
-      prescription_number: projected.prescription_number || '',
-      delivery_instructions: patient.notes || '',
-      delivery_notes: '',
-      cod_total_amount_required: projected.cod_total_amount_required || 0,
-      cod_payments: [],
-      cod_payment_type: 'No Payment',
-      tracking_number: '',
-      delivery_stop_id: '',
-      stop_id: '',
-      store_id: projected.store_id,
-      store_name: store.name,
-      store_abbreviation: store.abbreviation,
-      store_phone: store.phone || '',
-      mailbox_ok: patient.mailbox_ok || false,
-      call_upon_arrival: patient.call_upon_arrival || false,
-      ring_bell: patient.ring_bell || false,
-      dont_ring_bell: patient.dont_ring_bell || false,
-      back_door: patient.back_door || false,
-      signature_needed: patient.signature_needed || false,
-      fridge_item: patient.fridge_item || false,
-      oversized: patient.oversized || false,
-      after_hours_pickup: false,
-      no_charge: false,
-      extra_time: projected.extra_time || 0,
-      recurring: patient.recurring || false,
-      recurring_daily: patient.recurring_daily || false,
-      recurring_weekly_mon: patient.recurring_weekly_mon || false,
-      recurring_weekly_tue: patient.recurring_weekly_tue || false,
-      recurring_weekly_wed: patient.recurring_weekly_wed || false,
-      recurring_weekly_thu: patient.recurring_weekly_thu || false,
-      recurring_weekly_fri: patient.recurring_weekly_fri || false,
-      recurring_weekly_sat: patient.recurring_weekly_sat || false,
-      recurring_weekly_sun: patient.recurring_weekly_sun || false,
-      recurring_biweekly: patient.recurring_biweekly || false,
-      recurring_weekly_x4: patient.recurring_weekly_x4 || false,
-      recurring_monthly: patient.recurring_monthly || false,
-      recurring_bimonthly: patient.recurring_bimonthly || false,
-      _tempId: Date.now() + Math.random(),
-      _wasProjected: true,
-      _originalProjected: projected,
-      distanceFromStore: distanceFromStore,
-      delivery_address: patient.address || '',
-      isNextDelivery: false
-    }]);
-
-    setHasChanges(true);
-  }, [formData, stores, patients, allDrivers, currentUser, stagedDeliveries]);
 
   const sortedStagedDeliveries = useMemo(() => {
     let filtered = [...stagedDeliveries];
