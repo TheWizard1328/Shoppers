@@ -64,11 +64,11 @@ export default function DriverSettings() {
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
+        <h1 className="text-2xl font-bold flex items-center gap-3" style={{ color: 'var(--text-slate-900)' }}>
           <Truck className="w-7 h-7 text-emerald-600" />
           Driver Settings
         </h1>
-        <p className="text-slate-600 mt-1">Manage drivers and configure driver app settings</p>
+        <p className="mt-1" style={{ color: 'var(--text-slate-600)' }}>Manage drivers and configure driver app settings</p>
       </div>
 
       {/* Search */}
@@ -85,15 +85,15 @@ export default function DriverSettings() {
       </div>
 
       {/* Driver Count */}
-      <div className="mb-4 text-sm text-slate-600">
+      <div className="mb-4 text-sm" style={{ color: 'var(--text-slate-600)' }}>
         {filteredDrivers.length} driver{filteredDrivers.length !== 1 ? 's' : ''} found
       </div>
 
       {/* Drivers List */}
       <div className="space-y-3">
         {filteredDrivers.length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center text-slate-500">
+          <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+            <CardContent className="py-8 text-center" style={{ color: 'var(--text-slate-500)' }}>
               {searchQuery ? 'No drivers match your search' : 'No drivers found'}
             </CardContent>
           </Card>
@@ -102,7 +102,7 @@ export default function DriverSettings() {
             const dutyStatus = getDriverDutyStatus(driver);
             
             return (
-              <Card key={driver.id} className="hover:shadow-md transition-shadow">
+              <Card key={driver.id} className="hover:shadow-md transition-shadow" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-4">
                     {/* Avatar */}
@@ -121,7 +121,7 @@ export default function DriverSettings() {
                     {/* Driver Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-semibold text-slate-900 truncate">
+                        <h3 className="font-semibold truncate" style={{ color: 'var(--text-slate-900)' }}>
                           {getDriverDisplayName(driver)}
                         </h3>
                         <Circle className={`w-2 h-2 ${getStatusColor(driver.status)}`} fill="currentColor" />
@@ -130,11 +130,11 @@ export default function DriverSettings() {
                         </Badge>
                       </div>
                       
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm text-slate-600">
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm" style={{ color: 'var(--text-slate-600)' }}>
                         {driver.phone && (
                           <div className="flex items-center gap-1">
                             <Phone className="w-3.5 h-3.5" />
-                            <a href={`tel:${driver.phone}`} className="hover:text-slate-900">
+                            <a href={`tel:${driver.phone}`} className="hover:opacity-80">
                               {formatPhoneNumber(driver.phone)}
                             </a>
                           </div>
@@ -150,7 +150,7 @@ export default function DriverSettings() {
 
                     {/* Right side - will add more settings later */}
                     <div className="flex-shrink-0">
-                      <Badge variant="outline" className="text-xs">
+                      <Badge variant="outline" className="text-xs" style={{ borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-600)' }}>
                         #{driver.sort_order || '—'}
                       </Badge>
                     </div>
