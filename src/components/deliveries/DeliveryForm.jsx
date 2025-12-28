@@ -2575,6 +2575,9 @@ export default function DeliveryForm({
   }, [formData.store_id, delivery, isPickupMode, formData.delivery_date, stores, allDeliveries]);
 
   const confirmAddProjectedToStaged = useCallback(async (projected) => {
+    // CRITICAL: Remove from projected list IMMEDIATELY (before async operations)
+    setProjectedDeliveries((prev) => prev.filter((p) => p.patient_id !== projected.patient_id));
+
     const store = stores.find((s) => s && s.id === projected.store_id);
     if (!store) {
       console.error('Store not found for projected delivery:', projected.store_id);
@@ -2746,12 +2749,7 @@ export default function DeliveryForm({
     }]);
 
     setHasChanges(true);
-    
-    // CRITICAL: Filter projected deliveries locally (don't refetch from backend)
-    const stagedPatientIds = new Set([...stagedDeliveries.map(d => d.patient_id), projected.patient_id].filter(Boolean));
-    const filteredPredictions = fullPredictionListRef.current.filter(pred => !stagedPatientIds.has(pred.patient_id));
-    setProjectedDeliveries(filteredPredictions);
-  }, [formData, stores, patients, allDrivers, currentUser]);
+  }, [formData, stores, patients, allDrivers, currentUser, stagedDeliveries]);
 
   const sortedStagedDeliveries = useMemo(() => {
     let filtered = [...stagedDeliveries];
