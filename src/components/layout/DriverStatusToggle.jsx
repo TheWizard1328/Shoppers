@@ -346,8 +346,12 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
         setPendingStatus(null);
         setIsUpdating(false);
         setIsEntityUpdating(false);
+        
+        // CRITICAL: Clear the status change flag to allow activity monitor to resume
+        sessionStorage.removeItem('driver_status_change_in_progress');
+        
         console.log('✅ [DRIVER STATUS] Driver status change cycle complete');
-      }, 1000);
+      }, 2000); // Increased to 2 seconds to ensure backend changes propagate
     }
   }, [status, isUpdating, appUserId, currentUser, onStatusChange, setIsEntityUpdating]);
 
