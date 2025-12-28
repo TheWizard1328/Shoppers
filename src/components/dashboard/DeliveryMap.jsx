@@ -1392,9 +1392,9 @@ export default function DeliveryMap({
           return null;
         }
       }
-      // 3. Drivers on mobile see all drivers in same city (excluding self - blue dot shows instead)
+      // RULE 1, 4: Drivers (including admin/drivers) on mobile - skip self
+      // The blue live location marker shows instead
       else if (isDriverRole && isMobile) {
-        // Skip self on mobile - blue GPS dot shows instead
         if (isCurrentUserMarker) {
           return null;
         }
@@ -1403,14 +1403,13 @@ export default function DeliveryMap({
           return null;
         }
       }
-      // 4. Drivers on desktop see all drivers in same city (including self)
+      // RULE 2, 5: Drivers (including admin/drivers) on desktop - show all in same city (including self)
       else if (isDriverRole && !isMobile) {
-        // Show all drivers in same city (including self)
         if (currentUserCityId !== user.city_id) {
           return null;
         }
       }
-      // 5. Other roles - no access
+      // Other roles - no access
       else {
         return null;
       }
