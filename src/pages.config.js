@@ -5,11 +5,11 @@ import Dashboard from './pages/Dashboard';
 import Deliveries from './pages/Deliveries';
 import DeliveryMetrics from './pages/DeliveryMetrics';
 import DiagnosticsPage from './pages/DiagnosticsPage';
+import DriverSettings from './pages/DriverSettings';
 import Home from './pages/Home';
 import Patients from './pages/Patients';
 import Stores from './pages/Stores';
 import Users from './pages/Users';
-import DriverSettings from './pages/DriverSettings';
 import __Layout from './Layout.jsx';
 
 
@@ -21,11 +21,11 @@ export const PAGES = {
     "Deliveries": Deliveries,
     "DeliveryMetrics": DeliveryMetrics,
     "DiagnosticsPage": DiagnosticsPage,
+    "DriverSettings": DriverSettings,
     "Home": Home,
     "Patients": Patients,
     "Stores": Stores,
     "Users": Users,
-    "DriverSettings": DriverSettings,
 }
 
 export const pagesConfig = {

@@ -106,7 +106,13 @@ export default function DriverSettings() {
                 <CardContent className="p-4">
                   <div className="flex items-center gap-4">
                     {/* Avatar */}
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center flex-shrink-0">
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      driver.app_roles?.includes('admin') 
+                        ? 'bg-gradient-to-br from-blue-500 to-blue-600'
+                        : driver.app_roles?.includes('dispatcher')
+                          ? 'bg-gradient-to-br from-red-500 to-red-600'
+                          : 'bg-gradient-to-br from-emerald-500 to-emerald-600'
+                    }`}>
                       <span className="text-white font-bold text-lg">
                         {(getDriverDisplayName(driver) || 'D')?.charAt(0).toUpperCase()}
                       </span>
