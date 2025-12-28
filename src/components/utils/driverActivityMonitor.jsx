@@ -90,8 +90,17 @@ class DriverActivityMonitor {
         console.log(`🏁 [Activity Monitor] Setting driver to OFF DUTY (no active stops)`);
       }
 
-      // Update driver status
-      await base44.entities.AppUser.update(currentUser.id, {
+      // CRITICAL: Find AppUser record by user_id, not by id
+      const appUserRecords = await base44.entities.AppUser.filter({ user_id: currentUser.id });
+      const appUserRecord = appUserRecords?.[0];
+      
+      if (!appUserRecord) {
+        console.warn('⚠️ [Activity Monitor] AppUser record not found for user:', currentUser.id);
+        return;
+      }
+
+      // Update driver status using AppUser record ID
+      await base44.entities.AppUser.update(appUserRecord.id, {
         driver_status: newStatus
       });
 
