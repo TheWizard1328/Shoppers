@@ -48,10 +48,12 @@ export default function DriverSettings() {
     }
   };
 
-  // Get driver duty status info
+  // Get driver duty status info - check both appUsers array and driver object itself
   const getDriverDutyStatus = (driver) => {
+    // First check appUsers array for most up-to-date status
     const appUser = appUsers.find(au => au?.user_id === driver.id);
-    const driverStatus = appUser?.driver_status || driver.driver_status || 'off_duty';
+    // Then check if driver object has driver_status directly (merged user)
+    const driverStatus = appUser?.driver_status ?? driver.driver_status ?? 'off_duty';
     
     switch (driverStatus) {
       case 'on_duty': return { label: 'On Duty', color: 'bg-emerald-100 text-emerald-800' };
@@ -99,6 +101,8 @@ export default function DriverSettings() {
           </Card>
         ) : (
           filteredDrivers.map(driver => {
+            // Get latest appUser data for this driver
+            const latestAppUser = appUsers.find(au => au?.user_id === driver.id);
             const dutyStatus = getDriverDutyStatus(driver);
             
             return (
