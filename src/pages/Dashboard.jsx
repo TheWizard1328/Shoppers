@@ -317,6 +317,7 @@ function Dashboard() {
   const [cardWidth, setCardWidth] = useState(340);
   const [areCardsVisible, setAreCardsVisible] = useState(false);
   const [statsPanelOpacity, setStatsPanelOpacity] = useState(1);
+  const [freshAppUsers, setFreshAppUsers] = useState([]);
   const statsPanelFadeTimeoutRef = useRef(null);
   const fadeTimeoutRef = useRef(null);
   const statsCardRef = useRef(null);
@@ -1483,6 +1484,22 @@ function Dashboard() {
       }
     };
   }, [isDriver, currentUser, isMobile, deliveriesWithStopOrder, patients, stores, mapViewPhase, getMapPadding, appUsers]);
+
+  // Fetch fresh AppUser data periodically for accurate driver_status
+  useEffect(() => {
+    const fetchFreshAppUsers = async () => {
+      try {
+        const freshData = await base44.entities.AppUser.list();
+        setFreshAppUsers(freshData || []);
+      } catch (error) {
+        console.warn('Failed to fetch fresh AppUser data:', error);
+      }
+    };
+
+    fetchFreshAppUsers();
+    const interval = setInterval(fetchFreshAppUsers, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Track other drivers' locations via poller (for all-drivers mode or when checkbox is checked)
   useEffect(() => {
@@ -6414,6 +6431,7 @@ function Dashboard() {
             showOtherDriverDeliveries={showAllDriverMarkers}
             currentDriverLocation={driverLocation}
             currentToNextPolyline={currentToNextPolyline}
+            freshAppUsers={freshAppUsers}
             center={mapCenter}
             zoom={mapZoom}
             shouldFitBounds={shouldFitBounds}

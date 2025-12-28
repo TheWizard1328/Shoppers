@@ -476,28 +476,29 @@ const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, nu
   });
 };
 
-const createDriverIcon = (driverStatus = 'on_duty', initial = '', isStaleLocation = false, isOnBreakSelf = false) => {
-  const size = 15; // Reduced by 50% from 30 to 15
+const createDriverIcon = (driverStatus = 'on_duty', initial = '', isStaleLocation = false, isOnBreakSelf = false, freshAppUsers = [], userId = null) => {
+  const size = 16; // Fixed size
   
-  // Green for on_duty, Orange for on_break, Grey for off_duty
-  const statusColors = {
-    'on_duty': '#10B981', // Green
-    'on_break': '#F97316', // Orange
-    'off_duty': '#6B7280' // Grey
-  };
-  const color = statusColors[driverStatus] || statusColors['on_duty'];
+  // CRITICAL: Get fresh driver_status from freshAppUsers for accurate ring color
+  const freshAppUser = freshAppUsers?.find(au => au?.user_id === userId);
+  const actualDriverStatus = freshAppUser?.driver_status ?? driverStatus;
   
-  // CRITICAL: Blue ring for viewing own location while on break (from other device)
-  // Orange ring for stale location, White ring for fresh location
-  let outerRingColor = 'white';
-  let outerRingWidth = 2;
+  // Inner color stays blue for shared driver marker
+  const innerColor = '#3B82F6';
   
+  // Ring color based on driver_status
+  let outerRingColor;
+  switch (actualDriverStatus) {
+    case 'on_duty': outerRingColor = '#10B981'; break; // emerald
+    case 'on_break': outerRingColor = '#F97316'; break; // orange
+    default: outerRingColor = '#EF4444'; break; // red for off_duty
+  }
+  
+  // Override ring color for special states
   if (isOnBreakSelf) {
     outerRingColor = '#3B82F6'; // Blue for on_break self
-    outerRingWidth = 3;
   } else if (isStaleLocation) {
     outerRingColor = '#F97316'; // Orange for stale
-    outerRingWidth = 3;
   }
   
   return L.divIcon({
@@ -508,8 +509,8 @@ const createDriverIcon = (driverStatus = 'on_duty', initial = '', isStaleLocatio
         height: ${size}px;
       ">
         <div style="
-          background-color: ${color};
-          border: ${outerRingWidth}px solid ${outerRingColor};
+          background-color: ${innerColor};
+          border: 3px solid ${outerRingColor};
           border-radius: 50%;
           width: ${size}px;
           height: ${size}px;
@@ -517,12 +518,11 @@ const createDriverIcon = (driverStatus = 'on_duty', initial = '', isStaleLocatio
           align-items: center;
           justify-content: center;
           box-shadow: 0 3px 10px rgba(0,0,0,0.4);
-          animation: driverPulse 2s infinite;
           cursor: pointer;
           transition: transform 0.2s ease, box-shadow 0.2s ease;
         ">
           <span style="
-            font-size: 8px;
+            font-size: ${size}px;
             font-weight: bold;
             color: white;
             text-transform: uppercase;
@@ -530,10 +530,6 @@ const createDriverIcon = (driverStatus = 'on_duty', initial = '', isStaleLocatio
         </div>
       </div>
       <style>
-        @keyframes driverPulse {
-          0%, 100% { transform: scale(1); box-shadow: 0 3px 10px rgba(0,0,0,0.4); }
-          50% { transform: scale(1.15); box-shadow: 0 3px 15px rgba(0,0,0,0.5); }
-        }
         .driver-marker:hover {
           z-index: 9999 !important;
         }
@@ -692,6 +688,7 @@ export default function DeliveryMap({
   driverLocations = [], // Other driver locations - controlled by "Show All" checkbox
   showOtherDriverDeliveries = false, // NEW: Whether to show other drivers' delivery/pickup markers
   currentDriverLocation = null, // NEW: Single driver location for current user
+  freshAppUsers = [], // NEW: Fresh AppUser data for accurate driver_status
   center = [53.5461, -113.4938],
   zoom = 12,
   shouldFitBounds = null,
@@ -2947,7 +2944,7 @@ export default function DeliveryMap({
             <Marker
               key={`driver-location-${location.id || location.user_id}`}
               position={[location.latitude, location.longitude]}
-              icon={createDriverIcon(location.driver_status, location.driverInitial, location.isStaleLocation, isOnBreakSelf)}
+              icon={createDriverIcon(location.driver_status, location.driverInitial, location.isStaleLocation, isOnBreakSelf, freshAppUsers, location.id || location.user_id)}
               zIndexOffset={3000}
               eventHandlers={{
                 click: () => onMarkerClick && onMarkerClick(location, 'driver'),
