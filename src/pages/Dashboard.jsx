@@ -1497,14 +1497,23 @@ function Dashboard() {
     
     const unsubscribe = driverLocationPoller.subscribe((locations) => {
       if (!locations || !Array.isArray(locations)) return;
-      setAllDriverLocations(locations);
+      
+      // CRITICAL: Filter out current user's marker on mobile devices (blue dot shows instead)
+      const filteredLocations = isMobile && isDriver 
+        ? locations.filter(loc => {
+            const locId = loc.driver_id || loc.user_id || loc.id;
+            return locId !== currentUser?.id;
+          })
+        : locations;
+      
+      setAllDriverLocations(filteredLocations);
     });
     
     return () => {
       unsubscribe();
       driverLocationPoller.stop();
     };
-  }, [isDataLoaded, currentUser, deliveries, drivers]);
+  }, [isDataLoaded, currentUser, deliveries, drivers, isMobile, isDriver]);
   
   useEffect(() => {
     if (!isDataLoaded || !currentUser || !deliveries || !drivers) {
