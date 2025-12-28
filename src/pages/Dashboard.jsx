@@ -6410,7 +6410,7 @@ function Dashboard() {
             stores={stores}
             users={drivers}
             currentUser={currentUser}
-            driverLocations={isAllDriversMode ? [] : (showAllDriverMarkers ? allDriverLocations : [])}
+            driverLocations={isAllDriversMode ? allDriverLocations : (showAllDriverMarkers ? allDriverLocations : allDriverLocations)}
             deliveriesForLocationFilter={filteredDeliveries}
             showOtherDriverDeliveries={showAllDriverMarkers}
             currentDriverLocation={driverLocation}
