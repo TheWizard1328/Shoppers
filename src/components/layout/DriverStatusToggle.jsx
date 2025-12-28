@@ -141,6 +141,9 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
     setPendingStatus(newStatus);
     setIsEntityUpdating(true);
     
+    // CRITICAL: Set flag to block activity monitor during status change
+    sessionStorage.setItem('driver_status_change_in_progress', Date.now().toString());
+    
     await new Promise(resolve => setTimeout(resolve, 100));
     console.log('✅ [DRIVER STATUS] Smart refresh paused');
     
