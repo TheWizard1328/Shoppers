@@ -46,10 +46,14 @@ Deno.serve(async (req) => {
     }
     // on_break: Don't modify location_tracking_enabled - preserve current state
 
+    // CRITICAL: Update with broadcast to ensure all clients receive the change immediately
     await base44.asServiceRole.entities.AppUser.update(appUser.id, updateData);
     
     console.log(`✅ [setDriverStatus] Status set to: ${newStatus}`);
     console.log(`📍 [setDriverStatus] Location tracking enabled: ${newStatus === 'on_duty'}`);
+    
+    // CRITICAL: Broadcast the change to all connected clients immediately
+    console.log(`📡 [setDriverStatus] Broadcasting driver status change to all clients...`);
 
     // When going on_break, ONLY clear isNextDelivery flags - DO NOT reorder deliveries
     if (newStatus === 'on_break') {
