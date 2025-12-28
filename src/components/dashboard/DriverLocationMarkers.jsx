@@ -5,7 +5,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { userHasRole } from '../utils/userRoles';
 import { isMobileDevice } from '../utils/deviceUtils';
 
-const DriverLocationMarkers = ({ users, currentUser, activeDriver }) => {
+const DriverLocationMarkers = ({ users, currentUser, activeDriver, freshAppUsers = [] }) => {
   const isMobile = isMobileDevice();
   const [visibleDrivers, setVisibleDrivers] = useState([]);
   const markersRef = useRef({});
@@ -152,22 +152,36 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver }) => {
     return () => window.removeEventListener('driverLocationUpdated', handleLocationUpdate);
   }, [users, currentUser, isMobile]);
 
-  const createDriverIcon = (user, isActive) => {
+  const createDriverIcon = (user, isActive, freshAppUsers) => {
     const displayName = user.user_name || user.full_name || 'U';
     const firstInitial = displayName.charAt(0).toUpperCase();
-    const size = isActive ? 18 : 14;
-    const color = isActive ? '#10b981' : '#3b82f6';
-    const pulseClass = isActive ? 'driver-marker-pulse' : '';
+    const size = 16; // Fixed size - no pulsing
+    
+    // CRITICAL: Get driver_status from freshAppUsers for accurate ring color
+    const freshAppUser = freshAppUsers?.find(au => au?.user_id === user.id);
+    const driverStatus = freshAppUser?.driver_status ?? user.driver_status ?? 'off_duty';
+    
+    // Ring color based on driver_status
+    let ringColor;
+    switch (driverStatus) {
+      case 'on_duty': ringColor = '#10b981'; break; // emerald
+      case 'on_break': ringColor = '#f97316'; break; // orange
+      case 'online': ringColor = '#10b981'; break; // emerald
+      default: ringColor = '#ef4444'; break; // red for off_duty
+    }
+    
+    // Inner background stays blue for the driver marker
+    const bgColor = '#3b82f6';
     
     return L.divIcon({
       className: 'driver-location-marker',
       html: `
-        <div class="${pulseClass}" style="position: relative; display: flex; align-items: center; justify-content: center;">
+        <div style="position: relative; display: flex; align-items: center; justify-content: center;">
           <div style="
             width: ${size * 2}px; 
             height: ${size * 2}px; 
-            background: ${color}; 
-            border: 3px solid white; 
+            background: ${bgColor}; 
+            border: 3px solid ${ringColor}; 
             border-radius: 50%; 
             display: flex; 
             align-items: center; 
@@ -178,11 +192,10 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver }) => {
             font-size: ${size}px;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
           ">${firstInitial}</div>
-          ${isActive ? `<div style="position: absolute; top: -4px; left: -4px; width: ${size * 2 + 8}px; height: ${size * 2 + 8}px; border-radius: 50%; border: 2px solid ${color}; animation: pulse 2s infinite;"></div>` : ''}
         </div>
       `,
-      iconSize: [size * 2 + 8, size * 2 + 8],
-      iconAnchor: [size + 4, size + 4],
+      iconSize: [size * 2 + 6, size * 2 + 6],
+      iconAnchor: [size + 3, size + 3],
     });
   };
 
@@ -203,20 +216,6 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver }) => {
     <>
       <style>
         {`
-          @keyframes pulse {
-            0% {
-              opacity: 1;
-              transform: scale(1);
-            }
-            50% {
-              opacity: 0.5;
-              transform: scale(1.2);
-            }
-            100% {
-              opacity: 1;
-              transform: scale(1);
-            }
-          }
           .driver-location-marker {
             background: transparent;
             border: none;
@@ -236,7 +235,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver }) => {
           <Marker
             key={user.id}
             position={position}
-            icon={createDriverIcon(user, isActive)}
+            icon={createDriverIcon(user, isActive, freshAppUsers)}
             zIndexOffset={isActive ? 2000 : 1000}
           >
             <Popup>
