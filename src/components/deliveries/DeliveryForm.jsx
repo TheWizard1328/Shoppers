@@ -3861,6 +3861,10 @@ export default function DeliveryForm({
                                     setEditingStagedId(null);
                                     handleClearForm();
                                   }
+                                  
+                                  if (!isMobileDevice) {
+                                    setTimeout(() => patientSearchInputRef.current?.focus(), 100);
+                                  }
                                 }
                               }}>
                               <Trash2 className="w-5 h-5" />
@@ -3925,7 +3929,12 @@ export default function DeliveryForm({
                               variant="ghost"
                               className="h-7 w-7 p-0 flex-shrink-0 rounded ml-1"
                               style={{ backgroundColor: '#059669', color: '#ffffff' }}
-                              onClick={() => confirmAddProjectedToStaged(projected)}
+                              onClick={() => {
+                                confirmAddProjectedToStaged(projected);
+                                if (!isMobileDevice) {
+                                  setTimeout(() => patientSearchInputRef.current?.focus(), 100);
+                                }
+                              }}
                               title="Add to route">
                               <Plus className="w-5 h-5" />
                             </Button>
@@ -4083,6 +4092,10 @@ export default function DeliveryForm({
                                     setEditingStagedId(null);
                                     handleClearForm();
                                   }
+                                  
+                                  if (!isMobileDevice) {
+                                    setTimeout(() => patientSearchInputRef.current?.focus(), 100);
+                                  }
                                 }
                               }}>
                               <Trash2 className="w-5 h-5" />
@@ -4147,7 +4160,12 @@ export default function DeliveryForm({
                               variant="ghost"
                               className="h-7 w-7 p-0 flex-shrink-0 rounded ml-1"
                               style={{ backgroundColor: '#059669', color: '#ffffff' }}
-                              onClick={() => confirmAddProjectedToStaged(projected)}
+                              onClick={() => {
+                                confirmAddProjectedToStaged(projected);
+                                if (!isMobileDevice) {
+                                  setTimeout(() => patientSearchInputRef.current?.focus(), 100);
+                                }
+                              }}
                               title="Add to route">
                               <Plus className="w-5 h-5" />
                             </Button>
