@@ -1504,11 +1504,18 @@ export default function DeliveryMap({
   }, [currentDriverLocation, currentUser, isMobile, selectedDate]);
 
   // NEW: Calculate driver home locations for drivers with active stops - CURRENT DATE ONLY
+  // Use ref to cache previous markers and only update when actual data changes
+  const prevDriverHomeMarkersRef = useRef([]);
+  
   const driverHomeMarkers = useMemo(() => {
-    if (!showRoutes || !currentUser || !isViewingCurrentDate) return [];
+    if (!showRoutes || !currentUser || !isViewingCurrentDate) {
+      prevDriverHomeMarkersRef.current = [];
+      return [];
+    }
 
     // CRITICAL: Dispatchers should not see home locations
     if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
+      prevDriverHomeMarkersRef.current = [];
       return [];
     }
 
@@ -1554,10 +1561,18 @@ export default function DeliveryMap({
           driverColor,
           driverName
         });
-
       }
     });
 
+    // CRITICAL: Only update if home markers actually changed to prevent blinking
+    const newKey = homeMarkers.map(m => `${m.id}:${m.latitude}:${m.longitude}`).join('|');
+    const prevKey = prevDriverHomeMarkersRef.current.map(m => `${m.id}:${m.latitude}:${m.longitude}`).join('|');
+    
+    if (newKey === prevKey && prevDriverHomeMarkersRef.current.length > 0) {
+      return prevDriverHomeMarkersRef.current;
+    }
+    
+    prevDriverHomeMarkersRef.current = homeMarkers;
     return homeMarkers;
   // CRITICAL: Use minimal, stable dependencies to prevent blinking
   }, [
