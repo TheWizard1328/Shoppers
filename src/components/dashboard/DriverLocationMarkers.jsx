@@ -83,7 +83,23 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         return true;
       }
       
-      // 2. Non-admins can only see locations from users in the same city
+      // 2. Dispatchers can see drivers assigned to their stores
+      const isDispatcher = currentUser && userHasRole(currentUser, 'dispatcher');
+      if (isDispatcher) {
+        const dispatcherStoreIds = currentUser.store_ids || [];
+        // Check if this driver has any deliveries for dispatcher's stores today
+        const driverHasDeliveriesForDispatcher = (deliveries || []).some(d => 
+          d && 
+          d.driver_id === user.id && 
+          d.delivery_date === todayStr &&
+          dispatcherStoreIds.includes(d.store_id)
+        );
+        if (driverHasDeliveriesForDispatcher) {
+          return true;
+        }
+      }
+      
+      // 3. Non-admins can only see locations from users in the same city
       if (currentUserCityId && user.city_id === currentUserCityId) {
         return true;
       }
