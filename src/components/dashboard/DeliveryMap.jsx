@@ -1454,7 +1454,9 @@ export default function DeliveryMap({
     currentUser?.id,
     isMobile,
     // Track user location data with stable key - round coordinates to prevent micro-changes
-    safeUsers.map(u => `${u?.id}:${u?.current_latitude?.toFixed(5)}:${u?.current_longitude?.toFixed(5)}:${u?.driver_status}:${u?.location_tracking_enabled}`).join('|')
+    safeUsers.map(u => `${u?.id}:${u?.current_latitude?.toFixed(5)}:${u?.current_longitude?.toFixed(5)}:${u?.driver_status}:${u?.location_tracking_enabled}`).join('|'),
+    // Include deliveries for filtering idle drivers
+    deliveriesForLocationFilter.map(d => `${d?.id}:${d?.driver_id}:${d?.delivery_date}:${d?.status}`).join('|')
   ]);
 
   // UPDATED: Process current driver's live location for display - ONLY SHOW ON MOBILE, TODAY'S DATE
