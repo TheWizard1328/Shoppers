@@ -119,9 +119,19 @@ class DriverActivityMonitor {
 
       console.log(`✅ [Activity Monitor] Driver status updated to ${newStatus}`);
 
-      // Notify app to refresh user data
+      // Notify app to refresh user data and UI components
       window.dispatchEvent(new CustomEvent('driverStatusAutoUpdated', {
-        detail: { newStatus }
+        detail: { newStatus, driverId: currentUser.id }
+      }));
+      
+      // CRITICAL: Dispatch event to update driver location markers on map
+      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+        detail: { 
+          appUsers: [{
+            ...appUserRecord,
+            driver_status: newStatus
+          }]
+        }
       }));
 
     } catch (error) {
