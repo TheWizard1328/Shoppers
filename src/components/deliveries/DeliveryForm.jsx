@@ -2759,10 +2759,6 @@ export default function DeliveryForm({
       }
     }
   }, [formData, stores, patients, drivers, allDeliveries, stagedDeliveries]);
-      patient_id: projected.patient_id,
-      patient_name: projected.patient_name,
-      patient_phone: patient.phone || '',
-      unit_number: patient.unit_number || '',
       delivery_date: formData.delivery_date,
       delivery_time_start: patient.time_window_start || '',
       delivery_time_end: patient.time_window_end || (patient.time_window_start ? '' : ''),
