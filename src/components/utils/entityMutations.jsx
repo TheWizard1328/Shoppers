@@ -225,7 +225,11 @@ export const deletePatient = async (patientId, options = {}) => {
     // Sync to backend
     try {
       await base44.entities.Patient.delete(patientId);
-      // Broadcast removed
+      
+      // CRITICAL: Mark as deleted in smart refresh to prevent resurrection
+      const { smartRefreshManager } = await import('./smartRefreshManager');
+      smartRefreshManager.deletedPatientIds.add(patientId);
+      console.log(`🗑️ [EntityMutations] Marked patient ${patientId} as deleted in smart refresh`);
     } catch (error) {
       console.warn('⚠️ [EntityMutations] Patient delete sync failed, queuing:', error.message);
       await offlineDB.addPendingMutation({ operation: 'delete', entity: 'Patient', recordId: patientId });
@@ -461,7 +465,10 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
       await Promise.all(deletePromises);
       console.log(`✅ [EntityMutations] Batch deleted ${deliveryIds.length} deliveries from backend`);
       
-      // Broadcast removed
+      // CRITICAL: Mark these IDs as deleted in smart refresh to prevent resurrection
+      const { smartRefreshManager } = await import('./smartRefreshManager');
+      deliveryIds.forEach(id => smartRefreshManager.deletedDeliveryIds.add(id));
+      console.log(`🗑️ [EntityMutations] Marked ${deliveryIds.length} deliveries as deleted in smart refresh`);
     } catch (error) {
       console.warn('⚠️ [EntityMutations] Batch delete sync failed, queuing:', error.message);
       for (const id of deliveryIds) {
