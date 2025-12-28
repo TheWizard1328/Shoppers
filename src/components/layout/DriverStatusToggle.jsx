@@ -169,21 +169,30 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       
       console.log('✅ Backend status update result:', result.data);
       
-      // CRITICAL: Update local offline database immediately
-      console.log('💾 [DriverStatusToggle] Updating local offline database...');
-      const { updateAppUserLocal } = await import('../utils/offlineMutations');
-      try {
-        // CRITICAL: Only disable location sharing when going off_duty, NOT on_break
-        // On break should keep location_tracking_enabled as is (so driver can see their own marker)
-        const updateData = { driver_status: newStatus };
-        if (newStatus === 'off_duty') {
-          updateData.location_tracking_enabled = false;
+      // CRITICAL: Immediately fetch fresh AppUser data and update local state
+      console.log('🔄 [DriverStatusToggle] Fetching fresh AppUser data from backend...');
+      const freshAppUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
+      const freshAppUser = freshAppUsers?.[0];
+      
+      if (freshAppUser) {
+        console.log('✅ [DriverStatusToggle] Fresh AppUser fetched:', freshAppUser.driver_status);
+        
+        // CRITICAL: Update local offline database immediately with fresh backend data
+        console.log('💾 [DriverStatusToggle] Updating local offline database with fresh data...');
+        const { updateAppUserLocal } = await import('../utils/offlineMutations');
+        try {
+          const updateData = { 
+            driver_status: freshAppUser.driver_status,
+            location_tracking_enabled: freshAppUser.location_tracking_enabled,
+            current_latitude: freshAppUser.current_latitude,
+            current_longitude: freshAppUser.current_longitude,
+            location_updated_at: freshAppUser.location_updated_at
+          };
+          await updateAppUserLocal(appUserId, updateData);
+          console.log('✅ [DriverStatusToggle] Local offline database updated with fresh data');
+        } catch (offlineError) {
+          console.warn('⚠️ [DriverStatusToggle] Failed to update local database:', offlineError);
         }
-        // Don't touch location_tracking_enabled for on_break - keep it enabled
-        await updateAppUserLocal(appUserId, updateData);
-        console.log('✅ [DriverStatusToggle] Local offline database updated');
-      } catch (offlineError) {
-        console.warn('⚠️ [DriverStatusToggle] Failed to update local database:', offlineError);
       }
       
       // Invalidate caches to force fresh data fetch
