@@ -57,11 +57,19 @@ class DriverLocationPoller {
 
     const now = Date.now();
     const maxStaleTime = 5 * 60 * 1000; // 5 minutes
+    const thirtyMinutesInMs = 30 * 60 * 1000;
     
     const isAdmin = this.currentUser && userHasRole(this.currentUser, 'admin');
+    const isDispatcher = this.currentUser && userHasRole(this.currentUser, 'dispatcher');
+    const isDriver = this.currentUser && userHasRole(this.currentUser, 'driver');
     const currentUserCityId = this.currentUser?.city_id;
     const currentUserId = this.currentUser?.id;
-    const currentUserUserId = this.currentUser?.user_id; // AppUser's user_id field
+    const currentUserUserId = this.currentUser?.user_id;
+    
+    // Determine if current device is mobile
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    const todayStr = new Date().toISOString().split('T')[0];
 
     // CRITICAL: Filter to drivers with location data
     const activeDriversWithLocation = users.filter(user => {
@@ -70,41 +78,87 @@ class DriverLocationPoller {
       // Skip inactive users
       if (user.status === 'inactive') return false;
 
-      // CRITICAL: Skip if no valid coordinates
+      // Only show on_duty or on_break drivers
+      if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') return false;
+
+      // Skip if no valid coordinates
       if (!user.current_latitude || !user.current_longitude) return false;
 
-      // CRITICAL: Check if this is the current user (match on multiple possible ID fields)
+      const driverId = user.id || user.user_id;
       const isSelf = user.user_id === currentUserId || 
                      user.id === currentUserId || 
                      user.user_id === currentUserUserId ||
                      user.id === currentUserUserId;
 
-      // CRITICAL: Current user ALWAYS sees their own marker (regardless of status)
-      // This allows drivers to see their own location on other devices even when on break
-      if (isSelf) {
-        return true;
+      // Location tracking must be enabled (unless it's your own marker)
+      if (user.location_tracking_enabled !== true && !isSelf) return false;
+
+      // Check staleness and idle status
+      let locationAge = 0;
+      if (user.location_updated_at) {
+        locationAge = now - new Date(user.location_updated_at).getTime();
+        
+        // Hide marker if location is >30 min old and driver has no active stops today
+        if (locationAge > thirtyMinutesInMs) {
+          const driverActiveStops = (deliveries || []).filter(d => 
+            d && 
+            d.driver_id === driverId && 
+            d.delivery_date === todayStr &&
+            !['completed', 'failed', 'cancelled', 'returned'].includes(d.status)
+          );
+          
+          if (driverActiveStops.length === 0) {
+            return false;
+          }
+        }
       }
 
-      // CRITICAL: Driver on break - NOT visible to others
-      if (user.driver_status === 'on_break') {
-        return false;
-      }
-
-      // CRITICAL: Must be on_duty for others to see
-      if (user.driver_status !== 'on_duty') return false;
-
-      // CRITICAL: Must have location_tracking_enabled for shared markers
-      if (user.location_tracking_enabled !== true) return false;
-
-      // PERMISSION FILTERING:
-      // 1. Admins can see ALL shared locations
+      // ROLE-BASED PERMISSION FILTERING:
+      
+      // 1. Admins see all on_duty/on_break drivers in selected city
       if (isAdmin) {
         return true;
       }
-
-      // 2. Non-admins can only see locations from users in the same city
-      if (currentUserCityId && user.city_id === currentUserCityId) {
+      
+      // 2. Dispatchers see drivers with en_route/in_transit/pending deliveries for their stores
+      if (isDispatcher && !isAdmin) {
+        const dispatcherStoreIds = new Set(this.currentUser.store_ids || []);
+        const hasActiveDelivery = (deliveries || []).some(delivery =>
+          delivery &&
+          delivery.driver_id === driverId &&
+          delivery.delivery_date === todayStr &&
+          dispatcherStoreIds.has(delivery.store_id) &&
+          ['en_route', 'in_transit', 'pending'].includes(delivery.status)
+        );
+        
+        if (!hasActiveDelivery) {
+          return false;
+        }
         return true;
+      }
+      
+      // 3. Drivers on mobile see all drivers in same city (excluding self - blue dot shows instead)
+      if (isDriver && isMobile) {
+        if (isSelf) {
+          return false; // Skip self on mobile - blue GPS dot shows instead
+        }
+        // Show other drivers in same city
+        return currentUserCityId && user.city_id === currentUserCityId;
+      }
+      
+      // 4. Drivers on desktop see all drivers in same city (including self)
+      if (isDriver && !isMobile) {
+        return currentUserCityId && user.city_id === currentUserCityId;
+      }
+      
+      // 5. Admin/Drivers on mobile - skip self
+      if (isAdmin && isDriver && isMobile && isSelf) {
+        return false;
+      }
+      
+      // 6. Admin/Drivers on desktop - show self
+      if (isAdmin && isDriver && !isMobile) {
+        return currentUserCityId && user.city_id === currentUserCityId;
       }
 
       return false;
