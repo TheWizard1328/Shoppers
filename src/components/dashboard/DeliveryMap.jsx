@@ -692,6 +692,7 @@ export default function DeliveryMap({
   driverLocations = [], // Other driver locations - controlled by "Show All" checkbox
   showOtherDriverDeliveries = false, // NEW: Whether to show other drivers' delivery/pickup markers
   currentDriverLocation = null, // NEW: Single driver location for current user
+  deliveriesForLocationFilter = [], // NEW: Deliveries for filtering shared location markers
   center = [53.5461, -113.4938],
   zoom = 12,
   shouldFitBounds = null,
@@ -1313,7 +1314,9 @@ export default function DeliveryMap({
     const isDriverRole = currentUser && userHasRole(currentUser, 'driver');
     const currentUserCityId = currentUser?.city_id;
     const fiveMinutesInMs = 5 * 60 * 1000;
+    const thirtyMinutesInMs = 30 * 60 * 1000;
     const now = Date.now();
+    const todayStr = new Date().toISOString().split('T')[0];
 
     // CRITICAL: Use realtimeAppUsers as the source of truth (contains merged location data)
     const markers = safeUsers.map((user) => {
@@ -1338,6 +1341,11 @@ export default function DeliveryMap({
         return null;
       }
       
+      // CRITICAL: Hide markers for off_duty drivers
+      if (user.driver_status === 'off_duty') {
+        return null;
+      }
+      
       // CRITICAL: Check for location data - skip if missing
       if (!user.current_latitude || !user.current_longitude) {
         return null;
@@ -1357,6 +1365,30 @@ export default function DeliveryMap({
       // Location tracking must be enabled, UNLESS it's your own marker (you always see yourself)
       if (user.location_tracking_enabled !== true && !isCurrentUserMarker) {
         return null;
+      }
+
+      // CRITICAL: Check staleness and idle status
+      let isStaleLocation = false;
+      let locationAge = 0;
+      if (user.location_updated_at) {
+        locationAge = now - new Date(user.location_updated_at).getTime();
+        isStaleLocation = locationAge > fiveMinutesInMs;
+        
+        // CRITICAL: If not on_break, location is >30 min old, and no active stops today - hide marker
+        if (user.driver_status !== 'on_break' && locationAge > thirtyMinutesInMs) {
+          const driverActiveStops = (deliveriesForLocationFilter || []).filter(d => 
+            d && 
+            d.driver_id === driverId && 
+            d.delivery_date === todayStr &&
+            !['completed', 'failed', 'cancelled', 'returned'].includes(d.status)
+          );
+          
+          if (driverActiveStops.length === 0) {
+            return null; // Hide marker - driver is idle with no active stops
+          }
+        }
+      } else {
+        isStaleLocation = true;
       }
 
       // Permission filtering - drivers and admins see all shared locations in same city
@@ -1380,15 +1412,6 @@ export default function DeliveryMap({
         if (!hasDeliveryInDispatcherStore) {
           return null;
         }
-      }
-
-      // CRITICAL: Determine if location is stale (>5 minutes old)
-      let isStaleLocation = false;
-      if (user.location_updated_at) {
-        const locationAge = now - new Date(user.location_updated_at).getTime();
-        isStaleLocation = locationAge > fiveMinutesInMs;
-      } else {
-        isStaleLocation = true;
       }
 
       const driverColor = getDriverColor(user);
