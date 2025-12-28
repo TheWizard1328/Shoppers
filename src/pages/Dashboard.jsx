@@ -430,7 +430,7 @@ function Dashboard() {
       // Listen for auto-status updates
       const handleAutoStatusUpdate = (event) => {
         const { newStatus } = event.detail;
-        console.log(`📢 [Dashboard] Driver status auto-updated to ${newStatus}`);
+        console.log(`📢 [Dashboard] ${currentUser} status auto-updated to ${newStatus}`);
         // Refresh user data to reflect new status
         if (refreshUser) {
           refreshUser();
