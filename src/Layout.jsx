@@ -1825,6 +1825,7 @@ export default function Layout({ children, currentPageName }) {
       {
         title: 'Drivers',
         pageName: 'DriverSettings',
+        count: drivers.length,
         url: createPageUrl("DriverSettings"),
         icon: Truck
       },
