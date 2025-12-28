@@ -1468,7 +1468,7 @@ export default function DeliveryMap({
       return null;
     }
 
-    if (!currentDriverLocation || !currentUser) {
+    if (!currentUser) {
       return null;
     }
 
@@ -1480,11 +1480,11 @@ export default function DeliveryMap({
       return null;
     }
 
-    // CRITICAL: Only show for drivers viewing their own location (not dispatchers)
+    // CRITICAL: Only show for drivers (including admin/drivers)
     const isCurrentUserDriver = userHasRole(currentUser, 'driver');
     const isCurrentUserDispatcher = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
     
-    // Dispatchers never see blue dot
+    // Dispatchers (non-driver) never see blue dot
     if (isCurrentUserDispatcher && !isCurrentUserDriver) {
       return null;
     }
@@ -1493,12 +1493,24 @@ export default function DeliveryMap({
       return null;
     }
 
-    if (!currentDriverLocation.latitude || !currentDriverLocation.longitude) {
-      return null;
+    // CRITICAL: Use currentDriverLocation if available, otherwise fall back to user's AppUser location
+    let locationData = currentDriverLocation;
+    
+    if (!locationData?.latitude || !locationData?.longitude) {
+      // Fall back to current user's location from AppUser data
+      if (currentUser.current_latitude && currentUser.current_longitude) {
+        locationData = {
+          latitude: currentUser.current_latitude,
+          longitude: currentUser.current_longitude,
+          timestamp: currentUser.location_updated_at
+        };
+      } else {
+        return null;
+      }
     }
 
     return {
-      ...currentDriverLocation,
+      ...locationData,
       driver: currentUser
     };
   }, [currentDriverLocation, currentUser, isMobile, selectedDate]);
