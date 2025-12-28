@@ -3760,72 +3760,7 @@ export default function DeliveryForm({
                     <Label className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>Staged: (S: {sortedStagedDeliveries.length} P: {sortedProjectedDeliveries.length})</Label>
                     <div className="space-y-1 flex-1 overflow-y-auto min-h-0 custom-scrollbar">
                       {sortedStagedDeliveries.map((staged) => {
-                      const stagedStore = stores?.find((s) => s && s.id === staged.store_id);
-                      const storeColor = stagedStore ? getStoreColor(stagedStore) : '#64748b';
-                      const fadedBgColor = hexToRgba(storeColor, 0.1);
-
-                      return (
-                        <div
-                          key={staged._tempId}
-                          className={`flex p-2 rounded border text-xs cursor-pointer transition-colors ${editingStagedId === staged._tempId ? 'border-blue-300' : 'hover:bg-slate-50'}`}
-                          style={{
-                            backgroundColor: editingStagedId === staged._tempId ? hexToRgba(storeColor, 0.2) : fadedBgColor
-                          }}
-                          onClick={() => handleStagedDeliveryClick(staged)}>
-
-                            {/* Left: Two rows of content */}
-                            <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                              {/* Row 1: Name, Store badge, Distance badge */}
-                              <div className="flex items-center gap-1.5">
-                                <span className="font-medium truncate flex-1 min-w-0">{staged.patient_name}</span>
-                                <div className="flex items-center gap-1 flex-shrink-0">
-                                  {staged.store_abbreviation && shouldShowStoreBadges(currentUser) &&
-                                    <Badge className="text-white text-[10px] px-1.5 py-0 h-4" style={{ backgroundColor: storeColor }}>
-                                      {staged.store_abbreviation}
-                                    </Badge>
-                                  }
-                                  {staged.distanceFromStore !== null &&
-                                    <Badge
-                                      className="text-white text-[10px] px-1.5 py-0 h-4"
-                                      style={{
-                                        backgroundColor: staged.distanceFromStore <= 10 ? '#10b981' :
-                                          staged.distanceFromStore <= 15 ? '#f59e0b' : '#ef4444'
-                                      }}>
-                                      {staged.distanceFromStore.toFixed(1)} km
-                                    </Badge>
-                                  }
-                                </div>
-                              </div>
-                              {/* Row 2: Address, Special flags, AM/PM badge */}
-                              <div className="flex items-center gap-1">
-                                <div className="truncate flex-1 min-w-0" style={{ color: 'var(--text-slate-500)' }}>{staged.delivery_address}</div>
-                                <div className="flex items-center gap-1 flex-shrink-0">
-                                  {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed) &&
-                                    <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold">
-                                      {staged.cod_total_amount_required > 0 && '$'}
-                                      {staged.first_delivery && ' N'}
-                                      {staged.oversized && ' O'}
-                                      {staged.fridge_item && ' F'}
-                                      {staged.signature_needed && ' S'}
-                                    </Badge>
-                                  }
-                                  {(staged.call_upon_arrival || staged.ring_bell || staged.dont_ring_bell || staged.mailbox_ok) &&
-                                    <div className="flex items-center gap-0.5 bg-slate-200 px-1 py-0 h-4 rounded">
-                                      {staged.call_upon_arrival && <Phone className="w-2.5 h-2.5 text-amber-600" />}
-                                      {staged.ring_bell && <Bell className="w-2.5 h-2.5 text-emerald-600" />}
-                                      {staged.dont_ring_bell && <BellOff className="w-2.5 h-2.5 text-red-600" />}
-                                      {staged.mailbox_ok && <Mailbox className="w-2.5 h-2.5 text-blue-600" />}
-                                    </div>
-                                  }
-                                  {staged.ampm_deliveries &&
-                                    <Badge className={`text-[10px] px-1.5 py-0 h-4 ${staged.ampm_deliveries === 'AM' ? 'bg-sky-100 text-sky-700 rounded-full' : 'bg-indigo-100 text-indigo-700 rounded-lg'}`}>
-                                      {staged.ampm_deliveries}
-                                    </Badge>
-                                  }
-                                </div>
-                              </div>
-                            </div>
-
+...
                             {/* Right: Trash button isolated */}
                             <Button
                               type="button"
@@ -3837,15 +3772,23 @@ export default function DeliveryForm({
                                 if (staged.id) {
                                   setDeleteConfirmation({ show: true, staged });
                                 } else {
-                                  if (staged._wasProjected && staged._originalProjected) {
-                                    setProjectedDeliveries((prev) => [...prev, staged._originalProjected]);
-                                  }
+                                  // Remove from staged list
                                   setStagedDeliveries((prev) => prev.filter((item) => item._tempId !== staged._tempId));
+                                  
+                                  // CRITICAL: Restore to projected list by filtering full list
+                                  const remainingStagedIds = new Set(
+                                    stagedDeliveries
+                                      .filter((item) => item._tempId !== staged._tempId)
+                                      .map(d => d.patient_id)
+                                      .filter(Boolean)
+                                  );
+                                  const filteredPredictions = fullPredictionListRef.current.filter(pred => !remainingStagedIds.has(pred.patient_id));
+                                  setProjectedDeliveries(filteredPredictions);
+                                  
                                   if (editingStagedId === staged._tempId) {
                                     setEditingStagedId(null);
                                     handleClearForm();
                                   }
-                                  setPredictionTrigger((prev) => prev + 1);
                                 }
                               }}>
                               <Trash2 className="w-5 h-5" />
@@ -3974,72 +3917,7 @@ export default function DeliveryForm({
 
                     <div className="flex-1 overflow-y-auto p-3 space-y-1">
                       {sortedStagedDeliveries.map((staged) => {
-                      const stagedStore = stores?.find((s) => s && s.id === staged.store_id);
-                      const storeColor = stagedStore ? getStoreColor(stagedStore) : '#64748b';
-                      const fadedBgColor = hexToRgba(storeColor, 0.1);
-
-                      return (
-                        <div
-                          key={staged._tempId}
-                          className={`flex p-2 rounded border text-xs cursor-pointer transition-colors ${editingStagedId === staged._tempId ? 'border-blue-300' : 'hover:bg-slate-50'}`}
-                          style={{
-                            backgroundColor: editingStagedId === staged._tempId ? hexToRgba(storeColor, 0.2) : fadedBgColor
-                          }}
-                          onClick={() => handleStagedDeliveryClick(staged)}>
-
-                            {/* Left: Two rows of content */}
-                            <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                              {/* Row 1: Name, Store badge, Distance badge */}
-                              <div className="flex items-center gap-1.5">
-                                <span className="font-medium truncate flex-1 min-w-0">{staged.patient_name}</span>
-                                <div className="flex items-center gap-1 flex-shrink-0">
-                                  {staged.store_abbreviation && shouldShowStoreBadges(currentUser) &&
-                                    <Badge className="text-white text-[10px] px-1.5 py-0 h-4" style={{ backgroundColor: storeColor }}>
-                                      {staged.store_abbreviation}
-                                    </Badge>
-                                  }
-                                  {staged.distanceFromStore !== null &&
-                                    <Badge
-                                      className="text-white text-[10px] px-1.5 py-0 h-4"
-                                      style={{
-                                        backgroundColor: staged.distanceFromStore <= 10 ? '#10b981' :
-                                          staged.distanceFromStore <= 15 ? '#f59e0b' : '#ef4444'
-                                      }}>
-                                      {staged.distanceFromStore.toFixed(1)} km
-                                    </Badge>
-                                  }
-                                </div>
-                              </div>
-                              {/* Row 2: Address, Special flags, AM/PM badge */}
-                              <div className="flex items-center gap-1">
-                                <div className="truncate flex-1 min-w-0" style={{ color: 'var(--text-slate-500)' }}>{staged.delivery_address}</div>
-                                <div className="flex items-center gap-1 flex-shrink-0">
-                                  {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed) &&
-                                    <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold">
-                                      {staged.cod_total_amount_required > 0 && '$'}
-                                      {staged.first_delivery && ' N'}
-                                      {staged.oversized && ' O'}
-                                      {staged.fridge_item && ' F'}
-                                      {staged.signature_needed && ' S'}
-                                    </Badge>
-                                  }
-                                  {(staged.call_upon_arrival || staged.ring_bell || staged.dont_ring_bell || staged.mailbox_ok) &&
-                                    <div className="flex items-center gap-0.5 bg-slate-200 px-1 py-0 h-4 rounded">
-                                      {staged.call_upon_arrival && <Phone className="w-2.5 h-2.5 text-amber-600" />}
-                                      {staged.ring_bell && <Bell className="w-2.5 h-2.5 text-emerald-600" />}
-                                      {staged.dont_ring_bell && <BellOff className="w-2.5 h-2.5 text-red-600" />}
-                                      {staged.mailbox_ok && <Mailbox className="w-2.5 h-2.5 text-blue-600" />}
-                                    </div>
-                                  }
-                                  {staged.ampm_deliveries &&
-                                    <Badge className={`text-[10px] px-1.5 py-0 h-4 ${staged.ampm_deliveries === 'AM' ? 'bg-sky-100 text-sky-700 rounded-full' : 'bg-indigo-100 text-indigo-700 rounded-lg'}`}>
-                                      {staged.ampm_deliveries}
-                                    </Badge>
-                                  }
-                                </div>
-                              </div>
-                            </div>
-
+...
                             {/* Right: Trash button isolated */}
                             <Button
                               type="button"
@@ -4051,15 +3929,23 @@ export default function DeliveryForm({
                                 if (staged.id) {
                                   setDeleteConfirmation({ show: true, staged });
                                 } else {
-                                  if (staged._wasProjected && staged._originalProjected) {
-                                    setProjectedDeliveries((prev) => [...prev, staged._originalProjected]);
-                                  }
+                                  // Remove from staged list
                                   setStagedDeliveries((prev) => prev.filter((item) => item._tempId !== staged._tempId));
+                                  
+                                  // CRITICAL: Restore to projected list by filtering full list
+                                  const remainingStagedIds = new Set(
+                                    stagedDeliveries
+                                      .filter((item) => item._tempId !== staged._tempId)
+                                      .map(d => d.patient_id)
+                                      .filter(Boolean)
+                                  );
+                                  const filteredPredictions = fullPredictionListRef.current.filter(pred => !remainingStagedIds.has(pred.patient_id));
+                                  setProjectedDeliveries(filteredPredictions);
+                                  
                                   if (editingStagedId === staged._tempId) {
                                     setEditingStagedId(null);
                                     handleClearForm();
                                   }
-                                  setPredictionTrigger((prev) => prev + 1);
                                 }
                               }}>
                               <Trash2 className="w-5 h-5" />
