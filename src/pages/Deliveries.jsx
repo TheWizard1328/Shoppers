@@ -2779,6 +2779,18 @@ export default function DeliveriesPage() {
     return userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher');
   }, [currentUser]);
 
+  // Helper function to get driver status badge class
+  const getDriverStatusBadgeClass = useCallback((driverId, fallbackStatus) => {
+    const freshAppUser = freshAppUsers.find(au => au?.user_id === driverId);
+    const driverStatus = freshAppUser?.driver_status ?? fallbackStatus ?? 'off_duty';
+    
+    if (driverStatus === 'on_duty') return 'bg-emerald-500 text-white border-emerald-500';
+    if (driverStatus === 'on_break') return 'bg-orange-400 text-white border-orange-400';
+    if (driverStatus === 'online') return 'bg-emerald-500 text-white border-emerald-500';
+    if (driverStatus === 'off_duty') return 'bg-red-500 text-white border-red-500';
+    return 'bg-white text-slate-600 border-slate-300';
+  }, [freshAppUsers]);
+
   const handleDriverCardClick = useCallback((driver) => {
     console.log('🎯 [Deliveries] Driver card clicked:', driver.user_name || driver.full_name);
 
@@ -3479,17 +3491,7 @@ export default function DeliveriesPage() {
                             <Badge
                           variant="outline"
                           className={`text-xs font-semibold rounded-full w-[80px] inline-flex items-center justify-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${
-                          (() => {
-                            // CRITICAL: Get fresh driver_status from freshAppUsers
-                            const freshAppUser = freshAppUsers.find(au => au?.user_id === card.driver.id);
-                            const driverStatus = freshAppUser?.driver_status ?? card.driver.driver_status ?? 'off_duty';
-                            
-                            if (driverStatus === 'on_duty') return 'bg-emerald-500 text-white border-emerald-500';
-                            if (driverStatus === 'on_break') return 'bg-orange-400 text-white border-orange-400';
-                            if (driverStatus === 'online') return 'bg-emerald-500 text-white border-emerald-500';
-                            if (driverStatus === 'off_duty') return 'bg-red-500 text-white border-red-500';
-                            return 'bg-white text-slate-600 border-slate-300';
-                          })()}`
+                          getDriverStatusBadgeClass(card.driver.id, card.driver.driver_status)}`
                           }>
 
                               {card.stats.totalStops} stops
