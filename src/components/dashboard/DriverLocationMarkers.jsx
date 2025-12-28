@@ -9,6 +9,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
   const isMobile = isMobileDevice();
   const [visibleDrivers, setVisibleDrivers] = useState([]);
   const markersRef = useRef({});
+  const prevVisibleIdsRef = useRef(new Set());
 
   useEffect(() => {
     // Filter drivers to show based on sharing settings and user permissions
@@ -91,7 +92,30 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       return false;
     });
     
-    setVisibleDrivers(validDrivers);
+    // CRITICAL: Check if the set of visible driver IDs has actually changed
+    // This prevents flickering caused by array reference changes during smart refresh
+    const newVisibleIds = new Set(validDrivers.map(d => d.id));
+    const prevIds = prevVisibleIdsRef.current;
+    
+    const idsChanged = newVisibleIds.size !== prevIds.size || 
+      [...newVisibleIds].some(id => !prevIds.has(id)) ||
+      [...prevIds].some(id => !newVisibleIds.has(id));
+    
+    // Check if any driver's location has significantly changed
+    const locationsChanged = validDrivers.some(driver => {
+      const existing = visibleDrivers.find(d => d.id === driver.id);
+      if (!existing) return true;
+      // Only consider it changed if coordinates differ by more than a tiny amount
+      const latDiff = Math.abs((driver.current_latitude || 0) - (existing.current_latitude || 0));
+      const lngDiff = Math.abs((driver.current_longitude || 0) - (existing.current_longitude || 0));
+      return latDiff > 0.00001 || lngDiff > 0.00001;
+    });
+    
+    // Only update state if there's an actual meaningful change
+    if (idsChanged || locationsChanged) {
+      setVisibleDrivers(validDrivers);
+      prevVisibleIdsRef.current = newVisibleIds;
+    }
     
     // Clean up markers for drivers that are no longer visible
     Object.keys(markersRef.current).forEach(userId => {
