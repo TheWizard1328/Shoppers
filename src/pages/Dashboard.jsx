@@ -1506,7 +1506,25 @@ function Dashboard() {
           })
         : locations;
       
-      setAllDriverLocations(filteredLocations);
+      // CRITICAL: Merge with existing locations instead of replacing
+      // This prevents markers from disappearing during smart refresh
+      setAllDriverLocations(prevLocations => {
+        const locationMap = new Map();
+        
+        // Add existing locations first
+        prevLocations.forEach(loc => {
+          const key = loc.driver_id || loc.user_id || loc.id;
+          if (key) locationMap.set(key, loc);
+        });
+        
+        // Overlay with new locations (updates existing, adds new)
+        filteredLocations.forEach(loc => {
+          const key = loc.driver_id || loc.user_id || loc.id;
+          if (key) locationMap.set(key, loc);
+        });
+        
+        return Array.from(locationMap.values());
+      });
     });
     
     return () => {
