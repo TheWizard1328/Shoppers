@@ -1311,6 +1311,7 @@ export default function DeliveryMap({
     }
 
     const isAdmin = currentUser && userHasRole(currentUser, 'admin');
+    const isDispatcher = currentUser && userHasRole(currentUser, 'dispatcher');
     const isDriverRole = currentUser && userHasRole(currentUser, 'driver');
     const currentUserCityId = currentUser?.city_id;
     const fiveMinutesInMs = 5 * 60 * 1000;
@@ -1391,27 +1392,35 @@ export default function DeliveryMap({
         isStaleLocation = true;
       }
 
-      // Permission filtering - drivers and admins see all shared locations in same city
-      if (!isAdmin && !isDriverRole) {
-        return null;
+      // Permission filtering
+      // 1. Admins see all shared locations in same city
+      if (isAdmin) {
+        // Proceed to show marker (no city filter for admins)
       }
-      
-      if (!isAdmin && currentUserCityId !== user.city_id) {
-        return null;
-      }
-
-      // Dispatcher filtering - only show drivers with deliveries for dispatcher's stores
-      if (currentUser && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
+      // 2. Dispatchers see drivers with deliveries for their stores
+      else if (isDispatcher) {
         const dispatcherStoreIds = new Set(currentUser.store_ids || []);
-        const hasDeliveryInDispatcherStore = safeDeliveries.some(delivery =>
+        // CRITICAL: Check against deliveriesForLocationFilter (all deliveries for today)
+        const hasDeliveryInDispatcherStore = (deliveriesForLocationFilter || []).some(delivery =>
           delivery &&
           delivery.driver_id === driverId &&
+          delivery.delivery_date === todayStr &&
           dispatcherStoreIds.has(delivery.store_id)
         );
 
         if (!hasDeliveryInDispatcherStore) {
           return null;
         }
+      }
+      // 3. Drivers see locations from users in same city
+      else if (isDriverRole) {
+        if (currentUserCityId !== user.city_id) {
+          return null;
+        }
+      }
+      // 4. Other roles - no access
+      else {
+        return null;
       }
 
       const driverColor = getDriverColor(user);
