@@ -606,6 +606,8 @@ export default function DeliveryForm({
 
   // CRITICAL: Track if predictions should be stopped (when Done button is clicked or form is closing)
   const predictionsStopped = useRef(false);
+  // CRITICAL: Store full prediction list from backend (never refetch unless date/user changes)
+  const fullPredictionListRef = useRef([]);
 
   useEffect(() => {
     if (delivery || !formData.delivery_date || !currentUser || !stores || !allDeliveries) return;
@@ -618,7 +620,6 @@ export default function DeliveryForm({
 
     const fetchPredictions = async () => {
       setIsLoadingPredictions(true);
-      setProjectedDeliveries([]);
 
       try {
         let storeIdsToPredict = [];
@@ -653,12 +654,11 @@ export default function DeliveryForm({
           return;
         }
 
-        // Call backend function for predictions
-        const stagedPatientIds = stagedDeliveries.map((d) => d.patient_id).filter(Boolean);
+        // Call backend function for predictions (ONLY once per form open)
         const response = await base44.functions.invoke('getDeliveryPredictions', {
           selectedDate: formData.delivery_date,
           storeIds: storeIdsToPredict,
-          excludePatientIds: stagedPatientIds
+          excludePatientIds: [] // Don't exclude any on initial load
         });
 
         const result = response?.data || response;
@@ -676,7 +676,13 @@ export default function DeliveryForm({
             extra_time: pred.extra_time || 0
           }));
 
-          setProjectedDeliveries(formattedPredictions);
+          // CRITICAL: Store full list in ref (never refetch)
+          fullPredictionListRef.current = formattedPredictions;
+          
+          // Filter out staged patients and display
+          const stagedPatientIds = new Set(stagedDeliveries.map((d) => d.patient_id).filter(Boolean));
+          const filteredPredictions = formattedPredictions.filter(pred => !stagedPatientIds.has(pred.patient_id));
+          setProjectedDeliveries(filteredPredictions);
         }
       } catch (error) {
         console.error('Error fetching predictions:', error);
@@ -686,7 +692,7 @@ export default function DeliveryForm({
     };
 
     fetchPredictions();
-  }, [delivery, formData.delivery_date, currentUser, stores, allDeliveries, predictionTrigger, stagedDeliveries]);
+  }, [delivery, formData.delivery_date, currentUser, stores, allDeliveries]);
 
   const handlePatientSelect = useCallback(async (patient) => {
     if (!patient) return;
@@ -868,8 +874,10 @@ export default function DeliveryForm({
 
     setHasChanges(true);
 
-    // Remove from projected deliveries if exists
-    setProjectedDeliveries((prev) => prev.filter((p) => p.patient_id !== patient.id));
+    // CRITICAL: Filter projected deliveries locally (don't refetch from backend)
+    const stagedPatientIds = new Set([...stagedDeliveries.map(d => d.patient_id), patient.id].filter(Boolean));
+    const filteredPredictions = fullPredictionListRef.current.filter(pred => !stagedPatientIds.has(pred.patient_id));
+    setProjectedDeliveries(filteredPredictions);
 
     setError(null);
     setSelectedPatient(null);
@@ -1436,8 +1444,10 @@ export default function DeliveryForm({
 
     setHasChanges(true);
 
-    // Remove matching projected delivery if exists
-    setProjectedDeliveries((prev) => prev.filter((p) => p.patient_id !== formData.patient_id));
+    // CRITICAL: Filter projected deliveries locally (don't refetch from backend)
+    const stagedPatientIds = new Set([...stagedDeliveries.map(d => d.patient_id), formData.patient_id].filter(Boolean));
+    const filteredPredictions = fullPredictionListRef.current.filter(pred => !stagedPatientIds.has(pred.patient_id));
+    setProjectedDeliveries(filteredPredictions);
 
     setError(null);
     setSelectedPatient(null);
@@ -2736,7 +2746,11 @@ export default function DeliveryForm({
     }]);
 
     setHasChanges(true);
-    setProjectedDeliveries((prev) => prev.filter((p) => p.patient_id !== projected.patient_id));
+    
+    // CRITICAL: Filter projected deliveries locally (don't refetch from backend)
+    const stagedPatientIds = new Set([...stagedDeliveries.map(d => d.patient_id), projected.patient_id].filter(Boolean));
+    const filteredPredictions = fullPredictionListRef.current.filter(pred => !stagedPatientIds.has(pred.patient_id));
+    setProjectedDeliveries(filteredPredictions);
   }, [formData, stores, patients, allDrivers, currentUser]);
 
   const sortedStagedDeliveries = useMemo(() => {
@@ -4346,8 +4360,15 @@ export default function DeliveryForm({
                     handleClearForm();
                   }
 
-                  // Trigger projections refresh
-                  setPredictionTrigger((prev) => prev + 1);
+                  // CRITICAL: Restore to projected list by filtering full list
+                  const remainingStagedIds = new Set(
+                    stagedDeliveries
+                      .filter((item) => item.id !== staged.id && item._tempId !== staged._tempId)
+                      .map(d => d.patient_id)
+                      .filter(Boolean)
+                  );
+                  const filteredPredictions = fullPredictionListRef.current.filter(pred => !remainingStagedIds.has(pred.patient_id));
+                  setProjectedDeliveries(filteredPredictions);
 
                   setDeleteConfirmation({ show: false, staged: null });
                 } catch (error) {
