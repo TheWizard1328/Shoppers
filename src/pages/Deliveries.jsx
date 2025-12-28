@@ -139,6 +139,7 @@ export default function DeliveriesPage() {
   const [allPatients, setAllPatients] = useState([]);
   const [stores, setStores] = useState([]);
   const [cities, setCities] = useState([]);
+  const [freshAppUsers, setFreshAppUsers] = useState([]);
 
   const [currentUser, setCurrentUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -479,6 +480,24 @@ export default function DeliveriesPage() {
       isMounted.current = false;
     };
   }, []);
+
+  // Fetch fresh AppUser data periodically for accurate driver_status
+  useEffect(() => {
+    if (!isDriverOverviewMode) return;
+    
+    const fetchFreshAppUsers = async () => {
+      try {
+        const freshData = await base44.entities.AppUser.list();
+        setFreshAppUsers(freshData || []);
+      } catch (error) {
+        console.warn('Failed to fetch fresh AppUser data:', error);
+      }
+    };
+
+    fetchFreshAppUsers();
+    const interval = setInterval(fetchFreshAppUsers, 10000);
+    return () => clearInterval(interval);
+  }, [isDriverOverviewMode]);
 
   useEffect(() => {
     if (!contextDataLoaded || !initialLoadDone.current || !dataLoaded) {
@@ -3460,15 +3479,17 @@ export default function DeliveriesPage() {
                             <Badge
                           variant="outline"
                           className={`text-xs font-semibold rounded-full w-[80px] inline-flex items-center justify-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${
-                          card.driver.driver_status === 'on_duty' ?
-                          'bg-emerald-500 text-white border-emerald-500' :
-                          card.driver.driver_status === 'on_break' ?
-                          'bg-orange-400 text-white border-orange-400' :
-                          card.driver.driver_status === 'online' ?
-                          'bg-emerald-500 text-white border-emerald-500' :
-                          card.driver.driver_status === 'off_duty' ?
-                          'bg-red-500 text-white border-red-500' :
-                          'bg-white text-slate-600 border-slate-300'}`
+                          (() => {
+                            // CRITICAL: Get fresh driver_status from freshAppUsers
+                            const freshAppUser = freshAppUsers.find(au => au?.user_id === card.driver.id);
+                            const driverStatus = freshAppUser?.driver_status ?? card.driver.driver_status ?? 'off_duty';
+                            
+                            if (driverStatus === 'on_duty') return 'bg-emerald-500 text-white border-emerald-500';
+                            if (driverStatus === 'on_break') return 'bg-orange-400 text-white border-orange-400';
+                            if (driverStatus === 'online') return 'bg-emerald-500 text-white border-emerald-500';
+                            if (driverStatus === 'off_duty') return 'bg-red-500 text-white border-red-500';
+                            return 'bg-white text-slate-600 border-slate-300';
+                          })()}`
                           }>
 
                               {card.stats.totalStops} stops
