@@ -1823,6 +1823,12 @@ export default function Layout({ children, currentPageName }) {
         icon: Building
       },
       {
+        title: 'Drivers',
+        pageName: 'DriverSettings',
+        url: createPageUrl("DriverSettings"),
+        icon: Truck
+      },
+      {
         title: 'Users',
         pageName: 'AppUsers',
         count: entityCounts.users,

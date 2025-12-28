@@ -9,6 +9,7 @@ import Home from './pages/Home';
 import Patients from './pages/Patients';
 import Stores from './pages/Stores';
 import Users from './pages/Users';
+import DriverSettings from './pages/DriverSettings';
 import __Layout from './Layout.jsx';
 
 
@@ -24,6 +25,7 @@ export const PAGES = {
     "Patients": Patients,
     "Stores": Stores,
     "Users": Users,
+    "DriverSettings": DriverSettings,
 }
 
 export const pagesConfig = {
