@@ -67,6 +67,19 @@ class DriverActivityMonitor {
 
       console.log(`⚠️ [Activity Monitor] Driver hasn't moved in ${Math.round(timeSinceUpdate / 60000)} minutes`);
 
+      // CRITICAL: Check if a status change is in progress (avoid race condition)
+      const statusChangeInProgress = sessionStorage.getItem('driver_status_change_in_progress');
+      if (statusChangeInProgress) {
+        const changeStart = parseInt(statusChangeInProgress, 10);
+        const timeSinceChange = Date.now() - changeStart;
+        
+        // If status change started within last 5 seconds, skip this check
+        if (timeSinceChange < 5000) {
+          console.log('⏸️ [Activity Monitor] Skipping - driver status change in progress');
+          return;
+        }
+      }
+
       // Check for active stops today
       const todayStr = format(new Date(), 'yyyy-MM-dd');
       const todayDeliveries = await base44.entities.Delivery.filter({
