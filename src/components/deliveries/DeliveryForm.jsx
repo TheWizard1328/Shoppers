@@ -2575,9 +2575,6 @@ export default function DeliveryForm({
   }, [formData.store_id, delivery, isPickupMode, formData.delivery_date, stores, allDeliveries]);
 
   const confirmAddProjectedToStaged = useCallback(async (projected) => {
-    // CRITICAL: Remove from projected list IMMEDIATELY (before async operations)
-    setProjectedDeliveries((prev) => prev.filter((p) => p.patient_id !== projected.patient_id));
-
     const store = stores.find((s) => s && s.id === projected.store_id);
     if (!store) {
       console.error('Store not found for projected delivery:', projected.store_id);
@@ -2605,7 +2602,7 @@ export default function DeliveryForm({
     const deliveryDate = formData.delivery_date ? new Date(formData.delivery_date + 'T00:00:00') : new Date();
     const dayOfWeek = deliveryDate.getDay();
 
-    const deliveryAMPM = determineDeliveryAMPM(patient); // Changed here
+    const deliveryAMPM = determineDeliveryAMPM(patient);
 
     let amDriverIdField = '';
     let pmDriverIdField = '';
@@ -2641,7 +2638,73 @@ export default function DeliveryForm({
     const timeSlot = getStoreAssignedTimeSlot(store, formData.delivery_date, allDeliveries);
     const autoDriverId = autoSelectedDriverId || formData.driver_id;
 
-    // First try the backend function to handle in-progress route scenario
+    // CRITICAL: Build staged item FIRST, then update both states atomically
+    const newStagedItem = {
+      patient_id: projected.patient_id,
+      patient_name: projected.patient_name,
+      patient_phone: patient.phone || '',
+      unit_number: patient.unit_number || '',
+      delivery_date: formData.delivery_date,
+      delivery_time_start: patient.time_window_start || '',
+      delivery_time_end: patient.time_window_end || (patient.time_window_start ? '' : ''),
+      time_window_start: patient.time_window_start || '',
+      time_window_end: patient.time_window_end || (patient.time_window_start ? '' : ''),
+      puid: '', // Will be updated after async call
+      ampm_deliveries: timeSlot,
+      status: 'Staged',
+      driver_id: autoSelectedDriverId,
+      driver_name: autoSelectedDriverName,
+      prescription_number: projected.prescription_number || '',
+      delivery_instructions: patient.notes || '',
+      delivery_notes: '',
+      cod_total_amount_required: projected.cod_total_amount_required || 0,
+      cod_payments: [],
+      cod_payment_type: 'No Payment',
+      tracking_number: '',
+      delivery_stop_id: '',
+      stop_id: '',
+      store_id: projected.store_id,
+      store_name: store.name,
+      store_abbreviation: store.abbreviation,
+      store_phone: store.phone || '',
+      mailbox_ok: patient.mailbox_ok || false,
+      call_upon_arrival: patient.call_upon_arrival || false,
+      ring_bell: patient.ring_bell || false,
+      dont_ring_bell: patient.dont_ring_bell || false,
+      back_door: patient.back_door || false,
+      signature_needed: patient.signature_needed || false,
+      fridge_item: patient.fridge_item || false,
+      oversized: patient.oversized || false,
+      after_hours_pickup: false,
+      no_charge: false,
+      extra_time: projected.extra_time || 0,
+      recurring: patient.recurring || false,
+      recurring_daily: patient.recurring_daily || false,
+      recurring_weekly_mon: patient.recurring_weekly_mon || false,
+      recurring_weekly_tue: patient.recurring_weekly_tue || false,
+      recurring_weekly_wed: patient.recurring_weekly_wed || false,
+      recurring_weekly_thu: patient.recurring_weekly_thu || false,
+      recurring_weekly_fri: patient.recurring_weekly_fri || false,
+      recurring_weekly_sat: patient.recurring_weekly_sat || false,
+      recurring_weekly_sun: patient.recurring_weekly_sun || false,
+      recurring_biweekly: patient.recurring_biweekly || false,
+      recurring_weekly_x4: patient.recurring_weekly_x4 || false,
+      recurring_monthly: patient.recurring_monthly || false,
+      recurring_bimonthly: patient.recurring_bimonthly || false,
+      _tempId: Date.now() + Math.random(),
+      _wasProjected: true,
+      _originalProjected: projected,
+      distanceFromStore: distanceFromStore,
+      delivery_address: patient.address || '',
+      isNextDelivery: false
+    };
+
+    // CRITICAL: Remove from projected and add to staged in one synchronous batch
+    setProjectedDeliveries((prev) => prev.filter((p) => p.patient_id !== projected.patient_id));
+    setStagedDeliveries((prev) => [...prev, newStagedItem]);
+    setHasChanges(true);
+
+    // Now do async PUID lookup and update the staged item if needed
     if (autoDriverId) {
       try {
         const pickupResponse = await base44.functions.invoke('ensurePickupForDelivery', {
@@ -2653,7 +2716,10 @@ export default function DeliveryForm({
 
         if (pickupResponse.data?.puid) {
           puid = pickupResponse.data.puid;
-          console.log(`✅ [confirmAddProjectedToStaged] Using PUID from ensurePickupForDelivery: ${puid} (isNew: ${pickupResponse.data.isNew})`);
+          // Update the staged item with the PUID
+          setStagedDeliveries((prev) => prev.map((item) => 
+            item._tempId === newStagedItem._tempId ? { ...item, puid } : item
+          ));
         }
       } catch (error) {
         console.warn('⚠️ [confirmAddProjectedToStaged] ensurePickupForDelivery failed:', error.message);
@@ -2679,16 +2745,20 @@ export default function DeliveryForm({
 
         if (isNotCompleted || wasCompletedRecently) {
           puid = existingPickup.stop_id;
-          console.log(`✅ [Projected] Using existing pickup PUID (fallback): ${puid}`);
         }
       }
 
       if (!puid) {
         puid = getPickupStopIdForDelivery(store.id, formData.delivery_date, timeSlot, allDeliveries);
       }
-    }
 
-    setStagedDeliveries((prev) => [...prev, {
+      if (puid) {
+        setStagedDeliveries((prev) => prev.map((item) => 
+          item._tempId === newStagedItem._tempId ? { ...item, puid } : item
+        ));
+      }
+    }
+  }, [formData, stores, patients, drivers, allDeliveries, stagedDeliveries]);
       patient_id: projected.patient_id,
       patient_name: projected.patient_name,
       patient_phone: patient.phone || '',
