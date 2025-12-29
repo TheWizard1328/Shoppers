@@ -129,16 +129,22 @@ class DriverLocationPoller {
       // Skip if no valid coordinates
       if (!user.current_latitude || !user.current_longitude) return false;
 
-      // RULE 1: Current user (self) - NEVER show on mobile (blue GPS dot shows instead)
-      // Desktop: show own marker regardless of status/tracking
+      // CRITICAL: Current user (self) - NEVER show on mobile (blue GPS dot shows instead)
+      // Desktop: show own marker ONLY when sharing is enabled
       if (isSelf) {
         if (isMobileDevice) {
           // Mobile: ALWAYS block self marker - blue GPS dot is shown by the map component
+          console.log(`🚫 [DriverLocationPoller] MOBILE - Blocking self marker: ${user.user_name || user.full_name}`);
           return false;
         }
-        // Desktop: always show own shared location marker regardless of status/tracking
-        console.log('✅ [DriverLocationPoller] Including self marker on DESKTOP (status: ' + user.driver_status + ', tracking: ' + user.location_tracking_enabled + ')');
-        return true;
+        // Desktop: ONLY show if location_tracking_enabled = true (actively sharing)
+        if (user.location_tracking_enabled === true) {
+          console.log('✅ [DriverLocationPoller] Including self marker on DESKTOP (sharing ON)');
+          return true;
+        } else {
+          console.log('🚫 [DriverLocationPoller] Hiding self marker on DESKTOP (sharing OFF)');
+          return false;
+        }
       }
 
       // RULE 4: All other drivers must be in same city
