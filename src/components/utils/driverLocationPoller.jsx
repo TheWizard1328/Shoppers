@@ -48,8 +48,42 @@ class DriverLocationPoller {
     // Update internal current user reference
     this.currentUser = currentUser;
     
-    const users = appUsers;
-    if (!Array.isArray(users) || users.length === 0) {
+    // Determine if current device is mobile
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    const currentUserId = this.currentUser?.id;
+    const currentUserUserId = this.currentUser?.user_id;
+    
+    // CRITICAL: On desktop, ensure current user's AppUser is in the list for self-marker
+    // This handles the case where user is off_duty and not in the filtered appUsers
+    let users = Array.isArray(appUsers) ? [...appUsers] : [];
+    
+    if (!isMobile && currentUser && currentUser.current_latitude && currentUser.current_longitude) {
+      // Check if current user is already in the list
+      const selfInList = users.some(u => 
+        u && (u.user_id === currentUserId || u.id === currentUserId || 
+              u.user_id === currentUserUserId || u.id === currentUserUserId)
+      );
+      
+      if (!selfInList) {
+        // Add current user to the list so they can see their own marker
+        console.log('📍 [DriverLocationPoller] Adding current user to list for self-marker (desktop, off_duty)');
+        users.push({
+          id: currentUser.id,
+          user_id: currentUser.user_id || currentUser.id,
+          user_name: currentUser.user_name || currentUser.full_name,
+          current_latitude: currentUser.current_latitude,
+          current_longitude: currentUser.current_longitude,
+          location_updated_at: currentUser.location_updated_at,
+          driver_status: currentUser.driver_status,
+          location_tracking_enabled: currentUser.location_tracking_enabled,
+          status: currentUser.status,
+          city_id: currentUser.city_id
+        });
+      }
+    }
+    
+    if (users.length === 0) {
       // CRITICAL: Still notify subscribers with empty array to clear markers
       this.notifySubscribers([]);
       return;
@@ -63,11 +97,6 @@ class DriverLocationPoller {
     const isDispatcher = this.currentUser && userHasRole(this.currentUser, 'dispatcher');
     const isDriver = this.currentUser && userHasRole(this.currentUser, 'driver');
     const currentUserCityId = this.currentUser?.city_id;
-    const currentUserId = this.currentUser?.id;
-    const currentUserUserId = this.currentUser?.user_id;
-    
-    // Determine if current device is mobile
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     
     const todayStr = new Date().toISOString().split('T')[0];
 
@@ -75,23 +104,24 @@ class DriverLocationPoller {
     const activeDriversWithLocation = users.filter(user => {
       if (!user) return false;
 
-      // Skip inactive users
-      if (user.status === 'inactive') return false;
-
-      // Skip if no valid coordinates
-      if (!user.current_latitude || !user.current_longitude) return false;
-
+      // Skip inactive users (but NOT for self - driver should see own marker even if inactive)
       const driverId = user.id || user.user_id;
       const isSelf = user.user_id === currentUserId || 
                      user.id === currentUserId || 
                      user.user_id === currentUserUserId ||
                      user.id === currentUserUserId;
+      
+      if (user.status === 'inactive' && !isSelf) return false;
+
+      // Skip if no valid coordinates
+      if (!user.current_latitude || !user.current_longitude) return false;
 
       // CRITICAL: ALWAYS show own marker on desktop (even if off_duty or tracking disabled)
       // On mobile, the blue GPS dot shows instead, so skip self marker there
       if (isSelf) {
         // Desktop: always show own shared location marker
         if (!isMobile) {
+          console.log('📍 [DriverLocationPoller] Including self marker on desktop');
           return true;
         }
         // Mobile: skip self marker (blue GPS dot shows instead)
