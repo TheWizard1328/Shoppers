@@ -3190,13 +3190,14 @@ export default function DeliveriesPage() {
             animate={{ x: 0 }}
             exit={{ x: "-100%" }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="fixed top-0 left-0 h-full w-64 bg-white shadow-xl z-50 flex flex-col"
+            className="fixed top-0 left-0 h-full w-64 shadow-xl z-50 flex flex-col"
+            style={{ background: 'var(--bg-white)' }}
             onClick={(e) => e.stopPropagation()}>
 
-              <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+              <div className="p-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border-slate-100)' }}>
                 <div className="flex items-center gap-2">
-                  <CalendarIcon className="w-5 h-5" />
-                  <h2 className="text-lg font-semibold text-slate-800">Route Dates</h2>
+                  <CalendarIcon className="w-5 h-5" style={{ color: 'var(--text-slate-700)' }} />
+                  <h2 className="text-lg font-semibold" style={{ color: 'var(--text-slate-800)' }}>Route Dates</h2>
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(false)}>
                   <XIcon className="w-5 h-5" />
