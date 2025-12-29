@@ -2112,11 +2112,15 @@ function Dashboard() {
           [driverLocation.latitude, driverLocation.longitude],
           [nextStopCoordinates.lat, nextStopCoordinates.lon]];
 
-          // CRITICAL: Increase bottom padding significantly for Phase 2
+          // CRITICAL: Reduce top padding and increase bottom padding for Phase 2
           const phase2Padding = getMapPadding(false, false);
+          phase2Padding.paddingTopLeft = [
+            phase2Padding.paddingTopLeft[0],
+            Math.max(20, phase2Padding.paddingTopLeft[1] - 30) // Reduce top padding by 30px
+          ];
           phase2Padding.paddingBottomRight = [
             phase2Padding.paddingBottomRight[0],
-            phase2Padding.paddingBottomRight[1] + 80 // Add 80px extra bottom padding
+            phase2Padding.paddingBottomRight[1] + 50 // Reduce bottom padding from 80 to 50px
           ];
 
           setShouldFitBounds({
@@ -2132,9 +2136,13 @@ function Dashboard() {
         } else {
           // If no next stop, just center on driver with padding
           const phase2Padding = getMapPadding(false, false);
+          phase2Padding.paddingTopLeft = [
+            phase2Padding.paddingTopLeft[0],
+            Math.max(20, phase2Padding.paddingTopLeft[1] - 30)
+          ];
           phase2Padding.paddingBottomRight = [
             phase2Padding.paddingBottomRight[0],
-            phase2Padding.paddingBottomRight[1] + 80
+            phase2Padding.paddingBottomRight[1] + 50
           ];
           
           setShouldFitBounds({
@@ -2158,11 +2166,15 @@ function Dashboard() {
           return;
         }
 
-        // CRITICAL: Increase bottom padding significantly for Phase 3
+        // CRITICAL: Reduce top padding and increase bottom padding for Phase 3
         const phase3Padding = getMapPadding(false, false);
+        phase3Padding.paddingTopLeft = [
+          phase3Padding.paddingTopLeft[0],
+          Math.max(20, phase3Padding.paddingTopLeft[1] - 30) // Reduce top padding by 30px
+        ];
         phase3Padding.paddingBottomRight = [
           phase3Padding.paddingBottomRight[0],
-          phase3Padding.paddingBottomRight[1] + 80 // Add 80px extra bottom padding
+          phase3Padding.paddingBottomRight[1] + 50 // Reduce bottom padding from 80 to 50px
         ];
 
         setShouldFitBounds({
