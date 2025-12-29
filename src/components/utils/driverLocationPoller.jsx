@@ -78,9 +78,6 @@ class DriverLocationPoller {
       // Skip inactive users
       if (user.status === 'inactive') return false;
 
-      // Only show on_duty or on_break drivers
-      if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') return false;
-
       // Skip if no valid coordinates
       if (!user.current_latitude || !user.current_longitude) return false;
 
@@ -90,10 +87,24 @@ class DriverLocationPoller {
                      user.user_id === currentUserUserId ||
                      user.id === currentUserUserId;
 
-      // Location tracking must be enabled (unless it's your own marker)
-      if (user.location_tracking_enabled !== true && !isSelf) return false;
+      // CRITICAL: ALWAYS show own marker on desktop (even if off_duty or tracking disabled)
+      // On mobile, the blue GPS dot shows instead, so skip self marker there
+      if (isSelf) {
+        // Desktop: always show own shared location marker
+        if (!isMobile) {
+          return true;
+        }
+        // Mobile: skip self marker (blue GPS dot shows instead)
+        return false;
+      }
 
-      // Check staleness and idle status
+      // For OTHER drivers: require on_duty or on_break status
+      if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') return false;
+
+      // Location tracking must be enabled for other drivers
+      if (user.location_tracking_enabled !== true) return false;
+
+      // Check staleness and idle status for other drivers
       let locationAge = 0;
       if (user.location_updated_at) {
         locationAge = now - new Date(user.location_updated_at).getTime();
@@ -113,30 +124,18 @@ class DriverLocationPoller {
         }
       }
 
-      // NEW FILTERING RULES - CRITICAL: Admin+Driver users follow driver rules
+      // NEW FILTERING RULES FOR OTHER DRIVERS
       
-      // RULE 1 & 3: Mobile users with driver OR admin role - SKIP SELF (blue dot shows instead)
-      if (isMobile && (isDriver || isAdmin)) {
-        if (isSelf) return false;
-        
-        // For admins: show all other drivers
-        if (isAdmin) return true;
-        
-        // For pure drivers: show other drivers in same city
+      // Admin: show all other drivers
+      if (isAdmin) return true;
+      
+      // Driver: show other drivers in same city
+      if (isDriver) {
         return currentUserCityId && user.city_id === currentUserCityId;
       }
       
-      // RULE 2 & 4: Desktop users with driver OR admin role - show ALL drivers (including self)
-      if (!isMobile && (isDriver || isAdmin)) {
-        // For admins: show all drivers
-        if (isAdmin) return true;
-        
-        // For pure drivers: show drivers in same city
-        return currentUserCityId && user.city_id === currentUserCityId;
-      }
-      
-      // RULE 5: Pure Dispatcher (no driver/admin roles) - show active drivers with assigned deliveries
-      if (isDispatcher && !isAdmin && !isDriver) {
+      // Dispatcher: show active drivers with assigned deliveries
+      if (isDispatcher) {
         const dispatcherStoreIds = new Set(this.currentUser.store_ids || []);
         const hasActiveDelivery = (deliveries || []).some(delivery =>
           delivery &&
