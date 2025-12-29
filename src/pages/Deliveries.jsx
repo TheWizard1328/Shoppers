@@ -3388,16 +3388,17 @@ export default function DeliveriesPage() {
                 </CardContent>
               </Card>
 
-              <Card className="bg-white/80 backdrop-blur-sm md:hidden flex-shrink-0 m-4 mb-2">
+              <Card className="backdrop-blur-sm md:hidden flex-shrink-0 m-4 mb-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                 <CardContent className="p-4">
                   <div className="space-y-3">
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
                       <Input
                       placeholder="Search drivers..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 w-full bg-slate-100 border-slate-300" />
+                      className="pl-10 w-full"
+                      style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
                     </div>
 
                     <div className="flex items-center gap-3">
@@ -3406,13 +3407,13 @@ export default function DeliveriesPage() {
                       setSelectedCityId(value);
                       updateUrl({ city: value });
                     }}>
-                          <SelectTrigger className="w-[140px] bg-white border-slate-300">
+                          <SelectTrigger className="w-[140px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                             <SelectValue placeholder="Select City" />
                           </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Cities</SelectItem>
+                          <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                            <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Cities</SelectItem>
                             {cities.map((city) =>
-                        <SelectItem key={city.id} value={city.id}>{city.name}</SelectItem>
+                        <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>{city.name}</SelectItem>
                         )}
                           </SelectContent>
                         </Select>
@@ -3439,13 +3440,13 @@ export default function DeliveriesPage() {
                       }
                       navigate(`${location.pathname}?${params.toString()}`, { replace: true });
                     }}>
-                        <SelectTrigger className="w-[140px] bg-white border-slate-300">
+                        <SelectTrigger className="w-[140px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Years</SelectItem>
+                        <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                          <SelectItem value="all" style={{ color: 'var(--text-slate-900)' }}>All Years</SelectItem>
                           {availableOverviewYears.map((year) =>
-                        <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                        <SelectItem key={year} value={year.toString()} style={{ color: 'var(--text-slate-900)' }}>{year}</SelectItem>
                         )}
                         </SelectContent>
                       </Select>
