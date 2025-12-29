@@ -190,39 +190,6 @@ class DriverLocationPoller {
         return false;
       }
       
-      // RULE 3: Dispatcher special handling
-      // CRITICAL: Dispatchers can see driver markers if driver is NOT off_duty
-      // Location sharing setting is ignored for dispatchers - they always see active drivers
-      if (isDispatcher && !isAdmin) {
-        const dispatcherStoreIds = new Set(this.currentUser.store_ids || []);
-        
-        // For dispatchers: driver must have assigned stops AND NOT be off_duty
-        const hasAssignedStops = (deliveries || []).some(delivery =>
-          delivery &&
-          delivery.driver_id === driverId &&
-          delivery.delivery_date === todayStr &&
-          dispatcherStoreIds.has(delivery.store_id) &&
-          !['completed', 'failed', 'cancelled', 'returned'].includes(delivery.status)
-        );
-        
-        if (!hasAssignedStops) return false;
-        
-        // CRITICAL: Must NOT be off_duty (on_duty, on_break, or online all visible)
-        if (user.driver_status === 'off_duty') {
-          console.log(`🚫 [DriverLocationPoller] Hiding ${user.user_name} for dispatcher - driver is off_duty`);
-          return false;
-        }
-        
-        // CRITICAL: Location must be recent (within 30 minutes)
-        if (locationAge > thirtyMinutesInMs) {
-          console.log(`🚫 [DriverLocationPoller] Hiding ${user.user_name} - location too old (${Math.round(locationAge/60000)}min)`);
-          return false;
-        }
-        
-        console.log(`✅ [DriverLocationPoller] Showing ${user.user_name} to dispatcher (status: ${user.driver_status}, sharing: ${user.location_tracking_enabled})`);
-        return true;
-      }
-
       // RULE 2: For other drivers (admin or driver viewing other drivers)
       // Must be on_duty or on_break AND location_tracking_enabled = true
       if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') return false;
