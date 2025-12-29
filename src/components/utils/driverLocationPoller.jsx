@@ -142,21 +142,53 @@ class DriverLocationPoller {
         return false;
       }
 
-      // CRITICAL: For OTHER drivers, location_tracking_enabled MUST be true
+      // CRITICAL: Check location_updated_at to ensure location exists
+      if (!user.location_updated_at) {
+        console.log(`🚫 [DriverLocationPoller] Hiding ${user.user_name} - no location_updated_at`);
+        return false;
+      }
+
+      const locationAge = now - new Date(user.location_updated_at).getTime();
+
+      // RULE 3: Dispatcher special handling - check BEFORE location_tracking_enabled filter
+      // CRITICAL: Dispatchers can see driver markers if driver is NOT off_duty
+      // Location sharing setting is ignored for dispatchers - they always see active drivers
+      if (isDispatcher && !isAdmin) {
+        const dispatcherStoreIds = new Set(this.currentUser.store_ids || []);
+        
+        // For dispatchers: driver must have assigned stops AND NOT be off_duty
+        const hasAssignedStops = (deliveries || []).some(delivery =>
+          delivery &&
+          delivery.driver_id === driverId &&
+          delivery.delivery_date === todayStr &&
+          dispatcherStoreIds.has(delivery.store_id) &&
+          !['completed', 'failed', 'cancelled', 'returned'].includes(delivery.status)
+        );
+        
+        if (!hasAssignedStops) return false;
+        
+        // CRITICAL: Must NOT be off_duty (on_duty, on_break, or online all visible)
+        if (user.driver_status === 'off_duty') {
+          console.log(`🚫 [DriverLocationPoller] Hiding ${user.user_name} for dispatcher - driver is off_duty`);
+          return false;
+        }
+        
+        // CRITICAL: Location must be recent (within 30 minutes)
+        if (locationAge > thirtyMinutesInMs) {
+          console.log(`🚫 [DriverLocationPoller] Hiding ${user.user_name} - location too old (${Math.round(locationAge/60000)}min)`);
+          return false;
+        }
+        
+        console.log(`✅ [DriverLocationPoller] Showing ${user.user_name} to dispatcher (status: ${user.driver_status}, sharing: ${user.location_tracking_enabled})`);
+        return true;
+      }
+
+      // CRITICAL: For non-dispatchers, location_tracking_enabled MUST be true
       // This prevents showing markers when sharing is turned off
       if (user.location_tracking_enabled !== true) {
         console.log(`🚫 [DriverLocationPoller] Hiding ${user.user_name} - location sharing is OFF`);
         return false;
       }
-
-      // CRITICAL: Check location_updated_at to ensure sharing is active
-      // If location_updated_at is null or very old, don't show marker (sharing is off or stale)
-      if (!user.location_updated_at) {
-        console.log(`🚫 [DriverLocationPoller] Hiding ${user.user_name} - no location_updated_at (sharing off)`);
-        return false;
-      }
-
-      const locationAge = now - new Date(user.location_updated_at).getTime();
       
       // RULE 3: Dispatcher special handling
       // CRITICAL: Dispatchers can see driver markers if driver is NOT off_duty
