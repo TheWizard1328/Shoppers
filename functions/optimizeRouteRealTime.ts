@@ -645,10 +645,10 @@ Deno.serve(async (req) => {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    // PROCESS ALL STOPS (pickups + deliveries already interleaved)
+    // PROCESS ALL STOPS (time-grouped with distance optimization within groups)
     // ═══════════════════════════════════════════════════════════════════════════════
     
-    console.log('🎯 [Interleaved Optimization] Processing stops (pickups in time order, deliveries by distance)...');
+    console.log('🎯 Processing stops (time-ordered, distance-optimized within same-time groups)...');
     
     // Filter out isNextDelivery from sortedStops
     const remainingStops = sortedStops.filter(stop => {
@@ -658,7 +658,7 @@ Deno.serve(async (req) => {
       return true;
     });
     
-    console.log(`📋 Remaining ${remainingStops.length} stops (already in optimal order):`);
+    console.log(`📋 Remaining ${remainingStops.length} stops in final order:`);
     remainingStops.forEach((stop, i) => {
       const isPickup = !stop.delivery.patient_id;
       console.log(`   ${i+1}. ${isPickup ? '📦 PICKUP' : '📬 DELIVERY'}: ${stop.delivery.patient_name || stop.delivery.delivery_notes || 'Unknown'} @ ${stop.delivery.delivery_time_start || 'no time'}`);
