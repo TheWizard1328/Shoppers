@@ -443,13 +443,13 @@ Deno.serve(async (req) => {
     }).filter(s => s.lat && s.lng);
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    // STEP 1: Sort ALL stops by delivery_time_start FIRST
-    // This ensures pickups come before their deliveries naturally
-    // CRITICAL: Only INCOMPLETE stops are being sorted here - completed stops are handled above
+    // STEP 1: Separate PICKUPS from DELIVERIES and sort each group by time
+    // CRITICAL: Pickups MUST stay in time window order (AM before PM)
+    // Deliveries can be optimized within their pickup group
     // ═══════════════════════════════════════════════════════════════════════════════
     
-    console.log('📋 STEP 1: Sorting INCOMPLETE stops by delivery_time_start...');
-    console.log(`📊 Total incomplete stops to sort: ${stops.length}`);
+    console.log('📋 STEP 1: Separating pickups and deliveries...');
+    console.log(`📊 Total incomplete stops to process: ${stops.length}`);
     
     // Helper to parse time to minutes - handles HH:mm format
     const parseTimeToMinutes = (timeStr) => {
@@ -462,48 +462,88 @@ Deno.serve(async (req) => {
       return h * 60 + m;
     };
     
-    // Debug: Log all stops BEFORE sorting with their parsed times
-    console.log('📋 BEFORE SORT - All incomplete stops with parsed delivery_time_start:');
-    stops.forEach((stop, idx) => {
-      const isPickup = !stop.delivery.patient_id;
-      const timeStr = stop.delivery.delivery_time_start;
-      const parsedMinutes = parseTimeToMinutes(timeStr);
-      console.log(`   idx=${idx}: ${isPickup ? '📦 PICKUP' : '📬 DELIVERY'}: ${stop.delivery.patient_name || 'Unknown'} | delivery_time_start="${timeStr}" → ${parsedMinutes} min | status=${stop.delivery.status}`);
-    });
+    // Separate into pickups and deliveries
+    const pickups = stops.filter(s => !s.delivery.patient_id);
+    const patientDeliveries = stops.filter(s => s.delivery.patient_id);
     
-    // Sort stops by delivery_time_start - map with originalIdx to track position in stops array
-    const sortedStops = [...stops].map((stop, originalIdx) => ({ ...stop, originalIdx }));
-    sortedStops.sort((a, b) => {
+    console.log(`📦 Pickups: ${pickups.length}, 📬 Deliveries: ${patientDeliveries.length}`);
+    
+    // Sort pickups by delivery_time_start ONLY (maintain time window order)
+    const sortedPickups = [...pickups].map((stop, idx) => ({ ...stop, originalIdx: stops.indexOf(stop) }));
+    sortedPickups.sort((a, b) => {
       const aMinutes = parseTimeToMinutes(a.delivery.delivery_time_start);
       const bMinutes = parseTimeToMinutes(b.delivery.delivery_time_start);
-      
-      // CRITICAL: Stops without a time go to the END (Infinity)
-      // Stops with earlier times come first
-      
-      // If times are equal, pickups come before deliveries
-      if (aMinutes === bMinutes) {
-        const aIsPickup = !a.delivery.patient_id;
-        const bIsPickup = !b.delivery.patient_id;
-        if (aIsPickup && !bIsPickup) return -1; // pickup before delivery
-        if (!aIsPickup && bIsPickup) return 1;  // delivery after pickup
-        return 0;
-      }
-      
-      // CRITICAL: Sort by time (ascending) - earlier times come first
-      // 6:00 AM (360 min) < 6:00 PM (1080 min)
       return aMinutes - bMinutes;
     });
     
-    console.log(`📋 Sort verification: First stop time = ${parseTimeToMinutes(sortedStops[0]?.delivery?.delivery_time_start)} min, Last = ${parseTimeToMinutes(sortedStops[sortedStops.length-1]?.delivery?.delivery_time_start)} min`);
-    
-    console.log('📋 AFTER SORT - Stops sorted by delivery_time_start:');
-    sortedStops.forEach((stop, i) => {
-      const isPickup = !stop.delivery.patient_id;
-      const parsedMinutes = parseTimeToMinutes(stop.delivery.delivery_time_start);
-      console.log(`   ${i+1}. ${isPickup ? '📦 PICKUP' : '📬 DELIVERY'}: ${stop.delivery.patient_name || 'Unknown'} @ ${stop.delivery.delivery_time_start || 'no time'} (${parsedMinutes} min) | originalIdx=${stop.originalIdx}`);
+    console.log('📦 SORTED PICKUPS (time order - DO NOT REORDER):');
+    sortedPickups.forEach((stop, i) => {
+      console.log(`   ${i+1}. PICKUP: ${stop.delivery.delivery_notes || 'Unknown'} @ ${stop.delivery.delivery_time_start} (${stop.delivery.ampm_deliveries})`);
     });
-
-    console.log(`📊 Total stops to optimize: ${sortedStops.length}`);
+    
+    // Group deliveries by their pickup (puid)
+    const deliveryGroups = new Map();
+    patientDeliveries.forEach(d => {
+      const puid = d.delivery.puid || 'no_pickup';
+      if (!deliveryGroups.has(puid)) {
+        deliveryGroups.set(puid, []);
+      }
+      deliveryGroups.get(puid).push(d);
+    });
+    
+    console.log(`📬 Delivery groups by PUID: ${deliveryGroups.size}`);
+    
+    // Build final sorted array: interleave pickups with their deliveries
+    const sortedStops = [];
+    
+    sortedPickups.forEach(pickup => {
+      // Add the pickup first
+      sortedStops.push(pickup);
+      console.log(`   ➕ Added PICKUP: ${pickup.delivery.delivery_notes}`);
+      
+      // Find deliveries for this pickup (matching puid to pickup's stop_id)
+      const pickupStopId = pickup.delivery.stop_id;
+      const associatedDeliveries = deliveryGroups.get(pickupStopId) || [];
+      
+      if (associatedDeliveries.length > 0) {
+        console.log(`   📬 Found ${associatedDeliveries.length} deliveries for this pickup`);
+        
+        // Sort deliveries by distance from pickup location (closest first)
+        const pickupLat = pickup.lat;
+        const pickupLng = pickup.lng;
+        
+        associatedDeliveries.sort((a, b) => {
+          const distA = calculateCrowFliesDistance(pickupLat, pickupLng, a.lat, a.lng);
+          const distB = calculateCrowFliesDistance(pickupLat, pickupLng, b.lat, b.lng);
+          return distA - distB;
+        });
+        
+        // Add deliveries in distance order
+        associatedDeliveries.forEach((delivery, idx) => {
+          const deliveryWithIdx = {
+            ...delivery,
+            originalIdx: stops.indexOf(delivery)
+          };
+          sortedStops.push(deliveryWithIdx);
+          console.log(`      ${idx+1}. ${delivery.delivery.patient_name} (${calculateCrowFliesDistance(pickupLat, pickupLng, delivery.lat, delivery.lng).toFixed(1)}km from pickup)`);
+        });
+      }
+    });
+    
+    // Add any orphaned deliveries (no matching pickup) at the end
+    const allPuids = new Set(sortedPickups.map(p => p.delivery.stop_id));
+    const orphanedDeliveries = patientDeliveries.filter(d => 
+      !allPuids.has(d.delivery.puid) && d.delivery.puid !== 'no_pickup'
+    );
+    
+    if (orphanedDeliveries.length > 0) {
+      console.log(`⚠️ Found ${orphanedDeliveries.length} orphaned deliveries - adding at end`);
+      orphanedDeliveries.forEach(d => {
+        sortedStops.push({ ...d, originalIdx: stops.indexOf(d) });
+      });
+    }
+    
+    console.log(`✅ Final interleaved order: ${sortedStops.length} stops (pickups in time order, deliveries by distance from pickup)`);
 
     if (stops.length === 0) {
       return Response.json({ 
