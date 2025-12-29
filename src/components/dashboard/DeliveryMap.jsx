@@ -1304,9 +1304,30 @@ export default function DeliveryMap({
   // Use ref to cache previous markers and only update when actual data changes
   const prevDriverLocationMarkersRef = useRef([]);
   
-  processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate) {
-    // Update internal current user reference
-    this.currentUser = currentUser;
+  const driverLocationMarkers = useMemo(() => {
+    if (!isViewingCurrentDate) {
+      prevDriverLocationMarkersRef.current = [];
+      return [];
+    }
+
+    const isAdmin = currentUser && userHasRole(currentUser, 'admin');
+    const isDispatcher = currentUser && userHasRole(currentUser, 'dispatcher');
+    const isDriverRole = currentUser && userHasRole(currentUser, 'driver');
+    const currentUserCityId = currentUser?.city_id;
+    const fiveMinutesInMs = 5 * 60 * 1000;
+    const thirtyMinutesInMs = 30 * 60 * 1000;
+    const now = Date.now();
+    const todayStr = new Date().toISOString().split('T')[0];
+    const currentUserId = currentUser?.id;
+
+    // CRITICAL: Use realtimeAppUsers as the source of truth (contains merged location data)
+    const markers = safeUsers.map((user) => {
+      if (!user || typeof user !== 'object') return null;
+      
+      const driverId = user.id || user.user_id;
+      if (!driverId) return null;
+
+      const isCurrentUserMarker = driverId === currentUserId;
     
     const users = appUsers;
     if (!Array.isArray(users) || users.length === 0) {
