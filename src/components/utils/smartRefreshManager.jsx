@@ -553,9 +553,16 @@ class SmartRefreshManager {
 
   /**
    * Smart refresh for AppUsers
+   * CRITICAL: Respects local timestamps to prevent reverting recent status changes
    */
   async refreshAppUsers(currentAppUsers, forceLocationRefresh = false) {
       try {
+          // CRITICAL: Skip if paused (during status changes)
+          if (this._paused) {
+              console.log('⏸️ [SmartRefresh] AppUser refresh skipped - paused');
+              return null;
+          }
+          
           const now = Date.now();
           const timeSinceLastLocationRefresh = now - this.lastDriverLocationRefresh;
           const shouldRefreshLocations = forceLocationRefresh || timeSinceLastLocationRefresh >= this.driverLocationRefreshInterval;
@@ -580,7 +587,26 @@ class SmartRefreshManager {
               this.lastDriverLocationRefresh = now;
           }
 
-          const diff = diffEntityArrays(currentAppUsers, updatedAppUsers);
+          // CRITICAL: Filter out updates where local data is newer (recent status changes)
+          const filteredUpdates = updatedAppUsers.filter(serverAppUser => {
+              const localAppUser = currentAppUsers.find(u => u.user_id === serverAppUser.user_id);
+              if (!localAppUser) return true; // New user, include it
+              
+              const localTime = new Date(localAppUser.updated_date || 0).getTime();
+              const serverTime = new Date(serverAppUser.updated_date || 0).getTime();
+              
+              if (serverTime <= localTime) {
+                  console.log(`🛡️ [SmartRefresh] Skipping AppUser update for ${serverAppUser.user_name || serverAppUser.user_id} - local is newer`);
+                  return false;
+              }
+              return true;
+          });
+          
+          if (filteredUpdates.length === 0) {
+              return null;
+          }
+
+          const diff = diffEntityArrays(currentAppUsers, filteredUpdates);
           
           if (diff.toUpdate.length === 0 && diff.toAdd.length === 0) {
               return null;
@@ -615,6 +641,7 @@ class SmartRefreshManager {
                   }
                   
                   if (changedFields.length > 0) {
+                      console.log(`📝 [SmartRefresh] AppUser ${update.user_name || update.user_id}: ${changedFields.join(', ')}`);
                   }
               });
           }
