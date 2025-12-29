@@ -152,11 +152,9 @@ class LocationTracker {
   async updateLocationInDatabase(latitude, longitude, accuracy) {
     const now = Date.now();
     
-    // Check if driver is on duty - if not, don't update
-    if (!this.shouldTrack()) {
-      console.log('⏸️ [LocationTracker] Skipping update - driver not on duty');
-      return;
-    }
+    // CRITICAL: Check if driver is on duty or on break
+    // If off_duty, we STILL update coordinates (for desktop self-marker) but NOT location_updated_at
+    const isOnDutyOrBreak = this.driverStatus === 'on_duty' || this.driverStatus === 'on_break';
     
     // Check if we're in backoff period
     if (this.backoffTime > 0 && (now - this.lastUpdate) < this.backoffTime) {
@@ -208,15 +206,26 @@ class LocationTracker {
       }
 
       // Build update object
-      const updateData = {
-        location_updated_at: new Date().toISOString() // Always update timestamp for heartbeat
-      };
+      const updateData = {};
+      
+      // CRITICAL: Only update location_updated_at if driver is on_duty or on_break
+      // This allows other drivers to see their activity status correctly
+      if (isOnDutyOrBreak) {
+        updateData.location_updated_at = new Date().toISOString();
+      }
 
-      // Only update coordinates if movement threshold met or timeout reached
+      // CRITICAL: ALWAYS update coordinates regardless of duty status
+      // This ensures drivers can see their own marker on desktop even when off_duty
       if (shouldUpdateCoordinates) {
         updateData.current_latitude = latitude;
         updateData.current_longitude = longitude;
         this.lastCoordinateUpdate = now;
+        console.log(`📍 [LocationTracker] Updating coordinates (on_duty/on_break: ${isOnDutyOrBreak})`);
+      }
+      
+      // Skip update if nothing to update
+      if (Object.keys(updateData).length === 0) {
+        return;
       }
       
       // Update AppUser entity
