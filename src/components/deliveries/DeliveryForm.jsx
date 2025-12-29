@@ -3911,24 +3911,14 @@ export default function DeliveryForm({
                               <div className="flex items-center gap-1">
                                 <div className="truncate flex-1 min-w-0" style={{ color: 'var(--text-slate-500)' }}>{staged.delivery_address}</div>
                                 <div className="flex items-center gap-1 flex-shrink-0">
-                                  {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed) &&
-                                    <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold">
-                                      {staged.cod_total_amount_required > 0 && '$'}
-                                      {staged.first_delivery && ' N'}
-                                      {staged.oversized && ' O'}
-                                      {staged.fridge_item && ' F'}
-                                      {staged.signature_needed && ' S'}
-                                    </Badge>
-                                  }
-                                  {(staged.call_upon_arrival || staged.ring_bell || staged.dont_ring_bell || staged.mailbox_ok || staged.delivery_notes) &&
-                                    <div className="flex items-center gap-0.5 bg-slate-200 px-1 py-0 h-4 rounded">
-                                      {staged.call_upon_arrival && <Phone className="w-2.5 h-2.5 text-amber-600" />}
-                                      {staged.ring_bell && <Bell className="w-2.5 h-2.5 text-emerald-600" />}
-                                      {staged.dont_ring_bell && <BellOff className="w-2.5 h-2.5 text-red-600" />}
-                                      {staged.mailbox_ok && <Mailbox className="w-2.5 h-2.5 text-blue-600" />}
-                                      {staged.delivery_notes && <StickyNote className="w-2.5 h-2.5 text-purple-600" />}
-                                    </div>
-                                  }
+                                  {hasAnySpecialBadges(staged, null, false) && (
+                                    <CombinedSpecialBadges
+                                      delivery={staged}
+                                      patient={null}
+                                      isPickup={false}
+                                      size="sm"
+                                    />
+                                  )}
                                   {staged.ampm_deliveries &&
                                     <Badge className={`text-[10px] px-1.5 py-0 h-4 ${staged.ampm_deliveries === 'AM' ? 'bg-sky-100 text-sky-700 rounded-full' : 'bg-indigo-100 text-indigo-700 rounded-lg'}`}>
                                       {staged.ampm_deliveries}
@@ -4143,24 +4133,14 @@ export default function DeliveryForm({
                               <div className="flex items-center gap-1">
                                 <div className="truncate flex-1 min-w-0" style={{ color: 'var(--text-slate-500)' }}>{staged.delivery_address}</div>
                                 <div className="flex items-center gap-1 flex-shrink-0">
-                                  {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed) &&
-                                    <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold">
-                                      {staged.cod_total_amount_required > 0 && '$'}
-                                      {staged.first_delivery && ' N'}
-                                      {staged.oversized && ' O'}
-                                      {staged.fridge_item && ' F'}
-                                      {staged.signature_needed && ' S'}
-                                    </Badge>
-                                  }
-                                  {(staged.call_upon_arrival || staged.ring_bell || staged.dont_ring_bell || staged.mailbox_ok || staged.delivery_notes) &&
-                                    <div className="flex items-center gap-0.5 bg-slate-200 px-1 py-0 h-4 rounded">
-                                      {staged.call_upon_arrival && <Phone className="w-2.5 h-2.5 text-amber-600" />}
-                                      {staged.ring_bell && <Bell className="w-2.5 h-2.5 text-emerald-600" />}
-                                      {staged.dont_ring_bell && <BellOff className="w-2.5 h-2.5 text-red-600" />}
-                                      {staged.mailbox_ok && <Mailbox className="w-2.5 h-2.5 text-blue-600" />}
-                                      {staged.delivery_notes && <StickyNote className="w-2.5 h-2.5 text-purple-600" />}
-                                    </div>
-                                  }
+                                  {hasAnySpecialBadges(staged, null, false) && (
+                                    <CombinedSpecialBadges
+                                      delivery={staged}
+                                      patient={null}
+                                      isPickup={false}
+                                      size="sm"
+                                    />
+                                  )}
                                   {staged.ampm_deliveries &&
                                     <Badge className={`text-[10px] px-1.5 py-0 h-4 ${staged.ampm_deliveries === 'AM' ? 'bg-sky-100 text-sky-700 rounded-full' : 'bg-indigo-100 text-indigo-700 rounded-lg'}`}>
                                       {staged.ampm_deliveries}
