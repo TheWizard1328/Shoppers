@@ -683,9 +683,23 @@ export default function StopCard({
     setReturnPatient(null);
   };
 
-  // Determine if card should be faded (finished + not expanded + not hovered)
-  // CRITICAL: Never fade out cards - always show them at full opacity
-  const shouldFade = false;
+  // Determine if card should be faded
+  // CRITICAL: Only fade completed stops on current date (not past dates)
+  const shouldFade = useMemo(() => {
+    if (!delivery || isExpanded || isHovered) return false;
+    
+    // Check if this is current date
+    const today = startOfDay(new Date());
+    const deliveryDateObj = startOfDay(new Date(delivery.delivery_date));
+    const isCurrentDate = deliveryDateObj.getTime() === today.getTime();
+    
+    // Only fade if: current date AND finished status
+    if (isCurrentDate && FINISHED_STATUSES.includes(delivery.status)) {
+      return true;
+    }
+    
+    return false;
+  }, [delivery, isExpanded, isHovered]);
 
   return (
     <motion.div
