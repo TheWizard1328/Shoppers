@@ -3102,7 +3102,8 @@ export default function DeliveryMap({
               </div>
             </Popup>
           </Marker>
-        )}
+          );
+        })}
       </MapContainer>
 
       {/* Map Crosshair Overlay - Always visible, non-interactive */}
