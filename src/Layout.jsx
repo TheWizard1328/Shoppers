@@ -111,6 +111,7 @@ const createMergedUser = (authUser, appUser) => {
       display_name: appUser.user_name || 'Unknown User',
       app_roles: Array.isArray(appUser.app_roles) ? appUser.app_roles : [],
       status: appUser.status || 'inactive',
+      driver_status: appUser.driver_status,
       city_id: appUser.city_id,
       store_ids: appUser.store_ids,
       sort_order: appUser.sort_order,
