@@ -1373,28 +1373,27 @@ export default function DeliveryMap({
         isStaleLocation = true;
       }
 
-      // NEW FILTERING RULES:
+      // NEW FILTERING RULES - CRITICAL: Admin+Driver users follow driver rules
       
-      // RULE 1: Driver (non-admin, non-dispatcher) on mobile - SKIP SELF (blue dot shows instead)
-      if (isDriverRole && !isDispatcher && !isAdmin && isMobile) {
+      // RULE 1 & 3: Mobile users with driver OR admin role - SKIP SELF (blue dot shows instead)
+      if (isMobile && (isDriverRole || isAdmin)) {
         if (isCurrentUserMarker) return null;
-        // Show other drivers in same city
+        
+        // For admins: show all other drivers
+        if (isAdmin) return true;
+        
+        // For pure drivers: show other drivers in same city
         if (currentUserCityId !== user.city_id) return null;
       }
-      // RULE 2: Driver (non-admin, non-dispatcher) on desktop - show ALL drivers (including self)
-      else if (isDriverRole && !isDispatcher && !isAdmin && !isMobile) {
+      // RULE 2 & 4: Desktop users with driver OR admin role - show ALL drivers (including self)
+      else if (!isMobile && (isDriverRole || isAdmin)) {
+        // For admins: show all drivers
+        if (isAdmin) return true;
+        
+        // For pure drivers: show drivers in same city
         if (currentUserCityId !== user.city_id) return null;
       }
-      // RULE 3: Admin on mobile - SKIP SELF (blue dot shows instead)
-      else if (isAdmin && isMobile) {
-        if (isCurrentUserMarker) return null;
-        // Admin sees all other drivers
-      }
-      // RULE 4: Admin on desktop - show ALL drivers (including self)
-      else if (isAdmin && !isMobile) {
-        // Admin sees all drivers
-      }
-      // RULE 5: Dispatcher - show all active drivers with assigned deliveries
+      // RULE 5: Pure Dispatcher (no driver/admin roles) - show active drivers with assigned deliveries
       else if (isDispatcher && !isAdmin && !isDriverRole) {
         const dispatcherStoreIds = new Set(currentUser.store_ids || []);
         const hasActiveDelivery = (deliveriesForLocationFilter || []).some(delivery =>
