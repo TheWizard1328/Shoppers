@@ -2616,7 +2616,36 @@ export default function DeliveriesPage() {
       } else {
         console.log('👑 Admin - showing all drivers from all cities');
       }
-    } else if (userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) {
+    } else if (userHasRole(currentUser, 'dispatcher')) {
+      // CRITICAL: Dispatchers should only see drivers who have deliveries for their assigned stores
+      const dispatcherStoreIds = new Set(currentUser.store_ids || []);
+      console.log(`👔 Dispatcher store IDs:`, Array.from(dispatcherStoreIds));
+      
+      // Find all driver IDs that have deliveries for the dispatcher's stores
+      const driversWithStoreDeliveries = new Set();
+      yearFilteredDeliveries.forEach((d) => {
+        if (d && d.store_id && dispatcherStoreIds.has(d.store_id)) {
+          if (d.driver_id) {
+            driversWithStoreDeliveries.add(d.driver_id);
+          }
+          if (d.driver_name) {
+            driversWithStoreDeliveries.add((d.driver_name || '').toLowerCase().trim());
+          }
+        }
+      });
+      console.log(`👔 Drivers with deliveries for dispatcher's stores:`, Array.from(driversWithStoreDeliveries));
+      
+      // Filter to only show drivers who have deliveries for dispatcher's stores
+      cityFilteredDrivers = driversWithRoles.filter((d) => {
+        if (!d) return false;
+        const driverIdMatch = driversWithStoreDeliveries.has(d.id) || 
+                              (d.appUserId && driversWithStoreDeliveries.has(d.appUserId));
+        const driverNameMatch = driversWithStoreDeliveries.has((d.full_name || '').toLowerCase().trim()) ||
+                                driversWithStoreDeliveries.has((d.user_name || '').toLowerCase().trim());
+        return driverIdMatch || driverNameMatch;
+      });
+      console.log(`👔 Dispatcher - filtered to drivers with store deliveries: ${cityFilteredDrivers.length} drivers`);
+    } else if (userHasRole(currentUser, 'driver')) {
       if (currentUser.city_id) {
         cityFilteredDrivers = driversWithRoles.filter((d) => d.city_id === currentUser.city_id);
         console.log(`📍 Filtered to user's city ${currentUser.city_id}: ${cityFilteredDrivers.length} drivers`);
