@@ -1379,15 +1379,15 @@ export default function DeliveryMap({
       if (isMobile && (isDriverRole || isAdmin)) {
         if (isCurrentUserMarker) return null;
         
-        // For pure drivers (not admin): filter by city
+        // For admins: show all other drivers (continue to marker creation below)
+        // For pure drivers: show other drivers in same city only
         if (!isAdmin && currentUserCityId !== user.city_id) return null;
-        // For admins: show all other drivers (no city filter needed)
       }
       // RULE 2 & 4: Desktop users with driver OR admin role - show ALL drivers (including self)
       else if (!isMobile && (isDriverRole || isAdmin)) {
-        // For pure drivers (not admin): filter by city
+        // For admins: show all drivers (continue to marker creation below)
+        // For pure drivers: show drivers in same city only
         if (!isAdmin && currentUserCityId !== user.city_id) return null;
-        // For admins: show all drivers (no city filter needed)
       }
       // RULE 5: Pure Dispatcher (no driver/admin roles) - show active drivers with assigned deliveries
       else if (isDispatcher && !isAdmin && !isDriverRole) {
