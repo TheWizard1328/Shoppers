@@ -12,9 +12,9 @@ class LocationTracker {
     this.currentUser = null;
     this.appUserId = null;
     this.driverStatus = 'off_duty'; // Track driver duty status
-    this.updateInterval = 30000; // 30 seconds heartbeat (can be overridden by settings)
-    this.coordinateUpdateInterval = 300000; // 5 minutes max without coordinate update
-    this.minDistanceChange = 100; // meters (can be overridden by settings)
+    this.updateInterval = 5000; // 5 seconds heartbeat for live tracking (can be overridden by settings)
+    this.coordinateUpdateInterval = 10000; // 10 seconds max without coordinate update (ensures fresh markers)
+    this.minDistanceChange = 50; // 50 meters (can be overridden by settings)
     this.failedUpdateCount = 0;
     this.maxFailedUpdates = 3;
     this.backoffTime = 0;
@@ -192,11 +192,11 @@ class LocationTracker {
 
       // Update coordinates if: 
       // 1. Stored coords are missing/null
-      // 2. Significant movement (500m+)
-      // 3. Normal movement threshold met
-      // 4. 5 minutes since last coordinate update
+      // 2. Significant movement (200m+)
+      // 3. Normal movement threshold met (50m)
+      // 4. 10 seconds since last coordinate update (ensures fresh markers)
       const timeSinceCoordinateUpdate = now - this.lastCoordinateUpdate;
-      const significantMovement = distance >= 500; // 500m threshold for forced update
+      const significantMovement = distance >= 200; // 200m threshold for forced update
       
       shouldUpdateCoordinates = !hasStoredCoords || 
                                 significantMovement || 
@@ -207,12 +207,12 @@ class LocationTracker {
         if (!hasStoredCoords) {
           console.log(`📍 [LocationTracker] Updating coordinates - stored coords missing/null`);
         } else if (significantMovement) {
-          console.log(`📍 [LocationTracker] Updating coordinates - significant movement ${distance.toFixed(0)}m (>500m)`);
+          console.log(`📍 [LocationTracker] Updating coordinates - significant movement ${distance.toFixed(0)}m (>200m)`);
+        } else if (timeSinceCoordinateUpdate >= this.coordinateUpdateInterval) {
+          console.log(`📍 [LocationTracker] Updating coordinates - time threshold met (${Math.floor(timeSinceCoordinateUpdate/1000)}s)`);
         } else {
-          console.log(`📍 [LocationTracker] Updating coordinates - moved ${distance.toFixed(0)}m or ${Math.floor(timeSinceCoordinateUpdate/1000)}s since last coordinate update`);
+          console.log(`📍 [LocationTracker] Updating coordinates - moved ${distance.toFixed(0)}m`);
         }
-      } else {
-        console.log(`⏱️ [LocationTracker] Heartbeat only - moved ${distance.toFixed(0)}m (threshold: ${this.minDistanceChange}m)`);
       }
     } else {
       // First update - always update coordinates
