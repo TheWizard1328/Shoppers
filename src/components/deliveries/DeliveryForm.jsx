@@ -3920,7 +3920,7 @@ export default function DeliveryForm({
                                       {staged.signature_needed && ' S'}
                                     </Badge>
                                   }
-                                  {(staged.call_upon_arrival || staged.ring_bell || staged.dont_ring_bell || staged.mailbox_ok) &&
+                                  {(staged.call_upon_arrival || staged.ring_bell || staged.dont_ring_bell || staged.mailbox_ok || staged.delivery_notes) &&
                                     <div className="flex items-center gap-0.5 bg-slate-200 px-1 py-0 h-4 rounded">
                                       {staged.call_upon_arrival && <Phone className="w-2.5 h-2.5 text-amber-600" />}
                                       {staged.ring_bell && <Bell className="w-2.5 h-2.5 text-emerald-600" />}
@@ -4151,7 +4151,7 @@ export default function DeliveryForm({
                                       {staged.signature_needed && ' S'}
                                     </Badge>
                                   }
-                                  {(staged.call_upon_arrival || staged.ring_bell || staged.dont_ring_bell || staged.mailbox_ok) &&
+                                  {(staged.call_upon_arrival || staged.ring_bell || staged.dont_ring_bell || staged.mailbox_ok || staged.delivery_notes) &&
                                     <div className="flex items-center gap-0.5 bg-slate-200 px-1 py-0 h-4 rounded">
                                       {staged.call_upon_arrival && <Phone className="w-2.5 h-2.5 text-amber-600" />}
                                       {staged.ring_bell && <Bell className="w-2.5 h-2.5 text-emerald-600" />}
