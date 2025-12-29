@@ -113,35 +113,30 @@ class DriverLocationPoller {
         }
       }
 
-      // NEW FILTERING RULES:
+      // NEW FILTERING RULES - CRITICAL: Admin+Driver users follow driver rules
       
-      // RULE 1: Driver on mobile - show blue live location for self, show other drivers' shared markers
-      if (isDriver && !isDispatcher && !isAdmin && isMobile) {
-        // CRITICAL: Filter out self - blue dot shows instead
+      // RULE 1 & 3: Mobile users with driver OR admin role - SKIP SELF (blue dot shows instead)
+      if (isMobile && (isDriver || isAdmin)) {
         if (isSelf) return false;
-        // Show other drivers in same city
+        
+        // For admins: show all other drivers
+        if (isAdmin) return true;
+        
+        // For pure drivers: show other drivers in same city
         return currentUserCityId && user.city_id === currentUserCityId;
       }
       
-      // RULE 2: Driver on desktop - show ALL drivers' shared markers (including self)
-      if (isDriver && !isDispatcher && !isAdmin && !isMobile) {
+      // RULE 2 & 4: Desktop users with driver OR admin role - show ALL drivers (including self)
+      if (!isMobile && (isDriver || isAdmin)) {
+        // For admins: show all drivers
+        if (isAdmin) return true;
+        
+        // For pure drivers: show drivers in same city
         return currentUserCityId && user.city_id === currentUserCityId;
       }
       
-      // RULE 3: Admin on mobile - show blue live location for self, show other drivers' shared markers
-      if (isAdmin && isMobile) {
-        // CRITICAL: Filter out self - blue dot shows instead
-        if (isSelf) return false;
-        return true; // Show all other drivers
-      }
-      
-      // RULE 4: Admin on desktop - show ALL drivers' shared markers (including self)
-      if (isAdmin && !isMobile) {
-        return true; // Show all drivers
-      }
-      
-      // RULE 5: Dispatcher - show all active drivers' shared markers with assigned deliveries
-      if (isDispatcher && !isAdmin) {
+      // RULE 5: Pure Dispatcher (no driver/admin roles) - show active drivers with assigned deliveries
+      if (isDispatcher && !isAdmin && !isDriver) {
         const dispatcherStoreIds = new Set(this.currentUser.store_ids || []);
         const hasActiveDelivery = (deliveries || []).some(delivery =>
           delivery &&
