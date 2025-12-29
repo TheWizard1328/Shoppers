@@ -101,43 +101,73 @@ class DriverLocationPoller {
     const todayStr = new Date().toISOString().split('T')[0];
 
     // CRITICAL: Filter to drivers with location data using the new rules
+    // RULES:
+    // 1. Current user (self) on desktop: ALWAYS show (any status, any tracking setting)
+    // 2. Other drivers: on_duty OR on_break, location_tracking_enabled = true
+    // 3. Dispatchers: drivers with assigned stops, on_duty OR on_break (tracking can be on or off)
+    // 4. All must be in same city
     const activeDriversWithLocation = users.filter(user => {
       if (!user) return false;
 
-      // Skip inactive users (but NOT for self - driver should see own marker even if inactive)
       const driverId = user.id || user.user_id;
       const isSelf = user.user_id === currentUserId || 
                      user.id === currentUserId || 
                      user.user_id === currentUserUserId ||
                      user.id === currentUserUserId;
       
+      // Skip inactive users (but NOT for self - driver should see own marker even if inactive)
       if (user.status === 'inactive' && !isSelf) return false;
 
       // Skip if no valid coordinates
       if (!user.current_latitude || !user.current_longitude) return false;
 
-      // CRITICAL: ALWAYS show own marker on desktop (even if off_duty or tracking disabled)
-      // On mobile, the blue GPS dot shows instead, so skip self marker there
+      // RULE 1: Current user (self) on desktop - ALWAYS show marker
+      // Any status (on_duty, off_duty, on_break), any tracking setting
       if (isSelf) {
-        // Desktop: always show own shared location marker
+        // Desktop: always show own shared location marker regardless of status/tracking
         if (!isMobile) {
-          console.log('📍 [DriverLocationPoller] Including self marker on desktop');
+          console.log('📍 [DriverLocationPoller] Including self marker on desktop (status: ' + user.driver_status + ', tracking: ' + user.location_tracking_enabled + ')');
           return true;
         }
         // Mobile: skip self marker (blue GPS dot shows instead)
         return false;
       }
 
-      // For OTHER drivers: require on_duty or on_break status
-      if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') return false;
+      // RULE 4: All other drivers must be in same city
+      if (currentUserCityId && user.city_id !== currentUserCityId) {
+        return false;
+      }
 
-      // Location tracking must be enabled for other drivers
+      // RULE 3: Dispatcher special handling
+      if (isDispatcher && !isAdmin) {
+        const dispatcherStoreIds = new Set(this.currentUser.store_ids || []);
+        
+        // For dispatchers: driver must have assigned stops AND be on_duty or on_break
+        // Location tracking can be on OR off for dispatchers to see
+        const hasAssignedStops = (deliveries || []).some(delivery =>
+          delivery &&
+          delivery.driver_id === driverId &&
+          delivery.delivery_date === todayStr &&
+          dispatcherStoreIds.has(delivery.store_id) &&
+          !['completed', 'failed', 'cancelled', 'returned'].includes(delivery.status)
+        );
+        
+        if (!hasAssignedStops) return false;
+        
+        // Must be on_duty or on_break
+        if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') return false;
+        
+        return true;
+      }
+
+      // RULE 2: For other drivers (admin or driver viewing other drivers)
+      // Must be on_duty or on_break AND location_tracking_enabled = true
+      if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') return false;
       if (user.location_tracking_enabled !== true) return false;
 
-      // Check staleness and idle status for other drivers
-      let locationAge = 0;
+      // Check staleness for other drivers
       if (user.location_updated_at) {
-        locationAge = now - new Date(user.location_updated_at).getTime();
+        const locationAge = now - new Date(user.location_updated_at).getTime();
         
         // Hide marker if location is >30 min old and driver has no active stops today
         if (locationAge > thirtyMinutesInMs) {
@@ -154,29 +184,11 @@ class DriverLocationPoller {
         }
       }
 
-      // NEW FILTERING RULES FOR OTHER DRIVERS
-      
-      // Admin: show all other drivers
+      // Admin: show all other drivers (already filtered by status/tracking above)
       if (isAdmin) return true;
       
-      // Driver: show other drivers in same city
-      if (isDriver) {
-        return currentUserCityId && user.city_id === currentUserCityId;
-      }
-      
-      // Dispatcher: show active drivers with assigned deliveries
-      if (isDispatcher) {
-        const dispatcherStoreIds = new Set(this.currentUser.store_ids || []);
-        const hasActiveDelivery = (deliveries || []).some(delivery =>
-          delivery &&
-          delivery.driver_id === driverId &&
-          delivery.delivery_date === todayStr &&
-          dispatcherStoreIds.has(delivery.store_id) &&
-          ['en_route', 'in_transit', 'pending'].includes(delivery.status)
-        );
-        
-        return hasActiveDelivery;
-      }
+      // Driver: show other drivers in same city (already filtered by city above)
+      if (isDriver) return true;
 
       return false;
     });

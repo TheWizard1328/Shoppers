@@ -692,18 +692,17 @@ class SmartRefreshManager {
       this.markRefreshed('driverLocation');
       await this.waitForRateLimit();
       
-      // CRITICAL: Only fetch AppUsers with driver role AND location data
-      // Further optimize by only fetching those who might be on_duty
+      // CRITICAL: Fetch ALL AppUsers with driver role (regardless of status)
+      // We need off_duty drivers too so current user can see their own marker on desktop
       const allAppUsers = await base44.entities.AppUser.filter({
-        app_roles: { $in: ['driver'] },
-        driver_status: { $in: ['on_duty', 'on_break'] }
+        app_roles: { $in: ['driver'] }
       });
       
       if (!allAppUsers || allAppUsers.length === 0) {
         return null;
       }
       
-      // CRITICAL: Merge ALL server AppUsers into current state (not just drivers)
+      // CRITICAL: Merge ALL server AppUsers into current state
       // BUT respect pending local updates to prevent reverting status changes
       const updatedAppUsers = currentAppUsers.map(au => {
         const serverVersion = allAppUsers.find(ad => ad.user_id === au.user_id);
