@@ -71,7 +71,7 @@ class DriverLocationPoller {
     
     const todayStr = new Date().toISOString().split('T')[0];
 
-    // CRITICAL: Filter to drivers with location data
+    // CRITICAL: Filter to drivers with location data using the new rules
     const activeDriversWithLocation = users.filter(user => {
       if (!user) return false;
 
@@ -113,14 +113,34 @@ class DriverLocationPoller {
         }
       }
 
-      // ROLE-BASED PERMISSION FILTERING:
+      // NEW FILTERING RULES:
       
-      // 1. Admins see all on_duty/on_break drivers in selected city
-      if (isAdmin) {
-        return true;
+      // RULE 1: Driver on mobile - show blue live location for self, show other drivers' shared markers
+      if (isDriver && !isDispatcher && !isAdmin && isMobile) {
+        // CRITICAL: Filter out self - blue dot shows instead
+        if (isSelf) return false;
+        // Show other drivers in same city
+        return currentUserCityId && user.city_id === currentUserCityId;
       }
       
-      // 2. Dispatchers see drivers with en_route/in_transit/pending deliveries for their stores
+      // RULE 2: Driver on desktop - show ALL drivers' shared markers (including self)
+      if (isDriver && !isDispatcher && !isAdmin && !isMobile) {
+        return currentUserCityId && user.city_id === currentUserCityId;
+      }
+      
+      // RULE 3: Admin on mobile - show blue live location for self, show other drivers' shared markers
+      if (isAdmin && isMobile) {
+        // CRITICAL: Filter out self - blue dot shows instead
+        if (isSelf) return false;
+        return true; // Show all other drivers
+      }
+      
+      // RULE 4: Admin on desktop - show ALL drivers' shared markers (including self)
+      if (isAdmin && !isMobile) {
+        return true; // Show all drivers
+      }
+      
+      // RULE 5: Dispatcher - show all active drivers' shared markers with assigned deliveries
       if (isDispatcher && !isAdmin) {
         const dispatcherStoreIds = new Set(this.currentUser.store_ids || []);
         const hasActiveDelivery = (deliveries || []).some(delivery =>
@@ -131,34 +151,7 @@ class DriverLocationPoller {
           ['en_route', 'in_transit', 'pending'].includes(delivery.status)
         );
         
-        if (!hasActiveDelivery) {
-          return false;
-        }
-        return true;
-      }
-      
-      // 3. Drivers on mobile see all drivers in same city (excluding self - blue dot shows instead)
-      if (isDriver && isMobile) {
-        if (isSelf) {
-          return false; // Skip self on mobile - blue GPS dot shows instead
-        }
-        // Show other drivers in same city
-        return currentUserCityId && user.city_id === currentUserCityId;
-      }
-      
-      // 4. Drivers on desktop see all drivers in same city (including self)
-      if (isDriver && !isMobile) {
-        return currentUserCityId && user.city_id === currentUserCityId;
-      }
-      
-      // 5. Admin/Drivers on mobile - skip self
-      if (isAdmin && isDriver && isMobile && isSelf) {
-        return false;
-      }
-      
-      // 6. Admin/Drivers on desktop - show self
-      if (isAdmin && isDriver && !isMobile) {
-        return currentUserCityId && user.city_id === currentUserCityId;
+        return hasActiveDelivery;
       }
 
       return false;
