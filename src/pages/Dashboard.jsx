@@ -1495,33 +1495,23 @@ function Dashboard() {
     const unsubscribe = driverLocationPoller.subscribe((locations) => {
       if (!locations || !Array.isArray(locations)) return;
       
-      // CRITICAL: Filter out current user's marker on mobile devices (blue dot shows instead)
+      // CRITICAL: ALWAYS filter out current user's marker on mobile devices
+      // The blue GPS dot is the ONLY marker that should show for self on mobile
       const filteredLocations = isMobile && isDriver 
         ? locations.filter(loc => {
             const locId = loc.driver_id || loc.user_id || loc.id;
-            return locId !== currentUser?.id;
+            const isSelfMarker = locId === currentUser?.id || 
+                                locId === currentUser?.user_id;
+            if (isSelfMarker) {
+              console.log('🚫 [Dashboard] Filtering out self shared marker on mobile - blue dot shows instead');
+            }
+            return !isSelfMarker;
           })
         : locations;
       
-      // CRITICAL: Merge with existing locations instead of replacing
-      // This prevents markers from disappearing during smart refresh
-      setAllDriverLocations(prevLocations => {
-        const locationMap = new Map();
-        
-        // Add existing locations first
-        prevLocations.forEach(loc => {
-          const key = loc.driver_id || loc.user_id || loc.id;
-          if (key) locationMap.set(key, loc);
-        });
-        
-        // Overlay with new locations (updates existing, adds new)
-        filteredLocations.forEach(loc => {
-          const key = loc.driver_id || loc.user_id || loc.id;
-          if (key) locationMap.set(key, loc);
-        });
-        
-        return Array.from(locationMap.values());
-      });
+      // CRITICAL: Replace locations entirely (don't merge)
+      // Merging can cause stale self-markers to persist on mobile
+      setAllDriverLocations(filteredLocations);
     });
     
     return () => {
