@@ -293,6 +293,17 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
         try {
           console.log('🟢 Starting location tracking (on duty)...');
           
+          // CRITICAL: Set driver status BEFORE starting tracker
+          locationTracker.setDriverStatus(newStatus);
+          
+          // CRITICAL: Start location tracking (even if toggle isn't visible)
+          // This ensures GPS updates continue in the background
+          await locationTracker.startTracking({
+            ...currentUser,
+            appUserId: appUserId
+          });
+          console.log('✅ Location tracking started');
+          
           // Restore previous FAB phase if coming back from break
           if (savedPhaseBeforeBreak) {
             console.log(`🔄 [DriverStatusToggle] Restoring FAB phase after break: ${savedPhaseBeforeBreak}`);
@@ -303,14 +314,6 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
             console.log('🗺️ [DriverStatusToggle] New on duty session - defaulting to phase 1');
             fabControlEvents.notifyBreakEnd(1);
           }
-          
-          locationTracker.setDriverStatus(newStatus);
-          
-          await locationTracker.startTracking({
-            ...currentUser,
-            appUserId: appUserId
-          });
-          console.log('✅ Location tracking started');
           
           // Backend already set isNextDelivery flag and triggered ETA recalculation
           console.log('✅ [DriverStatusToggle] Backend set isNextDelivery flag and recalculated ETAs');
