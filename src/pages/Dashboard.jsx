@@ -2182,7 +2182,7 @@ function Dashboard() {
           setShouldFitBounds({
             bounds: [[driverLocation.latitude, driverLocation.longitude]],
             options: {
-              ...phase2Padding,
+              ...phase2NoPadding,
               maxZoom: 15,
               animate: true
             }
