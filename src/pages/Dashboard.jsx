@@ -2146,15 +2146,15 @@ function Dashboard() {
           [driverLocation.latitude, driverLocation.longitude],
           [nextStopCoordinates.lat, nextStopCoordinates.lon]];
 
-          // CRITICAL: Balance padding for Phase 2 to center content properly
+          // CRITICAL: Adjust vertical centering for Phase 2
           const phase2Padding = getMapPadding(false, false);
           phase2Padding.paddingTopLeft = [
             phase2Padding.paddingTopLeft[0],
-            phase2Padding.paddingTopLeft[1] - 40 // Reduce top padding to move content down
+            Math.max(10, phase2Padding.paddingTopLeft[1] - 60) // Reduce top padding more to shift center down
           ];
           phase2Padding.paddingBottomRight = [
             phase2Padding.paddingBottomRight[0],
-            phase2Padding.paddingBottomRight[1] - 40 // Reduce bottom padding to move content up
+            Math.max(10, phase2Padding.paddingBottomRight[1] + 20) // Increase bottom padding to shift center down
           ];
 
           setShouldFitBounds({
@@ -2172,11 +2172,11 @@ function Dashboard() {
           const phase2NoPadding = getMapPadding(false, false);
           phase2NoPadding.paddingTopLeft = [
             phase2NoPadding.paddingTopLeft[0],
-            phase2NoPadding.paddingTopLeft[1] - 40 // Reduce top padding to move content down
+            Math.max(10, phase2NoPadding.paddingTopLeft[1] - 60) // Reduce top padding more to shift center down
           ];
           phase2NoPadding.paddingBottomRight = [
             phase2NoPadding.paddingBottomRight[0],
-            phase2NoPadding.paddingBottomRight[1] - 40 // Reduce bottom padding to move content up
+            Math.max(10, phase2NoPadding.paddingBottomRight[1] + 20) // Increase bottom padding to shift center down
           ];
           
           setShouldFitBounds({
@@ -2200,15 +2200,15 @@ function Dashboard() {
           return;
         }
 
-        // CRITICAL: Balance padding for Phase 3 to center content properly
+        // CRITICAL: Adjust vertical centering for Phase 3
         const phase3Padding = getMapPadding(false, false);
         phase3Padding.paddingTopLeft = [
           phase3Padding.paddingTopLeft[0],
-          phase3Padding.paddingTopLeft[1] - 40 // Reduce top padding to move content down
+          Math.max(10, phase3Padding.paddingTopLeft[1] - 60) // Reduce top padding more to shift center down
         ];
         phase3Padding.paddingBottomRight = [
           phase3Padding.paddingBottomRight[0],
-          phase3Padding.paddingBottomRight[1] - 40 // Reduce bottom padding to move content up
+          Math.max(10, phase3Padding.paddingBottomRight[1] + 20) // Increase bottom padding to shift center down
         ];
 
         setShouldFitBounds({
