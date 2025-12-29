@@ -683,8 +683,19 @@ export default function StopCard({
     setReturnPatient(null);
   };
 
-  // Determine if card should be faded (finished + not expanded + not hovered)
-  const shouldFade = (FINISHED_STATUSES.includes(delivery.status) || isReturnDelivery) && !isExpanded && !isHovered;
+  // Determine if card should be faded (finished + not expanded + not hovered + past date)
+  const isPastDate = useMemo(() => {
+    if (!delivery?.delivery_date || !selectedDate) return false;
+    try {
+      const deliveryDate = startOfDay(new Date(delivery.delivery_date));
+      const selected = startOfDay(selectedDate);
+      return isBefore(deliveryDate, selected);
+    } catch {
+      return false;
+    }
+  }, [delivery?.delivery_date, selectedDate]);
+
+  const shouldFade = isPastDate && (FINISHED_STATUSES.includes(delivery.status) || isReturnDelivery) && !isExpanded && !isHovered;
 
   return (
     <motion.div
