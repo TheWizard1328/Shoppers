@@ -162,15 +162,23 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
         localStorage.setItem('rxdeliver_device_id', deviceId);
       }
       
-      // CRITICAL: When going ON DUTY, update location_updated_at FIRST to prevent activity monitor override
-      if (newStatus === 'on_duty') {
-        console.log('📍 [DriverStatusToggle] Updating location timestamp BEFORE backend call...');
-        const nowTimestamp = new Date().toISOString();
-        
-        // Get current GPS if available
-        let currentLat = currentUser?.current_latitude;
-        let currentLng = currentUser?.current_longitude;
-        
+      // CRITICAL: Pause smart refresh to prevent it from overwriting our changes
+      const { smartRefreshManager } = await import('../utils/smartRefreshManager');
+      smartRefreshManager.pause();
+      console.log('⏸️ [DriverStatusToggle] Smart refresh paused during status change');
+      
+      // Prepare update payload based on new status
+      const nowTimestamp = new Date().toISOString();
+      let updatePayload = {
+        driver_status: newStatus,
+        location_tracking_enabled: newStatus === 'on_duty'
+      };
+      
+      // Get current GPS if available (for on_duty and on_break)
+      let currentLat = currentUser?.current_latitude;
+      let currentLng = currentUser?.current_longitude;
+      
+      if (newStatus === 'on_duty' || newStatus === 'on_break') {
         if (navigator.geolocation) {
           try {
             const pos = await new Promise((resolve, reject) => {
@@ -187,17 +195,34 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
             console.warn('📍 Could not get fresh GPS:', gpsError.message);
           }
         }
-        
-        // CRITICAL: Update AppUser entity IMMEDIATELY with fresh timestamp and location
-        await base44.entities.AppUser.update(appUserId, {
-          driver_status: newStatus,
-          location_tracking_enabled: true,
-          location_updated_at: nowTimestamp,
-          current_latitude: currentLat,
-          current_longitude: currentLng
-        });
-        console.log('✅ [DriverStatusToggle] AppUser updated with fresh location timestamp');
       }
+      
+      // CRITICAL: Set all fields based on status
+      if (newStatus === 'on_duty') {
+        console.log('📍 [DriverStatusToggle] Going ON DUTY - enabling location tracking...');
+        updatePayload.location_tracking_enabled = true;
+        updatePayload.location_updated_at = nowTimestamp;
+        updatePayload.current_latitude = currentLat;
+        updatePayload.current_longitude = currentLng;
+      } else if (newStatus === 'on_break') {
+        console.log('📍 [DriverStatusToggle] Going ON BREAK - keeping last location...');
+        updatePayload.location_tracking_enabled = false;
+        // Keep last known location but update timestamp
+        updatePayload.current_latitude = currentLat;
+        updatePayload.current_longitude = currentLng;
+        updatePayload.location_updated_at = nowTimestamp;
+      } else if (newStatus === 'off_duty') {
+        console.log('📍 [DriverStatusToggle] Going OFF DUTY - clearing location...');
+        updatePayload.location_tracking_enabled = false;
+        updatePayload.current_latitude = null;
+        updatePayload.current_longitude = null;
+        updatePayload.location_updated_at = null;
+      }
+      
+      // CRITICAL: Update AppUser entity IMMEDIATELY with all fields
+      console.log('📝 [DriverStatusToggle] Updating AppUser with:', updatePayload);
+      await base44.entities.AppUser.update(appUserId, updatePayload);
+      console.log('✅ [DriverStatusToggle] AppUser updated successfully');
       
       // CRITICAL: Call backend function to enforce single active device
       console.log('📱 Calling setDriverStatus backend function...');
