@@ -85,15 +85,15 @@ export default function DateListPanel({
   return (
     <div className="flex flex-col h-full">
       {/* Month/Year Selectors */}
-      <div className="p-2 border-b border-slate-200">
+      <div className="p-2" style={{ borderBottom: '1px solid var(--border-slate-200)' }}>
         <div className="grid grid-cols-2 gap-2">
           <Select value={selectedMonth.toString()} onValueChange={(val) => onMonthChange(parseInt(val))}>
-            <SelectTrigger>
+            <SelectTrigger style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="max-h-[300px]">
+            <SelectContent className="max-h-[300px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
               {months.map((m) =>
-              <SelectItem key={m.value} value={m.value.toString()}>
+              <SelectItem key={m.value} value={m.value.toString()} style={{ color: 'var(--text-slate-900)' }}>
                   {m.label}
                 </SelectItem>
               )}
@@ -101,12 +101,12 @@ export default function DateListPanel({
           </Select>
 
           <Select value={selectedYear.toString()} onValueChange={(val) => onYearChange(parseInt(val))}>
-            <SelectTrigger>
+            <SelectTrigger style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
               {years.map((y) =>
-              <SelectItem key={y} value={y.toString()}>
+              <SelectItem key={y} value={y.toString()} style={{ color: 'var(--text-slate-900)' }}>
                   {y}
                 </SelectItem>
               )}
@@ -118,7 +118,7 @@ export default function DateListPanel({
       {/* Date Cards List */}
       <div className="flex-1 overflow-y-auto p-4 space-y-2">
         {datesWithDeliveries.length === 0 ?
-        <div className="text-center py-8 text-slate-500">
+        <div className="text-center py-8" style={{ color: 'var(--text-slate-500)' }}>
             <Package className="w-12 h-12 mx-auto mb-2 opacity-50" />
             <p className="text-sm">No deliveries this month</p>
           </div> :
@@ -129,20 +129,24 @@ export default function DateListPanel({
           onClick={() => onDateSelect(dateStr)}
           className={`p-3 cursor-pointer transition-all hover:shadow-md relative ${
           isSelected(dateStr) ?
-          'bg-emerald-50 border-emerald-500 shadow-md' :
-          'bg-white hover:bg-slate-50'}`
-          }>
+          'border-emerald-500 shadow-md' :
+          ''}`
+          }
+          style={{
+            background: isSelected(dateStr) ? 'var(--bg-slate-100)' : 'var(--bg-white)',
+            borderColor: isSelected(dateStr) ? '#10b981' : 'var(--border-slate-200)'
+          }}>
 
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <div className={`text-sm font-bold ${isSelected(dateStr) ? 'text-emerald-700' : 'text-slate-700'}`}>
+                  <div className="text-sm font-bold" style={{ color: isSelected(dateStr) ? '#047857' : 'var(--text-slate-700)' }}>
                     {format(date, 'EEE, MMM d')}
                   </div>
                   {isToday(date) &&
               <Badge className="bg-blue-100 text-blue-800 text-xs">Today</Badge>
               }
                 </div>
-                <Badge variant="secondary" className="text-xs">
+                <Badge variant="secondary" className="text-xs" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>
                   {total}
                 </Badge>
               </div>
@@ -172,7 +176,8 @@ export default function DateListPanel({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-6 w-6 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                    className="h-6 w-6 p-0 hover:text-red-600 hover:bg-red-50"
+                    style={{ color: 'var(--text-slate-400)' }}
                     onClick={async (e) => {
                       e.stopPropagation();
                       if (window.confirm(`Delete all ${total} stops for this date? This cannot be undone.`)) {
