@@ -242,6 +242,7 @@ class LocationTracker {
 
       // CRITICAL: ALWAYS update coordinates regardless of duty status
       // This ensures drivers can see their own marker on desktop even when off_duty
+      // ALSO update if stored coordinates are null/missing OR driver has moved 500m+
       if (shouldUpdateCoordinates) {
         updateData.current_latitude = latitude;
         updateData.current_longitude = longitude;
@@ -251,11 +252,22 @@ class LocationTracker {
       
       // Skip update if nothing to update
       if (Object.keys(updateData).length === 0) {
+        console.log(`⏸️ [LocationTracker] No updates to send`);
         return;
       }
       
       // Update AppUser entity
       await base44.entities.AppUser.update(this.appUserId, updateData);
+      
+      // CRITICAL: Update the currentUser reference with new coordinates
+      // so the driverLocationPoller has access to them
+      if (this.currentUser) {
+        this.currentUser.current_latitude = latitude;
+        this.currentUser.current_longitude = longitude;
+        if (isOnDutyOrBreak) {
+          this.currentUser.location_updated_at = updateData.location_updated_at;
+        }
+      }
 
       this.lastUpdate = now;
       this.lastSuccessfulUpdate = now;
