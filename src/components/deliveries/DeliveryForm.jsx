@@ -697,6 +697,15 @@ export default function DeliveryForm({
   const handlePatientSelect = useCallback(async (patient) => {
     if (!patient) return;
     
+    // CRITICAL: Check if patient is already in staged list
+    const alreadyStaged = stagedDeliveries.some(s => s.patient_id === patient.id);
+    if (alreadyStaged) {
+      console.log('⏸️ [handlePatientSelect] Patient already staged, skipping:', patient.full_name);
+      setPatientSearch('');
+      setHighlightedPatientIndex(-1);
+      return;
+    }
+    
     // CRITICAL: Don't auto-load patient data if we're editing an existing delivery
     if (isLoadingExistingDelivery.current) {
       console.log('⏸️ [handlePatientSelect] Blocked - editing existing delivery');
@@ -919,7 +928,7 @@ export default function DeliveryForm({
     }));
 
     setTimeout(() => patientSearchInputRef.current?.focus(), 100);
-  }, [formData, stores, drivers, allDeliveries]);
+  }, [formData, stores, drivers, allDeliveries, stagedDeliveries]);
 
   const handleAddSelectedPatients = useCallback(async () => {
     if (selectedPatientIds.size === 0) return;
