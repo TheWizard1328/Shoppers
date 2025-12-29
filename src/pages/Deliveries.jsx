@@ -2687,9 +2687,19 @@ export default function DeliveriesPage() {
 
     const todayStr = format(new Date(), 'yyyy-MM-dd');
 
+    // CRITICAL: For dispatchers, only count deliveries for their assigned stores
+    const dispatcherStoreIds = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') 
+      ? new Set(currentUser.store_ids || []) 
+      : null;
+
     const cards = driversToShow.map((driver) => {
       const driverDeliveries = yearFilteredDeliveries.filter((d) => {
         if (!d) return false;
+        
+        // CRITICAL: For dispatchers, only include deliveries for their stores
+        if (dispatcherStoreIds && d.store_id && !dispatcherStoreIds.has(d.store_id)) {
+          return false;
+        }
         
         if (d.driver_id) {
           if (d.driver_id === driver.id || d.driver_id === driver.appUserId) {
