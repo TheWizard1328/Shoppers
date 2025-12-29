@@ -5929,6 +5929,19 @@ function Dashboard() {
 
                     const updates = await smartRefreshManager.performSmartRefresh(currentData, filters, false);
 
+                    // STEP 1.5: Force refresh driver locations
+                    console.log('📍 [Refresh Spinner] Refreshing driver locations...');
+                    const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
+                    if (locationUpdates?.hasChanges) {
+                      setAppUsers(locationUpdates.appUsers);
+                      
+                      // CRITICAL: Process updated locations through poller to update markers immediately
+                      const allUsers = users?.filter((u) => u.user_id) || [];
+                      driverLocationPoller.processLocationData(currentUser, deliveries, drivers, stores, locationUpdates.appUsers, selectedDate);
+                      
+                      console.log('✅ [Refresh Spinner] Driver locations refreshed and markers updated');
+                    }
+
                     // STEP 2: Run recursive route optimization (includes ETA updates)
                     try {
                       console.log('🔄 [Refresh Spinner] Running optimizeRouteRealTime...');
