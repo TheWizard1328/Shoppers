@@ -3926,6 +3926,7 @@ export default function DeliveryForm({
                                       {staged.ring_bell && <Bell className="w-2.5 h-2.5 text-emerald-600" />}
                                       {staged.dont_ring_bell && <BellOff className="w-2.5 h-2.5 text-red-600" />}
                                       {staged.mailbox_ok && <Mailbox className="w-2.5 h-2.5 text-blue-600" />}
+                                      {staged.delivery_notes && <StickyNote className="w-2.5 h-2.5 text-purple-600" />}
                                     </div>
                                   }
                                   {staged.ampm_deliveries &&
@@ -4157,6 +4158,7 @@ export default function DeliveryForm({
                                       {staged.ring_bell && <Bell className="w-2.5 h-2.5 text-emerald-600" />}
                                       {staged.dont_ring_bell && <BellOff className="w-2.5 h-2.5 text-red-600" />}
                                       {staged.mailbox_ok && <Mailbox className="w-2.5 h-2.5 text-blue-600" />}
+                                      {staged.delivery_notes && <StickyNote className="w-2.5 h-2.5 text-purple-600" />}
                                     </div>
                                   }
                                   {staged.ampm_deliveries &&
