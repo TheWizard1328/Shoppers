@@ -43,25 +43,30 @@ class LocationTracker {
   }
 
   /**
-   * Set driver duty status - controls whether tracking is active
+   * Set driver duty status - controls whether location_updated_at is updated
+   * CRITICAL: We no longer stop tracking when off_duty - we just stop updating the timestamp
+   * This allows coordinates to still be saved for the driver's desktop self-marker
    */
   setDriverStatus(status) {
     const previousStatus = this.driverStatus;
     this.driverStatus = status;
     
-    // If going off duty or on break, stop tracking
-    if (status !== 'on_duty' && this.isTracking) {
-      this.stopTracking();
-    }
+    // CRITICAL: Do NOT stop tracking when going off_duty
+    // We still want to update coordinates so driver can see their marker on desktop
+    // We just won't update location_updated_at when off_duty
     
-    return status === 'on_duty';
+    return status === 'on_duty' || status === 'on_break';
   }
 
   /**
    * Check if tracking should be active based on driver status
+   * CRITICAL: Now returns true for all statuses on mobile - we always track coordinates
+   * The difference is whether we update location_updated_at (only on_duty/on_break)
    */
   shouldTrack() {
-    return this.driverStatus === 'on_duty';
+    // Always return true on mobile - we track coordinates regardless of status
+    // The updateLocationInDatabase method handles whether to update location_updated_at
+    return true;
   }
 
   /**
