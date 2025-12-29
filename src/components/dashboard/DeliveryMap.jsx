@@ -3063,7 +3063,16 @@ export default function DeliveryMap({
 
 
         {/* NEW: Driver Home Location Markers - Only for active routes */}
-        {driverHomeMarkers.map((home) =>
+        {driverHomeMarkers.map((home) => {
+          // CRITICAL: Validate coordinates before rendering marker
+          if (!home.latitude || !home.longitude ||
+              typeof home.latitude !== 'number' || typeof home.longitude !== 'number' ||
+              isNaN(home.latitude) || isNaN(home.longitude)) {
+            console.warn('[DeliveryMap] Invalid home marker coordinates:', home);
+            return null;
+          }
+          
+          return (
           <Marker
             key={home.id}
             position={[home.latitude, home.longitude]}
