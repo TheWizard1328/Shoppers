@@ -684,7 +684,8 @@ export default function StopCard({
   };
 
   // Determine if card should be faded (finished + not expanded + not hovered)
-  const shouldFade = (FINISHED_STATUSES.includes(delivery.status) || isReturnDelivery) && !isExpanded && !isHovered;
+  // CRITICAL: Never fade out cards - always show them at full opacity
+  const shouldFade = false;
 
   return (
     <motion.div
