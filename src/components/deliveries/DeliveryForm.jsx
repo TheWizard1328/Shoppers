@@ -2013,16 +2013,38 @@ export default function DeliveryForm({
       if (existingDeliveries.length > 0 && newDeliveries.length === 0) {
         console.log('[AddToRoute] 🔄 Triggering data refresh for existing delivery updates...');
         const { invalidate, invalidateDeliveriesForDate } = await import('../utils/dataManager');
+        const { useAppData } = await import('../utils/AppDataContext');
+        
         invalidate('Delivery');
         invalidateDeliveriesForDate(formData.delivery_date);
         
+        // CRITICAL: Force backend refresh to ensure UI has latest data
+        if (formData.driver_id && formData.delivery_date) {
+          console.log('[AddToRoute] 🔄 Forcing backend refresh...');
+          try {
+            const { base44 } = await import('@/api/base44Client');
+            const freshDeliveries = await base44.entities.Delivery.filter({
+              driver_id: formData.driver_id,
+              delivery_date: formData.delivery_date
+            });
+            console.log(`✅ [AddToRoute] Backend refresh: ${freshDeliveries.length} deliveries`);
+          } catch (error) {
+            console.warn('⚠️ [AddToRoute] Backend refresh failed:', error.message);
+          }
+        }
+        
         // CRITICAL: Force UI refresh for current user
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { deliveryDate: formData.delivery_date, triggeredBy: 'doneButtonUpdates' }
+          detail: { 
+            deliveryDate: formData.delivery_date, 
+            driverId: formData.driver_id,
+            triggeredBy: 'doneButtonUpdates' 
+          }
         }));
+        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         
         // Wait for mutations to propagate and UI to update
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 800));
 
         // Notify FAB system that data is ready
         const { fabControlEvents } = await import('../utils/fabControlEvents');
@@ -2044,13 +2066,33 @@ export default function DeliveryForm({
         return; // CRITICAL: Exit early to prevent duplicate processing
       }
 
+      // CRITICAL: Force backend refresh after creates
+      if (formData.driver_id && formData.delivery_date) {
+        console.log('[AddToRoute] 🔄 Forcing backend refresh after creates...');
+        try {
+          const { base44 } = await import('@/api/base44Client');
+          const freshDeliveries = await base44.entities.Delivery.filter({
+            driver_id: formData.driver_id,
+            delivery_date: formData.delivery_date
+          });
+          console.log(`✅ [AddToRoute] Backend refresh: ${freshDeliveries.length} deliveries`);
+        } catch (error) {
+          console.warn('⚠️ [AddToRoute] Backend refresh failed:', error.message);
+        }
+      }
+
       // Wait for mutations to propagate
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       // CRITICAL: Force UI refresh for current user after new deliveries
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-        detail: { deliveryDate: formData.delivery_date, triggeredBy: 'doneButtonCreates' }
+        detail: { 
+          deliveryDate: formData.delivery_date, 
+          driverId: formData.driver_id,
+          triggeredBy: 'doneButtonCreates' 
+        }
       }));
+      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
       // CRITICAL: Notify FAB system that data is ready (activates map cycle FAB)
       const { fabControlEvents } = await import('../utils/fabControlEvents');
