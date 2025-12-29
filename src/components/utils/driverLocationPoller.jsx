@@ -156,16 +156,24 @@ class DriverLocationPoller {
       if (isDispatcher && !isAdmin) {
         const dispatcherStoreIds = new Set(this.currentUser.store_ids || []);
         
-        // For dispatchers: driver must have assigned stops AND NOT be off_duty
-        const hasAssignedStops = (deliveries || []).some(delivery =>
-          delivery &&
-          delivery.driver_id === driverId &&
-          delivery.delivery_date === todayStr &&
-          dispatcherStoreIds.has(delivery.store_id) &&
-          !['completed', 'failed', 'cancelled', 'returned'].includes(delivery.status)
-        );
+        // For dispatchers: driver must have assigned stops (pickups OR deliveries) AND NOT be off_duty
+        // Check if driver has ANY active stops for dispatcher's stores
+        const hasAssignedStops = (deliveries || []).some(delivery => {
+          if (!delivery) return false;
+          if (delivery.driver_id !== driverId) return false;
+          if (delivery.delivery_date !== todayStr) return false;
+          if (!dispatcherStoreIds.has(delivery.store_id)) return false;
+          // Include all non-terminal statuses (pending, en_route, in_transit)
+          if (['completed', 'failed', 'cancelled', 'returned'].includes(delivery.status)) return false;
+          return true;
+        });
         
-        if (!hasAssignedStops) return false;
+        console.log(`🔍 [DriverLocationPoller] Dispatcher check for ${user.user_name}: hasAssignedStops=${hasAssignedStops}, status=${user.driver_status}, storeIds=${Array.from(dispatcherStoreIds).join(',')}`);
+        
+        if (!hasAssignedStops) {
+          console.log(`🚫 [DriverLocationPoller] Hiding ${user.user_name} for dispatcher - no assigned stops for their stores`);
+          return false;
+        }
         
         // CRITICAL: Must NOT be off_duty (on_duty, on_break, or online all visible)
         if (user.driver_status === 'off_duty') {
