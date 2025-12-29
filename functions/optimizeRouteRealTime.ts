@@ -620,10 +620,10 @@ Deno.serve(async (req) => {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    // PROCESS ALL STOPS IN TIME ORDER (excluding isNextDelivery)
+    // PROCESS ALL STOPS (pickups + deliveries already interleaved)
     // ═══════════════════════════════════════════════════════════════════════════════
     
-    console.log('🎯 [Time-Sorted Optimization] Processing stops in delivery_time_start order...');
+    console.log('🎯 [Interleaved Optimization] Processing stops (pickups in time order, deliveries by distance)...');
     
     // Filter out isNextDelivery from sortedStops
     const remainingStops = sortedStops.filter(stop => {
@@ -633,10 +633,10 @@ Deno.serve(async (req) => {
       return true;
     });
     
-    console.log(`📋 Remaining ${remainingStops.length} stops to add (already in time order):`);
+    console.log(`📋 Remaining ${remainingStops.length} stops (already in optimal order):`);
     remainingStops.forEach((stop, i) => {
       const isPickup = !stop.delivery.patient_id;
-      console.log(`   ${i+1}. ${isPickup ? '📦 PICKUP' : '📬 DELIVERY'}: ${stop.delivery.patient_name || 'Unknown'} @ ${stop.delivery.delivery_time_start || 'no time'}`);
+      console.log(`   ${i+1}. ${isPickup ? '📦 PICKUP' : '📬 DELIVERY'}: ${stop.delivery.patient_name || stop.delivery.delivery_notes || 'Unknown'} @ ${stop.delivery.delivery_time_start || 'no time'}`);
     });
     
     // Simply add all remaining stops in their time-sorted order
