@@ -1481,16 +1481,16 @@ export default function DeliveryMap({
       return null;
     }
 
-    // CRITICAL: Only show for drivers (including admin/drivers)
+    // NEW RULES: Show blue dot for drivers and admins on mobile (RULE 1 & 3)
     const isCurrentUserDriver = userHasRole(currentUser, 'driver');
-    const isCurrentUserDispatcher = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin');
+    const isCurrentUserAdmin = userHasRole(currentUser, 'admin');
+    const isCurrentUserDispatcher = userHasRole(currentUser, 'dispatcher');
     
-    // Dispatchers (non-driver) never see blue dot
-    if (isCurrentUserDispatcher && !isCurrentUserDriver) {
-      return null;
-    }
+    // RULE 1: Driver (non-admin, non-dispatcher) on mobile - show blue dot
+    // RULE 3: Admin on mobile - show blue dot
+    const shouldShowBlueDot = (isCurrentUserDriver && !isCurrentUserDispatcher && !isCurrentUserAdmin) || isCurrentUserAdmin;
     
-    if (!isCurrentUserDriver) {
+    if (!shouldShowBlueDot) {
       return null;
     }
 
