@@ -103,8 +103,8 @@ class DriverLocationPoller {
     // CRITICAL: Filter to drivers with location data using the new rules
     // RULES:
     // 1. Current user (self) on desktop: ALWAYS show (any status, any tracking setting)
-    // 2. Other drivers: on_duty OR on_break, location_tracking_enabled = true
-    // 3. Dispatchers: drivers with assigned stops, on_duty OR on_break (tracking can be on or off)
+    // 2. Other drivers: on_duty OR on_break, location_tracking_enabled = true, location_updated_at recent
+    // 3. Dispatchers: drivers with assigned stops, on_duty OR on_break, location_tracking_enabled = true
     // 4. All must be in same city
     const activeDriversWithLocation = users.filter(user => {
       if (!user) return false;
@@ -129,7 +129,8 @@ class DriverLocationPoller {
           console.log('📍 [DriverLocationPoller] Including self marker on desktop (status: ' + user.driver_status + ', tracking: ' + user.location_tracking_enabled + ')');
           return true;
         }
-        // Mobile: skip self marker (blue GPS dot shows instead)
+        // Mobile: NEVER show self marker (blue GPS dot shows instead)
+        console.log('📱 [DriverLocationPoller] Skipping self marker on mobile - using blue GPS dot');
         return false;
       }
 
@@ -138,12 +139,27 @@ class DriverLocationPoller {
         return false;
       }
 
+      // CRITICAL: For OTHER drivers, location_tracking_enabled MUST be true
+      // This prevents showing markers when sharing is turned off
+      if (user.location_tracking_enabled !== true) {
+        console.log(`🚫 [DriverLocationPoller] Hiding ${user.user_name} - location sharing is OFF`);
+        return false;
+      }
+
+      // CRITICAL: Check location_updated_at to ensure sharing is active
+      // If location_updated_at is null or very old, don't show marker (sharing is off or stale)
+      if (!user.location_updated_at) {
+        console.log(`🚫 [DriverLocationPoller] Hiding ${user.user_name} - no location_updated_at (sharing off)`);
+        return false;
+      }
+
+      const locationAge = now - new Date(user.location_updated_at).getTime();
+      
       // RULE 3: Dispatcher special handling
       if (isDispatcher && !isAdmin) {
         const dispatcherStoreIds = new Set(this.currentUser.store_ids || []);
         
         // For dispatchers: driver must have assigned stops AND be on_duty or on_break
-        // Location tracking can be on OR off for dispatchers to see
         const hasAssignedStops = (deliveries || []).some(delivery =>
           delivery &&
           delivery.driver_id === driverId &&
@@ -157,30 +173,31 @@ class DriverLocationPoller {
         // Must be on_duty or on_break
         if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') return false;
         
+        // CRITICAL: Location must be recent (within 30 minutes)
+        if (locationAge > thirtyMinutesInMs) {
+          console.log(`🚫 [DriverLocationPoller] Hiding ${user.user_name} - location too old (${Math.round(locationAge/60000)}min)`);
+          return false;
+        }
+        
         return true;
       }
 
       // RULE 2: For other drivers (admin or driver viewing other drivers)
       // Must be on_duty or on_break AND location_tracking_enabled = true
       if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') return false;
-      if (user.location_tracking_enabled !== true) return false;
 
-      // Check staleness for other drivers
-      if (user.location_updated_at) {
-        const locationAge = now - new Date(user.location_updated_at).getTime();
+      // CRITICAL: Check staleness - hide marker if >30 min old and no active stops
+      if (locationAge > thirtyMinutesInMs) {
+        const driverActiveStops = (deliveries || []).filter(d => 
+          d && 
+          d.driver_id === driverId && 
+          d.delivery_date === todayStr &&
+          !['completed', 'failed', 'cancelled', 'returned'].includes(d.status)
+        );
         
-        // Hide marker if location is >30 min old and driver has no active stops today
-        if (locationAge > thirtyMinutesInMs) {
-          const driverActiveStops = (deliveries || []).filter(d => 
-            d && 
-            d.driver_id === driverId && 
-            d.delivery_date === todayStr &&
-            !['completed', 'failed', 'cancelled', 'returned'].includes(d.status)
-          );
-          
-          if (driverActiveStops.length === 0) {
-            return false;
-          }
+        if (driverActiveStops.length === 0) {
+          console.log(`🚫 [DriverLocationPoller] Hiding ${user.user_name} - location stale and no active stops`);
+          return false;
         }
       }
 

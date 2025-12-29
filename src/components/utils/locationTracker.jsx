@@ -561,16 +561,24 @@ class LocationTracker {
           }
         }
         
-        // CRITICAL: When turning off location sharing, update entity but DO NOT clear coordinates
-        // This allows the driver to still see their own marker on desktop
-        // Only clear location_updated_at so other users know sharing is off
+        // CRITICAL: When turning off location sharing on MOBILE:
+        // - Set location_tracking_enabled = false
+        // - Set location_updated_at = null (signals sharing is OFF to other users)
+        // - Keep coordinates (driver can still see on desktop)
         if (navigator.onLine && appUserId) {
+          console.log('🔴 [LocationTracker] Turning OFF location sharing - keeping coords but clearing timestamp');
           await base44.entities.AppUser.update(appUserId, {
             location_tracking_enabled: false,
             location_updated_at: null
             // CRITICAL: Do NOT clear current_latitude/current_longitude
             // Driver needs these to see their own marker on desktop
           });
+          
+          // CRITICAL: Update currentUser ref to reflect change
+          if (this.currentUser) {
+            this.currentUser.location_tracking_enabled = false;
+            this.currentUser.location_updated_at = null;
+          }
         } else {
           console.warn('⚠️ Device offline or no AppUser ID, tracking stopped locally only');
         }
