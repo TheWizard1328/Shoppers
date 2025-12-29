@@ -54,11 +54,14 @@ class DriverLocationPoller {
     const currentUserId = this.currentUser?.id;
     const currentUserUserId = this.currentUser?.user_id;
     
+    // CRITICAL: Determine device type early
+    const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
     // CRITICAL: On desktop, ensure current user's AppUser is in the list for self-marker
-    // This handles the case where user is off_duty and not in the filtered appUsers
+    // On mobile, NEVER add self to the list (blue GPS dot shows instead)
     let users = Array.isArray(appUsers) ? [...appUsers] : [];
     
-    if (!isMobile && currentUser && currentUser.current_latitude && currentUser.current_longitude) {
+    if (!isMobileDevice && currentUser && currentUser.current_latitude && currentUser.current_longitude) {
       // Check if current user is already in the list
       const selfInList = users.some(u => 
         u && (u.user_id === currentUserId || u.id === currentUserId || 
@@ -66,7 +69,7 @@ class DriverLocationPoller {
       );
       
       if (!selfInList) {
-        // Add current user to the list so they can see their own marker
+        // Add current user to the list so they can see their own marker (DESKTOP ONLY)
         console.log('📍 [DriverLocationPoller] Adding current user to list for self-marker (desktop, off_duty)');
         users.push({
           id: currentUser.id,
@@ -125,12 +128,12 @@ class DriverLocationPoller {
       // Any status (on_duty, off_duty, on_break), any tracking setting
       if (isSelf) {
         // Desktop: always show own shared location marker regardless of status/tracking
-        if (!isMobile) {
-          console.log('📍 [DriverLocationPoller] Including self marker on desktop (status: ' + user.driver_status + ', tracking: ' + user.location_tracking_enabled + ')');
+        if (!isMobileDevice) {
+          console.log('✅ [DriverLocationPoller] Including self marker on DESKTOP (status: ' + user.driver_status + ', tracking: ' + user.location_tracking_enabled + ')');
           return true;
         }
         // Mobile: NEVER show self marker (blue GPS dot shows instead)
-        console.log('📱 [DriverLocationPoller] Skipping self marker on mobile - using blue GPS dot');
+        console.log('🚫 [DriverLocationPoller] BLOCKING self marker on MOBILE - blue GPS dot shows instead');
         return false;
       }
 
