@@ -150,6 +150,9 @@ class DriverLocationPoller {
 
       const locationAge = now - new Date(user.location_updated_at).getTime();
 
+      // DEBUG: Log driver status for troubleshooting
+      console.log(`🔍 [DriverLocationPoller] ${user.user_name} status check: driver_status=${user.driver_status}, location_tracking_enabled=${user.location_tracking_enabled}`);
+
       // RULE 3: Dispatcher special handling - check BEFORE location_tracking_enabled filter
       // CRITICAL: Dispatchers can see driver markers if driver is NOT off_duty
       // Location sharing setting is ignored for dispatchers - they always see active drivers
