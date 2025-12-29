@@ -6484,7 +6484,7 @@ function Dashboard() {
         <div
           className="absolute left-4 z-[140]"
           style={{
-            bottom: `${deliveriesWithStopOrder.length > 0 && stopCardsBaseHeight > 0 ? stopCardsBaseHeight + 15 : 25}px`
+            bottom: `${deliveriesWithStopOrder.length > 0 && stopCardsBaseHeight > 0 ? stopCardsBaseHeight + 15 + ((mapViewPhase === 2 || mapViewPhase === 3) ? 50 : 0) : 25 + ((mapViewPhase === 2 || mapViewPhase === 3) ? 50 : 0)}px`
           }}>
             <div className="px-2 py-1 text-xs font-medium rounded-lg border" style={{ background: 'transparent', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-600)' }}>
               🛣️ {dailyPolylineCount ?? '...'}
@@ -6792,7 +6792,7 @@ function Dashboard() {
           transition={{ type: "spring", stiffness: 260, damping: 20 }}
           className="fixed z-[140]"
           style={{
-            bottom: `${deliveriesWithStopOrder.length > 0 && stopCardsBaseHeight > 0 ? stopCardsBaseHeight + 15 : 25}px`,
+            bottom: `${deliveriesWithStopOrder.length > 0 && stopCardsBaseHeight > 0 ? stopCardsBaseHeight + 15 + ((mapViewPhase === 2 || mapViewPhase === 3) ? 50 : 0) : 25 + ((mapViewPhase === 2 || mapViewPhase === 3) ? 50 : 0)}px`,
             right: '64px' // Position to the left of MapViewCycleFAB
           }}>
             <Button
