@@ -5486,6 +5486,10 @@ function Dashboard() {
     pauseOfflineSync();
     await new Promise((resolve) => setTimeout(resolve, 100));
 
+    // CRITICAL: Store the ID we clicked on BEFORE any database changes
+    const originalClickedId = deliveryId;
+    let newNextDeliveryId = deliveryId;
+
     try {
       const deliveryFromUI = deliveriesWithStopOrder.find((d) => d?.id === deliveryId);
       if (!deliveryFromUI) {
@@ -5546,7 +5550,10 @@ function Dashboard() {
       
       // CRITICAL: Find which delivery is NOW marked as next (should be the one we just started)
       const newNextDelivery = refreshedDeliveries.find(d => d.isNextDelivery === true);
-      const newNextDeliveryId = newNextDelivery?.id || deliveryId; // Fallback to original if not found
+      newNextDeliveryId = newNextDelivery?.id || deliveryId; // Use the refreshed next delivery ID
+      
+      console.log(`   🎯 Original clicked ID: ${originalClickedId}`);
+      console.log(`   ✨ NEW next delivery ID: ${newNextDeliveryId}`);
       
       // Update context immediately
       if (updateDeliveriesLocally) {
@@ -5659,6 +5666,10 @@ function Dashboard() {
         detail: { driverId: driverId, deliveryDate: deliveryDate, triggeredBy: 'startDeliveryFinalRefresh' } 
       }));
 
+      console.log('═══════════════════════════════════════════════════');
+      console.log('✅ [START] ========== START DELIVERY COMPLETE ==========');
+      console.log('═══════════════════════════════════════════════════');
+
       // STEP 10: Scroll to the NEW next delivery card (not the original one clicked)
       console.log('📍 [START] Step 10: Scrolling to NEW next delivery card...');
       setTimeout(() => {
@@ -5670,10 +5681,6 @@ function Dashboard() {
           console.warn(`   ⚠️ Card not found for new next delivery: ${newNextDeliveryId}`);
         }
       }, 500);
-
-      console.log('═══════════════════════════════════════════════════');
-      console.log('✅ [START] ========== START DELIVERY COMPLETE ==========');
-      console.log('═══════════════════════════════════════════════════');
 
       // Send notification: Driver started delivery
       try {
