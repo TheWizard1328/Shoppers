@@ -48,11 +48,9 @@ class DriverLocationPoller {
     // Update internal current user reference
     this.currentUser = currentUser;
 
-    // DEBUG: Log incoming appUsers data structure
-    console.log(`🔍 [DriverLocationPoller] Received ${appUsers?.length || 0} appUsers`);
-    if (appUsers && appUsers.length > 0) {
-      const sample = appUsers[0];
-      console.log(`🔍 [DriverLocationPoller] Sample appUser fields:`, Object.keys(sample || {}));
+    // Log incoming data count (reduced verbosity)
+    if (appUsers?.length > 0) {
+      console.log(`📍 [DriverLocationPoller] Processing ${appUsers.length} appUsers`);
     }
 
     // Determine if current device is mobile
