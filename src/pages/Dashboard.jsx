@@ -1490,24 +1490,31 @@ function Dashboard() {
     driverLocationPoller.start(() => {
       // Callback provided for future use, but not actively calling refreshData
       // to prevent triggering auto-selection every 15 seconds
-    });
+    }, currentUser); // CRITICAL: Pass currentUser so poller knows who "self" is
     
     const unsubscribe = driverLocationPoller.subscribe((locations) => {
       if (!locations || !Array.isArray(locations)) return;
       
-      // CRITICAL: ALWAYS filter out current user's marker on mobile devices
-      // The blue GPS dot is the ONLY marker that should show for self on mobile
+      // CRITICAL: TRIPLE-CHECK filtering on mobile - block ANY marker matching current user ID
+      // This is the FINAL defense against self-markers appearing on mobile
+      const currentUserId = currentUser?.id;
+      const currentUserUserId = currentUser?.user_id;
+      
       const filteredLocations = isMobile && isDriver 
         ? locations.filter(loc => {
             const locId = loc.driver_id || loc.user_id || loc.id;
-            const isSelfMarker = locId === currentUser?.id || 
-                                locId === currentUser?.user_id;
+            const isSelfMarker = locId === currentUserId || 
+                                locId === currentUserUserId ||
+                                loc._isSelf === true;
             if (isSelfMarker) {
-              console.log('🚫 [Dashboard] Filtering out self shared marker on mobile - blue dot shows instead');
+              console.log('🚫 [Dashboard] BLOCKING self shared marker on mobile (ID match)', { locId, currentUserId });
+              return false;
             }
-            return !isSelfMarker;
+            return true;
           })
         : locations;
+      
+      console.log(`📍 [Dashboard] Setting ${filteredLocations.length} driver locations (mobile: ${isMobile}, filtered self: ${locations.length - filteredLocations.length})`);
       
       // CRITICAL: Replace locations entirely (don't merge)
       // Merging can cause stale self-markers to persist on mobile
@@ -1518,7 +1525,7 @@ function Dashboard() {
       unsubscribe();
       driverLocationPoller.stop();
     };
-  }, [isDataLoaded, currentUser, deliveries, drivers, isMobile, isDriver]);
+  }, [isDataLoaded, currentUser?.id, currentUser?.user_id, deliveries, drivers, isMobile, isDriver]);
   
   useEffect(() => {
     if (!isDataLoaded || !currentUser || !deliveries || !drivers) {
