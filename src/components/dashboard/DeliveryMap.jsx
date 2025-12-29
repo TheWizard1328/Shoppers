@@ -3073,35 +3073,35 @@ export default function DeliveryMap({
           }
           
           return (
-          <Marker
-            key={home.id}
-            position={[home.latitude, home.longitude]}
-            icon={createHomeIcon(home.driverColor)}
-            eventHandlers={{
-              click: () => onMarkerClick && onMarkerClick(home, 'home'),
-              mouseover: (e) => {
-                e.target.openPopup();
-              },
-              mouseout: (e) => {
-                e.target.closePopup();
-              }
-            }}>
+            <Marker
+              key={home.id}
+              position={[home.latitude, home.longitude]}
+              icon={createHomeIcon(home.driverColor)}
+              eventHandlers={{
+                click: () => onMarkerClick && onMarkerClick(home, 'home'),
+                mouseover: (e) => {
+                  e.target.openPopup();
+                },
+                mouseout: (e) => {
+                  e.target.closePopup();
+                }
+              }}>
 
-            <Popup
-              autoPan={false}
-              closeButton={false}
-              offset={[0, -20]}
-              className="custom-popup">
+              <Popup
+                autoPan={false}
+                closeButton={false}
+                offset={[0, -20]}
+                className="custom-popup">
 
-              <div className="min-w-[150px]">
-                <div className="flex items-center gap-1.5">
-                  <Home className="w-3.5 h-3.5 text-emerald-600" />
-                  <h3 className="font-semibold text-xs">{home.driverName}</h3>
+                <div className="min-w-[150px]">
+                  <div className="flex items-center gap-1.5">
+                    <Home className="w-3.5 h-3.5 text-emerald-600" />
+                    <h3 className="font-semibold text-xs">{home.driverName}</h3>
+                  </div>
+                  <p className="text-[11px] text-gray-600 mt-1">Final Destination (Home)</p>
                 </div>
-                <p className="text-[11px] text-gray-600 mt-1">Final Destination (Home)</p>
-              </div>
-            </Popup>
-          </Marker>
+              </Popup>
+            </Marker>
           );
         })}
       </MapContainer>
