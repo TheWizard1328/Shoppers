@@ -47,10 +47,17 @@ class DriverLocationPoller {
   processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate) {
     // Update internal current user reference
     this.currentUser = currentUser;
-    
+
+    // DEBUG: Log incoming appUsers data structure
+    console.log(`🔍 [DriverLocationPoller] Received ${appUsers?.length || 0} appUsers`);
+    if (appUsers && appUsers.length > 0) {
+      const sample = appUsers[0];
+      console.log(`🔍 [DriverLocationPoller] Sample appUser fields:`, Object.keys(sample || {}));
+    }
+
     // Determine if current device is mobile
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
+
     const currentUserId = this.currentUser?.id;
     const currentUserUserId = this.currentUser?.user_id;
     
