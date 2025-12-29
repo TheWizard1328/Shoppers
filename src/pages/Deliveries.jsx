@@ -56,8 +56,8 @@ import {
   Download,
   Upload,
   RotateCcw,
-  GripVertical
-} from "lucide-react";
+  GripVertical } from
+"lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { getEffectiveUser, isUserDataAvailable } from "../components/utils/auth";
 import StopCard from "../components/common/StopCard";
@@ -374,24 +374,24 @@ export default function DeliveriesPage() {
 
       if (isDriverOverviewMode) {
         console.log('📋 [Deliveries] Fetching ALL deliveries for Driver Overview mode');
-        
+
         // CRITICAL: For driver overview, we need ALL deliveries for the year, not just cached 90 days
         // Fetch directly from the database in quarterly chunks to avoid 5000 record limit
         const targetYear = selectedOverviewYear === 'all' ? new Date().getFullYear() : parseInt(selectedOverviewYear, 10);
-        
+
         console.log(`📅 [Deliveries] Fetching deliveries for year ${targetYear} in quarterly chunks`);
-        
+
         try {
           // Fetch each quarter separately to avoid hitting the 5000 limit
           const quarters = [
-            { start: `${targetYear}-01-01`, end: `${targetYear}-03-31`, label: 'Q1' },
-            { start: `${targetYear}-04-01`, end: `${targetYear}-06-30`, label: 'Q2' },
-            { start: `${targetYear}-07-01`, end: `${targetYear}-09-30`, label: 'Q3' },
-            { start: `${targetYear}-10-01`, end: `${targetYear}-12-31`, label: 'Q4' }
-          ];
-          
+          { start: `${targetYear}-01-01`, end: `${targetYear}-03-31`, label: 'Q1' },
+          { start: `${targetYear}-04-01`, end: `${targetYear}-06-30`, label: 'Q2' },
+          { start: `${targetYear}-07-01`, end: `${targetYear}-09-30`, label: 'Q3' },
+          { start: `${targetYear}-10-01`, end: `${targetYear}-12-31`, label: 'Q4' }];
+
+
           const allQuarterData = [];
-          
+
           for (const quarter of quarters) {
             console.log(`📅 [Deliveries] Fetching ${quarter.label}: ${quarter.start} to ${quarter.end}`);
             const quarterData = await base44.entities.Delivery.filter({
@@ -402,16 +402,16 @@ export default function DeliveriesPage() {
               allQuarterData.push(...quarterData);
             }
           }
-          
+
           deliveriesData = allQuarterData;
           console.log(`✅ [Deliveries] Total loaded: ${deliveriesData.length} deliveries for year ${targetYear}`);
         } catch (error) {
           console.error('Failed to fetch year deliveries, falling back to cache:', error);
           deliveriesData = await getData('Delivery', '-delivery_date', {}, forceRefresh);
         }
-        
+
         if (deliveriesData && deliveriesData.length > 0) {
-          const dates = deliveriesData.map(d => d.delivery_date).filter(Boolean).sort();
+          const dates = deliveriesData.map((d) => d.delivery_date).filter(Boolean).sort();
           console.log(`📅 [Deliveries] Delivery date range: ${dates[0]} to ${dates[dates.length - 1]}`);
         }
       } else {
@@ -517,7 +517,7 @@ export default function DeliveriesPage() {
   // Fetch fresh AppUser data periodically for accurate driver_status
   useEffect(() => {
     if (!isDriverOverviewMode) return;
-    
+
     const fetchFreshAppUsers = async () => {
       try {
         const freshData = await base44.entities.AppUser.list();
@@ -536,12 +536,12 @@ export default function DeliveriesPage() {
     if (!contextDataLoaded || !initialLoadDone.current || !dataLoaded) {
       return;
     }
-    
+
     if (Date.now() < skipContextSyncUntil.current) {
       console.log('⏸️ [Deliveries] Skipping context sync - drag operation in progress');
       return;
     }
-    
+
     // CRITICAL: In Driver Overview mode, DON'T overwrite deliveries from context
     // because we fetch the full year directly from the database
     if (isDriverOverviewMode) {
@@ -561,24 +561,24 @@ export default function DeliveriesPage() {
       }
       return;
     }
-    
+
     if (contextDeliveries.length > 0) {
       setAllDeliveries(contextDeliveries);
-      setRefreshKey(prev => prev + 1); // Force driver card stats to recalculate
+      setRefreshKey((prev) => prev + 1); // Force driver card stats to recalculate
     }
 
     if (contextPatients.length > 0) {
       setAllPatients(contextPatients);
     }
-    
+
     if (contextStores.length > 0) {
       setStores(contextStores);
     }
-    
+
     if (contextCities.length > 0) {
       setCities(contextCities);
     }
-    
+
     if (contextUsers.length > 0) {
       setAllUsers(contextUsers);
     }
@@ -638,7 +638,7 @@ export default function DeliveriesPage() {
   useEffect(() => {
     if (!isDriverOverviewMode || !dataLoaded || !hasAccess) return;
     if (!availableOverviewYears || availableOverviewYears.length === 0) return;
-    
+
     if (yearAutoSelectDone.current) {
       return;
     }
@@ -659,15 +659,15 @@ export default function DeliveriesPage() {
     }
 
     const currentYear = new Date().getFullYear();
-    const targetYear = availableOverviewYears.includes(currentYear) 
-      ? currentYear.toString() 
-      : availableOverviewYears[0]?.toString();
-    
+    const targetYear = availableOverviewYears.includes(currentYear) ?
+    currentYear.toString() :
+    availableOverviewYears[0]?.toString();
+
     if (targetYear) {
       console.log('📅 [Deliveries] Auto-selecting year:', targetYear);
       setSelectedOverviewYear(targetYear);
     }
-    
+
     yearAutoSelectDone.current = true;
   }, [isDriverOverviewMode, dataLoaded, hasAccess, availableOverviewYears.length, location.search]);
 
@@ -1221,8 +1221,8 @@ export default function DeliveriesPage() {
   activeDriver,
   hasAccess,
   groupedDeliveries,
-  isLoadingData
-  ]);
+  isLoadingData]
+  );
 
   const sortDeliveriesByTime = useCallback((deliveries) => {
     if (!Array.isArray(deliveries)) return [];
@@ -1270,8 +1270,8 @@ export default function DeliveriesPage() {
           (patient?.address || '').toLowerCase().includes(lowerSearch) ||
           (d.driver_name || '').toLowerCase().includes(lowerSearch) ||
           (store?.name || '').toLowerCase().includes(lowerSearch) ||
-          (d.prescription_number || '').toLowerCase().includes(lowerSearch)
-        );
+          (d.prescription_number || '').toLowerCase().includes(lowerSearch));
+
       });
     }
 
@@ -1771,8 +1771,8 @@ export default function DeliveriesPage() {
       getData('Patient', 'full_name', null, true),
       getData('Store', '-created_date', null, true),
       getData('AppUser', '-created_date', null, true),
-      getData('City', '-created_date', null, true)
-      ]);
+      getData('City', '-created_date', null, true)]
+      );
 
       console.log('📊 [Deliveries] Fetched fresh data:', {
         deliveries: freshDeliveries?.length || 0,
@@ -1932,8 +1932,8 @@ export default function DeliveriesPage() {
         await invalidate('Patient');
       }
 
-      setAllDeliveries(prev => 
-        prev.map(d => d.id === deliveryId ? { ...d, ...updateData, updated_date: new Date().toISOString() } : d)
+      setAllDeliveries((prev) =>
+      prev.map((d) => d.id === deliveryId ? { ...d, ...updateData, updated_date: new Date().toISOString() } : d)
       );
 
       invalidate('Delivery');
@@ -1953,12 +1953,12 @@ export default function DeliveriesPage() {
         );
         await Promise.all(updatePromises);
         console.log(`✅ [Deliveries] Updated ${relatedDeliveries.length} deliveries to in_transit after pickup`);
-        
-        setAllDeliveries(prev => 
-          prev.map(d => {
-            const updated = relatedDeliveries.find(rd => rd.id === d.id);
-            return updated ? { ...d, status: 'in_transit', updated_date: new Date().toISOString() } : d;
-          })
+
+        setAllDeliveries((prev) =>
+        prev.map((d) => {
+          const updated = relatedDeliveries.find((rd) => rd.id === d.id);
+          return updated ? { ...d, status: 'in_transit', updated_date: new Date().toISOString() } : d;
+        })
         );
       }
 
@@ -1970,8 +1970,8 @@ export default function DeliveriesPage() {
   const handleNotesUpdate = useCallback(async (deliveryId, newNotes) => {
     try {
       await updateDeliveryLocal(deliveryId, { delivery_notes: newNotes });
-      setAllDeliveries(prev => 
-        prev.map(d => d.id === deliveryId ? { ...d, delivery_notes: newNotes, updated_date: new Date().toISOString() } : d)
+      setAllDeliveries((prev) =>
+      prev.map((d) => d.id === deliveryId ? { ...d, delivery_notes: newNotes, updated_date: new Date().toISOString() } : d)
       );
       invalidate('Delivery');
     } catch (error) {
@@ -1983,8 +1983,8 @@ export default function DeliveriesPage() {
   const handleCODUpdate = useCallback(async (deliveryId, requiresCod) => {
     try {
       await updateDeliveryLocal(deliveryId, { requires_cod: requiresCod });
-      setAllDeliveries(prev => 
-        prev.map(d => d.id === deliveryId ? { ...d, requires_cod: requiresCod, updated_date: new Date().toISOString() } : d)
+      setAllDeliveries((prev) =>
+      prev.map((d) => d.id === deliveryId ? { ...d, requires_cod: requiresCod, updated_date: new Date().toISOString() } : d)
       );
       invalidate('Delivery');
     } catch (error) {
@@ -1997,8 +1997,8 @@ export default function DeliveriesPage() {
     if (!confirm('Are you sure you want to retry this delivery? It will be marked as pending.')) return;
     try {
       await updateDeliveryLocal(deliveryId, { status: 'pending', actual_delivery_time: null });
-      setAllDeliveries(prev => 
-        prev.map(d => d.id === deliveryId ? { ...d, status: 'pending', actual_delivery_time: null, updated_date: new Date().toISOString() } : d)
+      setAllDeliveries((prev) =>
+      prev.map((d) => d.id === deliveryId ? { ...d, status: 'pending', actual_delivery_time: null, updated_date: new Date().toISOString() } : d)
       );
       invalidate('Delivery');
     } catch (error) {
@@ -2016,8 +2016,8 @@ export default function DeliveriesPage() {
         actual_delivery_time: now.toISOString()
       };
       await updateDeliveryLocal(deliveryId, updateData);
-      setAllDeliveries(prev => 
-        prev.map(d => d.id === deliveryId ? { ...d, ...updateData, updated_date: new Date().toISOString() } : d)
+      setAllDeliveries((prev) =>
+      prev.map((d) => d.id === deliveryId ? { ...d, ...updateData, updated_date: new Date().toISOString() } : d)
       );
       invalidate('Delivery');
     } catch (error) {
@@ -2029,18 +2029,18 @@ export default function DeliveriesPage() {
   const handleDeleteDelivery = useCallback(async (deliveryId) => {
     try {
       console.log('🗑️ [Deliveries] Deleting delivery:', deliveryId);
-      
+
       // CRITICAL: Update UI immediately first (optimistic update)
-      setAllDeliveries(prev => {
-        const filtered = prev.filter(d => d.id !== deliveryId);
+      setAllDeliveries((prev) => {
+        const filtered = prev.filter((d) => d.id !== deliveryId);
         console.log(`✅ [Deliveries] Local state updated: ${prev.length} → ${filtered.length}`);
         return filtered;
       });
-      
+
       // Delete from offline DB and sync to backend
       // This will trigger mutation listeners to update Layout context
       await deleteDeliveryLocal(deliveryId);
-      
+
       invalidate('Delivery');
       console.log('✅ [Deliveries] Delivery deleted successfully');
     } catch (error) {
@@ -2525,8 +2525,8 @@ export default function DeliveriesPage() {
     reorderedDeliveries.splice(result.destination.index, 0, reorderedItem);
 
     try {
-      await Promise.all(reorderedDeliveries.map((delivery, index) => 
-        updateDeliveryLocal(delivery.id, { stop_order: index + 1 })
+      await Promise.all(reorderedDeliveries.map((delivery, index) =>
+      updateDeliveryLocal(delivery.id, { stop_order: index + 1 })
       ));
       console.log('✅ [Drag] Database updated');
 
@@ -2539,21 +2539,21 @@ export default function DeliveriesPage() {
         console.log('✅ [Drag] ETAs recalculated');
       }
 
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await new Promise((resolve) => setTimeout(resolve, 800));
 
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
       const freshDeliveries = await Delivery.filter({
         delivery_date: dateStr,
         driver_id: activeDriver.id
       }, '-stop_order');
-      
+
       console.log(`✅ [Drag] Fetched ${freshDeliveries.length} fresh deliveries with ETAs`);
-      
-      setAllDeliveries(prev => {
-        const others = prev.filter(d => d.delivery_date !== dateStr || d.driver_id !== activeDriver.id);
+
+      setAllDeliveries((prev) => {
+        const others = prev.filter((d) => d.delivery_date !== dateStr || d.driver_id !== activeDriver.id);
         return [...others, ...freshDeliveries];
       });
-      
+
       if (updateDeliveriesLocally) {
         updateDeliveriesLocally(freshDeliveries);
         console.log('✅ [Drag] Context updated');
@@ -2592,7 +2592,7 @@ export default function DeliveriesPage() {
     const deliveriesToUse = allDeliveries?.length > 0 ? allDeliveries : contextDeliveries;
     const patientsToUse = allPatients?.length > 0 ? allPatients : contextPatients;
     const usersToUse = allUsers?.length > 0 ? allUsers : contextUsers;
-    
+
     console.log(`🔍 [DriverCards] Data sources selected:`, {
       deliveries: deliveriesToUse.length,
       deliveriesSource: allDeliveries?.length > 0 ? 'allDeliveries' : 'contextDeliveries',
@@ -2617,17 +2617,17 @@ export default function DeliveriesPage() {
     }
 
     const yearFilteredDeliveries = selectedOverviewYear === 'all' ?
-      deliveriesToUse :
-      deliveriesToUse.filter((d) => {
-        if (!d || !d.delivery_date) return false;
-        try {
-          const deliveryYear = new Date(d.delivery_date.replace(/-/g, '/')).getFullYear();
-          return deliveryYear === parseInt(selectedOverviewYear, 10);
-        } catch (error) {
-          console.warn('⚠️ Invalid delivery_date during year filtering:', d.delivery_date);
-          return false;
-        }
-      });
+    deliveriesToUse :
+    deliveriesToUse.filter((d) => {
+      if (!d || !d.delivery_date) return false;
+      try {
+        const deliveryYear = new Date(d.delivery_date.replace(/-/g, '/')).getFullYear();
+        return deliveryYear === parseInt(selectedOverviewYear, 10);
+      } catch (error) {
+        console.warn('⚠️ Invalid delivery_date during year filtering:', d.delivery_date);
+        return false;
+      }
+    });
 
     console.log(`📊 Year-filtered deliveries: ${yearFilteredDeliveries.length} of ${deliveriesToUse.length} total`);
 
@@ -2647,7 +2647,7 @@ export default function DeliveriesPage() {
       const roles = Array.isArray(u.app_roles) ? u.app_roles : [];
       const hasDriverRole = roles.includes('driver');
       const isAdminDriver = roles.includes('admin') && roles.includes('driver');
-      
+
       if (hasDriverRole || isAdminDriver) {
         console.log(`✅ Including driver ${u.user_name || u.full_name} (id: ${u.id}, appUserId: ${u.appUserId}) with roles: ${roles.join(', ')}, status: ${u.status}`);
         return true;
@@ -2655,10 +2655,10 @@ export default function DeliveriesPage() {
       return false;
     });
     console.log(`👥 Total drivers with driver role: ${driversWithRoles.length}`);
-    
-    const deliveryDriverIds = [...new Set(deliveriesToUse.map(d => d.driver_id).filter(Boolean))];
+
+    const deliveryDriverIds = [...new Set(deliveriesToUse.map((d) => d.driver_id).filter(Boolean))];
     console.log(`📊 [Debug] Unique driver_ids in deliveries:`, deliveryDriverIds);
-    console.log(`📊 [Debug] Driver IDs from driversWithRoles:`, driversWithRoles.map(d => ({ name: d.user_name, id: d.id, appUserId: d.appUserId })));
+    console.log(`📊 [Debug] Driver IDs from driversWithRoles:`, driversWithRoles.map((d) => ({ name: d.user_name, id: d.id, appUserId: d.appUserId })));
 
     let cityFilteredDrivers = driversWithRoles;
 
@@ -2673,7 +2673,7 @@ export default function DeliveriesPage() {
       // CRITICAL: Dispatchers should only see drivers who have deliveries for their assigned stores
       const dispatcherStoreIds = new Set(currentUser.store_ids || []);
       console.log(`👔 Dispatcher store IDs:`, Array.from(dispatcherStoreIds));
-      
+
       // Find all driver IDs that have deliveries for the dispatcher's stores
       const driversWithStoreDeliveries = new Set();
       yearFilteredDeliveries.forEach((d) => {
@@ -2687,14 +2687,14 @@ export default function DeliveriesPage() {
         }
       });
       console.log(`👔 Drivers with deliveries for dispatcher's stores:`, Array.from(driversWithStoreDeliveries));
-      
+
       // Filter to only show drivers who have deliveries for dispatcher's stores
       cityFilteredDrivers = driversWithRoles.filter((d) => {
         if (!d) return false;
-        const driverIdMatch = driversWithStoreDeliveries.has(d.id) || 
-                              (d.appUserId && driversWithStoreDeliveries.has(d.appUserId));
+        const driverIdMatch = driversWithStoreDeliveries.has(d.id) ||
+        d.appUserId && driversWithStoreDeliveries.has(d.appUserId);
         const driverNameMatch = driversWithStoreDeliveries.has((d.full_name || '').toLowerCase().trim()) ||
-                                driversWithStoreDeliveries.has((d.user_name || '').toLowerCase().trim());
+        driversWithStoreDeliveries.has((d.user_name || '').toLowerCase().trim());
         return driverIdMatch || driverNameMatch;
       });
       console.log(`👔 Dispatcher - filtered to drivers with store deliveries: ${cityFilteredDrivers.length} drivers`);
@@ -2707,15 +2707,15 @@ export default function DeliveriesPage() {
 
     const driversWithDeliveries = cityFilteredDrivers.filter((u) => {
       if (!u) return false;
-      
+
       const userFullNameLower = (u.full_name || '').toLowerCase().trim();
       const userUserNameLower = (u.user_name || '').toLowerCase().trim();
-      
+
       const hasDeliveries = driverIdsInDeliveries.includes(u.id) ||
-      (u.appUserId && driverIdsInDeliveries.includes(u.appUserId)) ||
+      u.appUserId && driverIdsInDeliveries.includes(u.appUserId) ||
       driverNamesInDeliveries.includes(userFullNameLower) ||
       driverNamesInDeliveries.includes(userUserNameLower);
-      
+
       console.log(`   ✅ Including driver: ${u.user_name || u.full_name} (has deliveries: ${hasDeliveries}, status: ${u.status})`);
       return true;
     });
@@ -2741,40 +2741,40 @@ export default function DeliveriesPage() {
     const todayStr = format(new Date(), 'yyyy-MM-dd');
 
     // CRITICAL: For dispatchers, only count deliveries for their assigned stores
-    const dispatcherStoreIds = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') 
-      ? new Set(currentUser.store_ids || []) 
-      : null;
+    const dispatcherStoreIds = userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') ?
+    new Set(currentUser.store_ids || []) :
+    null;
 
     const cards = driversToShow.map((driver) => {
       const driverDeliveries = yearFilteredDeliveries.filter((d) => {
         if (!d) return false;
-        
+
         // CRITICAL: For dispatchers, only include deliveries for their stores
         if (dispatcherStoreIds && d.store_id && !dispatcherStoreIds.has(d.store_id)) {
           return false;
         }
-        
+
         if (d.driver_id) {
           if (d.driver_id === driver.id || d.driver_id === driver.appUserId) {
             return true;
           }
         }
-        
+
         if (d.driver_name) {
           const deliveryDriverName = (d.driver_name || '').toLowerCase().trim();
           const driverFullName = (driver.full_name || '').toLowerCase().trim();
           const driverUserName = (driver.user_name || '').toLowerCase().trim();
-          
+
           if (deliveryDriverName === driverFullName || deliveryDriverName === driverUserName) {
             return true;
           }
-          
+
           const driverFirstName = driverUserName.split(' ')[0];
           if (driverFirstName && deliveryDriverName === driverFirstName) {
             return true;
           }
         }
-        
+
         return false;
       });
 
@@ -2864,8 +2864,8 @@ export default function DeliveriesPage() {
   contextDeliveries,
   contextPatients,
   contextUsers,
-  refreshKey
-  ]);
+  refreshKey]
+  );
 
   const canCreateDeliveries = useMemo(() => {
     return userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher');
@@ -2873,9 +2873,9 @@ export default function DeliveriesPage() {
 
   // Helper function to get driver status badge class
   const getDriverStatusBadgeClass = useCallback((driverId, fallbackStatus) => {
-    const freshAppUser = freshAppUsers.find(au => au?.user_id === driverId);
+    const freshAppUser = freshAppUsers.find((au) => au?.user_id === driverId);
     const driverStatus = freshAppUser?.driver_status ?? fallbackStatus ?? 'off_duty';
-    
+
     if (driverStatus === 'on_duty') return 'bg-emerald-500 text-white border-emerald-500';
     if (driverStatus === 'on_break') return 'bg-orange-400 text-white border-orange-400';
     if (driverStatus === 'online') return 'bg-emerald-500 text-white border-emerald-500';
@@ -2948,8 +2948,8 @@ export default function DeliveriesPage() {
           {(provided) =>
           <div
             {...provided.droppableProps}
-            ref={provided.innerRef}
-            className="pyoverflow-y-auto py-2 gap-x-6 gap-y-2 grid overflow-y-auto auto-rows-max"
+            ref={provided.innerRef} className="mx-3 py-2 pyoverflow-y-auto gap-x-6 gap-y-2 grid overflow-y-auto auto-rows-max"
+
             style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(325px, 325px))', maxHeight: 'calc(100vh - 280px)' }}>
 
               {deliveriesToRender.map((delivery, index) =>
@@ -3050,8 +3050,8 @@ export default function DeliveriesPage() {
   selectedDate,
   selectedDeliveryId,
   handleEditPatient,
-  filteredAndSortedDeliveries
-  ]);
+  filteredAndSortedDeliveries]
+  );
 
   function LogoImage({ className }) {
     const [idx, setIdx] = React.useState(0);
@@ -3235,8 +3235,8 @@ export default function DeliveriesPage() {
                   const deliveriesToDelete = driverFilteredDeliveries.filter(
                     (d) => d.delivery_date === dateStr && d.driver_id === driverId
                   );
-                  const deliveryIds = deliveriesToDelete.map(d => d.id);
-                  
+                  const deliveryIds = deliveriesToDelete.map((d) => d.id);
+
                   console.log(`🗑️ [DeleteRoute] Batch deleting ${deliveryIds.length} deliveries for ${dateStr}, driver ${driverId}`);
 
                   // CRITICAL: Batch delete with single UI update
@@ -3244,10 +3244,10 @@ export default function DeliveriesPage() {
                     userId: currentUser?.id,
                     userName: currentUser?.user_name || currentUser?.full_name
                   });
-                  
+
                   console.log(`✅ [DeleteRoute] Route deleted successfully`);
                   invalidate('Delivery');
-                  setRefreshKey(prev => prev + 1);
+                  setRefreshKey((prev) => prev + 1);
                 } catch (error) {
                   console.error('❌ [DeleteRoute] Error:', error);
                   alert('Failed to delete route. Please try again.');
@@ -3314,8 +3314,8 @@ export default function DeliveriesPage() {
                     const deliveriesToDelete = driverFilteredDeliveries.filter(
                       (d) => d.delivery_date === dateStr && d.driver_id === driverId
                     );
-                    const deliveryIds = deliveriesToDelete.map(d => d.id);
-                    
+                    const deliveryIds = deliveriesToDelete.map((d) => d.id);
+
                     console.log(`🗑️ [DeleteRoute-Mobile] Batch deleting ${deliveryIds.length} deliveries for ${dateStr}, driver ${driverId}`);
 
                     // CRITICAL: Batch delete with single UI update
@@ -3323,10 +3323,10 @@ export default function DeliveriesPage() {
                       userId: currentUser?.id,
                       userName: currentUser?.user_name || currentUser?.full_name
                     });
-                    
+
                     console.log(`✅ [DeleteRoute-Mobile] Route deleted successfully`);
                     invalidate('Delivery');
-                    setRefreshKey(prev => prev + 1);
+                    setRefreshKey((prev) => prev + 1);
                     setIsMobileMenuOpen(false);
                   } catch (error) {
                     console.error('❌ [DeleteRoute-Mobile] Error:', error);
@@ -3466,15 +3466,15 @@ export default function DeliveriesPage() {
                       <div className="flex-grow"></div>
 
                       {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
-                      <Button onClick={() => {setEditingDelivery(null);setShowDeliveryForm(true);}} className="gap-2 w-[140px]">
+                    <Button onClick={() => {setEditingDelivery(null);setShowDeliveryForm(true);}} className="gap-2 w-[140px]">
                           <Plus className="w-4 h-4" /> Add Delivery
                         </Button>
-                      }
+                    }
                       {canAccessImports(currentUser) && !isMobile &&
-                      <Button onClick={handleOpenRouteImport} variant="outline" className="gap-2 w-[140px]">
+                    <Button onClick={handleOpenRouteImport} variant="outline" className="gap-2 w-[140px]">
                           <FileUp className="w-4 h-4" /> Import Route
                         </Button>
-                      }
+                    }
                     </div>
                   </div>
                 </CardContent>
@@ -3557,25 +3557,25 @@ export default function DeliveriesPage() {
 
               <div className="flex-1 overflow-y-auto px-4 pb-4">
                 {isLoadingData && driverCards.length === 0 ?
-                  <div className="text-center py-12" style={{ color: 'var(--text-slate-500)' }}>
+              <div className="text-center py-12" style={{ color: 'var(--text-slate-500)' }}>
                     <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
                     <p className="text-lg font-medium">Loading drivers...</p>
                   </div> :
-                driverCards.length === 0 ?
-                  <div className="text-center py-12" style={{ color: 'var(--text-slate-500)' }}>
+              driverCards.length === 0 ?
+              <div className="text-center py-12" style={{ color: 'var(--text-slate-500)' }}>
                     <Package className="w-16 h-16 mx-auto mb-4 opacity-30" />
                     <p className="text-lg font-medium">No drivers with deliveries for this period</p>
                     <p className="text-sm mt-2">Select a different year or add deliveries</p>
                   </div> :
 
-                  <div key={refreshKey} className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(275px, 1fr))' }}>
+              <div key={refreshKey} className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(275px, 1fr))' }}>
                   {driverCards.map((card) => {
-                const isInactive = card.driver.status === 'inactive';
-                return (
-                  <Card
-                    key={card.driver.id} className="rounded-xl border shadow cursor-pointer transition-shadow backdrop-blur-sm hover:shadow-lg"
-                    style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}
-                    onClick={() => handleDriverCardClick(card.driver)}>
+                  const isInactive = card.driver.status === 'inactive';
+                  return (
+                    <Card
+                      key={card.driver.id} className="rounded-xl border shadow cursor-pointer transition-shadow backdrop-blur-sm hover:shadow-lg"
+                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}
+                      onClick={() => handleDriverCardClick(card.driver)}>
 
                         <CardHeader className="pb-2">
                           <CardTitle className="text-base flex items-center justify-between">
@@ -3583,10 +3583,10 @@ export default function DeliveriesPage() {
                               {card.firstName}
                             </span>
                             <Badge
-                          variant="outline"
-                          className={`text-xs font-semibold rounded-full w-[80px] inline-flex items-center justify-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${
-                          getDriverStatusBadgeClass(card.driver.id, card.driver.driver_status)}`
-                          }>
+                            variant="outline"
+                            className={`text-xs font-semibold rounded-full w-[80px] inline-flex items-center justify-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${
+                            getDriverStatusBadgeClass(card.driver.id, card.driver.driver_status)}`
+                            }>
 
                               {card.stats.totalStops} stops
                             </Badge>
@@ -3595,14 +3595,14 @@ export default function DeliveriesPage() {
                         <CardContent className="px-3 py-3">
                           <div className="mb-3 pb-3 h-[40px] flex items-center justify-center" style={{ borderBottom: '1px solid var(--border-slate-100)' }}>
                             {card.todayStats && card.todayStats.total > 0 ?
-                            <div className="flex items-center justify-center gap-2 text-xs font-medium flex-wrap">
+                          <div className="flex items-center justify-center gap-2 text-xs font-medium flex-wrap">
                                 <span className="text-blue-600">Active: {card.todayStats.active}</span>
                                 <span className="text-green-600">Comp: {card.todayStats.completed}</span>
                                 <span className="text-red-600">Failed: {card.todayStats.failed}</span>
                                 <span className="text-orange-600">Returns: {card.todayStats.returned}</span>
                               </div> :
-                            <div className="text-xs" style={{ color: 'var(--text-slate-400)' }}>No deliveries today</div>
-                            }
+                          <div className="text-xs" style={{ color: 'var(--text-slate-400)' }}>No deliveries today</div>
+                          }
                           </div>
                           <div className="space-y-1 text-sm">
                             <div className="flex justify-between items-center">
@@ -3614,20 +3614,20 @@ export default function DeliveriesPage() {
                               <span className="bg-emerald-500 text-white px-3 py-1 text-xs rounded-full font-medium w-[60px] text-center">{card.stats.completed}</span>
                             </div>
                             {(card.stats.failed > 0 || card.stats.returned > 0) &&
-                        <div className="flex justify-between items-center">
+                          <div className="flex justify-between items-center">
                                 <span style={{ color: 'var(--text-slate-600)' }}>Failed/Returned:</span>
                                 <span className="bg-red-500 text-white px-3 py-1 text-xs rounded-full font-medium w-[60px] text-center">
                                   {card.stats.failed}/{card.stats.returned}
                                 </span>
                               </div>
-                        }
+                          }
                           </div>
                         </CardContent>
                       </Card>);
 
-              })}
+                })}
                   </div>
-                }
+              }
               </div>
             </div> :
 
@@ -3646,7 +3646,7 @@ export default function DeliveriesPage() {
                   {isDriverOnline &&
               <div className="absolute top-3 left-3 w-3 h-3 bg-emerald-500 rounded-full ring-2 ring-white"></div>
               }
-                  <CardContent className="p-3">
+                  <CardContent className="px-3 py-1">
                     <div className="flex items-start gap-4 w-full">
                       <div className="flex-shrink-0 w-16 h-16 rounded-full flex items-center justify-center" style={{ background: 'var(--bg-slate-100)' }}>
                         <span className="text-3xl font-bold" style={{ color: 'var(--text-slate-600)' }}>
@@ -3723,8 +3723,8 @@ export default function DeliveriesPage() {
             allDeliveries={effectiveDeliveries || []}
             initialDriverId={
             editingDelivery ?
-            (effectiveDrivers || []).find((d) => d.id === editingDelivery.driver_id || d.appUserId === editingDelivery.driver_id || d.full_name === editingDelivery.driver_name || d.user_name === editingDelivery.driver_name)?.id
-            : driverFilter === 'all' ? null : driverFilter
+            (effectiveDrivers || []).find((d) => d.id === editingDelivery.driver_id || d.appUserId === editingDelivery.driver_id || d.full_name === editingDelivery.driver_name || d.user_name === editingDelivery.driver_name)?.id :
+            driverFilter === 'all' ? null : driverFilter
             }
             closeOnSave={true} />
 
