@@ -850,6 +850,13 @@ export default function StopCard({
                               await new Promise((resolve) => setTimeout(resolve, 100));
 
                               try {
+                                // CRITICAL: Verify delivery still exists before updating
+                                const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
+                                if (!deliveryExists || deliveryExists.length === 0) {
+                                  console.warn('⚠️ [STATUS] Delivery no longer exists - aborting');
+                                  throw new Error('This delivery has been deleted. Please refresh the page.');
+                                }
+
                                 await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
 
                                 await onStatusUpdate(delivery.id, status, {}, false);
@@ -912,6 +919,13 @@ export default function StopCard({
                             await new Promise((resolve) => setTimeout(resolve, 100));
 
                             try {
+                              // CRITICAL: Verify delivery still exists before updating
+                              const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
+                              if (!deliveryExists || deliveryExists.length === 0) {
+                                console.warn('⚠️ [STATUS] Delivery no longer exists - aborting');
+                                throw new Error('This delivery has been deleted. Please refresh the page.');
+                              }
+
                               await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
 
                               const finishedStatuses = ['completed', 'failed', 'cancelled'];
@@ -1136,6 +1150,13 @@ export default function StopCard({
               await new Promise((resolve) => setTimeout(resolve, 100));
 
               try {
+                // CRITICAL: Verify delivery still exists before updating
+                const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
+                if (!deliveryExists || deliveryExists.length === 0) {
+                  console.warn('⚠️ [FAILURE] Delivery no longer exists - aborting');
+                  throw new Error('This delivery has been deleted. Please refresh the page.');
+                }
+
                 await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
 
                 // Add reason to delivery notes
@@ -1805,6 +1826,13 @@ export default function StopCard({
                         await new Promise((resolve) => setTimeout(resolve, 100));
 
                         try {
+                          // CRITICAL: Verify delivery still exists before retrying
+                          const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
+                          if (!deliveryExists || deliveryExists.length === 0) {
+                            console.warn('⚠️ [RETRY] Delivery no longer exists - aborting');
+                            throw new Error('This delivery has been deleted. Please refresh the page.');
+                          }
+
                           await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
 
                           await ensureDriverOnline();
@@ -1848,6 +1876,13 @@ export default function StopCard({
                         await new Promise((resolve) => setTimeout(resolve, 100));
 
                         try {
+                          // CRITICAL: Verify delivery still exists before completing
+                          const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
+                          if (!deliveryExists || deliveryExists.length === 0) {
+                            console.warn('⚠️ [COMPLETE] Delivery no longer exists - aborting');
+                            throw new Error('This delivery has been deleted. Please refresh the page.');
+                          }
+
                           await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
 
                           // Auto-toggle driver online if offline
@@ -1984,6 +2019,13 @@ export default function StopCard({
                       await new Promise((resolve) => setTimeout(resolve, 100));
 
                       try {
+                        // CRITICAL: Verify delivery still exists before starting
+                        const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
+                        if (!deliveryExists || deliveryExists.length === 0) {
+                          console.warn('⚠️ [START] Delivery no longer exists - aborting');
+                          throw new Error('This delivery has been deleted. Please refresh the page.');
+                        }
+
                         // Step 1 already done above
 
                         // Step 3: Clear all isNextDelivery and set selected stop to true
@@ -2151,6 +2193,13 @@ export default function StopCard({
                             await new Promise((resolve) => setTimeout(resolve, 100));
 
                             try {
+                              // CRITICAL: Verify delivery still exists before restarting
+                              const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
+                              if (!deliveryExists || deliveryExists.length === 0) {
+                                console.warn('⚠️ [RESTART] Delivery no longer exists - aborting');
+                                throw new Error('This delivery has been deleted. Please refresh the page.');
+                              }
+
                               console.log('🔄 [RESTART] Restarting delivery:', delivery.id);
 
                               // Step 1: Clear all isNextDelivery flags for this driver/date
