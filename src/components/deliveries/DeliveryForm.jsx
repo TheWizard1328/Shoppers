@@ -520,7 +520,8 @@ export default function DeliveryForm({
       }
     }
 
-    const results = availablePatients.filter((patient) => {
+    // First try active patients only
+    let results = availablePatients.filter((patient) => {
       if (!patient) return false;
       // Exclude patients already in staged list
       if (stagedPatientIds.has(patient.id)) return false;
@@ -536,6 +537,26 @@ export default function DeliveryForm({
       patient.address?.toLowerCase().includes(searchLower) ||
       patient.phone?.toLowerCase().includes(searchLower);
     });
+
+    // If no active patients found, search inactive patients as fallback
+    if (results.length === 0) {
+      results = availablePatients.filter((patient) => {
+        if (!patient) return false;
+        // Exclude patients already in staged list
+        if (stagedPatientIds.has(patient.id)) return false;
+
+        // ONLY include inactive patients now
+        if (patient.status !== 'inactive') return false;
+
+        // Filter out Deceased and (Old
+        const name = patient.full_name?.toLowerCase() || '';
+        if (name.includes('deceased') || name.includes('(old')) return false;
+
+        return patient.full_name?.toLowerCase().includes(searchLower) ||
+        patient.address?.toLowerCase().includes(searchLower) ||
+        patient.phone?.toLowerCase().includes(searchLower);
+      });
+    }
 
     // Sort: Most recently delivered first, then (Temp to the bottom
     results.sort((a, b) => {
