@@ -1379,15 +1379,15 @@ export default function DeliveryMap({
       if (isMobile && (isDriverRole || isAdmin)) {
         if (isCurrentUserMarker) return null;
         
-        // For pure drivers (not admin): filter by city
+        // For admins: show all other drivers (continue to marker creation below)
+        // For pure drivers: show other drivers in same city only
         if (!isAdmin && currentUserCityId !== user.city_id) return null;
-        // For admins: show all other drivers (no city filter needed)
       }
       // RULE 2 & 4: Desktop users with driver OR admin role - show ALL drivers (including self)
       else if (!isMobile && (isDriverRole || isAdmin)) {
-        // For pure drivers (not admin): filter by city
+        // For admins: show all drivers (continue to marker creation below)
+        // For pure drivers: show drivers in same city only
         if (!isAdmin && currentUserCityId !== user.city_id) return null;
-        // For admins: show all drivers (no city filter needed)
       }
       // RULE 5: Pure Dispatcher (no driver/admin roles) - show active drivers with assigned deliveries
       else if (isDispatcher && !isAdmin && !isDriverRole) {
@@ -2395,14 +2395,6 @@ export default function DeliveryMap({
         {(() => {
           if (!currentDriverMarker) return null;
           
-          // CRITICAL: Validate coordinates before rendering marker
-          if (!currentDriverMarker.latitude || !currentDriverMarker.longitude ||
-              typeof currentDriverMarker.latitude !== 'number' || typeof currentDriverMarker.longitude !== 'number' ||
-              isNaN(currentDriverMarker.latitude) || isNaN(currentDriverMarker.longitude)) {
-            console.warn('[DeliveryMap] Invalid currentDriverMarker coordinates:', currentDriverMarker);
-            return null;
-          }
-          
           return (
             <Marker
               key="current-driver-location"
@@ -2992,7 +2984,7 @@ export default function DeliveryMap({
         {/* Driver Location Markers - Green for on_duty, Orange for on_break, with driver initial */}
         {/* Orange outer ring indicates stale location (>5 minutes old) */}
         {/* Blue outer ring for drivers on break viewing their own location from other devices */}
-        {driverLocationMarkers.map((location) => {
+        {driverLocationMarkers.filter(loc => loc && loc.latitude && loc.longitude).map((location) => {
           const statusLabel = location.driver_status === 'on_duty' ? 'On Duty' : 'On Break';
           const statusColor = location.driver_status === 'on_duty' ? 'text-emerald-600' : 'text-orange-600';
           const isOnBreakSelf = location.isOnBreak === true;
