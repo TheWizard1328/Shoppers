@@ -15,6 +15,7 @@ import {
   SelectValue } from
 "@/components/ui/select";
 import { Phone, MapPin, Edit, Trash2, StickyNote, RotateCcw, MoreVertical, User, CheckCircle, Clock, Package, XCircle, Info, FileText, Save, X, Plus, Undo2, Loader2, Navigation, GripVertical, Bell, BellOff, Mailbox } from "lucide-react";
+import { CombinedSpecialBadges, hasAnySpecialBadges } from '../utils/SpecialSymbolsBadges';
 import { getStoreColor, hexToRgba, getContrastColor } from "../utils/colorGenerator";
 import { format, isBefore, startOfDay, addDays } from "date-fns";
 import { getDriverDisplayName } from '../utils/driverUtils';
@@ -754,60 +755,15 @@ export default function StopCard({
                 </Badge>
               }
 
-              {(hasCODRequired || isFirstDelivery || delivery.oversized || delivery.fridge_item || delivery.signature_needed || !isPickup && (delivery.call_upon_arrival || patient?.call_upon_arrival || delivery.ring_bell || patient?.ring_bell || delivery.dont_ring_bell || patient?.dont_ring_bell || delivery.mailbox_ok || patient?.mailbox_ok)) &&
-              <Badge
-                variant="secondary" className="mt-1 px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center gap-0.5 border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 min-w-[25px] justify-center bg-slate-300 text-white">
-
-
-
-
-
-
-
-
-
-                  {hasCODRequired &&
-                <span className="relative inline-flex items-center justify-center">
-                      $
-                      {delivery.status === 'failed' &&
-                  <svg
-                    className="absolute"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#ef4444"
-                    strokeWidth="2.5"
-                    style={{
-                      pointerEvents: 'none',
-                      width: '260%',
-                      height: '260%',
-                      left: '50%',
-                      top: '50%',
-                      transform: 'translate(-50%, -50%)'
-                    }}>
-                          <circle cx="12" cy="12" r="10" />
-                          <line x1="4" y1="4" x2="20" y2="20" />
-                        </svg>
-                  }
-                    </span>
-                }
-                  {isFirstDelivery && (hasCODRequired ? ' N' : 'N')}
-                  {delivery.oversized && (hasCODRequired || isFirstDelivery ? ' O' : 'O')}
-                  {delivery.fridge_item && (hasCODRequired || isFirstDelivery ? ' F' : 'F')}
-                  {delivery.signature_needed && (hasCODRequired || isFirstDelivery || delivery.fridge_item ? ' S' : 'S')}
-                  {!isPickup && (delivery.call_upon_arrival || patient?.call_upon_arrival) &&
-                <Phone className="w-3 h-3 text-amber-600 ml-0.5" />
-                }
-                  {!isPickup && (delivery.ring_bell || patient?.ring_bell) && !(delivery.dont_ring_bell || patient?.dont_ring_bell) &&
-                <Bell className="w-4 h-4 text-emerald-600" />
-                }
-                  {!isPickup && (delivery.dont_ring_bell || patient?.dont_ring_bell) &&
-                <BellOff className="w-4 h-4 text-red-600" />
-                }
-                  {!isPickup && (delivery.mailbox_ok || patient?.mailbox_ok) &&
-                <Mailbox className="w-4 h-4 text-blue-600" />
-                }
-                </Badge>
-              }
+              {hasAnySpecialBadges(delivery, patient, isPickup) && (
+                <CombinedSpecialBadges
+                  delivery={delivery}
+                  patient={patient}
+                  isPickup={isPickup}
+                  size="md"
+                  className="mt-1"
+                />
+              )}
             </div>
 
             <div className="flex-1 min-w-0">
@@ -1702,14 +1658,7 @@ export default function StopCard({
                       const hasFridge = projectedDelivery.fridge_item === true;
                       const hasSignature = projectedDelivery.signature_needed === true;
 
-                      // Delivery preference flags
-                      const hasCallOnArrival = projectedDelivery.call_upon_arrival || projPatient?.call_upon_arrival;
-                      const hasRingBell = (projectedDelivery.ring_bell || projPatient?.ring_bell) && !(projectedDelivery.dont_ring_bell || projPatient?.dont_ring_bell);
-                      const hasDontRingBell = projectedDelivery.dont_ring_bell || projPatient?.dont_ring_bell;
-                      const hasMailboxOk = projectedDelivery.mailbox_ok || projPatient?.mailbox_ok;
-                      const hasDeliveryPrefs = hasCallOnArrival || hasRingBell || hasDontRingBell || hasMailboxOk;
-
-                      const hasSpecialBadge = hasCOD || projIsFirstDelivery || hasOversized || hasFridge || hasSignature;
+                      const hasSpecialSymbols = hasAnySpecialBadges(projectedDelivery, projPatient, false);
 
                       return (
                         <div
@@ -1729,25 +1678,14 @@ export default function StopCard({
                                 {projectedDelivery.patient_name || 'Unknown Patient'}
                               </span>
                               <div className="flex items-center gap-1 flex-shrink-0">
-                                {/* Delivery preference icons */}
-                                {hasDeliveryPrefs &&
-                            <div className="flex items-center gap-0.5 mr-1">
-                                    {hasCallOnArrival && <Phone className="w-3 h-3 text-amber-600" />}
-                                    {hasRingBell && <Bell className="w-3 h-3 text-emerald-600" />}
-                                    {hasDontRingBell && <BellOff className="w-3 h-3 text-red-600" />}
-                                    {hasMailboxOk && <Mailbox className="w-3 h-3 text-blue-600" />}
-                                  </div>
-                            }
-                                {/* Special badge on the RIGHT, to the LEFT of TR# */}
-                                {hasSpecialBadge &&
-                            <Badge className="bg-yellow-400 text-black text-[9px] px-1 py-0 h-4 font-bold">
-                                    {hasCOD && '$'}
-                                    {projIsFirstDelivery && (hasCOD ? ' N' : 'N')}
-                                    {hasOversized && (hasCOD || projIsFirstDelivery ? ' O' : 'O')}
-                                    {hasFridge && (hasCOD || projIsFirstDelivery || hasOversized ? ' F' : 'F')}
-                                    {hasSignature && (hasCOD || projIsFirstDelivery || hasOversized || hasFridge ? ' S' : 'S')}
-                                  </Badge>
-                            }
+                                {hasSpecialSymbols && (
+                                  <CombinedSpecialBadges
+                                    delivery={projectedDelivery}
+                                    patient={projPatient}
+                                    isPickup={false}
+                                    size="sm"
+                                  />
+                                )}
                                 <span className="text-xs font-semibold" style={{ color: 'var(--text-slate-600)' }}>
                                   TR#{projectedDelivery.tracking_number || '??'}
                                 </span>
