@@ -181,12 +181,6 @@ class DriverLocationPoller {
           return false;
         }
         
-        // CRITICAL: Location must be recent (within 30 minutes)
-        if (locationAge > thirtyMinutesInMs) {
-          console.log(`🚫 [DriverLocationPoller] Hiding ${user.user_name} - location too old (${Math.round(locationAge/60000)}min)`);
-          return false;
-        }
-        
         console.log(`✅ [DriverLocationPoller] Showing ${user.user_name} to dispatcher (status: ${user.driver_status}, sharing: ${user.location_tracking_enabled})`);
         return true;
       }
@@ -198,30 +192,15 @@ class DriverLocationPoller {
         return false;
       }
       
-      // RULE 2: For other drivers (admin or driver viewing other drivers)
+      // RULE 2: For other users (admin or driver viewing other drivers)
       // Must be on_duty or on_break AND location_tracking_enabled = true
       if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') return false;
 
-      // CRITICAL: Check staleness - hide marker if >30 min old and no active stops
-      if (locationAge > thirtyMinutesInMs) {
-        const driverActiveStops = (deliveries || []).filter(d => 
-          d && 
-          d.driver_id === driverId && 
-          d.delivery_date === todayStr &&
-          !['completed', 'failed', 'cancelled', 'returned'].includes(d.status)
-        );
-        
-        if (driverActiveStops.length === 0) {
-          console.log(`🚫 [DriverLocationPoller] Hiding ${user.user_name} - location stale and no active stops`);
-          return false;
-        }
-      }
-
-      // Admin: show all other drivers (already filtered by status/tracking above)
+      // Admin: show all on_duty/on_break drivers with sharing enabled
       if (isAdmin) return true;
-      
-      // Driver: show other drivers in same city (already filtered by city above)
-      if (isDriver) return true;
+
+      // Driver (non-dispatcher): show other drivers in same city with sharing enabled
+      if (isDriver && !isDispatcher) return true;
 
       return false;
     });
