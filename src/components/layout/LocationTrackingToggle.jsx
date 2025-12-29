@@ -21,10 +21,10 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
   const autoStartedRef = useRef(false);
   const consecutiveErrorsRef = useRef(0);
 
-  // Check visibility ONCE on mount and cache the result - MOVED TO TOP
+  // CRITICAL: Check device/role conditions ONCE on mount with stable values
   const isMobile = useMemo(() => checkIsMobileDevice(), []);
-  const isDriver = useRef(user ? userHasRole(user, 'driver') : false).current;
-  const isAdmin = useRef(user ? userHasRole(user, 'admin') : false).current;
+  const isDriver = useMemo(() => user ? userHasRole(user, 'driver') : false, [user]);
+  const isAdmin = useMemo(() => user ? userHasRole(user, 'admin') : false, [user]);
 
   // Always sync localUser with user prop
   useEffect(() => {
