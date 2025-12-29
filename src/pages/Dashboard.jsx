@@ -404,7 +404,7 @@ function Dashboard() {
     30; // Desktop: Exclude stats card
 
     const bottomPadding = hasVisibleCards ?
-    cardExpanded ? stopCardsCurrHeight + 10 : stopCardsBaseHeight + 10 :
+    cardExpanded ? stopCardsCurrHeight + 10 : stopCardsBaseHeight + 30 :
     20;
 
     return {

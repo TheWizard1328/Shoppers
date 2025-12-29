@@ -27,10 +27,19 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
       // CRITICAL: ALWAYS block self marker on mobile - blue GPS dot shows instead
       // Check both _isSelf flag and direct ID comparison for redundancy
       const currentUserId = currentUser?.id;
+      const currentUserUserId = currentUser?.user_id;
       const userId = user.id || user.user_id;
-      const isSelf = user._isSelf || userId === currentUserId;
+      const isSelf = user._isSelf === true || 
+                     userId === currentUserId || 
+                     userId === currentUserUserId ||
+                     user.user_id === currentUserId;
       
       if (isMobile && isSelf) {
+        console.log('🚫 [DriverLocationMarkers] Blocking self shared marker (mobile device)', {
+          userId,
+          currentUserId,
+          userName: user.user_name || user.full_name
+        });
         return false;
       }
       
@@ -118,7 +127,7 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         status: user.status 
       });
       
-      // CRITICAL: On mobile, don't show the current user's shared location marker
+      // CRITICAL: ALWAYS block current user's shared location marker on mobile (blue dot shows instead)
       const isCurrentUserOnMobile = isMobile && currentUser && userId === currentUser.id;
       
       if (user.location_tracking_enabled === true && user.status !== 'inactive' && canView && !isCurrentUserOnMobile) {
