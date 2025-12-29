@@ -5670,15 +5670,26 @@ function Dashboard() {
       console.log('✅ [START] ========== START DELIVERY COMPLETE ==========');
       console.log('═══════════════════════════════════════════════════');
 
-      // STEP 10: Scroll to the NEW next delivery card (not the original one clicked)
-      console.log('📍 [START] Step 10: Scrolling to NEW next delivery card...');
+      // STEP 10: Scroll to the next delivery card (right after completed stops)
+      console.log('📍 [START] Step 10: Scrolling to next delivery card...');
       setTimeout(() => {
-        const cardElement = document.getElementById(`stop-card-${newNextDeliveryId}`);
-        if (cardElement) {
-          cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-          console.log(`   ✅ Scrolled to NEW next card: ${newNextDeliveryId}`);
+        const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+        const completedCount = deliveriesWithStopOrder.filter(d => 
+          d && d.driver_id === driverId && d.delivery_date === deliveryDate && finishedStatuses.includes(d.status)
+        ).length;
+        
+        console.log(`   📊 Found ${completedCount} completed deliveries - scrolling to card #${completedCount + 1}`);
+        
+        // The card we want is the one right after all completed cards
+        const targetIndex = completedCount; // 0-based index
+        const container = stopCardsContainerRef.current?.querySelector('.overflow-x-auto');
+        const allCards = container?.querySelectorAll('[id^="stop-card-"]');
+        
+        if (allCards && allCards.length > targetIndex) {
+          allCards[targetIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+          console.log(`   ✅ Scrolled to card at index ${targetIndex}`);
         } else {
-          console.warn(`   ⚠️ Card not found for new next delivery: ${newNextDeliveryId}`);
+          console.warn(`   ⚠️ Card at index ${targetIndex} not found (total cards: ${allCards?.length})`);
         }
       }, 500);
 
