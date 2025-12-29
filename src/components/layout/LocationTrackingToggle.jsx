@@ -52,7 +52,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
 
   // CRITICAL: Always start tracking on mobile devices for drivers/admins
   useEffect(() => {
-    if (!isMobile || !isDriver && !isAdmin || !localUser) return;
+    if (!isMobile || (!isDriver && !isAdmin) || !localUser?.id) return;
 
     const autoStartTracking = async () => {
       // Always auto-start tracking if not already running
@@ -76,7 +76,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
 
   // Update tracking status and countdown periodically
   useEffect(() => {
-    if (!isMobile || !isDriver && !isAdmin) return;
+    if (!isMobile || (!isDriver && !isAdmin)) return;
 
     const updateStatus = () => {
       const status = locationTracker.getStatus();
@@ -114,7 +114,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
 
   // Check GPS capabilities
   useEffect(() => {
-    if (!isMobile || !isDriver && !isAdmin) return;
+    if (!isMobile || (!isDriver && !isAdmin)) return;
 
     if (typeof locationTracker.checkGPSCapabilities === 'function') {
       locationTracker.checkGPSCapabilities().then((capabilities) => {
@@ -298,12 +298,12 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
   };
 
   // Conditional return AFTER all hooks
-  if (!isMobile || !isDriver && !isAdmin) {
+  if (!isMobile || (!isDriver && !isAdmin)) {
     return null;
   }
 
   if (!localUser) {
-    return <div className="h-10" />;
+    return null;
   }
 
   const isSharingEnabled = localUser.location_tracking_enabled;
