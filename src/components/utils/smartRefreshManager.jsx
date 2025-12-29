@@ -653,6 +653,7 @@ class SmartRefreshManager {
     try {
       // Check if disabled or paused - silently skip automatic polling (unless forced)
       if ((!this._enabled || this._paused) && !forceRefresh) {
+        console.log('⏸️ [SmartRefresh] Driver location refresh skipped - paused or disabled');
         return null;
       }
       
@@ -676,11 +677,22 @@ class SmartRefreshManager {
       }
       
       // CRITICAL: Merge ALL server AppUsers into current state (not just drivers)
-      // This ensures non-driver AppUsers are also updated consistently
+      // BUT respect pending local updates to prevent reverting status changes
       const updatedAppUsers = currentAppUsers.map(au => {
         const serverVersion = allAppUsers.find(ad => ad.user_id === au.user_id);
         if (serverVersion) {
-          return { ...au, ...serverVersion };
+          // CRITICAL: Check if server data is newer than local data
+          // If local data is newer (recent status change), keep local version
+          const localTime = new Date(au.updated_date || 0).getTime();
+          const serverTime = new Date(serverVersion.updated_date || 0).getTime();
+          
+          if (serverTime > localTime) {
+            return { ...au, ...serverVersion };
+          } else {
+            // Local is newer - keep local version (recent status change)
+            console.log(`🛡️ [SmartRefresh] Keeping local AppUser for ${au.user_name || au.user_id} - local is newer`);
+            return au;
+          }
         }
         return au;
       });
