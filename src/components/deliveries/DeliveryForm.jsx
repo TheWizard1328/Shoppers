@@ -4005,13 +4005,14 @@ export default function DeliveryForm({
                               <div className="flex items-center gap-1">
                                 <div className="truncate flex-1 min-w-0 text-slate-600 text-[10px]">{projected.reason}</div>
                                 <div className="flex items-center gap-1 flex-shrink-0">
-                                  {(projected.cod_total_amount_required > 0 || projectedPatient?.first_delivery || projected.oversized || projected.fridge_item || projected.signature_needed || projectedPatient?.signature_needed) &&
-                                    <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold">
+                                  {(projected.cod_total_amount_required > 0 || projectedPatient?.first_delivery || projected.oversized || projected.fridge_item || projected.signature_needed || projectedPatient?.signature_needed || projected.delivery_notes) &&
+                                    <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold flex items-center gap-0.5">
                                       {projected.cod_total_amount_required > 0 && '$'}
                                       {projectedPatient?.first_delivery && ' N'}
                                       {projected.oversized && ' O'}
                                       {(projected.fridge_item || projectedPatient?.fridge_item) && ' F'}
                                       {(projected.signature_needed || projectedPatient?.signature_needed) && ' S'}
+                                      {projected.delivery_notes && <PinIcon className="w-2.5 h-2.5" />}
                                     </Badge>
                                   }
                                   {(projectedPatient?.call_upon_arrival || projectedPatient?.ring_bell || projectedPatient?.dont_ring_bell || projectedPatient?.mailbox_ok) &&
@@ -4236,13 +4237,14 @@ export default function DeliveryForm({
                               <div className="flex items-center gap-1">
                                 <div className="truncate flex-1 min-w-0 text-slate-600 text-[10px]">{projected.reason}</div>
                                 <div className="flex items-center gap-1 flex-shrink-0">
-                                  {(projected.cod_total_amount_required > 0 || projectedPatient?.first_delivery || projected.oversized || projected.fridge_item || projected.signature_needed || projectedPatient?.signature_needed) &&
-                                    <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold">
+                                  {(projected.cod_total_amount_required > 0 || projectedPatient?.first_delivery || projected.oversized || projected.fridge_item || projected.signature_needed || projectedPatient?.signature_needed || projected.delivery_notes) &&
+                                    <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold flex items-center gap-0.5">
                                       {projected.cod_total_amount_required > 0 && '$'}
                                       {projectedPatient?.first_delivery && ' N'}
                                       {projected.oversized && ' O'}
                                       {(projected.fridge_item || projectedPatient?.fridge_item) && ' F'}
                                       {(projected.signature_needed || projectedPatient?.signature_needed) && ' S'}
+                                      {projected.delivery_notes && <PinIcon className="w-2.5 h-2.5" />}
                                     </Badge>
                                   }
                                   {(projectedPatient?.call_upon_arrival || projectedPatient?.ring_bell || projectedPatient?.dont_ring_bell || projectedPatient?.mailbox_ok) &&
