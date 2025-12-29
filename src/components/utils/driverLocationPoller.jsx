@@ -185,13 +185,16 @@ class DriverLocationPoller {
           return false;
         }
         
-        // CRITICAL: Must NOT be off_duty (on_duty, on_break, or online all visible)
+        // CRITICAL: Must NOT be explicitly off_duty (on_duty, on_break, online, or undefined all visible)
+        // undefined status means driver_status field wasn't loaded - treat as potentially active
         if (user.driver_status === 'off_duty') {
           console.log(`🚫 [DriverLocationPoller] Hiding ${user.user_name} for dispatcher - driver is off_duty`);
           return false;
         }
         
-        console.log(`✅ [DriverLocationPoller] Showing ${user.user_name} to dispatcher (status: ${user.driver_status}, sharing: ${user.location_tracking_enabled})`);
+        // CRITICAL: Show marker if driver has assigned stops and is NOT off_duty
+        // This includes on_duty, on_break, online, AND undefined (data not yet loaded)
+        console.log(`✅ [DriverLocationPoller] Showing ${user.user_name} to dispatcher (status: ${user.driver_status || 'undefined'}, sharing: ${user.location_tracking_enabled})`);
         return true;
       }
 
