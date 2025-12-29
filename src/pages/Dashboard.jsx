@@ -2146,15 +2146,15 @@ function Dashboard() {
           [driverLocation.latitude, driverLocation.longitude],
           [nextStopCoordinates.lat, nextStopCoordinates.lon]];
 
-          // CRITICAL: Reduce bottom padding for Phase 2 to shift visible area up
+          // CRITICAL: Balance padding for Phase 2 to center content properly
           const phase2Padding = getMapPadding(false, false);
           phase2Padding.paddingTopLeft = [
             phase2Padding.paddingTopLeft[0],
-            phase2Padding.paddingTopLeft[1] // Keep top padding as-is
+            phase2Padding.paddingTopLeft[1] - 40 // Reduce top padding to move content down
           ];
           phase2Padding.paddingBottomRight = [
             phase2Padding.paddingBottomRight[0],
-            Math.max(20, phase2Padding.paddingBottomRight[1] - 80) // Reduce bottom padding to move content up
+            phase2Padding.paddingBottomRight[1] - 40 // Reduce bottom padding to move content up
           ];
 
           setShouldFitBounds({
@@ -2169,14 +2169,14 @@ function Dashboard() {
           setMapZoom(null);
         } else {
           // If no next stop, just center on driver with padding
-          const phase2Padding = getMapPadding(false, false);
-          phase2Padding.paddingTopLeft = [
-            phase2Padding.paddingTopLeft[0],
-            phase2Padding.paddingTopLeft[1] // Keep top padding as-is
+          const phase2NoPadding = getMapPadding(false, false);
+          phase2NoPadding.paddingTopLeft = [
+            phase2NoPadding.paddingTopLeft[0],
+            phase2NoPadding.paddingTopLeft[1] - 40 // Reduce top padding to move content down
           ];
-          phase2Padding.paddingBottomRight = [
-            phase2Padding.paddingBottomRight[0],
-            Math.max(20, phase2Padding.paddingBottomRight[1] - 80) // Reduce bottom padding to move content up
+          phase2NoPadding.paddingBottomRight = [
+            phase2NoPadding.paddingBottomRight[0],
+            phase2NoPadding.paddingBottomRight[1] - 40 // Reduce bottom padding to move content up
           ];
           
           setShouldFitBounds({
@@ -2200,15 +2200,15 @@ function Dashboard() {
           return;
         }
 
-        // CRITICAL: Reduce bottom padding for Phase 3 to shift visible area up
+        // CRITICAL: Balance padding for Phase 3 to center content properly
         const phase3Padding = getMapPadding(false, false);
         phase3Padding.paddingTopLeft = [
           phase3Padding.paddingTopLeft[0],
-          phase3Padding.paddingTopLeft[1] // Keep top padding as-is
+          phase3Padding.paddingTopLeft[1] - 40 // Reduce top padding to move content down
         ];
         phase3Padding.paddingBottomRight = [
           phase3Padding.paddingBottomRight[0],
-          Math.max(20, phase3Padding.paddingBottomRight[1] - 80) // Reduce bottom padding to move content up
+          phase3Padding.paddingBottomRight[1] - 40 // Reduce bottom padding to move content up
         ];
 
         setShouldFitBounds({
