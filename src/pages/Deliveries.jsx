@@ -2942,7 +2942,7 @@ export default function DeliveriesPage() {
           {(provided) =>
           <div
             {...provided.droppableProps}
-            ref={provided.innerRef} className="mx-3 py-2 pyoverflow-y-auto gap-x-6 gap-y-2 grid overflow-y-auto auto-rows-max"
+            ref={provided.innerRef} className="pyoverflow-y-auto py-1 pyoverflow-y-auto mx-3 pyoverflow-y-auto gap-x-3 gap-y-2 grid overflow-y-auto auto-rows-max"
 
             style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(325px, 325px))', maxHeight: 'calc(100vh - 280px)' }}>
 
