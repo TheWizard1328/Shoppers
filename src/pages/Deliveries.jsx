@@ -2042,11 +2042,11 @@ export default function DeliveriesPage() {
     return (
       <div
         ref={ref}
-        className="px-3 py-2 bg-slate-50 rounded-lg text-center inline-flex flex-col items-center justify-center shadow-sm"
-        style={fixedWidth ? { width: fixedWidth } : undefined}>
+        className="px-3 py-2 rounded-lg text-center inline-flex flex-col items-center justify-center shadow-sm"
+        style={{ background: 'var(--bg-slate-100)', ...(fixedWidth ? { width: fixedWidth } : {}) }}>
 
         <p className={`text-2xl font-bold ${valueClass}`}>{value}</p>
-        <p className="text-xs text-slate-500">{label}</p>
+        <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>{label}</p>
       </div>);
 
   }
