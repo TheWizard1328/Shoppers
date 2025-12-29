@@ -542,24 +542,32 @@ export default function DeliveriesPage() {
       return;
     }
 
-    // CRITICAL: DON'T sync deliveries from Layout context
-    // Route Management page manages its own delivery data via loadData()
-    // Only sync non-delivery entities (patients, stores, cities, users)
-    console.log('⏸️ [Deliveries] Skipping context delivery sync - page manages its own data');
+    // CRITICAL: In Driver Overview mode, DON'T overwrite deliveries from context
+    // because we fetch the full year directly from the database
+    if (isDriverOverviewMode) {
+      console.log('⏸️ [Deliveries] Skipping context sync for deliveries - Driver Overview mode uses full year data');
+      // Still sync other data
+      if (contextPatients.length > 0) {
+        setAllPatients(contextPatients);
+      }
+      if (contextStores.length > 0) {
+        setStores(contextStores);
+      }
+      if (contextCities.length > 0) {
+        setCities(contextCities);
+      }
+      if (contextUsers.length > 0) {
+        setAllUsers(contextUsers);
+      }
+      return;
+    }
 
-    if (contextPatients.length > 0 && allPatients.length === 0) {
-      setAllPatients(contextPatients);
+    // CRITICAL: In Route View mode, only sync if we have local data already
+    // This prevents smart refresh from clearing the screen
+    if (contextDeliveries.length > 0 && allDeliveries.length > 0) {
+      setAllDeliveries(contextDeliveries);
+      setRefreshKey((prev) => prev + 1);
     }
-    if (contextStores.length > 0 && stores.length === 0) {
-      setStores(contextStores);
-    }
-    if (contextCities.length > 0 && cities.length === 0) {
-      setCities(contextCities);
-    }
-    if (contextUsers.length > 0 && allUsers.length === 0) {
-      setAllUsers(contextUsers);
-    }
-    return;
 
     if (contextPatients.length > 0) {
       setAllPatients(contextPatients);
