@@ -1629,27 +1629,50 @@ export default function DeliveryForm({
 
     // CRITICAL: If only pending deletes (no staged items), pause smart refresh, sync, update UI, and close form
     if (stagedDeliveries.length === 0 && hasPendingDeletes) {
-      console.log('[AddToRoute] 🗑️ Processing pending deletes...');
+      console.log('[AddToRoute] 🗑️ Processing pending deletes (Done button clicked)...');
       
       try {
         const { invalidate, invalidateDeliveriesForDate } = await import('../utils/dataManager');
+        const { forceRefreshDriverDeliveries } = await import('../utils/AppDataContext');
+        
+        // CRITICAL: Invalidate cache completely
         invalidate('Delivery');
         invalidateDeliveriesForDate(formData.delivery_date);
         
+        console.log('[AddToRoute] 🔄 Forcing backend refresh for driver/date after deletions...');
+        
+        // CRITICAL: Force backend refresh to ensure deletions are reflected
+        if (formData.driver_id && formData.delivery_date) {
+          try {
+            const { base44 } = await import('@/api/base44Client');
+            const freshDeliveries = await base44.entities.Delivery.filter({
+              driver_id: formData.driver_id,
+              delivery_date: formData.delivery_date
+            });
+            console.log(`✅ [AddToRoute] Backend refresh complete: ${freshDeliveries.length} deliveries for ${formData.driver_id} on ${formData.delivery_date}`);
+          } catch (error) {
+            console.warn('⚠️ [AddToRoute] Backend refresh failed, relying on mutation sync:', error.message);
+          }
+        }
+        
         // CRITICAL: Force UI refresh for current user
         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { deliveryDate: formData.delivery_date, triggeredBy: 'doneButtonDeletes' }
+          detail: { 
+            deliveryDate: formData.delivery_date, 
+            driverId: formData.driver_id,
+            triggeredBy: 'doneButtonDeletes' 
+          }
         }));
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         
         // Wait for mutations to propagate to UI
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 800));
         
         // CRITICAL: Notify FAB system that data is ready (activates map cycle FAB)
         const { fabControlEvents } = await import('../utils/fabControlEvents');
         fabControlEvents.notifyDataReady();
         
-        console.log('[AddToRoute] ✅ Deletions synced, UI updated, and FAB activated');
+        console.log('[AddToRoute] ✅ Deletions synced, backend refreshed, UI updated, and FAB activated');
       } finally {
         setStagedDeliveries([]);
         setProjectedDeliveries([]);
@@ -4413,12 +4436,18 @@ export default function DeliveryForm({
                   await deleteDeliveryLocal(staged.id);
                   console.log('✅ [DeliveryForm] Pending delivery deleted from offline and online DBs');
 
+                  // CRITICAL: Invalidate cache immediately to force refresh
+                  const { invalidate } = await import('../utils/dataManager');
+                  invalidate('Delivery');
+
                   // Remove from staged list completely
                   setStagedDeliveries((prev) => prev.filter((item) => item.id !== staged.id && item._tempId !== staged._tempId));
 
                   // Mark that we have changes to activate Done button
                   setHasChanges(true);
                   setHasPendingDeletes(true);
+                  
+                  console.log('✅ [DeliveryForm] Pending delivery deleted and cache invalidated');
 
                   // Clear editing state if this was the one being edited
                   if (editingStagedId === staged._tempId) {
