@@ -5,9 +5,7 @@ import { Target, Maximize2, Minimize2 } from 'lucide-react';
 
 export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, stopCardsHeight = 75 }) {
   // Use measured stop cards height for accurate FAB positioning
-  // Add extra padding for phases 2 & 3 to match map's reduced bottom padding
-  const extraPaddingForPhase = (currentPhase === 2 || currentPhase === 3) ? 50 : 0;
-  const bottomPixels = hasVisibleCards ? stopCardsHeight + 15 + extraPaddingForPhase : 25 + extraPaddingForPhase;
+  const bottomPixels = hasVisibleCards ? stopCardsHeight + 15 : 25;
 
   // Get icon based on current phase (always white icon)
   const getIcon = () => {

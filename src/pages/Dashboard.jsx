@@ -2146,15 +2146,15 @@ function Dashboard() {
           [driverLocation.latitude, driverLocation.longitude],
           [nextStopCoordinates.lat, nextStopCoordinates.lon]];
 
-          // CRITICAL: Reduce top padding and increase bottom padding for Phase 2
+          // CRITICAL: Adjust padding for Phase 2 to center map content better
           const phase2Padding = getMapPadding(false, false);
           phase2Padding.paddingTopLeft = [
             phase2Padding.paddingTopLeft[0],
-            Math.max(20, phase2Padding.paddingTopLeft[1] - 30) // Reduce top padding by 30px
+            phase2Padding.paddingTopLeft[1] + 50 // Increase top padding to shift map down
           ];
           phase2Padding.paddingBottomRight = [
             phase2Padding.paddingBottomRight[0],
-            phase2Padding.paddingBottomRight[1] + 50 // Reduce bottom padding from 80 to 50px
+            phase2Padding.paddingBottomRight[1] // Keep bottom padding as-is
           ];
 
           setShouldFitBounds({
@@ -2172,11 +2172,11 @@ function Dashboard() {
           const phase2Padding = getMapPadding(false, false);
           phase2Padding.paddingTopLeft = [
             phase2Padding.paddingTopLeft[0],
-            Math.max(20, phase2Padding.paddingTopLeft[1] - 30)
+            phase2Padding.paddingTopLeft[1] + 50 // Increase top padding to shift map down
           ];
           phase2Padding.paddingBottomRight = [
             phase2Padding.paddingBottomRight[0],
-            phase2Padding.paddingBottomRight[1] + 50
+            phase2Padding.paddingBottomRight[1] // Keep bottom padding as-is
           ];
           
           setShouldFitBounds({
@@ -2200,15 +2200,15 @@ function Dashboard() {
           return;
         }
 
-        // CRITICAL: Reduce top padding and increase bottom padding for Phase 3
+        // CRITICAL: Adjust padding for Phase 3 to center map content better
         const phase3Padding = getMapPadding(false, false);
         phase3Padding.paddingTopLeft = [
           phase3Padding.paddingTopLeft[0],
-          Math.max(20, phase3Padding.paddingTopLeft[1] - 30) // Reduce top padding by 30px
+          phase3Padding.paddingTopLeft[1] + 50 // Increase top padding to shift map down
         ];
         phase3Padding.paddingBottomRight = [
           phase3Padding.paddingBottomRight[0],
-          phase3Padding.paddingBottomRight[1] + 50 // Reduce bottom padding from 80 to 50px
+          phase3Padding.paddingBottomRight[1] // Keep bottom padding as-is
         ];
 
         setShouldFitBounds({
@@ -6484,7 +6484,7 @@ function Dashboard() {
         <div
           className="absolute left-4 z-[140]"
           style={{
-            bottom: `${deliveriesWithStopOrder.length > 0 && stopCardsBaseHeight > 0 ? stopCardsBaseHeight + 15 + ((mapViewPhase === 2 || mapViewPhase === 3) ? 50 : 0) : 25 + ((mapViewPhase === 2 || mapViewPhase === 3) ? 50 : 0)}px`
+            bottom: `${deliveriesWithStopOrder.length > 0 && stopCardsBaseHeight > 0 ? stopCardsBaseHeight + 15 : 25}px`
           }}>
             <div className="px-2 py-1 text-xs font-medium rounded-lg border" style={{ background: 'transparent', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-600)' }}>
               🛣️ {dailyPolylineCount ?? '...'}
@@ -6792,7 +6792,7 @@ function Dashboard() {
           transition={{ type: "spring", stiffness: 260, damping: 20 }}
           className="fixed z-[140]"
           style={{
-            bottom: `${deliveriesWithStopOrder.length > 0 && stopCardsBaseHeight > 0 ? stopCardsBaseHeight + 15 + ((mapViewPhase === 2 || mapViewPhase === 3) ? 50 : 0) : 25 + ((mapViewPhase === 2 || mapViewPhase === 3) ? 50 : 0)}px`,
+            bottom: `${deliveriesWithStopOrder.length > 0 && stopCardsBaseHeight > 0 ? stopCardsBaseHeight + 15 : 25}px`,
             right: '64px' // Position to the left of MapViewCycleFAB
           }}>
             <Button
