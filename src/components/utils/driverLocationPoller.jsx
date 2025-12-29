@@ -119,9 +119,6 @@ class DriverLocationPoller {
     const activeDriversWithLocation = users.filter(user => {
       if (!user) return false;
 
-      // DEBUG: Log each user being processed
-      console.log(`🔍 [DriverLocationPoller] Processing user: ${user.user_name}, id=${user.id}, driver_status=${user.driver_status}, location_tracking_enabled=${user.location_tracking_enabled}, has_coords=${!!(user.current_latitude && user.current_longitude)}`);
-
       const driverId = user.id || user.user_id;
       const isSelf = user.user_id === currentUserId || 
                      user.id === currentUserId || 
