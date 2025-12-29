@@ -1078,6 +1078,11 @@ export default function DeliveryMap({
     // Group ALL markers by locationKey (both pickups and deliveries)
     const unifiedGrouped = new Map();
     allMarkers.forEach((marker) => {
+      // CRITICAL: Validate coordinates before calling toFixed
+      if (!marker || typeof marker.latitude !== 'number' || typeof marker.longitude !== 'number') {
+        console.warn('[DeliveryMap] Invalid marker coordinates:', marker);
+        return;
+      }
       const key = `${marker.latitude.toFixed(6)},${marker.longitude.toFixed(6)}`;
       if (!unifiedGrouped.has(key)) {
         unifiedGrouped.set(key, { deliveries: [], pickups: [] });
@@ -1099,24 +1104,36 @@ export default function DeliveryMap({
 
     // Add duplicate count to each marker (unified count)
     const deliveryMarkersWithCounts = deliveryMarkersRaw.map((marker) => {
+      // CRITICAL: Validate coordinates before calling toFixed
+      if (!marker || typeof marker.latitude !== 'number' || typeof marker.longitude !== 'number') {
+        console.warn('[DeliveryMap] Invalid delivery marker coordinates:', marker);
+        return null;
+      }
       const key = `${marker.latitude.toFixed(6)},${marker.longitude.toFixed(6)}`;
       return {
         ...marker,
         duplicateCount: locationCounts.get(key) || 1
       };
-    });
+    }).filter(Boolean);
 
     const pickupMarkersWithCounts = pickupMarkersRaw.map((marker) => {
+      // CRITICAL: Validate coordinates before calling toFixed
+      if (!marker || typeof marker.latitude !== 'number' || typeof marker.longitude !== 'number') {
+        console.warn('[DeliveryMap] Invalid pickup marker coordinates:', marker);
+        return null;
+      }
       const key = `${marker.latitude.toFixed(6)},${marker.longitude.toFixed(6)}`;
       return {
         ...marker,
         duplicateCount: locationCounts.get(key) || 1
       };
-    });
+    }).filter(Boolean);
 
     // Create separate grouped maps for each type
     const groupedDeliveries = new Map();
     deliveryMarkersWithCounts.forEach((marker) => {
+      // CRITICAL: Validate coordinates before calling toFixed
+      if (!marker || typeof marker.latitude !== 'number' || typeof marker.longitude !== 'number') return;
       const key = `${marker.latitude.toFixed(6)},${marker.longitude.toFixed(6)}`;
       if (!groupedDeliveries.has(key)) {
         groupedDeliveries.set(key, []);
@@ -1126,6 +1143,8 @@ export default function DeliveryMap({
 
     const groupedPickups = new Map();
     pickupMarkersWithCounts.forEach((marker) => {
+      // CRITICAL: Validate coordinates before calling toFixed
+      if (!marker || typeof marker.latitude !== 'number' || typeof marker.longitude !== 'number') return;
       const key = `${marker.latitude.toFixed(6)},${marker.longitude.toFixed(6)}`;
       if (!groupedPickups.has(key)) {
         groupedPickups.set(key, []);
