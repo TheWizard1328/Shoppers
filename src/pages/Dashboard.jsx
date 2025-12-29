@@ -5670,28 +5670,38 @@ function Dashboard() {
       console.log('✅ [START] ========== START DELIVERY COMPLETE ==========');
       console.log('═══════════════════════════════════════════════════');
 
-      // STEP 10: Scroll to the next delivery card (right after completed stops)
-      console.log('📍 [START] Step 10: Scrolling to next delivery card...');
-      setTimeout(() => {
+      // STEP 10: Wait for UI to update, then scroll to next delivery card
+      console.log('📍 [START] Step 10: Waiting for UI refresh, then scrolling to next card...');
+      
+      // Wait for refreshData() and UI to fully update before scrolling
+      setTimeout(async () => {
+        // Refresh deliveries one more time to get latest state after optimization
+        const finalDeliveries = await base44.entities.Delivery.filter({
+          driver_id: driverId,
+          delivery_date: deliveryDate
+        });
+        
         const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-        const completedCount = deliveriesWithStopOrder.filter(d => 
-          d && d.driver_id === driverId && d.delivery_date === deliveryDate && finishedStatuses.includes(d.status)
+        const completedCount = finalDeliveries.filter(d => 
+          d && finishedStatuses.includes(d.status)
         ).length;
         
-        console.log(`   📊 Found ${completedCount} completed deliveries - scrolling to card #${completedCount + 1}`);
+        console.log(`   📊 After optimization: ${completedCount} completed deliveries`);
+        console.log(`   🎯 Scrolling to card at index ${completedCount} (first incomplete)`);
         
-        // The card we want is the one right after all completed cards
-        const targetIndex = completedCount; // 0-based index
-        const container = stopCardsContainerRef.current?.querySelector('.overflow-x-auto');
-        const allCards = container?.querySelectorAll('[id^="stop-card-"]');
-        
-        if (allCards && allCards.length > targetIndex) {
-          allCards[targetIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-          console.log(`   ✅ Scrolled to card at index ${targetIndex}`);
-        } else {
-          console.warn(`   ⚠️ Card at index ${targetIndex} not found (total cards: ${allCards?.length})`);
-        }
-      }, 500);
+        // Wait a bit more for cards to re-render with new order
+        setTimeout(() => {
+          const container = stopCardsContainerRef.current?.querySelector('.overflow-x-auto');
+          const allCards = container?.querySelectorAll('[id^="stop-card-"]');
+          
+          if (allCards && allCards.length > completedCount) {
+            allCards[completedCount].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            console.log(`   ✅ Scrolled to card at index ${completedCount}`);
+          } else {
+            console.warn(`   ⚠️ Card at index ${completedCount} not found (total: ${allCards?.length})`);
+          }
+        }, 300);
+      }, 1500); // Wait longer to ensure optimization completes
 
       // Send notification: Driver started delivery
       try {
