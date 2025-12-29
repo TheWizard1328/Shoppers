@@ -11,7 +11,7 @@ import { X, Save, Package, Search, Clock, Plus, Trash2, CheckCircle, Edit2, Came
 import PatientMatchPopup from './PatientMatchPopup';
 import { sortUsers } from "../utils/sorting";
 import { Badge } from "@/components/ui/badge";
-import SpecialSymbolsBadges, { hasSpecialSymbols } from '../utils/SpecialSymbolsBadges';
+import SpecialSymbolsBadges from '../utils/SpecialSymbolsBadges';
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { generateStopId, formatId } from '../utils/idGenerator';

@@ -15,7 +15,7 @@ import {
   SelectValue } from
 "@/components/ui/select";
 import { Phone, MapPin, Edit, Trash2, StickyNote, RotateCcw, MoreVertical, User, CheckCircle, Clock, Package, XCircle, Info, FileText, Save, X, Plus, Undo2, Loader2, Navigation, GripVertical, Bell, BellOff, Mailbox } from "lucide-react";
-import SpecialSymbolsBadges, { hasSpecialSymbols } from '../utils/SpecialSymbolsBadges';
+import SpecialSymbolsBadges from '../utils/SpecialSymbolsBadges';
 import { getStoreColor, hexToRgba, getContrastColor } from "../utils/colorGenerator";
 import { format, isBefore, startOfDay, addDays } from "date-fns";
 import { getDriverDisplayName } from '../utils/driverUtils';
@@ -1656,7 +1656,7 @@ export default function StopCard({
                       const hasFridge = projectedDelivery.fridge_item === true;
                       const hasSignature = projectedDelivery.signature_needed === true;
 
-                      const hasSymbols = hasSpecialSymbols(projectedDelivery, projPatient, false);
+
 
                       return (
                         <div
