@@ -11,6 +11,7 @@ import { X, Save, Package, Search, Clock, Plus, Trash2, CheckCircle, Edit2, Came
 import PatientMatchPopup from './PatientMatchPopup';
 import { sortUsers } from "../utils/sorting";
 import { Badge } from "@/components/ui/badge";
+import { CombinedSpecialBadges, hasAnySpecialBadges } from '../utils/SpecialSymbolsBadges';
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { generateStopId, formatId } from '../utils/idGenerator';
@@ -3996,23 +3997,14 @@ export default function DeliveryForm({
                               <div className="flex items-center gap-1">
                                 <div className="truncate flex-1 min-w-0 text-slate-600 text-[10px]">{projected.reason}</div>
                                 <div className="flex items-center gap-1 flex-shrink-0">
-                                  {(projected.cod_total_amount_required > 0 || projectedPatient?.first_delivery || projected.oversized || projected.fridge_item || projected.signature_needed || projectedPatient?.signature_needed) &&
-                                    <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold">
-                                      {projected.cod_total_amount_required > 0 && '$'}
-                                      {projectedPatient?.first_delivery && ' N'}
-                                      {projected.oversized && ' O'}
-                                      {(projected.fridge_item || projectedPatient?.fridge_item) && ' F'}
-                                      {(projected.signature_needed || projectedPatient?.signature_needed) && ' S'}
-                                    </Badge>
-                                  }
-                                  {(projectedPatient?.call_upon_arrival || projectedPatient?.ring_bell || projectedPatient?.dont_ring_bell || projectedPatient?.mailbox_ok) &&
-                                    <div className="flex items-center gap-0.5 bg-slate-200 px-1 py-0 h-4 rounded">
-                                      {projectedPatient?.call_upon_arrival && <Phone className="w-2.5 h-2.5 text-amber-600" />}
-                                      {projectedPatient?.ring_bell && <Bell className="w-2.5 h-2.5 text-emerald-600" />}
-                                      {projectedPatient?.dont_ring_bell && <BellOff className="w-2.5 h-2.5 text-red-600" />}
-                                      {projectedPatient?.mailbox_ok && <Mailbox className="w-2.5 h-2.5 text-blue-600" />}
-                                    </div>
-                                  }
+                                  {hasAnySpecialBadges(projected, projectedPatient, false) && (
+                                    <CombinedSpecialBadges
+                                      delivery={projected}
+                                      patient={projectedPatient}
+                                      isPickup={false}
+                                      size="sm"
+                                    />
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -4218,23 +4210,14 @@ export default function DeliveryForm({
                               <div className="flex items-center gap-1">
                                 <div className="truncate flex-1 min-w-0 text-slate-600 text-[10px]">{projected.reason}</div>
                                 <div className="flex items-center gap-1 flex-shrink-0">
-                                  {(projected.cod_total_amount_required > 0 || projectedPatient?.first_delivery || projected.oversized || projected.fridge_item || projected.signature_needed || projectedPatient?.signature_needed) &&
-                                    <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold">
-                                      {projected.cod_total_amount_required > 0 && '$'}
-                                      {projectedPatient?.first_delivery && ' N'}
-                                      {projected.oversized && ' O'}
-                                      {(projected.fridge_item || projectedPatient?.fridge_item) && ' F'}
-                                      {(projected.signature_needed || projectedPatient?.signature_needed) && ' S'}
-                                    </Badge>
-                                  }
-                                  {(projectedPatient?.call_upon_arrival || projectedPatient?.ring_bell || projectedPatient?.dont_ring_bell || projectedPatient?.mailbox_ok) &&
-                                    <div className="flex items-center gap-0.5 bg-slate-200 px-1 py-0 h-4 rounded">
-                                      {projectedPatient?.call_upon_arrival && <Phone className="w-2.5 h-2.5 text-amber-600" />}
-                                      {projectedPatient?.ring_bell && <Bell className="w-2.5 h-2.5 text-emerald-600" />}
-                                      {projectedPatient?.dont_ring_bell && <BellOff className="w-2.5 h-2.5 text-red-600" />}
-                                      {projectedPatient?.mailbox_ok && <Mailbox className="w-2.5 h-2.5 text-blue-600" />}
-                                    </div>
-                                  }
+                                  {hasAnySpecialBadges(projected, projectedPatient, false) && (
+                                    <CombinedSpecialBadges
+                                      delivery={projected}
+                                      patient={projectedPatient}
+                                      isPickup={false}
+                                      size="sm"
+                                    />
+                                  )}
                                 </div>
                               </div>
                             </div>
