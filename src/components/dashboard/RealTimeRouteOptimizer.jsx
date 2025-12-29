@@ -80,27 +80,13 @@ export default function RealTimeRouteOptimizer({
       if (data?.success) {
         console.log(`✅ [RealTimeRouteOptimizer] Route ${data.routeChanged ? 'OPTIMIZED' : 'unchanged'}`);
         
-        if (data.routeChanged && data.optimizedRoute?.length > 0) {
-          const now = new Date();
-          let cumulativeMinutes = now.getHours() * 60 + now.getMinutes();
-
-          for (const stop of data.optimizedRoute) {
-            cumulativeMinutes += stop.travelMinutes;
-            const etaHours = Math.floor(cumulativeMinutes / 60) % 24;
-            const etaMinutes = cumulativeMinutes % 60;
-            const etaString = `${etaHours.toString().padStart(2, '0')}:${etaMinutes.toString().padStart(2, '0')}`;
-
-            await base44.entities.Delivery.update(stop.deliveryId, {
-              delivery_time_eta: etaString
-            });
-            
-            cumulativeMinutes += stop.serviceMinutes;
-          }
-
+        if (data.routeChanged) {
+          // CRITICAL: Backend has already updated stop_order and ETAs
+          // Just show notification and force UI refresh
           setNotification({
             id: Date.now(),
-            updates: data.optimizedRoute,
-            totalStops: data.optimizedRoute.length
+            updates: data.optimizedRoute || [],
+            totalStops: data.totalStops || 0
           });
 
           setTimeout(() => setNotification(null), 6000);
@@ -109,10 +95,12 @@ export default function RealTimeRouteOptimizer({
             onRouteOptimized(data.optimizedRoute);
           }
 
-          window.dispatchEvent(new CustomEvent('routeOptimized', {
+          // CRITICAL: Force UI refresh to show new stop orders and ETAs
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
             detail: {
               driverId: selectedDriverId,
-              updates: data.optimizedRoute
+              deliveryDate: selectedDate,
+              triggeredBy: 'realTimeRouteOptimizer'
             }
           }));
         }
