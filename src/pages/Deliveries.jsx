@@ -3540,10 +3540,11 @@ export default function DeliveriesPage() {
 
           <>
               {activeDriver &&
-            <Card className="mb-6 border-slate-200 shadow-sm relative">
+            <Card className="mb-6 shadow-sm relative" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                   <button
                 onClick={() => setIsMobileMenuOpen((v) => !v)}
-                className="absolute -left-3 top-1/2 -translate-y-1/2 z-30 bg-white hover:bg-slate-100 text-slate-700 font-semibold py-2 px-1 rounded-r-lg shadow-lg border-y border-r border-slate-200 transition-transform hover:scale-105 flex flex-col items-center gap-2 lg:hidden">
+                className="absolute -left-3 top-1/2 -translate-y-1/2 z-30 font-semibold py-2 px-1 rounded-r-lg shadow-lg transition-transform hover:scale-105 flex flex-col items-center gap-2 lg:hidden"
+                style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderTop: '1px solid var(--border-slate-200)', borderRight: '1px solid var(--border-slate-200)', borderBottom: '1px solid var(--border-slate-200)' }}>
 
                     <LogoImage className="w-6 h-6 object-contain" />
                     <ChevronRight className="w-5 h-5" />
@@ -3554,20 +3555,20 @@ export default function DeliveriesPage() {
               }
                   <CardContent className="p-3">
                     <div className="flex items-start gap-4 w-full">
-                      <div className="flex-shrink-0 w-16 h-16 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center">
-                        <span className="text-3xl font-bold text-slate-600">
+                      <div className="flex-shrink-0 w-16 h-16 rounded-full flex items-center justify-center" style={{ background: 'var(--bg-slate-100)' }}>
+                        <span className="text-3xl font-bold" style={{ color: 'var(--text-slate-600)' }}>
                           {getDriverDisplayName(activeDriver).charAt(0)}
                         </span>
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                           <div className="flex-none">
-                            <h2 className="text-2xl font-bold text-slate-900">{getDriverDisplayName(activeDriver)}</h2>
-                            <p className="text-slate-600 font-medium">{formatPhoneNumber(activeDriver.phone)}</p>
+                            <h2 className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>{getDriverDisplayName(activeDriver)}</h2>
+                            <p className="font-medium" style={{ color: 'var(--text-slate-600)' }}>{formatPhoneNumber(activeDriver.phone)}</p>
                             <div className="flex items-center gap-2">
-                              <p className="text-sm text-slate-500 capitalize">{activeDriver.app_roles?.[0]}</p>
-                              <span className="text-slate-400">•</span>
-                              <p className="text-sm font-medium text-slate-700">{selectedDate ? format(selectedDate, 'MMM d, yyyy') : ''}</p>
+                              <p className="text-sm capitalize" style={{ color: 'var(--text-slate-500)' }}>{activeDriver.app_roles?.[0]}</p>
+                              <span style={{ color: 'var(--text-slate-400)' }}>•</span>
+                              <p className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>{selectedDate ? format(selectedDate, 'MMM d, yyyy') : ''}</p>
                             </div>
                           </div>
                           {driverOverviewStats &&
