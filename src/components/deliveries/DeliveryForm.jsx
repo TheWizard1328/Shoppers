@@ -3892,19 +3892,19 @@ export default function DeliveryForm({
                                 <span className="font-medium truncate flex-1 min-w-0">{staged.patient_name}</span>
                                 <div className="flex items-center gap-1 flex-shrink-0">
                                   {staged.store_abbreviation && shouldShowStoreBadges(currentUser) &&
-                                    <Badge className="text-white text-[10px] px-1.5 py-0 h-4" style={{ backgroundColor: storeColor }}>
-                                      {staged.store_abbreviation}
-                                    </Badge>
+                                   <Badge className="text-white text-[10px] px-1.5 py-0 h-4" style={{ backgroundColor: storeColor }}>
+                                     {staged.store_abbreviation}
+                                   </Badge>
                                   }
-                                  {staged.distanceFromStore !== null &&
-                                    <Badge
-                                      className="text-white text-[10px] px-1.5 py-0 h-4"
-                                      style={{
-                                        backgroundColor: staged.distanceFromStore <= 10 ? '#10b981' :
-                                          staged.distanceFromStore <= 15 ? '#f59e0b' : '#ef4444'
-                                      }}>
-                                      {staged.distanceFromStore.toFixed(1)} km
-                                    </Badge>
+                                  {staged.distanceFromStore !== null && staged.distanceFromStore !== undefined && typeof staged.distanceFromStore === 'number' &&
+                                   <Badge
+                                     className="text-white text-[10px] px-1.5 py-0 h-4"
+                                     style={{
+                                       backgroundColor: staged.distanceFromStore <= 10 ? '#10b981' :
+                                         staged.distanceFromStore <= 15 ? '#f59e0b' : '#ef4444'
+                                     }}>
+                                     {staged.distanceFromStore.toFixed(1)} km
+                                   </Badge>
                                   }
                                 </div>
                               </div>
@@ -4101,19 +4101,19 @@ export default function DeliveryForm({
                                 <span className="font-medium truncate flex-1 min-w-0">{staged.patient_name}</span>
                                 <div className="flex items-center gap-1 flex-shrink-0">
                                   {staged.store_abbreviation && shouldShowStoreBadges(currentUser) &&
-                                    <Badge className="text-white text-[10px] px-1.5 py-0 h-4" style={{ backgroundColor: storeColor }}>
-                                      {staged.store_abbreviation}
-                                    </Badge>
+                                   <Badge className="text-white text-[10px] px-1.5 py-0 h-4" style={{ backgroundColor: storeColor }}>
+                                     {staged.store_abbreviation}
+                                   </Badge>
                                   }
-                                  {staged.distanceFromStore !== null &&
-                                    <Badge
-                                      className="text-white text-[10px] px-1.5 py-0 h-4"
-                                      style={{
-                                        backgroundColor: staged.distanceFromStore <= 10 ? '#10b981' :
-                                          staged.distanceFromStore <= 15 ? '#f59e0b' : '#ef4444'
-                                      }}>
-                                      {staged.distanceFromStore.toFixed(1)} km
-                                    </Badge>
+                                  {staged.distanceFromStore !== null && staged.distanceFromStore !== undefined && typeof staged.distanceFromStore === 'number' &&
+                                   <Badge
+                                     className="text-white text-[10px] px-1.5 py-0 h-4"
+                                     style={{
+                                       backgroundColor: staged.distanceFromStore <= 10 ? '#10b981' :
+                                         staged.distanceFromStore <= 15 ? '#f59e0b' : '#ef4444'
+                                     }}>
+                                     {staged.distanceFromStore.toFixed(1)} km
+                                   </Badge>
                                   }
                                 </div>
                               </div>
