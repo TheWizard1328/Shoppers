@@ -75,17 +75,16 @@ import RealTimeRouteOptimizer from '../components/dashboard/RealTimeRouteOptimiz
 import QuickRouteAdjustments from '../components/dashboard/QuickRouteAdjustments';
 import { driverActivityMonitor } from '@/components/utils/driverActivityMonitor';
 
-// FIXED: StatBadge - always render with consistent hook structure
+// FIXED: StatBadge - simple component without hooks to avoid violations
 const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount }) => {
-  // ALWAYS calculate color class (hook-like behavior should be consistent)
-  const colorClasses = useMemo(() => ({
+  const colorClasses = {
     blue: "bg-blue-100 text-blue-600",
     purple: "bg-purple-100 text-purple-600",
     emerald: "bg-emerald-100 text-emerald-600",
     green: "bg-green-100 text-green-600",
     red: "bg-red-100 text-red-600",
     slate: "bg-slate-100 text-slate-600"
-  }), []);
+  };
 
   const badge =
   <div className="px-1 flex items-center gap-2 cursor-help">
@@ -102,8 +101,6 @@ const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount }) =>
       </div>
     </div>;
 
-
-  // ALWAYS render Tooltip with all hooks, just conditionally show content
   return (
     <TooltipProvider>
       <Tooltip>
