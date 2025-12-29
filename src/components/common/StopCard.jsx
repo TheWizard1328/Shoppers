@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue } from
 "@/components/ui/select";
-import { Phone, MapPin, Edit, Trash2, StickyNote, RotateCcw, MoreVertical, User, CheckCircle, Clock, Package, XCircle, Info, FileText, Save, X, Plus, Undo2, Loader2, Navigation, GripVertical, Bell, BellOff, Mailbox, PinIcon } from "lucide-react";
+import { Phone, MapPin, Edit, Trash2, StickyNote, RotateCcw, MoreVertical, User, CheckCircle, Clock, Package, XCircle, Info, FileText, Save, X, Plus, Undo2, Loader2, Navigation, GripVertical, Bell, BellOff, Mailbox } from "lucide-react";
 import { getStoreColor, hexToRgba, getContrastColor } from "../utils/colorGenerator";
 import { format, isBefore, startOfDay, addDays } from "date-fns";
 import { getDriverDisplayName } from '../utils/driverUtils';
@@ -754,7 +754,7 @@ export default function StopCard({
                 </Badge>
               }
 
-              {(hasCODRequired || isFirstDelivery || delivery.oversized || delivery.fridge_item || delivery.signature_needed || delivery.delivery_notes || !isPickup && (delivery.call_upon_arrival || patient?.call_upon_arrival || delivery.ring_bell || patient?.ring_bell || delivery.dont_ring_bell || patient?.dont_ring_bell || delivery.mailbox_ok || patient?.mailbox_ok)) &&
+              {(hasCODRequired || isFirstDelivery || delivery.oversized || delivery.fridge_item || delivery.signature_needed || !isPickup && (delivery.call_upon_arrival || patient?.call_upon_arrival || delivery.ring_bell || patient?.ring_bell || delivery.dont_ring_bell || patient?.dont_ring_bell || delivery.mailbox_ok || patient?.mailbox_ok)) &&
               <Badge
                 variant="secondary" className="mt-1 px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center gap-0.5 border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 min-w-[25px] justify-center bg-slate-300 text-white">
 
@@ -805,9 +805,6 @@ export default function StopCard({
                 }
                   {!isPickup && (delivery.mailbox_ok || patient?.mailbox_ok) &&
                 <Mailbox className="w-4 h-4 text-blue-600" />
-                }
-                  {delivery.delivery_notes &&
-                <PinIcon className="w-3.5 h-3.5 text-slate-700" />
                 }
                 </Badge>
               }
