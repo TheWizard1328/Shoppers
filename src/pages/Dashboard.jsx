@@ -5933,11 +5933,16 @@ function Dashboard() {
                     console.log('📍 [Refresh Spinner] Refreshing driver locations...');
                     const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
                     if (locationUpdates?.hasChanges) {
-                      setAppUsers(locationUpdates.appUsers);
+                      // CRITICAL: Merge location updates with full user data to ensure driver_status is included
+                      const mergedAppUsers = locationUpdates.appUsers.map(updatedUser => {
+                        const existingUser = appUsers.find(u => u?.id === updatedUser?.id);
+                        return existingUser ? { ...existingUser, ...updatedUser } : updatedUser;
+                      });
+                      
+                      setAppUsers(mergedAppUsers);
                       
                       // CRITICAL: Process updated locations through poller to update markers immediately
-                      const allUsers = users?.filter((u) => u.user_id) || [];
-                      driverLocationPoller.processLocationData(currentUser, deliveries, drivers, stores, locationUpdates.appUsers, selectedDate);
+                      driverLocationPoller.processLocationData(currentUser, deliveries, drivers, stores, mergedAppUsers, selectedDate);
                       
                       console.log('✅ [Refresh Spinner] Driver locations refreshed and markers updated');
                     }
