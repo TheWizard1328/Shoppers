@@ -1483,9 +1483,8 @@ export default function DeliveryMap({
     const isCurrentUserAdmin = userHasRole(currentUser, 'admin');
     const isCurrentUserDispatcher = userHasRole(currentUser, 'dispatcher');
     
-    // RULE 1: Driver (non-admin, non-dispatcher) on mobile - show blue dot
-    // RULE 3: Admin on mobile - show blue dot
-    const shouldShowBlueDot = (isCurrentUserDriver && !isCurrentUserDispatcher && !isCurrentUserAdmin) || isCurrentUserAdmin;
+    // RULE 1 & 3: Show blue dot on mobile for ANY user with driver role OR admin role (excluding pure dispatchers)
+    const shouldShowBlueDot = (isCurrentUserDriver || isCurrentUserAdmin) && !isCurrentUserDispatcher;
     
     if (!shouldShowBlueDot) {
       return null;
