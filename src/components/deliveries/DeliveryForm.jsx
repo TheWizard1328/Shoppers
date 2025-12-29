@@ -3995,14 +3995,12 @@ export default function DeliveryForm({
                               <div className="flex items-center gap-1">
                                 <div className="truncate flex-1 min-w-0 text-slate-600 text-[10px]">{projected.reason}</div>
                                 <div className="flex items-center gap-1 flex-shrink-0">
-                                  {hasAnySpecialBadges(projected, projectedPatient, false) && (
-                                    <CombinedSpecialBadges
-                                      delivery={projected}
-                                      patient={projectedPatient}
-                                      isPickup={false}
-                                      size="sm"
-                                    />
-                                  )}
+                                  <SpecialSymbolsBadges
+                                    delivery={projected}
+                                    patient={projectedPatient}
+                                    isPickup={false}
+                                    size="sm"
+                                  />
                                 </div>
                               </div>
                             </div>
@@ -4206,14 +4204,12 @@ export default function DeliveryForm({
                               <div className="flex items-center gap-1">
                                 <div className="truncate flex-1 min-w-0 text-slate-600 text-[10px]">{projected.reason}</div>
                                 <div className="flex items-center gap-1 flex-shrink-0">
-                                  {hasAnySpecialBadges(projected, projectedPatient, false) && (
-                                    <CombinedSpecialBadges
-                                      delivery={projected}
-                                      patient={projectedPatient}
-                                      isPickup={false}
-                                      size="sm"
-                                    />
-                                  )}
+                                  <SpecialSymbolsBadges
+                                    delivery={projected}
+                                    patient={projectedPatient}
+                                    isPickup={false}
+                                    size="sm"
+                                  />
                                 </div>
                               </div>
                             </div>
