@@ -376,33 +376,38 @@ export default function DeliveriesPage() {
         console.log('📋 [Deliveries] Fetching ALL deliveries for Driver Overview mode');
         
         // CRITICAL: For driver overview, we need ALL deliveries for the year, not just cached 90 days
-        // Fetch directly from the database to get complete stats
-        const targetYear = selectedOverviewYear === 'all' ? null : parseInt(selectedOverviewYear, 10);
+        // Fetch directly from the database in quarterly chunks to avoid 5000 record limit
+        const targetYear = selectedOverviewYear === 'all' ? new Date().getFullYear() : parseInt(selectedOverviewYear, 10);
         
-        if (targetYear) {
-          // Fetch all deliveries for the specific year
-          const startOfYear = `${targetYear}-01-01`;
-          const endOfYear = `${targetYear}-12-31`;
-          console.log(`📅 [Deliveries] Fetching deliveries for year ${targetYear}: ${startOfYear} to ${endOfYear}`);
+        console.log(`📅 [Deliveries] Fetching deliveries for year ${targetYear} in quarterly chunks`);
+        
+        try {
+          // Fetch each quarter separately to avoid hitting the 5000 limit
+          const quarters = [
+            { start: `${targetYear}-01-01`, end: `${targetYear}-03-31`, label: 'Q1' },
+            { start: `${targetYear}-04-01`, end: `${targetYear}-06-30`, label: 'Q2' },
+            { start: `${targetYear}-07-01`, end: `${targetYear}-09-30`, label: 'Q3' },
+            { start: `${targetYear}-10-01`, end: `${targetYear}-12-31`, label: 'Q4' }
+          ];
           
-          try {
-            deliveriesData = await base44.entities.Delivery.filter({
-              delivery_date: { $gte: startOfYear, $lte: endOfYear }
+          const allQuarterData = [];
+          
+          for (const quarter of quarters) {
+            console.log(`📅 [Deliveries] Fetching ${quarter.label}: ${quarter.start} to ${quarter.end}`);
+            const quarterData = await base44.entities.Delivery.filter({
+              delivery_date: { $gte: quarter.start, $lte: quarter.end }
             }, '-delivery_date');
-            console.log(`✅ [Deliveries] Loaded ${deliveriesData?.length || 0} deliveries for year ${targetYear}`);
-          } catch (error) {
-            console.error('Failed to fetch year deliveries, falling back to cache:', error);
-            deliveriesData = await getData('Delivery', '-delivery_date', {}, forceRefresh);
+            console.log(`✅ [Deliveries] ${quarter.label}: ${quarterData?.length || 0} deliveries`);
+            if (quarterData && quarterData.length > 0) {
+              allQuarterData.push(...quarterData);
+            }
           }
-        } else {
-          // All years - fetch everything (this might be slow for large datasets)
-          try {
-            deliveriesData = await base44.entities.Delivery.list('-delivery_date');
-            console.log(`✅ [Deliveries] Loaded ${deliveriesData?.length || 0} total deliveries (all years)`);
-          } catch (error) {
-            console.error('Failed to fetch all deliveries, falling back to cache:', error);
-            deliveriesData = await getData('Delivery', '-delivery_date', {}, forceRefresh);
-          }
+          
+          deliveriesData = allQuarterData;
+          console.log(`✅ [Deliveries] Total loaded: ${deliveriesData.length} deliveries for year ${targetYear}`);
+        } catch (error) {
+          console.error('Failed to fetch year deliveries, falling back to cache:', error);
+          deliveriesData = await getData('Delivery', '-delivery_date', {}, forceRefresh);
         }
         
         if (deliveriesData && deliveriesData.length > 0) {
