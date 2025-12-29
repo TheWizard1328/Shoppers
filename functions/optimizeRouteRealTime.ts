@@ -443,9 +443,8 @@ Deno.serve(async (req) => {
     }).filter(s => s.lat && s.lng);
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    // STEP 1: Sort ALL stops (pickups AND deliveries) by delivery_time_start
-    // CRITICAL: This maintains time window order for both pickups and deliveries
-    // THEN optimize by distance ONLY within stops that have the same time
+    // STEP 1: Sort ALL stops by delivery_time_start, then optimize within time groups
+    // CRITICAL: Maintains time window ORDER while optimizing distance WITHIN same-time groups
     // ═══════════════════════════════════════════════════════════════════════════════
     
     console.log('📋 STEP 1: Sorting ALL stops by delivery_time_start...');
@@ -463,10 +462,10 @@ Deno.serve(async (req) => {
     };
     
     // Map all stops with their original index
-    const sortedStops = [...stops].map((stop, originalIdx) => ({ ...stop, originalIdx }));
+    const allStopsWithIdx = [...stops].map((stop, originalIdx) => ({ ...stop, originalIdx }));
     
     // Sort by delivery_time_start (both pickups and deliveries together)
-    sortedStops.sort((a, b) => {
+    allStopsWithIdx.sort((a, b) => {
       const aMinutes = parseTimeToMinutes(a.delivery.delivery_time_start);
       const bMinutes = parseTimeToMinutes(b.delivery.delivery_time_start);
       
@@ -481,20 +480,95 @@ Deno.serve(async (req) => {
       if (aIsPickup && !bIsPickup) return -1;
       if (!aIsPickup && bIsPickup) return 1;
       
-      // SAME time and same type - optimize by distance from previous stop
-      // For now, keep original order (will be optimized by Google in groups)
       return 0;
     });
     
     console.log('📋 SORTED STOPS by delivery_time_start:');
-    sortedStops.forEach((stop, i) => {
+    allStopsWithIdx.forEach((stop, i) => {
       const isPickup = !stop.delivery.patient_id;
       const timeStr = stop.delivery.delivery_time_start;
       const parsedMinutes = parseTimeToMinutes(timeStr);
       console.log(`   ${i+1}. ${isPickup ? '📦 PICKUP' : '📬 DELIVERY'}: ${stop.delivery.patient_name || stop.delivery.delivery_notes || 'Unknown'} @ ${timeStr} (${parsedMinutes} min)`);
     });
     
-    console.log(`✅ All stops sorted by time: ${sortedStops.length}`);
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // STEP 2: Group stops by delivery_time_start, then optimize by distance within groups
+    // ═══════════════════════════════════════════════════════════════════════════════
+    
+    console.log('📋 STEP 2: Grouping by time and optimizing within groups...');
+    
+    // Group stops by their delivery_time_start
+    const timeGroups = new Map();
+    allStopsWithIdx.forEach(stop => {
+      const timeKey = stop.delivery.delivery_time_start || 'no_time';
+      if (!timeGroups.has(timeKey)) {
+        timeGroups.set(timeKey, []);
+      }
+      timeGroups.get(timeKey).push(stop);
+    });
+    
+    console.log(`📊 Found ${timeGroups.size} distinct time groups`);
+    
+    // Get sorted time keys (maintains time window order)
+    const sortedTimeKeys = [...timeGroups.keys()].sort((a, b) => {
+      const aMin = parseTimeToMinutes(a);
+      const bMin = parseTimeToMinutes(b);
+      return aMin - bMin;
+    });
+    
+    // Build final sorted array by processing each time group
+    const sortedStops = [];
+    let lastPosition = { lat: driverLocation.lat, lng: driverLocation.lng };
+    
+    for (const timeKey of sortedTimeKeys) {
+      const groupStops = timeGroups.get(timeKey);
+      console.log(`\n⏰ Processing time group "${timeKey}" with ${groupStops.length} stops`);
+      
+      if (groupStops.length === 1) {
+        // Single stop in group - just add it
+        sortedStops.push(groupStops[0]);
+        lastPosition = { lat: groupStops[0].lat, lng: groupStops[0].lng };
+        console.log(`   → Single stop: ${groupStops[0].delivery.patient_name || groupStops[0].delivery.delivery_notes || 'Unknown'}`);
+      } else {
+        // Multiple stops - PICKUPS FIRST (in order), then optimize deliveries by distance
+        const pickupsInGroup = groupStops.filter(s => !s.delivery.patient_id);
+        const deliveriesInGroup = groupStops.filter(s => s.delivery.patient_id);
+        
+        console.log(`   → ${pickupsInGroup.length} pickups, ${deliveriesInGroup.length} deliveries`);
+        
+        // Add pickups first (maintain their order within the group)
+        for (const pickup of pickupsInGroup) {
+          sortedStops.push(pickup);
+          lastPosition = { lat: pickup.lat, lng: pickup.lng };
+          console.log(`   📦 PICKUP: ${pickup.delivery.delivery_notes || 'Unknown'}`);
+        }
+        
+        // Optimize deliveries by nearest-neighbor from current position
+        const remainingDeliveries = [...deliveriesInGroup];
+        while (remainingDeliveries.length > 0) {
+          let nearestIdx = 0;
+          let nearestDist = Infinity;
+          
+          for (let i = 0; i < remainingDeliveries.length; i++) {
+            const dist = calculateCrowFliesDistance(
+              lastPosition.lat, lastPosition.lng,
+              remainingDeliveries[i].lat, remainingDeliveries[i].lng
+            );
+            if (dist < nearestDist) {
+              nearestDist = dist;
+              nearestIdx = i;
+            }
+          }
+          
+          const nearest = remainingDeliveries.splice(nearestIdx, 1)[0];
+          sortedStops.push(nearest);
+          lastPosition = { lat: nearest.lat, lng: nearest.lng };
+          console.log(`   📬 DELIVERY: ${nearest.delivery.patient_name || 'Unknown'} (${nearestDist.toFixed(1)}km)`);
+        }
+      }
+    }
+    
+    console.log(`\n✅ Final sorted order: ${sortedStops.length} stops (time-grouped, distance-optimized within groups)`);
 
     if (stops.length === 0) {
       return Response.json({ 
