@@ -3912,14 +3912,12 @@ export default function DeliveryForm({
                               <div className="flex items-center gap-1">
                                 <div className="truncate flex-1 min-w-0" style={{ color: 'var(--text-slate-500)' }}>{staged.delivery_address}</div>
                                 <div className="flex items-center gap-1 flex-shrink-0">
-                                  {hasAnySpecialBadges(staged, null, false) && (
-                                    <CombinedSpecialBadges
-                                      delivery={staged}
-                                      patient={null}
-                                      isPickup={false}
-                                      size="sm"
-                                    />
-                                  )}
+                                  <SpecialSymbolsBadges
+                                    delivery={staged}
+                                    patient={null}
+                                    isPickup={false}
+                                    size="sm"
+                                  />
                                   {staged.ampm_deliveries &&
                                     <Badge className={`text-[10px] px-1.5 py-0 h-4 ${staged.ampm_deliveries === 'AM' ? 'bg-sky-100 text-sky-700 rounded-full' : 'bg-indigo-100 text-indigo-700 rounded-lg'}`}>
                                       {staged.ampm_deliveries}
@@ -4125,14 +4123,12 @@ export default function DeliveryForm({
                               <div className="flex items-center gap-1">
                                 <div className="truncate flex-1 min-w-0" style={{ color: 'var(--text-slate-500)' }}>{staged.delivery_address}</div>
                                 <div className="flex items-center gap-1 flex-shrink-0">
-                                  {hasAnySpecialBadges(staged, null, false) && (
-                                    <CombinedSpecialBadges
-                                      delivery={staged}
-                                      patient={null}
-                                      isPickup={false}
-                                      size="sm"
-                                    />
-                                  )}
+                                  <SpecialSymbolsBadges
+                                    delivery={staged}
+                                    patient={null}
+                                    isPickup={false}
+                                    size="sm"
+                                  />
                                   {staged.ampm_deliveries &&
                                     <Badge className={`text-[10px] px-1.5 py-0 h-4 ${staged.ampm_deliveries === 'AM' ? 'bg-sky-100 text-sky-700 rounded-full' : 'bg-indigo-100 text-indigo-700 rounded-lg'}`}>
                                       {staged.ampm_deliveries}
