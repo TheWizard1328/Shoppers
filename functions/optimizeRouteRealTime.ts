@@ -443,17 +443,12 @@ Deno.serve(async (req) => {
     }).filter(s => s.lat && s.lng);
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    // TIME-CONSTRAINED NEAREST-NEIGHBOR OPTIMIZATION
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // Algorithm:
-    // 1. All stops have a delivery_time_start (time window start)
-    // 2. At each step, pick the NEAREST stop that we can reach without violating
-    //    any later stop's time constraint
-    // 3. A stop can only be visited if all stops with EARLIER time_start have been
-    //    visited OR we can still reach them after this stop
+    // STEP 1: Sort ALL stops (pickups AND deliveries) by delivery_time_start
+    // CRITICAL: This maintains time window order for both pickups and deliveries
+    // THEN optimize by distance ONLY within stops that have the same time
     // ═══════════════════════════════════════════════════════════════════════════════
     
-    console.log('📋 TIME-CONSTRAINED OPTIMIZATION...');
+    console.log('📋 STEP 1: Sorting ALL stops by delivery_time_start...');
     console.log(`📊 Total incomplete stops to process: ${stops.length}`);
     
     // Helper to parse time to minutes - handles HH:mm format
@@ -467,109 +462,39 @@ Deno.serve(async (req) => {
       return h * 60 + m;
     };
     
-    // Map all stops with their original index and parsed time
-    const allStopsWithMeta = stops.map((stop, originalIdx) => ({
-      ...stop,
-      originalIdx,
-      timeStartMinutes: parseTimeToMinutes(stop.delivery.delivery_time_start),
-      isPickup: !stop.delivery.patient_id
-    }));
+    // Map all stops with their original index
+    const sortedStops = [...stops].map((stop, originalIdx) => ({ ...stop, originalIdx }));
     
-    // Log all stops before optimization
-    console.log('📋 ALL STOPS with time_start:');
-    allStopsWithMeta.forEach((stop, i) => {
-      console.log(`   ${i+1}. ${stop.isPickup ? '📦 PICKUP' : '📬 DELIVERY'}: ${stop.delivery.patient_name || stop.delivery.delivery_notes || 'Unknown'} @ ${stop.delivery.delivery_time_start} (${stop.timeStartMinutes} min)`);
+    // Sort by delivery_time_start (both pickups and deliveries together)
+    sortedStops.sort((a, b) => {
+      const aMinutes = parseTimeToMinutes(a.delivery.delivery_time_start);
+      const bMinutes = parseTimeToMinutes(b.delivery.delivery_time_start);
+      
+      // Different times - sort by time
+      if (aMinutes !== bMinutes) {
+        return aMinutes - bMinutes;
+      }
+      
+      // SAME time - pickups before deliveries
+      const aIsPickup = !a.delivery.patient_id;
+      const bIsPickup = !b.delivery.patient_id;
+      if (aIsPickup && !bIsPickup) return -1;
+      if (!aIsPickup && bIsPickup) return 1;
+      
+      // SAME time and same type - optimize by distance from previous stop
+      // For now, keep original order (will be optimized by Google in groups)
+      return 0;
     });
     
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // TIME-CONSTRAINED GREEDY ALGORITHM
-    // At each step:
-    // 1. Find all "eligible" stops (time_start <= current earliest unvisited time_start + buffer)
-    // 2. From eligible stops, pick the NEAREST one
-    // 3. This ensures we don't skip over stops with earlier time requirements
-    // ═══════════════════════════════════════════════════════════════════════════════
-    
-    const sortedStops = [];
-    const unvisited = [...allStopsWithMeta];
-    let currentPos = { lat: driverLocation.lat, lng: driverLocation.lng };
-    let currentTimeMinutes = currentMinutes;
-    
-    console.log(`🕐 Starting optimization at ${Math.floor(currentTimeMinutes/60)}:${String(currentTimeMinutes%60).padStart(2,'0')}`);
-    
-    while (unvisited.length > 0) {
-      // Find the EARLIEST time_start among all unvisited stops
-      const earliestTimeStart = Math.min(...unvisited.map(s => s.timeStartMinutes));
-      
-      // CRITICAL: A stop is "eligible" if its time_start is within a reasonable window
-      // of the earliest unvisited stop. This prevents skipping early stops for distant late ones.
-      // Buffer: Allow picking stops up to 60 minutes after the earliest (for distance optimization)
-      const timeBuffer = 60; // minutes
-      const eligibleStops = unvisited.filter(s => 
-        s.timeStartMinutes <= earliestTimeStart + timeBuffer
-      );
-      
-      console.log(`\n🔍 Iteration: ${sortedStops.length + 1}`);
-      console.log(`   Earliest unvisited time_start: ${earliestTimeStart} min`);
-      console.log(`   Eligible stops (within ${timeBuffer} min): ${eligibleStops.length}`);
-      
-      // From eligible stops, pick the NEAREST one
-      let nearestStop = null;
-      let nearestDist = Infinity;
-      
-      for (const stop of eligibleStops) {
-        const dist = calculateCrowFliesDistance(currentPos.lat, currentPos.lng, stop.lat, stop.lng);
-        
-        // CRITICAL: If this is a pickup, it MUST come before any delivery with the same PUID
-        // Skip if there's already a delivery in sortedStops that needs this pickup
-        if (stop.isPickup) {
-          // Check if any delivery requiring this pickup is already scheduled
-          // (This shouldn't happen with correct algorithm, but safety check)
-        }
-        
-        if (dist < nearestDist) {
-          nearestDist = dist;
-          nearestStop = stop;
-        }
-      }
-      
-      if (!nearestStop) {
-        // Fallback: just take the earliest by time
-        nearestStop = unvisited.reduce((a, b) => 
-          a.timeStartMinutes < b.timeStartMinutes ? a : b
-        );
-        nearestDist = calculateCrowFliesDistance(currentPos.lat, currentPos.lng, nearestStop.lat, nearestStop.lng);
-      }
-      
-      // Add to sorted list
-      sortedStops.push(nearestStop);
-      
-      // Remove from unvisited
-      const removeIdx = unvisited.findIndex(s => s.originalIdx === nearestStop.originalIdx);
-      unvisited.splice(removeIdx, 1);
-      
-      // Update position and time
-      const travelTimeMin = (nearestDist / 40) * 60; // ~40 km/h average
-      currentTimeMinutes += travelTimeMin;
-      
-      // If we arrive before the time window, wait
-      if (currentTimeMinutes < nearestStop.timeStartMinutes) {
-        currentTimeMinutes = nearestStop.timeStartMinutes;
-      }
-      
-      // Add service time
-      const serviceTime = nearestStop.delivery.extra_time || (nearestStop.isPickup ? 15 : 5);
-      currentTimeMinutes += serviceTime;
-      
-      currentPos = { lat: nearestStop.lat, lng: nearestStop.lng };
-      
-      console.log(`   ✅ Selected: ${nearestStop.isPickup ? '📦' : '📬'} ${nearestStop.delivery.patient_name || nearestStop.delivery.delivery_notes || 'Unknown'} @ ${nearestStop.delivery.delivery_time_start} (${nearestDist.toFixed(1)} km away)`);
-    }
-    
-    console.log(`\n✅ Optimization complete: ${sortedStops.length} stops ordered`);
-    console.log('📋 FINAL ORDER:');
+    console.log('📋 SORTED STOPS by delivery_time_start:');
     sortedStops.forEach((stop, i) => {
-      console.log(`   ${i+1}. ${stop.isPickup ? '📦 PICKUP' : '📬 DELIVERY'}: ${stop.delivery.patient_name || stop.delivery.delivery_notes || 'Unknown'} @ ${stop.delivery.delivery_time_start}`);
+      const isPickup = !stop.delivery.patient_id;
+      const timeStr = stop.delivery.delivery_time_start;
+      const parsedMinutes = parseTimeToMinutes(timeStr);
+      console.log(`   ${i+1}. ${isPickup ? '📦 PICKUP' : '📬 DELIVERY'}: ${stop.delivery.patient_name || stop.delivery.delivery_notes || 'Unknown'} @ ${timeStr} (${parsedMinutes} min)`);
     });
+    
+    console.log(`✅ All stops sorted by time: ${sortedStops.length}`);
 
     if (stops.length === 0) {
       return Response.json({ 
