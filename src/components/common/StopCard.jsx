@@ -697,9 +697,9 @@ export default function StopCard({
       style={{ scrollSnapAlign: 'center' }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}>
-      <Card className={`rounded-xl border bg-card text-card-foreground shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 min-w-[340px] max-w-[340px] ${
-      isNextDelivery ? 'border-emerald-500 border-2' : 'border-blue-500'}`
-      }
+      <Card className="bg-card text-card-foreground mx-3 rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 min-w-[340px] max-w-[340px] border-blue-500"
+
+
       onClick={() => {
         // Don't trigger click/expand for stripped deliveries
         if (!isStrippedDelivery) {
@@ -1094,14 +1094,14 @@ export default function StopCard({
                     </div>
 
                     {displayAddress &&
-                      <div>
+                    <div>
                         <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Address:</span>
                         <p className="pl-16" style={{ color: 'var(--text-slate-900)' }}>{displayAddress}</p>
                       </div>
                     }
 
                     {delivery.tracking_number &&
-                      <div>
+                    <div>
                         <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Tr#:</span>
                         <p className="pl-16" style={{ color: 'var(--text-slate-900)' }}>{delivery.tracking_number}</p>
                       </div>
