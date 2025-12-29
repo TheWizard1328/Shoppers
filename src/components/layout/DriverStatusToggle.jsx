@@ -229,35 +229,20 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       const result = await base44.functions.invoke('setDriverStatus', {
         newStatus,
         deviceId,
-        disableLocationTracking: newStatus === 'off_duty' // Only disable tracking when off duty, NOT on break
+        disableLocationTracking: newStatus !== 'on_duty' // Disable tracking when off duty OR on break
       });
       
       console.log('✅ Backend status update result:', result.data);
       
-      // CRITICAL: Immediately fetch fresh AppUser data and update local state
-      console.log('🔄 [DriverStatusToggle] Fetching fresh AppUser data from backend...');
-      const freshAppUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
-      const freshAppUser = freshAppUsers?.[0];
-      
-      if (freshAppUser) {
-        console.log('✅ [DriverStatusToggle] Fresh AppUser fetched:', freshAppUser.driver_status);
-        
-        // CRITICAL: Update local offline database immediately with fresh backend data
-        console.log('💾 [DriverStatusToggle] Updating local offline database with fresh data...');
-        const { updateAppUserLocal } = await import('../utils/offlineMutations');
-        try {
-          const updateData = { 
-            driver_status: freshAppUser.driver_status,
-            location_tracking_enabled: freshAppUser.location_tracking_enabled,
-            current_latitude: freshAppUser.current_latitude,
-            current_longitude: freshAppUser.current_longitude,
-            location_updated_at: freshAppUser.location_updated_at
-          };
-          await updateAppUserLocal(appUserId, updateData);
-          console.log('✅ [DriverStatusToggle] Local offline database updated with fresh data');
-        } catch (offlineError) {
-          console.warn('⚠️ [DriverStatusToggle] Failed to update local database:', offlineError);
-        }
+      // CRITICAL: DO NOT fetch fresh data - trust our update
+      // The update was already applied, fetching again can cause race conditions with stale data
+      console.log('💾 [DriverStatusToggle] Updating local offline database with our changes...');
+      const { updateAppUserLocal } = await import('../utils/offlineMutations');
+      try {
+        await updateAppUserLocal(appUserId, updatePayload);
+        console.log('✅ [DriverStatusToggle] Local offline database updated');
+      } catch (offlineError) {
+        console.warn('⚠️ [DriverStatusToggle] Failed to update local database:', offlineError);
       }
       
       // Invalidate caches to force fresh data fetch
