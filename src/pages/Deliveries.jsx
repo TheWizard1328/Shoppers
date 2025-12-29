@@ -374,8 +374,36 @@ export default function DeliveriesPage() {
 
       if (isDriverOverviewMode) {
         console.log('📋 [Deliveries] Fetching ALL deliveries for Driver Overview mode');
-        deliveriesData = await getData('Delivery', '-delivery_date', {}, forceRefresh);
-        console.log(`✅ [Deliveries] Loaded ${deliveriesData?.length || 0} total deliveries for overview`);
+        
+        // CRITICAL: For driver overview, we need ALL deliveries for the year, not just cached 90 days
+        // Fetch directly from the database to get complete stats
+        const targetYear = selectedOverviewYear === 'all' ? null : parseInt(selectedOverviewYear, 10);
+        
+        if (targetYear) {
+          // Fetch all deliveries for the specific year
+          const startOfYear = `${targetYear}-01-01`;
+          const endOfYear = `${targetYear}-12-31`;
+          console.log(`📅 [Deliveries] Fetching deliveries for year ${targetYear}: ${startOfYear} to ${endOfYear}`);
+          
+          try {
+            deliveriesData = await base44.entities.Delivery.filter({
+              delivery_date: { $gte: startOfYear, $lte: endOfYear }
+            }, '-delivery_date');
+            console.log(`✅ [Deliveries] Loaded ${deliveriesData?.length || 0} deliveries for year ${targetYear}`);
+          } catch (error) {
+            console.error('Failed to fetch year deliveries, falling back to cache:', error);
+            deliveriesData = await getData('Delivery', '-delivery_date', {}, forceRefresh);
+          }
+        } else {
+          // All years - fetch everything (this might be slow for large datasets)
+          try {
+            deliveriesData = await base44.entities.Delivery.list('-delivery_date');
+            console.log(`✅ [Deliveries] Loaded ${deliveriesData?.length || 0} total deliveries (all years)`);
+          } catch (error) {
+            console.error('Failed to fetch all deliveries, falling back to cache:', error);
+            deliveriesData = await getData('Delivery', '-delivery_date', {}, forceRefresh);
+          }
+        }
         
         if (deliveriesData && deliveriesData.length > 0) {
           const dates = deliveriesData.map(d => d.delivery_date).filter(Boolean).sort();
