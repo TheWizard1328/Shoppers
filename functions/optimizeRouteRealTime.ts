@@ -443,12 +443,12 @@ Deno.serve(async (req) => {
     }).filter(s => s.lat && s.lng);
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    // STEP 1: Separate PICKUPS from DELIVERIES and sort each group by time
-    // CRITICAL: Pickups MUST stay in time window order (AM before PM)
-    // Deliveries can be optimized within their pickup group
+    // STEP 1: Sort ALL stops (pickups AND deliveries) by delivery_time_start
+    // CRITICAL: This maintains time window order for both pickups and deliveries
+    // THEN optimize by distance ONLY within stops that have the same time
     // ═══════════════════════════════════════════════════════════════════════════════
     
-    console.log('📋 STEP 1: Separating pickups and deliveries...');
+    console.log('📋 STEP 1: Sorting ALL stops by delivery_time_start...');
     console.log(`📊 Total incomplete stops to process: ${stops.length}`);
     
     // Helper to parse time to minutes - handles HH:mm format
@@ -462,88 +462,39 @@ Deno.serve(async (req) => {
       return h * 60 + m;
     };
     
-    // Separate into pickups and deliveries
-    const pickups = stops.filter(s => !s.delivery.patient_id);
-    const patientDeliveries = stops.filter(s => s.delivery.patient_id);
+    // Map all stops with their original index
+    const sortedStops = [...stops].map((stop, originalIdx) => ({ ...stop, originalIdx }));
     
-    console.log(`📦 Pickups: ${pickups.length}, 📬 Deliveries: ${patientDeliveries.length}`);
-    
-    // Sort pickups by delivery_time_start ONLY (maintain time window order)
-    const sortedPickups = [...pickups].map((stop, idx) => ({ ...stop, originalIdx: stops.indexOf(stop) }));
-    sortedPickups.sort((a, b) => {
+    // Sort by delivery_time_start (both pickups and deliveries together)
+    sortedStops.sort((a, b) => {
       const aMinutes = parseTimeToMinutes(a.delivery.delivery_time_start);
       const bMinutes = parseTimeToMinutes(b.delivery.delivery_time_start);
-      return aMinutes - bMinutes;
-    });
-    
-    console.log('📦 SORTED PICKUPS (time order - DO NOT REORDER):');
-    sortedPickups.forEach((stop, i) => {
-      console.log(`   ${i+1}. PICKUP: ${stop.delivery.delivery_notes || 'Unknown'} @ ${stop.delivery.delivery_time_start} (${stop.delivery.ampm_deliveries})`);
-    });
-    
-    // Group deliveries by their pickup (puid)
-    const deliveryGroups = new Map();
-    patientDeliveries.forEach(d => {
-      const puid = d.delivery.puid || 'no_pickup';
-      if (!deliveryGroups.has(puid)) {
-        deliveryGroups.set(puid, []);
-      }
-      deliveryGroups.get(puid).push(d);
-    });
-    
-    console.log(`📬 Delivery groups by PUID: ${deliveryGroups.size}`);
-    
-    // Build final sorted array: interleave pickups with their deliveries
-    const sortedStops = [];
-    
-    sortedPickups.forEach(pickup => {
-      // Add the pickup first
-      sortedStops.push(pickup);
-      console.log(`   ➕ Added PICKUP: ${pickup.delivery.delivery_notes}`);
       
-      // Find deliveries for this pickup (matching puid to pickup's stop_id)
-      const pickupStopId = pickup.delivery.stop_id;
-      const associatedDeliveries = deliveryGroups.get(pickupStopId) || [];
-      
-      if (associatedDeliveries.length > 0) {
-        console.log(`   📬 Found ${associatedDeliveries.length} deliveries for this pickup`);
-        
-        // Sort deliveries by distance from pickup location (closest first)
-        const pickupLat = pickup.lat;
-        const pickupLng = pickup.lng;
-        
-        associatedDeliveries.sort((a, b) => {
-          const distA = calculateCrowFliesDistance(pickupLat, pickupLng, a.lat, a.lng);
-          const distB = calculateCrowFliesDistance(pickupLat, pickupLng, b.lat, b.lng);
-          return distA - distB;
-        });
-        
-        // Add deliveries in distance order
-        associatedDeliveries.forEach((delivery, idx) => {
-          const deliveryWithIdx = {
-            ...delivery,
-            originalIdx: stops.indexOf(delivery)
-          };
-          sortedStops.push(deliveryWithIdx);
-          console.log(`      ${idx+1}. ${delivery.delivery.patient_name} (${calculateCrowFliesDistance(pickupLat, pickupLng, delivery.lat, delivery.lng).toFixed(1)}km from pickup)`);
-        });
+      // Different times - sort by time
+      if (aMinutes !== bMinutes) {
+        return aMinutes - bMinutes;
       }
+      
+      // SAME time - pickups before deliveries
+      const aIsPickup = !a.delivery.patient_id;
+      const bIsPickup = !b.delivery.patient_id;
+      if (aIsPickup && !bIsPickup) return -1;
+      if (!aIsPickup && bIsPickup) return 1;
+      
+      // SAME time and same type - optimize by distance from previous stop
+      // For now, keep original order (will be optimized by Google in groups)
+      return 0;
     });
     
-    // Add any orphaned deliveries (no matching pickup) at the end
-    const allPuids = new Set(sortedPickups.map(p => p.delivery.stop_id));
-    const orphanedDeliveries = patientDeliveries.filter(d => 
-      !allPuids.has(d.delivery.puid) && d.delivery.puid !== 'no_pickup'
-    );
+    console.log('📋 SORTED STOPS by delivery_time_start:');
+    sortedStops.forEach((stop, i) => {
+      const isPickup = !stop.delivery.patient_id;
+      const timeStr = stop.delivery.delivery_time_start;
+      const parsedMinutes = parseTimeToMinutes(timeStr);
+      console.log(`   ${i+1}. ${isPickup ? '📦 PICKUP' : '📬 DELIVERY'}: ${stop.delivery.patient_name || stop.delivery.delivery_notes || 'Unknown'} @ ${timeStr} (${parsedMinutes} min)`);
+    });
     
-    if (orphanedDeliveries.length > 0) {
-      console.log(`⚠️ Found ${orphanedDeliveries.length} orphaned deliveries - adding at end`);
-      orphanedDeliveries.forEach(d => {
-        sortedStops.push({ ...d, originalIdx: stops.indexOf(d) });
-      });
-    }
-    
-    console.log(`✅ Final interleaved order: ${sortedStops.length} stops (pickups in time order, deliveries by distance from pickup)`);
+    console.log(`✅ All stops sorted by time: ${sortedStops.length}`);
 
     if (stops.length === 0) {
       return Response.json({ 
