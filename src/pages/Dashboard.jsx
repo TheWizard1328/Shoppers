@@ -2105,12 +2105,17 @@ function Dashboard() {
           [driverLocation.latitude, driverLocation.longitude],
           [nextStopCoordinates.lat, nextStopCoordinates.lon]];
 
+          // CRITICAL: Increase bottom padding significantly for Phase 2
+          const phase2Padding = getMapPadding(false, false);
+          phase2Padding.paddingBottomRight = [
+            phase2Padding.paddingBottomRight[0],
+            phase2Padding.paddingBottomRight[1] + 80 // Add 80px extra bottom padding
+          ];
 
-          const padding = getMapPadding(false, false);
           setShouldFitBounds({
             bounds,
             options: {
-              ...padding,
+              ...phase2Padding,
               maxZoom: 17.5,
               animate: true
             }
@@ -2119,11 +2124,16 @@ function Dashboard() {
           setMapZoom(null);
         } else {
           // If no next stop, just center on driver with padding
-          const padding = getMapPadding(false, false);
+          const phase2Padding = getMapPadding(false, false);
+          phase2Padding.paddingBottomRight = [
+            phase2Padding.paddingBottomRight[0],
+            phase2Padding.paddingBottomRight[1] + 80
+          ];
+          
           setShouldFitBounds({
             bounds: [[driverLocation.latitude, driverLocation.longitude]],
             options: {
-              ...padding,
+              ...phase2Padding,
               maxZoom: 15,
               animate: true
             }
@@ -2141,12 +2151,17 @@ function Dashboard() {
           return;
         }
 
-        // Use fitBounds with driver location to apply bottom padding
-        const padding = getMapPadding(false, false);
+        // CRITICAL: Increase bottom padding significantly for Phase 3
+        const phase3Padding = getMapPadding(false, false);
+        phase3Padding.paddingBottomRight = [
+          phase3Padding.paddingBottomRight[0],
+          phase3Padding.paddingBottomRight[1] + 80 // Add 80px extra bottom padding
+        ];
+
         setShouldFitBounds({
           bounds: [[driverLocation.latitude, driverLocation.longitude]],
           options: {
-            ...padding,
+            ...phase3Padding,
             maxZoom: 15,
             animate: true
           }

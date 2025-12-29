@@ -24,9 +24,13 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         return false;
       }
       
-      // CRITICAL: On mobile, don't show self marker (blue GPS dot shows instead)
-      // The _isSelf flag is set by driverLocationPoller
-      if (isMobile && user._isSelf) {
+      // CRITICAL: ALWAYS block self marker on mobile - blue GPS dot shows instead
+      // Check both _isSelf flag and direct ID comparison for redundancy
+      const currentUserId = currentUser?.id;
+      const userId = user.id || user.user_id;
+      const isSelf = user._isSelf || userId === currentUserId;
+      
+      if (isMobile && isSelf) {
         return false;
       }
       
