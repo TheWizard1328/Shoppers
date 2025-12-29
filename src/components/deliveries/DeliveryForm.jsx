@@ -4143,13 +4143,14 @@ export default function DeliveryForm({
                               <div className="flex items-center gap-1">
                                 <div className="truncate flex-1 min-w-0" style={{ color: 'var(--text-slate-500)' }}>{staged.delivery_address}</div>
                                 <div className="flex items-center gap-1 flex-shrink-0">
-                                  {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed) &&
-                                    <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold">
+                                  {(staged.cod_total_amount_required > 0 || staged.first_delivery || staged.oversized || staged.fridge_item || staged.signature_needed || staged.delivery_notes) &&
+                                    <Badge className="bg-yellow-400 text-black text-[10px] px-1.5 py-0 h-4 font-bold flex items-center gap-0.5">
                                       {staged.cod_total_amount_required > 0 && '$'}
                                       {staged.first_delivery && ' N'}
                                       {staged.oversized && ' O'}
                                       {staged.fridge_item && ' F'}
                                       {staged.signature_needed && ' S'}
+                                      {staged.delivery_notes && <PinIcon className="w-2.5 h-2.5" />}
                                     </Badge>
                                   }
                                   {(staged.call_upon_arrival || staged.ring_bell || staged.dont_ring_bell || staged.mailbox_ok) &&
