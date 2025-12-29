@@ -1547,10 +1547,12 @@ export default function DeliveryMap({
         return; // Skip drivers without home coordinates
       }
 
-      // Determine if this home marker should be visible to current user
+      // CRITICAL: ALWAYS show home marker for the current driver (regardless of shared location)
+      // Home marker and shared location marker are INDEPENDENT
       const shouldRenderHome =
         isAppOwner(currentUser) || // App owner sees all home markers
-        (isCurrentUserDriver && driver.id === currentUser.id); // Driver sees only their own
+        (isCurrentUserDriver && driver.id === currentUser.id); // Driver ALWAYS sees their own home
+      
       const driverName = driver.user_name || driver.full_name || 'Unknown Driver';
 
       if (shouldRenderHome) {
