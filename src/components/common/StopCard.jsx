@@ -15,7 +15,7 @@ import {
   SelectValue } from
 "@/components/ui/select";
 import { Phone, MapPin, Edit, Trash2, StickyNote, RotateCcw, MoreVertical, User, CheckCircle, Clock, Package, XCircle, Info, FileText, Save, X, Plus, Undo2, Loader2, Navigation, GripVertical, Bell, BellOff, Mailbox } from "lucide-react";
-import { CombinedSpecialBadges, hasAnySpecialBadges } from '../utils/SpecialSymbolsBadges';
+import SpecialSymbolsBadges, { hasSpecialSymbols } from '../utils/SpecialSymbolsBadges';
 import { getStoreColor, hexToRgba, getContrastColor } from "../utils/colorGenerator";
 import { format, isBefore, startOfDay, addDays } from "date-fns";
 import { getDriverDisplayName } from '../utils/driverUtils';
@@ -755,15 +755,13 @@ export default function StopCard({
                 </Badge>
               }
 
-              {hasAnySpecialBadges(delivery, patient, isPickup) && (
-                <CombinedSpecialBadges
-                  delivery={delivery}
-                  patient={patient}
-                  isPickup={isPickup}
-                  size="md"
-                  className="mt-1"
-                />
-              )}
+              <SpecialSymbolsBadges
+                delivery={delivery}
+                patient={patient}
+                isPickup={isPickup}
+                size="md"
+                className="mt-1"
+              />
             </div>
 
             <div className="flex-1 min-w-0">
@@ -1658,7 +1656,7 @@ export default function StopCard({
                       const hasFridge = projectedDelivery.fridge_item === true;
                       const hasSignature = projectedDelivery.signature_needed === true;
 
-                      const hasSpecialSymbols = hasAnySpecialBadges(projectedDelivery, projPatient, false);
+                      const hasSymbols = hasSpecialSymbols(projectedDelivery, projPatient, false);
 
                       return (
                         <div
@@ -1678,14 +1676,12 @@ export default function StopCard({
                                 {projectedDelivery.patient_name || 'Unknown Patient'}
                               </span>
                               <div className="flex items-center gap-1 flex-shrink-0">
-                                {hasSpecialSymbols && (
-                                  <CombinedSpecialBadges
-                                    delivery={projectedDelivery}
-                                    patient={projPatient}
-                                    isPickup={false}
-                                    size="sm"
-                                  />
-                                )}
+                                <SpecialSymbolsBadges
+                                  delivery={projectedDelivery}
+                                  patient={projPatient}
+                                  isPickup={false}
+                                  size="sm"
+                                />
                                 <span className="text-xs font-semibold" style={{ color: 'var(--text-slate-600)' }}>
                                   TR#{projectedDelivery.tracking_number || '??'}
                                 </span>
