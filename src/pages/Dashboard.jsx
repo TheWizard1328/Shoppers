@@ -5539,13 +5539,27 @@ function Dashboard() {
       // STEP 4: Update UI immediately (before optimization)
       console.log('🖥️ [START] Step 4: Updating UI immediately...');
       invalidateDeliveriesForDate(deliveryDate);
-      await forceRefreshDriverDeliveries(driverId, deliveryDate);
+      const refreshedDeliveries = await base44.entities.Delivery.filter({
+        driver_id: driverId,
+        delivery_date: deliveryDate
+      });
+      
+      // CRITICAL: Find which delivery is NOW marked as next (should be the one we just started)
+      const newNextDelivery = refreshedDeliveries.find(d => d.isNextDelivery === true);
+      const newNextDeliveryId = newNextDelivery?.id || deliveryId; // Fallback to original if not found
+      
+      // Update context immediately
+      if (updateDeliveriesLocally) {
+        const otherDeliveries = deliveries.filter(d => d && d.delivery_date !== deliveryDate);
+        const mergedDeliveries = [...otherDeliveries, ...refreshedDeliveries];
+        updateDeliveriesLocally(mergedDeliveries, true);
+      }
       
       // CRITICAL: Dispatch event to force map markers to re-render immediately
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', { 
         detail: { driverId, deliveryDate, triggeredBy: 'startDelivery' } 
       }));
-      console.log('   ✅ UI and map markers updated with new isNextDelivery and stop_order');
+      console.log(`   ✅ UI updated - new next delivery is: ${newNextDeliveryId}`);
 
       // STEP 5: Clear and recalculate blue polyline
       console.log('🔵 [START] Step 5: Updating blue polyline...');
@@ -5645,15 +5659,17 @@ function Dashboard() {
         detail: { driverId: driverId, deliveryDate: deliveryDate, triggeredBy: 'startDeliveryFinalRefresh' } 
       }));
 
-      // STEP 10: Scroll to the started delivery card
-      console.log('📍 [START] Step 10: Scrolling to started delivery card...');
+      // STEP 10: Scroll to the NEW next delivery card (not the original one clicked)
+      console.log('📍 [START] Step 10: Scrolling to NEW next delivery card...');
       setTimeout(() => {
-        const cardElement = document.getElementById(`stop-card-${deliveryId}`);
+        const cardElement = document.getElementById(`stop-card-${newNextDeliveryId}`);
         if (cardElement) {
           cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-          console.log('   ✅ Scrolled to card');
+          console.log(`   ✅ Scrolled to NEW next card: ${newNextDeliveryId}`);
+        } else {
+          console.warn(`   ⚠️ Card not found for new next delivery: ${newNextDeliveryId}`);
         }
-      }, 300);
+      }, 500);
 
       console.log('═══════════════════════════════════════════════════');
       console.log('✅ [START] ========== START DELIVERY COMPLETE ==========');
