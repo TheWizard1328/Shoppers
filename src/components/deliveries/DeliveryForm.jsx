@@ -1627,62 +1627,55 @@ export default function DeliveryForm({
       return;
     }
 
-    // CRITICAL: If only pending deletes (no staged items), pause smart refresh, sync, update UI, and close form
+    // CRITICAL: If only pending deletes (no staged items), close form FIRST then refresh
     if (stagedDeliveries.length === 0 && hasPendingDeletes) {
       console.log('[AddToRoute] 🗑️ Processing pending deletes (Done button clicked)...');
       
-      try {
-        const { invalidate, invalidateDeliveriesForDate } = await import('../utils/dataManager');
-        const { forceRefreshDriverDeliveries } = await import('../utils/AppDataContext');
-        
-        // CRITICAL: Invalidate cache completely
-        invalidate('Delivery');
-        invalidateDeliveriesForDate(formData.delivery_date);
-        
-        console.log('[AddToRoute] 🔄 Forcing backend refresh for driver/date after deletions...');
-        
-        // CRITICAL: Force backend refresh to ensure deletions are reflected
-        if (formData.driver_id && formData.delivery_date) {
-          try {
+      // Clear state and close form IMMEDIATELY
+      setStagedDeliveries([]);
+      setProjectedDeliveries([]);
+      setHasPendingDeletes(false);
+      setHasChanges(false);
+      hasLoadedPending.current = false;
+      predictionsStopped.current = false;
+      setIsLoadingPredictions(true);
+      onCancel();
+      
+      // Background refresh (non-blocking)
+      setTimeout(async () => {
+        try {
+          const { invalidate, invalidateDeliveriesForDate } = await import('../utils/dataManager');
+          invalidate('Delivery');
+          invalidateDeliveriesForDate(formData.delivery_date);
+          
+          if (formData.driver_id && formData.delivery_date) {
+            console.log('[AddToRoute] 🔄 Background: Forcing backend refresh after deletions...');
             const { base44 } = await import('@/api/base44Client');
             const freshDeliveries = await base44.entities.Delivery.filter({
               driver_id: formData.driver_id,
               delivery_date: formData.delivery_date
             });
-            console.log(`✅ [AddToRoute] Backend refresh complete: ${freshDeliveries.length} deliveries for ${formData.driver_id} on ${formData.delivery_date}`);
-          } catch (error) {
-            console.warn('⚠️ [AddToRoute] Backend refresh failed, relying on mutation sync:', error.message);
+            console.log(`✅ [AddToRoute] Background: ${freshDeliveries.length} deliveries`);
           }
+          
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: { 
+              deliveryDate: formData.delivery_date, 
+              driverId: formData.driver_id,
+              triggeredBy: 'doneButtonDeletes' 
+            }
+          }));
+          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+          
+          const { fabControlEvents } = await import('../utils/fabControlEvents');
+          fabControlEvents.notifyDataReady();
+          
+          console.log('[AddToRoute] ✅ Background: UI refreshed and FAB activated');
+        } catch (error) {
+          console.error('[AddToRoute] ❌ Background refresh failed:', error);
         }
-        
-        // CRITICAL: Force UI refresh for current user
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { 
-            deliveryDate: formData.delivery_date, 
-            driverId: formData.driver_id,
-            triggeredBy: 'doneButtonDeletes' 
-          }
-        }));
-        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-        
-        // Wait for mutations to propagate to UI
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        
-        // CRITICAL: Notify FAB system that data is ready (activates map cycle FAB)
-        const { fabControlEvents } = await import('../utils/fabControlEvents');
-        fabControlEvents.notifyDataReady();
-        
-        console.log('[AddToRoute] ✅ Deletions synced, backend refreshed, UI updated, and FAB activated');
-      } finally {
-        setStagedDeliveries([]);
-        setProjectedDeliveries([]);
-        setHasPendingDeletes(false);
-        setHasChanges(false);
-        hasLoadedPending.current = false;
-        predictionsStopped.current = false; // Reset for next open
-        setIsLoadingPredictions(true);
-        onCancel();
-      }
+      }, 100);
+      
       return;
     }
 
@@ -2011,47 +2004,9 @@ export default function DeliveryForm({
 
       // CRITICAL: Always trigger data refresh if only updating existing deliveries
       if (existingDeliveries.length > 0 && newDeliveries.length === 0) {
-        console.log('[AddToRoute] 🔄 Triggering data refresh for existing delivery updates...');
-        const { invalidate, invalidateDeliveriesForDate } = await import('../utils/dataManager');
-        const { useAppData } = await import('../utils/AppDataContext');
+        console.log('[AddToRoute] 🔄 Updating existing deliveries only...');
         
-        invalidate('Delivery');
-        invalidateDeliveriesForDate(formData.delivery_date);
-        
-        // CRITICAL: Force backend refresh to ensure UI has latest data
-        if (formData.driver_id && formData.delivery_date) {
-          console.log('[AddToRoute] 🔄 Forcing backend refresh...');
-          try {
-            const { base44 } = await import('@/api/base44Client');
-            const freshDeliveries = await base44.entities.Delivery.filter({
-              driver_id: formData.driver_id,
-              delivery_date: formData.delivery_date
-            });
-            console.log(`✅ [AddToRoute] Backend refresh: ${freshDeliveries.length} deliveries`);
-          } catch (error) {
-            console.warn('⚠️ [AddToRoute] Backend refresh failed:', error.message);
-          }
-        }
-        
-        // CRITICAL: Force UI refresh for current user
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { 
-            deliveryDate: formData.delivery_date, 
-            driverId: formData.driver_id,
-            triggeredBy: 'doneButtonUpdates' 
-          }
-        }));
-        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-        
-        // Wait for mutations to propagate and UI to update
-        await new Promise((resolve) => setTimeout(resolve, 800));
-
-        // Notify FAB system that data is ready
-        const { fabControlEvents } = await import('../utils/fabControlEvents');
-        fabControlEvents.notifyDataReady();
-        console.log('[AddToRoute] ✅ FAB activated after updating existing deliveries');
-
-        // Clear staged deliveries and close form
+        // Clear staged deliveries and close form FIRST
         console.log('[AddToRoute] 🧹 Clearing staged deliveries and closing form...');
         setStagedDeliveries([]);
         setProjectedDeliveries([]);
@@ -2062,56 +2017,94 @@ export default function DeliveryForm({
         setIsLoadingPredictions(true);
         console.log('[AddToRoute] ✅ Staged deliveries cleared');
 
-        onCancel(); // Close form after successful update
+        onCancel(); // Close form IMMEDIATELY
+
+        // Background refresh (non-blocking)
+        setTimeout(async () => {
+          try {
+            const { invalidate, invalidateDeliveriesForDate } = await import('../utils/dataManager');
+            invalidate('Delivery');
+            invalidateDeliveriesForDate(formData.delivery_date);
+            
+            if (formData.driver_id && formData.delivery_date) {
+              console.log('[AddToRoute] 🔄 Background: Forcing backend refresh...');
+              const { base44 } = await import('@/api/base44Client');
+              const freshDeliveries = await base44.entities.Delivery.filter({
+                driver_id: formData.driver_id,
+                delivery_date: formData.delivery_date
+              });
+              console.log(`✅ [AddToRoute] Background: ${freshDeliveries.length} deliveries`);
+            }
+            
+            window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+              detail: { 
+                deliveryDate: formData.delivery_date, 
+                driverId: formData.driver_id,
+                triggeredBy: 'doneButtonUpdates' 
+              }
+            }));
+            window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+
+            const { fabControlEvents } = await import('../utils/fabControlEvents');
+            fabControlEvents.notifyDataReady();
+            console.log('[AddToRoute] ✅ Background: UI refreshed and FAB activated');
+          } catch (error) {
+            console.error('[AddToRoute] ❌ Background refresh failed:', error);
+          }
+        }, 100);
+
         return; // CRITICAL: Exit early to prevent duplicate processing
       }
 
-      // CRITICAL: Force backend refresh after creates
-      if (formData.driver_id && formData.delivery_date) {
-        console.log('[AddToRoute] 🔄 Forcing backend refresh after creates...');
-        try {
-          const { base44 } = await import('@/api/base44Client');
-          const freshDeliveries = await base44.entities.Delivery.filter({
-            driver_id: formData.driver_id,
-            delivery_date: formData.delivery_date
-          });
-          console.log(`✅ [AddToRoute] Backend refresh: ${freshDeliveries.length} deliveries`);
-        } catch (error) {
-          console.warn('⚠️ [AddToRoute] Backend refresh failed:', error.message);
-        }
-      }
-
-      // Wait for mutations to propagate
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      // CRITICAL: Force UI refresh for current user after new deliveries
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-        detail: { 
-          deliveryDate: formData.delivery_date, 
-          driverId: formData.driver_id,
-          triggeredBy: 'doneButtonCreates' 
-        }
-      }));
-      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-
-      // CRITICAL: Notify FAB system that data is ready (activates map cycle FAB)
-      const { fabControlEvents } = await import('../utils/fabControlEvents');
-      fabControlEvents.notifyDataReady();
-      console.log('[AddToRoute] ✅ FAB activated after save');
-
-      // CRITICAL: Clear staged deliveries AFTER successful save
-      // This prevents duplicate deliveries from being created
+      // CRITICAL: Clear staged state FIRST to unblock UI immediately
       console.log('[AddToRoute] 🧹 Clearing staged deliveries from state...');
       setStagedDeliveries([]);
       setProjectedDeliveries([]);
-      setHasPendingDeletes(false); // Reset pending deletes flag
-      setHasChanges(false); // Reset changes flag
-      hasLoadedPending.current = false; // Reset flag to allow reload
-      predictionsStopped.current = false; // Reset for next open
-      setIsLoadingPredictions(true); // Keep predictions blocked permanently when closing
+      setHasPendingDeletes(false);
+      setHasChanges(false);
+      hasLoadedPending.current = false;
+      predictionsStopped.current = false;
+      setIsLoadingPredictions(true);
       console.log('[AddToRoute] ✅ Staged deliveries cleared');
 
-      onCancel(); // Always close after successful batch save
+      // Close form IMMEDIATELY to unblock UI
+      onCancel();
+
+      // CRITICAL: Force backend refresh and UI update AFTER form closes (non-blocking)
+      setTimeout(async () => {
+        try {
+          if (formData.driver_id && formData.delivery_date) {
+            console.log('[AddToRoute] 🔄 Background: Forcing backend refresh...');
+            const { base44 } = await import('@/api/base44Client');
+            const freshDeliveries = await base44.entities.Delivery.filter({
+              driver_id: formData.driver_id,
+              delivery_date: formData.delivery_date
+            });
+            console.log(`✅ [AddToRoute] Background: ${freshDeliveries.length} deliveries refreshed`);
+          }
+
+          const { invalidate, invalidateDeliveriesForDate } = await import('../utils/dataManager');
+          invalidate('Delivery');
+          invalidateDeliveriesForDate(formData.delivery_date);
+
+          // Force UI refresh
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: { 
+              deliveryDate: formData.delivery_date, 
+              driverId: formData.driver_id,
+              triggeredBy: 'doneButtonCreates' 
+            }
+          }));
+          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+
+          // Activate FAB
+          const { fabControlEvents } = await import('../utils/fabControlEvents');
+          fabControlEvents.notifyDataReady();
+          console.log('[AddToRoute] ✅ Background: UI refreshed and FAB activated');
+        } catch (error) {
+          console.error('[AddToRoute] ❌ Background refresh failed:', error);
+        }
+      }, 100);
     } catch (err) {
       console.error('[AddToRoute] ❌ Batch save error:', err);
       setError(`Failed to save: ${err.message || 'Unknown error'}`);
@@ -4482,8 +4475,18 @@ export default function DeliveryForm({
                   const { invalidate } = await import('../utils/dataManager');
                   invalidate('Delivery');
 
-                  // Remove from staged list completely
-                  setStagedDeliveries((prev) => prev.filter((item) => item.id !== staged.id && item._tempId !== staged._tempId));
+                  // Remove from staged list and update projected list ATOMICALLY
+                  setStagedDeliveries((prev) => {
+                    const filtered = prev.filter((item) => item.id !== staged.id && item._tempId !== staged._tempId);
+                    
+                    // CRITICAL: Update projected list based on remaining staged deliveries
+                    const remainingStagedIds = new Set(filtered.map(d => d.patient_id).filter(Boolean));
+                    const filteredPredictions = fullPredictionListRef.current.filter(pred => !remainingStagedIds.has(pred.patient_id));
+                    setProjectedDeliveries(filteredPredictions);
+                    console.log(`✅ [DeliveryForm] Restored ${filteredPredictions.length} projections after deletion`);
+                    
+                    return filtered;
+                  });
 
                   // Mark that we have changes to activate Done button
                   setHasChanges(true);
@@ -4496,16 +4499,6 @@ export default function DeliveryForm({
                     setEditingStagedId(null);
                     handleClearForm();
                   }
-
-                  // CRITICAL: Restore to projected list by filtering full list
-                  const remainingStagedIds = new Set(
-                    stagedDeliveries
-                      .filter((item) => item.id !== staged.id && item._tempId !== staged._tempId)
-                      .map(d => d.patient_id)
-                      .filter(Boolean)
-                  );
-                  const filteredPredictions = fullPredictionListRef.current.filter(pred => !remainingStagedIds.has(pred.patient_id));
-                  setProjectedDeliveries(filteredPredictions);
 
                   setDeleteConfirmation({ show: false, staged: null });
                 } catch (error) {
