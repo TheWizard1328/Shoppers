@@ -1632,13 +1632,18 @@ export default function DeliveryForm({
       console.log('[AddToRoute] 🗑️ Processing pending deletes...');
       
       try {
-        // Wait for mutation notifications to propagate to UI
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        const { invalidate, invalidateDeliveriesForDate } = await import('../utils/dataManager');
+        invalidate('Delivery');
+        invalidateDeliveriesForDate(formData.delivery_date);
         
-        // Trigger full data reload in layout and UI update
-        if (window.dispatchEvent) {
-          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-        }
+        // CRITICAL: Force UI refresh for current user
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: { deliveryDate: formData.delivery_date, triggeredBy: 'doneButtonDeletes' }
+        }));
+        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+        
+        // Wait for mutations to propagate to UI
+        await new Promise((resolve) => setTimeout(resolve, 500));
         
         // CRITICAL: Notify FAB system that data is ready (activates map cycle FAB)
         const { fabControlEvents } = await import('../utils/fabControlEvents');
@@ -1984,11 +1989,17 @@ export default function DeliveryForm({
       // CRITICAL: Always trigger data refresh if only updating existing deliveries
       if (existingDeliveries.length > 0 && newDeliveries.length === 0) {
         console.log('[AddToRoute] 🔄 Triggering data refresh for existing delivery updates...');
-        const { invalidate } = await import('../utils/dataManager');
+        const { invalidate, invalidateDeliveriesForDate } = await import('../utils/dataManager');
         invalidate('Delivery');
+        invalidateDeliveriesForDate(formData.delivery_date);
         
-        // Wait for mutations to propagate
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        // CRITICAL: Force UI refresh for current user
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: { deliveryDate: formData.delivery_date, triggeredBy: 'doneButtonUpdates' }
+        }));
+        
+        // Wait for mutations to propagate and UI to update
+        await new Promise((resolve) => setTimeout(resolve, 500));
 
         // Notify FAB system that data is ready
         const { fabControlEvents } = await import('../utils/fabControlEvents');
@@ -2012,6 +2023,11 @@ export default function DeliveryForm({
 
       // Wait for mutations to propagate
       await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // CRITICAL: Force UI refresh for current user after new deliveries
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: { deliveryDate: formData.delivery_date, triggeredBy: 'doneButtonCreates' }
+      }));
 
       // CRITICAL: Notify FAB system that data is ready (activates map cycle FAB)
       const { fabControlEvents } = await import('../utils/fabControlEvents');
