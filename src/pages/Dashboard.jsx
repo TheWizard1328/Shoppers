@@ -443,6 +443,40 @@ function Dashboard() {
     }
   }, [currentUser?.id, refreshUser]);
 
+  // CRITICAL: Auto-start location tracking for mobile drivers (independent of toggle visibility)
+  useEffect(() => {
+    if (!isMobile || !isDriver || !currentUser?.id) return;
+
+    const initTracking = async () => {
+      // Set driver status in tracker
+      const driverStatus = currentUser.driver_status || 'off_duty';
+      locationTracker.setDriverStatus(driverStatus);
+      console.log(`📍 [Dashboard] Set locationTracker status to: ${driverStatus}`);
+
+      // CRITICAL: Always start tracking on mobile (even when off_duty/on_break)
+      // Tracker will handle when to update location_updated_at based on status
+      if (!locationTracker.isTracking) {
+        try {
+          const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
+          const appUser = appUsers?.[0];
+          
+          if (appUser) {
+            console.log('🚀 [Dashboard] Auto-starting location tracking for mobile driver');
+            await locationTracker.startTracking({
+              ...currentUser,
+              appUserId: appUser.id
+            });
+            console.log('✅ [Dashboard] Location tracking started successfully');
+          }
+        } catch (error) {
+          console.warn('⚠️ [Dashboard] Failed to auto-start tracking:', error.message);
+        }
+      }
+    };
+
+    initTracking();
+  }, [currentUser?.id, isMobile, isDriver]);
+
   // Load user settings on mount - PHASE 1: Load backend values FIRST
   useEffect(() => {
     if (!currentUser?.id || userSettingsLoaded) return;
