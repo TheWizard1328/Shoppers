@@ -13,10 +13,34 @@ import { smartRefreshManager } from '../utils/smartRefreshManager';
  * Now inline and clickable to trigger manual refresh
  */
 export default function SmartRefreshIndicator({ inline = false, onManualRefresh }) {
-  const { smartRefreshActivity, isEntityUpdating, refreshData } = useAppData();
-  const { currentUser } = useUser();
+  // CRITICAL: Handle missing context gracefully - these hooks may be called outside providers
+  let smartRefreshActivity = { active: false, updatedEntities: [] };
+  let isEntityUpdating = false;
+  let refreshData = null;
+  let currentUser = null;
+  
+  try {
+    const appData = useAppData();
+    if (appData) {
+      smartRefreshActivity = appData.smartRefreshActivity || { active: false, updatedEntities: [] };
+      isEntityUpdating = appData.isEntityUpdating || false;
+      refreshData = appData.refreshData;
+    }
+  } catch (e) {
+    // Context not available, use defaults
+  }
+  
+  try {
+    const userData = useUser();
+    if (userData) {
+      currentUser = userData.currentUser;
+    }
+  } catch (e) {
+    // Context not available, use defaults
+  }
+  
   const [recentUpdates, setRecentUpdates] = useState([]);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [currentDisplayIndex, setCurrentDisplayIndex] = useState(0);
   const [hasError, setHasError] = useState(false);
