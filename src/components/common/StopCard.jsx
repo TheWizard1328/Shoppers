@@ -1522,6 +1522,12 @@ export default function StopCard({
                             }, { skipSmartRefresh: true });
                             console.log(`    ✅ ${pendingDelivery.patient_name} → in_transit, delivery_time_start: ${deliveryTimeStart}`);
                           }
+                          
+                          // CRITICAL: Dispatch deliveriesUpdated event IMMEDIATELY after status changes
+                          // This ensures map route lines update before waiting for optimization
+                          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                            detail: { triggeredBy: 'acceptAll', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                          }));
 
                           // Step 4: Sort by delivery_time_start and group by store for staged optimization
                           console.log('🟢 [Assign All] Step 4: Sorting by delivery_time_start and optimizing in stages...');
