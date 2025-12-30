@@ -74,6 +74,7 @@ import ETANotification from '../components/dashboard/ETANotification';
 import RealTimeRouteOptimizer from '../components/dashboard/RealTimeRouteOptimizer';
 import QuickRouteAdjustments from '../components/dashboard/QuickRouteAdjustments';
 import { driverActivityMonitor } from '@/components/utils/driverActivityMonitor';
+import SmartPrioritizationPanel from '../components/dashboard/SmartPrioritizationPanel';
 
 // FIXED: StatBadge - simple component without hooks to avoid violations
 const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount }) => {
@@ -343,6 +344,7 @@ function Dashboard() {
     const saved = localStorage.getItem('rxdeliver_show_all_driver_markers');
     return saved !== null ? saved === 'true' : false;
   });
+  const [showSmartPrioritization, setShowSmartPrioritization] = useState(false);
 
   // Track previous map state for restoring when card is collapsed
   const [previousMapState, setPreviousMapState] = useState(null);
@@ -6420,16 +6422,30 @@ function Dashboard() {
                   {/*isMobile && */}
                   {isDriver && selectedDriverId === currentUser?.id &&
                   <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowQuickAdjustments(true)}
-                    className="h-8 gap-1.5 px-2 flex-shrink-0"
-                    title="Quick route adjustments"
-                    style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                      {/*<ArrowUp className="w-3 h-3" />
-                      <ArrowDown className="w-3 h-3" />*/}
-                      <span className="text-xs">Adjust</span>
-                    </Button>
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowQuickAdjustments(true)}
+                  className="h-8 gap-1.5 px-2 flex-shrink-0"
+                  title="Quick route adjustments"
+                  style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                    {/*<ArrowUp className="w-3 h-3" />
+                    <ArrowDown className="w-3 h-3" />*/}
+                    <span className="text-xs">Adjust</span>
+                  </Button>
+                  }
+
+                  {/* AI Smart Prioritization - Driver Only */}
+                  {isDriver && selectedDriverId === currentUser?.id &&
+                  <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowSmartPrioritization(true)}
+                  className="h-8 gap-1.5 px-2 flex-shrink-0"
+                  title="AI delivery prioritization"
+                  style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                    <Sparkles className="w-3 h-3" />
+                    <span className="text-xs">AI</span>
+                  </Button>
                   }
 
                     <Button
@@ -7007,6 +7023,36 @@ function Dashboard() {
             onAddDelay={handleAddDelay} />
 
           }
+          </DialogContent>
+        </Dialog>
+      }
+      
+      {/* AI Smart Prioritization Dialog */}
+      {isDriver &&
+      <Dialog open={showSmartPrioritization} onOpenChange={setShowSmartPrioritization}>
+          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto z-[10001]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-purple-600" />
+                AI Route Intelligence
+              </DialogTitle>
+            </DialogHeader>
+            
+            <SmartPrioritizationPanel
+              driverId={currentUser?.id}
+              deliveryDate={selectedDateStr}
+              currentUser={currentUser}
+              onApplySuggestion={async (suggestion) => {
+                if (suggestion.action?.type === 'move_to_next') {
+                  // Move the urgent delivery to next position
+                  const deliveryToMove = deliveriesWithStopOrder.find(d => d?.id === suggestion.deliveryId);
+                  if (deliveryToMove) {
+                    await handleStartDelivery(deliveryToMove.id);
+                    setShowSmartPrioritization(false);
+                  }
+                }
+              }}
+            />
           </DialogContent>
         </Dialog>
       }
