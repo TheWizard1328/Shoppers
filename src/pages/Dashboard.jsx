@@ -1380,8 +1380,7 @@ function Dashboard() {
               [newLocation.latitude, newLocation.longitude],
               [nextStopCoordinates.lat, nextStopCoordinates.lon]];
 
-
-              const padding = getMapPadding(false, false);
+              const padding = getMapPadding(false, bounds.length > 0);
               setShouldFitBounds({
                 bounds,
                 options: {
