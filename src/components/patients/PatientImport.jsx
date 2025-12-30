@@ -822,31 +822,27 @@ export default function PatientImport({ onImportComplete, onImportStart, current
         }
 
         try {
-          console.log(`PatientImport: Writing ${patientsForBulkCreate.length} new patients to offline DB...`);
+          console.log(`PatientImport: Creating ${patientsForBulkCreate.length} new patients...`);
           
-          // Generate temp IDs and save to offline DB
-          const patientsWithTempIds = patientsForBulkCreate.map(p => ({
-            ...p,
-            id: `temp_patient_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            created_date: new Date().toISOString(),
-            updated_date: new Date().toISOString(),
-            _isLocal: true
-          }));
-          
-          await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patientsWithTempIds);
-          totalCreated += patientsWithTempIds.length;
-          console.log(`PatientImport: Successfully wrote ${patientsWithTempIds.length} patients to offline DB.`);
+          // CRITICAL: Use base44.entities.Patient.bulkCreate to save directly to backend
+          // This ensures patients are saved to BOTH offline and online databases
+          const createdPatients = await base44.entities.Patient.bulkCreate(patientsForBulkCreate);
+          totalCreated += createdPatients.length;
+          console.log(`PatientImport: Successfully created ${createdPatients.length} patients in backend.`);
 
           setImportProgress((prev) => ({
             ...prev,
-            created: prev.created + patientsWithTempIds.length,
+            created: prev.created + createdPatients.length,
             current: patientsForBulkCreate.length
           }));
+          
+          // Delay between bulk operations
+          await delay(200);
         } catch (error) {
-          console.error("PatientImport: Offline bulk save failed:", error);
+          console.error("PatientImport: Bulk creation failed:", error);
           patientsForBulkCreate.forEach((patientData, index) => {
             const originalPreviewItem = previewChanges.toCreate[index];
-            const errorMsg = `Offline save failed for ${patientData.full_name} (${patientData.address}) from ${originalPreviewItem?.fileName || 'Unknown'} Row ${originalPreviewItem?.rowNumber || 0}: ${error.message}`;
+            const errorMsg = `Creation failed for ${patientData.full_name} (${patientData.address}) from ${originalPreviewItem?.fileName || 'Unknown'} Row ${originalPreviewItem?.rowNumber || 0}: ${error.message}`;
             importErrors.push(errorMsg);
 
             failedCreations.push({
@@ -915,7 +911,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
           try {
             await retryWithBackoff(async () => {
-              await Patient.update(id, patientData);
+              await base44.entities.Patient.update(id, patientData);
             });
             totalUpdated++;
             console.log(`PatientImport: Successfully updated patient ${patientData.full_name} (ID: ${id}).`);
@@ -1036,35 +1032,28 @@ export default function PatientImport({ onImportComplete, onImportStart, current
           const patientData = item.data;
 
           try {
-            console.log(`PatientImport: Retrying offline update ${i + 1}/${failedUpdates.length}: ${patientData.full_name} (ID: ${id})`);
+            console.log(`PatientImport: Retrying update ${i + 1}/${failedUpdates.length}: ${patientData.full_name} (ID: ${id})`);
             
-            const existingPatient = await offlineDB.getById(offlineDB.STORES.PATIENTS, id);
-            if (existingPatient) {
-              const updatedPatient = {
-                ...existingPatient,
-                ...patientData,
-                updated_date: new Date().toISOString()
-              };
-              await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [updatedPatient]);
-              totalUpdated++;
-              console.log(`PatientImport: Retry offline update successful for ${patientData.full_name}`);
+            // CRITICAL: Retry with backend API
+            await base44.entities.Patient.update(id, patientData);
+            totalUpdated++;
+            console.log(`PatientImport: Retry update successful for ${patientData.full_name}`);
 
-              const errorIndex = importErrors.indexOf(item.errorMsg);
-              if (errorIndex > -1) {
-                importErrors.splice(errorIndex, 1);
-              }
-
-              setImportProgress((prev) => ({
-                ...prev,
-                updated: prev.updated + 1,
-                errors: importErrors.length,
-                current: i + 1
-              }));
+            const errorIndex = importErrors.indexOf(item.errorMsg);
+            if (errorIndex > -1) {
+              importErrors.splice(errorIndex, 1);
             }
 
-            await delay(100);
+            setImportProgress((prev) => ({
+              ...prev,
+              updated: prev.updated + 1,
+              errors: importErrors.length,
+              current: i + 1
+            }));
+
+            await delay(200);
           } catch (retryError) {
-            console.error(`PatientImport: Final offline update failed for ${patientData.full_name}:`, retryError);
+            console.error(`PatientImport: Final update failed for ${patientData.full_name}:`, retryError);
             const newErrorMsg = `Final retry update failed for patient ID ${id} (${patientData.full_name}) from ${item.fileName} Row ${item.rowNumber}: ${retryError.message}`;
             const errorIndex = importErrors.indexOf(item.errorMsg);
             if (errorIndex > -1) {
@@ -1073,7 +1062,7 @@ export default function PatientImport({ onImportComplete, onImportStart, current
               importErrors.push(newErrorMsg);
             }
             setImportProgress((prev) => ({ ...prev, errors: importErrors.length, current: i + 1 }));
-            await delay(200);
+            await delay(300);
           }
         }
       }
