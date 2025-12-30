@@ -177,7 +177,7 @@ export default function SmartPrioritizationPanel({
                 <div className="space-y-4">
                   {/* Summary Stats */}
                   <div className="grid grid-cols-3 gap-2">
-                    <div className="p-2 rounded-lg text-center" style={{ background: 'var(--bg-slate-50)' }}>
+                    <div className="p-2 rounded-lg text-center" style={{ background: 'var(--bg-slate-100)' }}>
                       <div className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>
                         {analysis.summary?.totalActive || 0}
                       </div>
@@ -292,7 +292,7 @@ export default function SmartPrioritizationPanel({
                           <div 
                             key={delivery.deliveryId}
                             className={`p-2 rounded-lg border ${getUrgencyBg(delivery.urgencyScore)}`}
-                            style={{ borderColor: 'var(--border-slate-200)' }}
+                            style={{ borderColor: 'var(--border-slate-300)' }}
                           >
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2 min-w-0 flex-1">
