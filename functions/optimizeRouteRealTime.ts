@@ -221,6 +221,7 @@ Deno.serve(async (req) => {
     console.log('📦 [optimizeRouteRealTime] Parsing request body...');
     const body = await req.json();
     const { driverId, deliveryDate, startLocation, excludeDeliveryIds, currentLocalTime, deviceTime } = body;
+    console.log('🕐 [optimizeRouteRealTime] Time params received:', { currentLocalTime, deviceTime });
     const excludedIds = excludeDeliveryIds || [];
     console.log('📦 [optimizeRouteRealTime] Request params:', { driverId, deliveryDate, currentLocalTime, startLocation, deviceTime, excludeDeliveryIds: excludedIds.length });
 
