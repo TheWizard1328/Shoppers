@@ -6927,7 +6927,7 @@ function Dashboard() {
                 });
 
                 if (allCoordinates.length > 0) {
-                  const padding = getMapPadding(false, false);
+                  const padding = getMapPadding(false, deliveriesWithStopOrder.length > 0);
                   setShouldFitBounds({
                     bounds: allCoordinates,
                     options: {
