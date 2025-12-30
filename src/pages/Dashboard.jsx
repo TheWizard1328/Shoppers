@@ -2163,7 +2163,7 @@ function Dashboard() {
           setShouldFitBounds({
             bounds,
             options: {
-              ...phase2Padding,
+              ...padding,
               maxZoom: 17.5,
               animate: true
             }
