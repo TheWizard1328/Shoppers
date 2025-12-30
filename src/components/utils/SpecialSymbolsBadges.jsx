@@ -79,7 +79,7 @@ export default function SpecialSymbolsBadges({
       {hasSignature && (hasCOD || isFirstDelivery || hasOversized || hasFridge ? ' S' : 'S')}
       
       {/* Preference icons */}
-      {hasCallOnArrival && <Phone className={`${config.icon} text-black-600`} />}
+      {hasCallOnArrival && <Phone className={`${config.icon} text-blue-600`} />}
       {hasRingBell && <Bell className={`${config.icon} text-emerald-600`} />}
       {hasDontRingBell && <BellOff className={`${config.icon} text-red-600`} />}
       {hasMailboxOk && <Mailbox className={`${config.icon} text-blue-600`} />}
