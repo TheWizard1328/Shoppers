@@ -402,7 +402,7 @@ function Dashboard() {
     const stopCardsCurrHeight = stopCardsContainerRef.current?.offsetHeight || 150;
 
     const topPadding = isMobile ?
-    statsCardCurrHeight + 10 :
+    statsCardCurrHeight + 25 :
     25; // Desktop: Exclude stats card
 
     const bottomPadding = hasVisibleCards ?
@@ -1380,11 +1380,8 @@ function Dashboard() {
               [newLocation.latitude, newLocation.longitude],
               [nextStopCoordinates.lat, nextStopCoordinates.lon]];
 
-              // CRITICAL: Mark this as a programmatic move to prevent the main map effect from running
-              lastProgrammaticMapMoveRef.current = Date.now();
-              window._lastProgrammaticMapMove = Date.now();
 
-              const padding = getMapPadding(false, deliveriesWithStopOrder.length > 0);
+              const padding = getMapPadding(false, false);
               setShouldFitBounds({
                 bounds,
                 options: {
