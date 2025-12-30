@@ -1380,8 +1380,11 @@ function Dashboard() {
               [newLocation.latitude, newLocation.longitude],
               [nextStopCoordinates.lat, nextStopCoordinates.lon]];
 
+              // CRITICAL: Mark this as a programmatic move to prevent the main map effect from running
+              lastProgrammaticMapMoveRef.current = Date.now();
+              window._lastProgrammaticMapMove = Date.now();
 
-              const padding = getMapPadding(false, false);
+              const padding = getMapPadding(false, deliveriesWithStopOrder.length > 0);
               setShouldFitBounds({
                 bounds,
                 options: {
