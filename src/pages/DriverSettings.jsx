@@ -2,18 +2,21 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Truck, Search, Phone, MapPin, User, Circle, RefreshCw } from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import { Truck, Search, Phone, MapPin, User, Circle, RefreshCw, Edit } from 'lucide-react';
 import { useAppData } from '../components/utils/AppDataContext';
 import { formatPhoneNumber } from '../components/utils/phoneFormatter';
 import { getDriverDisplayName } from '../components/utils/driverUtils';
 import { sortUsers } from '../components/utils/sorting';
 import { base44 } from '@/api/base44Client';
+import DriverEditForm from '../components/drivers/DriverEditForm';
 
 export default function DriverSettings() {
-  const { users, appUsers, stores } = useAppData();
+  const { users, appUsers, stores, refreshData } = useAppData();
   const [searchQuery, setSearchQuery] = useState('');
   const [freshAppUsers, setFreshAppUsers] = useState([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [editingDriver, setEditingDriver] = useState(null);
 
   // Fetch fresh AppUser data on mount and periodically for accurate driver_status
   useEffect(() => {
@@ -87,6 +90,24 @@ export default function DriverSettings() {
     }
   };
 
+  const handleSaveDriver = async (driverId, updates) => {
+    try {
+      await base44.entities.AppUser.update(driverId, updates);
+      
+      // Refresh data
+      const freshData = await base44.entities.AppUser.list();
+      setFreshAppUsers(freshData || []);
+      
+      if (refreshData) {
+        await refreshData();
+      }
+      
+      setEditingDriver(null);
+    } catch (error) {
+      throw error;
+    }
+  };
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="mb-6">
@@ -115,10 +136,10 @@ export default function DriverSettings() {
         {filteredDrivers.length} driver{filteredDrivers.length !== 1 ? 's' : ''} found
       </div>
 
-      {/* Drivers List */}
-      <div className="space-y-3">
+      {/* Drivers List - 2 per row */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {filteredDrivers.length === 0 ? (
-          <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          <Card className="col-span-full" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <CardContent className="py-8 text-center" style={{ color: 'var(--text-slate-500)' }}>
               {searchQuery ? 'No drivers match your search' : 'No drivers found'}
             </CardContent>
@@ -168,16 +189,37 @@ export default function DriverSettings() {
                           </div>
                         )}
                         {driver.email && (
-                          <div className="flex items-center gap-1">
-                            <User className="w-3.5 h-3.5" />
-                            <span className="truncate">{driver.email}</span>
+                          <div className="flex items-center gap-1 truncate">
+                            <User className="w-3.5 h-3.5 flex-shrink-0" />
+                            <span className="truncate text-xs">{driver.email}</span>
                           </div>
                         )}
                       </div>
+                      
+                      {/* Pay rates display */}
+                      {(driver.pay_rate_per_delivery > 0 || driver.extra_km_rate > 0) && (
+                        <div className="flex gap-2 mt-1.5 text-xs" style={{ color: 'var(--text-slate-500)' }}>
+                          {driver.pay_rate_per_delivery > 0 && (
+                            <span>${driver.pay_rate_per_delivery}/delivery</span>
+                          )}
+                          {driver.extra_km_rate > 0 && (
+                            <span>${driver.extra_km_rate}/km</span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
-                    {/* Right side - will add more settings later */}
-                    <div className="flex-shrink-0">
+                    {/* Actions */}
+                    <div className="flex flex-col gap-2 items-end">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setEditingDriver(driver)}
+                        className="h-8 gap-1"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                        <span className="text-xs">Edit</span>
+                      </Button>
                       <Badge variant="outline" className="text-xs" style={{ borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-600)' }}>
                         #{driver.sort_order || '—'}
                       </Badge>
@@ -189,6 +231,17 @@ export default function DriverSettings() {
           })
         )}
       </div>
+      
+      {/* Edit Driver Form */}
+      {editingDriver && (
+        <DriverEditForm
+          driver={editingDriver}
+          onSave={async (updates) => {
+            await handleSaveDriver(editingDriver.id, updates);
+          }}
+          onCancel={() => setEditingDriver(null)}
+        />
+      )}
     </div>
   );
 }
