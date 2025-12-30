@@ -33,13 +33,13 @@ export default function SpecialSymbolsBadges({
       gap: 'gap-0.5'
     },
     md: {
-      badge: 'text-xs px-2 py-0.5 h-5',
-      icon: 'w-3 h-3',
+      badge: 'text-sm px-2 py-0.5 h-5',
+      icon: 'w-4 h-4',
       gap: 'gap-1'
     },
     lg: {
-      badge: 'text-sm px-2.5 py-1 h-6',
-      icon: 'w-4 h-4',
+      badge: 'text-md px-2.5 py-1 h-6',
+      icon: 'w-5 h-5',
       gap: 'gap-1.5'
     }
   };
@@ -49,9 +49,9 @@ export default function SpecialSymbolsBadges({
   // Special flags
   const hasCOD = (delivery.cod_total_amount_required || 0) > 0;
   const isFirstDelivery = delivery.first_delivery === true ||
-  patient && !patient.last_delivery_date ||
-  delivery.delivery_notes?.toLowerCase().includes('first delivery') ||
-  delivery.delivery_instructions?.toLowerCase().includes('first delivery');
+    (patient && !patient.last_delivery_date) ||
+    delivery.delivery_notes?.toLowerCase().includes('first delivery') ||
+    delivery.delivery_instructions?.toLowerCase().includes('first delivery');
   const hasOversized = delivery.oversized === true;
   const hasFridge = delivery.fridge_item === true;
   const hasSignature = delivery.signature_needed === true;
@@ -65,12 +65,12 @@ export default function SpecialSymbolsBadges({
 
   // Check if anything should be shown
   const hasAnyContent = hasCOD || isFirstDelivery || hasOversized || hasFridge || hasSignature ||
-  hasCallOnArrival || hasRingBell || hasDontRingBell || hasMailboxOk || hasDriverNotes;
+    hasCallOnArrival || hasRingBell || hasDontRingBell || hasMailboxOk || hasDriverNotes;
 
   if (!hasAnyContent) return null;
 
   return (
-    <Badge className="bg-yellow-400 text-black mt-1 px-2 py-0.5 text-xs font-bold rounded-[10px] border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent shadow hover:bg-primary/80 h-5 inline-flex items-center gap-1">
+    <Badge className={`bg-yellow-400 text-black ${config.badge} font-bold inline-flex items-center ${config.gap} ${className}`}>
       {/* Special flags: $ N O F S */}
       {hasCOD && '$'}
       {isFirstDelivery && (hasCOD ? ' N' : 'N')}
@@ -84,8 +84,8 @@ export default function SpecialSymbolsBadges({
       {hasDontRingBell && <BellOff className={`${config.icon} text-red-600`} />}
       {hasMailboxOk && <Mailbox className={`${config.icon} text-blue-600`} />}
       {hasDriverNotes && <StickyNote className={`${config.icon} text-purple-600`} />}
-    </Badge>);
-
+    </Badge>
+  );
 }
 
 /**
@@ -97,9 +97,9 @@ export function hasSpecialSymbols(delivery, patient, isPickup = false) {
 
   const hasCOD = (delivery.cod_total_amount_required || 0) > 0;
   const isFirstDelivery = delivery.first_delivery === true ||
-  patient && !patient.last_delivery_date ||
-  delivery.delivery_notes?.toLowerCase().includes('first delivery') ||
-  delivery.delivery_instructions?.toLowerCase().includes('first delivery');
+    (patient && !patient.last_delivery_date) ||
+    delivery.delivery_notes?.toLowerCase().includes('first delivery') ||
+    delivery.delivery_instructions?.toLowerCase().includes('first delivery');
   const hasOversized = delivery.oversized === true;
   const hasFridge = delivery.fridge_item === true;
   const hasSignature = delivery.signature_needed === true;
@@ -111,7 +111,7 @@ export function hasSpecialSymbols(delivery, patient, isPickup = false) {
   const hasDriverNotes = !!delivery.delivery_notes;
 
   return hasCOD || isFirstDelivery || hasOversized || hasFridge || hasSignature ||
-  hasCallOnArrival || hasRingBell || hasDontRingBell || hasMailboxOk || hasDriverNotes;
+         hasCallOnArrival || hasRingBell || hasDontRingBell || hasMailboxOk || hasDriverNotes;
 }
 
 /**
@@ -122,12 +122,12 @@ export function getSpecialFlagsText(delivery, patient, isPickup = false) {
   if (!delivery || isPickup) return null;
 
   const parts = [];
-
+  
   const hasCOD = (delivery.cod_total_amount_required || 0) > 0;
   const isFirstDelivery = delivery.first_delivery === true ||
-  patient && !patient.last_delivery_date ||
-  delivery.delivery_notes?.toLowerCase().includes('first delivery') ||
-  delivery.delivery_instructions?.toLowerCase().includes('first delivery');
+    (patient && !patient.last_delivery_date) ||
+    delivery.delivery_notes?.toLowerCase().includes('first delivery') ||
+    delivery.delivery_instructions?.toLowerCase().includes('first delivery');
   const hasOversized = delivery.oversized === true;
   const hasFridge = delivery.fridge_item === true;
   const hasSignature = delivery.signature_needed === true;
