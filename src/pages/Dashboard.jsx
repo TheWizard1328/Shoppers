@@ -7027,9 +7027,9 @@ function Dashboard() {
       {/* AI Smart Prioritization Dialog */}
       {isDriver &&
       <Dialog open={showSmartPrioritization} onOpenChange={setShowSmartPrioritization}>
-          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto z-[10001]">
+          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto z-[10001]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
+              <DialogTitle className="flex items-center gap-2" style={{ color: 'var(--text-slate-900)' }}>
                 <Sparkles className="w-5 h-5 text-purple-600" />
                 AI Route Intelligence
               </DialogTitle>
