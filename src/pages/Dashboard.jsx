@@ -5442,7 +5442,7 @@ function Dashboard() {
         delivery_time_start: originalDelivery.delivery_time_start,
         delivery_time_end: originalDelivery.delivery_time_end,
         status: 'in_transit',
-        delivery_notes: `PATIENT RETURN From: ${originalDelivery.delivery_date}`,
+        delivery_notes: `PATIENT RETURN From: ${originalDelivery.delivery_date} For: ${returnPatient.full_name}`,
         patient_name: returnPatient.full_name,
         patient_phone: returnPatient.phone || store?.phone || '',
         store_phone: store?.phone || ''
