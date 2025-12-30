@@ -193,12 +193,12 @@ export default function PatientImport({ onImportComplete, onImportStart, current
       }
     }
 
-    // CRITICAL: Remove lines containing "For: " from notes before processing
+    // CRITICAL: Remove lines containing "For:" from notes ONLY if notes also contain "PATIENT RETURN"
     let processedNotes = notesStr;
-    if (processedNotes) {
-      // Split by newlines, filter out lines containing "For: ", rejoin
+    if (processedNotes && processedNotes.includes('PATIENT RETURN') && processedNotes.includes('For:')) {
+      // Split by newlines, filter out lines containing "For:", rejoin
       const notesLines = processedNotes.split(/\r?\n/);
-      const filteredLines = notesLines.filter(line => !line.includes('For: '));
+      const filteredLines = notesLines.filter(line => !line.includes('For:'));
       processedNotes = filteredLines.join('\n').trim();
     }
 
