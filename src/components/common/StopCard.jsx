@@ -861,6 +861,11 @@ export default function StopCard({
 
                                 await onStatusUpdate(delivery.id, status, {}, false);
 
+                                // CRITICAL: Trigger immediate map update before optimization
+                                window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                                  detail: { triggeredBy: 'statusChange', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                                }));
+
                                 // CRITICAL: Run recursive route optimization after completion
                                 try {
                                   const now = new Date();
@@ -878,6 +883,9 @@ export default function StopCard({
                                   invalidate('Delivery');
                                   await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
                                   console.log('✅ [Completed] UI refreshed with new stop order');
+
+                                  // CRITICAL: Trigger map update again after optimization
+                                  window.dispatchEvent(new CustomEvent('routeOptimizationComplete'));
                                 } catch (optimizeError) {
                                   console.warn('⚠️ [Completed] Route optimizer failed:', optimizeError);
                                 }
@@ -931,6 +939,11 @@ export default function StopCard({
                               const finishedStatuses = ['completed', 'failed', 'cancelled'];
                               const skipAutoCenter = !finishedStatuses.includes(status);
                               await onStatusUpdate(delivery.id, status, {}, skipAutoCenter);
+
+                              // CRITICAL: Trigger immediate map update
+                              window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                                detail: { triggeredBy: 'statusChange', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                              }));
 
                               // Next delivery flag handled by route optimizer
                             } finally {
@@ -1184,6 +1197,9 @@ export default function StopCard({
                   invalidate('Delivery');
                   await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
                   console.log('✅ [Failed/Cancelled] UI refreshed with new stop order');
+
+                  // CRITICAL: Trigger map update
+                  window.dispatchEvent(new CustomEvent('routeOptimizationComplete'));
                 } catch (optimizeError) {
                   console.warn('⚠️ [Failed/Cancelled] Route optimizer failed:', optimizeError);
                 }
@@ -1755,6 +1771,11 @@ export default function StopCard({
                                   delivery_time_start: deliveryTimeStart
                                 }, true);
 
+                                // CRITICAL: Trigger immediate map update
+                                window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                                  detail: { triggeredBy: 'acceptOne', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                                }));
+
                                 // Send notification message
                                 const isDriverAction = userHasRole(currentUser, 'driver') && delivery.driver_id === currentUser.id && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher');
                                 if (isDriverAction) {
@@ -1851,6 +1872,12 @@ export default function StopCard({
 
                           await ensureDriverOnline();
                           await onStatusUpdate(delivery.id, isPickup ? 'en_route' : 'in_transit');
+
+                          // CRITICAL: Trigger immediate map update
+                          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                            detail: { triggeredBy: 'retry', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                          }));
+
                           // Send notification to dispatchers
                           if (userHasRole(currentUser, 'driver')) {
                             await notifyDriverRetry({
@@ -1962,6 +1989,11 @@ export default function StopCard({
 
                           // Now complete the pickup/delivery
                           await onStatusUpdate(delivery.id, 'completed');
+
+                          // CRITICAL: Trigger immediate map update
+                          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                            detail: { triggeredBy: 'complete', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                          }));
 
                           // Next delivery flag handled by route optimizer
 
@@ -2130,6 +2162,11 @@ export default function StopCard({
                         invalidate('Delivery');
                         await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
                         console.log('  ✅ UI and DBs synced');
+                        
+                        // CRITICAL: Trigger map update
+                        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                          detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                        }));
 
                         await ensureDriverOnline();
 
@@ -2260,6 +2297,11 @@ export default function StopCard({
                               await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
 
                               console.log('✅ [RESTART] Delivery restarted successfully');
+
+                              // CRITICAL: Trigger map update
+                              window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                                detail: { triggeredBy: 'restart', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                              }));
                             } finally {
                               setIsEntityUpdating(false);
                               await new Promise((resolve) => setTimeout(resolve, 100));
