@@ -249,14 +249,27 @@ Deno.serve(async (req) => {
         currentMinutes = hours * 60 + minutes;
         console.log(`🕐 Using device time from ISO: ${hours}:${String(minutes).padStart(2, '0')} (${currentMinutes} minutes)`);
       } else {
+        // CRITICAL: Fallback to Mountain Time estimate
         const now = new Date();
-        currentMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
-        console.warn(`⚠️ Could not parse device time, using server UTC time`);
+        const utcHours = now.getUTCHours();
+        const utcMinutes = now.getUTCMinutes();
+        let mountainHours = utcHours - 7;
+        if (mountainHours < 0) mountainHours += 24;
+        currentMinutes = mountainHours * 60 + utcMinutes;
+        console.warn(`⚠️ Could not parse device time, estimated Mountain Time: ${String(mountainHours).padStart(2, '0')}:${String(utcMinutes).padStart(2, '0')}`);
       }
     } else {
+      // CRITICAL: If no local time provided, assume Mountain Time (UTC-7)
+      // This is a fallback - callers should always provide currentLocalTime
       const now = new Date();
-      currentMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
-      console.warn(`⚠️ No local time provided, using server UTC time`);
+      const utcHours = now.getUTCHours();
+      const utcMinutes = now.getUTCMinutes();
+      // Convert UTC to Mountain Time (UTC-7, or UTC-6 during DST)
+      // For simplicity, use UTC-7 (MST) as default
+      let mountainHours = utcHours - 7;
+      if (mountainHours < 0) mountainHours += 24;
+      currentMinutes = mountainHours * 60 + utcMinutes;
+      console.warn(`⚠️ No local time provided, estimated Mountain Time: ${String(mountainHours).padStart(2, '0')}:${String(utcMinutes).padStart(2, '0')}`);
     }
 
     console.log(`🔄 [optimizeRouteRealTime] Optimizing route for driver ${driverId} on ${deliveryDate}`);
