@@ -42,6 +42,7 @@ import { formatPhoneNumber } from '../components/utils/phoneFormatter';
 import { ResizableDivider } from '../components/ui/resizable-divider';
 import { useAppData } from '../components/utils/AppDataContext';
 import { getUserAgentInfo } from '../components/utils/deviceUtils';
+import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
 
 // Helper function to calculate distance between two coordinates (in kilometers)
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
@@ -1947,12 +1948,8 @@ export default function Patients() {
                     <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
                   </div>
               }
-                <div className="flex items-center gap-3 relative">
-                  {isLoading &&
-                    <div className="absolute -left-8 top-1/2 -translate-y-1/2">
-                      <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
-                    </div>
-                  }
+                <div className="flex items-center gap-3">
+                  <SmartRefreshIndicator inline={true} />
                   <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Store Overview</h1>
                 </div>
                 <p className="mt-1" style={{ color: 'var(--text-slate-600)' }}>Select a store to view and manage patients</p>

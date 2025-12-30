@@ -28,6 +28,7 @@ import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, L
 import { getEffectiveUser } from "../components/utils/auth";
 import { getDriverDisplayName, getDriverNameForComparison } from '../components/utils/driverUtils';
 import { sortUsers } from '../components/utils/sorting';
+import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
 
 const calculateDistance = (lat1, lng1, lat2, lng2) => {
   if (!lat1 || !lng1 || !lat2 || !lng2) return 0;
@@ -881,12 +882,8 @@ export default function DeliveryMetrics() {
     <div className="min-h-screen bg-slate-50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div className="flex items-center gap-3 relative">
-            {isLoading && (
-              <div className="absolute -left-8 top-1/2 -translate-y-1/2">
-                <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
-              </div>
-            )}
+          <div className="flex items-center gap-3">
+            <SmartRefreshIndicator inline={true} />
             <h1 className="text-3xl font-bold text-slate-900">Route Metrics</h1>
             <p className="text-slate-600 mt-1">
               {format(startDate, 'MMM d, yyyy')} - {format(endDate, 'MMM d, yyyy')}

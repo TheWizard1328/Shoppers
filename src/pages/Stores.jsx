@@ -11,6 +11,7 @@ import { mergeUsersWithAppUsers } from "../components/utils/driverUtils";
 import { userHasRole } from "../components/utils/userRoles";
 import { useUser } from "../components/utils/UserContext";
 import { useAppData } from "../components/utils/AppDataContext";
+import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
 
 export default function StoresPage() {
   const { currentUser } = useUser();
@@ -185,12 +186,8 @@ export default function StoresPage() {
     <div className="min-h-screen bg-slate-50 p-6">
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3 relative">
-            {isLoading && (
-              <div className="absolute -left-8 top-1/2 -translate-y-1/2">
-                <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
-              </div>
-            )}
+          <div className="flex items-center gap-3">
+            <SmartRefreshIndicator inline={true} />
             <h1 className="text-3xl font-bold text-slate-900">Stores</h1>
             <p className="text-slate-600 mt-1">
               Manage your pharmacy store locations and schedules

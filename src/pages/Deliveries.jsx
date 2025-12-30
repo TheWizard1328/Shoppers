@@ -82,6 +82,7 @@ import { isMobileDevice } from "../components/utils/deviceUtils";
 import { useAppData } from '../components/utils/AppDataContext';
 import { smartRefreshManager } from '../components/utils/smartRefreshManager';
 import { updateDeliveryLocal, deleteDeliveryLocal, createDeliveryLocal, batchDeleteDeliveriesLocal } from '../components/utils/entityMutations';
+import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
 
 const addMinutesToTime = (timeString, minutesToAdd) => {
   if (!timeString) return null;
@@ -3118,12 +3119,8 @@ export default function DeliveriesPage() {
 
       <div className="hidden lg:block px-6 py-4 flex-shrink-0 z-20" style={{ borderBottom: '1px solid var(--border-slate-200)', background: 'var(--bg-white)' }}>
         {isDriverOverviewMode ?
-        <div className="flex items-center gap-3 relative">
-          {isLoading &&
-          <div className="absolute -left-8 top-1/2 -translate-y-1/2">
-              <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
-            </div>
-          }
+        <div className="flex items-center gap-3">
+          <SmartRefreshIndicator inline={true} />
           <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Driver Overview</h1>
         </div> :
 

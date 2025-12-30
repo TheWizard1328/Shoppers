@@ -2882,12 +2882,6 @@ export default function Layout({ children, currentPageName }) {
 
               {/* Main Content Area */}
               <div className="main-content-area">
-                {/* Smart Refresh Indicator - Fixed position on all pages except Dashboard */}
-                {currentPageName !== 'Dashboard' && (
-                  <div className="fixed bottom-4 right-4 z-[100]">
-                    <SmartRefreshIndicator />
-                  </div>
-                )}
 
                 <header
                   className="mobile-header border-b px-4 py-3 sticky top-0"

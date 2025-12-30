@@ -36,6 +36,7 @@ import DeliveryForm from '../components/deliveries/DeliveryForm';
 import MessageRulesManager from '../components/admin/MessageRulesManager';
 import PolylineViewer from '../components/admin/PolylineViewer';
 import GoogleAPILogViewer from '../components/admin/GoogleAPILogViewer';
+import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
 
 // Custom Confirmation Dialog Component
 const ConfirmationDialog = ({ open, onOpenChange, title, description, onConfirm, confirmText = "Delete", variant = "destructive" }) => {
@@ -3975,12 +3976,8 @@ export default function AdminUtilities() {
     <div className="min-h-screen p-3" style={{ background: 'var(--bg-slate-50)' }}>
       <div className="max-w-full mx-auto space-y-6">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3 relative">
-            {initialLoading && (
-              <div className="absolute -left-8 top-1/2 -translate-y-1/2">
-                <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
-              </div>
-            )}
+          <div className="flex items-center gap-3">
+            <SmartRefreshIndicator inline={true} />
             <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Admin Utilities</h1>
           </div>
           <Button onClick={handleRefreshAllData} variant="outline" disabled={isRefreshing} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>

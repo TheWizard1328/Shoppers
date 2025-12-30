@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import CityForm from '@/components/cities/CityForm';
 import DeleteConfirmDialog from '@/components/deliveries/DeleteConfirmDialog';
 import { sortCities } from '@/components/utils/sorting';
+import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
 
 export default function CitiesPage() {
     const [allCities, setAllCities] = useState([]);
@@ -101,12 +102,8 @@ export default function CitiesPage() {
         <div className="h-full overflow-y-auto bg-slate-50 p-6">
             <div className="max-w-6xl mx-auto space-y-6">
                 <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 relative">
-                        {isLoading && (
-                            <div className="absolute -left-8 top-1/2 -translate-y-1/2">
-                                <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
-                            </div>
-                        )}
+                    <div className="flex items-center gap-3">
+                        <SmartRefreshIndicator inline={true} />
                         <h1 className="text-3xl font-bold text-slate-900">Cities</h1>
                         <p className="text-slate-600 mt-1">Manage cities and their locations</p>
                     </div>
