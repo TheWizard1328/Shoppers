@@ -767,20 +767,20 @@ function Dashboard() {
       d && d.status === 'completed'
     ).length;
 
-    // DISPATCHER: Calculate unique driver counts for superscript (from all deliveries, not just patient deliveries)
+    // DISPATCHER: Calculate unique driver counts for superscript (from patient deliveries only)
     let totalDrivers = 0;
     let inTransitDrivers = 0;
     let completedDrivers = 0;
 
     if (isDispatcher) {
-      const allDriverIds = new Set(relevantDeliveries.map(d => d?.driver_id).filter(Boolean));
+      const allDriverIds = new Set(safeDeliveries.map(d => d?.driver_id).filter(Boolean));
       totalDrivers = allDriverIds.size;
 
-      const inTransitAll = relevantDeliveries.filter((d) => d && (d.status === 'in_transit' || d.status === 'en_route'));
+      const inTransitAll = safeDeliveries.filter((d) => d && (d.status === 'in_transit' || d.status === 'en_route'));
       const inTransitDriverIds = new Set(inTransitAll.map(d => d?.driver_id).filter(Boolean));
       inTransitDrivers = inTransitDriverIds.size;
 
-      const completedAll = relevantDeliveries.filter((d) => {
+      const completedAll = safeDeliveries.filter((d) => {
         if (!d || d.status !== 'completed') return false;
         if (isReturn(d)) return false;
         return true;
