@@ -73,22 +73,24 @@ export default function SpecialSymbolsBadges({
   if (!hasAnyContent) return null;
 
   return (
-    <Badge className="bg-yellow-400 text-[10px] px-1 py-0 font-bold rounded-[10px] border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent shadow hover:bg-primary/80 h-5 inline-flex items-center gap-0.5">
+    <Badge 
+      className={`bg-amber-400 text-slate-900 ${config.badge} ${config.text} font-bold rounded-md inline-flex items-center ${config.gap} shadow-sm border border-amber-500/30 ${className}`}
+    >
       {/* Special flags: $ N O F S */}
-      {hasCOD && '$'}
-      {isFirstDelivery && (hasCOD ? ' N' : 'N')}
-      {hasOversized && (hasCOD || isFirstDelivery ? ' O' : 'O')}
-      {hasFridge && (hasCOD || isFirstDelivery || hasOversized ? ' F' : 'F')}
-      {hasSignature && (hasCOD || isFirstDelivery || hasOversized || hasFridge ? ' S' : 'S')}
+      {hasCOD && <span className="text-green-800">$</span>}
+      {isFirstDelivery && <span className="text-blue-800">N</span>}
+      {hasOversized && <span className="text-orange-800">O</span>}
+      {hasFridge && <span className="text-cyan-800">F</span>}
+      {hasSignature && <span className="text-purple-800">S</span>}
       
-      {/* Preference icons */}
-      {hasCallOnArrival && <Phone className={`${config.icon} text-blue-600`} />}
-      {hasRingBell && <Bell className={`${config.icon} text-emerald-600`} />}
+      {/* Preference icons - intuitive colors */}
+      {hasCallOnArrival && <Phone className={`${config.icon} text-orange-600`} />}
+      {hasRingBell && <Bell className={`${config.icon} text-green-600`} />}
       {hasDontRingBell && <BellOff className={`${config.icon} text-red-600`} />}
       {hasMailboxOk && <Mailbox className={`${config.icon} text-blue-600`} />}
-      {hasDriverNotes && <StickyNote className={`${config.icon} text-purple-600`} />}
-    </Badge>);
-
+      {hasDriverNotes && <StickyNote className={`${config.icon} text-violet-600`} />}
+    </Badge>
+  );
 }
 
 /**
