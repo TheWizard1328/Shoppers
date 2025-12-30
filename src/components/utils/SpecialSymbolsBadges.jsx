@@ -25,22 +25,25 @@ export default function SpecialSymbolsBadges({
   // Don't show badge for pickups
   if (!delivery || isPickup) return null;
 
-  // Size configurations
+  // Size configurations - consistent and accessible
   const sizeConfig = {
     sm: {
-      badge: 'text-[10px] px-1 py-0 h-5',
-      icon: 'w-2.5 h-2.5',
-      gap: 'gap-0.5'
+      badge: 'text-[10px] px-1.5 py-0.5 min-h-[18px]',
+      icon: 'w-3 h-3',
+      gap: 'gap-0.5',
+      text: 'text-[10px]'
     },
     md: {
-      badge: 'text-sm px-1 py-0.5 h-5',
-      icon: 'w-4 h-4',
-      gap: 'gap-0.5'
+      badge: 'text-xs px-2 py-0.5 min-h-[22px]',
+      icon: 'w-3.5 h-3.5',
+      gap: 'gap-1',
+      text: 'text-xs'
     },
     lg: {
-      badge: 'text-md px-1 py-0.5 h-5',
-      icon: 'w-5 h-5',
-      gap: 'gap-0.5'
+      badge: 'text-sm px-2.5 py-1 min-h-[26px]',
+      icon: 'w-4 h-4',
+      gap: 'gap-1',
+      text: 'text-sm'
     }
   };
 
