@@ -12,7 +12,8 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
   const [formData, setFormData] = useState({
     driver_status: driver.driver_status || 'off_duty',
     pay_rate_per_delivery: driver.pay_rate_per_delivery || 0,
-    extra_km_rate: driver.extra_km_rate || 0
+    extra_km_rate: driver.extra_km_rate || 0,
+    extra_km_limit: driver.extra_km_limit || 0
   });
   const [isSaving, setIsSaving] = useState(false);
 
@@ -27,8 +28,9 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
       // Check if pay rates changed
       const payRateChanged = formData.pay_rate_per_delivery !== (driver.pay_rate_per_delivery || 0);
       const kmRateChanged = formData.extra_km_rate !== (driver.extra_km_rate || 0);
+      const kmLimitChanged = formData.extra_km_limit !== (driver.extra_km_limit || 0);
 
-      if (payRateChanged || kmRateChanged) {
+      if (payRateChanged || kmRateChanged || kmLimitChanged) {
         // Add current rates to history before updating
         const today = format(new Date(), 'yyyy-MM-dd');
         const existingHistory = driver.pay_rate_history || [];
@@ -37,11 +39,13 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
         const newHistoryEntry = {
           effective_date: today,
           pay_rate_per_delivery: formData.pay_rate_per_delivery,
-          extra_km_rate: formData.extra_km_rate
+          extra_km_rate: formData.extra_km_rate,
+          extra_km_limit: formData.extra_km_limit
         };
 
         updates.pay_rate_per_delivery = formData.pay_rate_per_delivery;
         updates.extra_km_rate = formData.extra_km_rate;
+        updates.extra_km_limit = formData.extra_km_limit;
         updates.pay_rate_history = [...existingHistory, newHistoryEntry];
       }
 
@@ -118,6 +122,25 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
             />
           </div>
 
+          {/* Extra KM Limit */}
+          <div>
+            <Label htmlFor="km_limit" className="text-sm font-medium mb-1.5 block">
+              Extra Pay KM Limit (km)
+            </Label>
+            <Input
+              id="km_limit"
+              type="number"
+              step="0.1"
+              min="0"
+              value={formData.extra_km_limit}
+              onChange={(e) => setFormData(prev => ({ ...prev, extra_km_limit: parseFloat(e.target.value) || 0 }))}
+              placeholder="0.0"
+            />
+            <p className="text-xs mt-1" style={{ color: 'var(--text-slate-500)' }}>
+              Minimum km before extra pay starts
+            </p>
+          </div>
+
           {/* Pay Rate History */}
           {driver.pay_rate_history && driver.pay_rate_history.length > 0 && (
             <div className="pt-2 border-t">
@@ -134,7 +157,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                         {format(new Date(entry.effective_date), 'MMM dd, yyyy')}
                       </span>
                       <div className="text-slate-600">
-                        ${entry.pay_rate_per_delivery || 0} / ${entry.extra_km_rate || 0}/km
+                        ${entry.pay_rate_per_delivery || 0} / ${entry.extra_km_rate || 0}/km / {entry.extra_km_limit || 0}km limit
                       </div>
                     </div>
                   ))}
