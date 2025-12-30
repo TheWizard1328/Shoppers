@@ -23,7 +23,8 @@ Deno.serve(async (req) => {
     const { 
       driverId, 
       deliveryDate, 
-      currentLocation = null 
+      currentLocation = null,
+      currentLocalTime = null
     } = await req.json();
 
     if (!driverId || !deliveryDate) {
@@ -94,8 +95,19 @@ Deno.serve(async (req) => {
       driverLocation = { lat: driverAppUser.home_latitude, lng: driverAppUser.home_longitude };
     }
 
-    const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    // CRITICAL: Use device's local time to avoid UTC timezone issues
+    let currentMinutes;
+    if (currentLocalTime) {
+      // currentLocalTime format: "14:30" (already in local time)
+      const [hours, minutes] = currentLocalTime.split(':').map(Number);
+      currentMinutes = hours * 60 + minutes;
+      console.log(`🕐 [AI Prioritization] Using device local time: ${currentLocalTime} (${currentMinutes} minutes)`);
+    } else {
+      // Fallback to server time (may be UTC - not ideal)
+      const now = new Date();
+      currentMinutes = now.getHours() * 60 + now.getMinutes();
+      console.warn(`⚠️ [AI Prioritization] No local time provided, using server time: ${now.getHours()}:${now.getMinutes()}`);
+    }
 
     // Analyze each delivery
     const deliveryAnalysis = [];
