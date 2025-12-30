@@ -3127,12 +3127,8 @@ export default function DeliveriesPage() {
         <>
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
               <div>
-                <h1 className="text-3xl font-bold flex items-baseline gap-3 relative" style={{ color: 'var(--text-slate-900)' }}>
-                  {isLoading &&
-                <div className="absolute -left-8 top-1/2 -translate-y-1/2">
-                      <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
-                    </div>
-                }
+                <h1 className="text-3xl font-bold flex items-baseline gap-3" style={{ color: 'var(--text-slate-900)' }}>
+                  <SmartRefreshIndicator inline={true} />
                   Route Management
                   <Badge variant="outline" className="ml-2 text-sm font-normal" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
                     {selectedDate ? format(selectedDate, 'MMM d, yyyy') : 'Select a Date'}
