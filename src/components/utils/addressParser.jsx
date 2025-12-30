@@ -33,9 +33,9 @@ export function cleanAddressAndNotes(address, notes) {
 
     // STEP 2.3: Clean up specific return/disposal patterns
     // Replace 'DEAD MEDS RETURN For:' with 'DEAD MEDS RETURN'
-    cleanedNotes = cleanedNotes.replace(/DEAD MEDS RETURN For:/gi, 'DEAD MEDS RETURN');
+    cleanedNotes = cleanedNotes.replace(/DEAD MEDS RETURN - For:/gi, 'DEAD MEDS RETURN');
     // Replace 'RETURN FOR DISPOSAL For:' with 'RETURN FOR DISPOSAL'
-    cleanedNotes = cleanedNotes.replace(/RETURN FOR DISPOSAL For:/gi, 'RETURN FOR DISPOSAL');
+    cleanedNotes = cleanedNotes.replace(/RETURN FOR DISPOSAL - For:/gi, 'RETURN FOR DISPOSAL');
     console.log('STEP 2.3 - Notes after return/disposal cleanup:', cleanedNotes);
 
     // STEP 2.5: Remove lines containing "For:" if notes also contain "Patient Return" (case-insensitive)
