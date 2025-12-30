@@ -2204,7 +2204,7 @@ function Dashboard() {
           ]; 
           */
           
-          const padding = getMapPadding(false, false);
+          const padding = getMapPadding(false, deliveriesWithStopOrder.length > 0);
 
           setShouldFitBounds({
             bounds: [[driverLocation.latitude, driverLocation.longitude]],
