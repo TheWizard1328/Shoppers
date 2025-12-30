@@ -42,9 +42,14 @@ export default function SmartPrioritizationPanel({
     setError(null);
 
     try {
+      // Get current local time in HH:mm format
+      const now = new Date();
+      const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      
       const response = await base44.functions.invoke('aiDeliveryPrioritization', {
         driverId,
-        deliveryDate
+        deliveryDate,
+        currentLocalTime: localTimeString
       });
 
       const data = response?.data || response;
