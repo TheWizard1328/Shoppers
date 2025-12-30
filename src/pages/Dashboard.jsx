@@ -1338,6 +1338,22 @@ function Dashboard() {
             source: 'shared_location'
           };
           setDriverLocation(newLocation);
+          
+          // CRITICAL: Reactivate FAB if Phase 2 is active (desktop only)
+          if (mapViewPhaseRef.current === 2 && nextStopCoordinates) {
+            console.log('📍 [Desktop Phase 2] Driver location updated - reactivating FAB');
+            setIsMapViewLocked(true);
+            lastProgrammaticMapMoveRef.current = Date.now();
+            window._lastProgrammaticMapMove = Date.now();
+            setMapViewTrigger((prev) => prev + 1);
+            
+            // Clear any existing timers (Phase 2 stays locked)
+            if (mapLockTimeoutRef.current) {
+              clearTimeout(mapLockTimeoutRef.current);
+              mapLockTimeoutRef.current = null;
+            }
+            mapLockExpiresAtRef.current = null;
+          }
         } else {
           setDriverLocation(null);
         }
