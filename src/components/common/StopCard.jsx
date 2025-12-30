@@ -1619,6 +1619,11 @@ export default function StopCard({
                           };
                           setIsEntityUpdating(false);
                           console.log('  ✅ Smart refresh resumed');
+                          
+                          // CRITICAL: Collapse the card after assign/accept all completes
+                          if (onClick) {
+                            onClick(null);
+                          }
                         }
                       }}>
                             {acceptButtonText}
