@@ -110,7 +110,12 @@ export default function DriverSettings() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
-      <div className="mb-6">
+      <div className="mb-6 relative">
+        {isRefreshing && (
+          <div className="absolute -left-8 top-1/2 -translate-y-1/2">
+            <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
+          </div>
+        )}
         <h1 className="text-2xl font-bold flex items-center gap-3" style={{ color: 'var(--text-slate-900)' }}>
           <Truck className="w-7 h-7 text-emerald-600" />
           Driver Settings

@@ -881,7 +881,7 @@ export default function DeliveryMetrics() {
     <div className="min-h-screen bg-slate-50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div className="relative">
+          <div className="flex items-center gap-3 relative">
             {isLoading && (
               <div className="absolute -left-8 top-1/2 -translate-y-1/2">
                 <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>

@@ -3118,7 +3118,7 @@ export default function DeliveriesPage() {
 
       <div className="hidden lg:block px-6 py-4 flex-shrink-0 z-20" style={{ borderBottom: '1px solid var(--border-slate-200)', background: 'var(--bg-white)' }}>
         {isDriverOverviewMode ?
-        <div className="relative">
+        <div className="flex items-center gap-3 relative">
           {isLoading &&
           <div className="absolute -left-8 top-1/2 -translate-y-1/2">
               <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>

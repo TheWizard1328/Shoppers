@@ -3975,7 +3975,7 @@ export default function AdminUtilities() {
     <div className="min-h-screen p-3" style={{ background: 'var(--bg-slate-50)' }}>
       <div className="max-w-full mx-auto space-y-6">
         <div className="flex items-center justify-between">
-          <div className="relative">
+          <div className="flex items-center gap-3 relative">
             {initialLoading && (
               <div className="absolute -left-8 top-1/2 -translate-y-1/2">
                 <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>

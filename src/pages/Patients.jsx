@@ -1947,7 +1947,14 @@ export default function Patients() {
                     <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
                   </div>
               }
-                <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Store Overview</h1>
+                <div className="flex items-center gap-3 relative">
+                  {isLoading &&
+                    <div className="absolute -left-8 top-1/2 -translate-y-1/2">
+                      <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
+                    </div>
+                  }
+                  <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Store Overview</h1>
+                </div>
                 <p className="mt-1" style={{ color: 'var(--text-slate-600)' }}>Select a store to view and manage patients</p>
               </div>
               {/* Import button - ONLY for users with import access and not on mobile */}
