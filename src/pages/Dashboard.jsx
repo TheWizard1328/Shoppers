@@ -2150,6 +2150,7 @@ function Dashboard() {
           [nextStopCoordinates.lat, nextStopCoordinates.lon]];
 
           // CRITICAL: Adjust vertical centering for Phase 2
+          /*
           const phase2Padding = getMapPadding(false, false);
           phase2Padding.paddingTopLeft = [
             phase2Padding.paddingTopLeft[0],
@@ -2159,6 +2160,7 @@ function Dashboard() {
             phase2Padding.paddingBottomRight[0],
             Math.max(10, phase2Padding.paddingBottomRight[1] + 20) // Increase bottom padding to shift center down
           ];
+          */
 
           const padding = getMapPadding(false, bounds.length > 0);
 
@@ -2174,7 +2176,8 @@ function Dashboard() {
           setMapZoom(null);
         } else {
           // If no next stop, just center on driver with padding
-          const phase2NoPadding = getMapPadding(false, false);
+          /*
+           const phase2NoPadding = getMapPadding(false, false);
           phase2NoPadding.paddingTopLeft = [
             phase2NoPadding.paddingTopLeft[0],
             Math.max(10, phase2NoPadding.paddingTopLeft[1] - 60) // Reduce top padding more to shift center down
@@ -2182,7 +2185,8 @@ function Dashboard() {
           phase2NoPadding.paddingBottomRight = [
             phase2NoPadding.paddingBottomRight[0],
             Math.max(10, phase2NoPadding.paddingBottomRight[1] + 20) // Increase bottom padding to shift center down
-          ];
+          ]; 
+          */
           
           const padding = getMapPadding(false, false);
 
