@@ -6418,37 +6418,7 @@ function Dashboard() {
                       <Settings className="w-3.5 h-3.5" />
                     </Button>
 
-                  {/* Quick Route Adjustments - Driver Mobile Only */}
-                  {/*isMobile && */}
-                  {isDriver && selectedDriverId === currentUser?.id &&
                   <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowQuickAdjustments(true)}
-                  className="h-8 gap-1.5 px-2 flex-shrink-0"
-                  title="Quick route adjustments"
-                  style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                    {/*<ArrowUp className="w-3 h-3" />
-                    <ArrowDown className="w-3 h-3" />*/}
-                    <span className="text-xs">Adjust</span>
-                  </Button>
-                  }
-
-                  {/* AI Smart Prioritization - Driver Only */}
-                  {isDriver && selectedDriverId === currentUser?.id &&
-                  <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowSmartPrioritization(true)}
-                  className="h-8 gap-1.5 px-2 flex-shrink-0"
-                  title="AI delivery prioritization"
-                  style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                    <Sparkles className="w-3 h-3" />
-                    <span className="text-xs">AI</span>
-                  </Button>
-                  }
-
-                    <Button
                     variant="default"
                     size="sm"
                     onClick={() => {
@@ -6470,6 +6440,33 @@ function Dashboard() {
                       onToggle={async () => {
                         await refreshUser();
                       }} />
+                      
+                      {/* Quick Route Adjustments */}
+                      {isDriver && selectedDriverId === currentUser?.id &&
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowQuickAdjustments(true)}
+                          className="h-8 gap-1.5 px-2 flex-shrink-0"
+                          title="Quick route adjustments"
+                          style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                          <span className="text-xs">Adjust</span>
+                        </Button>
+                      }
+                      
+                      {/* AI Smart Prioritization */}
+                      {isDriver && selectedDriverId === currentUser?.id &&
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowSmartPrioritization(true)}
+                          className="h-8 gap-1.5 px-2 flex-shrink-0"
+                          title="AI delivery prioritization"
+                          style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                          <Sparkles className="w-3 h-3" />
+                          <span className="text-xs">AI</span>
+                        </Button>
+                      }
                       </div>
                     </>
                 }
