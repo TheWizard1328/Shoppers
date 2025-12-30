@@ -1478,7 +1478,7 @@ function Dashboard() {
                     lastProximitySnapTimeRef.current = Date.now();
 
                     // Center map on the nearby marker
-                    const padding = getMapPadding(false, false);
+                    const padding = getMapPadding(false, deliveriesWithStopOrder.length > 0);
                     setShouldFitBounds({
                       bounds: [[stopLat, stopLon]],
                       options: {
