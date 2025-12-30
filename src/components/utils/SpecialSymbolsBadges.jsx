@@ -35,12 +35,12 @@ export default function SpecialSymbolsBadges({
     md: {
       badge: 'text-sm px-1 py-0.5 h-5',
       icon: 'w-4 h-4',
-      gap: 'gap-1'
+      gap: 'gap-0.5'
     },
     lg: {
       badge: 'text-md px-1.5 py-1 h-6',
       icon: 'w-5 h-5',
-      gap: 'gap-1.5'
+      gap: 'gap-0.5'
     }
   };
 
