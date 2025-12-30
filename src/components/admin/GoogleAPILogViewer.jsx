@@ -63,8 +63,39 @@ export default function GoogleAPILogViewer() {
     }
   };
 
+  // Daily cleanup - delete logs older than today
+  const performDailyCleanup = async () => {
+    const CLEANUP_KEY = 'googleApiLog_lastCleanup';
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const lastCleanup = localStorage.getItem(CLEANUP_KEY);
+    
+    if (lastCleanup === today) return; // Already cleaned today
+    
+    try {
+      const allLogs = await base44.entities.GoogleAPILog.filter({}, '-timestamp', 1000);
+      const logsToDelete = allLogs.filter(log => {
+        const logDate = format(new Date(log.timestamp), 'yyyy-MM-dd');
+        return logDate !== today;
+      });
+      
+      if (logsToDelete.length > 0) {
+        console.log(`[GoogleAPILogViewer] Cleaning up ${logsToDelete.length} old logs...`);
+        for (const log of logsToDelete) {
+          await base44.entities.GoogleAPILog.delete(log.id);
+          await new Promise(resolve => setTimeout(resolve, 500)); // Rate limit
+        }
+        console.log(`[GoogleAPILogViewer] Cleanup complete.`);
+      }
+      
+      localStorage.setItem(CLEANUP_KEY, today);
+    } catch (error) {
+      console.error('[GoogleAPILogViewer] Daily cleanup failed:', error);
+    }
+  };
+
   useEffect(() => {
     loadLogs();
+    performDailyCleanup(); // Run daily cleanup on component mount
     
     // Auto-refresh every 10 seconds to show new API calls in real-time
     const interval = setInterval(() => loadLogs(true), 10000);
