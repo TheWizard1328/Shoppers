@@ -31,22 +31,23 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
       const kmLimitChanged = formData.extra_km_limit !== (driver.extra_km_limit || 0);
 
       if (payRateChanged || kmRateChanged || kmLimitChanged) {
-        // Add current rates to history before updating
+        // Archive the OLD rates to history before updating with new values
         const today = format(new Date(), 'yyyy-MM-dd');
         const existingHistory = driver.pay_rate_history || [];
         
-        // Create new history entry with old rates (if they exist)
-        const newHistoryEntry = {
+        // Create history entry with the CURRENT (old) values before they get overwritten
+        const historyEntry = {
           effective_date: today,
-          pay_rate_per_delivery: formData.pay_rate_per_delivery,
-          extra_km_rate: formData.extra_km_rate,
-          extra_km_limit: formData.extra_km_limit
+          pay_rate_per_delivery: driver.pay_rate_per_delivery || 0,
+          extra_km_rate: driver.extra_km_rate || 0,
+          extra_km_limit: driver.extra_km_limit || 0
         };
 
+        // Update with NEW values from form
         updates.pay_rate_per_delivery = formData.pay_rate_per_delivery;
         updates.extra_km_rate = formData.extra_km_rate;
         updates.extra_km_limit = formData.extra_km_limit;
-        updates.pay_rate_history = [...existingHistory, newHistoryEntry];
+        updates.pay_rate_history = [...existingHistory, historyEntry];
       }
 
       await onSave(updates);
