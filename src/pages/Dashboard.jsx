@@ -759,12 +759,12 @@ function Dashboard() {
     }).length;
 
     // CRITICAL: Calculate pickup counts for drivers (total, in_transit, completed pickups)
-    const totalPickups = relevantDeliveries.filter(d => d && !d.patient_id).length;
-    const inTransitPickups = relevantDeliveries.filter(d => 
-      d && !d.patient_id && (d.status === 'in_transit' || d.status === 'en_route')
+    const totalPickups = allPickups.length;
+    const inTransitPickups = allPickups.filter(d => 
+      d && (d.status === 'in_transit' || d.status === 'en_route')
     ).length;
-    const completedPickups = relevantDeliveries.filter(d => 
-      d && !d.patient_id && d.status === 'completed'
+    const completedPickups = allPickups.filter(d => 
+      d && d.status === 'completed'
     ).length;
 
     // DISPATCHER: Calculate unique driver counts for superscript (from all deliveries, not just patient deliveries)
