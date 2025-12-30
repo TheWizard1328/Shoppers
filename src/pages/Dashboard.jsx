@@ -703,8 +703,9 @@ function Dashboard() {
       relevantDeliveries = relevantDeliveries.filter(d => d && dispatcherStoreIds.has(d.store_id));
     }
 
-    // CRITICAL: Exclude store pickups (deliveries without patient_id) from all counts
+    // CRITICAL: Separate patient deliveries from pickups for accurate counting
     const safeDeliveries = relevantDeliveries.filter(d => d && d.patient_id);
+    const allPickups = relevantDeliveries.filter(d => d && !d.patient_id);
     
     if (!Array.isArray(safeDeliveries)) return {
       total: 0,
