@@ -31,6 +31,14 @@ export function cleanAddressAndNotes(address, notes) {
     cleanedNotes = cleanedNotes.replace(/ - /g, '\n');
     console.log('STEP 2 - Notes after dash replacement:', cleanedNotes);
 
+    // STEP 2.5: Remove lines containing "For:" if notes also contain "Patient Return" (case-insensitive)
+    if (/patient\s+return/i.test(cleanedNotes) && /For:/i.test(cleanedNotes)) {
+        const lines = cleanedNotes.split('\n');
+        const filteredLines = lines.filter(line => !/For:/i.test(line));
+        cleanedNotes = filteredLines.join('\n').trim();
+        console.log('STEP 2.5 - Removed For: lines (Patient Return detected):', cleanedNotes);
+    }
+
     // STEP 3 & 4: Find line with # and unit, extract it, remove from notes
     if (extractedUnit) {
         const lines = cleanedNotes.split('\n');
