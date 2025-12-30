@@ -5292,6 +5292,25 @@ function Dashboard() {
       // CRITICAL: Recalculate stop orders after status change
       await recalculateStopOrders(targetDelivery.driver_id, deliveryDate);
 
+      // CRITICAL: Update ETAs when transitioning to in_transit (mobile drivers)
+      if (['in_transit', 'en_route'].includes(newStatus) && isMobile && userHasRole(currentUser, 'driver')) {
+        try {
+          const now = new Date();
+          const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+          
+          await base44.functions.invoke('optimizeRouteRealTime', {
+            driverId: targetDelivery.driver_id,
+            deliveryDate: deliveryDate,
+            currentLocalTime: localTimeString,
+            deviceTime: now.toISOString(),
+            generatePolyline: true
+          });
+          console.log('✅ [STATUS UPDATE] Route optimized after transitioning to in_transit');
+        } catch (optimizeError) {
+          console.warn('⚠️ [STATUS UPDATE] Route optimization failed:', optimizeError);
+        }
+      }
+
       // CRITICAL: Force full data refresh to sync UI
       invalidateDeliveriesForDate(deliveryDate);
       await refreshData();
