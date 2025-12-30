@@ -2771,7 +2771,7 @@ function Dashboard() {
       }, 300);
 
       // Center map on this delivery using fitBounds for bottom padding
-      const padding = getMapPadding(false, false);
+      const padding = getMapPadding(false, deliveriesWithStopOrder.length > 0);
       if (nextDelivery.patient_id) {
         const patient = patients.find((p) => p && p.id === nextDelivery.patient_id);
         if (patient?.latitude && patient?.longitude) {
