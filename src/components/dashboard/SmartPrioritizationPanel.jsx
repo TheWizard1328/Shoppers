@@ -107,7 +107,7 @@ export default function SmartPrioritizationPanel({
   }
 
   return (
-    <Card className="border-2 border-purple-200 shadow-lg">
+    <Card className="border-2 border-purple-200 shadow-lg" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -237,9 +237,9 @@ export default function SmartPrioritizationPanel({
                           <div className="flex items-start gap-2">
                             <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium">{alert.message}</p>
+                              <p className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>{alert.message}</p>
                               {alert.patientName && (
-                                <p className="text-xs opacity-75">{alert.patientName}</p>
+                                <p className="text-xs opacity-75" style={{ color: 'var(--text-slate-600)' }}>{alert.patientName}</p>
                               )}
                             </div>
                           </div>
@@ -255,14 +255,14 @@ export default function SmartPrioritizationPanel({
                         Recommendations
                       </h4>
                       {analysis.suggestions.map((suggestion, idx) => (
-                        <div key={idx} className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                        <div key={idx} className="p-3 border rounded-lg" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                           <div className="flex items-start gap-2">
                             <Zap className="w-4 h-4 text-purple-600 flex-shrink-0 mt-0.5" />
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold text-purple-900">{suggestion.title}</p>
-                              <p className="text-xs text-purple-700 mt-0.5">{suggestion.description}</p>
+                              <p className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>{suggestion.title}</p>
+                              <p className="text-xs mt-0.5" style={{ color: 'var(--text-slate-700)' }}>{suggestion.description}</p>
                               {suggestion.reasoning && (
-                                <p className="text-xs text-purple-600 mt-1 opacity-75">{suggestion.reasoning}</p>
+                                <p className="text-xs mt-1 opacity-75" style={{ color: 'var(--text-slate-600)' }}>{suggestion.reasoning}</p>
                               )}
                               {suggestion.action && onApplySuggestion && (
                                 <Button
