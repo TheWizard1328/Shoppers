@@ -711,17 +711,16 @@ export default function StopCard({
   };
 
   // Determine if card should be faded
-  // CRITICAL: Only fade completed stops on current date (not past dates)
+  // CRITICAL: Only fade finished stops on delivery date (not past dates or future)
   const shouldFade = useMemo(() => {
     if (!delivery || isExpanded || isHovered) return false;
     
-    // Check if this is current date
+    // Get today and delivery date at start of day
     const today = startOfDay(new Date());
     const deliveryDateObj = startOfDay(new Date(delivery.delivery_date));
-    const isCurrentDate = deliveryDateObj.getTime() === today.getTime();
     
-    // Only fade if: current date AND finished status
-    if (isCurrentDate && FINISHED_STATUSES.includes(delivery.status)) {
+    // Only fade if: delivery date matches today AND has finished status
+    if (deliveryDateObj.getTime() === today.getTime() && FINISHED_STATUSES.includes(delivery.status)) {
       return true;
     }
     
