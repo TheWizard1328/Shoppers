@@ -352,7 +352,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
           title="Force refresh location">
 
           <RefreshCw className={`h-3 w-3 ${isToggling ? 'animate-spin' : ''}`} />
-          //* <span className="text-xs">Refresh Location</span> *//
+          <span className="text-xs">Refresh Location</span>
         </Button>
         
         {permissionStatus &&
