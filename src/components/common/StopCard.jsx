@@ -660,6 +660,32 @@ export default function StopCard({
         store: store
       });
 
+      // CRITICAL: Run route optimizer to insert return at optimal position
+      try {
+        const now = new Date();
+        const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        console.log('🔄 [Return] Running optimizeRouteRealTime...');
+        await base44.functions.invoke('optimizeRouteRealTime', {
+          driverId: delivery.driver_id,
+          deliveryDate: delivery.delivery_date,
+          currentLocalTime: currentLocalTime,
+          generatePolyline: false
+        });
+        console.log('✅ [Return] Route optimized');
+
+        // CRITICAL: Refresh UI to show reordered stops
+        invalidate('Delivery');
+        await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+        console.log('✅ [Return] UI refreshed with new stop order');
+      } catch (optimizeError) {
+        console.warn('⚠️ [Return] Route optimizer failed:', optimizeError);
+      }
+
+      // CRITICAL: Trigger immediate map update
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: { triggeredBy: 'return', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+      }));
+
       // Send notification to dispatchers
       if (userHasRole(currentUser, 'driver')) {
         await notifyDriverReturn({
@@ -1872,6 +1898,27 @@ export default function StopCard({
 
                           await ensureDriverOnline();
                           await onStatusUpdate(delivery.id, isPickup ? 'en_route' : 'in_transit');
+
+                          // CRITICAL: Run route optimizer to insert retry at optimal position
+                          try {
+                            const now = new Date();
+                            const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                            console.log('🔄 [Retry] Running optimizeRouteRealTime...');
+                            await base44.functions.invoke('optimizeRouteRealTime', {
+                              driverId: delivery.driver_id,
+                              deliveryDate: delivery.delivery_date,
+                              currentLocalTime: currentLocalTime,
+                              generatePolyline: false
+                            });
+                            console.log('✅ [Retry] Route optimized');
+
+                            // CRITICAL: Refresh UI to show reordered stops
+                            invalidate('Delivery');
+                            await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                            console.log('✅ [Retry] UI refreshed with new stop order');
+                          } catch (optimizeError) {
+                            console.warn('⚠️ [Retry] Route optimizer failed:', optimizeError);
+                          }
 
                           // CRITICAL: Trigger immediate map update
                           window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
