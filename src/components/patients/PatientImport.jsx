@@ -193,9 +193,18 @@ export default function PatientImport({ onImportComplete, onImportStart, current
       }
     }
 
+    // CRITICAL: Remove lines containing "For: " from notes before processing
+    let processedNotes = notesStr;
+    if (processedNotes) {
+      // Split by newlines, filter out lines containing "For: ", rejoin
+      const notesLines = processedNotes.split(/\r?\n/);
+      const filteredLines = notesLines.filter(line => !line.includes('For: '));
+      processedNotes = filteredLines.join('\n').trim();
+    }
+
     // Parse address and notes to extract unit, preferences, and recurring patterns
-    console.log(`[PatientImport] Processing patient: ${fullName}, Original notes:`, notesStr);
-    const { cleanedAddress, unitNumber, cleanedNotes, preferences, recurring } = cleanAddressAndNotes(addressStr, notesStr);
+    console.log(`[PatientImport] Processing patient: ${fullName}, Original notes:`, notesStr, 'After For: removal:', processedNotes);
+    const { cleanedAddress, unitNumber, cleanedNotes, preferences, recurring } = cleanAddressAndNotes(addressStr, processedNotes);
     console.log(`[PatientImport] Extracted recurring for ${fullName}:`, recurring);
     console.log(`[PatientImport] Extracted preferences for ${fullName}:`, preferences);
 
