@@ -2024,7 +2024,15 @@ export default function DeliveryMap({
       moveend: () => {
         // Update map center for crosshair - use actual center without adjustments
         const center = mapInstance.getCenter();
-        setMapCenter([center.lat, center.lng]);
+        const newCenter = [center.lat, center.lng];
+        
+        // CRITICAL: Only update if center actually changed to prevent infinite loop
+        setMapCenter(prev => {
+          if (!prev || prev[0] !== newCenter[0] || prev[1] !== newCenter[1]) {
+            return newCenter;
+          }
+          return prev;
+        });
         
         // Update visible bounds for debug box
         const bounds = mapInstance.getBounds();
