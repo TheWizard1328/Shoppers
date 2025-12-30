@@ -311,6 +311,7 @@ export default function SmartPrioritizationPanel({
                               <Badge 
                                 variant="outline" 
                                 className={`ml-2 text-xs ${getUrgencyColor(delivery.urgencyScore)}`}
+                                style={{ borderColor: 'var(--border-slate-300)' }}
                               >
                                 {delivery.urgencyScore}%
                               </Badge>
