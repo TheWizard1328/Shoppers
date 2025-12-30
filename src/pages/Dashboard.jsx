@@ -2104,7 +2104,7 @@ function Dashboard() {
         // CASE 2: Drivers but no stop markers → center on drivers + city center
         else if (!hasStopMarkers && hasDriverMarkers && currentCity?.latitude && currentCity?.longitude) {
           allCoordinates.push([currentCity.latitude, currentCity.longitude]);
-          const padding = getMapPadding(false, false);
+          const padding = getMapPadding(false, deliveriesWithStopOrder.length > 0);
           setShouldFitBounds({
             bounds: allCoordinates,
             options: {
