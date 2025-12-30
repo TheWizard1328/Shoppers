@@ -1577,12 +1577,8 @@ export default function Patients() {
           <>
                 <div className="flex flex-col gap-3 mb-4">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 relative">
-                      {isLoading &&
-                  <div className="absolute -left-8 top-1/2 -translate-y-1/2">
-                          <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
-                        </div>
-                  }
+                    <div className="flex items-center gap-2">
+                      <SmartRefreshIndicator inline={true} />
                       <h1 className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Patient Database</h1>
                       <Badge
                     className="text-white px-2.5 py-0.5 text-sm font-semibold rounded-md"
@@ -1938,12 +1934,7 @@ export default function Patients() {
       <div className="flex-shrink-0 shadow-sm" style={{ background: 'var(--bg-white)', borderBottom: '1px solid var(--border-slate-200)' }}>
           <div className="p-4">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-              <div className="flex-1 relative">
-                {isLoading &&
-              <div className="absolute -left-8 top-1/2 -translate-y-1/2">
-                    <div className="animate-spin w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
-                  </div>
-              }
+              <div className="flex-1">
                 <div className="flex items-center gap-3">
                   <SmartRefreshIndicator inline={true} />
                   <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Store Overview</h1>
