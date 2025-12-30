@@ -243,85 +243,44 @@ const syncDeliveries = async (selectedDate = null, forceFullSync = false) => {
     const allDeliveries = [];
 
     if (isFullSync) {
-      // CHUNKED FETCHING: Use date range queries instead of per-day fetching
-      console.log('📥 [OfflineSync] Starting chunked delivery fetch...');
+      // FULL SYNC: Fetch ALL deliveries without date filtering (uses backend limit/skip pagination)
+      console.log('📥 [OfflineSync] Starting FULL delivery fetch (no date filtering)...');
       
-      // CHUNK 1: Today + next 6 days (7-day priority window)
-      const future6Days = new Date(today);
-      future6Days.setDate(today.getDate() + 6);
+      let skip = 0;
+      let hasMore = true;
+      let chunkIndex = 0;
+      const fetchBatchSize = 500;
       
-      console.log(`   Chunk 1: ${todayStr} to ${format(future6Days, 'yyyy-MM-dd')} (7 days)`);
-      const priorityDeliveries = await Delivery.filter({
-        delivery_date: {
-          $gte: todayStr,
-          $lte: format(future6Days, 'yyyy-MM-dd')
+      while (hasMore && !syncPaused) {
+        console.log(`   Chunk ${chunkIndex + 1}: Fetching deliveries with skip=${skip}, limit=${fetchBatchSize}`);
+        
+        const chunk = await Delivery.list('-created_date', fetchBatchSize, skip);
+        
+        if (chunk.length === 0) {
+          hasMore = false;
+          console.log('   ℹ️ No more deliveries to fetch');
+        } else {
+          allDeliveries.push(...chunk);
+          skip += chunk.length;
+          chunkIndex++;
+          
+          console.log(`   ✅ Chunk ${chunkIndex}: fetched ${chunk.length} deliveries (total: ${allDeliveries.length})`);
+          
+          const estimatedProgress = Math.min(90, Math.round((chunkIndex * 15)));
+          notifySyncStatus({ entity: 'Delivery', status: 'fetching', count: allDeliveries.length, progress: estimatedProgress });
+          
+          // If we got less than fetchBatchSize, we've reached the end
+          if (chunk.length < fetchBatchSize) {
+            hasMore = false;
+            console.log('   ℹ️ Last chunk (partial batch)');
+          } else {
+            // CRITICAL: Wait 3 seconds between chunks to avoid rate limits
+            await new Promise(resolve => setTimeout(resolve, 3000));
+          }
         }
-      });
-      allDeliveries.push(...priorityDeliveries);
-      console.log(`   ✅ Fetched ${priorityDeliveries.length} priority deliveries`);
-      notifySyncStatus({ entity: 'Delivery', status: 'fetching', count: allDeliveries.length, progress: 10 });
-      
-      // CRITICAL: Increased delay to 8 seconds between chunks to avoid rate limits
-      await new Promise(resolve => setTimeout(resolve, 8000));
-      
-      // CHUNK 2: Past 1-30 days
-      if (!syncPaused) {
-        const past30Start = subDays(today, 30);
-        const past1Day = subDays(today, 1);
-        
-        console.log(`   Chunk 2: ${format(past30Start, 'yyyy-MM-dd')} to ${format(past1Day, 'yyyy-MM-dd')} (30 days)`);
-        const chunk2Deliveries = await Delivery.filter({
-          delivery_date: {
-            $gte: format(past30Start, 'yyyy-MM-dd'),
-            $lte: format(past1Day, 'yyyy-MM-dd')
-          }
-        });
-        allDeliveries.push(...chunk2Deliveries);
-        console.log(`   ✅ Fetched ${chunk2Deliveries.length} deliveries (days 1-30)`);
-        notifySyncStatus({ entity: 'Delivery', status: 'fetching', count: allDeliveries.length, progress: 40 });
-        
-        // CRITICAL: Increased delay to 8 seconds between chunks
-        await new Promise(resolve => setTimeout(resolve, 8000));
       }
       
-      // CHUNK 3: Past 31-60 days
-      if (!syncPaused) {
-        const past60Start = subDays(today, 60);
-        const past31Day = subDays(today, 31);
-        
-        console.log(`   Chunk 3: ${format(past60Start, 'yyyy-MM-dd')} to ${format(past31Day, 'yyyy-MM-dd')} (30 days)`);
-        const chunk3Deliveries = await Delivery.filter({
-          delivery_date: {
-            $gte: format(past60Start, 'yyyy-MM-dd'),
-            $lte: format(past31Day, 'yyyy-MM-dd')
-          }
-        });
-        allDeliveries.push(...chunk3Deliveries);
-        console.log(`   ✅ Fetched ${chunk3Deliveries.length} deliveries (days 31-60)`);
-        notifySyncStatus({ entity: 'Delivery', status: 'fetching', count: allDeliveries.length, progress: 70 });
-        
-        // CRITICAL: Increased delay to 8 seconds between chunks
-        await new Promise(resolve => setTimeout(resolve, 8000));
-      }
-      
-      // CHUNK 4: Past 61-90 days
-      if (!syncPaused) {
-        const past90Start = subDays(today, 90);
-        const past61Day = subDays(today, 61);
-        
-        console.log(`   Chunk 4: ${format(past90Start, 'yyyy-MM-dd')} to ${format(past61Day, 'yyyy-MM-dd')} (30 days)`);
-        const chunk4Deliveries = await Delivery.filter({
-          delivery_date: {
-            $gte: format(past90Start, 'yyyy-MM-dd'),
-            $lte: format(past61Day, 'yyyy-MM-dd')
-          }
-        });
-        allDeliveries.push(...chunk4Deliveries);
-        console.log(`   ✅ Fetched ${chunk4Deliveries.length} deliveries (days 61-90)`);
-        notifySyncStatus({ entity: 'Delivery', status: 'fetching', count: allDeliveries.length, progress: 90 });
-      }
-      
-      console.log(`✅ [OfflineSync] Fetched all ${allDeliveries.length} deliveries in 4 chunks`);
+      console.log(`✅ [OfflineSync] Fetched all ${allDeliveries.length} deliveries in ${chunkIndex} chunks`);
       
     } else {
       // INCREMENTAL SYNC: Priority dates + changed dates only
