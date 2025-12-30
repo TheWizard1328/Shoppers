@@ -2160,6 +2160,8 @@ function Dashboard() {
             Math.max(10, phase2Padding.paddingBottomRight[1] + 20) // Increase bottom padding to shift center down
           ];
 
+          const padding = getMapPadding(false, allCoordinates.length > 0);
+
           setShouldFitBounds({
             bounds,
             options: {
