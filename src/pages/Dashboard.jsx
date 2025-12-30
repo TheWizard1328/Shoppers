@@ -2088,7 +2088,7 @@ function Dashboard() {
             [closestCity.latitude - latOffset, closestCity.longitude - lonOffset],
             [closestCity.latitude + latOffset, closestCity.longitude + lonOffset]];
 
-            const padding = getMapPadding(false, false);
+            const padding = getMapPadding(false, deliveriesWithStopOrder.length > 0);
             setShouldFitBounds({
               bounds,
               options: {
