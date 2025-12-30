@@ -456,6 +456,24 @@ Deno.serve(async (req) => {
     }).filter(s => s.lat && s.lng);
 
     // ═══════════════════════════════════════════════════════════════════════════════
+    // STEP 0: Check for newly added stops (retries/returns) and evaluate optimal insertion
+    // CRITICAL: A retry/return should be inserted at the position that creates the shortest route
+    // ═══════════════════════════════════════════════════════════════════════════════
+    
+    // Find stops that were just added (no stop_order or very high stop_order indicating end of route)
+    const maxExistingStopOrder = Math.max(...allDeliveries.map(d => d.stop_order || 0));
+    const newlyAddedStops = stops.filter(s => {
+      // A newly added stop typically has no stop_order or was added at the end
+      const hasNoOrder = !s.delivery.stop_order || s.delivery.stop_order === 0;
+      const wasAddedAtEnd = s.delivery.stop_order >= maxExistingStopOrder;
+      // Check if this is a retry (in_transit with no actual completion) or a return delivery
+      const isRetryOrReturn = s.delivery.status === 'in_transit' || s.delivery.status === 'en_route';
+      return (hasNoOrder || wasAddedAtEnd) && isRetryOrReturn;
+    });
+    
+    console.log(`🔄 Found ${newlyAddedStops.length} newly added stops (retries/returns) to evaluate for optimal insertion`);
+
+    // ═══════════════════════════════════════════════════════════════════════════════
     // STEP 1: Sort ALL stops by delivery_time_start, then optimize within time groups
     // CRITICAL: Maintains time window ORDER while optimizing distance WITHIN same-time groups
     // ═══════════════════════════════════════════════════════════════════════════════
@@ -533,6 +551,23 @@ Deno.serve(async (req) => {
     const sortedStops = [];
     let lastPosition = { lat: driverLocation.lat, lng: driverLocation.lng };
     
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // SMART INSERTION: For newly added stops (retries/returns), find optimal position
+    // Compare: inserting as next stop vs. inserting at time-sorted position
+    // Choose whichever creates a shorter total route
+    // ═══════════════════════════════════════════════════════════════════════════════
+    
+    // Helper to calculate total route distance for a given stop order
+    const calculateTotalRouteDistance = (stopsArray, startPos) => {
+      let totalDist = 0;
+      let currentPos = startPos;
+      for (const stop of stopsArray) {
+        totalDist += calculateCrowFliesDistance(currentPos.lat, currentPos.lng, stop.lat, stop.lng);
+        currentPos = { lat: stop.lat, lng: stop.lng };
+      }
+      return totalDist;
+    };
+    
     for (const timeKey of sortedTimeKeys) {
       const groupStops = timeGroups.get(timeKey);
       console.log(`\n⏰ Processing time group "${timeKey}" with ${groupStops.length} stops`);
@@ -578,6 +613,52 @@ Deno.serve(async (req) => {
           lastPosition = { lat: nearest.lat, lng: nearest.lng };
           console.log(`   📬 DELIVERY: ${nearest.delivery.patient_name || 'Unknown'} (${nearestDist.toFixed(1)}km)`);
         }
+      }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // POST-SORT: Evaluate if any newly added stops should be moved to optimal position
+    // For retries/returns, check if inserting earlier creates a shorter route
+    // ═══════════════════════════════════════════════════════════════════════════════
+    
+    for (const newStop of newlyAddedStops) {
+      const newStopInSorted = sortedStops.find(s => s.delivery.id === newStop.delivery.id);
+      if (!newStopInSorted) continue;
+      
+      const currentIndex = sortedStops.indexOf(newStopInSorted);
+      console.log(`\n🔄 Evaluating optimal position for ${newStop.delivery.patient_name || 'Unknown'} (currently at index ${currentIndex})`);
+      
+      // Calculate current route distance
+      const currentRouteDistance = calculateTotalRouteDistance(sortedStops, driverLocation);
+      console.log(`   Current route distance: ${currentRouteDistance.toFixed(2)} km`);
+      
+      // Try inserting at each earlier position and find the best one
+      let bestPosition = currentIndex;
+      let bestDistance = currentRouteDistance;
+      
+      for (let insertPos = 0; insertPos < currentIndex; insertPos++) {
+        // Create test array with stop moved to insertPos
+        const testArray = [...sortedStops];
+        testArray.splice(currentIndex, 1); // Remove from current position
+        testArray.splice(insertPos, 0, newStopInSorted); // Insert at test position
+        
+        const testDistance = calculateTotalRouteDistance(testArray, driverLocation);
+        
+        if (testDistance < bestDistance) {
+          bestDistance = testDistance;
+          bestPosition = insertPos;
+          console.log(`   ✅ Position ${insertPos} is better: ${testDistance.toFixed(2)} km (saves ${(currentRouteDistance - testDistance).toFixed(2)} km)`);
+        }
+      }
+      
+      // If a better position was found, move the stop
+      if (bestPosition !== currentIndex) {
+        console.log(`   🎯 Moving ${newStop.delivery.patient_name || 'Unknown'} from position ${currentIndex} to ${bestPosition}`);
+        sortedStops.splice(currentIndex, 1); // Remove from current position
+        sortedStops.splice(bestPosition, 0, newStopInSorted); // Insert at best position
+        console.log(`   📊 Route improved by ${(currentRouteDistance - bestDistance).toFixed(2)} km`);
+      } else {
+        console.log(`   ℹ️ Current position is optimal for ${newStop.delivery.patient_name || 'Unknown'}`);
       }
     }
     
