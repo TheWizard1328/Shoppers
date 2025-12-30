@@ -96,10 +96,11 @@ export default function SmartPrioritizationPanel({
   };
 
   const getUrgencyBg = (score) => {
-    if (score >= 80) return 'bg-red-50';
-    if (score >= 50) return 'bg-amber-50';
-    if (score >= 25) return 'bg-blue-50';
-    return 'bg-slate-50';
+    // Return inline style object for dark mode compatibility
+    if (score >= 80) return { background: 'rgba(254, 226, 226, 0.5)' }; // red-50
+    if (score >= 50) return { background: 'rgba(254, 243, 199, 0.5)' }; // amber-50
+    if (score >= 25) return { background: 'rgba(219, 234, 254, 0.5)' }; // blue-50
+    return { background: 'var(--bg-slate-100)' };
   };
 
   if (!driverId || driverId === 'all') {
@@ -291,8 +292,8 @@ export default function SmartPrioritizationPanel({
                         {analysis.deliveryAnalysis.slice(0, 5).map((delivery, idx) => (
                           <div 
                             key={delivery.deliveryId}
-                            className={`p-2 rounded-lg border ${getUrgencyBg(delivery.urgencyScore)}`}
-                            style={{ borderColor: 'var(--border-slate-300)' }}
+                            className="p-2 rounded-lg border"
+                            style={{ borderColor: 'var(--border-slate-300)', ...getUrgencyBg(delivery.urgencyScore) }}
                           >
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2 min-w-0 flex-1">
