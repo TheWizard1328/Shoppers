@@ -402,11 +402,11 @@ function Dashboard() {
     const stopCardsCurrHeight = stopCardsContainerRef.current?.offsetHeight || 150;
 
     const topPadding = isMobile ?
-    statsCardCurrHeight + 30 :
-    30; // Desktop: Exclude stats card
+    statsCardCurrHeight + 10 :
+    20; // Desktop: Exclude stats card
 
     const bottomPadding = hasVisibleCards ?
-    cardExpanded ? stopCardsCurrHeight + 10 : stopCardsBaseHeight + 30 :
+    cardExpanded ? stopCardsCurrHeight + 10 : stopCardsBaseHeight + 10 :
     20;
 
     return {
