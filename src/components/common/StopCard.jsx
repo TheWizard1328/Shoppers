@@ -1553,6 +1553,9 @@ export default function StopCard({
                             invalidate('Delivery');
                             await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
                             console.log('✅ [Accept/Assign All] UI refreshed with new stop order');
+
+                            // CRITICAL: Trigger map route line refresh
+                            window.dispatchEvent(new CustomEvent('routeOptimizationComplete'));
                           } catch (optimizeError) {
                             console.warn('⚠️ [Accept/Assign All] Route optimizer failed, continuing without optimization:', optimizeError);
                           }

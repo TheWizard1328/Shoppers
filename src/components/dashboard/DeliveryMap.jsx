@@ -819,11 +819,20 @@ export default function DeliveryMap({
       setRouteRenderKey(prev => prev + 1);
     };
 
+    // NEW: Listen for route optimization completion to refresh map
+    const handleRouteOptimizationComplete = (event) => {
+      console.log('🗺️ [DeliveryMap] Route optimization complete - refreshing map');
+      prevDriverRoutesRef.current = [];
+      setRouteRenderKey(prev => prev + 1);
+    };
+
     window.addEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
     window.addEventListener('deliveriesUpdated', handleDeliveriesUpdate);
+    window.addEventListener('routeOptimizationComplete', handleRouteOptimizationComplete);
     return () => {
       window.removeEventListener('driverLocationsUpdated', handleDriverLocationUpdate);
       window.removeEventListener('deliveriesUpdated', handleDeliveriesUpdate);
+      window.removeEventListener('routeOptimizationComplete', handleRouteOptimizationComplete);
     };
   }, []);
 
