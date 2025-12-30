@@ -2184,10 +2184,12 @@ function Dashboard() {
             Math.max(10, phase2NoPadding.paddingBottomRight[1] + 20) // Increase bottom padding to shift center down
           ];
           
+          const padding = getMapPadding(false, false);
+
           setShouldFitBounds({
             bounds: [[driverLocation.latitude, driverLocation.longitude]],
             options: {
-              ...phase2NoPadding,
+              ...padding,
               maxZoom: 15,
               animate: true
             }
