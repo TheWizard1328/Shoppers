@@ -106,6 +106,10 @@ Deno.serve(async (req) => {
       const patient = patientMap.get(delivery.patient_id);
       const store = storeMap.get(delivery.store_id);
       
+      // Determine stop name - use patient name, delivery patient_name field, or store name for pickups
+      const isPickup = !delivery.patient_id;
+      const stopName = delivery.patient_name || patient?.full_name || (isPickup ? `${store?.name || 'Store'} Pickup` : 'Unknown');
+      
       let lat, lng;
       if (delivery.patient_id && patient) {
         lat = patient.latitude;
@@ -144,8 +148,8 @@ Deno.serve(async (req) => {
             type: 'deadline_passed',
             severity: 'critical',
             deliveryId: delivery.id,
-            patientName: patient?.full_name || 'Unknown',
-            message: `Delivery is past its time window (ended at ${formatMinutes(timeWindowEnd)})`
+            patientName: stopName,
+            message: `${stopName} is past its time window (ended at ${formatMinutes(timeWindowEnd)})`
           });
         } else if (minutesUntilDeadline < 30) {
           urgencyScore += 80;
@@ -154,8 +158,8 @@ Deno.serve(async (req) => {
             type: 'deadline_approaching',
             severity: 'warning',
             deliveryId: delivery.id,
-            patientName: patient?.full_name || 'Unknown',
-            message: `Only ${minutesUntilDeadline} minutes until deadline`
+            patientName: stopName,
+            message: `${stopName}: Only ${minutesUntilDeadline} minutes until deadline`
           });
         } else if (minutesUntilDeadline < 60) {
           urgencyScore += 50;
@@ -173,8 +177,8 @@ Deno.serve(async (req) => {
               type: 'time_risk',
               severity: 'warning',
               deliveryId: delivery.id,
-              patientName: patient?.full_name || 'Unknown',
-              message: `ETA ${estimatedTravelMinutes} min but only ${minutesUntilDeadline} min until deadline`
+              patientName: stopName,
+              message: `${stopName}: ETA ${estimatedTravelMinutes} min but only ${minutesUntilDeadline} min until deadline`
             });
           }
         }
@@ -211,7 +215,7 @@ Deno.serve(async (req) => {
 
       deliveryAnalysis.push({
         deliveryId: delivery.id,
-        patientName: patient?.full_name || store?.name || 'Unknown',
+        patientName: stopName,
         address: patient?.address || store?.address || '',
         lat,
         lng,
