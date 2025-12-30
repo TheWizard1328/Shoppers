@@ -309,10 +309,10 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
   const isSharingEnabled = localUser.location_tracking_enabled;
 
   return (
-    <div className="bg-transparent p-2 rounded-lg flex flex-col gap-2 backdrop-blur-sm border border-white/40">
+    <div className="bg-transparent p-2 rounded-lg flex items-center gap-2 backdrop-blur-sm border border-white/40">
       <div className="flex items-center gap-2">
         {getStatusIcon()}
-        <div className="flex flex-col flex-1">
+        <div className="flex flex-col">
           <div className="flex items-center gap-2">
             <Label htmlFor="location-toggle" className="text-xs font-medium text-slate-700 cursor-pointer">
               Location Sharing
@@ -342,25 +342,22 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         </div>
       </div>
       
-      <div className="flex items-center gap-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleForceRefresh}
-          disabled={isToggling}
-          className="h-7 gap-1.5 flex-1"
-          title="Force refresh location">
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={handleForceRefresh}
+        disabled={isToggling}
+        className="h-7 w-7"
+        title="Force refresh location">
 
-          <RefreshCw className={`h-3 w-3 ${isToggling ? 'animate-spin' : ''}`} />
-          <span className="text-xs">Refresh Location</span>
-        </Button>
-        
-        {permissionStatus &&
-        <span className="text-[10px] text-slate-600">
-            {permissionStatus}
-          </span>
-        }
-      </div>
+        <RefreshCw className={`h-3 w-3 ${isToggling ? 'animate-spin' : ''}`} />
+      </Button>
+      
+      {permissionStatus &&
+      <span className="text-[10px] text-slate-600 ml-2">
+          {permissionStatus}
+        </span>
+      }
     </div>);
 
 }
