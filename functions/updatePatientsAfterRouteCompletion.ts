@@ -9,8 +9,45 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { deliveryDate } = await req.json();
+    const { deliveryDate, driverId, runDailyCleanup } = await req.json();
 
+    // Mode 1: Daily cleanup - deactivate patients with no delivery in 6+ months
+    if (runDailyCleanup === true) {
+      console.log('🧹 [UpdatePatients] Running daily cleanup - deactivating stale patients...');
+      
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+      const sixMonthsAgoStr = sixMonthsAgo.toISOString().split('T')[0];
+      
+      const activePatients = await base44.asServiceRole.entities.Patient.filter({
+        status: 'active'
+      });
+      
+      let deactivatedCount = 0;
+      
+      for (const patient of activePatients) {
+        try {
+          if (!patient.last_delivery_date) continue;
+          if (patient.last_delivery_date >= sixMonthsAgoStr) continue;
+          
+          await base44.asServiceRole.entities.Patient.update(patient.id, { status: 'inactive' });
+          deactivatedCount++;
+          console.log(`⏸️ Deactivating: ${patient.full_name} (last delivery: ${patient.last_delivery_date})`);
+        } catch (error) {
+          console.error(`❌ Failed to deactivate ${patient.id}:`, error.message);
+        }
+      }
+      
+      console.log(`✅ [UpdatePatients] Daily cleanup complete - Deactivated ${deactivatedCount} patients`);
+      return Response.json({
+        success: true,
+        mode: 'dailyCleanup',
+        patientsDeactivated: deactivatedCount,
+        cutoffDate: sixMonthsAgoStr
+      });
+    }
+
+    // Mode 2: Route completion - update patients after driver completes route
     if (!deliveryDate) {
       return Response.json({ error: 'deliveryDate is required' }, { status: 400 });
     }
