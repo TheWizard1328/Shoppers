@@ -1293,20 +1293,27 @@ export default function DeliveryForm({
       cod_total_amount_required: staged.cod_total_amount_required > 0 ? staged.cod_total_amount_required * 100 : 0
     };
     console.log('📦 formDataToSet.puid:', formDataToSet.puid);
+    console.log('📦 formDataToSet.store_id (before PUID lookup):', formDataToSet.store_id);
     console.log('📦 formDataToSet.driver_id:', formDataToSet.driver_id);
     console.log('📦 formDataToSet.driver_name:', formDataToSet.driver_name);
-    console.log('📦 formDataToSet after spread:', formDataToSet);
 
-    // If it's a patient delivery and has a PUID, find the parent pickup to get the correct AM/PM slot.
+    // CRITICAL: If it's a patient delivery with PUID, find parent pickup to get correct store_id AND AM/PM slot
     if (staged.patient_id && staged.puid) {
       const allPossiblePickups = [...stagedDeliveries, ...(allDeliveries || [])];
       const parentPickup = allPossiblePickups.find((d) => d && !d.patient_id && d.stop_id === staged.puid);
 
-      if (parentPickup && parentPickup.ampm_deliveries) {
-        console.log(`📦 Matched to pickup with PUID ${staged.puid}. Using its AM/PM slot: ${parentPickup.ampm_deliveries}`);
-        formDataToSet.ampm_deliveries = parentPickup.ampm_deliveries;
+      if (parentPickup) {
+        console.log(`📦 Found parent pickup via PUID ${staged.puid}:`, {
+          store_id: parentPickup.store_id,
+          ampm: parentPickup.ampm_deliveries
+        });
+        formDataToSet.store_id = parentPickup.store_id || staged.store_id;
+        formDataToSet.ampm_deliveries = parentPickup.ampm_deliveries || staged.ampm_deliveries;
       }
     }
+
+    console.log('📦 formDataToSet.store_id (after PUID lookup):', formDataToSet.store_id);
+    console.log('📦 formDataToSet.ampm_deliveries:', formDataToSet.ampm_deliveries);
 
     setFormData(formDataToSet);
     setSelectedPatient(null);
@@ -2628,7 +2635,23 @@ export default function DeliveryForm({
     // Convert pending deliveries to staged format
     const newStagedItems = pendingDeliveries.map((delivery, index) => {
     const patient = patients.find((p) => p && p.id === delivery.patient_id);
-    const store = stores.find((s) => s && s.id === delivery.store_id);
+    
+    // CRITICAL: Find correct store via PUID first, fallback to delivery.store_id
+    let finalStoreId = delivery.store_id;
+    let timeSlot = delivery.ampm_deliveries;
+    let puid = delivery.puid || '';
+    
+    if (puid) {
+      // Find the parent pickup by PUID (stop_id)
+      const parentPickup = allDeliveries.find((d) => d && !d.patient_id && d.stop_id === puid);
+      if (parentPickup) {
+        finalStoreId = parentPickup.store_id || delivery.store_id;
+        timeSlot = parentPickup.ampm_deliveries || delivery.ampm_deliveries;
+        console.log(`📦 [AutoLoad] Delivery ${delivery.patient_name}: PUID=${puid} → store=${finalStoreId}, AM/PM=${timeSlot}`);
+      }
+    }
+    
+    const store = stores.find((s) => s && s.id === finalStoreId);
 
     if (!patient || !store) return null;
 
@@ -2640,20 +2663,6 @@ export default function DeliveryForm({
       }
     }
 
-      // CRITICAL: Preserve the PUID from the delivery record - it's already saved in the database
-      let timeSlot = delivery.ampm_deliveries; // First, use the delivery's own ampm_deliveries if set
-      let puid = delivery.puid || ''; // Use the existing PUID from the delivery
-      console.log(`📦 [AutoLoad] Loading pending delivery ${delivery.patient_name} with PUID: ${puid}`);
-
-      if (puid) {
-        // Find the parent pickup by PUID (stop_id)
-        const parentPickup = allDeliveries.find((d) => d && !d.patient_id && d.stop_id === puid);
-        if (parentPickup && parentPickup.ampm_deliveries) {
-          timeSlot = parentPickup.ampm_deliveries;
-          console.log(`📦 [AutoLoad] Delivery for ${delivery.patient_name} linked to pickup PUID ${puid}, using AM/PM: ${timeSlot}`);
-        }
-      }
-
       // Fallback: calculate if no PUID or no parent pickup found
       if (!timeSlot) {
         timeSlot = getStoreAssignedTimeSlot(store, delivery.delivery_date, allDeliveries);
@@ -2664,6 +2673,7 @@ export default function DeliveryForm({
         ...delivery,
         _tempId: Date.now() + Math.random() + index,
         patient_name: delivery.patient_name || patient?.full_name || 'Unknown',
+        store_id: finalStoreId,
         store_name: store?.name || 'Unknown Store',
         store_abbreviation: store?.abbreviation || '',
         distanceFromStore: distanceFromStore,
