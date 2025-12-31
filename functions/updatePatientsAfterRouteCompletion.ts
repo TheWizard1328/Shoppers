@@ -52,12 +52,14 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'deliveryDate is required' }, { status: 400 });
     }
 
-    console.log(`🔄 [UpdatePatients] Processing completed routes for ${deliveryDate}`);
+    console.log(`🔄 [UpdatePatients] Processing completed routes for ${deliveryDate}${driverId ? ` (driver: ${driverId})` : ''}`);
 
-    // Get all deliveries for this date
-    const deliveries = await base44.asServiceRole.entities.Delivery.filter({
-      delivery_date: deliveryDate
-    });
+    // Get deliveries for this date (optionally filtered by driver)
+    const filter = { delivery_date: deliveryDate };
+    if (driverId) {
+      filter.driver_id = driverId;
+    }
+    const deliveries = await base44.asServiceRole.entities.Delivery.filter(filter);
 
     // Get unique patient IDs from completed/failed deliveries
     const patientIds = new Set();
