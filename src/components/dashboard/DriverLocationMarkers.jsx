@@ -19,6 +19,9 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     const validDrivers = (users || []).filter(user => {
       if (!user) return false;
       
+      // Quick exit if is active user and is on mobile
+      if (user && isMobile) return false;
+
       // Skip if no valid coordinates
       if (!user.current_latitude || !user.current_longitude) {
         return false;
