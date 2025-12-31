@@ -1398,6 +1398,10 @@ function Dashboard() {
               [nextStopCoordinates.lat, nextStopCoordinates.lon]];
 
               const padding = getMapPadding(false, bounds.length > 0);
+              
+              // CRITICAL: Mark as programmatic move to prevent zoom indicator
+              window._lastProgrammaticMapMove = Date.now();
+              
               setShouldFitBounds({
                 bounds,
                 options: {
