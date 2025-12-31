@@ -15,9 +15,9 @@ const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount }) =>
   };
 
   const badge =
-  <div className="px-1 flex items-center gap-1 cursor-help">
+  <div className="px-2 flex items-center gap-2 cursor-help">
       <div className={`p-1.5 rounded-lg ${colorClasses[color]}`}>
-        <Icon className="w-3.5 h-3.5" />
+        <Icon className="w-3 h-3" />
       </div>
       <div className="relative">
         {driverCount !== undefined && driverCount > 0 &&
@@ -25,7 +25,7 @@ const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount }) =>
             {driverCount}
           </span>
       }
-        <span className="text-base font-bold" style={{ color: 'var(--text-slate-900)' }}>{value}</span>
+        <span className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{value}</span>
       </div>
     </div>;
 
