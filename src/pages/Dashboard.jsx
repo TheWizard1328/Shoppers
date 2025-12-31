@@ -75,6 +75,7 @@ import RealTimeRouteOptimizer from '../components/dashboard/RealTimeRouteOptimiz
 import QuickRouteAdjustments from '../components/dashboard/QuickRouteAdjustments';
 import { driverActivityMonitor } from '@/components/utils/driverActivityMonitor';
 import SmartPrioritizationPanel from '../components/dashboard/SmartPrioritizationPanel';
+import DualStatsMarquee from '../components/dashboard/DualStatsMarquee';
 
 // FIXED: StatBadge - simple component without hooks to avoid violations
 const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount }) => {
@@ -345,6 +346,7 @@ function Dashboard() {
     return saved !== null ? saved === 'true' : false;
   });
   const [showSmartPrioritization, setShowSmartPrioritization] = useState(false);
+  const [performanceStats, setPerformanceStats] = useState(null);
 
   // Track previous map state for restoring when card is collapsed
   const [previousMapState, setPreviousMapState] = useState(null);
@@ -6363,35 +6365,13 @@ function Dashboard() {
             </div>
 
             <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 flex-wrap">
-                <StatBadge
-                  icon={Package}
-                  value={stats.total}
-                  driverCount={isDispatcher ? stats.totalDrivers : (isDriver && stats.totalPickups > 0 ? stats.totalPickups : undefined)}
-                  color="blue"
-                  label="Total"
-                  tooltip={tooltipValues.total} />
-                <StatBadge
-                  icon={Truck}
-                  value={stats.inTransit}
-                  driverCount={isDispatcher ? stats.inTransitDrivers : (isDriver && stats.inTransitPickups > 0 ? stats.inTransitPickups : undefined)}
-                  color="purple"
-                  label="In Transit"
-                  tooltip={tooltipValues.inTransit} />
-                <StatBadge
-                  icon={CheckCircle}
-                  value={stats.completed}
-                  driverCount={isDispatcher ? stats.completedDrivers : (isDriver && stats.completedPickups > 0 ? stats.completedPickups : undefined)}
-                  color="green"
-                  label="Completed"
-                  tooltip={tooltipValues.completed} />
-                <StatBadge
-                  icon={XCircle}
-                  value={`${stats.failed}/${stats.returned}`}
-                  color="red"
-                  label="Failed/Returned"
-                  tooltip={tooltipValues.failed} />
-              </div>
+              <DualStatsMarquee
+                stats={stats}
+                tooltipValues={tooltipValues}
+                isDispatcher={isDispatcher}
+                isDriver={isDriver}
+                performanceStats={performanceStats}
+              />
 
               <Button
                 variant="ghost"
