@@ -14,21 +14,21 @@ const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount }) =>
     amber: "bg-amber-100 text-amber-600"
   };
 
-  const badge = (
-    <div className="px-1 flex items-center gap-2 cursor-help">
+  const badge =
+  <div className="px-1 flex items-center gap-2 cursor-help">
       <div className={`p-1.5 rounded-lg ${colorClasses[color]}`}>
         <Icon className="w-3.5 h-3.5" />
       </div>
       <div className="relative">
-        {driverCount !== undefined && driverCount > 0 && (
-          <span className="absolute -top-1 -right-1 text-[9px] font-bold" style={{ color: 'var(--text-slate-500)' }}>
+        {driverCount !== undefined && driverCount > 0 &&
+      <span className="absolute -top-1 -right-1 text-[9px] font-bold" style={{ color: 'var(--text-slate-500)' }}>
             {driverCount}
           </span>
-        )}
+      }
         <span className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>{value}</span>
       </div>
-    </div>
-  );
+    </div>;
+
 
   return (
     <TooltipProvider>
@@ -40,14 +40,14 @@ const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount }) =>
           <p>{tooltip || ''}</p>
         </TooltipContent>
       </Tooltip>
-    </TooltipProvider>
-  );
+    </TooltipProvider>);
+
 };
 
-export default function DualStatsMarquee({ 
-  stats, 
-  tooltipValues, 
-  isDispatcher, 
+export default function DualStatsMarquee({
+  stats,
+  tooltipValues,
+  isDispatcher,
   isDriver,
   performanceStats // { totalPay, totalKm, totalExtraKm, totalTimeOnDuty }
 }) {
@@ -56,7 +56,7 @@ export default function DualStatsMarquee({
   // Auto-cycle panels every 5 seconds
   useEffect(() => {
     const interval = setInterval(() => {
-      setActivePanel((prev) => (prev === 0 ? 1 : 0));
+      setActivePanel((prev) => prev === 0 ? 1 : 0);
     }, 5000);
 
     return () => clearInterval(interval);
@@ -65,87 +65,87 @@ export default function DualStatsMarquee({
   return (
     <div className="relative overflow-hidden" style={{ minHeight: '45px' }}>
       <AnimatePresence mode="wait">
-        {activePanel === 0 ? (
-          <motion.div
-            key="delivery-stats"
-            initial={{ y: 40, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -40, opacity: 0 }}
-            transition={{ duration: 0.4, ease: 'easeInOut' }}
-            className="flex items-center gap-2 flex-wrap"
-          >
+        {activePanel === 0 ?
+        <motion.div
+          key="delivery-stats"
+          initial={{ y: 40, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: -40, opacity: 0 }}
+          transition={{ duration: 0.4, ease: 'easeInOut' }} className="flex items-center gap-3 flex-wrap">
+
+
             <StatBadge
-              icon={Package}
-              value={stats.total}
-              driverCount={isDispatcher ? stats.totalDrivers : (isDriver && stats.totalPickups > 0 ? stats.totalPickups : undefined)}
-              color="blue"
-              label="Total"
-              tooltip={tooltipValues.total}
-            />
+            icon={Package}
+            value={stats.total}
+            driverCount={isDispatcher ? stats.totalDrivers : isDriver && stats.totalPickups > 0 ? stats.totalPickups : undefined}
+            color="blue"
+            label="Total"
+            tooltip={tooltipValues.total} />
+
             <StatBadge
-              icon={Truck}
-              value={stats.inTransit}
-              driverCount={isDispatcher ? stats.inTransitDrivers : (isDriver && stats.inTransitPickups > 0 ? stats.inTransitPickups : undefined)}
-              color="purple"
-              label="In Transit"
-              tooltip={tooltipValues.inTransit}
-            />
+            icon={Truck}
+            value={stats.inTransit}
+            driverCount={isDispatcher ? stats.inTransitDrivers : isDriver && stats.inTransitPickups > 0 ? stats.inTransitPickups : undefined}
+            color="purple"
+            label="In Transit"
+            tooltip={tooltipValues.inTransit} />
+
             <StatBadge
-              icon={CheckCircle}
-              value={stats.completed}
-              driverCount={isDispatcher ? stats.completedDrivers : (isDriver && stats.completedPickups > 0 ? stats.completedPickups : undefined)}
-              color="green"
-              label="Completed"
-              tooltip={tooltipValues.completed}
-            />
+            icon={CheckCircle}
+            value={stats.completed}
+            driverCount={isDispatcher ? stats.completedDrivers : isDriver && stats.completedPickups > 0 ? stats.completedPickups : undefined}
+            color="green"
+            label="Completed"
+            tooltip={tooltipValues.completed} />
+
             <StatBadge
-              icon={XCircle}
-              value={`${stats.failed}/${stats.returned}`}
-              color="red"
-              label="Failed/Returned"
-              tooltip={tooltipValues.failed}
-            />
+            icon={XCircle}
+            value={`${stats.failed}/${stats.returned}`}
+            color="red"
+            label="Failed/Returned"
+            tooltip={tooltipValues.failed} />
+
+          </motion.div> :
+
+        <motion.div
+          key="performance-stats"
+          initial={{ y: 40, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: -40, opacity: 0 }}
+          transition={{ duration: 0.4, ease: 'easeInOut' }}
+          className="flex items-center gap-2 flex-wrap">
+
+            <StatBadge
+            icon={DollarSign}
+            value={performanceStats?.totalPay !== undefined ? `$${performanceStats.totalPay.toFixed(2)}` : '$0.00'}
+            color="green"
+            label="Pay"
+            tooltip={`Total Pay: $${performanceStats?.totalPay?.toFixed(2) || '0.00'}`} />
+
+            <StatBadge
+            icon={Route}
+            value={performanceStats?.totalKm !== undefined ? `${performanceStats.totalKm.toFixed(2)}km` : '0.00km'}
+            color="blue"
+            label="Km"
+            tooltip={`Total Distance: ${performanceStats?.totalKm?.toFixed(2) || '0.00'} km`} />
+
+            <StatBadge
+            icon={TrendingUp}
+            value={performanceStats?.totalExtraKm !== undefined ? `${performanceStats.totalExtraKm.toFixed(2)}km` : '0.00km'}
+            color="amber"
+            label="Extra"
+            tooltip={`Extra Km (beyond ${performanceStats?.extraKmLimit || 0} km limit): ${performanceStats?.totalExtraKm?.toFixed(2) || '0.00'} km`} />
+
+            <StatBadge
+            icon={Clock}
+            value={performanceStats?.totalTimeOnDuty ? performanceStats.totalTimeOnDuty : '00:00'}
+            color="purple"
+            label="Duty"
+            tooltip={`Total Time on Duty: ${performanceStats?.totalTimeOnDuty || '00:00'}`} />
+
           </motion.div>
-        ) : (
-          <motion.div
-            key="performance-stats"
-            initial={{ y: 40, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -40, opacity: 0 }}
-            transition={{ duration: 0.4, ease: 'easeInOut' }}
-            className="flex items-center gap-2 flex-wrap"
-          >
-            <StatBadge
-              icon={DollarSign}
-              value={performanceStats?.totalPay !== undefined ? `$${performanceStats.totalPay.toFixed(2)}` : '$0.00'}
-              color="green"
-              label="Pay"
-              tooltip={`Total Pay: $${performanceStats?.totalPay?.toFixed(2) || '0.00'}`}
-            />
-            <StatBadge
-              icon={Route}
-              value={performanceStats?.totalKm !== undefined ? `${performanceStats.totalKm.toFixed(2)}km` : '0.00km'}
-              color="blue"
-              label="Km"
-              tooltip={`Total Distance: ${performanceStats?.totalKm?.toFixed(2) || '0.00'} km`}
-            />
-            <StatBadge
-              icon={TrendingUp}
-              value={performanceStats?.totalExtraKm !== undefined ? `${performanceStats.totalExtraKm.toFixed(2)}km` : '0.00km'}
-              color="amber"
-              label="Extra"
-              tooltip={`Extra Km (beyond ${performanceStats?.extraKmLimit || 0} km limit): ${performanceStats?.totalExtraKm?.toFixed(2) || '0.00'} km`}
-            />
-            <StatBadge
-              icon={Clock}
-              value={performanceStats?.totalTimeOnDuty ? performanceStats.totalTimeOnDuty : '00:00'}
-              color="purple"
-              label="Duty"
-              tooltip={`Total Time on Duty: ${performanceStats?.totalTimeOnDuty || '00:00'}`}
-            />
-          </motion.div>
-        )}
+        }
       </AnimatePresence>
-    </div>
-  );
+    </div>);
+
 }
