@@ -19,8 +19,9 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     const validDrivers = (users || []).filter(user => {
       if (!user) return false;
       
-      // Quick exit if is active user and is on mobile
-      if (user && isMobile) return false;
+      // CRITICAL: Skip current user's shared marker on mobile (blue dot shows instead)
+      const driverId = user.id || user.user_id;
+      if (isMobile && driverId === currentUser?.id) return false;
 
       // Skip if no valid coordinates
       if (!user.current_latitude || !user.current_longitude) {
