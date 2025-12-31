@@ -99,38 +99,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // PART 2: Deactivate patients with no delivery in 6+ months
-    console.log(`🔍 [UpdatePatients] Checking for inactive patients (6+ months since last delivery)...`);
-    
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-    const sixMonthsAgoStr = sixMonthsAgo.toISOString().split('T')[0];
-    
-    // Get all active patients
-    const activePatients = await base44.asServiceRole.entities.Patient.filter({
-      status: 'active'
-    });
-    
-    let deactivatedCount = 0;
-    
-    for (const patient of activePatients) {
-      try {
-        // Skip if no last_delivery_date (new patient)
-        if (!patient.last_delivery_date) continue;
-        
-        // Skip if delivered within last 6 months
-        if (patient.last_delivery_date >= sixMonthsAgoStr) continue;
-        
-        // Deactivate patient
-        await base44.asServiceRole.entities.Patient.update(patient.id, { status: 'inactive' });
-        deactivatedCount++;
-        console.log(`⏸️ Deactivating patient: ${patient.full_name} (last delivery: ${patient.last_delivery_date})`);
-      } catch (error) {
-        console.error(`❌ Failed to deactivate patient ${patient.id}:`, error.message);
-      }
-    }
-
-    console.log(`✅ [UpdatePatients] Complete - Updated ${updatedCount} patients, Activated ${activatedCount}`);
+    console.log(`✅ [UpdatePatients] Route completion - Updated ${updatedCount} patients, Activated ${activatedCount}`);
 
     return Response.json({
       success: true,
