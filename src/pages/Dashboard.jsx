@@ -5557,19 +5557,53 @@ function Dashboard() {
   const handleCreateReturn = async ({ originalDelivery, returnPatient, store }) => {
     try {
       const currentDate = format(new Date(), 'yyyy-MM-dd');
+      
+      // CRITICAL: Generate unique SID
+      const existingDeliveriesForDate = deliveries.filter(d => d && d.delivery_date === currentDate);
+      const newSID = generateUniqueSID(existingDeliveriesForDate);
+      
+      // CRITICAL: Use PUID from failed delivery to determine correct store and AM/PM
+      const puid = originalDelivery.puid;
+      let finalStoreId = originalDelivery.store_id;
+      let finalAmpm = originalDelivery.ampm_deliveries;
+      
+      // If PUID exists, find parent pickup to get correct store/AM-PM
+      if (puid) {
+        const parentPickup = deliveries.find(d => d && !d.patient_id && d.stop_id === puid);
+        if (parentPickup) {
+          finalStoreId = parentPickup.store_id || originalDelivery.store_id;
+          finalAmpm = parentPickup.ampm_deliveries || originalDelivery.ampm_deliveries;
+        }
+      }
+      
+      // CRITICAL: Get store abbreviation for TR#
+      const returnStore = stores.find(s => s?.id === finalStoreId);
+      const storeAbbr = returnStore?.abbreviation || 'XX';
+      
+      // CRITICAL: Generate TR# using same range as failed delivery (store abbr + failed delivery's TR number)
+      const failedTR = parseInt(originalDelivery.tracking_number, 10);
+      const newTR = isNaN(failedTR) ? `${storeAbbr}99` : `${storeAbbr}${failedTR}`;
+      
+      // CRITICAL: Format driver notes with each item on separate lines
+      const driverNotes = `From: ${originalDelivery.delivery_date}\nFor: ${patient?.full_name || originalDelivery.patient_name || 'Unknown'}`;
+      
       const returnDeliveryData = {
         patient_id: returnPatient.id,
-        store_id: originalDelivery.store_id,
+        store_id: finalStoreId,
         driver_id: originalDelivery.driver_id,
         driver_name: originalDelivery.driver_name,
         delivery_date: currentDate,
         delivery_time_start: originalDelivery.delivery_time_start,
         delivery_time_end: originalDelivery.delivery_time_end,
         status: 'in_transit',
-        delivery_notes: `PATIENT RETURN From: ${originalDelivery.delivery_date} For: ${returnPatient.full_name}`,
+        delivery_notes: driverNotes,
         patient_name: returnPatient.full_name,
         patient_phone: returnPatient.phone || store?.phone || '',
-        store_phone: store?.phone || ''
+        store_phone: store?.phone || '',
+        stop_id: newSID,
+        puid: puid,
+        tracking_number: newTR,
+        ampm_deliveries: finalAmpm
       };
 
       // Create the return delivery for today
