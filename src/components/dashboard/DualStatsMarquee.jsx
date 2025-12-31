@@ -63,7 +63,7 @@ export default function DualStatsMarquee({
   }, []);
 
   return (
-    <div className="relative overflow-hidden" style={{ minHeight: '40px' }}>
+    <div className="py-2 relative overflow-hidden" style={{ minHeight: '40px' }}>
       <AnimatePresence mode="wait">
         {activePanel === 0 ?
         <motion.div
@@ -71,7 +71,7 @@ export default function DualStatsMarquee({
           initial={{ y: 40, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: -40, opacity: 0 }}
-          transition={{ duration: 0.4, ease: 'easeInOut' }} className="flex items-center gap-3 flex-nowrap">
+          transition={{ duration: 0.4, ease: 'easeInOut' }} className="flex items-center gap-5 flex-nowrap">
 
 
             <StatBadge
