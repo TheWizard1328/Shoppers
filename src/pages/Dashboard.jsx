@@ -1911,13 +1911,17 @@ function Dashboard() {
           hasDriverMarkers = true;
         }
 
-        // 2. SHARED DRIVER LOCATIONS: Include when in "All Drivers" mode OR "Show All" is checked
+        // 2. SHARED DRIVER LOCATIONS: Include when in "All Drivers" mode OR "Show All" is checked OR when desktop
         console.log(`🗺️ [Phase 1] showAllDriverMarkers: ${showAllDriverMarkers}`);
         console.log(`🗺️ [Phase 1] shouldShowAllMarkersForBounds: ${shouldShowAllMarkersForBounds}`);
         console.log(`🗺️ [Phase 1] isViewingToday: ${isViewingToday}`);
+        console.log(`🗺️ [Phase 1] isMobile: ${isMobile}`);
         console.log(`🗺️ [Phase 1] allDriverLocations count: ${allDriverLocations?.length || 0}`);
         
-        if (isViewingToday && shouldShowAllMarkersForBounds && allDriverLocations.length > 0 && Array.isArray(allDriverLocations)) {
+        // CRITICAL: Always include shared locations on desktop OR when showing all markers
+        const shouldIncludeSharedLocations = !isMobile || shouldShowAllMarkersForBounds;
+        
+        if (isViewingToday && shouldIncludeSharedLocations && allDriverLocations.length > 0 && Array.isArray(allDriverLocations)) {
           let addedCount = 0;
           allDriverLocations.forEach((location) => {
             if (!location?.latitude || !location?.longitude || !location?.driver_id) {
