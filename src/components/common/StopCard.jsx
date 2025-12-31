@@ -2083,10 +2083,21 @@ export default function StopCard({
                             detail: { triggeredBy: 'complete', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
                           }));
                           
+                          // CRITICAL: Scroll to next delivery card immediately
+                          if (incompleteDeliveries.length > 0) {
+                            setTimeout(() => {
+                              const nextCardElement = document.getElementById(`stop-card-${incompleteDeliveries[0].id}`);
+                              if (nextCardElement) {
+                                nextCardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                                console.log('📍 [COMPLETE] Scrolled to next delivery card');
+                              }
+                            }, 100);
+                          }
+                          
                           // CRITICAL: Reactivate FAB immediately (before background work)
                           fabControlEvents.reactivateFAB(true);
                           
-                          console.log('✅ [COMPLETE] PHASE 1: UI updated - markers, routes, and FAB updated');
+                          console.log('✅ [COMPLETE] PHASE 1: UI updated - markers, routes, FAB, and next card centered');
 
                           // ═══════════ PHASE 2: BACKGROUND TASKS ═══════════
                           console.log('🔄 [COMPLETE] PHASE 2: Running background tasks...');
