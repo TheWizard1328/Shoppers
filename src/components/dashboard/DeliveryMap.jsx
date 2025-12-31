@@ -1359,6 +1359,8 @@ export default function DeliveryMap({
     const markers = safeUsers.map((user) => {
       if (!user || typeof user !== 'object') return null;
       
+      if (user && isMobile) return null;
+
       const driverId = user.id || user.user_id;
       if (!driverId) return null;
 
