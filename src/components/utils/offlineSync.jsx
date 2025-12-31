@@ -243,44 +243,72 @@ const syncDeliveries = async (selectedDate = null, forceFullSync = false) => {
     const allDeliveries = [];
 
     if (isFullSync) {
-      // FULL SYNC: Fetch ALL deliveries without date filtering (uses backend limit/skip pagination)
-      console.log('📥 [OfflineSync] Starting FULL delivery fetch (no date filtering)...');
+      // FULL SYNC: Fetch deliveries by date range (today + future + past 90 days)
+      // CRITICAL: Do NOT clear existing data - merge with what's already in IndexedDB
+      console.log('📥 [OfflineSync] Starting FULL delivery fetch by date range...');
       
-      let skip = 0;
-      let hasMore = true;
-      let chunkIndex = 0;
-      const fetchBatchSize = 500;
+      // First, load existing deliveries from IndexedDB to preserve them
+      const existingDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
+      const existingById = new Map(existingDeliveries.map(d => [d.id, d]));
+      console.log(`   📦 Loaded ${existingDeliveries.length} existing deliveries from IndexedDB`);
       
-      while (hasMore && !syncPaused) {
-        console.log(`   Chunk ${chunkIndex + 1}: Fetching deliveries with skip=${skip}, limit=${fetchBatchSize}`);
+      // Build date list: today, 6 days forward, then 90 days back
+      const datesToFetch = [];
+      datesToFetch.push(todayStr); // Today first
+      
+      for (let i = 1; i <= 6; i++) {
+        const futureDate = new Date(today);
+        futureDate.setDate(today.getDate() + i);
+        datesToFetch.push(format(futureDate, 'yyyy-MM-dd'));
+      }
+      
+      for (let i = 1; i <= LOCAL_CACHE_DAYS; i++) {
+        const pastDate = new Date(today);
+        pastDate.setDate(today.getDate() - i);
+        datesToFetch.push(format(pastDate, 'yyyy-MM-dd'));
+      }
+      
+      console.log(`   📅 Will fetch ${datesToFetch.length} dates (today + 6 future + ${LOCAL_CACHE_DAYS} past)`);
+      
+      let fetchedCount = 0;
+      for (let i = 0; i < datesToFetch.length; i++) {
+        if (syncPaused) {
+          console.log('⏸️ [OfflineSync] syncDeliveries interrupted - sync paused');
+          break;
+        }
         
-        const chunk = await Delivery.list('-created_date', fetchBatchSize, skip);
+        const dateStr = datesToFetch[i];
         
-        if (chunk.length === 0) {
-          hasMore = false;
-          console.log('   ℹ️ No more deliveries to fetch');
-        } else {
-          allDeliveries.push(...chunk);
-          skip += chunk.length;
-          chunkIndex++;
+        try {
+          const dateDeliveries = await Delivery.filter({ delivery_date: dateStr });
           
-          console.log(`   ✅ Chunk ${chunkIndex}: fetched ${chunk.length} deliveries (total: ${allDeliveries.length})`);
-          
-          const estimatedProgress = Math.min(90, Math.round((chunkIndex * 15)));
-          notifySyncStatus({ entity: 'Delivery', status: 'fetching', count: allDeliveries.length, progress: estimatedProgress });
-          
-          // If we got less than fetchBatchSize, we've reached the end
-          if (chunk.length < fetchBatchSize) {
-            hasMore = false;
-            console.log('   ℹ️ Last chunk (partial batch)');
-          } else {
-            // CRITICAL: Wait 3 seconds between chunks to avoid rate limits
-            await new Promise(resolve => setTimeout(resolve, 3000));
+          // Merge with existing (backend wins for conflicts)
+          for (const delivery of dateDeliveries) {
+            existingById.set(delivery.id, delivery);
           }
+          
+          fetchedCount += dateDeliveries.length;
+          
+          const progress = Math.round(((i + 1) / datesToFetch.length) * 90);
+          notifySyncStatus({ entity: 'Delivery', status: 'fetching', count: fetchedCount, progress });
+          
+          // Rate limit protection: wait between date fetches
+          if (i < datesToFetch.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        } catch (error) {
+          // If rate limited, wait and continue
+          if (error.response?.status === 429 || error.message?.includes('429')) {
+            console.log(`⏰ [OfflineSync] Rate limit on date ${dateStr} - waiting 5s...`);
+            await new Promise(resolve => setTimeout(resolve, 5000));
+          }
+          // Continue with other dates even if one fails
         }
       }
       
-      console.log(`✅ [OfflineSync] Fetched all ${allDeliveries.length} deliveries in ${chunkIndex} chunks`);
+      // Convert map back to array
+      allDeliveries.push(...existingById.values());
+      console.log(`✅ [OfflineSync] Merged ${fetchedCount} fetched + ${existingDeliveries.length} existing = ${allDeliveries.length} total deliveries`);
       
     } else {
       // INCREMENTAL SYNC: Priority dates + changed dates only
