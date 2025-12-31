@@ -113,7 +113,7 @@ export default function DualStatsMarquee({
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: -40, opacity: 0 }}
           transition={{ duration: 0.4, ease: 'easeInOut' }}
-          className="flex items-center gap-1 flex-wrap">
+          className="flex items-center gap-0.5 flex-wrap">
 
             <StatBadge
             icon={DollarSign}
