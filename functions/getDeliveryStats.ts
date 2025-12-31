@@ -362,10 +362,80 @@ Deno.serve(async (req) => {
       returns: monthReturns
     };
 
+    // ===========================================
+    // PERFORMANCE STATS - Total Pay, Km, Extra Km, Time on Duty
+    // ===========================================
+    let performanceStats = {
+      totalPay: 0,
+      totalKm: 0,
+      totalExtraKm: 0,
+      totalTimeOnDuty: 0 // in minutes
+    };
+
+    // Only calculate for single driver view (not "all")
+    if (driverId && driverId !== 'all') {
+      try {
+        const driverAppUser = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
+        const appUser = driverAppUser?.[0];
+
+        if (appUser) {
+          const payRatePerDelivery = appUser.pay_rate_per_delivery || 0;
+          const extraKmRate = appUser.extra_km_rate || 0;
+          const extraKmLimit = appUser.extra_km_limit || 0;
+
+          // Total Pay: completed patient deliveries * pay rate
+          const completedPatientDeliveries = todayDeliveries.filter(d => 
+            d && d.patient_id && isCompleted(d)
+          );
+          const basePayFromDeliveries = completedPatientDeliveries.length * payRatePerDelivery;
+
+          // Total Km: sum up distances from completed patient deliveries
+          let totalKm = 0;
+          const patientIds = completedPatientDeliveries.map(d => d.patient_id).filter(Boolean);
+          
+          if (patientIds.length > 0) {
+            const patientsData = await base44.asServiceRole.entities.Patient.filter({ 
+              id: { $in: patientIds } 
+            });
+            
+            patientsData.forEach(patient => {
+              if (patient?.distance_from_store && typeof patient.distance_from_store === 'number') {
+                totalKm += patient.distance_from_store;
+              }
+            });
+          }
+
+          // Extra Km: total beyond the limit
+          const totalExtraKm = Math.max(0, totalKm - extraKmLimit);
+          const extraKmPay = totalExtraKm * extraKmRate;
+
+          performanceStats.totalPay = basePayFromDeliveries + extraKmPay;
+          performanceStats.totalKm = totalKm;
+          performanceStats.totalExtraKm = totalExtraKm;
+
+          // Total Time on Duty: first to last actual_delivery_time
+          const sortedByTime = completedPatientDeliveries
+            .filter(d => d.actual_delivery_time)
+            .sort((a, b) => new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time));
+
+          if (sortedByTime.length > 0) {
+            const firstTime = new Date(sortedByTime[0].actual_delivery_time);
+            const lastTime = new Date(sortedByTime[sortedByTime.length - 1].actual_delivery_time);
+            const durationMs = lastTime - firstTime;
+            performanceStats.totalTimeOnDuty = Math.floor(durationMs / (1000 * 60)); // Convert to minutes
+          }
+        }
+      } catch (perfError) {
+        console.warn('⚠️ [getDeliveryStats] Performance stats error:', perfError.message);
+        // Continue with zeros
+      }
+    }
+
     // Build response based on user role
     const response = {
       today: todayStats,
-      month: monthStats
+      month: monthStats,
+      performanceStats
     };
     
     // Only include entityCounts for roles that should see them
