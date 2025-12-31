@@ -117,31 +117,31 @@ export default function DualStatsMarquee({
           >
             <StatBadge
               icon={DollarSign}
-              value={performanceStats?.totalPay ? `$${performanceStats.totalPay.toFixed(0)}` : '$0'}
+              value={performanceStats?.totalPay !== undefined ? `$${performanceStats.totalPay.toFixed(2)}` : '$0.00'}
               color="green"
-              label="Total Pay"
+              label="Pay"
               tooltip={`Total Pay: $${performanceStats?.totalPay?.toFixed(2) || '0.00'}`}
             />
             <StatBadge
               icon={Route}
-              value={performanceStats?.totalKm ? `${performanceStats.totalKm.toFixed(0)}` : '0'}
+              value={performanceStats?.totalKm !== undefined ? `${performanceStats.totalKm.toFixed(2)}km` : '0.00km'}
               color="blue"
-              label="Total Km"
+              label="Km"
               tooltip={`Total Distance: ${performanceStats?.totalKm?.toFixed(2) || '0.00'} km`}
             />
             <StatBadge
               icon={TrendingUp}
-              value={performanceStats?.totalExtraKm ? `${performanceStats.totalExtraKm.toFixed(0)}` : '0'}
+              value={performanceStats?.totalExtraKm !== undefined ? `${performanceStats.totalExtraKm.toFixed(2)}km` : '0.00km'}
               color="amber"
-              label="Extra Km"
-              tooltip={`Extra Km: ${performanceStats?.totalExtraKm?.toFixed(2) || '0.00'} km`}
+              label="Extra"
+              tooltip={`Extra Km (beyond ${performanceStats?.extraKmLimit || 0} km limit): ${performanceStats?.totalExtraKm?.toFixed(2) || '0.00'} km`}
             />
             <StatBadge
               icon={Clock}
-              value={performanceStats?.totalTimeOnDuty ? `${Math.floor(performanceStats.totalTimeOnDuty / 60)}h ${performanceStats.totalTimeOnDuty % 60}m` : '0h'}
+              value={performanceStats?.totalTimeOnDuty ? performanceStats.totalTimeOnDuty : '00:00'}
               color="purple"
-              label="On Duty"
-              tooltip={`Total Time on Duty: ${performanceStats?.totalTimeOnDuty ? `${Math.floor(performanceStats.totalTimeOnDuty / 60)}h ${performanceStats.totalTimeOnDuty % 60}m` : '0 minutes'}`}
+              label="Duty"
+              tooltip={`Total Time on Duty: ${performanceStats?.totalTimeOnDuty || '00:00'}`}
             />
           </motion.div>
         )}

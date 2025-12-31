@@ -369,7 +369,8 @@ Deno.serve(async (req) => {
       totalPay: 0,
       totalKm: 0,
       totalExtraKm: 0,
-      totalTimeOnDuty: 0 // in minutes
+      totalTimeOnDuty: '00:00',
+      extraKmLimit: 0
     };
 
     // Only calculate for single driver view (not "all")
@@ -389,8 +390,9 @@ Deno.serve(async (req) => {
           );
           const basePayFromDeliveries = completedPatientDeliveries.length * payRatePerDelivery;
 
-          // Total Km: sum up distances from completed patient deliveries
+          // Total Km & Extra Km: sum up distances, but only count extra if EACH distance > limit
           let totalKm = 0;
+          let totalExtraKm = 0;
           const patientIds = completedPatientDeliveries.map(d => d.patient_id).filter(Boolean);
           
           if (patientIds.length > 0) {
@@ -400,20 +402,25 @@ Deno.serve(async (req) => {
             
             patientsData.forEach(patient => {
               if (patient?.distance_from_store && typeof patient.distance_from_store === 'number') {
-                totalKm += patient.distance_from_store;
+                const distance = patient.distance_from_store;
+                totalKm += distance;
+                
+                // CRITICAL: Only count extra km if THIS patient's distance exceeds limit
+                if (distance > extraKmLimit) {
+                  totalExtraKm += (distance - extraKmLimit);
+                }
               }
             });
           }
 
-          // Extra Km: total beyond the limit
-          const totalExtraKm = Math.max(0, totalKm - extraKmLimit);
           const extraKmPay = totalExtraKm * extraKmRate;
 
           performanceStats.totalPay = basePayFromDeliveries + extraKmPay;
           performanceStats.totalKm = totalKm;
           performanceStats.totalExtraKm = totalExtraKm;
+          performanceStats.extraKmLimit = extraKmLimit;
 
-          // Total Time on Duty: first to last actual_delivery_time
+          // Total Time on Duty: first to last actual_delivery_time (formatted as HH:mm)
           const sortedByTime = completedPatientDeliveries
             .filter(d => d.actual_delivery_time)
             .sort((a, b) => new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time));
@@ -422,7 +429,10 @@ Deno.serve(async (req) => {
             const firstTime = new Date(sortedByTime[0].actual_delivery_time);
             const lastTime = new Date(sortedByTime[sortedByTime.length - 1].actual_delivery_time);
             const durationMs = lastTime - firstTime;
-            performanceStats.totalTimeOnDuty = Math.floor(durationMs / (1000 * 60)); // Convert to minutes
+            const totalMinutes = Math.floor(durationMs / (1000 * 60));
+            const hours = Math.floor(totalMinutes / 60);
+            const minutes = totalMinutes % 60;
+            performanceStats.totalTimeOnDuty = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
           }
         }
       } catch (perfError) {
