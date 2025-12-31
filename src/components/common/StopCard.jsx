@@ -1304,7 +1304,8 @@ export default function StopCard({
 
                     <div>
                       <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Notes:</span>
-                      <p className="text-xs" style={{ color: 'var(--text-slate-900)' }}>PATIENT RETURN For: {patient?.full_name || delivery.patient_name || 'Unknown'}</p>
+                      <p className="text-xs" style={{ color: 'var(--text-slate-900)' }}>PATIENT RETURN</p>
+                      <p className="text-xs" style={{ color: 'var(--text-slate-900)' }}>For: {patient?.full_name || delivery.patient_name || 'Unknown'}</p>
                     </div>
 
                     <div>
