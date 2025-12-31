@@ -2009,10 +2009,10 @@ export default function DeliveryMap({
         if (roundedZoom !== currentZoom) {
           setCurrentZoom(roundedZoom);
           
-          // CRITICAL: Only show zoom overlay on MANUAL zooms (not programmatic FAB zooms)
-          // Check if this was a programmatic zoom (within 500ms of last programmatic move)
+          // CRITICAL: Only show zoom overlay on MANUAL zooms (not programmatic)
+          // Check if this was a programmatic zoom (within 1000ms of last programmatic move)
           const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
-          const isManualZoom = timeSinceProgrammatic > 500;
+          const isManualZoom = timeSinceProgrammatic > 1000;
           
           if (isManualZoom) {
             // Show zoom overlay for 3 seconds on manual zoom only
