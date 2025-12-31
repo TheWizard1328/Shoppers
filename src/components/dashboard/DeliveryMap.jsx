@@ -1333,19 +1333,26 @@ export default function DeliveryMap({
   const prevDriverLocationMarkersRef = useRef([]);
   
   const driverLocationMarkers = useMemo(() => {
-    if (!isViewingCurrentDate) {
+    // CRITICAL: Only show on today or future dates
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const isViewingTodayOrFuture = !selectedDate || selectedDate >= today;
+    
+    if (!isViewingTodayOrFuture) {
       prevDriverLocationMarkersRef.current = [];
       return [];
     }
 
-    const isAdmin = currentUser && userHasRole(currentUser, 'admin');
-    const isDispatcher = currentUser && userHasRole(currentUser, 'dispatcher');
-    const isDriverRole = currentUser && userHasRole(currentUser, 'driver');
+    const isCurrentUserAdmin = currentUser && userHasRole(currentUser, 'admin');
+    const isCurrentUserDispatcher = currentUser && userHasRole(currentUser, 'dispatcher');
+    const isCurrentUserDriver = currentUser && userHasRole(currentUser, 'driver');
+    
+    // CRITICAL: Pure dispatcher = dispatcher role WITHOUT driver or admin
+    const isPureDispatcher = isCurrentUserDispatcher && !isCurrentUserDriver && !isCurrentUserAdmin;
+    
     const currentUserCityId = currentUser?.city_id;
     const fiveMinutesInMs = 5 * 60 * 1000;
-    const thirtyMinutesInMs = 30 * 60 * 1000;
     const now = Date.now();
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
     const currentUserId = currentUser?.id;
 
     // CRITICAL: Use realtimeAppUsers as the source of truth (contains merged location data)
@@ -1357,7 +1364,7 @@ export default function DeliveryMap({
 
       const isCurrentUserMarker = driverId === currentUserId;
 
-      // Skip inactive users
+      // CRITICAL: Skip inactive users
       if (user.status === 'inactive') {
         return null;
       }
@@ -1367,58 +1374,47 @@ export default function DeliveryMap({
         return null;
       }
       
-      // CRITICAL: Check for location data - skip if missing
+      // CRITICAL: Must have valid coordinates
       if (!user.current_latitude || !user.current_longitude) {
         return null;
       }
       
-      // Location tracking must be enabled (unless it's your own marker - you always see yourself)
+      // CRITICAL: Location tracking must be enabled (unless viewing self)
       if (user.location_tracking_enabled !== true && !isCurrentUserMarker) {
         return null;
       }
 
-      // CRITICAL: Check staleness and idle status
+      // CRITICAL: Check staleness
       let isStaleLocation = false;
       let locationAge = 0;
       if (user.location_updated_at) {
         locationAge = now - new Date(user.location_updated_at).getTime();
         isStaleLocation = locationAge > fiveMinutesInMs;
-        
-        // Hide marker if location is >30 min old and driver has no active stops today
-        if (locationAge > thirtyMinutesInMs) {
-          const driverActiveStops = (deliveriesForLocationFilter || []).filter(d => 
-            d && 
-            d.driver_id === driverId && 
-            d.delivery_date === todayStr &&
-            !['completed', 'failed', 'cancelled', 'returned'].includes(d.status)
-          );
-          
-          if (driverActiveStops.length === 0) {
-            return null;
-          }
-        }
       } else {
         isStaleLocation = true;
       }
 
-      // NEW FILTERING RULES - CRITICAL: Admin+Driver users follow driver rules
-      
-      // RULE 1 & 3: Mobile users with driver OR admin role - SKIP SELF (blue dot shows instead)
-      if (isMobile && (isDriverRole || isAdmin)) {
-        if (isCurrentUserMarker) return null;
+      // CRITICAL: RULE 1 - Mobile drivers/admins: SKIP SELF (blue dot shows instead), show others in same city
+      if (isMobile && (isCurrentUserDriver || isCurrentUserAdmin) && !isPureDispatcher) {
+        if (isCurrentUserMarker) {
+          console.log('🚫 [driverLocationMarkers] BLOCKED self on mobile:', user.user_name);
+          return null;
+        }
         
-        // For pure drivers (not admin): filter by city
-        if (!isAdmin && currentUserCityId !== user.city_id) return null;
-        // For admins: show all other drivers (no city filter needed)
+        // Show other drivers in same city (admins see all cities)
+        if (!isCurrentUserAdmin && currentUserCityId && user.city_id !== currentUserCityId) {
+          return null;
+        }
       }
-      // RULE 2 & 4: Desktop users with driver OR admin role - show ALL drivers (including self)
-      else if (!isMobile && (isDriverRole || isAdmin)) {
-        // For pure drivers (not admin): filter by city
-        if (!isAdmin && currentUserCityId !== user.city_id) return null;
-        // For admins: show all drivers (no city filter needed)
+      // CRITICAL: RULE 2 - Desktop drivers/admins: show ALL drivers (including self)
+      else if (!isMobile && (isCurrentUserDriver || isCurrentUserAdmin) && !isPureDispatcher) {
+        // Show all drivers in same city (admins see all cities)
+        if (!isCurrentUserAdmin && currentUserCityId && user.city_id !== currentUserCityId) {
+          return null;
+        }
       }
-      // RULE 5: Pure Dispatcher (no driver/admin roles) - show active drivers with assigned deliveries
-      else if (isDispatcher && !isAdmin && !isDriverRole) {
+      // CRITICAL: RULE 3 - Pure dispatchers: Only show drivers with active deliveries in their stores
+      else if (isPureDispatcher) {
         const dispatcherStoreIds = new Set(currentUser.store_ids || []);
         const hasActiveDelivery = (deliveriesForLocationFilter || []).some(delivery =>
           delivery &&
@@ -1482,7 +1478,7 @@ export default function DeliveryMap({
     deliveriesForLocationFilter.map(d => `${d?.id}:${d?.driver_id}:${d?.delivery_date}:${d?.status}`).join('|')
   ]);
 
-  // UPDATED: Process current driver's live location for display - ONLY SHOW ON MOBILE, TODAY'S DATE
+  // UPDATED: Process current driver's live location for display - ONLY SHOW ON MOBILE, TODAY OR FUTURE
   const currentDriverMarker = useMemo(() => {
     // CRITICAL: Only show blue dot on mobile devices
     if (!isMobile) {
@@ -1493,21 +1489,24 @@ export default function DeliveryMap({
       return null;
     }
 
-    // CRITICAL: Check if viewing today's date - handle null selectedDate as today
+    // CRITICAL: Check if viewing today or future date - handle null selectedDate as today
     const today = format(new Date(), 'yyyy-MM-dd');
-    const isToday = !selectedDate || selectedDate === today;
+    const isViewingTodayOrFuture = !selectedDate || selectedDate >= today;
     
-    if (!isToday) {
+    if (!isViewingTodayOrFuture) {
       return null;
     }
 
-    // NEW RULES: Show blue dot for drivers and admins on mobile (RULE 1 & 3)
+    // CRITICAL: Check user roles
     const isCurrentUserDriver = userHasRole(currentUser, 'driver');
     const isCurrentUserAdmin = userHasRole(currentUser, 'admin');
     const isCurrentUserDispatcher = userHasRole(currentUser, 'dispatcher');
     
-    // RULE 1 & 3: Show blue dot on mobile for ANY user with driver role OR admin role (excluding pure dispatchers)
-    const shouldShowBlueDot = (isCurrentUserDriver || isCurrentUserAdmin) && !isCurrentUserDispatcher;
+    // CRITICAL: Pure dispatcher = dispatcher WITHOUT driver or admin roles
+    const isPureDispatcher = isCurrentUserDispatcher && !isCurrentUserDriver && !isCurrentUserAdmin;
+    
+    // CRITICAL: Show blue dot ONLY for users with driver OR admin role (NOT pure dispatchers)
+    const shouldShowBlueDot = (isCurrentUserDriver || isCurrentUserAdmin) && !isPureDispatcher;
     
     if (!shouldShowBlueDot) {
       return null;
