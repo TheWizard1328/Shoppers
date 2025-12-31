@@ -1916,7 +1916,7 @@ function Dashboard() {
         console.log(`🗺️ [Phase 1] isViewingToday: ${isViewingToday}`);
         console.log(`🗺️ [Phase 1] allDriverLocations count: ${allDriverLocations?.length || 0}`);
         
-        if (isViewingToday && shouldShowAllMarkersForBounds && allDriverLocations && Array.isArray(allDriverLocations)) {
+        if (isViewingToday && shouldShowAllMarkersForBounds && allDriverLocations.length > 0 && Array.isArray(allDriverLocations)) {
           let addedCount = 0;
           allDriverLocations.forEach((location) => {
             if (!location?.latitude || !location?.longitude || !location?.driver_id) {
