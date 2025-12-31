@@ -1912,6 +1912,7 @@ function Dashboard() {
         }
 
         // 2. SHARED DRIVER LOCATIONS: Include when in "All Drivers" mode OR "Show All" is checked
+        console.log(`🗺️ [Phase 1] showAllDriverMarkers: ${showAllDriverMarkers}`);
         console.log(`🗺️ [Phase 1] shouldShowAllMarkersForBounds: ${shouldShowAllMarkersForBounds}`);
         console.log(`🗺️ [Phase 1] isViewingToday: ${isViewingToday}`);
         console.log(`🗺️ [Phase 1] allDriverLocations count: ${allDriverLocations?.length || 0}`);
