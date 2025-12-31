@@ -213,6 +213,13 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
         if (data && data.today) {
           setStats(data);
           lastFetchRef.current = { date: selectedDateStr, driver: selectedDriverId, timestamp: now };
+
+          // CRITICAL: Dispatch event to pass performance stats to Dashboard
+          if (data.performanceStats) {
+            window.dispatchEvent(new CustomEvent('performanceStatsUpdated', {
+              detail: data.performanceStats
+            }));
+          }
         } else {
           setHasError(true);
         }

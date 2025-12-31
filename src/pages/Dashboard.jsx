@@ -348,6 +348,16 @@ function Dashboard() {
   const [showSmartPrioritization, setShowSmartPrioritization] = useState(false);
   const [performanceStats, setPerformanceStats] = useState(null);
 
+  // Listen for performance stats updates from QuickStats (Layout)
+  useEffect(() => {
+    const handlePerformanceStatsUpdate = (event) => {
+      setPerformanceStats(event.detail);
+    };
+
+    window.addEventListener('performanceStatsUpdated', handlePerformanceStatsUpdate);
+    return () => window.removeEventListener('performanceStatsUpdated', handlePerformanceStatsUpdate);
+  }, []);
+
   // Track previous map state for restoring when card is collapsed
   const [previousMapState, setPreviousMapState] = useState(null);
 
