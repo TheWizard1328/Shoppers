@@ -130,14 +130,15 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`✅ [UpdatePatients] Complete - Updated ${updatedCount} patients, Activated ${activatedCount}, Deactivated ${deactivatedCount}`);
+    console.log(`✅ [UpdatePatients] Complete - Updated ${updatedCount} patients, Activated ${activatedCount}`);
 
     return Response.json({
       success: true,
+      mode: 'routeCompletion',
       deliveryDate,
+      driverId: driverId || null,
       patientsUpdated: updatedCount,
       patientsActivated: activatedCount,
-      patientsDeactivated: deactivatedCount,
       totalDeliveries: deliveries.length
     });
   } catch (error) {
