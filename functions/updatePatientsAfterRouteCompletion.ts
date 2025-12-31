@@ -9,11 +9,6 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // CRITICAL: Only admins can trigger this function
-    if (user.role !== 'admin') {
-      return Response.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
-    }
-
     const { deliveryDate } = await req.json();
 
     if (!deliveryDate) {
@@ -26,14 +21,6 @@ Deno.serve(async (req) => {
     const deliveries = await base44.asServiceRole.entities.Delivery.filter({
       delivery_date: deliveryDate
     });
-
-    if (deliveries.length === 0) {
-      return Response.json({ 
-        success: true, 
-        message: 'No deliveries found for this date',
-        patientsUpdated: 0
-      });
-    }
 
     // Get unique patient IDs from completed/failed deliveries
     const patientIds = new Set();
@@ -48,13 +35,13 @@ Deno.serve(async (req) => {
     let updatedCount = 0;
     let activatedCount = 0;
 
-    // Update each patient
+    // Update each patient with delivery on this date
     for (const patientId of patientIds) {
       try {
-        const patient = await base44.asServiceRole.entities.Patient.filter({ id: patientId });
-        if (!patient || patient.length === 0) continue;
+        const patients = await base44.asServiceRole.entities.Patient.filter({ id: patientId });
+        if (!patients || patients.length === 0) continue;
 
-        const currentPatient = patient[0];
+        const currentPatient = patients[0];
         const updateData = {
           last_delivery_date: deliveryDate
         };
@@ -73,13 +60,45 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`✅ [UpdatePatients] Complete - Updated ${updatedCount} patients (${activatedCount} activated)`);
+    // PART 2: Deactivate patients with no delivery in 6+ months
+    console.log(`🔍 [UpdatePatients] Checking for inactive patients (6+ months since last delivery)...`);
+    
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const sixMonthsAgoStr = sixMonthsAgo.toISOString().split('T')[0];
+    
+    // Get all active patients
+    const activePatients = await base44.asServiceRole.entities.Patient.filter({
+      status: 'active'
+    });
+    
+    let deactivatedCount = 0;
+    
+    for (const patient of activePatients) {
+      try {
+        // Skip if no last_delivery_date (new patient)
+        if (!patient.last_delivery_date) continue;
+        
+        // Skip if delivered within last 6 months
+        if (patient.last_delivery_date >= sixMonthsAgoStr) continue;
+        
+        // Deactivate patient
+        await base44.asServiceRole.entities.Patient.update(patient.id, { status: 'inactive' });
+        deactivatedCount++;
+        console.log(`⏸️ Deactivating patient: ${patient.full_name} (last delivery: ${patient.last_delivery_date})`);
+      } catch (error) {
+        console.error(`❌ Failed to deactivate patient ${patient.id}:`, error.message);
+      }
+    }
+
+    console.log(`✅ [UpdatePatients] Complete - Updated ${updatedCount} patients, Activated ${activatedCount}, Deactivated ${deactivatedCount}`);
 
     return Response.json({
       success: true,
       deliveryDate,
       patientsUpdated: updatedCount,
       patientsActivated: activatedCount,
+      patientsDeactivated: deactivatedCount,
       totalDeliveries: deliveries.length
     });
   } catch (error) {
