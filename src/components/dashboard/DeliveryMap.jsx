@@ -1980,15 +1980,8 @@ export default function DeliveryMap({
           return;
         }
         
-        // Real user zoom - show zoom indicator
+        // Real user zoom - notify parent
         console.log('🗺️ [MapController] ZOOM START - USER INTERACTION');
-        
-        // Show zoom overlay immediately when user starts zooming
-        if (zoomOverlayTimeoutRef.current) {
-          clearTimeout(zoomOverlayTimeoutRef.current);
-        }
-        setShowZoomOverlay(true);
-        
         if (onMapInteraction) {
           onMapInteraction(true); // Pass true for user interaction
         }
@@ -2030,6 +2023,23 @@ export default function DeliveryMap({
         // Only update state if the rounded zoom actually changed
         if (roundedZoom !== currentZoom) {
           setCurrentZoom(roundedZoom);
+          
+          // CRITICAL: Only show zoom overlay on MANUAL zooms (not programmatic)
+          // Use flag stored on map instance by fitBounds effect
+          const isProgrammatic = mapInstance._isProgrammaticZoom?.current === true;
+          
+          if (!isProgrammatic) {
+            // Show zoom overlay for 3 seconds on manual zoom only
+            if (zoomOverlayTimeoutRef.current) {
+              clearTimeout(zoomOverlayTimeoutRef.current);
+            }
+            setShowZoomOverlay(true);
+            zoomOverlayTimeoutRef.current = setTimeout(() => {
+              setShowZoomOverlay(false);
+            }, 3000);
+          } else {
+            console.log('🗺️ [MapController] ZOOM END - PROGRAMMATIC (not showing overlay)');
+          }
         }
         
         // Reset programmatic flag after zoom completes
