@@ -1358,6 +1358,9 @@ export default function DeliveryMap({
     // CRITICAL: Use realtimeAppUsers as the source of truth (contains merged location data)
     const markers = safeUsers.map((user) => {
       if (!user || typeof user !== 'object') return null;
+      
+      // Quick exit if is active user and is on mobile
+      if (user && isMobile) return false;
 
       const driverId = user.id || user.user_id;
       if (!driverId) return null;
