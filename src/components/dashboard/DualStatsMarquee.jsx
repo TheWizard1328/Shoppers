@@ -21,7 +21,7 @@ const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount }) =>
       </div>
       <div className="relative">
         {driverCount !== undefined && driverCount > 0 &&
-      <span className="absolute -top-1 -right-1 text-[9px] font-bold" style={{ color: 'var(--text-slate-500)' }}>
+      <span className="absolute -top-1 -right-1 text-[8px] font-bold" style={{ color: 'var(--text-slate-500)' }}>
             {driverCount}
           </span>
       }
