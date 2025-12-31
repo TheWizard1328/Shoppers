@@ -324,8 +324,23 @@ export default function DeliveryForm({
         patient_name: delivery.patient_name,
         puid: delivery.puid,
         stop_id: delivery.stop_id,
+        store_id: delivery.store_id,
+        ampm_deliveries: delivery.ampm_deliveries,
         isPickup: !delivery.patient_id
       });
+
+      // CRITICAL: If delivery has PUID, find parent pickup to get correct AM/PM slot
+      let finalStoreId = delivery.store_id || "";
+      let finalAmpm = delivery.ampm_deliveries || null;
+      
+      if (delivery.patient_id && delivery.puid && allDeliveries) {
+        const parentPickup = allDeliveries.find((d) => d && !d.patient_id && d.stop_id === delivery.puid);
+        if (parentPickup) {
+          finalStoreId = parentPickup.store_id || delivery.store_id;
+          finalAmpm = parentPickup.ampm_deliveries || delivery.ampm_deliveries;
+          console.log(`📦 [LoadDelivery] Found parent pickup via PUID ${delivery.puid}: store=${finalStoreId}, AM/PM=${finalAmpm}`);
+        }
+      }
 
       setFormData({
         patient_id: delivery.patient_id || "",
@@ -353,7 +368,8 @@ export default function DeliveryForm({
         patient_phone: delivery.patient_phone || "",
         unit_number: delivery.unit_number || "",
         store_phone: delivery.store_phone || "",
-        store_id: delivery.store_id || "",
+        store_id: finalStoreId,
+        ampm_deliveries: finalAmpm,
         mailbox_ok: delivery.mailbox_ok || false,
         call_upon_arrival: delivery.call_upon_arrival || false,
         ring_bell: delivery.ring_bell || false,
@@ -391,7 +407,7 @@ export default function DeliveryForm({
         isLoadingExistingDelivery.current = false;
       }, 500);
     }
-  }, [delivery, patients]);
+  }, [delivery, patients, allDeliveries]);
 
   const hasFormData = useMemo(() => !!(
   formData.patient_id || formData.patient_name || formData.patient_phone ||
