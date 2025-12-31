@@ -1913,16 +1913,35 @@ function Dashboard() {
 
         // 2. SHARED DRIVER LOCATIONS: Include when in "All Drivers" mode OR "Show All" is checked
         console.log(`🗺️ [Phase 1] shouldShowAllMarkersForBounds: ${shouldShowAllMarkersForBounds}`);
+        console.log(`🗺️ [Phase 1] isViewingToday: ${isViewingToday}`);
+        console.log(`🗺️ [Phase 1] allDriverLocations count: ${allDriverLocations?.length || 0}`);
+        
         if (isViewingToday && shouldShowAllMarkersForBounds && allDriverLocations && Array.isArray(allDriverLocations)) {
+          let addedCount = 0;
           allDriverLocations.forEach((location) => {
-            if (!location?.latitude || !location?.longitude || !location?.driver_id) return;
+            if (!location?.latitude || !location?.longitude || !location?.driver_id) {
+              console.log('⏭️ [Phase 1] Skipping location - missing coords/id:', location);
+              return;
+            }
 
-            // Skip current user on mobile (blue dot shows instead)
-            if (isMobile && location.driver_id === currentUser?.id) return;
+            // CRITICAL: Skip current user on mobile (blue dot shows instead)
+            const isCurrentUserLocation = isMobile && location.driver_id === currentUser?.id;
+            if (isCurrentUserLocation) {
+              console.log('🚫 [Phase 1] Skipping self shared location on mobile:', location.driver_id);
+              return;
+            }
 
-            // Must be on_duty and have tracking enabled
-            if (location.driver_status !== 'on_duty') return;
-            if (location.location_tracking_enabled !== true) return;
+            // CRITICAL: Must be on_duty OR on_break
+            if (location.driver_status !== 'on_duty' && location.driver_status !== 'on_break') {
+              console.log('⏭️ [Phase 1] Skipping location - not on duty/break:', location.driver_status);
+              return;
+            }
+            
+            // CRITICAL: Location tracking must be enabled (unless viewing self - already blocked above for mobile)
+            if (location.location_tracking_enabled !== true && location.driver_id !== currentUser?.id) {
+              console.log('⏭️ [Phase 1] Skipping location - tracking disabled:', location.driver_id);
+              return;
+            }
 
             // Dispatcher filtering
             if (isDispatcher && !isAdmin) {
@@ -1932,14 +1951,21 @@ function Dashboard() {
               delivery.driver_id === location.driver_id &&
               dispatcherStoreIds.has(delivery.store_id)
               );
-              if (!hasDeliveryInDispatcherStore) return;
+              if (!hasDeliveryInDispatcherStore) {
+                console.log('⏭️ [Phase 1] Skipping location - no dispatcher store delivery:', location.driver_id);
+                return;
+              }
             }
 
             allCoordinates.push([location.latitude, location.longitude]);
             hasDriverMarkers = true;
+            addedCount++;
+            console.log(`✅ [Phase 1] Added shared location: ${location.driver_id} (${location.driver_status})`);
           });
+          console.log(`🗺️ [Phase 1] Added ${addedCount} shared driver locations`);
+        } else {
+          console.log(`⏭️ [Phase 1] Not showing shared locations - conditions not met`);
         }
-        console.log(`🗺️ [Phase 1] Added ${hasDriverMarkers ? 'shared driver' : 'NO shared driver'} locations`);
 
         // 3. HOME LOCATIONS: Include when showing all markers
         const isDispatcherNonAdmin = isDispatcher && !isAdmin;
