@@ -2036,17 +2036,74 @@ export default function StopCard({
                             }
                           }
 
-                          // Now complete the pickup/delivery
-                          await onStatusUpdate(delivery.id, 'completed');
-
-                          // CRITICAL: Trigger immediate map update
+                          // ═══════════ PHASE 1: IMMEDIATE UI UPDATES ═══════════
+                          console.log('🎯 [COMPLETE] PHASE 1: Updating UI immediately...');
+                          
+                          // Update status to completed with timestamp
+                          const currentTime = new Date();
+                          const completionUpdate = {
+                            status: 'completed',
+                            actual_delivery_time: currentTime.toISOString(),
+                            isNextDelivery: false
+                          };
+                          
+                          // Update local state immediately
+                          await updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true });
+                          
+                          // Find and update next delivery flag
+                          const allDriverDeliveries = allDeliveries.filter((d) =>
+                            d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+                          );
+                          
+                          const incompleteDeliveries = allDriverDeliveries
+                            .filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending')
+                            .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+                          
+                          if (incompleteDeliveries.length > 0) {
+                            const nextStop = incompleteDeliveries[0];
+                            await updateDeliveryLocal(nextStop.id, { isNextDelivery: true }, { skipSmartRefresh: true });
+                          }
+                          
+                          // Force UI refresh with new data
+                          invalidate('Delivery');
+                          const freshDeliveries = await base44.entities.Delivery.filter({
+                            driver_id: delivery.driver_id,
+                            delivery_date: delivery.delivery_date
+                          });
+                          
+                          if (updateDeliveriesLocally) {
+                            const otherDeliveries = allDeliveries.filter(d => 
+                              d && (d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date)
+                            );
+                            updateDeliveriesLocally([...otherDeliveries, ...freshDeliveries], true);
+                          }
+                          
+                          // CRITICAL: Trigger map and stop cards update immediately
                           window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
                             detail: { triggeredBy: 'complete', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
                           }));
+                          
+                          // CRITICAL: Reactivate FAB immediately (before background work)
+                          fabControlEvents.reactivateFAB(true);
+                          
+                          console.log('✅ [COMPLETE] PHASE 1: UI updated - markers, routes, and FAB updated');
 
-                          // Next delivery flag handled by route optimizer
+                          // ═══════════ PHASE 2: BACKGROUND TASKS ═══════════
+                          console.log('🔄 [COMPLETE] PHASE 2: Running background tasks...');
+                          
+                          // Background: Route optimization
+                          base44.functions.invoke('optimizeRouteRealTime', {
+                            driverId: delivery.driver_id,
+                            deliveryDate: delivery.delivery_date,
+                            currentLocalTime: format(currentTime, 'HH:mm'),
+                            generatePolyline: false
+                          }).then(() => {
+                            console.log('✅ [COMPLETE] Background: Route optimized');
+                            // Trigger final map update after optimization
+                            window.dispatchEvent(new CustomEvent('routeOptimizationComplete'));
+                          }).catch((err) => console.warn('⚠️ [COMPLETE] Background optimization failed:', err));
 
-                          // Send notification to dispatchers (don't await - fire and forget)
+                          // Background: Send notification
                           if (userHasRole(currentUser, 'driver')) {
                             notifyDriverCompleted({
                               driver: currentUser,
@@ -2057,7 +2114,7 @@ export default function StopCard({
                             }).catch((err) => console.warn('Notification failed:', err));
                           }
 
-                          // Trigger AI route re-optimization after completing a delivery
+                          // Background: AI route re-optimization
                           const today = format(new Date(), 'yyyy-MM-dd');
                           triggerRouteOptimization({
                             driverId: currentUser.id,
@@ -2074,11 +2131,12 @@ export default function StopCard({
                           }).catch((err) => console.warn('Route optimization failed:', err));
 
                         } catch (error) {
+                          console.error('❌ [COMPLETE] Error:', error);
+                          fabControlEvents.reactivateFAB(true);
                         } finally {
                           setIsCompleting(false);
                           setIsEntityUpdating(false);
                           await new Promise((resolve) => setTimeout(resolve, 100));
-                          fabControlEvents.reactivateFAB(true);
                         }
                       }}
                       size="sm"
