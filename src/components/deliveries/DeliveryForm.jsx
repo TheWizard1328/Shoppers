@@ -2347,6 +2347,20 @@ export default function DeliveryForm({
         }
       }
 
+      // CRITICAL: Trigger patient update function when delivery is completed
+      if (statusChangedToCompletion && delivery && formData.status === 'completed') {
+        console.log('🔄 [DeliveryForm] Triggering patient update after route completion...');
+        try {
+          await base44.functions.invoke('updatePatientsAfterRouteCompletion', {
+            deliveryDate: formData.delivery_date,
+            driverId: formData.driver_id
+          });
+          console.log('✅ [DeliveryForm] Patient update complete');
+        } catch (error) {
+          console.error('❌ [DeliveryForm] Patient update failed:', error);
+        }
+      }
+
       if (isPickupMode && delivery && formData.status === 'completed' && formData.store_id && formData.ampm_deliveries) {
         const relatedDeliveries = allDeliveries.filter((d) =>
         d &&
