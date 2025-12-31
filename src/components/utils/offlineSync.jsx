@@ -387,34 +387,10 @@ const syncDeliveries = async (selectedDate = null, forceFullSync = false) => {
     const cleanDeliveries = allDeliveries.filter(d => !d.id.startsWith('temp_'));
     console.log(`   Removed ${allDeliveries.length - cleanDeliveries.length} temp records`);
     
-    // CRITICAL: Remove deleted records from IndexedDB (exist locally but not on backend)
-    if (isFullSync && !syncPaused) {
-      const localDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-      const backendIds = new Set(cleanDeliveries.map(d => d.id));
-      const recordsToDelete = localDeliveries.filter(d => !d.id.startsWith('temp_') && !backendIds.has(d.id));
-      
-      if (recordsToDelete.length > 0) {
-        console.log(`🗑️ [OfflineSync] Removing ${recordsToDelete.length} deleted deliveries from IndexedDB...`);
-        const db = await offlineDB.openDatabase();
-        const transaction = db.transaction([offlineDB.STORES.DELIVERIES], 'readwrite');
-        const store = transaction.objectStore(offlineDB.STORES.DELIVERIES);
-        
-        for (const record of recordsToDelete) {
-          await new Promise((resolve, reject) => {
-            const request = store.delete(record.id);
-            request.onsuccess = () => resolve();
-            request.onerror = () => reject(request.error);
-          });
-        }
-        
-        console.log(`✅ [OfflineSync] Removed ${recordsToDelete.length} deleted deliveries from IndexedDB`);
-        
-        // CRITICAL: Notify UI to update after deletions
-        window.dispatchEvent(new CustomEvent('offlineDeliveriesDeleted', {
-          detail: { deletedIds: recordsToDelete.map(r => r.id), count: recordsToDelete.length }
-        }));
-      }
-    }
+    // CRITICAL: Do NOT delete records during full sync - we're merging, not replacing
+    // Deletion detection only happens during bidirectional sync when we can confirm
+    // a record was explicitly deleted on the backend
+    // This prevents clearing historical data that wasn't fetched in this sync window
     
     // Save to IndexedDB in batches
     console.log(`💾 [OfflineSync] Saving ${cleanDeliveries.length} total deliveries to IndexedDB...`);
