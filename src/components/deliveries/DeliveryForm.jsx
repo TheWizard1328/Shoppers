@@ -1851,10 +1851,31 @@ export default function DeliveryForm({
       return updatedDeliveries;
     };
 
-    const deliveriesWithTRs = calculateSequentialTRs(newDeliveries);
+    // CRITICAL: Before calculating TRs, ensure ALL deliveries have correct store_id via PUID lookup
+    const deliveriesWithCorrectStores = newDeliveries.map((del) => {
+      if (!del.patient_id || !del.puid) return del; // Skip pickups or deliveries without PUID
+      
+      // Find parent pickup via PUID
+      const parentPickup = allDeliveries?.find((d) => 
+        d && !d.patient_id && d.stop_id === del.puid
+      );
+      
+      if (parentPickup && parentPickup.store_id) {
+        console.log(`📦 [BatchSave] Correcting store for ${del.patient_name}: ${del.store_id} → ${parentPickup.store_id} (via PUID ${del.puid})`);
+        return {
+          ...del,
+          store_id: parentPickup.store_id,
+          ampm_deliveries: parentPickup.ampm_deliveries || del.ampm_deliveries
+        };
+      }
+      
+      return del;
+    });
+
+    const deliveriesWithTRs = calculateSequentialTRs(deliveriesWithCorrectStores);
 
     // STEP 2: Re-number ALL existing deliveries for affected pickup groups
-    const affectedGroups = new Set(newDeliveries.map((del) =>
+    const affectedGroups = new Set(deliveriesWithCorrectStores.map((del) =>
     `${del.store_id}_${del.driver_id}_${del.ampm_deliveries || 'AM'}`
     ));
 
