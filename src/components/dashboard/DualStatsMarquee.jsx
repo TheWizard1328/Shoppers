@@ -117,21 +117,21 @@ export default function DualStatsMarquee({
 
             <StatBadge
             icon={DollarSign}
-            value={performanceStats?.totalPay !== undefined ? `$${performanceStats.totalPay.toFixed(2)}` : '$0.00'}
+            value={performanceStats?.totalPay !== undefined ? `${performanceStats.totalPay.toFixed(2)}` : '0.00'}
             color="green"
             label="Pay"
             tooltip={`Total Pay: $${performanceStats?.totalPay?.toFixed(2) || '0.00'}`} />
 
             <StatBadge
             icon={Route}
-            value={performanceStats?.totalKm !== undefined ? `${performanceStats.totalKm.toFixed(2)}km` : '0.00km'}
+            value={performanceStats?.totalKm !== undefined ? `${performanceStats.totalKm.toFixed(2)}k` : '0.00k'}
             color="blue"
             label="Km"
             tooltip={`Total Distance: ${performanceStats?.totalKm?.toFixed(2) || '0.00'} km`} />
 
             <StatBadge
             icon={TrendingUp}
-            value={performanceStats?.totalExtraKm !== undefined ? `${performanceStats.totalExtraKm.toFixed(2)}km` : '0.00km'}
+            value={performanceStats?.totalExtraKm !== undefined ? `${performanceStats.totalExtraKm.toFixed(2)}k` : '0.00k'}
             color="amber"
             label="Extra"
             tooltip={`Extra Km (beyond ${performanceStats?.extraKmLimit || 0} km limit): ${performanceStats?.totalExtraKm?.toFixed(2) || '0.00'} km`} />
