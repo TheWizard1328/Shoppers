@@ -414,8 +414,9 @@ Deno.serve(async (req) => {
           }
 
           const extraKmPay = totalExtraKm * extraKmRate;
+          const totalPay = basePayFromDeliveries + extraKmPay;
 
-          performanceStats.totalPay = basePayFromDeliveries + extraKmPay;
+          performanceStats.totalPay = totalPay;
           performanceStats.totalKm = totalKm;
           performanceStats.totalExtraKm = totalExtraKm;
           performanceStats.extraKmLimit = extraKmLimit;
