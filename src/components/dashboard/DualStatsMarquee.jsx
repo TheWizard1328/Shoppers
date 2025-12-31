@@ -63,7 +63,7 @@ export default function DualStatsMarquee({
   }, []);
 
   return (
-    <div className="relative overflow-hidden" style={{ minHeight: '45px' }}>
+    <div className="relative overflow-hidden" style={{ minHeight: '40px' }}>
       <AnimatePresence mode="wait">
         {activePanel === 0 ?
         <motion.div
