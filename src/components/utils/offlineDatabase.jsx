@@ -237,6 +237,7 @@ const getSyncStatus = async (entityName) => {
 
 /**
  * Update sync status for an entity
+ * CRITICAL: Preserves existing fields and merges with new status
  */
 const updateSyncStatus = async (entityName, status) => {
   try {
@@ -244,12 +245,23 @@ const updateSyncStatus = async (entityName, status) => {
     const transaction = db.transaction([STORES.SYNC_STATUS], 'readwrite');
     const store = transaction.objectStore(STORES.SYNC_STATUS);
 
+    // CRITICAL: Get existing record first to preserve lastFullSync
+    const existingRecord = await new Promise((resolve) => {
+      const getRequest = store.get(entityName);
+      getRequest.onsuccess = () => resolve(getRequest.result || {});
+      getRequest.onerror = () => resolve({});
+    });
+
     const syncRecord = {
+      ...existingRecord, // Preserve existing fields like lastFullSync
       entity: entityName,
       lastSyncTime: Date.now(),
       lastSyncDate: new Date().toISOString(),
-      recordCount: status.recordCount || 0,
-      status: status.status || 'synced'
+      recordCount: status.recordCount || existingRecord.recordCount || 0,
+      status: status.status || 'synced',
+      // CRITICAL: Include lastSync and lastFullSync if provided
+      lastSync: status.lastSync || new Date().toISOString(),
+      ...(status.lastFullSync && { lastFullSync: status.lastFullSync })
     };
 
     return new Promise((resolve, reject) => {
@@ -257,7 +269,9 @@ const updateSyncStatus = async (entityName, status) => {
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
     });
-  } catch (error) {}
+  } catch (error) {
+    console.error('❌ [OfflineDB] updateSyncStatus error:', error);
+  }
 };
 
 /**
