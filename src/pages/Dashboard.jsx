@@ -5744,7 +5744,8 @@ function Dashboard() {
           driverId: driverId,
           deliveryDate: deliveryDate,
           currentLocalTime: localTimeString,
-          deviceTime: now.toISOString()
+          deviceTime: now.toISOString(),
+          generatePolyline: true
         });
 
         const optimizeData = optimizeResponse?.data || optimizeResponse;

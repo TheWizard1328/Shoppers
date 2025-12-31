@@ -53,11 +53,11 @@ export default function DualStatsMarquee({
 }) {
   const [activePanel, setActivePanel] = useState(0); // 0 = Delivery Stats, 1 = Performance Stats
 
-  // Auto-cycle panels every 5 seconds
+  // Auto-cycle panels every 8 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       setActivePanel((prev) => prev === 0 ? 1 : 0);
-    }, 5000);
+    }, 8000);
 
     return () => clearInterval(interval);
   }, []);
