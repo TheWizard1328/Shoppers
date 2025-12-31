@@ -241,11 +241,13 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
     window.addEventListener('refreshDeliveryStats', handleDeliveryChange);
     window.addEventListener('deliveriesImported', handleDeliveryChange);
     window.addEventListener('offlineSyncComplete', handleDeliveryChange);
+    window.addEventListener('deliveriesUpdated', handleDeliveryChange);
 
     return () => {
       window.removeEventListener('refreshDeliveryStats', handleDeliveryChange);
       window.removeEventListener('deliveriesImported', handleDeliveryChange);
       window.removeEventListener('offlineSyncComplete', handleDeliveryChange);
+      window.removeEventListener('deliveriesUpdated', handleDeliveryChange);
     };
   }, [currentUser, selectedDateStr, storeIds, selectedDriverId]);
 
