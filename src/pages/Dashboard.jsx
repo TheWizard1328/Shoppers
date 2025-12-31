@@ -1167,6 +1167,37 @@ function Dashboard() {
             }
           }, lockDuration);
         }
+      } else if (event.type === 'DONE_BUTTON_CLICKED') {
+        // CRITICAL: Done button was clicked - activate Phase 1 for 500ms
+        console.log('🎯 [FAB] Done button clicked - activating Phase 1 for 500ms');
+        
+        // Clear any existing timers
+        if (mapLockTimeoutRef.current) {
+          clearTimeout(mapLockTimeoutRef.current);
+          mapLockTimeoutRef.current = null;
+        }
+        mapLockExpiresAtRef.current = null;
+        
+        // Set to Phase 1 and lock
+        setMapViewPhase(1);
+        setIsMapViewLocked(true);
+        lastProgrammaticMapMoveRef.current = Date.now();
+        window._lastProgrammaticMapMove = Date.now();
+        setMapViewTrigger((prev) => prev + 1);
+        
+        // Auto-unlock after 500ms
+        const lockDuration = 500;
+        const expiresAt = Date.now() + lockDuration;
+        mapLockExpiresAtRef.current = expiresAt;
+        
+        mapLockTimeoutRef.current = window.setTimeout(() => {
+          if (mapLockExpiresAtRef.current === expiresAt) {
+            setIsMapViewLocked(false);
+            mapLockExpiresAtRef.current = null;
+            mapLockTimeoutRef.current = null;
+            console.log('⏰ [FAB] Phase 1 auto-unlocked after 500ms (Done button)');
+          }
+        }, lockDuration);
       }
     });
 
