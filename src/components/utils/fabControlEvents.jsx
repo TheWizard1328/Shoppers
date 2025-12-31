@@ -88,5 +88,20 @@ export const fabControlEvents = {
         console.error('Error in FAB event listener:', error);
       }
     });
+  },
+
+  /**
+   * Notify when Done button is clicked - FAB should activate phase 1 temporarily (500ms)
+   * Called after DeliveryForm Done button saves and closes
+   */
+  notifyDoneButtonClicked: () => {
+    console.log('📢 [FAB Events] Broadcasting done button clicked - activating phase 1 for 500ms');
+    fabControlListeners.forEach(callback => {
+      try {
+        callback({ type: 'DONE_BUTTON_CLICKED' });
+      } catch (error) {
+        console.error('Error in FAB event listener:', error);
+      }
+    });
   }
 };
