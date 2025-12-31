@@ -15,7 +15,7 @@ const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount }) =>
   };
 
   const badge =
-  <div className="px-1 flex items-center gap-2 cursor-help">
+  <div className="px-2 flex items-center gap-2 cursor-help">
       <div className={`p-1.5 rounded-lg ${colorClasses[color]}`}>
         <Icon className="w-3.5 h-3.5" />
       </div>
