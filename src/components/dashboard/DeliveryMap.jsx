@@ -1924,6 +1924,21 @@ export default function DeliveryMap({
     try {
       const bounds = L.latLngBounds(shouldFitBounds.bounds);
       
+      // CRITICAL: Mark this as a programmatic zoom BEFORE calling fitBounds
+      // Use a ref that persists across the entire zoom operation (zoomstart -> zoomend)
+      // Access the MapController's ref through a closure
+      if (map._leaflet_events?.zoomstart) {
+        // Store flag globally on map instance so MapController can access it
+        if (!map._isProgrammaticZoom) {
+          Object.defineProperty(map, '_isProgrammaticZoom', {
+            value: { current: false },
+            writable: true,
+            configurable: true
+          });
+        }
+        map._isProgrammaticZoom.current = true;
+      }
+      
       // CRITICAL: Use padding values directly from Dashboard.js - don't override
       const modifiedOptions = { 
         ...shouldFitBounds.options,
@@ -1957,10 +1972,10 @@ export default function DeliveryMap({
     const mapInstance = useMapEvents({
       zoomstart: () => {
         // CRITICAL: Check if this is a programmatic zoom (from FAB/auto-center)
-        const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
-        const isProgrammaticZoom = timeSinceProgrammatic < 1000; // Within 1 second of programmatic move
+        // Use flag stored on map instance by fitBounds effect
+        const isProgrammatic = mapInstance._isProgrammaticZoom?.current === true;
         
-        if (isProgrammaticZoom) {
+        if (isProgrammatic) {
           console.log('🗺️ [MapController] ZOOM START - PROGRAMMATIC (ignoring)');
           return;
         }
@@ -2010,11 +2025,10 @@ export default function DeliveryMap({
           setCurrentZoom(roundedZoom);
           
           // CRITICAL: Only show zoom overlay on MANUAL zooms (not programmatic)
-          // Check if this was a programmatic zoom (within 1000ms of last programmatic move)
-          const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
-          const isManualZoom = timeSinceProgrammatic > 1000;
+          // Use flag stored on map instance by fitBounds effect
+          const isProgrammatic = mapInstance._isProgrammaticZoom?.current === true;
           
-          if (isManualZoom) {
+          if (!isProgrammatic) {
             // Show zoom overlay for 3 seconds on manual zoom only
             if (zoomOverlayTimeoutRef.current) {
               clearTimeout(zoomOverlayTimeoutRef.current);
@@ -2023,7 +2037,14 @@ export default function DeliveryMap({
             zoomOverlayTimeoutRef.current = setTimeout(() => {
               setShowZoomOverlay(false);
             }, 3000);
+          } else {
+            console.log('🗺️ [MapController] ZOOM END - PROGRAMMATIC (not showing overlay)');
           }
+        }
+        
+        // Reset programmatic flag after zoom completes
+        if (mapInstance._isProgrammaticZoom) {
+          mapInstance._isProgrammaticZoom.current = false;
         }
         
         // Update visible bounds for debug box
