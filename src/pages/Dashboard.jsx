@@ -5558,6 +5558,9 @@ function Dashboard() {
     try {
       const currentDate = format(new Date(), 'yyyy-MM-dd');
       
+      // CRITICAL: Find the patient from the failed delivery
+      const failedPatient = patients.find(p => p?.id === originalDelivery.patient_id);
+      
       // CRITICAL: Generate unique SID
       const existingDeliveriesForDate = deliveries.filter(d => d && d.delivery_date === currentDate);
       const newSID = generateUniqueSID(existingDeliveriesForDate);
@@ -5585,7 +5588,7 @@ function Dashboard() {
       const newTR = isNaN(failedTR) ? `${storeAbbr}99` : `${storeAbbr}${failedTR}`;
       
       // CRITICAL: Format driver notes with each item on separate lines
-      const driverNotes = `From: ${originalDelivery.delivery_date}\nFor: ${patient?.full_name || originalDelivery.patient_name || 'Unknown'}`;
+      const driverNotes = `From: ${originalDelivery.delivery_date}\nFor: ${failedPatient?.full_name || originalDelivery.patient_name || 'Unknown'}`;
       
       const returnDeliveryData = {
         patient_id: returnPatient.id,
