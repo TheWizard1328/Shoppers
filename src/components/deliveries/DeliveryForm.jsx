@@ -2175,7 +2175,10 @@ export default function DeliveryForm({
           // Activate FAB
           const { fabControlEvents } = await import('../utils/fabControlEvents');
           fabControlEvents.notifyDataReady();
-          console.log('[AddToRoute] ✅ Background: UI refreshed and FAB activated');
+          
+          // CRITICAL: Trigger done button event to activate FAB phase 1 for 500ms
+          fabControlEvents.notifyDoneButtonClicked();
+          console.log('[AddToRoute] ✅ Background: UI refreshed, FAB activated, and done button event triggered');
         } catch (error) {
           console.error('[AddToRoute] ❌ Background refresh failed:', error);
         }
