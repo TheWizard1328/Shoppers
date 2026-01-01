@@ -648,6 +648,29 @@ export default function Layout({ children, currentPageName }) {
       const [appVersion, setAppVersion] = useState(DEFAULT_APP_VERSION);
   const [adminImportEnabled, setAdminImportEnabled] = useState(false);
 
+  // Poll for adminImportEnabled changes (for non-app-owner admins to see updates)
+  useEffect(() => {
+    if (!currentUser || !userHasRole(currentUser, 'admin')) return;
+    
+    const pollAdminImportSetting = async () => {
+      try {
+        const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+        if (settings && settings.length > 0 && settings[0].setting_value) {
+          const newValue = settings[0].setting_value.adminImportEnabled === true;
+          if (newValue !== adminImportEnabled) {
+            setAdminImportEnabled(newValue);
+          }
+        }
+      } catch (error) {
+        // Silent fail
+      }
+    };
+
+    // Poll every 30 seconds
+    const interval = setInterval(pollAdminImportSetting, 30000);
+    return () => clearInterval(interval);
+  }, [currentUser, adminImportEnabled]);
+
   useEffect(() => {
     const init = async () => {
       setIsLoadingLayout(true);
@@ -700,9 +723,7 @@ export default function Layout({ children, currentPageName }) {
           }
           
           // Load admin import toggle state
-          if (settings[0].setting_value.adminImportEnabled !== undefined) {
-            setAdminImportEnabled(settings[0].setting_value.adminImportEnabled);
-          }
+          setAdminImportEnabled(settings[0].setting_value.adminImportEnabled === true);
         } else {
           smartRefreshManager._enabled = true;
           smartRefreshManager._initialized = true;
