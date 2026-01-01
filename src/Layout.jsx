@@ -2576,7 +2576,7 @@ export default function Layout({ children, currentPageName }) {
                         </div>
                       )}
 
-                      {!sidebarOpen && (isAppOwner(currentUser) || (adminImportEnabled && userHasRole(currentUser, 'admin'))) && cities && cities.length > 0 && (
+                      {!sidebarOpen && (isAppOwner(currentUser) || (adminImportEnabled && currentUser?.user_name === 'Kyle J')) && cities && cities.length > 0 && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
