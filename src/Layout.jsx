@@ -1883,7 +1883,14 @@ export default function Layout({ children, currentPageName }) {
         icon: Users2
       }];
 
-
+    if (realUser && isAppOwner(realUser)) {
+      items.push({
+        title: "Admin Metrics",
+        pageName: 'AdminMetrics',
+        url: createPageUrl("AdminMetrics"),
+        icon: BarChart3
+      });
+    }
 
     if (realUser && canAccessImports(realUser, adminImportEnabled)) {
       items.push({
@@ -1894,7 +1901,7 @@ export default function Layout({ children, currentPageName }) {
       });
     }
     return items;
-  }, [entityCounts.cities, entityCounts.stores, entityCounts.users, realUser, adminImportEnabled]);
+  }, [entityCounts.cities, entityCounts.stores, entityCounts.users, realUser, adminImportEnabled, drivers.length]);
 
   const constructUrlWithParams = useCallback((baseUrl) => {
     const currentParams = new URLSearchParams(location.search);
@@ -2767,25 +2774,6 @@ export default function Layout({ children, currentPageName }) {
                         Admin
                       </div>
                       <div className="space-y-1">
-                        {realUser && isAppOwner(realUser) &&
-                          <Link
-                            to={createPageUrl("AdminMetrics")}
-                            onClick={() => setSidebarOpen(false)}
-                            className={`px-4 rounded-xl flex items-center gap-3 transition-all duration-200 ${
-                              currentPageName === 'AdminMetrics' ?
-                                'shadow-sm' :
-                                'hover:opacity-80'}`
-                            }
-                            style={currentPageName === 'AdminMetrics' ? {
-                              background: 'var(--bg-slate-100)',
-                              color: 'var(--text-slate-900)'
-                            } : {
-                              color: 'var(--text-slate-600)'
-                            }}>
-                            <BarChart3 className="w-5 h-5" />
-                            <span className="font-semibold">Admin Metrics</span>
-                          </Link>
-                        }
                         {adminNavigationItems.map((item) =>
                           <Link
                             key={item.title}
