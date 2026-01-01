@@ -37,6 +37,7 @@ import MessageRulesManager from '../components/admin/MessageRulesManager';
 import PolylineViewer from '../components/admin/PolylineViewer';
 import GoogleAPILogViewer from '../components/admin/GoogleAPILogViewer';
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
+import StoreMetricsPanel from '../components/admin/StoreMetricsPanel';
 
 // Custom Confirmation Dialog Component
 const ConfirmationDialog = ({ open, onOpenChange, title, description, onConfirm, confirmText = "Delete", variant = "destructive" }) => {
@@ -4000,8 +4001,9 @@ export default function AdminUtilities() {
         </div>
 
         <Tabs value={activeUtilityTab} onValueChange={setActiveUtilityTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="data">Data Management</TabsTrigger>
+            <TabsTrigger value="store-metrics">Store Metrics</TabsTrigger>
             <TabsTrigger value="user-settings">User Settings</TabsTrigger>
             <TabsTrigger value="app-settings">App Settings</TabsTrigger>
             <TabsTrigger value="message-rules">Message Rules</TabsTrigger>
@@ -4163,6 +4165,10 @@ export default function AdminUtilities() {
                 </Tabs>
               </div>
             )}
+          </TabsContent>
+
+          <TabsContent value="store-metrics">
+            <StoreMetricsPanel />
           </TabsContent>
 
           <TabsContent value="user-settings">
