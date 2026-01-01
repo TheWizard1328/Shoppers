@@ -50,11 +50,18 @@ export default function AdminMetrics() {
 
   // Calculate metrics from deliveries
   const calculateMetrics = useCallback(async () => {
-    if (!isDataLoaded || !hasAccess) return;
+    if (!hasAccess) return;
     
     setIsLoading(true);
     try {
       const year = parseInt(selectedYear);
+      
+      // CRITICAL: Fetch full year deliveries from backend to avoid using context
+      const yearStart = `${year}-01-01`;
+      const yearEnd = `${year}-12-31`;
+      const yearDeliveries = await base44.entities.Delivery.filter({
+        delivery_date: { $gte: yearStart, $lte: yearEnd }
+      });
       
       // Monthly delivery counts - split by store fee status
       const monthlyData = [];
@@ -63,7 +70,7 @@ export default function AdminMetrics() {
         const monthEnd = new Date(year, month, 0);
         const monthEndStr = monthEnd.toISOString().split('T')[0];
         
-        const monthDeliveries = deliveries.filter(d => {
+        const monthDeliveries = yearDeliveries.filter(d => {
           if (!d?.delivery_date) return false;
           return d.delivery_date >= monthStart && d.delivery_date <= monthEndStr;
         });
@@ -124,7 +131,7 @@ export default function AdminMetrics() {
       const currentMonthStart = `${year}-${String(currentMonth).padStart(2, '0')}-01`;
       const currentMonthEnd = new Date(year, currentMonth, 0).toISOString().split('T')[0];
       
-      const currentMonthDeliveries = deliveries.filter(d => {
+      const currentMonthDeliveries = yearDeliveries.filter(d => {
         if (!d?.delivery_date) return false;
         return d.delivery_date >= currentMonthStart && d.delivery_date <= currentMonthEnd;
       });
@@ -174,11 +181,6 @@ export default function AdminMetrics() {
         .sort((a, b) => a.sortOrder - b.sortOrder);
 
       // Year totals
-      const yearDeliveries = deliveries.filter(d => {
-        if (!d?.delivery_date) return false;
-        return d.delivery_date.startsWith(year.toString());
-      });
-
       const yearCompleted = yearDeliveries.filter(d => d.status === 'completed' && d.patient_id).length;
       const yearFailed = yearDeliveries.filter(d => d.status === 'failed').length;
 
@@ -214,7 +216,7 @@ export default function AdminMetrics() {
     } finally {
       setIsLoading(false);
     }
-  }, [deliveries, drivers, stores, isDataLoaded, hasAccess, selectedYear]);
+  }, [drivers, stores, hasAccess, selectedYear]);
 
   useEffect(() => {
     if (hasAccess && isDataLoaded) {
