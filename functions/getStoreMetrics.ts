@@ -176,8 +176,15 @@ Deno.serve(async (req) => {
       });
     }
     
-    // Sort by store name
-    storeMetrics.sort((a, b) => a.store_name.localeCompare(b.store_name));
+    // Sort by store sort_order, then by name
+    storeMetrics.sort((a, b) => {
+      const storeA = stores.find(s => s.id === a.store_id);
+      const storeB = stores.find(s => s.id === b.store_id);
+      const orderA = storeA?.sort_order ?? Infinity;
+      const orderB = storeB?.sort_order ?? Infinity;
+      if (orderA !== orderB) return orderA - orderB;
+      return a.store_name.localeCompare(b.store_name);
+    });
     
     // Calculate totals
     const totals = {
