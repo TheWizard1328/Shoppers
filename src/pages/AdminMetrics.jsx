@@ -184,7 +184,7 @@ export default function AdminMetrics() {
       currentMonthDeliveries.forEach(d => {
         if (!d.store_id || !d.patient_id) return;
         if (!storeStats[d.store_id]) {
-          const store = stores.find(s => s?.id === d.store_id);
+          const store = allStores.find(s => s?.id === d.store_id);
           storeStats[d.store_id] = {
             name: store?.name || 'Unknown',
             abbreviation: store?.abbreviation || '',
