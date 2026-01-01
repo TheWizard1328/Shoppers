@@ -3553,7 +3553,6 @@ export default function DeliveryForm({
                             </div>
                           </div>
 
-                          {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
                         <div className="flex-1 space-y-2">
                               <Label className="text-sm font-semibold" style={{ color: 'var(--text-slate-900)' }}>COD</Label>
                               <div className="space-y-3">
@@ -3600,7 +3599,6 @@ export default function DeliveryForm({
                             }
                               </div>
                             </div>
-                        }
                         </div>
                       </div>
                     </div>
@@ -3649,7 +3647,7 @@ export default function DeliveryForm({
                             <SelectTrigger className="h-9">
                               <SelectValue placeholder="Select store" />
                             </SelectTrigger>
-                            <SelectContent className="z-[999999]">
+                            <SelectContent className="z-[10011]">
                               {availableStores.map((store) => {
                               const baseStoreId = store._originalStoreId || store.id;
                               const timeSlot = store._timeSlot || null;
@@ -3678,7 +3676,7 @@ export default function DeliveryForm({
                             <SelectTrigger className="h-9">
                               <SelectValue />
                             </SelectTrigger>
-                            <SelectContent className="z-[999999]">
+                            <SelectContent className="z-[10011]">
                               {delivery ? (
                                 isPickupMode ? (
                                   <>
