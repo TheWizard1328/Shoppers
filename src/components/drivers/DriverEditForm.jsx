@@ -10,6 +10,7 @@ import { format } from 'date-fns';
 
 export default function DriverEditForm({ driver, onSave, onCancel }) {
   const [formData, setFormData] = useState({
+    status: driver.status || 'active',
     driver_status: driver.driver_status || 'off_duty',
     pay_rate_per_delivery: driver.pay_rate_per_delivery || 0,
     extra_km_rate: driver.extra_km_rate || 0,
@@ -23,6 +24,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
     try {
       // Prepare update payload
       const updates = {
+        status: formData.status,
         driver_status: formData.driver_status
       };
 
@@ -74,24 +76,46 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* Driver Status - Full Width */}
-          <div>
-            <Label htmlFor="driver_status" className="text-sm font-medium mb-1.5 block">
-              Driver Status
-            </Label>
-            <Select
-              value={formData.driver_status}
-              onValueChange={(value) => setFormData(prev => ({ ...prev, driver_status: value }))}
-            >
-              <SelectTrigger id="driver_status">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="z-[10002]">
-                <SelectItem value="off_duty">Off Duty</SelectItem>
-                <SelectItem value="on_duty">On Duty</SelectItem>
-                <SelectItem value="on_break">On Break</SelectItem>
-              </SelectContent>
-            </Select>
+          {/* Status Row - 2 columns */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* User Status (Active/Inactive) */}
+            <div>
+              <Label htmlFor="status" className="text-sm font-medium mb-1.5 block">
+                User Status
+              </Label>
+              <Select
+                value={formData.status}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}
+              >
+                <SelectTrigger id="status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="z-[10002]">
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Driver Status */}
+            <div>
+              <Label htmlFor="driver_status" className="text-sm font-medium mb-1.5 block">
+                Driver Status
+              </Label>
+              <Select
+                value={formData.driver_status}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, driver_status: value }))}
+              >
+                <SelectTrigger id="driver_status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="z-[10002]">
+                  <SelectItem value="off_duty">Off Duty</SelectItem>
+                  <SelectItem value="on_duty">On Duty</SelectItem>
+                  <SelectItem value="on_break">On Break</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* Pay Rates - 2 Column Grid */}
@@ -103,12 +127,12 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
               </Label>
               <Input
                 id="pay_rate"
-                type="number"
-                step="0.01"
-                min="0"
+                type="text"
+                inputMode="decimal"
                 value={Number(formData.pay_rate_per_delivery).toFixed(2)}
                 onChange={(e) => setFormData(prev => ({ ...prev, pay_rate_per_delivery: parseFloat(e.target.value) || 0 }))}
                 placeholder="0.00"
+                className="[appearance:textfield]"
               />
             </div>
 
@@ -119,12 +143,12 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
               </Label>
               <Input
                 id="oversized_rate"
-                type="number"
-                step="0.01"
-                min="0"
+                type="text"
+                inputMode="decimal"
                 value={Number(formData.oversized_item_rate).toFixed(2)}
                 onChange={(e) => setFormData(prev => ({ ...prev, oversized_item_rate: parseFloat(e.target.value) || 0 }))}
                 placeholder="0.00"
+                className="[appearance:textfield]"
               />
             </div>
 
@@ -135,12 +159,12 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
               </Label>
               <Input
                 id="km_rate"
-                type="number"
-                step="0.01"
-                min="0"
+                type="text"
+                inputMode="decimal"
                 value={Number(formData.extra_km_rate).toFixed(2)}
                 onChange={(e) => setFormData(prev => ({ ...prev, extra_km_rate: parseFloat(e.target.value) || 0 }))}
                 placeholder="0.00"
+                className="[appearance:textfield]"
               />
             </div>
 
@@ -151,12 +175,12 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
               </Label>
               <Input
                 id="km_limit"
-                type="number"
-                step="0.1"
-                min="0"
+                type="text"
+                inputMode="decimal"
                 value={Number(formData.extra_km_limit).toFixed(2)}
                 onChange={(e) => setFormData(prev => ({ ...prev, extra_km_limit: parseFloat(e.target.value) || 0 }))}
                 placeholder="0.00"
+                className="[appearance:textfield]"
               />
             </div>
           </div>
