@@ -91,24 +91,32 @@ export default function AdminMetrics() {
         
         billableDeliveries.forEach(d => {
           const deliveryStore = stores.find(s => s?.id === d.store_id);
-          if (!deliveryStore) return;
+          if (!deliveryStore) {
+            notPayingStoresCount++;
+            return;
+          }
           
           // Check if store was paying fees on this delivery date
-          const deliveryDate = new Date(d.delivery_date);
-          let wasPayingFees = deliveryStore.pays_app_fees || false;
+          const deliveryDateStr = d.delivery_date;
+          let wasPayingFees = false;
           
           // Check historical status if app_fee_history exists
-          if (deliveryStore.app_fee_history && Array.isArray(deliveryStore.app_fee_history)) {
+          if (deliveryStore.app_fee_history && Array.isArray(deliveryStore.app_fee_history) && deliveryStore.app_fee_history.length > 0) {
             const sortedHistory = [...deliveryStore.app_fee_history].sort((a, b) => 
-              new Date(b.effective_date) - new Date(a.effective_date)
+              new Date(a.effective_date) - new Date(b.effective_date)
             );
             
+            // Find the applicable period for this delivery date
             for (const entry of sortedHistory) {
-              if (new Date(entry.effective_date) <= deliveryDate) {
+              if (entry.effective_date <= deliveryDateStr) {
                 wasPayingFees = entry.pays_app_fees;
+              } else {
                 break;
               }
             }
+          } else {
+            // No history - use current pays_app_fees status
+            wasPayingFees = deliveryStore.pays_app_fees || false;
           }
           
           if (wasPayingFees) {
