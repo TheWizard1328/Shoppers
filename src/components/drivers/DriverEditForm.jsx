@@ -13,7 +13,8 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
     driver_status: driver.driver_status || 'off_duty',
     pay_rate_per_delivery: driver.pay_rate_per_delivery || 0,
     extra_km_rate: driver.extra_km_rate || 0,
-    extra_km_limit: driver.extra_km_limit || 0
+    extra_km_limit: driver.extra_km_limit || 0,
+    oversized_item_rate: driver.oversized_item_rate || 0
   });
   const [isSaving, setIsSaving] = useState(false);
 
@@ -29,8 +30,9 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
       const payRateChanged = formData.pay_rate_per_delivery !== (driver.pay_rate_per_delivery || 0);
       const kmRateChanged = formData.extra_km_rate !== (driver.extra_km_rate || 0);
       const kmLimitChanged = formData.extra_km_limit !== (driver.extra_km_limit || 0);
+      const oversizedRateChanged = formData.oversized_item_rate !== (driver.oversized_item_rate || 0);
 
-      if (payRateChanged || kmRateChanged || kmLimitChanged) {
+      if (payRateChanged || kmRateChanged || kmLimitChanged || oversizedRateChanged) {
         // Archive the OLD rates to history before updating with new values
         const today = format(new Date(), 'yyyy-MM-dd');
         const existingHistory = driver.pay_rate_history || [];
@@ -40,13 +42,15 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
           effective_date: today,
           pay_rate_per_delivery: driver.pay_rate_per_delivery || 0,
           extra_km_rate: driver.extra_km_rate || 0,
-          extra_km_limit: driver.extra_km_limit || 0
+          extra_km_limit: driver.extra_km_limit || 0,
+          oversized_item_rate: driver.oversized_item_rate || 0
         };
 
         // Update with NEW values from form
         updates.pay_rate_per_delivery = formData.pay_rate_per_delivery;
         updates.extra_km_rate = formData.extra_km_rate;
         updates.extra_km_limit = formData.extra_km_limit;
+        updates.oversized_item_rate = formData.oversized_item_rate;
         updates.pay_rate_history = [...existingHistory, historyEntry];
       }
 
@@ -70,7 +74,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* Driver Status */}
+          {/* Driver Status - Full Width */}
           <div>
             <Label htmlFor="driver_status" className="text-sm font-medium mb-1.5 block">
               Driver Status
@@ -91,56 +95,75 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
             </Select>
           </div>
 
-          {/* Pay Rate per Delivery */}
-          <div>
-            <Label htmlFor="pay_rate" className="text-sm font-medium mb-1.5 block">
-              Pay Rate per Delivery ($)
-            </Label>
-            <Input
-              id="pay_rate"
-              type="number"
-              step="0.01"
-              min="0"
-              value={formData.pay_rate_per_delivery}
-              onChange={(e) => setFormData(prev => ({ ...prev, pay_rate_per_delivery: parseFloat(e.target.value) || 0 }))}
-              placeholder="0.00"
-            />
-          </div>
+          {/* Pay Rates - 2 Column Grid */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Pay Rate per Delivery */}
+            <div>
+              <Label htmlFor="pay_rate" className="text-sm font-medium mb-1.5 block">
+                Per Delivery ($)
+              </Label>
+              <Input
+                id="pay_rate"
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.pay_rate_per_delivery}
+                onChange={(e) => setFormData(prev => ({ ...prev, pay_rate_per_delivery: parseFloat(e.target.value) || 0 }))}
+                placeholder="0.00"
+              />
+            </div>
 
-          {/* Extra KM Rate */}
-          <div>
-            <Label htmlFor="km_rate" className="text-sm font-medium mb-1.5 block">
-              Extra KM Rate ($/km)
-            </Label>
-            <Input
-              id="km_rate"
-              type="number"
-              step="0.01"
-              min="0"
-              value={formData.extra_km_rate}
-              onChange={(e) => setFormData(prev => ({ ...prev, extra_km_rate: parseFloat(e.target.value) || 0 }))}
-              placeholder="0.00"
-            />
-          </div>
+            {/* Oversized Item Rate */}
+            <div>
+              <Label htmlFor="oversized_rate" className="text-sm font-medium mb-1.5 block">
+                Oversized Item ($)
+              </Label>
+              <Input
+                id="oversized_rate"
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.oversized_item_rate}
+                onChange={(e) => setFormData(prev => ({ ...prev, oversized_item_rate: parseFloat(e.target.value) || 0 }))}
+                placeholder="0.00"
+              />
+            </div>
 
-          {/* Extra KM Limit */}
-          <div>
-            <Label htmlFor="km_limit" className="text-sm font-medium mb-1.5 block">
-              Extra Pay KM Limit (km)
-            </Label>
-            <Input
-              id="km_limit"
-              type="number"
-              step="0.1"
-              min="0"
-              value={formData.extra_km_limit}
-              onChange={(e) => setFormData(prev => ({ ...prev, extra_km_limit: parseFloat(e.target.value) || 0 }))}
-              placeholder="0.0"
-            />
-            <p className="text-xs mt-1" style={{ color: 'var(--text-slate-500)' }}>
-              Minimum km before extra pay starts
-            </p>
+            {/* Extra KM Rate */}
+            <div>
+              <Label htmlFor="km_rate" className="text-sm font-medium mb-1.5 block">
+                Extra KM ($/km)
+              </Label>
+              <Input
+                id="km_rate"
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.extra_km_rate}
+                onChange={(e) => setFormData(prev => ({ ...prev, extra_km_rate: parseFloat(e.target.value) || 0 }))}
+                placeholder="0.00"
+              />
+            </div>
+
+            {/* Extra KM Limit */}
+            <div>
+              <Label htmlFor="km_limit" className="text-sm font-medium mb-1.5 block">
+                KM Limit (km)
+              </Label>
+              <Input
+                id="km_limit"
+                type="number"
+                step="0.1"
+                min="0"
+                value={formData.extra_km_limit}
+                onChange={(e) => setFormData(prev => ({ ...prev, extra_km_limit: parseFloat(e.target.value) || 0 }))}
+                placeholder="0.0"
+              />
+            </div>
           </div>
+          <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
+            KM Limit: Minimum km before extra pay starts
+          </p>
 
           {/* Pay Rate History */}
           {driver.pay_rate_history && driver.pay_rate_history.length > 0 && (
