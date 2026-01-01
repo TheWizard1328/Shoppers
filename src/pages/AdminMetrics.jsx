@@ -56,7 +56,7 @@ export default function AdminMetrics() {
     try {
       const year = parseInt(selectedYear);
       
-      // Monthly delivery counts
+      // Monthly delivery counts - split by store fee status
       const monthlyData = [];
       for (let month = 1; month <= 12; month++) {
         const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
@@ -68,17 +68,54 @@ export default function AdminMetrics() {
           return d.delivery_date >= monthStart && d.delivery_date <= monthEndStr;
         });
         
-        const completed = monthDeliveries.filter(d => d.status === 'completed' && d.patient_id).length;
-        const failed = monthDeliveries.filter(d => d.status === 'failed').length;
-        const afterHours = monthDeliveries.filter(d => d.after_hours_pickup).length;
+        // Billable deliveries: completed patient deliveries + failed + after-hours pickups (completed/cancelled)
+        const billableDeliveries = monthDeliveries.filter(d => {
+          if (!d) return false;
+          // Patient deliveries (completed or failed)
+          if (d.patient_id && (d.status === 'completed' || d.status === 'failed')) return true;
+          // After-hours pickups (completed or cancelled)
+          if (!d.patient_id && d.after_hours_pickup && (d.status === 'completed' || d.status === 'cancelled')) return true;
+          return false;
+        });
+        
+        // Split billable deliveries by store fee status
+        let payingStoresCount = 0;
+        let notPayingStoresCount = 0;
+        
+        billableDeliveries.forEach(d => {
+          const deliveryStore = stores.find(s => s?.id === d.store_id);
+          if (!deliveryStore) return;
+          
+          // Check if store was paying fees on this delivery date
+          const deliveryDate = new Date(d.delivery_date);
+          let wasPayingFees = deliveryStore.pays_app_fees || false;
+          
+          // Check historical status if app_fee_history exists
+          if (deliveryStore.app_fee_history && Array.isArray(deliveryStore.app_fee_history)) {
+            const sortedHistory = [...deliveryStore.app_fee_history].sort((a, b) => 
+              new Date(b.effective_date) - new Date(a.effective_date)
+            );
+            
+            for (const entry of sortedHistory) {
+              if (new Date(entry.effective_date) <= deliveryDate) {
+                wasPayingFees = entry.pays_app_fees;
+                break;
+              }
+            }
+          }
+          
+          if (wasPayingFees) {
+            payingStoresCount++;
+          } else {
+            notPayingStoresCount++;
+          }
+        });
         
         monthlyData.push({
           month: MONTH_NAMES[month - 1],
           monthNum: month,
-          completed,
-          failed,
-          afterHours,
-          total: completed + failed
+          payingStores: payingStoresCount,
+          notPayingStores: notPayingStoresCount
         });
       }
 
@@ -309,8 +346,11 @@ export default function AdminMetrics() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <BarChart3 className="w-5 h-5" />
-                Monthly Deliveries ({selectedYear})
+                Billable Deliveries by Store Fee Status ({selectedYear})
               </CardTitle>
+              <CardDescription className="text-xs mt-1">
+                Includes completed + failed patient deliveries, and after-hours pickups (completed/cancelled)
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-[300px]">
@@ -325,10 +365,15 @@ export default function AdminMetrics() {
                         border: '1px solid #e2e8f0',
                         borderRadius: '8px'
                       }}
+                      formatter={(value, name) => {
+                        if (name === 'Paying App Fees') return [value, 'Stores Paying Fees'];
+                        if (name === 'Not Paying Fees') return [value, 'Stores Not Paying Fees'];
+                        return [value, name];
+                      }}
                     />
                     <Legend />
-                    <Bar dataKey="completed" fill="#10b981" name="Completed" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="failed" fill="#ef4444" name="Failed" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="payingStores" stackId="a" fill="#10b981" name="Paying App Fees" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="notPayingStores" stackId="a" fill="#f59e0b" name="Not Paying Fees" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
