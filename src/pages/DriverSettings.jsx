@@ -91,9 +91,16 @@ export default function DriverSettings() {
     }
   };
 
-  const handleSaveDriver = async (driverId, updates) => {
+  const handleSaveDriver = async (userId, updates) => {
     try {
-      await base44.entities.AppUser.update(driverId, updates);
+      // Find the AppUser record by user_id (not the User's id)
+      const appUser = mergedAppUsers.find(au => au?.user_id === userId);
+      if (!appUser) {
+        throw new Error('AppUser record not found for this driver');
+      }
+      
+      // Update using the AppUser's actual ID
+      await base44.entities.AppUser.update(appUser.id, updates);
       
       // Refresh data
       const freshData = await base44.entities.AppUser.list();
