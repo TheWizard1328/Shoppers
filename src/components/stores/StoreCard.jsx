@@ -4,8 +4,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Edit, Trash2, Palette, Save, X, Copy, Check, DollarSign } from "lucide-react";
+import { Edit, Trash2, Palette, Save, X, Copy, Check, DollarSign, Calendar } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { format, parseISO } from "date-fns";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,6 +29,8 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
   const [editableStore, setEditableStore] = useState({ ...store });
   const [copiedId, setCopiedId] = useState(false);
   const [copiedDispatcherId, setCopiedDispatcherId] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [editingDateType, setEditingDateType] = useState(null); // 'start' or 'end'
 
   // Generate color locally if missing (don't auto-save to avoid infinite loops)
   const displayColor = store.color || getStoreColor(store);
@@ -166,41 +171,133 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
             }
 
             {/* Pays App Fees Checkbox */}
-            {currentUser && userHasRole(currentUser, 'admin') && (
-              <div className="flex items-center gap-2 mb-4 p-2 bg-amber-50 rounded-lg border border-amber-200">
-                <Checkbox
-                  id={`pays-fees-${store.id}`}
-                  checked={store.pays_app_fees || false}
-                  onCheckedChange={async (checked) => {
-                    try {
-                      const today = new Date().toISOString().split('T')[0];
-                      const historyEntry = {
-                        effective_date: today,
-                        pays_app_fees: checked,
-                        changed_by: currentUser?.user_name || currentUser?.full_name || 'Unknown'
-                      };
-                      const existingHistory = store.app_fee_history || [];
-                      await onSave({
-                        ...store,
-                        pays_app_fees: checked,
-                        app_fee_history: [...existingHistory, historyEntry]
-                      });
-                    } catch (error) {
-                      console.error("Error updating app fees status:", error);
-                    }
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                />
-                <label
-                  htmlFor={`pays-fees-${store.id}`}
-                  className="text-sm font-medium text-amber-800 cursor-pointer flex items-center gap-1"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <DollarSign className="w-3.5 h-3.5" />
-                  Pays App Fees
-                </label>
-              </div>
-            )}
+            {currentUser && userHasRole(currentUser, 'admin') && (() => {
+              const history = store.app_fee_history || [];
+              const sortedHistory = [...history].sort((a, b) => 
+                new Date(b.effective_date) - new Date(a.effective_date)
+              );
+              
+              // Find current active period (most recent entry where pays_app_fees is true)
+              const currentPeriod = sortedHistory.find(h => h.pays_app_fees);
+              const endPeriod = currentPeriod ? sortedHistory.find(h => 
+                !h.pays_app_fees && new Date(h.effective_date) > new Date(currentPeriod.effective_date)
+              ) : null;
+              
+              const formatEffectiveDate = (dateStr) => {
+                if (!dateStr) return 'Unknown';
+                try {
+                  return format(parseISO(dateStr), 'MMM d, yyyy');
+                } catch {
+                  return dateStr;
+                }
+              };
+
+              const handleDateSelect = async (date, type) => {
+                if (!date) return;
+                const dateStr = format(date, 'yyyy-MM-dd');
+                const existingHistory = store.app_fee_history || [];
+                
+                if (type === 'start' && currentPeriod) {
+                  // Update the start date of current period
+                  const updatedHistory = existingHistory.map(h => 
+                    h === currentPeriod ? { ...h, effective_date: dateStr } : h
+                  );
+                  await onSave({ ...store, app_fee_history: updatedHistory });
+                } else if (type === 'end' && endPeriod) {
+                  // Update the end date
+                  const updatedHistory = existingHistory.map(h => 
+                    h === endPeriod ? { ...h, effective_date: dateStr } : h
+                  );
+                  await onSave({ ...store, app_fee_history: updatedHistory });
+                }
+                setShowDatePicker(false);
+                setEditingDateType(null);
+              };
+
+              return (
+                <div className="flex flex-col gap-1 mb-4 p-2 bg-amber-50 rounded-lg border border-amber-200">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id={`pays-fees-${store.id}`}
+                      checked={store.pays_app_fees || false}
+                      onCheckedChange={async (checked) => {
+                        try {
+                          const today = new Date().toISOString().split('T')[0];
+                          const historyEntry = {
+                            effective_date: today,
+                            pays_app_fees: checked,
+                            changed_by: currentUser?.user_name || currentUser?.full_name || 'Unknown'
+                          };
+                          const existingHistory = store.app_fee_history || [];
+                          await onSave({
+                            ...store,
+                            pays_app_fees: checked,
+                            app_fee_history: [...existingHistory, historyEntry]
+                          });
+                        } catch (error) {
+                          console.error("Error updating app fees status:", error);
+                        }
+                      }}
+                    />
+                    <label
+                      htmlFor={`pays-fees-${store.id}`}
+                      className="text-sm font-medium text-amber-800 cursor-pointer flex items-center gap-1"
+                    >
+                      <DollarSign className="w-3.5 h-3.5" />
+                      Pays App Fees
+                    </label>
+                  </div>
+                  
+                  {/* Effective Date Range Display */}
+                  {currentPeriod && (
+                    <Popover open={showDatePicker} onOpenChange={setShowDatePicker}>
+                      <PopoverTrigger asChild>
+                        <button
+                          className="text-xs text-amber-700 hover:text-amber-900 flex items-center gap-1 ml-6 underline decoration-dotted"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Calendar className="w-3 h-3" />
+                          (Effective: {formatEffectiveDate(currentPeriod.effective_date)} → {endPeriod ? formatEffectiveDate(endPeriod.effective_date) : 'Present'})
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-3 z-[100]" onClick={(e) => e.stopPropagation()}>
+                        <div className="space-y-3">
+                          <div className="text-sm font-medium text-slate-700">Edit Date Range</div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant={editingDateType === 'start' ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => setEditingDateType('start')}
+                            >
+                              Start Date
+                            </Button>
+                            <Button
+                              variant={editingDateType === 'end' ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => setEditingDateType('end')}
+                              disabled={!endPeriod && store.pays_app_fees}
+                            >
+                              End Date
+                            </Button>
+                          </div>
+                          {editingDateType && (
+                            <CalendarComponent
+                              mode="single"
+                              selected={editingDateType === 'start' 
+                                ? parseISO(currentPeriod.effective_date) 
+                                : endPeriod ? parseISO(endPeriod.effective_date) : new Date()
+                              }
+                              onSelect={(date) => handleDateSelect(date, editingDateType)}
+                              className="rounded-md border"
+                            />
+                          )}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Color Selector */}
             <div className="flex items-center gap-2 mb-4">
