@@ -714,19 +714,19 @@ export default function StopCard({
   // CRITICAL: Only fade finished stops on delivery date (not past dates or future)
   const shouldFade = useMemo(() => {
     if (!delivery) return false;
-    
+
     // Don't fade if expanded or hovered
     if (isExpanded || isHovered) return false;
-    
+
     // Get today and delivery date at start of day
     const today = startOfDay(new Date());
     const deliveryDateObj = startOfDay(new Date(delivery.delivery_date + 'T00:00:00'));
-    
+
     // Only fade if: delivery date matches today AND has finished status
     if (deliveryDateObj.getTime() === today.getTime() && FINISHED_STATUSES.includes(delivery.status)) {
       return true;
     }
-    
+
     return false;
   }, [delivery, delivery?.status, isExpanded, isHovered]);
 
@@ -740,7 +740,7 @@ export default function StopCard({
       style={{ scrollSnapAlign: 'center' }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}>
-      <Card className="bg-card text-card-foreground rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 min-w-[340px] max-w-[340px] border-blue-500"
+      <Card className="bg-card text-card-foreground rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 min-w-[335px] max-w-[335px] border-blue-500"
 
 
       onClick={() => {
@@ -788,8 +788,8 @@ export default function StopCard({
                 patient={patient}
                 isPickup={isPickup}
                 size="md"
-                className="mt-1"
-              />
+                className="mt-1" />
+
             </div>
 
             <div className="flex-1 min-w-0">
@@ -1567,7 +1567,7 @@ export default function StopCard({
                             }, { skipSmartRefresh: true });
                             console.log(`    ✅ ${pendingDelivery.patient_name} → in_transit, delivery_time_start: ${deliveryTimeStart}`);
                           }
-                          
+
                           // CRITICAL: Dispatch deliveriesUpdated event IMMEDIATELY after status changes
                           // This ensures map route lines update before waiting for optimization
                           window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
@@ -1673,7 +1673,7 @@ export default function StopCard({
                           };
                           setIsEntityUpdating(false);
                           console.log('  ✅ Smart refresh resumed');
-                          
+
                           // CRITICAL: Collapse the card after assign/accept all completes
                           if (onClick) {
                             onClick(null);
@@ -1757,11 +1757,11 @@ export default function StopCard({
                               </span>
                               <div className="flex items-center gap-1 flex-shrink-0">
                                 <SpecialSymbolsBadges
-                                  delivery={projectedDelivery}
-                                  patient={projPatient}
-                                  isPickup={false}
-                                  size="sm"
-                                />
+                              delivery={projectedDelivery}
+                              patient={projPatient}
+                              isPickup={false}
+                              size="sm" />
+
                                 <span className="text-xs font-semibold" style={{ color: 'var(--text-slate-600)' }}>
                                   TR#{projectedDelivery.tracking_number || '??'}
                                 </span>
@@ -2039,7 +2039,7 @@ export default function StopCard({
 
                           // ═══════════ PHASE 1: IMMEDIATE UI UPDATES ═══════════
                           console.log('🎯 [COMPLETE] PHASE 1: Updating UI immediately...');
-                          
+
                           // Update status to completed with timestamp
                           const currentTime = new Date();
                           const completionUpdate = {
@@ -2047,43 +2047,43 @@ export default function StopCard({
                             actual_delivery_time: currentTime.toISOString(),
                             isNextDelivery: false
                           };
-                          
+
                           // Update local state immediately
                           await updateDeliveryLocal(delivery.id, completionUpdate, { skipSmartRefresh: true });
-                          
+
                           // Find and update next delivery flag
                           const allDriverDeliveries = allDeliveries.filter((d) =>
-                            d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+                          d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
                           );
-                          
-                          const incompleteDeliveries = allDriverDeliveries
-                            .filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending')
-                            .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
-                          
+
+                          const incompleteDeliveries = allDriverDeliveries.
+                          filter((d) => d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending').
+                          sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+
                           if (incompleteDeliveries.length > 0) {
                             const nextStop = incompleteDeliveries[0];
                             await updateDeliveryLocal(nextStop.id, { isNextDelivery: true }, { skipSmartRefresh: true });
                           }
-                          
+
                           // Force UI refresh with new data
                           invalidate('Delivery');
                           const freshDeliveries = await base44.entities.Delivery.filter({
                             driver_id: delivery.driver_id,
                             delivery_date: delivery.delivery_date
                           });
-                          
+
                           if (updateDeliveriesLocally) {
-                            const otherDeliveries = allDeliveries.filter(d => 
-                              d && (d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date)
+                            const otherDeliveries = allDeliveries.filter((d) =>
+                            d && (d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date)
                             );
                             updateDeliveriesLocally([...otherDeliveries, ...freshDeliveries], true);
                           }
-                          
+
                           // CRITICAL: Trigger map and stop cards update immediately
                           window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
                             detail: { triggeredBy: 'complete', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
                           }));
-                          
+
                           // CRITICAL: Scroll to next delivery card immediately
                           if (incompleteDeliveries.length > 0) {
                             setTimeout(() => {
@@ -2094,15 +2094,15 @@ export default function StopCard({
                               }
                             }, 100);
                           }
-                          
+
                           // CRITICAL: Reactivate FAB immediately (before background work)
                           fabControlEvents.reactivateFAB(true);
-                          
+
                           console.log('✅ [COMPLETE] PHASE 1: UI updated - markers, routes, FAB, and next card centered');
 
                           // ═══════════ PHASE 2: BACKGROUND TASKS ═══════════
                           console.log('🔄 [COMPLETE] PHASE 2: Running background tasks...');
-                          
+
                           // Background: Route optimization
                           base44.functions.invoke('optimizeRouteRealTime', {
                             driverId: delivery.driver_id,
@@ -2281,7 +2281,7 @@ export default function StopCard({
                         invalidate('Delivery');
                         await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
                         console.log('  ✅ UI and DBs synced');
-                        
+
                         // CRITICAL: Trigger map update
                         window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
                           detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
