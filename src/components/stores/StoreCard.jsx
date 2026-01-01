@@ -213,13 +213,14 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                 // Use Store entity directly to update
                 const { Store } = await import('@/entities/Store');
                 await Store.update(store.id, { app_fee_history: updatedHistory });
-                if (onSave) {
-                  await onSave({ ...store, app_fee_history: updatedHistory });
-                }
+                // Invalidate cache and trigger UI refresh
+                const { invalidate } = await import('./utils/dataManager');
+                invalidate('Store');
+                window.dispatchEvent(new CustomEvent('storeUpdated', { detail: { storeId: store.id } }));
 
                 setShowDatePicker(false);
                 setEditingDateType(null);
-              };
+                };
 
               return (
                 <div className="flex flex-col gap-1 mb-4 p-2 bg-amber-50 rounded-lg border border-amber-200">
@@ -236,20 +237,18 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                             changed_by: currentUser?.user_name || currentUser?.full_name || 'Unknown'
                           };
                           const existingHistory = store.app_fee_history || [];
-                          // Use Store entity directly to update
-                          const { Store } = await import('@/entities/Store');
-                          await Store.update(store.id, {
+                          const updatedData = {
                             pays_app_fees: checked,
                             app_fee_history: [...existingHistory, historyEntry]
-                          });
-                          // Trigger refresh via onSave callback
-                          if (onSave) {
-                            await onSave({
-                              ...store,
-                              pays_app_fees: checked,
-                              app_fee_history: [...existingHistory, historyEntry]
-                            });
-                          }
+                          };
+                          // Use Store entity directly to update
+                          const { Store } = await import('@/entities/Store');
+                          await Store.update(store.id, updatedData);
+                          // Invalidate cache and trigger UI refresh
+                          const { invalidate } = await import('./utils/dataManager');
+                          invalidate('Store');
+                          // Dispatch event to trigger refresh
+                          window.dispatchEvent(new CustomEvent('storeUpdated', { detail: { storeId: store.id } }));
                         } catch (error) {
                           console.error("Error updating app fees status:", error);
                         }
