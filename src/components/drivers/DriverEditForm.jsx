@@ -86,7 +86,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
               <SelectTrigger id="driver_status">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-[10002]">
                 <SelectItem value="on_duty">On Duty</SelectItem>
                 <SelectItem value="off_duty">Off Duty</SelectItem>
                 <SelectItem value="on_break">On Break</SelectItem>
