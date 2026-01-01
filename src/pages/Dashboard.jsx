@@ -835,16 +835,12 @@ function Dashboard() {
       return drivers;
     }
 
-    // DISPATCHER: Show all drivers in the same city, highlight those with dispatcher's store deliveries for SELECTED DATE
+    // DISPATCHER: Only show drivers with deliveries for dispatcher's stores ON THE SELECTED DATE
     if (userHasRole(currentUser, 'dispatcher')) {
-      const dispatcherCityId = currentUser.city_id;
       const dispatcherStoreIds = currentUser.store_ids || [];
       const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
 
-      // Get all drivers in the same city
-      const driversInCity = drivers.filter((d) => d && d.city_id === dispatcherCityId);
-
-      // Get unique driver IDs that have deliveries for dispatcher's stores ON THE SELECTED DATE (for highlighting)
+      // Get unique driver IDs that have deliveries for dispatcher's stores ON THE SELECTED DATE
       const driversWithStoreDeliveries = new Set(
         deliveries?.
         filter((d) => d && d.delivery_date === selectedDateStr && dispatcherStoreIds.includes(d.store_id)).
@@ -852,11 +848,13 @@ function Dashboard() {
         filter(Boolean)
       );
 
-      // Enrich drivers with hasStoreDeliveries flag for green highlighting
-      return driversInCity.map((d) => ({
-        ...d,
-        _hasDispatcherStoreDeliveries: driversWithStoreDeliveries.has(d.id)
-      }));
+      // Only return drivers who have deliveries for dispatcher's stores
+      return drivers.
+        filter((d) => d && driversWithStoreDeliveries.has(d.id)).
+        map((d) => ({
+          ...d,
+          _hasDispatcherStoreDeliveries: true
+        }));
     }
 
     // OTHER ROLES: Return all drivers
@@ -873,9 +871,26 @@ function Dashboard() {
   const isDriverDropdownDisabled = useMemo(() => {
     if (!currentUser) return false;
 
-    // Always enable for admins and dispatchers
-    if (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) {
+    // ADMIN: Always enable
+    if (userHasRole(currentUser, 'admin')) {
       return false;
+    }
+
+    // DISPATCHER: Disable if only 1 driver has deliveries for dispatcher's stores on selected date
+    if (userHasRole(currentUser, 'dispatcher')) {
+      const dispatcherStoreIds = currentUser.store_ids || [];
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+
+      // Get unique driver IDs with deliveries for dispatcher's stores
+      const driversWithStoreDeliveries = new Set(
+        deliveries?.
+        filter((d) => d && d.delivery_date === dateStr && dispatcherStoreIds.includes(d.store_id)).
+        map((d) => d.driver_id).
+        filter(Boolean)
+      );
+
+      // Disable if only 1 driver
+      return driversWithStoreDeliveries.size <= 1;
     }
 
     // For drivers: only enable if another driver shares a store with them on the selected date

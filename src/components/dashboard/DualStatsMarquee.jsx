@@ -86,40 +86,42 @@ export default function DualStatsMarquee({
           tooltip={tooltipValues.failed} />
       </div>
 
-      {/* Row 2: Performance Stats - 4 columns */}
-      <div className="grid grid-cols-4 gap-1">
-        <StatBadge
-          icon={DollarSign}
-          value={performanceStats?.totalPay !== undefined ? `${performanceStats.totalPay.toFixed(2)}` : '0.00'}
-          color="green"
-          label="Pay"
-          tooltip={`Total Pay: $${performanceStats?.totalPay?.toFixed(2) || '0.00'}`}
-          small />
+      {/* Row 2: Performance Stats - 4 columns - Only show for active drivers */}
+      {isDriver && (
+        <div className="grid grid-cols-4 gap-1">
+          <StatBadge
+            icon={DollarSign}
+            value={performanceStats?.totalPay !== undefined ? `${performanceStats.totalPay.toFixed(2)}` : '0.00'}
+            color="green"
+            label="Pay"
+            tooltip={`Total Pay: $${performanceStats?.totalPay?.toFixed(2) || '0.00'}`}
+            small />
 
-        <StatBadge
-          icon={Route}
-          value={performanceStats?.totalKm !== undefined ? `${performanceStats.totalKm.toFixed(2)}k` : '0.00k'}
-          color="blue"
-          label="Km"
-          tooltip={`Total Distance: ${performanceStats?.totalKm?.toFixed(2) || '0.00'} km`}
-          small />
+          <StatBadge
+            icon={Route}
+            value={performanceStats?.totalKm !== undefined ? `${performanceStats.totalKm.toFixed(2)}k` : '0.00k'}
+            color="blue"
+            label="Km"
+            tooltip={`Total Distance: ${performanceStats?.totalKm?.toFixed(2) || '0.00'} km`}
+            small />
 
-        <StatBadge
-          icon={TrendingUp}
-          value={performanceStats?.totalExtraKm !== undefined ? `${performanceStats.totalExtraKm.toFixed(2)}k` : '0.00k'}
-          color="amber"
-          label="Extra"
-          tooltip={`Extra Km (beyond ${performanceStats?.extraKmLimit || 0} km limit): ${performanceStats?.totalExtraKm?.toFixed(2) || '0.00'} km`}
-          small />
+          <StatBadge
+            icon={TrendingUp}
+            value={performanceStats?.totalExtraKm !== undefined ? `${performanceStats.totalExtraKm.toFixed(2)}k` : '0.00k'}
+            color="amber"
+            label="Extra"
+            tooltip={`Extra Km (beyond ${performanceStats?.extraKmLimit || 0} km limit): ${performanceStats?.totalExtraKm?.toFixed(2) || '0.00'} km`}
+            small />
 
-        <StatBadge
-          icon={Clock}
-          value={performanceStats?.totalTimeOnDuty ? performanceStats.totalTimeOnDuty : '00:00'}
-          color="purple"
-          label="Duty"
-          tooltip={`Total Time on Duty: ${performanceStats?.totalTimeOnDuty || '00:00'}`}
-          small />
-      </div>
+          <StatBadge
+            icon={Clock}
+            value={performanceStats?.totalTimeOnDuty ? performanceStats.totalTimeOnDuty : '00:00'}
+            color="purple"
+            label="Duty"
+            tooltip={`Total Time on Duty: ${performanceStats?.totalTimeOnDuty || '00:00'}`}
+            small />
+        </div>
+      )}
     </div>);
 
 }
