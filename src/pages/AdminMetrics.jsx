@@ -56,12 +56,26 @@ export default function AdminMetrics() {
     try {
       const year = parseInt(selectedYear);
       
-      // CRITICAL: Fetch full year deliveries from backend to avoid using context
+      // CRITICAL: Fetch full year deliveries from backend in chunks to avoid limits
       const yearStart = `${year}-01-01`;
       const yearEnd = `${year}-12-31`;
-      const yearDeliveries = await base44.entities.Delivery.filter({
-        delivery_date: { $gte: yearStart, $lte: yearEnd }
-      });
+      
+      // Fetch all months in parallel to get around any query limits
+      const monthPromises = [];
+      for (let month = 1; month <= 12; month++) {
+        const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+        const monthEndDate = new Date(year, month, 0);
+        const monthEnd = monthEndDate.toISOString().split('T')[0];
+        
+        monthPromises.push(
+          base44.entities.Delivery.filter({
+            delivery_date: { $gte: monthStart, $lte: monthEnd }
+          })
+        );
+      }
+      
+      const monthResults = await Promise.all(monthPromises);
+      const yearDeliveries = monthResults.flat();
       
       // Monthly delivery counts - split by store fee status
       const monthlyData = [];
