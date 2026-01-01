@@ -3604,11 +3604,10 @@ export default function DeliveryForm({
                     </div>
                   }
 
-                  {/* Section 3: Store/Status/Time Windows - Only visible to dispatchers and admins */}
-                  {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
+                  {/* Section 3: Store/Status/Time Windows - All users can access, disabled after completion for non-admins */}
                   <div className={`space-y-2 p-3 rounded-lg border ${
-                  delivery && userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin') &&
-                  ['completed', 'failed', 'returned', 'cancelled', 'in_transit', 'en_route'].includes(formData.status) ?
+                  delivery && !userHasRole(currentUser, 'admin') &&
+                  ['completed', 'failed', 'returned', 'cancelled'].includes(formData.status) ?
                   'opacity-50 pointer-events-none' : ''}`
                   } style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                       <div className="flex gap-3">
