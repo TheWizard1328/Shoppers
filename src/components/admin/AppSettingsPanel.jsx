@@ -299,7 +299,7 @@ export default function AppSettingsPanel() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -362,53 +362,6 @@ export default function AppSettingsPanel() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="w-5 h-5" />
-              Other Admin Settings
-            </CardTitle>
-            <CardDescription>
-              Configure app-wide administrative settings.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="app_fees" className="text-sm font-medium mb-1.5 block">
-                  App Fees (Cost per Delivery)
-                </Label>
-                <div className="flex items-center gap-2">
-                  <span className="text-slate-700 font-medium">$</span>
-                  <Input
-                    id="app_fees"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={appFeesPerDelivery}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
-                        setAppFeesPerDelivery(val);
-                      }
-                    }}
-                    onBlur={(e) => {
-                      const parsed = parseFloat(e.target.value) || 0;
-                      setAppFeesPerDelivery(parsed.toFixed(2));
-                    }}
-                    placeholder="0.00"
-                    className="w-32"
-                  />
-                  <span className="text-sm text-slate-500">per finished delivery</span>
-                </div>
-                <p className="text-xs text-slate-500 mt-1">
-                  This fee will be used to calculate monthly charges for stores that are marked as paying app fees.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         <Card className={!smartRefreshEnabled ? 'border-red-300 bg-red-50' : ''}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -466,6 +419,53 @@ export default function AppSettingsPanel() {
           )}
         </CardContent>
       </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="w-5 h-5" />
+              Other Admin Settings
+            </CardTitle>
+            <CardDescription>
+              Configure app-wide administrative settings.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="app_fees" className="text-sm font-medium mb-1.5 block">
+                  App Fees (Cost per Delivery)
+                </Label>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-700 font-medium">$</span>
+                  <Input
+                    id="app_fees"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={appFeesPerDelivery}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                        setAppFeesPerDelivery(val);
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const parsed = parseFloat(e.target.value) || 0;
+                      setAppFeesPerDelivery(parsed.toFixed(2));
+                    }}
+                    placeholder="0.00"
+                    className="w-32"
+                  />
+                  <span className="text-sm text-slate-500">per finished delivery</span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  This fee will be used to calculate monthly charges for stores that are marked as paying app fees.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <Card className={!smartRefreshEnabled ? 'opacity-50 pointer-events-none' : ''}>
