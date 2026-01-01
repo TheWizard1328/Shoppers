@@ -104,7 +104,7 @@ export default function AdminMetrics() {
         let notPayingStoresCount = 0;
         
         billableDeliveries.forEach(d => {
-          const deliveryStore = stores.find(s => s?.id === d.store_id);
+          const deliveryStore = allStores.find(s => s?.id === d.store_id);
           if (!deliveryStore) {
             notPayingStoresCount++;
             return;
