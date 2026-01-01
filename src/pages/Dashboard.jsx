@@ -1091,130 +1091,130 @@ function Dashboard() {
 
 
 
+
+
         // This subscription handles changes from other components
       }});return unsubscribe;}, []); // Listen for driver status break/resume events from DriverStatusToggle
-  useEffect(() => {
-    const unsubscribe = fabControlEvents.subscribe((event) => {
-      if (event.type === 'BREAK_START') {
-        console.log('🗺️ [Dashboard] Driver going on break - unlocking FAB and zooming to phase 1');
-        // Save current phase for later restoration
-        phaseBeforeBreakRef.current = event.previousPhase;
-        // Clear any timers
-        if (mapLockTimeoutRef.current) {
-          clearTimeout(mapLockTimeoutRef.current);
-          mapLockTimeoutRef.current = null;
-        }
-        mapLockExpiresAtRef.current = null;
-
-        // Unlock FAB and set to phase 1
-        setIsMapViewLocked(false);
-        setMapViewPhase(1);
-        setMapViewTrigger((prev) => prev + 1); // Trigger zoom out to all markers
-
-      } else if (event.type === 'BREAK_END') {
-
-        // Restore the saved phase
-        const phaseToRestore = event.phaseToRestore || 1;
-        setMapViewPhase(phaseToRestore);
-
-        // Lock the FAB and trigger map view
-        setIsMapViewLocked(true);
-        setMapViewTrigger((prev) => prev + 1);
-
-        // Set up appropriate timer based on restored phase
-        if (phaseToRestore === 1 || phaseToRestore === 3) {
-          const lockDuration = 3000;
-          const expiresAt = Date.now() + lockDuration;
-          mapLockExpiresAtRef.current = expiresAt;
-
-          mapLockTimeoutRef.current = window.setTimeout(() => {
-            if (mapLockExpiresAtRef.current === expiresAt) {
-              setIsMapViewLocked(false);
-              mapLockExpiresAtRef.current = null;
+  useEffect(() => {const unsubscribe = fabControlEvents.subscribe((event) => {if (event.type === 'BREAK_START') {
+            console.log('🗺️ [Dashboard] Driver going on break - unlocking FAB and zooming to phase 1');
+            // Save current phase for later restoration
+            phaseBeforeBreakRef.current = event.previousPhase;
+            // Clear any timers
+            if (mapLockTimeoutRef.current) {
+              clearTimeout(mapLockTimeoutRef.current);
               mapLockTimeoutRef.current = null;
             }
-          }, lockDuration);
-        }
-        // Phase 2 stays locked permanently
-
-        phaseBeforeBreakRef.current = null;
-      } else if (event.type === 'DATA_READY') {
-        // CRITICAL: Data has fully loaded - reactivate FAB with current phase
-        console.log(`🔄 [FAB] Data ready - reactivating Phase ${mapViewPhase}`);
-
-        // Lock FAB and trigger map view
-        setIsMapViewLocked(true);
-        lastProgrammaticMapMoveRef.current = Date.now();
-        window._lastProgrammaticMapMove = Date.now();
-        setMapViewTrigger((prev) => prev + 1);
-
-        // CRITICAL: Handle timer logic based on phase - ONLY set timers for Phase 1 & 3
-        if (mapViewPhase === 2) {
-          // Phase 2 - NO timer at all, stays locked permanently
-          // CRITICAL: Clear any existing timers to prevent accidental unlock
-          if (mapLockTimeoutRef.current) {
-            clearTimeout(mapLockTimeoutRef.current);
-            mapLockTimeoutRef.current = null;
-          }
-          mapLockExpiresAtRef.current = null;
-
-        } else if (mapViewPhase === 1 || mapViewPhase === 3) {
-          // Phase 1 & 3 - Clear any existing timers first, then set new timer
-          if (mapLockTimeoutRef.current) {
-            clearTimeout(mapLockTimeoutRef.current);
-            mapLockTimeoutRef.current = null;
-          }
-          mapLockExpiresAtRef.current = null;
-
-          const lockDuration = 3000;
-          const expiresAt = Date.now() + lockDuration;
-          mapLockExpiresAtRef.current = expiresAt;
-
-          mapLockTimeoutRef.current = window.setTimeout(() => {
-            if (mapLockExpiresAtRef.current === expiresAt) {
-              setIsMapViewLocked(false);
-              mapLockExpiresAtRef.current = null;
-              mapLockTimeoutRef.current = null;
-              console.log(`⏰ [FAB] Phase ${mapViewPhase} auto-unlocked after data ready`);
-            }
-          }, lockDuration);
-        }
-      } else if (event.type === 'DONE_BUTTON_CLICKED') {
-        // CRITICAL: Done button was clicked - activate Phase 1 for 500ms
-        console.log('🎯 [FAB] Done button clicked - activating Phase 1 for 500ms');
-
-        // Clear any existing timers
-        if (mapLockTimeoutRef.current) {
-          clearTimeout(mapLockTimeoutRef.current);
-          mapLockTimeoutRef.current = null;
-        }
-        mapLockExpiresAtRef.current = null;
-
-        // Set to Phase 1 and lock
-        setMapViewPhase(1);
-        setIsMapViewLocked(true);
-        lastProgrammaticMapMoveRef.current = Date.now();
-        window._lastProgrammaticMapMove = Date.now();
-        setMapViewTrigger((prev) => prev + 1);
-
-        // Auto-unlock after 500ms
-        const lockDuration = 500;
-        const expiresAt = Date.now() + lockDuration;
-        mapLockExpiresAtRef.current = expiresAt;
-
-        mapLockTimeoutRef.current = window.setTimeout(() => {
-          if (mapLockExpiresAtRef.current === expiresAt) {
-            setIsMapViewLocked(false);
             mapLockExpiresAtRef.current = null;
-            mapLockTimeoutRef.current = null;
-            console.log('⏰ [FAB] Phase 1 auto-unlocked after 500ms (Done button)');
-          }
-        }, lockDuration);
-      }
-    });
 
-    return unsubscribe;
-  }, [deliveriesWithStopOrder, mapViewPhase]);
+            // Unlock FAB and set to phase 1
+            setIsMapViewLocked(false);
+            setMapViewPhase(1);
+            setMapViewTrigger((prev) => prev + 1); // Trigger zoom out to all markers
+
+          } else if (event.type === 'BREAK_END') {
+
+            // Restore the saved phase
+            const phaseToRestore = event.phaseToRestore || 1;
+            setMapViewPhase(phaseToRestore);
+
+            // Lock the FAB and trigger map view
+            setIsMapViewLocked(true);
+            setMapViewTrigger((prev) => prev + 1);
+
+            // Set up appropriate timer based on restored phase
+            if (phaseToRestore === 1 || phaseToRestore === 3) {
+              const lockDuration = 3000;
+              const expiresAt = Date.now() + lockDuration;
+              mapLockExpiresAtRef.current = expiresAt;
+
+              mapLockTimeoutRef.current = window.setTimeout(() => {
+                if (mapLockExpiresAtRef.current === expiresAt) {
+                  setIsMapViewLocked(false);
+                  mapLockExpiresAtRef.current = null;
+                  mapLockTimeoutRef.current = null;
+                }
+              }, lockDuration);
+            }
+            // Phase 2 stays locked permanently
+
+            phaseBeforeBreakRef.current = null;
+          } else if (event.type === 'DATA_READY') {
+            // CRITICAL: Data has fully loaded - reactivate FAB with current phase
+            console.log(`🔄 [FAB] Data ready - reactivating Phase ${mapViewPhase}`);
+
+            // Lock FAB and trigger map view
+            setIsMapViewLocked(true);
+            lastProgrammaticMapMoveRef.current = Date.now();
+            window._lastProgrammaticMapMove = Date.now();
+            setMapViewTrigger((prev) => prev + 1);
+
+            // CRITICAL: Handle timer logic based on phase - ONLY set timers for Phase 1 & 3
+            if (mapViewPhase === 2) {
+              // Phase 2 - NO timer at all, stays locked permanently
+              // CRITICAL: Clear any existing timers to prevent accidental unlock
+              if (mapLockTimeoutRef.current) {
+                clearTimeout(mapLockTimeoutRef.current);
+                mapLockTimeoutRef.current = null;
+              }
+              mapLockExpiresAtRef.current = null;
+
+            } else if (mapViewPhase === 1 || mapViewPhase === 3) {
+              // Phase 1 & 3 - Clear any existing timers first, then set new timer
+              if (mapLockTimeoutRef.current) {
+                clearTimeout(mapLockTimeoutRef.current);
+                mapLockTimeoutRef.current = null;
+              }
+              mapLockExpiresAtRef.current = null;
+
+              const lockDuration = 3000;
+              const expiresAt = Date.now() + lockDuration;
+              mapLockExpiresAtRef.current = expiresAt;
+
+              mapLockTimeoutRef.current = window.setTimeout(() => {
+                if (mapLockExpiresAtRef.current === expiresAt) {
+                  setIsMapViewLocked(false);
+                  mapLockExpiresAtRef.current = null;
+                  mapLockTimeoutRef.current = null;
+                  console.log(`⏰ [FAB] Phase ${mapViewPhase} auto-unlocked after data ready`);
+                }
+              }, lockDuration);
+            }
+          } else if (event.type === 'DONE_BUTTON_CLICKED') {
+            // CRITICAL: Done button was clicked - activate Phase 1 for 500ms
+            console.log('🎯 [FAB] Done button clicked - activating Phase 1 for 500ms');
+
+            // Clear any existing timers
+            if (mapLockTimeoutRef.current) {
+              clearTimeout(mapLockTimeoutRef.current);
+              mapLockTimeoutRef.current = null;
+            }
+            mapLockExpiresAtRef.current = null;
+
+            // Set to Phase 1 and lock
+            setMapViewPhase(1);
+            setIsMapViewLocked(true);
+            lastProgrammaticMapMoveRef.current = Date.now();
+            window._lastProgrammaticMapMove = Date.now();
+            setMapViewTrigger((prev) => prev + 1);
+
+            // Auto-unlock after 500ms
+            const lockDuration = 500;
+            const expiresAt = Date.now() + lockDuration;
+            mapLockExpiresAtRef.current = expiresAt;
+
+            mapLockTimeoutRef.current = window.setTimeout(() => {
+              if (mapLockExpiresAtRef.current === expiresAt) {
+                setIsMapViewLocked(false);
+                mapLockExpiresAtRef.current = null;
+                mapLockTimeoutRef.current = null;
+                console.log('⏰ [FAB] Phase 1 auto-unlocked after 500ms (Done button)');
+              }
+            }, lockDuration);
+          }
+        });
+
+      return unsubscribe;
+    }, [deliveriesWithStopOrder, mapViewPhase]);
 
   useEffect(() => {
     return () => {
@@ -1590,16 +1590,16 @@ function Dashboard() {
     driverLocationPoller.start(() => {
 
 
+
+
+
+
       // Callback provided for future use, but not actively calling refreshData
       // to prevent triggering auto-selection every 15 seconds
     }, currentUser); // CRITICAL: Pass currentUser so poller knows who "self" is
-    const unsubscribe = driverLocationPoller.subscribe((locations) => {if (!locations || !Array.isArray(locations)) return;
-
-        // CRITICAL: TRIPLE-CHECK filtering on mobile - block ANY marker matching current user ID
+    const unsubscribe = driverLocationPoller.subscribe((locations) => {if (!locations || !Array.isArray(locations)) return; // CRITICAL: TRIPLE-CHECK filtering on mobile - block ANY marker matching current user ID
         // This is the FINAL defense against self-markers appearing on mobile
-        const currentUserId = currentUser?.id;
-        const currentUserUserId = currentUser?.user_id;
-
+        const currentUserId = currentUser?.id;const currentUserUserId = currentUser?.user_id;
         const filteredLocations = isMobile && isDriver ?
         locations.filter((loc) => {
           const locId = loc.driver_id || loc.user_id || loc.id;
@@ -6155,7 +6155,7 @@ function Dashboard() {
 
             
 
-            <div className="flex items-center justify-between mb-2">
+            <div className="mt-1 mb-2 flex items-center justify-between">
               <div className="pr-1 flex items-center gap-2">
                 <h2 className="pl-2 text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>Dashboard</h2>
                 {currentUser &&
@@ -6442,7 +6442,7 @@ function Dashboard() {
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.2 }}
                 className="overflow-hidden">
-                  <div className="mt-2 pt-2 border-t flex items-center gap-2" style={{ borderColor: 'var(--border-slate-200)' }}>
+                  <div className="mt-2 pt-2 pb-2 border-t flex items-center gap-2" style={{ borderColor: 'var(--border-slate-200)' }}>
                     <Select
                     value={selectedDriverId}
                     onValueChange={handleDriverChange}
