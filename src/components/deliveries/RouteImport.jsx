@@ -729,7 +729,8 @@ export default function RouteImport({
       const stopOrder = parseInt(values[3]?.trim()) || 0;
       const completionTimeStr = values[5]?.replace(/"/g, '').trim();
       const travelDistStr = values[8]?.replace(/"/g, '').trim();
-      const travelDist = travelDistStr ? parseFloat(travelDistStr) : null;
+      const travelDist = travelDistStr && !isNaN(parseFloat(travelDistStr)) ? parseFloat(travelDistStr) : null;
+      console.log(`📏 Row ${lineNumber}: Travel Dist from col 9: "${travelDistStr}" -> ${travelDist}`);
       const stopId = (values[12] || '').replace(/"/g, '').trim();
       const patientPID = values[13]?.replace(/"/g, '').trim();
       const rawNotes = (values[15] || '').replace(/"/g, '').trim();
