@@ -155,18 +155,9 @@ export default function AdminMetrics() {
         });
       }
 
-      // Driver performance (selected month)
-      const targetMonth = selectedMonth;
-      const targetMonthStart = `${year}-${String(targetMonth).padStart(2, '0')}-01`;
-      const targetMonthEnd = new Date(year, targetMonth, 0).toISOString().split('T')[0];
-      
-      const targetMonthDeliveries = yearDeliveries.filter(d => {
-        if (!d?.delivery_date) return false;
-        return d.delivery_date >= targetMonthStart && d.delivery_date <= targetMonthEnd;
-      });
-
+      // Driver performance (full year - will be filtered by recalculateMonthData if month selected)
       const driverStats = {};
-      targetMonthDeliveries.forEach(d => {
+      yearDeliveries.forEach(d => {
         if (!d.driver_id || !d.patient_id) return;
         if (!driverStats[d.driver_id]) {
           const driver = drivers.find(dr => dr?.id === d.driver_id);
@@ -184,11 +175,11 @@ export default function AdminMetrics() {
 
       const driverData = Object.values(driverStats)
         .sort((a, b) => b.completed - a.completed)
-        .slice(0, 8);
+        .slice(0, 10);
 
-      // Store breakdown (selected month)
+      // Store breakdown (full year)
       const storeStats = {};
-      targetMonthDeliveries.forEach(d => {
+      yearDeliveries.forEach(d => {
         if (!d.store_id || !d.patient_id) return;
         if (!storeStats[d.store_id]) {
           const store = allStores.find(s => s?.id === d.store_id);
