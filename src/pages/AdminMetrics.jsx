@@ -80,6 +80,10 @@ export default function AdminMetrics() {
       const monthResults = await Promise.all(monthPromises);
       const yearDeliveries = monthResults.flat();
       
+      // Store for later filtering
+      setAllYearDeliveries(yearDeliveries);
+      setAllStoresData(allStores);
+      
       // Monthly delivery counts - split by store fee status
       const monthlyData = [];
       for (let month = 1; month <= 12; month++) {
