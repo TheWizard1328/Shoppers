@@ -2320,17 +2320,17 @@ function Dashboard() {
         console.clear;
 
         // CRITICAL: Check if selected date is in the past
-        const todayStr = format(new Date(), 'yyyy-MM-dd');
-        const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-        const isPastDate = selectedDateStr < todayStr;
+        const todayStrPhase3 = format(new Date(), 'yyyy-MM-dd');
+        const selectedDateStrPhase3 = format(selectedDate, 'yyyy-MM-dd');
+        const isPastDatePhase3 = selectedDateStrPhase3 < todayStrPhase3;
 
         // CRITICAL: Check driver status
         const driverPhase3 = users.find((u) => u && u.id === currentUser?.id);
         const isDriverOnDutyPhase3 = driverPhase3 && driverPhase3.driver_status === 'on_duty';
 
         // CRITICAL: Reactivate Phase 1 if driver is off duty OR date is in the past
-        if (!isDriverOnDutyPhase3 || isPastDate) {
-          console.log(`🔄 [Phase 3] Conditions not met (on_duty: ${isDriverOnDutyPhase3}, isPast: ${isPastDate}) - switching to Phase 1`);
+        if (!isDriverOnDutyPhase3 || isPastDatePhase3) {
+          console.log(`🔄 [Phase 3] Conditions not met (on_duty: ${isDriverOnDutyPhase3}, isPast: ${isPastDatePhase3}) - switching to Phase 1`);
           setMapViewPhase(1);
           setMapViewTrigger((prev) => prev + 1);
           
