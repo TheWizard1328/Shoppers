@@ -1562,7 +1562,7 @@ export default function RouteImport({
             
             // Save to IndexedDB
             await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
-
+            
             overallResults.updated++;
             overallResults.completed++;
             if (isReturnDelivery(updatePayload, freshPatients, freshStores)) {
