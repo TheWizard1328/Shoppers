@@ -2973,7 +2973,34 @@ export default function Layout({ children, currentPageName }) {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-56 z-[10002]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
-                          <DropdownMenuLabel style={{ color: 'var(--text-slate-900)' }}>Settings</DropdownMenuLabel>
+                          <div className="px-2 py-2 flex items-center justify-between">
+                            <DropdownMenuLabel style={{ color: 'var(--text-slate-900)' }}>Settings</DropdownMenuLabel>
+                            {userHasRole(currentUser, 'admin') && !isAppOwner(currentUser) && (
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <span className="text-xs font-medium" style={{ color: 'var(--text-slate-600)' }}>Import Access</span>
+                                <Checkbox
+                                  checked={realUser?._tempImportAccess || false}
+                                  onCheckedChange={async (checked) => {
+                                    if (currentUser?._isImpersonating) return;
+
+                                    // Store in sessionStorage for temporary access
+                                    if (checked) {
+                                      sessionStorage.setItem('tempImportAccess', 'true');
+                                    } else {
+                                      sessionStorage.removeItem('tempImportAccess');
+                                    }
+
+                                    // Refresh current user
+                                    clearUserCache();
+                                    const refreshedUser = await getEffectiveUser();
+                                    if (refreshedUser) {
+                                      setCurrentUser(refreshedUser);
+                                    }
+                                  }}
+                                />
+                              </label>
+                            )}
+                          </div>
                           <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
 
                           {/* Theme Toggle - Mobile Only */}
