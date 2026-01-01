@@ -12,10 +12,10 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
   const [formData, setFormData] = useState({
     status: driver.status || 'active',
     driver_status: driver.driver_status || 'off_duty',
-    pay_rate_per_delivery: driver.pay_rate_per_delivery || 0,
-    extra_km_rate: driver.extra_km_rate || 0,
-    extra_km_limit: driver.extra_km_limit || 0,
-    oversized_item_rate: driver.oversized_item_rate || 0
+    pay_rate_per_delivery: Number(driver.pay_rate_per_delivery || 0).toFixed(2),
+    extra_km_rate: Number(driver.extra_km_rate || 0).toFixed(2),
+    extra_km_limit: Number(driver.extra_km_limit || 0).toFixed(2),
+    oversized_item_rate: Number(driver.oversized_item_rate || 0).toFixed(2)
   });
   const [isSaving, setIsSaving] = useState(false);
 
@@ -129,10 +129,9 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                 id="pay_rate"
                 type="text"
                 inputMode="decimal"
-                value={Number(formData.pay_rate_per_delivery).toFixed(2)}
-                onChange={(e) => setFormData(prev => ({ ...prev, pay_rate_per_delivery: parseFloat(e.target.value) || 0 }))}
+                value={formData.pay_rate_per_delivery}
+                onChange={(e) => setFormData(prev => ({ ...prev, pay_rate_per_delivery: e.target.value }))}
                 placeholder="0.00"
-                className="[appearance:textfield]"
               />
             </div>
 
@@ -145,10 +144,9 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                 id="oversized_rate"
                 type="text"
                 inputMode="decimal"
-                value={Number(formData.oversized_item_rate).toFixed(2)}
-                onChange={(e) => setFormData(prev => ({ ...prev, oversized_item_rate: parseFloat(e.target.value) || 0 }))}
+                value={formData.oversized_item_rate}
+                onChange={(e) => setFormData(prev => ({ ...prev, oversized_item_rate: e.target.value }))}
                 placeholder="0.00"
-                className="[appearance:textfield]"
               />
             </div>
 
@@ -161,10 +159,9 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                 id="km_rate"
                 type="text"
                 inputMode="decimal"
-                value={Number(formData.extra_km_rate).toFixed(2)}
-                onChange={(e) => setFormData(prev => ({ ...prev, extra_km_rate: parseFloat(e.target.value) || 0 }))}
+                value={formData.extra_km_rate}
+                onChange={(e) => setFormData(prev => ({ ...prev, extra_km_rate: e.target.value }))}
                 placeholder="0.00"
-                className="[appearance:textfield]"
               />
             </div>
 
@@ -177,10 +174,9 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                 id="km_limit"
                 type="text"
                 inputMode="decimal"
-                value={Number(formData.extra_km_limit).toFixed(2)}
-                onChange={(e) => setFormData(prev => ({ ...prev, extra_km_limit: parseFloat(e.target.value) || 0 }))}
+                value={formData.extra_km_limit}
+                onChange={(e) => setFormData(prev => ({ ...prev, extra_km_limit: e.target.value }))}
                 placeholder="0.00"
-                className="[appearance:textfield]"
               />
             </div>
           </div>
