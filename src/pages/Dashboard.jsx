@@ -53,14 +53,14 @@ import { reorderStops } from "@/components/utils/stopReorderer";
 import { recalculateAndUpdateStopOrders, updateNextDeliveryFlags } from "@/components/utils/stopOrderManager";
 import { loadUserSettings, saveSetting, getSetting } from "@/components/utils/userSettingsManager";
 import { fabControlEvents } from "@/components/utils/fabControlEvents";
-import { 
-  notifyDriverStarted, 
-  notifyDriverCompleted, 
-  notifyDriverFailed, 
-  notifyDriverRetry, 
+import {
+  notifyDriverStarted,
+  notifyDriverCompleted,
+  notifyDriverFailed,
+  notifyDriverRetry,
   notifyDriverReturn,
-  getDispatchersForStore
-} from "@/components/utils/deliveryMessaging";
+  getDispatchersForStore } from
+"@/components/utils/deliveryMessaging";
 import RouteNotification from "@/components/dashboard/RouteNotification";
 import ProactiveAlertSystem from "@/components/dashboard/ProactiveAlertSystem";
 import SmartRefreshIndicator from "@/components/layout/SmartRefreshIndicator";
@@ -431,9 +431,9 @@ function Dashboard() {
   useEffect(() => {
     if (!currentUser) return;
 
-    const isPureDriver = userHasRole(currentUser, 'driver') && 
-                        !userHasRole(currentUser, 'admin') && 
-                        !userHasRole(currentUser, 'dispatcher');
+    const isPureDriver = userHasRole(currentUser, 'driver') &&
+    !userHasRole(currentUser, 'admin') &&
+    !userHasRole(currentUser, 'dispatcher');
 
     if (isPureDriver) {
       driverActivityMonitor.start(currentUser);
@@ -473,7 +473,7 @@ function Dashboard() {
         try {
           const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
           const appUser = appUsers?.[0];
-          
+
           if (appUser) {
             console.log('🚀 [Dashboard] Auto-starting location tracking for mobile driver');
             await locationTracker.startTracking({
@@ -672,10 +672,10 @@ function Dashboard() {
 
       // Combine: completed + nextDelivery + remaining + pending at end
       const sortedDeliveries = [
-        ...completedDeliveries,
-        ...(nextDelivery ? [nextDelivery] : []),
-        ...incompleteDeliveries,
-        ...pendingDeliveries // CRITICAL: Add pending deliveries at the end
+      ...completedDeliveries,
+      ...(nextDelivery ? [nextDelivery] : []),
+      ...incompleteDeliveries,
+      ...pendingDeliveries // CRITICAL: Add pending deliveries at the end
       ];
 
       // CRITICAL: Include ALL deliveries (including pending) in result
@@ -709,16 +709,16 @@ function Dashboard() {
   const stats = useMemo(() => {
     // DISPATCHER: Filter to only dispatcher's store deliveries
     let relevantDeliveries = filteredDeliveries || [];
-    
+
     if (isDispatcher && currentUser?.store_ids) {
       const dispatcherStoreIds = new Set(currentUser.store_ids);
-      relevantDeliveries = relevantDeliveries.filter(d => d && dispatcherStoreIds.has(d.store_id));
+      relevantDeliveries = relevantDeliveries.filter((d) => d && dispatcherStoreIds.has(d.store_id));
     }
 
     // CRITICAL: Separate patient deliveries from pickups for accurate counting
-    const safeDeliveries = relevantDeliveries.filter(d => d && d.patient_id);
-    const allPickups = relevantDeliveries.filter(d => d && !d.patient_id);
-    
+    const safeDeliveries = relevantDeliveries.filter((d) => d && d.patient_id);
+    const allPickups = relevantDeliveries.filter((d) => d && !d.patient_id);
+
     if (!Array.isArray(safeDeliveries)) return {
       total: 0,
       inTransit: 0,
@@ -754,12 +754,12 @@ function Dashboard() {
       if (isReturn(d)) return false;
       return true;
     });
-    
+
     // CRITICAL: After Hours Pickups count as completed (completed OR cancelled status)
-    const afterHoursPickupsCompleted = relevantDeliveries.filter(d => 
-      d && !d.patient_id && d.after_hours_pickup === true && (d.status === 'completed' || d.status === 'cancelled')
+    const afterHoursPickupsCompleted = relevantDeliveries.filter((d) =>
+    d && !d.patient_id && d.after_hours_pickup === true && (d.status === 'completed' || d.status === 'cancelled')
     ).length;
-    
+
     const completed = completedDeliveries.length + afterHoursPickupsCompleted;
 
     const returned = safeDeliveries.filter(isReturn).length;
@@ -772,11 +772,11 @@ function Dashboard() {
 
     // CRITICAL: Calculate pickup counts for drivers (total, in_transit, completed pickups)
     const totalPickups = allPickups.length;
-    const inTransitPickups = allPickups.filter(d => 
-      d && (d.status === 'in_transit' || d.status === 'en_route')
+    const inTransitPickups = allPickups.filter((d) =>
+    d && (d.status === 'in_transit' || d.status === 'en_route')
     ).length;
-    const completedPickups = allPickups.filter(d => 
-      d && d.status === 'completed'
+    const completedPickups = allPickups.filter((d) =>
+    d && d.status === 'completed'
     ).length;
 
     // DISPATCHER: Calculate unique driver counts for superscript (from patient deliveries only)
@@ -785,11 +785,11 @@ function Dashboard() {
     let completedDrivers = 0;
 
     if (isDispatcher) {
-      const allDriverIds = new Set(safeDeliveries.map(d => d?.driver_id).filter(Boolean));
+      const allDriverIds = new Set(safeDeliveries.map((d) => d?.driver_id).filter(Boolean));
       totalDrivers = allDriverIds.size;
 
       const inTransitAll = safeDeliveries.filter((d) => d && (d.status === 'in_transit' || d.status === 'en_route'));
-      const inTransitDriverIds = new Set(inTransitAll.map(d => d?.driver_id).filter(Boolean));
+      const inTransitDriverIds = new Set(inTransitAll.map((d) => d?.driver_id).filter(Boolean));
       inTransitDrivers = inTransitDriverIds.size;
 
       const completedAll = safeDeliveries.filter((d) => {
@@ -797,14 +797,14 @@ function Dashboard() {
         if (isReturn(d)) return false;
         return true;
       });
-      const completedDriverIds = new Set(completedAll.map(d => d?.driver_id).filter(Boolean));
+      const completedDriverIds = new Set(completedAll.map((d) => d?.driver_id).filter(Boolean));
       completedDrivers = completedDriverIds.size;
     }
 
-    return { 
-      total, inTransit, completed, failed, returned, 
-      totalDrivers, inTransitDrivers, completedDrivers, 
-      totalPickups, inTransitPickups, completedPickups 
+    return {
+      total, inTransit, completed, failed, returned,
+      totalDrivers, inTransitDrivers, completedDrivers,
+      totalPickups, inTransitPickups, completedPickups
     };
   }, [filteredDeliveries, patients, isDispatcher, currentUser?.store_ids]);
 
@@ -901,21 +901,21 @@ function Dashboard() {
   }, [currentUser, selectedDate, deliveries]);
 
   const tooltipValues = useMemo(() => ({
-    total: isDispatcher 
-      ? `Total: ${stats.total} stops (${stats.totalDrivers} drivers)` 
-      : (isDriver && stats.totalPickups > 0)
-        ? `Total: ${stats.total} stops (${stats.totalPickups} pickups)`
-        : `Total: ${stats.total} stops`,
-    inTransit: isDispatcher 
-      ? `In-Transit: ${stats.inTransit} stops (${stats.inTransitDrivers} drivers)` 
-      : (isDriver && stats.inTransitPickups > 0)
-        ? `In-Transit: ${stats.inTransit} stops (${stats.inTransitPickups} pickups)`
-        : `In-Transit: ${stats.inTransit} stops`,
-    completed: isDispatcher 
-      ? `Completed: ${stats.completed} stops (${stats.completedDrivers} drivers)` 
-      : (isDriver && stats.completedPickups > 0)
-        ? `Completed: ${stats.completed} stops (${stats.completedPickups} pickups)`
-        : `Completed: ${stats.completed} stops`,
+    total: isDispatcher ?
+    `Total: ${stats.total} stops (${stats.totalDrivers} drivers)` :
+    isDriver && stats.totalPickups > 0 ?
+    `Total: ${stats.total} stops (${stats.totalPickups} pickups)` :
+    `Total: ${stats.total} stops`,
+    inTransit: isDispatcher ?
+    `In-Transit: ${stats.inTransit} stops (${stats.inTransitDrivers} drivers)` :
+    isDriver && stats.inTransitPickups > 0 ?
+    `In-Transit: ${stats.inTransit} stops (${stats.inTransitPickups} pickups)` :
+    `In-Transit: ${stats.inTransit} stops`,
+    completed: isDispatcher ?
+    `Completed: ${stats.completed} stops (${stats.completedDrivers} drivers)` :
+    isDriver && stats.completedPickups > 0 ?
+    `Completed: ${stats.completed} stops (${stats.completedPickups} pickups)` :
+    `Completed: ${stats.completed} stops`,
     failed: `${stats.failed} Failed / ${stats.returned} Returned`
   }), [stats, isDispatcher, isDriver]);
 
@@ -1044,7 +1044,7 @@ function Dashboard() {
   // Map repositioning is now handled directly in handleDriverChange and handleDateChange
   useEffect(() => {
     const currentDateStr = format(selectedDate, 'yyyy-MM-dd');
-    
+
     // Update refs only (no map trigger)
     prevSelectedDriverIdRef.current = selectedDriverId;
     prevSelectedDateRef.current = currentDateStr;
@@ -1090,9 +1090,9 @@ function Dashboard() {
       if (newFilters.selectedDriverId !== undefined) {
 
 
+
         // This subscription handles changes from other components
-      }});return unsubscribe;
-  }, []); // Listen for driver status break/resume events from DriverStatusToggle
+      }});return unsubscribe;}, []); // Listen for driver status break/resume events from DriverStatusToggle
   useEffect(() => {
     const unsubscribe = fabControlEvents.subscribe((event) => {
       if (event.type === 'BREAK_START') {
@@ -1182,26 +1182,26 @@ function Dashboard() {
       } else if (event.type === 'DONE_BUTTON_CLICKED') {
         // CRITICAL: Done button was clicked - activate Phase 1 for 500ms
         console.log('🎯 [FAB] Done button clicked - activating Phase 1 for 500ms');
-        
+
         // Clear any existing timers
         if (mapLockTimeoutRef.current) {
           clearTimeout(mapLockTimeoutRef.current);
           mapLockTimeoutRef.current = null;
         }
         mapLockExpiresAtRef.current = null;
-        
+
         // Set to Phase 1 and lock
         setMapViewPhase(1);
         setIsMapViewLocked(true);
         lastProgrammaticMapMoveRef.current = Date.now();
         window._lastProgrammaticMapMove = Date.now();
         setMapViewTrigger((prev) => prev + 1);
-        
+
         // Auto-unlock after 500ms
         const lockDuration = 500;
         const expiresAt = Date.now() + lockDuration;
         mapLockExpiresAtRef.current = expiresAt;
-        
+
         mapLockTimeoutRef.current = window.setTimeout(() => {
           if (mapLockExpiresAtRef.current === expiresAt) {
             setIsMapViewLocked(false);
@@ -1368,10 +1368,10 @@ function Dashboard() {
       // NON-MOBILE: Use shared location from AppUser entity (no device GPS)
       if (!isMobile) {
         console.log('🖥️ [Dashboard] Non-mobile device - using shared location from AppUser');
-        
+
         // Use AppUser data from context instead of polling
-        const appUser = appUsers?.find(au => au?.user_id === currentUser.id);
-        
+        const appUser = appUsers?.find((au) => au?.user_id === currentUser.id);
+
         if (appUser?.current_latitude && appUser?.current_longitude && appUser?.location_updated_at) {
           const newLocation = {
             latitude: appUser.current_latitude,
@@ -1381,30 +1381,30 @@ function Dashboard() {
             source: 'shared_location'
           };
           setDriverLocation(newLocation);
-          
+
           // CRITICAL: Reactivate FAB if Phase 2 is active (desktop only)
           if (mapViewPhaseRef.current === 2 && nextStopCoordinates) {
-          console.log('📍 [Desktop Phase 2] Driver location updated - reactivating FAB');
+            console.log('📍 [Desktop Phase 2] Driver location updated - reactivating FAB');
 
-          // CRITICAL: Clear any existing timers FIRST
-          if (mapLockTimeoutRef.current) {
-            clearTimeout(mapLockTimeoutRef.current);
-            mapLockTimeoutRef.current = null;
-          }
-          mapLockExpiresAtRef.current = null;
+            // CRITICAL: Clear any existing timers FIRST
+            if (mapLockTimeoutRef.current) {
+              clearTimeout(mapLockTimeoutRef.current);
+              mapLockTimeoutRef.current = null;
+            }
+            mapLockExpiresAtRef.current = null;
 
-          setIsMapViewLocked(true);
-          lastProgrammaticMapMoveRef.current = Date.now();
-          window._lastProgrammaticMapMove = Date.now();
-          setMapViewTrigger((prev) => prev + 1);
+            setIsMapViewLocked(true);
+            lastProgrammaticMapMoveRef.current = Date.now();
+            window._lastProgrammaticMapMove = Date.now();
+            setMapViewTrigger((prev) => prev + 1);
           }
         } else {
           setDriverLocation(null);
         }
-        
+
         return () => {};
       }
-      
+
       // MOBILE: Use device GPS
       if (!navigator.geolocation) {
         console.warn('⚠️ [Dashboard] Geolocation not available on this device');
@@ -1441,10 +1441,10 @@ function Dashboard() {
               [nextStopCoordinates.lat, nextStopCoordinates.lon]];
 
               const padding = getMapPadding(false, bounds.length > 0);
-              
+
               // CRITICAL: Mark as programmatic move to prevent zoom indicator
               window._lastProgrammaticMapMove = Date.now();
-              
+
               setShouldFitBounds({
                 bounds,
                 options: {
@@ -1588,45 +1588,45 @@ function Dashboard() {
     }
 
     driverLocationPoller.start(() => {
+
+
       // Callback provided for future use, but not actively calling refreshData
       // to prevent triggering auto-selection every 15 seconds
     }, currentUser); // CRITICAL: Pass currentUser so poller knows who "self" is
-    
-    const unsubscribe = driverLocationPoller.subscribe((locations) => {
-      if (!locations || !Array.isArray(locations)) return;
-      
-      // CRITICAL: TRIPLE-CHECK filtering on mobile - block ANY marker matching current user ID
-      // This is the FINAL defense against self-markers appearing on mobile
-      const currentUserId = currentUser?.id;
-      const currentUserUserId = currentUser?.user_id;
-      
-      const filteredLocations = isMobile && isDriver 
-        ? locations.filter(loc => {
-            const locId = loc.driver_id || loc.user_id || loc.id;
-            const isSelfMarker = locId === currentUserId || 
-                                locId === currentUserUserId ||
-                                loc._isSelf === true;
-            if (isSelfMarker) {
-              console.log('🚫 [Dashboard] BLOCKING self shared marker on mobile (ID match)', { locId, currentUserId });
-              return false;
-            }
-            return true;
-          })
-        : locations;
-      
-      console.log(`📍 [Dashboard] Setting ${filteredLocations.length} driver locations (mobile: ${isMobile}, filtered self: ${locations.length - filteredLocations.length})`);
-      
-      // CRITICAL: Replace locations entirely (don't merge)
-      // Merging can cause stale self-markers to persist on mobile
-      setAllDriverLocations(filteredLocations);
-    });
-    
+    const unsubscribe = driverLocationPoller.subscribe((locations) => {if (!locations || !Array.isArray(locations)) return;
+
+        // CRITICAL: TRIPLE-CHECK filtering on mobile - block ANY marker matching current user ID
+        // This is the FINAL defense against self-markers appearing on mobile
+        const currentUserId = currentUser?.id;
+        const currentUserUserId = currentUser?.user_id;
+
+        const filteredLocations = isMobile && isDriver ?
+        locations.filter((loc) => {
+          const locId = loc.driver_id || loc.user_id || loc.id;
+          const isSelfMarker = locId === currentUserId ||
+          locId === currentUserUserId ||
+          loc._isSelf === true;
+          if (isSelfMarker) {
+            console.log('🚫 [Dashboard] BLOCKING self shared marker on mobile (ID match)', { locId, currentUserId });
+            return false;
+          }
+          return true;
+        }) :
+        locations;
+
+        console.log(`📍 [Dashboard] Setting ${filteredLocations.length} driver locations (mobile: ${isMobile}, filtered self: ${locations.length - filteredLocations.length})`);
+
+        // CRITICAL: Replace locations entirely (don't merge)
+        // Merging can cause stale self-markers to persist on mobile
+        setAllDriverLocations(filteredLocations);
+      });
+
     return () => {
       unsubscribe();
       driverLocationPoller.stop();
     };
   }, [isDataLoaded, currentUser?.id, currentUser?.user_id, deliveries, drivers, isMobile, isDriver]);
-  
+
   useEffect(() => {
     if (!isDataLoaded || !currentUser || !deliveries || !drivers) {
       return;
@@ -1906,7 +1906,7 @@ function Dashboard() {
 
     // Update last applied trigger FIRST
     lastAppliedTriggerRef.current = mapViewTrigger;
-    
+
     console.log(`🗺️ [Map Position Effect] Running for trigger ${mapViewTrigger}, phase ${mapViewPhase}`);
 
     // CRITICAL: Only skip phase 2 & 3 if not driver or no location
@@ -1960,10 +1960,10 @@ function Dashboard() {
         console.log(`🗺️ [Phase 1] isViewingToday: ${isViewingToday}`);
         console.log(`🗺️ [Phase 1] isMobile: ${isMobile}`);
         console.log(`🗺️ [Phase 1] allDriverLocations count: ${allDriverLocations?.length || 0}`);
-        
+
         // CRITICAL: Always include shared locations on desktop OR when showing all markers
         const shouldIncludeSharedLocations = !isMobile || shouldShowAllMarkersForBounds;
-        
+
         if (isViewingToday && shouldIncludeSharedLocations && allDriverLocations.length > 0 && Array.isArray(allDriverLocations)) {
           let addedCount = 0;
           allDriverLocations.forEach((location) => {
@@ -1984,7 +1984,7 @@ function Dashboard() {
               console.log('⏭️ [Phase 1] Skipping location - not on duty/break:', location.driver_status);
               return;
             }
-            
+
             // CRITICAL: Location tracking must be enabled (unless viewing self - already blocked above for mobile)
             if (location.location_tracking_enabled !== true && location.driver_id !== currentUser?.id) {
               console.log('⏭️ [Phase 1] Skipping location - tracking disabled:', location.driver_id);
@@ -2021,7 +2021,7 @@ function Dashboard() {
           // Include ALL drivers' home markers when showing all
           if (users && Array.isArray(users)) {
             const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-            
+
             // Add current driver's home
             if (currentUser?.home_latitude && currentUser?.home_longitude) {
               const hasActiveStops = deliveriesWithStopOrder.some((d) =>
@@ -2031,7 +2031,7 @@ function Dashboard() {
                 allCoordinates.push([currentUser.home_latitude, currentUser.home_longitude]);
               }
             }
-            
+
             // Add other drivers' home markers if they have active stops
             const otherDriversWithStops = new Set();
             deliveries.forEach((d) => {
@@ -2066,19 +2066,19 @@ function Dashboard() {
         // 4. Add delivery/pickup markers based on mode
         // CRITICAL: When "Show All" is checked OR "All Drivers" selected, show ALL deliveries for date
         let deliveriesToMap = [];
-        
+
         if (shouldShowAllMarkersForBounds) {
           // Show all deliveries for selected date
-          deliveriesToMap = deliveries.filter(d => d && d.delivery_date === selectedDateStr);
+          deliveriesToMap = deliveries.filter((d) => d && d.delivery_date === selectedDateStr);
         } else {
           // Single driver mode - show only that driver's deliveries
           deliveriesToMap = deliveriesWithStopOrder;
         }
-        
+
         console.log(`🗺️ [Phase 1] Processing ${deliveriesToMap.length} deliveries (mode: ${shouldShowAllMarkersForBounds ? 'All Markers' : 'Single Driver'})`);
-        
+
         let coordsAdded = 0;
-        
+
         if (deliveriesToMap && Array.isArray(deliveriesToMap)) {
           deliveriesToMap.forEach((delivery) => {
             if (!delivery) return;
@@ -2281,7 +2281,7 @@ function Dashboard() {
             Math.max(10, phase2NoPadding.paddingBottomRight[1] + 20) // Increase bottom padding to shift center down
           ]; 
           */
-          
+
           const padding = getMapPadding(false, deliveriesWithStopOrder.length > 0);
 
           setShouldFitBounds({
@@ -2308,12 +2308,12 @@ function Dashboard() {
         // CRITICAL: Adjust vertical centering for Phase 3
         const phase3Padding = getMapPadding(false, false);
         phase3Padding.paddingTopLeft = [
-          phase3Padding.paddingTopLeft[0],
-          Math.max(10, phase3Padding.paddingTopLeft[1] - 60) // Reduce top padding more to shift center down
+        phase3Padding.paddingTopLeft[0],
+        Math.max(10, phase3Padding.paddingTopLeft[1] - 60) // Reduce top padding more to shift center down
         ];
         phase3Padding.paddingBottomRight = [
-          phase3Padding.paddingBottomRight[0],
-          Math.max(10, phase3Padding.paddingBottomRight[1] + 20) // Increase bottom padding to shift center down
+        phase3Padding.paddingBottomRight[0],
+        Math.max(10, phase3Padding.paddingBottomRight[1] + 20) // Increase bottom padding to shift center down
         ];
 
         const padding = getMapPadding(false, false);
@@ -2369,8 +2369,8 @@ function Dashboard() {
     const hasDeliveries = deliveriesWithStopOrder.length > 0;
     const hasPatients = patients.length > 0;
     const hasStores = stores.length > 0;
-    
-    const hasRequiredData = (hasDeliveries && hasPatients && hasStores) || (!hasDeliveries && hasStores);
+
+    const hasRequiredData = hasDeliveries && hasPatients && hasStores || !hasDeliveries && hasStores;
 
     if (hasRequiredData) {
       console.log(`✅ [Render Sequence 3] Map Markers ready (${deliveriesWithStopOrder.length} deliveries, ${patients.length} patients, ${stores.length} stores)`);
@@ -2433,14 +2433,14 @@ function Dashboard() {
     if (renderSequence.fullDeliveriesLoaded) return;
 
     const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-    
+
     // CRITICAL: Always check full deliveries array when loading/refreshing
     // This ensures "Show All" checkbox has complete data available
-    const deliveriesToCheck = deliveries.filter(d => d && d.delivery_date === selectedDateStr);
-    const uniqueDrivers = new Set(deliveriesToCheck.map(d => d?.driver_id).filter(Boolean));
-    
+    const deliveriesToCheck = deliveries.filter((d) => d && d.delivery_date === selectedDateStr);
+    const uniqueDrivers = new Set(deliveriesToCheck.map((d) => d?.driver_id).filter(Boolean));
+
     console.log(`🔍 [Render Sequence 7] Checking: ${deliveriesToCheck.length} deliveries, ${uniqueDrivers.size} drivers for ${selectedDateStr}`);
-    
+
     // CRITICAL: Mark ready when we have data (no artificial waiting)
     if (deliveriesToCheck.length > 0 && patients.length > 0 && stores.length > 0) {
       console.log(`✅ [Render Sequence 7] Data ready - ${deliveriesToCheck.length} deliveries with patient/store data`);
@@ -2480,7 +2480,7 @@ function Dashboard() {
       setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
       return;
     }
-    
+
     console.log('✅ [Render Sequence 8] All elements rendered - activating FAB phase');
     console.log(`   - deliveries count: ${deliveries.length}`);
     console.log(`   - allDriverLocations count: ${allDriverLocations.length}`);
@@ -2490,8 +2490,8 @@ function Dashboard() {
     // CRITICAL: Ensure we have ALL drivers' deliveries loaded when Show All is checked
     const shouldHaveAllDeliveries = selectedDriverId === 'all' || showAllDriverMarkers;
     const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-    const deliveriesForDate = deliveries.filter(d => d && d.delivery_date === selectedDateStr);
-    
+    const deliveriesForDate = deliveries.filter((d) => d && d.delivery_date === selectedDateStr);
+
     console.log(`   - shouldHaveAllDeliveries: ${shouldHaveAllDeliveries}`);
     console.log(`   - deliveriesForDate count: ${deliveriesForDate.length}`);
 
@@ -2524,121 +2524,121 @@ function Dashboard() {
 
       // For phase 2, require nextStop coordinates
       if (phaseToApply === 2 && !nextStopCoordinates) {
-      console.log('⚠️ [FAB Initial] Phase 2 requested but no next stop - using Phase 1');
-      setMapViewPhase(1);
-      setIsMapViewLocked(true);
-      setMapViewTrigger((prev) => prev + 1);
-      setInitialMapViewApplied(true);
-      setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
+        console.log('⚠️ [FAB Initial] Phase 2 requested but no next stop - using Phase 1');
+        setMapViewPhase(1);
+        setIsMapViewLocked(true);
+        setMapViewTrigger((prev) => prev + 1);
+        setInitialMapViewApplied(true);
+        setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
 
-      const lockDuration = 3000;
-      const expiresAt = Date.now() + lockDuration;
-      mapLockExpiresAtRef.current = expiresAt;
-      mapLockTimeoutRef.current = setTimeout(() => {
-        if (mapLockExpiresAtRef.current === expiresAt) {
-          setIsMapViewLocked(false);
-          mapLockExpiresAtRef.current = null;
-          mapLockTimeoutRef.current = null;
-          console.log(`⏰ [FAB Initial] Phase 1 auto-unlocked after 3 seconds`);
-        }
-      }, lockDuration);
-      return;
-    }
-
-    // For phase 3, require driver location
-    if (phaseToApply === 3 && (!isDriver || !driverLocation)) {
-      console.log('⚠️ [FAB Initial] Phase 3 requested but no driver location - using Phase 1');
-      setMapViewPhase(1);
-      setIsMapViewLocked(true);
-      setMapViewTrigger((prev) => prev + 1);
-      setInitialMapViewApplied(true);
-      setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
-
-      const lockDuration = 3000;
-      const expiresAt = Date.now() + lockDuration;
-      mapLockExpiresAtRef.current = expiresAt;
-      mapLockTimeoutRef.current = setTimeout(() => {
-        if (mapLockExpiresAtRef.current === expiresAt) {
-          setIsMapViewLocked(false);
-          mapLockExpiresAtRef.current = null;
-          mapLockTimeoutRef.current = null;
-          console.log(`⏰ [FAB Initial] Phase 1 auto-unlocked after 3 seconds`);
-        }
-      }, lockDuration);
-      return;
-    }
-
-    // CRITICAL: Check if we have a saved phase from previous session (higher priority)
-    let finalPhase = phaseToApply;
-    if (savedFabPhaseOnUnmount) {
-      console.log(`🗺️ [FAB Initial] Using saved phase ${savedFabPhaseOnUnmount} from previous session`);
-      finalPhase = savedFabPhaseOnUnmount;
-      sessionStorage.removeItem('rxdeliver_dashboard_fab_phase');
-    }
-
-    // Apply the phase
-    console.log(`🔵 [FAB Initial] Applying phase ${finalPhase}`);
-    setMapViewPhase(finalPhase);
-    setIsMapViewLocked(true);
-    setInitialMapViewApplied(true);
-    setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
-
-    // Clear existing timers
-    if (mapLockTimeoutRef.current) {
-      clearTimeout(mapLockTimeoutRef.current);
-      mapLockTimeoutRef.current = null;
-    }
-    mapLockExpiresAtRef.current = null;
-
-    // Trigger map view
-    setMapViewTrigger((prev) => prev + 1);
-
-    // CRITICAL: Clear any existing timers first
-    if (mapLockTimeoutRef.current) {
-      clearTimeout(mapLockTimeoutRef.current);
-      mapLockTimeoutRef.current = null;
-    }
-    mapLockExpiresAtRef.current = null;
-
-    // CRITICAL: Returning from another page - delay longer before unlocking
-    const wasReturning = !!savedFabPhaseOnUnmount;
-    
-    // CRITICAL: Different unlock timers based on context
-    // - Returning from another page: 2000ms (let user see where they were)
-    // - Fresh load: 500ms (quick unlock)
-    const lockDuration = wasReturning ? 2000 : 500;
-    
-    if (finalPhase === 1 || finalPhase === 3) {
-      const expiresAt = Date.now() + lockDuration;
-      mapLockExpiresAtRef.current = expiresAt;
-
-      mapLockTimeoutRef.current = setTimeout(() => {
-        if (mapLockExpiresAtRef.current === expiresAt) {
-          setIsMapViewLocked(false);
-          mapLockExpiresAtRef.current = null;
-          mapLockTimeoutRef.current = null;
-          console.log(`⏰ [FAB Initial] Phase ${finalPhase} auto-unlocked after ${lockDuration}ms`);
-        }
-      }, lockDuration);
-
-      console.log(`🔵 [FAB Initial] Phase ${finalPhase} locked - will auto-unlock in ${lockDuration}ms`);
-    } else if (finalPhase === 2) {
-      // Phase 2 - NO timer, stays locked PERMANENTLY
-      console.log(`🔵 [FAB Initial] Phase 2 locked PERMANENTLY - unlocks only on FAB click`);
-    }
-
-    // Scroll to card with isNextDelivery=true for all phases (helps user orient)
-    setTimeout(() => {
-      const nextDelivery = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
-
-      if (nextDelivery) {
-        const cardElement = document.getElementById(`stop-card-${nextDelivery.id}`);
-        if (cardElement) {
-          cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-          console.log(`📍 [FAB Initial] Scrolled to next delivery card for Phase ${phaseToApply}`);
-        }
+        const lockDuration = 3000;
+        const expiresAt = Date.now() + lockDuration;
+        mapLockExpiresAtRef.current = expiresAt;
+        mapLockTimeoutRef.current = setTimeout(() => {
+          if (mapLockExpiresAtRef.current === expiresAt) {
+            setIsMapViewLocked(false);
+            mapLockExpiresAtRef.current = null;
+            mapLockTimeoutRef.current = null;
+            console.log(`⏰ [FAB Initial] Phase 1 auto-unlocked after 3 seconds`);
+          }
+        }, lockDuration);
+        return;
       }
-    }, 500);
+
+      // For phase 3, require driver location
+      if (phaseToApply === 3 && (!isDriver || !driverLocation)) {
+        console.log('⚠️ [FAB Initial] Phase 3 requested but no driver location - using Phase 1');
+        setMapViewPhase(1);
+        setIsMapViewLocked(true);
+        setMapViewTrigger((prev) => prev + 1);
+        setInitialMapViewApplied(true);
+        setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
+
+        const lockDuration = 3000;
+        const expiresAt = Date.now() + lockDuration;
+        mapLockExpiresAtRef.current = expiresAt;
+        mapLockTimeoutRef.current = setTimeout(() => {
+          if (mapLockExpiresAtRef.current === expiresAt) {
+            setIsMapViewLocked(false);
+            mapLockExpiresAtRef.current = null;
+            mapLockTimeoutRef.current = null;
+            console.log(`⏰ [FAB Initial] Phase 1 auto-unlocked after 3 seconds`);
+          }
+        }, lockDuration);
+        return;
+      }
+
+      // CRITICAL: Check if we have a saved phase from previous session (higher priority)
+      let finalPhase = phaseToApply;
+      if (savedFabPhaseOnUnmount) {
+        console.log(`🗺️ [FAB Initial] Using saved phase ${savedFabPhaseOnUnmount} from previous session`);
+        finalPhase = savedFabPhaseOnUnmount;
+        sessionStorage.removeItem('rxdeliver_dashboard_fab_phase');
+      }
+
+      // Apply the phase
+      console.log(`🔵 [FAB Initial] Applying phase ${finalPhase}`);
+      setMapViewPhase(finalPhase);
+      setIsMapViewLocked(true);
+      setInitialMapViewApplied(true);
+      setRenderSequence((prev) => ({ ...prev, fabPhaseReady: true }));
+
+      // Clear existing timers
+      if (mapLockTimeoutRef.current) {
+        clearTimeout(mapLockTimeoutRef.current);
+        mapLockTimeoutRef.current = null;
+      }
+      mapLockExpiresAtRef.current = null;
+
+      // Trigger map view
+      setMapViewTrigger((prev) => prev + 1);
+
+      // CRITICAL: Clear any existing timers first
+      if (mapLockTimeoutRef.current) {
+        clearTimeout(mapLockTimeoutRef.current);
+        mapLockTimeoutRef.current = null;
+      }
+      mapLockExpiresAtRef.current = null;
+
+      // CRITICAL: Returning from another page - delay longer before unlocking
+      const wasReturning = !!savedFabPhaseOnUnmount;
+
+      // CRITICAL: Different unlock timers based on context
+      // - Returning from another page: 2000ms (let user see where they were)
+      // - Fresh load: 500ms (quick unlock)
+      const lockDuration = wasReturning ? 2000 : 500;
+
+      if (finalPhase === 1 || finalPhase === 3) {
+        const expiresAt = Date.now() + lockDuration;
+        mapLockExpiresAtRef.current = expiresAt;
+
+        mapLockTimeoutRef.current = setTimeout(() => {
+          if (mapLockExpiresAtRef.current === expiresAt) {
+            setIsMapViewLocked(false);
+            mapLockExpiresAtRef.current = null;
+            mapLockTimeoutRef.current = null;
+            console.log(`⏰ [FAB Initial] Phase ${finalPhase} auto-unlocked after ${lockDuration}ms`);
+          }
+        }, lockDuration);
+
+        console.log(`🔵 [FAB Initial] Phase ${finalPhase} locked - will auto-unlock in ${lockDuration}ms`);
+      } else if (finalPhase === 2) {
+        // Phase 2 - NO timer, stays locked PERMANENTLY
+        console.log(`🔵 [FAB Initial] Phase 2 locked PERMANENTLY - unlocks only on FAB click`);
+      }
+
+      // Scroll to card with isNextDelivery=true for all phases (helps user orient)
+      setTimeout(() => {
+        const nextDelivery = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
+
+        if (nextDelivery) {
+          const cardElement = document.getElementById(`stop-card-${nextDelivery.id}`);
+          if (cardElement) {
+            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            console.log(`📍 [FAB Initial] Scrolled to next delivery card for Phase ${phaseToApply}`);
+          }
+        }
+      }, 500);
     }, 800); // Delay FAB activation by 800ms to ensure all markers are rendered
   }, [renderSequence.fullDeliveriesLoaded, renderSequence.fabPhaseReady, initialMapViewApplied, deliveriesWithStopOrder.length, isDriver, driverLocation, deliveriesWithStopOrder, nextStopCoordinates, deliveries.length, allDriverLocations.length, showAllDriverMarkers]);
 
@@ -2738,7 +2738,7 @@ function Dashboard() {
     if (!isMobile || !userHasRole(currentUser, 'driver') || !currentUser) {
       return;
     }
-    
+
     if (!isDataLoaded || selectedDriverId !== currentUser.id || selectedDriverId === 'all') {
       return;
     }
@@ -2961,15 +2961,15 @@ function Dashboard() {
       }
 
       // STEP 4: Dispatch event to force map and stop cards to re-render
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { 
-        detail: { deliveryDate: dateStr, triggeredBy: 'dateChange' } 
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: { deliveryDate: dateStr, triggeredBy: 'dateChange' }
       }));
 
       // STEP 5: Resume UI immediately (don't wait for background loads)
       setIsEntityUpdating(false);
 
       // STEP 5.5: Wait for UI to fully render before triggering map
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
       // STEP 6: Auto-select driver based on role
       const today = startOfDay(new Date());
@@ -3091,7 +3091,7 @@ function Dashboard() {
       const freshDeliveries = await base44.entities.Delivery.filter({
         delivery_date: dateStr
       });
-      
+
       if (driverId && driverId !== 'all') {
         smartRefreshManager.clearPendingUpdatesForDriver(driverId, dateStr);
       } else {
@@ -3108,12 +3108,12 @@ function Dashboard() {
         });
       }
 
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { 
-        detail: { driverId, deliveryDate: dateStr, triggeredBy: 'driverChange' } 
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: { driverId, deliveryDate: dateStr, triggeredBy: 'driverChange' }
       }));
 
       // Wait for render to complete
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
       // CRITICAL: Only trigger map ONCE
       if (mapLockTimeoutRef.current) {
@@ -3844,10 +3844,10 @@ function Dashboard() {
 
         // CRITICAL: Update context from offline database (avoid API call)
         const batchDeliveryDate = stagedDeliveries[0]?.delivery_date || format(selectedDate, 'yyyy-MM-dd');
-        
+
         // Wait for offline mutations to complete (they run asynchronously)
         await new Promise((resolve) => setTimeout(resolve, 500));
-        
+
         // Refresh data will pull from offline DB first
         await refreshData();
 
@@ -5071,7 +5071,7 @@ function Dashboard() {
       try {
         const now = new Date();
         const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        
+
         // Re-optimize the route
         await base44.functions.invoke('optimizeRouteRealTime', {
           driverId: driverId,
@@ -5081,7 +5081,7 @@ function Dashboard() {
           generatePolyline: true
         });
         console.log('  ✅ Route optimized');
-        
+
         // Update ETAs
         await base44.functions.invoke('calculateRealTimeETA', {
           driverId: driverId,
@@ -5089,7 +5089,7 @@ function Dashboard() {
           currentLocalTime: localTimeString
         });
         console.log('  ✅ ETAs updated');
-        
+
       } catch (optimizeError) {
         console.warn('  ⚠️ Route optimization/ETA update failed:', optimizeError.message);
       }
@@ -5098,10 +5098,10 @@ function Dashboard() {
       console.log('🔄 [DELETE] Step 6: Refreshing data and updating map...');
       invalidateDeliveriesForDate(deliveryDate);
       await refreshData();
-      
+
       // Force map to re-render route lines
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { 
-        detail: { driverId, deliveryDate, triggeredBy: 'deleteDelivery' } 
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: { driverId, deliveryDate, triggeredBy: 'deleteDelivery' }
       }));
       console.log('  ✅ Data refreshed and map updated');
 
@@ -5143,7 +5143,7 @@ function Dashboard() {
 
       // Send notification: Driver retrying delivery
       try {
-        const deliveryStore = stores.find(s => s?.id === originalDelivery?.store_id);
+        const deliveryStore = stores.find((s) => s?.id === originalDelivery?.store_id);
         await notifyDriverRetry({
           driver: currentUser,
           patientName: originalDelivery?.patient_name || 'Unknown',
@@ -5384,10 +5384,10 @@ function Dashboard() {
             currentLocalTime: localTimeString // Backend calculates and saves ETAs directly
           });
           console.log('✅ [STATUS UPDATE] ETAs updated by backend');
-          
+
           // CRITICAL: Force map to re-render route lines after ETA update
-          window.dispatchEvent(new CustomEvent('deliveriesUpdated', { 
-            detail: { driverId: targetDelivery.driver_id, deliveryDate: deliveryDate, triggeredBy: 'statusUpdateETA' } 
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: { driverId: targetDelivery.driver_id, deliveryDate: deliveryDate, triggeredBy: 'statusUpdateETA' }
           }));
         } catch (etaError) {
           console.warn('⚠️ [STATUS UPDATE] ETA update failed:', etaError);
@@ -5402,7 +5402,7 @@ function Dashboard() {
         try {
           const now = new Date();
           const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-          
+
           await base44.functions.invoke('optimizeRouteRealTime', {
             driverId: targetDelivery.driver_id,
             deliveryDate: deliveryDate,
@@ -5419,10 +5419,10 @@ function Dashboard() {
       // CRITICAL: Force full data refresh to sync UI
       invalidateDeliveriesForDate(deliveryDate);
       await refreshData();
-      
+
       // CRITICAL: Force map to re-render route lines after data refresh
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { 
-        detail: { driverId: targetDelivery.driver_id, deliveryDate: deliveryDate, triggeredBy: 'statusUpdate' } 
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: { driverId: targetDelivery.driver_id, deliveryDate: deliveryDate, triggeredBy: 'statusUpdate' }
       }));
 
       if (!skipAutoCenter) {
@@ -5436,7 +5436,7 @@ function Dashboard() {
         lastProgrammaticMapMoveRef.current = Date.now();
         window._lastProgrammaticMapMove = Date.now();
         setMapViewTrigger((prev) => prev + 1);
-        
+
         // Phase 2 stays locked permanently - clear any timers
         if (mapLockTimeoutRef.current) {
           clearTimeout(mapLockTimeoutRef.current);
@@ -5451,9 +5451,9 @@ function Dashboard() {
       // Send notification for completed/failed deliveries
       if (['completed', 'failed'].includes(newStatus)) {
         try {
-          const deliveryStore = stores.find(s => s?.id === targetDelivery?.store_id);
+          const deliveryStore = stores.find((s) => s?.id === targetDelivery?.store_id);
           const patientName = targetDelivery?.patient_name || 'Unknown';
-          
+
           if (newStatus === 'completed') {
             await notifyDriverCompleted({
               driver: currentUser,
@@ -5557,39 +5557,39 @@ function Dashboard() {
   const handleCreateReturn = async ({ originalDelivery, returnPatient, store }) => {
     try {
       const currentDate = format(new Date(), 'yyyy-MM-dd');
-      
+
       // CRITICAL: Find the patient from the failed delivery
-      const failedPatient = patients.find(p => p?.id === originalDelivery.patient_id);
-      
+      const failedPatient = patients.find((p) => p?.id === originalDelivery.patient_id);
+
       // CRITICAL: Generate unique SID
-      const existingDeliveriesForDate = deliveries.filter(d => d && d.delivery_date === currentDate);
+      const existingDeliveriesForDate = deliveries.filter((d) => d && d.delivery_date === currentDate);
       const newSID = generateUniqueSID(existingDeliveriesForDate);
-      
+
       // CRITICAL: Use PUID from failed delivery to determine correct store and AM/PM
       const puid = originalDelivery.puid;
       let finalStoreId = originalDelivery.store_id;
       let finalAmpm = originalDelivery.ampm_deliveries;
-      
+
       // If PUID exists, find parent pickup to get correct store/AM-PM
       if (puid) {
-        const parentPickup = deliveries.find(d => d && !d.patient_id && d.stop_id === puid);
+        const parentPickup = deliveries.find((d) => d && !d.patient_id && d.stop_id === puid);
         if (parentPickup) {
           finalStoreId = parentPickup.store_id || originalDelivery.store_id;
           finalAmpm = parentPickup.ampm_deliveries || originalDelivery.ampm_deliveries;
         }
       }
-      
+
       // CRITICAL: Get store abbreviation for TR#
-      const returnStore = stores.find(s => s?.id === finalStoreId);
+      const returnStore = stores.find((s) => s?.id === finalStoreId);
       const storeAbbr = returnStore?.abbreviation || 'XX';
-      
+
       // CRITICAL: Generate TR# using same range as failed delivery (store abbr + failed delivery's TR number)
       const failedTR = parseInt(originalDelivery.tracking_number, 10);
       const newTR = isNaN(failedTR) ? `${storeAbbr}99` : `${storeAbbr}${failedTR}`;
-      
+
       // CRITICAL: Format driver notes with each item on separate lines
       const driverNotes = `From: ${originalDelivery.delivery_date}\nFor: ${failedPatient?.full_name || originalDelivery.patient_name || 'Unknown'}`;
-      
+
       const returnDeliveryData = {
         patient_id: returnPatient.id,
         store_id: finalStoreId,
@@ -5611,7 +5611,7 @@ function Dashboard() {
 
       // Create the return delivery for today
       await createDeliveryLocal(returnDeliveryData);
-      
+
       // Send notification: Driver initiated return
       try {
         await notifyDriverReturn({
@@ -5624,7 +5624,7 @@ function Dashboard() {
       } catch (notifyError) {
         console.warn('⚠️ [RETURN] Failed to send notification:', notifyError);
       }
-      
+
       // Invalidate caches for both dates
       invalidateDeliveriesForDate(originalDelivery.delivery_date);
       invalidateDeliveriesForDate(currentDate);
@@ -5675,10 +5675,10 @@ function Dashboard() {
         delivery_date: deliveryDate
       });
 
-      const resetPromises = allDriverDeliveries
-        .filter((d) => d.isNextDelivery)
-        .map((d) => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
-      
+      const resetPromises = allDriverDeliveries.
+      filter((d) => d.isNextDelivery).
+      map((d) => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
+
       if (resetPromises.length > 0) {
         await Promise.all(resetPromises);
         console.log(`   ✅ Cleared ${resetPromises.length} isNextDelivery flags`);
@@ -5686,7 +5686,7 @@ function Dashboard() {
 
       // STEP 2: Set isNextDelivery=true on the selected delivery
       console.log('🎯 [START] Step 2: Setting isNextDelivery=true on selected delivery...');
-      await base44.entities.Delivery.update(deliveryId, { 
+      await base44.entities.Delivery.update(deliveryId, {
         isNextDelivery: true,
         status: newStatus
       });
@@ -5697,9 +5697,9 @@ function Dashboard() {
       const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
       const completedStops = allDriverDeliveries.filter((d) => finishedStatuses.includes(d.status));
       const nextStopOrder = completedStops.length + 1;
-      
-      await base44.entities.Delivery.update(deliveryId, { 
-        stop_order: nextStopOrder 
+
+      await base44.entities.Delivery.update(deliveryId, {
+        stop_order: nextStopOrder
       });
       console.log(`   ✅ Assigned stop_order=${nextStopOrder} (after ${completedStops.length} completed stops)`);
 
@@ -5710,31 +5710,31 @@ function Dashboard() {
         driver_id: driverId,
         delivery_date: deliveryDate
       });
-      
+
       // CRITICAL: Find which delivery is NOW marked as next (should be the one we just started)
-      const newNextDelivery = refreshedDeliveries.find(d => d.isNextDelivery === true);
+      const newNextDelivery = refreshedDeliveries.find((d) => d.isNextDelivery === true);
       newNextDeliveryId = newNextDelivery?.id || deliveryId; // Use the refreshed next delivery ID
-      
+
       console.log(`   🎯 Original clicked ID: ${originalClickedId}`);
       console.log(`   ✨ NEW next delivery ID: ${newNextDeliveryId}`);
-      
+
       // Update context immediately
       if (updateDeliveriesLocally) {
-        const otherDeliveries = deliveries.filter(d => d && d.delivery_date !== deliveryDate);
+        const otherDeliveries = deliveries.filter((d) => d && d.delivery_date !== deliveryDate);
         const mergedDeliveries = [...otherDeliveries, ...refreshedDeliveries];
         updateDeliveriesLocally(mergedDeliveries, true);
       }
-      
+
       // CRITICAL: Dispatch event to force map markers to re-render immediately
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { 
-        detail: { driverId, deliveryDate, triggeredBy: 'startDelivery' } 
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: { driverId, deliveryDate, triggeredBy: 'startDelivery' }
       }));
       console.log(`   ✅ UI updated - new next delivery is: ${newNextDeliveryId}`);
 
       // STEP 5: Clear and recalculate blue polyline
       console.log('🔵 [START] Step 5: Updating blue polyline...');
       setCurrentToNextPolyline(null);
-      
+
       try {
         const driver = users.find((u) => u && u.id === driverId);
         if (driver && driver.driver_status === 'on_duty' && driver.location_tracking_enabled === true) {
@@ -5743,7 +5743,7 @@ function Dashboard() {
             delivery_date: deliveryDate
           });
           const segment = determinePolylineSegment(freshDeliveries, driver, patients, stores);
-          
+
           if (segment) {
             const polyline = await fetchPolylineForSegment(
               segment.originLat,
@@ -5765,7 +5765,7 @@ function Dashboard() {
       const currentMinutes = now.getHours() * 60 + now.getMinutes();
       const etaMinutes = currentMinutes + 5;
       const etaString = `${String(Math.floor(etaMinutes / 60) % 24).padStart(2, '0')}:${String(etaMinutes % 60).padStart(2, '0')}`;
-      
+
       await base44.entities.Delivery.update(deliveryId, {
         delivery_time_start: etaString,
         delivery_time_eta: etaString
@@ -5776,7 +5776,7 @@ function Dashboard() {
       console.log('🔄 [START] Step 7: Re-optimizing route from this delivery onward...');
       try {
         const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        
+
         const optimizeResponse = await base44.functions.invoke('optimizeRouteRealTime', {
           driverId: driverId,
           deliveryDate: deliveryDate,
@@ -5787,10 +5787,10 @@ function Dashboard() {
 
         const optimizeData = optimizeResponse?.data || optimizeResponse;
         console.log(`   ✅ Route optimization: ${optimizeData?.success ? 'success' : 'error'}`);
-        
+
         // CRITICAL: Force map to re-render route lines after optimization
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', { 
-          detail: { driverId: driverId, deliveryDate: deliveryDate, triggeredBy: 'startDeliveryOptimization' } 
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: { driverId: driverId, deliveryDate: deliveryDate, triggeredBy: 'startDeliveryOptimization' }
         }));
       } catch (optimizeError) {
         console.warn('   ⚠️ Route optimization failed:', optimizeError.message);
@@ -5801,17 +5801,17 @@ function Dashboard() {
         console.log('⏱️ [START] Step 8: Updating ETAs for all stops...');
         try {
           const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-          
+
           await base44.functions.invoke('calculateRealTimeETA', {
             driverId: driverId,
             deliveryDate: deliveryDate,
             currentLocalTime: localTimeString
           });
           console.log('   ✅ ETAs updated');
-          
+
           // CRITICAL: Force map to re-render route lines after ETA update
-          window.dispatchEvent(new CustomEvent('deliveriesUpdated', { 
-            detail: { driverId: driverId, deliveryDate: deliveryDate, triggeredBy: 'startDeliveryETA' } 
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: { driverId: driverId, deliveryDate: deliveryDate, triggeredBy: 'startDeliveryETA' }
           }));
         } catch (etaError) {
           console.warn('   ⚠️ ETA calculation failed:', etaError.message);
@@ -5824,10 +5824,10 @@ function Dashboard() {
       await forceRefreshDriverDeliveries(driverId, deliveryDate);
       await refreshData();
       console.log('   ✅ UI and database synced');
-      
+
       // CRITICAL: Force map to re-render route lines after data refresh
-      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { 
-        detail: { driverId: driverId, deliveryDate: deliveryDate, triggeredBy: 'startDeliveryFinalRefresh' } 
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: { driverId: driverId, deliveryDate: deliveryDate, triggeredBy: 'startDeliveryFinalRefresh' }
       }));
 
       console.log('═══════════════════════════════════════════════════');
@@ -5836,7 +5836,7 @@ function Dashboard() {
 
       // STEP 10: Wait for UI to update, then scroll to next delivery card
       console.log('📍 [START] Step 10: Waiting for UI refresh, then scrolling to next card...');
-      
+
       // Wait for refreshData() and UI to fully update before scrolling
       setTimeout(async () => {
         // Refresh deliveries one more time to get latest state after optimization
@@ -5844,20 +5844,20 @@ function Dashboard() {
           driver_id: driverId,
           delivery_date: deliveryDate
         });
-        
+
         const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-        const completedCount = finalDeliveries.filter(d => 
-          d && finishedStatuses.includes(d.status)
+        const completedCount = finalDeliveries.filter((d) =>
+        d && finishedStatuses.includes(d.status)
         ).length;
-        
+
         console.log(`   📊 After optimization: ${completedCount} completed deliveries`);
         console.log(`   🎯 Scrolling to card at index ${completedCount} (first incomplete)`);
-        
+
         // Wait a bit more for cards to re-render with new order
         setTimeout(() => {
           const container = stopCardsContainerRef.current?.querySelector('.overflow-x-auto');
           const allCards = container?.querySelectorAll('[id^="stop-card-"]');
-          
+
           if (allCards && allCards.length > completedCount) {
             allCards[completedCount].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
             console.log(`   ✅ Scrolled to card at index ${completedCount}`);
@@ -5870,7 +5870,7 @@ function Dashboard() {
       // Send notification: Driver started delivery
       try {
         const deliveryFromUI = deliveriesWithStopOrder.find((d) => d?.id === deliveryId);
-        const deliveryStore = stores.find(s => s?.id === deliveryFromUI?.store_id);
+        const deliveryStore = stores.find((s) => s?.id === deliveryFromUI?.store_id);
         await notifyDriverStarted({
           driver: currentUser,
           patientName: deliveryFromUI?.patient_name || 'Unknown',
@@ -6150,7 +6150,7 @@ function Dashboard() {
               if (retractClustersRef.current) {
                 retractClustersRef.current();
               }
-            }} className="px-2 py-2 rounded-2xl shadow-xl border min-w-[340px] cursor-pointer" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', pointerEvents: 'auto', touchAction: 'manipulation', position: 'relative' }}>
+            }} className="px-2 py-0.5 rounded-2xl shadow-xl border min-w-[340px] cursor-pointer" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', pointerEvents: 'auto', touchAction: 'manipulation', position: 'relative' }}>
 
 
             
@@ -6210,16 +6210,16 @@ function Dashboard() {
                     const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
                     if (locationUpdates?.hasChanges) {
                       // CRITICAL: Merge location updates with full user data to ensure driver_status is included
-                      const mergedAppUsers = locationUpdates.appUsers.map(updatedUser => {
-                        const existingUser = appUsers.find(u => u?.id === updatedUser?.id);
+                      const mergedAppUsers = locationUpdates.appUsers.map((updatedUser) => {
+                        const existingUser = appUsers.find((u) => u?.id === updatedUser?.id);
                         return existingUser ? { ...existingUser, ...updatedUser } : updatedUser;
                       });
-                      
+
                       setAppUsers(mergedAppUsers);
-                      
+
                       // CRITICAL: Process updated locations through poller to update markers immediately
                       driverLocationPoller.processLocationData(currentUser, deliveries, drivers, stores, mergedAppUsers, selectedDate);
-                      
+
                       console.log('✅ [Refresh Spinner] Driver locations refreshed and markers updated');
                     }
 
@@ -6233,10 +6233,10 @@ function Dashboard() {
                         generatePolyline: false
                       });
                       console.log('✅ [Refresh Spinner] Route optimized - ETAs updated by backend');
-                      
+
                       // CRITICAL: Force map to re-render route lines
-                      window.dispatchEvent(new CustomEvent('deliveriesUpdated', { 
-                        detail: { driverId: activeDriverId, deliveryDate: selectedDateStr, triggeredBy: 'refreshOptimization' } 
+                      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                        detail: { driverId: activeDriverId, deliveryDate: selectedDateStr, triggeredBy: 'refreshOptimization' }
                       }));
                     } catch (optimizeError) {
                       console.warn('⚠️ [Refresh Spinner] Route optimizer failed:', optimizeError);
@@ -6313,7 +6313,7 @@ function Dashboard() {
                       lastProgrammaticMapMoveRef.current = Date.now();
                       window._lastProgrammaticMapMove = Date.now();
                       setMapViewTrigger((prev) => prev + 1);
-                      
+
                       // Phase 2 stays locked permanently - clear any timers
                       if (mapLockTimeoutRef.current) {
                         clearTimeout(mapLockTimeoutRef.current);
@@ -6418,8 +6418,8 @@ function Dashboard() {
                 tooltipValues={tooltipValues}
                 isDispatcher={isDispatcher}
                 isDriver={isDriver}
-                performanceStats={performanceStats}
-              />
+                performanceStats={performanceStats} />
+
 
               <Button
                 variant="ghost"
@@ -6462,91 +6462,91 @@ function Dashboard() {
                     </Select>
 
                     {/* Show All Drivers Checkbox - Only for drivers in single driver mode */}
-                    {isDriver && !isAllDriversMode && (
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {isDriver && !isAllDriversMode &&
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
                         <Checkbox
-                          id="show-all-drivers"
-                          checked={showAllDriverMarkers}
-                          onCheckedChange={async (checked) => {
-                            setShowAllDriverMarkers(checked);
-                            localStorage.setItem('rxdeliver_show_all_driver_markers', String(checked));
-                            
-                            // CRITICAL: Close stats card when checkbox is toggled
-                            setIsExpanded(false);
-                            
-                            // CRITICAL: When checking "Show All", fetch full date deliveries FIRST
-                            if (checked) {
-                              console.log('📥 [Show All] Fetching all drivers deliveries...');
-                              setIsEntityUpdating(true);
-                              
-                              try {
-                                const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-                                const allDateDeliveries = await base44.entities.Delivery.filter({
-                                  delivery_date: selectedDateStr
-                                });
-                                
-                                console.log(`✅ [Show All] Loaded ${allDateDeliveries.length} total deliveries`);
-                                
-                                // Update context with full deliveries
-                                if (updateDeliveriesLocally) {
-                                  const otherDateDeliveries = deliveries.filter(d => d && d.delivery_date !== selectedDateStr);
-                                  const mergedDeliveries = [...otherDateDeliveries, ...allDateDeliveries];
-                                  updateDeliveriesLocally(mergedDeliveries, true);
-                                }
-                                
-                                // Wait for UI to update
-                                await new Promise(resolve => setTimeout(resolve, 300));
-                              } catch (error) {
-                                console.error('❌ [Show All] Failed to load deliveries:', error);
-                              } finally {
-                                setIsEntityUpdating(false);
-                              }
+                      id="show-all-drivers"
+                      checked={showAllDriverMarkers}
+                      onCheckedChange={async (checked) => {
+                        setShowAllDriverMarkers(checked);
+                        localStorage.setItem('rxdeliver_show_all_driver_markers', String(checked));
+
+                        // CRITICAL: Close stats card when checkbox is toggled
+                        setIsExpanded(false);
+
+                        // CRITICAL: When checking "Show All", fetch full date deliveries FIRST
+                        if (checked) {
+                          console.log('📥 [Show All] Fetching all drivers deliveries...');
+                          setIsEntityUpdating(true);
+
+                          try {
+                            const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+                            const allDateDeliveries = await base44.entities.Delivery.filter({
+                              delivery_date: selectedDateStr
+                            });
+
+                            console.log(`✅ [Show All] Loaded ${allDateDeliveries.length} total deliveries`);
+
+                            // Update context with full deliveries
+                            if (updateDeliveriesLocally) {
+                              const otherDateDeliveries = deliveries.filter((d) => d && d.delivery_date !== selectedDateStr);
+                              const mergedDeliveries = [...otherDateDeliveries, ...allDateDeliveries];
+                              updateDeliveriesLocally(mergedDeliveries, true);
                             }
-                            
-                            // Clear any existing timers
-                            if (mapLockTimeoutRef.current) {
-                              clearTimeout(mapLockTimeoutRef.current);
-                              mapLockTimeoutRef.current = null;
-                            }
-                            mapLockExpiresAtRef.current = null;
-                            
-                            // Delay FAB activation to allow markers to render
-                            setTimeout(() => {
-                              setIsMapViewLocked(true);
-                              lastProgrammaticMapMoveRef.current = Date.now();
-                              window._lastProgrammaticMapMove = Date.now();
-                              setMapViewTrigger((prev) => prev + 1);
-                              
-                              // CRITICAL: Set appropriate timer based on phase
-                              if (mapViewPhase === 2) {
-                                // Phase 2 - NO timer, stays locked permanently
-                                console.log('🔵 [Show All Checkbox] Phase 2 - locked permanently');
-                              } else if (mapViewPhase === 1 || mapViewPhase === 3) {
-                                // Phase 1 & 3 - Auto-unlock after 500ms
-                                const lockDuration = 500;
-                                const expiresAt = Date.now() + lockDuration;
-                                mapLockExpiresAtRef.current = expiresAt;
-                                mapLockTimeoutRef.current = setTimeout(() => {
-                                  if (mapLockExpiresAtRef.current === expiresAt) {
-                                    setIsMapViewLocked(false);
-                                    mapLockExpiresAtRef.current = null;
-                                    mapLockTimeoutRef.current = null;
-                                  }
-                                }, lockDuration);
+
+                            // Wait for UI to update
+                            await new Promise((resolve) => setTimeout(resolve, 300));
+                          } catch (error) {
+                            console.error('❌ [Show All] Failed to load deliveries:', error);
+                          } finally {
+                            setIsEntityUpdating(false);
+                          }
+                        }
+
+                        // Clear any existing timers
+                        if (mapLockTimeoutRef.current) {
+                          clearTimeout(mapLockTimeoutRef.current);
+                          mapLockTimeoutRef.current = null;
+                        }
+                        mapLockExpiresAtRef.current = null;
+
+                        // Delay FAB activation to allow markers to render
+                        setTimeout(() => {
+                          setIsMapViewLocked(true);
+                          lastProgrammaticMapMoveRef.current = Date.now();
+                          window._lastProgrammaticMapMove = Date.now();
+                          setMapViewTrigger((prev) => prev + 1);
+
+                          // CRITICAL: Set appropriate timer based on phase
+                          if (mapViewPhase === 2) {
+                            // Phase 2 - NO timer, stays locked permanently
+                            console.log('🔵 [Show All Checkbox] Phase 2 - locked permanently');
+                          } else if (mapViewPhase === 1 || mapViewPhase === 3) {
+                            // Phase 1 & 3 - Auto-unlock after 500ms
+                            const lockDuration = 500;
+                            const expiresAt = Date.now() + lockDuration;
+                            mapLockExpiresAtRef.current = expiresAt;
+                            mapLockTimeoutRef.current = setTimeout(() => {
+                              if (mapLockExpiresAtRef.current === expiresAt) {
+                                setIsMapViewLocked(false);
+                                mapLockExpiresAtRef.current = null;
+                                mapLockTimeoutRef.current = null;
                               }
-                            }, 600);
-                          }}
-                          className="h-4 w-4"
-                        />
+                            }, lockDuration);
+                          }
+                        }, 600);
+                      }}
+                      className="h-4 w-4" />
+
                         <label
-                          htmlFor="show-all-drivers"
-                          className="text-[10px] leading-tight cursor-pointer"
-                          style={{ color: 'var(--text-slate-600)' }}
-                        >
+                      htmlFor="show-all-drivers"
+                      className="text-[10px] leading-tight cursor-pointer"
+                      style={{ color: 'var(--text-slate-600)' }}>
+
                           Show<br />All
                         </label>
                       </div>
-                    )}
+                  }
 
                     <Button
                     variant="outline"
@@ -6583,30 +6583,30 @@ function Dashboard() {
                       
                       {/* Quick Route Adjustments */}
                       {isDriver && selectedDriverId === currentUser?.id &&
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setShowQuickAdjustments(true)}
-                          className="h-8 gap-1.5 px-2 flex-shrink-0"
-                          title="Quick route adjustments"
-                          style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowQuickAdjustments(true)}
+                      className="h-8 gap-1.5 px-2 flex-shrink-0"
+                      title="Quick route adjustments"
+                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                           <span className="text-xs">Adjust</span>
                         </Button>
-                      }
+                    }
                       
                       {/* AI Smart Prioritization */}
                       {isDriver && selectedDriverId === currentUser?.id &&
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setShowSmartPrioritization(true)}
-                          className="h-8 gap-1.5 px-2 flex-shrink-0"
-                          title="AI delivery prioritization"
-                          style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowSmartPrioritization(true)}
+                      className="h-8 gap-1.5 px-2 flex-shrink-0"
+                      title="AI delivery prioritization"
+                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                           <Sparkles className="w-3 h-3" />
                           <span className="text-xs">AI</span>
                         </Button>
-                      }
+                    }
                       </div>
                     </>
                 }
@@ -6626,8 +6626,8 @@ function Dashboard() {
           {/* Driver Legend - positioned directly below stats card */}
           {isAllDriversMode && driverRoutes.length > 0 &&
           <div className="backdrop-blur-sm rounded-lg shadow-lg border px-2 py-2" style={{ background: 'var(--bg-white)', opacity: 0.95, borderColor: 'var(--border-slate-200)' }}
-            onMouseEnter={() => handleCardInteraction(true)}
-            onMouseLeave={() => handleCardInteraction(false)}>
+          onMouseEnter={() => handleCardInteraction(true)}
+          onMouseLeave={() => handleCardInteraction(false)}>
               <div className="flex flex-wrap gap-x-2 gap-y-1.5 items-center justify-center">
                 {driverRoutes.map((route) =>
               <div
@@ -6707,7 +6707,7 @@ function Dashboard() {
             stores={stores}
             users={drivers}
             currentUser={currentUser}
-            driverLocations={isAllDriversMode ? allDriverLocations : (showAllDriverMarkers ? allDriverLocations : allDriverLocations)}
+            driverLocations={isAllDriversMode ? allDriverLocations : showAllDriverMarkers ? allDriverLocations : allDriverLocations}
             deliveriesForLocationFilter={filteredDeliveries}
             showOtherDriverDeliveries={showAllDriverMarkers}
             currentDriverLocation={driverLocation}
@@ -7176,20 +7176,20 @@ function Dashboard() {
             </DialogHeader>
             
             <SmartPrioritizationPanel
-              driverId={currentUser?.id}
-              deliveryDate={selectedDateStr}
-              currentUser={currentUser}
-              onApplySuggestion={async (suggestion) => {
-                if (suggestion.action?.type === 'move_to_next') {
-                  // Move the urgent delivery to next position
-                  const deliveryToMove = deliveriesWithStopOrder.find(d => d?.id === suggestion.deliveryId);
-                  if (deliveryToMove) {
-                    await handleStartDelivery(deliveryToMove.id);
-                    setShowSmartPrioritization(false);
-                  }
+            driverId={currentUser?.id}
+            deliveryDate={selectedDateStr}
+            currentUser={currentUser}
+            onApplySuggestion={async (suggestion) => {
+              if (suggestion.action?.type === 'move_to_next') {
+                // Move the urgent delivery to next position
+                const deliveryToMove = deliveriesWithStopOrder.find((d) => d?.id === suggestion.deliveryId);
+                if (deliveryToMove) {
+                  await handleStartDelivery(deliveryToMove.id);
+                  setShowSmartPrioritization(false);
                 }
-              }}
-            />
+              }
+            }} />
+
           </DialogContent>
         </Dialog>
       }
