@@ -372,8 +372,8 @@ export default function AdminMetrics() {
                       }}
                     />
                     <Legend />
-                    <Bar dataKey="payingStores" stackId="a" fill="#10b981" name="Paying App Fees" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="notPayingStores" stackId="a" fill="#f59e0b" name="Not Paying Fees" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="payingStores" fill="#10b981" name="Paying App Fees" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="notPayingStores" fill="#f59e0b" name="Not Paying Fees" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
