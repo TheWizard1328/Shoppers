@@ -2253,23 +2253,32 @@ function Dashboard() {
         lastProgrammaticMapMoveRef.current = Date.now();
         window._lastProgrammaticMapMove = Date.now();
 
+        // CRITICAL: Check driver status - only show location if on_duty
+        const driver = users.find((u) => u && u.id === currentUser?.id);
+        const isDriverOnDuty = driver && driver.driver_status === 'on_duty';
+
+        if (!isDriverOnDuty) {
+          console.log('⏭️ [Phase 2] Driver is not on_duty - centering on next stop only');
+          if (nextStopCoordinates) {
+            const padding = getMapPadding(false, true);
+            setShouldFitBounds({
+              bounds: [[nextStopCoordinates.lat, nextStopCoordinates.lon]],
+              options: {
+                ...padding,
+                maxZoom: 15,
+                animate: true
+              }
+            });
+            setMapCenter(null);
+            setMapZoom(null);
+          }
+          break;
+        }
+
         if (nextStopCoordinates) {
           const bounds = [
           [driverLocation.latitude, driverLocation.longitude],
           [nextStopCoordinates.lat, nextStopCoordinates.lon]];
-
-          // CRITICAL: Adjust vertical centering for Phase 2
-          /*
-          const phase2Padding = getMapPadding(false, false);
-          phase2Padding.paddingTopLeft = [
-            phase2Padding.paddingTopLeft[0],
-            Math.max(10, phase2Padding.paddingTopLeft[1] - 60) // Reduce top padding more to shift center down
-          ];
-          phase2Padding.paddingBottomRight = [
-            phase2Padding.paddingBottomRight[0],
-            Math.max(10, phase2Padding.paddingBottomRight[1] + 20) // Increase bottom padding to shift center down
-          ];
-          */
 
           const padding = getMapPadding(false, bounds.length > 0);
 
@@ -2285,18 +2294,6 @@ function Dashboard() {
           setMapZoom(null);
         } else {
           // If no next stop, just center on driver with padding
-          /*
-           const phase2NoPadding = getMapPadding(false, false);
-          phase2NoPadding.paddingTopLeft = [
-            phase2NoPadding.paddingTopLeft[0],
-            Math.max(10, phase2NoPadding.paddingTopLeft[1] - 60) // Reduce top padding more to shift center down
-          ];
-          phase2NoPadding.paddingBottomRight = [
-            phase2NoPadding.paddingBottomRight[0],
-            Math.max(10, phase2NoPadding.paddingBottomRight[1] + 20) // Increase bottom padding to shift center down
-          ]; 
-          */
-
           const padding = getMapPadding(false, deliveriesWithStopOrder.length > 0);
 
           setShouldFitBounds({
@@ -2320,16 +2317,15 @@ function Dashboard() {
           return;
         }
 
-        // CRITICAL: Adjust vertical centering for Phase 3
-        const phase3Padding = getMapPadding(false, false);
-        phase3Padding.paddingTopLeft = [
-        phase3Padding.paddingTopLeft[0],
-        Math.max(10, phase3Padding.paddingTopLeft[1] - 60) // Reduce top padding more to shift center down
-        ];
-        phase3Padding.paddingBottomRight = [
-        phase3Padding.paddingBottomRight[0],
-        Math.max(10, phase3Padding.paddingBottomRight[1] + 20) // Increase bottom padding to shift center down
-        ];
+        // CRITICAL: Check driver status - only show location if on_duty
+        const driverPhase3 = users.find((u) => u && u.id === currentUser?.id);
+        const isDriverOnDutyPhase3 = driverPhase3 && driverPhase3.driver_status === 'on_duty';
+
+        if (!isDriverOnDutyPhase3) {
+          console.log('⏭️ [Phase 3] Driver is not on_duty - skipping center on driver');
+          // Don't center map when driver is off duty
+          return;
+        }
 
         const padding = getMapPadding(false, false);
 
