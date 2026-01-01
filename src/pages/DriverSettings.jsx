@@ -209,16 +209,16 @@ export default function DriverSettings() {
                       {(driver.pay_rate_per_delivery > 0 || driver.extra_km_rate > 0 || driver.extra_km_limit > 0 || driver.oversized_item_rate > 0) && (
                         <div className="flex gap-2 mt-1.5 text-xs flex-wrap" style={{ color: 'var(--text-slate-500)' }}>
                           {driver.pay_rate_per_delivery > 0 && (
-                            <span>${driver.pay_rate_per_delivery}/delivery</span>
+                            <span>${Number(driver.pay_rate_per_delivery).toFixed(2)}/delivery</span>
                           )}
                           {driver.extra_km_rate > 0 && (
-                            <span>${driver.extra_km_rate}/km</span>
+                            <span>${Number(driver.extra_km_rate).toFixed(2)}/km</span>
                           )}
                           {driver.extra_km_limit > 0 && (
-                            <span>{driver.extra_km_limit}km limit</span>
+                            <span>{Number(driver.extra_km_limit).toFixed(2)}km limit</span>
                           )}
                           {driver.oversized_item_rate > 0 && (
-                            <span>${driver.oversized_item_rate}/oversized</span>
+                            <span>${Number(driver.oversized_item_rate).toFixed(2)}/oversized</span>
                           )}
                         </div>
                       )}

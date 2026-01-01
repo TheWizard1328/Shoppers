@@ -106,7 +106,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                 type="number"
                 step="0.01"
                 min="0"
-                value={formData.pay_rate_per_delivery}
+                value={Number(formData.pay_rate_per_delivery).toFixed(2)}
                 onChange={(e) => setFormData(prev => ({ ...prev, pay_rate_per_delivery: parseFloat(e.target.value) || 0 }))}
                 placeholder="0.00"
               />
@@ -122,7 +122,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                 type="number"
                 step="0.01"
                 min="0"
-                value={formData.oversized_item_rate}
+                value={Number(formData.oversized_item_rate).toFixed(2)}
                 onChange={(e) => setFormData(prev => ({ ...prev, oversized_item_rate: parseFloat(e.target.value) || 0 }))}
                 placeholder="0.00"
               />
@@ -138,7 +138,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                 type="number"
                 step="0.01"
                 min="0"
-                value={formData.extra_km_rate}
+                value={Number(formData.extra_km_rate).toFixed(2)}
                 onChange={(e) => setFormData(prev => ({ ...prev, extra_km_rate: parseFloat(e.target.value) || 0 }))}
                 placeholder="0.00"
               />
@@ -154,9 +154,9 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                 type="number"
                 step="0.1"
                 min="0"
-                value={formData.extra_km_limit}
+                value={Number(formData.extra_km_limit).toFixed(2)}
                 onChange={(e) => setFormData(prev => ({ ...prev, extra_km_limit: parseFloat(e.target.value) || 0 }))}
-                placeholder="0.0"
+                placeholder="0.00"
               />
             </div>
           </div>
@@ -180,7 +180,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                         {format(new Date(entry.effective_date), 'MMM dd, yyyy')}
                       </span>
                       <div className="text-slate-600">
-                        ${entry.pay_rate_per_delivery || 0} / ${entry.extra_km_rate || 0}/km / {entry.extra_km_limit || 0}km limit
+                        ${Number(entry.pay_rate_per_delivery || 0).toFixed(2)} / ${Number(entry.extra_km_rate || 0).toFixed(2)}/km / {Number(entry.extra_km_limit || 0).toFixed(2)}km limit
                       </div>
                     </div>
                   ))}
