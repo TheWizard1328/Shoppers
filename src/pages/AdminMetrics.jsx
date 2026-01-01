@@ -506,14 +506,12 @@ export default function AdminMetrics() {
                       fill="#10b981" 
                       name="Paying App Fees" 
                       radius={[4, 4, 0, 0]}
-                      opacity={(entry) => entry.monthNum === selectedMonth ? 1 : 0.6}
                     />
                     <Bar 
                       dataKey="notPayingStores" 
                       fill="#f59e0b" 
                       name="Not Paying Fees" 
                       radius={[4, 4, 0, 0]}
-                      opacity={(entry) => entry.monthNum === selectedMonth ? 1 : 0.6}
                     />
                   </BarChart>
                 </ResponsiveContainer>
