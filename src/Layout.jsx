@@ -2559,7 +2559,7 @@ export default function Layout({ children, currentPageName }) {
                           <DropdownMenuContent align="end" className="w-56 z-[10000]">
                             <div className="px-2 py-2 flex items-center justify-between">
                               <DropdownMenuLabel>Settings</DropdownMenuLabel>
-                              {userHasRole(currentUser, 'admin') && !isAppOwner(currentUser) && (
+                              {userHasRole(currentUser, 'admin') && (
                                 <label className="flex items-center gap-1 cursor-pointer">
                                   <span className="text-[10px] font-medium" style={{ color: 'var(--text-slate-600)' }}>Import</span>
                                   <Checkbox
@@ -3003,7 +3003,7 @@ export default function Layout({ children, currentPageName }) {
                         <DropdownMenuContent align="end" className="w-56 z-[10002]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
                           <div className="px-2 py-2 flex items-center justify-between">
                             <DropdownMenuLabel style={{ color: 'var(--text-slate-900)' }}>Settings</DropdownMenuLabel>
-                            {userHasRole(currentUser, 'admin') && !isAppOwner(currentUser) && (
+                            {userHasRole(currentUser, 'admin') && (
                               <label className="flex items-center gap-2 cursor-pointer">
                                 <span className="text-xs font-medium" style={{ color: 'var(--text-slate-600)' }}>Import Access</span>
                                 <Checkbox
