@@ -217,8 +217,16 @@ export default function AdminMetrics() {
         selectedMonthTotals: null
       });
 
-      // Clear store metrics (no month selected on initial load)
-      setStoreMetrics(null);
+      // Load year-level store metrics (no month selected on initial load)
+      try {
+        const response = await base44.functions.invoke('getStoreMetrics', {
+          year: year
+        });
+        setStoreMetrics(response?.data || response);
+      } catch (err) {
+        console.warn('Failed to load store metrics:', err);
+        setStoreMetrics(null);
+      }
 
     } catch (error) {
       console.error('Failed to calculate metrics:', error);
