@@ -400,8 +400,20 @@ Deno.serve(async (req) => {
           const oversizedDeliveries = paidDeliveries.filter(d => d.oversized === true);
           const oversizedPay = oversizedDeliveries.length * oversizedRate;
 
-          // Total Km & Extra Km: sum up distances for ALL paid deliveries (completed, failed, returned, after-hours)
+          // Total Km: sum up travel_dist for ALL finished deliveries (completed, failed, returned)
+          const finishedDeliveries = todayDeliveries.filter(d => {
+            if (!d || !d.actual_delivery_time) return false;
+            return isCompleted(d) || isFailed(d) || isReturn(d);
+          });
+          
           let totalKm = 0;
+          finishedDeliveries.forEach(delivery => {
+            if (delivery?.travel_dist && typeof delivery.travel_dist === 'number') {
+              totalKm += delivery.travel_dist;
+            }
+          });
+
+          // Extra Km: sum up distances from patient records that exceed limit
           let totalExtraKm = 0;
           const patientIds = paidDeliveries.map(d => d.patient_id).filter(Boolean);
           
@@ -413,7 +425,6 @@ Deno.serve(async (req) => {
             patientsData.forEach(patient => {
               if (patient?.distance_from_store && typeof patient.distance_from_store === 'number') {
                 const distance = patient.distance_from_store;
-                totalKm += distance;
                 
                 // CRITICAL: Only count extra km if THIS patient's distance exceeds limit
                 if (distance > extraKmLimit) {
