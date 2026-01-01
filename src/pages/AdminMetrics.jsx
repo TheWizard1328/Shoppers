@@ -25,8 +25,11 @@ export default function AdminMetrics() {
   const [hasAccess, setHasAccess] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1); // 1-12
   const [metricsData, setMetricsData] = useState(null);
   const [storeMetrics, setStoreMetrics] = useState(null);
+  const [allYearDeliveries, setAllYearDeliveries] = useState([]); // Store all deliveries for filtering
+  const [allStoresData, setAllStoresData] = useState([]); // Store all stores for filtering
 
   const availableYears = useMemo(() => {
     const currentYear = new Date().getFullYear();
