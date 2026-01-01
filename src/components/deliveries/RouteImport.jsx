@@ -809,8 +809,10 @@ export default function RouteImport({
         delivery_notes: rawNotes,
         first_delivery: false,
         puid: null,
-        travel_dist: travelDist
+        travel_dist: null // Will be set conditionally below
       };
+
+      // Only set travel_dist if parsed value exists (don't overwrite existing non-zero values during updates)
 
       const assignedAMPM = ampmValue || determineDeliveryAMPM(newDeliveryData, allDeliveriesData);
       newDeliveryData.ampm_deliveries = assignedAMPM;
