@@ -349,12 +349,13 @@ export default function AdminMetrics() {
     }
   }, [calculateMetrics, hasAccess, isDataLoaded, selectedYear]);
 
-  // Recalculate when month changes (without re-fetching)
+  // Recalculate when month changes (without re-fetching) - only runs after initial data load
   useEffect(() => {
-    if (allYearDeliveries.length > 0) {
+    if (allYearDeliveries.length > 0 && metricsData) {
       recalculateMonthData();
     }
-  }, [selectedMonth, recalculateMonthData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMonth]);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
