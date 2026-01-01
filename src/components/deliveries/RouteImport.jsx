@@ -1309,10 +1309,10 @@ export default function RouteImport({
     const failedUpdates = [];
 
     try {
-      // Notify parent to pause smart refresh during import
-      if (typeof window !== 'undefined' && window.__routeImportStartCallback) {
-        window.__routeImportStartCallback();
-      }
+      // CRITICAL: Pause smart refresh and location poller during import to prevent rate limits
+      smartRefreshManager.pause();
+      driverLocationPoller.pause();
+      console.log('⏸️ [RouteImport] Paused smart refresh and location poller for import');
       
       // CRITICAL: Import to offline DB first, let smart refresh sync to backend
       const { offlineDB } = await import('../utils/offlineDatabase');
