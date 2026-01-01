@@ -648,9 +648,12 @@ export default function Layout({ children, currentPageName }) {
       const [appVersion, setAppVersion] = useState(DEFAULT_APP_VERSION);
   const [adminImportEnabled, setAdminImportEnabled] = useState(false);
 
-  // Poll for adminImportEnabled changes (for non-app-owner admins to see updates)
+  // Poll for adminImportEnabled changes (for Kyle J to see updates when toggle changes)
   useEffect(() => {
-    if (!currentUser || !userHasRole(currentUser, 'admin')) return;
+    // Only poll for Kyle J (non-app-owner who can benefit from the toggle)
+    if (!currentUser) return;
+    if (isAppOwner(currentUser)) return; // App owner controls the toggle, no need to poll
+    if (currentUser.user_name !== 'Kyle J') return; // Only Kyle J needs to poll
     
     const pollAdminImportSetting = async () => {
       try {
@@ -666,8 +669,11 @@ export default function Layout({ children, currentPageName }) {
       }
     };
 
-    // Poll every 30 seconds
-    const interval = setInterval(pollAdminImportSetting, 30000);
+    // Initial check
+    pollAdminImportSetting();
+    
+    // Poll every 10 seconds for faster response
+    const interval = setInterval(pollAdminImportSetting, 10000);
     return () => clearInterval(interval);
   }, [currentUser, adminImportEnabled]);
 
