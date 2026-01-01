@@ -755,7 +755,7 @@ export default function StopCard({
         opacity: shouldFade ? 0.4 : 1,
         transition: 'opacity 0.2s ease-in-out'
       }}>
-        <CardContent className="mt-1 mb-1 px-3 py-0 flex flex-col">
+        <CardContent className="mt-1 mb-1 px-2 flex flex-col">
           {/* HEADER SECTION - Always Visible */}
           <div className="flex items-start gap-1">
             {/* Drag Handle - Only show for non-finished deliveries */}
@@ -1024,7 +1024,7 @@ export default function StopCard({
 
           {!isStrippedDelivery && <div className="flex flex-col">
             <div className="flex items-start justify-between">
-              <div className="mt-1 flex flex-col justify-center gap-0.5 flex-1 min-w-0 min-h-[50px]">
+              <div className="flex flex-col justify-center gap-0.5 flex-1 min-w-0 min-h-[50px]">
                 {finalDisplayAddress ?
                 <>
                   {/* Main address without unit/buzzer */}
@@ -1061,7 +1061,7 @@ export default function StopCard({
 
               {/* Navigation and Phone buttons - right justified - Only for assigned driver or app owner */}
               {isAssignedDriverOrAppOwner &&
-              <div className="mt-1 py-1 flex items-center gap-2 flex-shrink-0">
+              <div className="mt-1 py-1 flex items-center gap-2 flex-shrink-0 min-h-[50px]">
                   {finalDisplayPhone &&
                 <a
                   href={`tel:${finalDisplayPhone.replace(/\D/g, '')}`}
