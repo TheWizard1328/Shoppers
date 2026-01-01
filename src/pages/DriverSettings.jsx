@@ -182,7 +182,9 @@ export default function DriverSettings() {
                         <h3 className="font-semibold truncate" style={{ color: 'var(--text-slate-900)' }}>
                           {getDriverDisplayName(driver)}
                         </h3>
-                        <Circle className={`w-2 h-2 ${getStatusColor(driver.status)}`} fill="currentColor" />
+                        <Badge className={`text-xs ${driver.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                          {driver.status === 'active' ? 'Active' : 'Inactive'}
+                        </Badge>
                         <Badge className={`text-xs ${dutyStatus.color}`}>
                           {dutyStatus.label}
                         </Badge>
