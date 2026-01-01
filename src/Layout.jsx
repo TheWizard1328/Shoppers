@@ -2742,7 +2742,7 @@ export default function Layout({ children, currentPageName }) {
                       <Link
                         to={constructUrlWithParams(createPageUrl("DeliveryMetrics"))}
                         onClick={() => setSidebarOpen(false)}
-                        className={`mb-2 px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                        className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
                           currentPageName === 'DeliveryMetrics' ?
                             'shadow-sm' :
                             'hover:opacity-80'}`
@@ -2755,6 +2755,26 @@ export default function Layout({ children, currentPageName }) {
                         }}>
                         <BarChart3 className="w-5 h-5" />
                         <span className="font-semibold">Route Metrics</span>
+                      </Link>
+                    }
+
+                    {realUser && isAppOwner(realUser) &&
+                      <Link
+                        to={createPageUrl("AdminMetrics")}
+                        onClick={() => setSidebarOpen(false)}
+                        className={`mb-2 px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                          currentPageName === 'AdminMetrics' ?
+                            'shadow-sm' :
+                            'hover:opacity-80'}`
+                        }
+                        style={currentPageName === 'AdminMetrics' ? {
+                          background: 'var(--bg-slate-100)',
+                          color: 'var(--text-slate-900)'
+                        } : {
+                          color: 'var(--text-slate-600)'
+                        }}>
+                        <BarChart3 className="w-5 h-5" />
+                        <span className="font-semibold">Admin Metrics</span>
                       </Link>
                     }
                   </div>
