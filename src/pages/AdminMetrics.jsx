@@ -211,25 +211,14 @@ export default function AdminMetrics() {
         yearTotals: {
           completed: yearCompleted,
           failed: yearFailed,
-          total: yearCompleted + yearFailed
-        },
-        selectedMonthTotals: {
-          completed: targetMonthDeliveries.filter(d => d.status === 'completed' && d.patient_id).length,
-          failed: targetMonthDeliveries.filter(d => d.status === 'failed').length,
+          total: yearCompleted + yearFailed,
           activeDrivers: Object.keys(driverStats).length
-        }
+        },
+        selectedMonthTotals: null
       });
 
-      // Load store fee metrics for selected month
-      try {
-        const response = await base44.functions.invoke('getStoreMetrics', {
-          year: year,
-          month: targetMonth
-        });
-        setStoreMetrics(response?.data || response);
-      } catch (err) {
-        console.warn('Failed to load store metrics:', err);
-      }
+      // Clear store metrics (no month selected on initial load)
+      setStoreMetrics(null);
 
     } catch (error) {
       console.error('Failed to calculate metrics:', error);
