@@ -2253,26 +2253,33 @@ function Dashboard() {
         lastProgrammaticMapMoveRef.current = Date.now();
         window._lastProgrammaticMapMove = Date.now();
 
-        // CRITICAL: Check driver status - only show location if on_duty
+        // CRITICAL: Check if selected date is in the past
+        const todayStrPhase2 = format(new Date(), 'yyyy-MM-dd');
+        const selectedDateStrPhase2 = format(selectedDate, 'yyyy-MM-dd');
+        const isPastDatePhase2 = selectedDateStrPhase2 < todayStrPhase2;
+
+        // CRITICAL: Check driver status
         const driver = users.find((u) => u && u.id === currentUser?.id);
         const isDriverOnDuty = driver && driver.driver_status === 'on_duty';
 
-        if (!isDriverOnDuty) {
-          console.log('⏭️ [Phase 2] Driver is not on_duty - centering on next stop only');
-          if (nextStopCoordinates) {
-            const padding = getMapPadding(false, true);
-            setShouldFitBounds({
-              bounds: [[nextStopCoordinates.lat, nextStopCoordinates.lon]],
-              options: {
-                ...padding,
-                maxZoom: 15,
-                animate: true
-              }
-            });
-            setMapCenter(null);
-            setMapZoom(null);
-          }
-          break;
+        // CRITICAL: Reactivate Phase 1 if driver is off duty OR date is in the past
+        if (!isDriverOnDuty || isPastDatePhase2) {
+          console.log(`🔄 [Phase 2] Conditions not met (on_duty: ${isDriverOnDuty}, isPast: ${isPastDatePhase2}) - switching to Phase 1`);
+          setMapViewPhase(1);
+          setMapViewTrigger((prev) => prev + 1);
+          
+          // Set 3-second unlock timer for Phase 1
+          const lockDuration = 3000;
+          const expiresAt = Date.now() + lockDuration;
+          mapLockExpiresAtRef.current = expiresAt;
+          mapLockTimeoutRef.current = setTimeout(() => {
+            if (mapLockExpiresAtRef.current === expiresAt) {
+              setIsMapViewLocked(false);
+              mapLockExpiresAtRef.current = null;
+              mapLockTimeoutRef.current = null;
+            }
+          }, lockDuration);
+          return;
         }
 
         if (nextStopCoordinates) {
@@ -2312,18 +2319,37 @@ function Dashboard() {
       case 3: // "Center on Driver"
         console.clear;
 
-        if (!driverLocation?.latitude || !driverLocation?.longitude) {
-          console.warn('⚠️ [FAB Click] Phase 3 - No driver location available');
-          return;
-        }
+        // CRITICAL: Check if selected date is in the past
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+        const isPastDate = selectedDateStr < todayStr;
 
-        // CRITICAL: Check driver status - only show location if on_duty
+        // CRITICAL: Check driver status
         const driverPhase3 = users.find((u) => u && u.id === currentUser?.id);
         const isDriverOnDutyPhase3 = driverPhase3 && driverPhase3.driver_status === 'on_duty';
 
-        if (!isDriverOnDutyPhase3) {
-          console.log('⏭️ [Phase 3] Driver is not on_duty - skipping center on driver');
-          // Don't center map when driver is off duty
+        // CRITICAL: Reactivate Phase 1 if driver is off duty OR date is in the past
+        if (!isDriverOnDutyPhase3 || isPastDate) {
+          console.log(`🔄 [Phase 3] Conditions not met (on_duty: ${isDriverOnDutyPhase3}, isPast: ${isPastDate}) - switching to Phase 1`);
+          setMapViewPhase(1);
+          setMapViewTrigger((prev) => prev + 1);
+          
+          // Set 3-second unlock timer for Phase 1
+          const lockDuration = 3000;
+          const expiresAt = Date.now() + lockDuration;
+          mapLockExpiresAtRef.current = expiresAt;
+          mapLockTimeoutRef.current = setTimeout(() => {
+            if (mapLockExpiresAtRef.current === expiresAt) {
+              setIsMapViewLocked(false);
+              mapLockExpiresAtRef.current = null;
+              mapLockTimeoutRef.current = null;
+            }
+          }, lockDuration);
+          return;
+        }
+
+        if (!driverLocation?.latitude || !driverLocation?.longitude) {
+          console.warn('⚠️ [FAB Click] Phase 3 - No driver location available');
           return;
         }
 
