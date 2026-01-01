@@ -1631,6 +1631,11 @@ export default function RouteImport({
         phase: 'import'
       });
     } finally {
+      // CRITICAL: Always resume smart refresh and location poller, even on error
+      smartRefreshManager.restart();
+      driverLocationPoller.resume();
+      console.log('▶️ [RouteImport] Resumed smart refresh and location poller (finally block)');
+      
       setIsProcessing(false);
       setTimeout(() => setShowProgress(false), 1000);
     }
