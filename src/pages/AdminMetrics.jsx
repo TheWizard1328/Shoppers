@@ -598,7 +598,7 @@ export default function AdminMetrics() {
         </Card>
 
         {/* App Fees Summary */}
-        {selectedMonth && storeMetrics && (
+        {storeMetrics && (
           <Card className="border-amber-200 bg-amber-50/30">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-amber-900">
