@@ -14,7 +14,7 @@ const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount, smal
   };
 
   const badge =
-  <div className="px-1 flex items-center gap-1 cursor-help">
+  <div className="px-2 flex items-center gap-1 cursor-help">
       <div className={`p-1.5 rounded-lg ${colorClasses[color]}`}>
         <Icon className="w-3 h-3" />
       </div>
@@ -51,7 +51,7 @@ export default function DualStatsMarquee({
   performanceStats // { totalPay, totalKm, totalExtraKm, totalTimeOnDuty }
 }) {
   return (
-    <div className="py-2">
+    <div className="py-1">
       {/* Row 1: Delivery Stats - 4 columns */}
       <div className="grid grid-cols-4 gap-1 mb-2">
         <StatBadge
