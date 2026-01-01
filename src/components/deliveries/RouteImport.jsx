@@ -1027,6 +1027,9 @@ export default function RouteImport({
           console.log(`⏭️ Row ${lineNumber}: Skipping - no significant changes detected for existing delivery (ID: ${existingDelivery.id}).`);
         }
       } else {
+        // For new deliveries: set travel_dist from import
+        newDeliveryData.travel_dist = travelDist;
+        
         const newDeliveryId = generateDeliveryId(Array.from(existingDeliveryIds));
         existingDeliveryIds.add(newDeliveryId);
 
