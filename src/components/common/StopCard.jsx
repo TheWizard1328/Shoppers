@@ -740,7 +740,7 @@ export default function StopCard({
       style={{ scrollSnapAlign: 'center' }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}>
-      <Card className="bg-card text-card-foreground rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 min-w-[335px] max-w-[335px] border-blue-500"
+      <Card className="bg-card text-card-foreground rounded-xl border shadow-md cursor-pointer hover:shadow-lg transition-all duration-200 min-w-[338px] max-w-[338px] border-blue-500"
 
 
       onClick={() => {
