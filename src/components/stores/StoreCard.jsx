@@ -223,7 +223,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                 };
 
               return (
-                <div className="flex flex-col gap-1 mb-4 p-2 bg-amber-50 rounded-lg border border-amber-200">
+                <div className="flex flex-wrap items-center gap-2 mb-4 p-2 bg-amber-50 rounded-lg border border-amber-200">
                   <div className="flex items-center gap-2">
                     <Checkbox
                       id={`pays-fees-${store.id}`}
