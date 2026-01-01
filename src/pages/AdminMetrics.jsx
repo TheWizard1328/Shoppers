@@ -252,18 +252,24 @@ export default function AdminMetrics() {
     if (!allYearDeliveries.length || !allStoresData.length) return;
     
     const year = parseInt(selectedYear);
-    const targetMonth = selectedMonth;
-    const targetMonthStart = `${year}-${String(targetMonth).padStart(2, '0')}-01`;
-    const targetMonthEnd = new Date(year, targetMonth, 0).toISOString().split('T')[0];
     
-    const targetMonthDeliveries = allYearDeliveries.filter(d => {
-      if (!d?.delivery_date) return false;
-      return d.delivery_date >= targetMonthStart && d.delivery_date <= targetMonthEnd;
-    });
+    // Filter deliveries: either specific month or all year
+    let targetDeliveries;
+    if (selectedMonth) {
+      const targetMonthStart = `${year}-${String(selectedMonth).padStart(2, '0')}-01`;
+      const targetMonthEnd = new Date(year, selectedMonth, 0).toISOString().split('T')[0];
+      targetDeliveries = allYearDeliveries.filter(d => {
+        if (!d?.delivery_date) return false;
+        return d.delivery_date >= targetMonthStart && d.delivery_date <= targetMonthEnd;
+      });
+    } else {
+      // All year
+      targetDeliveries = allYearDeliveries;
+    }
 
     // Driver stats
     const driverStats = {};
-    targetMonthDeliveries.forEach(d => {
+    targetDeliveries.forEach(d => {
       if (!d.driver_id || !d.patient_id) return;
       if (!driverStats[d.driver_id]) {
         const driver = drivers.find(dr => dr?.id === d.driver_id);
@@ -281,11 +287,11 @@ export default function AdminMetrics() {
 
     const driverData = Object.values(driverStats)
       .sort((a, b) => b.completed - a.completed)
-      .slice(0, 8);
+      .slice(0, 10);
 
     // Store stats
     const storeStats = {};
-    targetMonthDeliveries.forEach(d => {
+    targetDeliveries.forEach(d => {
       if (!d.store_id || !d.patient_id) return;
       if (!storeStats[d.store_id]) {
         const store = allStoresData.find(s => s?.id === d.store_id);
@@ -310,22 +316,30 @@ export default function AdminMetrics() {
       ...prev,
       driverData,
       storeData,
-      selectedMonthTotals: {
-        completed: targetMonthDeliveries.filter(d => d.status === 'completed' && d.patient_id).length,
-        failed: targetMonthDeliveries.filter(d => d.status === 'failed').length,
+      selectedMonthTotals: selectedMonth ? {
+        completed: targetDeliveries.filter(d => d.status === 'completed' && d.patient_id).length,
+        failed: targetDeliveries.filter(d => d.status === 'failed').length,
+        activeDrivers: Object.keys(driverStats).length
+      } : null,
+      yearTotals: {
+        ...prev?.yearTotals,
         activeDrivers: Object.keys(driverStats).length
       }
     }));
 
-    // Load store fee metrics for new month
-    base44.functions.invoke('getStoreMetrics', {
-      year: year,
-      month: targetMonth
-    }).then(response => {
-      setStoreMetrics(response?.data || response);
-    }).catch(err => {
-      console.warn('Failed to load store metrics:', err);
-    });
+    // Load store fee metrics only for specific month
+    if (selectedMonth) {
+      base44.functions.invoke('getStoreMetrics', {
+        year: year,
+        month: selectedMonth
+      }).then(response => {
+        setStoreMetrics(response?.data || response);
+      }).catch(err => {
+        console.warn('Failed to load store metrics:', err);
+      });
+    } else {
+      setStoreMetrics(null);
+    }
   }, [allYearDeliveries, allStoresData, selectedYear, selectedMonth, drivers]);
 
   // Initial load when year changes
