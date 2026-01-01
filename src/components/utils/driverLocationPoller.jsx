@@ -6,8 +6,25 @@ class DriverLocationPoller {
     this.subscribers = new Set();
     this.lastLocations = new Map();
     this.isPolling = false;
+    this.isPaused = false; // Pause flag for imports
     this.requestDataRefresh = null; // Callback to request data refresh from parent
     this.currentUser = null;
+  }
+
+  /**
+   * Pause location processing (e.g., during imports)
+   */
+  pause() {
+    this.isPaused = true;
+    console.log('⏸️ [DriverLocationPoller] Paused');
+  }
+
+  /**
+   * Resume location processing
+   */
+  resume() {
+    this.isPaused = false;
+    console.log('▶️ [DriverLocationPoller] Resumed');
   }
 
   /**
