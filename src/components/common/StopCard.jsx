@@ -755,7 +755,7 @@ export default function StopCard({
         opacity: shouldFade ? 0.4 : 1,
         transition: 'opacity 0.2s ease-in-out'
       }}>
-        <CardContent className="mb-1 px-2 flex flex-col">
+        <CardContent className="px-2 flex flex-col">
           {/* HEADER SECTION - Always Visible */}
           <div className="flex items-start gap-1">
             {/* Drag Handle - Only show for non-finished deliveries */}
