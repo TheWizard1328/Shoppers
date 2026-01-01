@@ -566,6 +566,30 @@ export const createAppUser = (data, options) => createEntity('AppUser', data, op
 export const updateAppUser = (id, updates, options) => updateEntity('AppUser', id, updates, options);
 export const deleteAppUser = (id, options) => deleteEntity('AppUser', id, options);
 
+/**
+ * Update AppUser with immediate UI refresh (local-first pattern)
+ * Updates backend and notifies UI immediately
+ */
+export const localUpdateAppUser = async (appUserId, updates, options = {}) => {
+  if (mutationsPaused) throw new Error('Mutations are paused');
+  
+  try {
+    console.log(`🔄 [EntityMutations] Updating AppUser ${appUserId}...`);
+    
+    // Update backend
+    const result = await base44.entities.AppUser.update(appUserId, updates);
+    
+    // Notify UI immediately so DriverSettings refreshes
+    notifyMutation({ type: 'update', entity: 'AppUser', id: appUserId, data: result });
+    
+    console.log(`✅ [EntityMutations] AppUser ${appUserId} updated successfully`);
+    return result;
+  } catch (error) {
+    console.error(`❌ [EntityMutations] Failed to update AppUser ${appUserId}:`, error);
+    throw error;
+  }
+};
+
 // UserSettings mutations
 export const createUserSettings = (data, options) => createEntity('UserSettings', data, options);
 export const updateUserSettings = (id, updates, options) => updateEntity('UserSettings', id, updates, options);
