@@ -116,6 +116,8 @@ export default function AppSettingsPanel() {
   const [lastRefreshTimes, setLastRefreshTimes] = useState({});
   const [appVersion, setAppVersion] = useState({ major: 1, minor: 0, build: 0 });
   const [savedAppVersion, setSavedAppVersion] = useState({ major: 1, minor: 0, build: 0 });
+  const [appFeesPerDelivery, setAppFeesPerDelivery] = useState('0.00');
+  const [savedAppFees, setSavedAppFees] = useState('0.00');
 
   // Load settings from database
   const loadSettings = useCallback(async () => {
@@ -136,6 +138,13 @@ export default function AppSettingsPanel() {
         if (settings[0].setting_value.appVersion) {
           setAppVersion(settings[0].setting_value.appVersion);
           setSavedAppVersion(settings[0].setting_value.appVersion);
+        }
+        
+        // Load app fees from settings
+        if (settings[0].setting_value.app_fees_per_delivery !== undefined) {
+          const fees = parseFloat(settings[0].setting_value.app_fees_per_delivery).toFixed(2);
+          setAppFeesPerDelivery(fees);
+          setSavedAppFees(fees);
         }
         
         if (!smartRefreshManager._initialized) {
@@ -182,9 +191,10 @@ export default function AppSettingsPanel() {
       const versionChanged = appVersion.major !== savedAppVersion.major || 
                             appVersion.minor !== savedAppVersion.minor || 
                             appVersion.build !== savedAppVersion.build;
-      setHasChanges(intervalsChanged || enabledChanged || versionChanged);
+      const feesChanged = appFeesPerDelivery !== savedAppFees;
+      setHasChanges(intervalsChanged || enabledChanged || versionChanged || feesChanged);
     }
-  }, [intervals, savedIntervals, smartRefreshEnabled, savedSmartRefreshEnabled, appVersion, savedAppVersion]);
+  }, [intervals, savedIntervals, smartRefreshEnabled, savedSmartRefreshEnabled, appVersion, savedAppVersion, appFeesPerDelivery, savedAppFees]);
 
   const handleIntervalChange = (key, value) => {
     setIntervals(prev => ({ ...prev, [key]: value }));
@@ -196,7 +206,8 @@ export default function AppSettingsPanel() {
       const settingsToSave = {
         ...intervals,
         smartRefreshEnabled: smartRefreshEnabled,
-        appVersion: appVersion
+        appVersion: appVersion,
+        app_fees_per_delivery: parseFloat(appFeesPerDelivery)
       };
 
       const existing = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
@@ -229,6 +240,7 @@ export default function AppSettingsPanel() {
       setSavedIntervals({ ...intervals });
       setSavedSmartRefreshEnabled(smartRefreshEnabled);
       setSavedAppVersion({ ...appVersion });
+      setSavedAppFees(appFeesPerDelivery);
       setHasChanges(false);
       alert('Settings saved successfully! Other users will see the new version on their next refresh.');
     } catch (error) {
@@ -346,6 +358,53 @@ export default function AppSettingsPanel() {
                 <RefreshCw className="w-4 h-4" />
                 Increment Build
               </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="w-5 h-5" />
+              Other Admin Settings
+            </CardTitle>
+            <CardDescription>
+              Configure app-wide administrative settings.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="app_fees" className="text-sm font-medium mb-1.5 block">
+                  App Fees (Cost per Delivery)
+                </Label>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-700 font-medium">$</span>
+                  <Input
+                    id="app_fees"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={appFeesPerDelivery}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                        setAppFeesPerDelivery(val);
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const parsed = parseFloat(e.target.value) || 0;
+                      setAppFeesPerDelivery(parsed.toFixed(2));
+                    }}
+                    placeholder="0.00"
+                    className="w-32"
+                  />
+                  <span className="text-sm text-slate-500">per finished delivery</span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  This fee will be used to calculate monthly charges for stores that are marked as paying app fees.
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>
