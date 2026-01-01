@@ -25,7 +25,7 @@ export default function AdminMetrics() {
   const [hasAccess, setHasAccess] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1); // 1-12
+  const [selectedMonth, setSelectedMonth] = useState(null); // null = show all year, 1-12 = specific month
   const [metricsData, setMetricsData] = useState(null);
   const [storeMetrics, setStoreMetrics] = useState(null);
   const [allYearDeliveries, setAllYearDeliveries] = useState([]); // Store all deliveries for filtering
@@ -421,8 +421,8 @@ export default function AdminMetrics() {
                   <TrendingUp className="w-6 h-6 text-blue-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-slate-500">{MONTH_NAMES[selectedMonth - 1]} Deliveries</p>
-                  <p className="text-2xl font-bold text-slate-900">{metricsData.selectedMonthTotals.completed.toLocaleString()}</p>
+                  <p className="text-sm text-slate-500">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'Year'} Deliveries</p>
+                  <p className="text-2xl font-bold text-slate-900">{(selectedMonth ? metricsData.selectedMonthTotals?.completed : metricsData.yearTotals?.completed)?.toLocaleString() || 0}</p>
                 </div>
               </div>
             </CardContent>
@@ -435,8 +435,8 @@ export default function AdminMetrics() {
                   <Truck className="w-6 h-6 text-purple-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-slate-500">{MONTH_NAMES[selectedMonth - 1]} Drivers</p>
-                  <p className="text-2xl font-bold text-slate-900">{metricsData.selectedMonthTotals.activeDrivers}</p>
+                  <p className="text-sm text-slate-500">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'Year'} Drivers</p>
+                  <p className="text-2xl font-bold text-slate-900">{(selectedMonth ? metricsData.selectedMonthTotals?.activeDrivers : metricsData.yearTotals?.activeDrivers) || 0}</p>
                 </div>
               </div>
             </CardContent>
@@ -480,7 +480,8 @@ export default function AdminMetrics() {
                     onClick={(data) => {
                       if (data && data.activePayload && data.activePayload.length > 0) {
                         const clickedMonth = data.activePayload[0].payload.monthNum;
-                        setSelectedMonth(clickedMonth);
+                        // Toggle: deselect if clicking same month, otherwise select new month
+                        setSelectedMonth(prev => prev === clickedMonth ? null : clickedMonth);
                       }
                     }}
                     style={{ cursor: 'pointer' }}
@@ -517,7 +518,7 @@ export default function AdminMetrics() {
                 </ResponsiveContainer>
               </div>
               <p className="text-xs text-slate-500 text-center mt-2">
-                Click on a month to filter the charts below • Currently viewing: <span className="font-semibold text-emerald-600">{MONTH_NAMES[selectedMonth - 1]}</span>
+                Click on a month to filter charts below (click again to deselect) • Currently viewing: <span className="font-semibold text-emerald-600">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All Year'}</span>
               </p>
             </CardContent>
           </Card>
@@ -527,7 +528,7 @@ export default function AdminMetrics() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="w-5 h-5" />
-                Driver Performance ({MONTH_NAMES[selectedMonth - 1]} {selectedYear})
+                Driver Performance ({selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} {selectedYear})
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -561,8 +562,8 @@ export default function AdminMetrics() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Store className="w-5 h-5" />
-              Store Breakdown ({MONTH_NAMES[selectedMonth - 1]} {selectedYear})
+            <Store className="w-5 h-5" />
+            Store Breakdown ({selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} {selectedYear})
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -603,7 +604,7 @@ export default function AdminMetrics() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-amber-900">
                 <DollarSign className="w-5 h-5" />
-                App Fees Summary ({MONTH_NAMES[selectedMonth - 1]} {selectedYear})
+                App Fees Summary ({selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} {selectedYear})
               </CardTitle>
               <CardDescription>
                 Stores with "Pays App Fees" enabled - {storeMetrics.totals?.stores_paying_fees || 0} of {storeMetrics.totals?.total_stores || 0} stores
