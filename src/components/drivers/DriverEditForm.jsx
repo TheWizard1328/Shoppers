@@ -87,10 +87,9 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="z-[10002]">
-                <SelectItem value="on_duty">On Duty</SelectItem>
                 <SelectItem value="off_duty">Off Duty</SelectItem>
+                <SelectItem value="on_duty">On Duty</SelectItem>
                 <SelectItem value="on_break">On Break</SelectItem>
-                <SelectItem value="online">Online</SelectItem>
               </SelectContent>
             </Select>
           </div>
