@@ -332,8 +332,8 @@ export default function AdminMetrics() {
                   <TrendingUp className="w-6 h-6 text-blue-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-slate-500">This Month</p>
-                  <p className="text-2xl font-bold text-slate-900">{metricsData.currentMonthTotals.completed.toLocaleString()}</p>
+                  <p className="text-sm text-slate-500">{MONTH_NAMES[selectedMonth - 1]} Deliveries</p>
+                  <p className="text-2xl font-bold text-slate-900">{metricsData.selectedMonthTotals.completed.toLocaleString()}</p>
                 </div>
               </div>
             </CardContent>
@@ -346,8 +346,8 @@ export default function AdminMetrics() {
                   <Truck className="w-6 h-6 text-purple-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-slate-500">Active Drivers</p>
-                  <p className="text-2xl font-bold text-slate-900">{metricsData.currentMonthTotals.activeDrivers}</p>
+                  <p className="text-sm text-slate-500">{MONTH_NAMES[selectedMonth - 1]} Drivers</p>
+                  <p className="text-2xl font-bold text-slate-900">{metricsData.selectedMonthTotals.activeDrivers}</p>
                 </div>
               </div>
             </CardContent>
