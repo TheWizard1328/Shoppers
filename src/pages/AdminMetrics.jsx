@@ -245,7 +245,7 @@ export default function AdminMetrics() {
     } finally {
       setIsLoading(false);
     }
-  }, [drivers, hasAccess, selectedYear]);
+  }, [drivers, hasAccess, selectedYear, selectedMonth]);
 
   useEffect(() => {
     if (hasAccess && isDataLoaded) {
