@@ -315,19 +315,15 @@ export default function AdminMetrics() {
       }
     }));
 
-    // Load store fee metrics only for specific month
-    if (selectedMonth) {
-      base44.functions.invoke('getStoreMetrics', {
-        year: year,
-        month: selectedMonth
-      }).then(response => {
-        setStoreMetrics(response?.data || response);
-      }).catch(err => {
-        console.warn('Failed to load store metrics:', err);
-      });
-    } else {
-      setStoreMetrics(null);
-    }
+    // Load store fee metrics (year or specific month)
+    base44.functions.invoke('getStoreMetrics', {
+      year: year,
+      month: selectedMonth || undefined
+    }).then(response => {
+      setStoreMetrics(response?.data || response);
+    }).catch(err => {
+      console.warn('Failed to load store metrics:', err);
+    });
   }, [allYearDeliveries, allStoresData, selectedYear, selectedMonth, drivers]);
 
   // Initial load when year changes
