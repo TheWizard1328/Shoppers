@@ -62,7 +62,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { getEffectiveUser, clearUserCache } from "./components/utils/auth";
 import { base44 } from '@/api/base44Client';
 import { motion, AnimatePresence } from "framer-motion";
@@ -2557,33 +2557,35 @@ export default function Layout({ children, currentPageName }) {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-56 z-[10000]">
-                            <div className="px-2 py-2 flex items-center justify-between">
-                              <DropdownMenuLabel>Settings</DropdownMenuLabel>
-                              {isAppOwner(currentUser) && (
-                                <label className="flex items-center gap-1 cursor-pointer">
-                                  <span className="text-[10px] font-medium" style={{ color: 'var(--text-slate-600)' }}>Import</span>
-                                  <Checkbox
-                                    checked={realUser?._tempImportAccess || false}
-                                    onCheckedChange={async (checked) => {
-                                      if (currentUser?._isImpersonating) return;
-                                      
-                                      // Store in sessionStorage for temporary access
-                                      if (checked) {
-                                        sessionStorage.setItem('tempImportAccess', 'true');
-                                      } else {
-                                        sessionStorage.removeItem('tempImportAccess');
-                                      }
-                                      
-                                      // Refresh current user
-                                      clearUserCache();
-                                      const refreshedUser = await getEffectiveUser();
-                                      if (refreshedUser) {
-                                        setCurrentUser(refreshedUser);
-                                      }
-                                    }}
-                                  />
-                                </label>
-                              )}
+                            <div className="px-2 py-2">
+                              <div className="flex items-center justify-between">
+                                <DropdownMenuLabel className="p-0">Settings</DropdownMenuLabel>
+                                {isAppOwner(currentUser) && (
+                                  <label className="flex items-center gap-2 cursor-pointer">
+                                    <span className="text-xs font-medium" style={{ color: 'var(--text-slate-600)' }}>Admin Import</span>
+                                    <Switch
+                                      checked={sessionStorage.getItem('tempImportAccess') === 'true'}
+                                      onCheckedChange={async (checked) => {
+                                        if (currentUser?._isImpersonating) return;
+                                        
+                                        // Store in sessionStorage for temporary access
+                                        if (checked) {
+                                          sessionStorage.setItem('tempImportAccess', 'true');
+                                        } else {
+                                          sessionStorage.removeItem('tempImportAccess');
+                                        }
+                                        
+                                        // Refresh current user
+                                        clearUserCache();
+                                        const refreshedUser = await getEffectiveUser();
+                                        if (refreshedUser) {
+                                          setCurrentUser(refreshedUser);
+                                        }
+                                      }}
+                                    />
+                                  </label>
+                                )}
+                              </div>
                             </div>
                             <DropdownMenuSeparator />
 
@@ -3001,33 +3003,35 @@ export default function Layout({ children, currentPageName }) {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-56 z-[10002]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
-                          <div className="px-2 py-2 flex items-center justify-between">
-                            <DropdownMenuLabel style={{ color: 'var(--text-slate-900)' }}>Settings</DropdownMenuLabel>
-                            {isAppOwner(currentUser) && (
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <span className="text-xs font-medium" style={{ color: 'var(--text-slate-600)' }}>Import Access</span>
-                                <Checkbox
-                                  checked={realUser?._tempImportAccess || false}
-                                  onCheckedChange={async (checked) => {
-                                    if (currentUser?._isImpersonating) return;
+                          <div className="px-2 py-2">
+                            <div className="flex items-center justify-between">
+                              <DropdownMenuLabel className="p-0" style={{ color: 'var(--text-slate-900)' }}>Settings</DropdownMenuLabel>
+                              {isAppOwner(currentUser) && (
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <span className="text-xs font-medium" style={{ color: 'var(--text-slate-600)' }}>Admin Import</span>
+                                  <Switch
+                                    checked={sessionStorage.getItem('tempImportAccess') === 'true'}
+                                    onCheckedChange={async (checked) => {
+                                      if (currentUser?._isImpersonating) return;
 
-                                    // Store in sessionStorage for temporary access
-                                    if (checked) {
-                                      sessionStorage.setItem('tempImportAccess', 'true');
-                                    } else {
-                                      sessionStorage.removeItem('tempImportAccess');
-                                    }
+                                      // Store in sessionStorage for temporary access
+                                      if (checked) {
+                                        sessionStorage.setItem('tempImportAccess', 'true');
+                                      } else {
+                                        sessionStorage.removeItem('tempImportAccess');
+                                      }
 
-                                    // Refresh current user
-                                    clearUserCache();
-                                    const refreshedUser = await getEffectiveUser();
-                                    if (refreshedUser) {
-                                      setCurrentUser(refreshedUser);
-                                    }
-                                  }}
-                                />
-                              </label>
-                            )}
+                                      // Refresh current user
+                                      clearUserCache();
+                                      const refreshedUser = await getEffectiveUser();
+                                      if (refreshedUser) {
+                                        setCurrentUser(refreshedUser);
+                                      }
+                                    }}
+                                  />
+                                </label>
+                              )}
+                            </div>
                           </div>
                           <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
 
