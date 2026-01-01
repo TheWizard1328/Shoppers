@@ -955,8 +955,10 @@ export default function Layout({ children, currentPageName }) {
 
       // Listen for import completion to update UI immediately
       const handleDeliveriesImported = (event) => {
-        const { deliveries } = event.detail || {};
-        if (deliveries && deliveries.length > 0) {
+        const { deliveries, source } = event.detail || {};
+        // CRITICAL: Only process if deliveries array is provided and non-empty
+        // Skip if source is 'layout' to prevent infinite loops
+        if (deliveries && deliveries.length > 0 && source !== 'layout') {
           console.log(`📥 [Layout] Received ${deliveries.length} imported deliveries - updating UI immediately`);
           setDeliveries(prevDeliveries => {
             const map = new Map(prevDeliveries.map(d => [d.id, d]));
