@@ -51,7 +51,7 @@ export default function DualStatsMarquee({
   performanceStats // { totalPay, totalKm, totalExtraKm, totalTimeOnDuty }
 }) {
   return (
-    <div className="py-1">
+    <div className="py-0.5">
       {/* Row 1: Delivery Stats - 4 columns */}
       <div className="grid grid-cols-4 gap-1 mb-2">
         <StatBadge
