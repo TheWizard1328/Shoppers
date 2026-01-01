@@ -2758,26 +2758,7 @@ export default function Layout({ children, currentPageName }) {
                       </Link>
                     }
 
-                    {realUser && isAppOwner(realUser) &&
-                      <Link
-                        to={createPageUrl("AdminMetrics")}
-                        onClick={() => setSidebarOpen(false)}
-                        className={`mb-2 px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
-                          currentPageName === 'AdminMetrics' ?
-                            'shadow-sm' :
-                            'hover:opacity-80'}`
-                        }
-                        style={currentPageName === 'AdminMetrics' ? {
-                          background: 'var(--bg-slate-100)',
-                          color: 'var(--text-slate-900)'
-                        } : {
-                          color: 'var(--text-slate-600)'
-                        }}>
-                        <BarChart3 className="w-5 h-5" />
-                        <span className="font-semibold">Admin Metrics</span>
-                      </Link>
-                    }
-                  </div>
+                    </div>
 
                   {userHasRole(currentUser, 'admin') &&
                     <div className="mt-2">
@@ -2786,6 +2767,25 @@ export default function Layout({ children, currentPageName }) {
                         Admin
                       </div>
                       <div className="space-y-1">
+                        {realUser && isAppOwner(realUser) &&
+                          <Link
+                            to={createPageUrl("AdminMetrics")}
+                            onClick={() => setSidebarOpen(false)}
+                            className={`px-4 rounded-xl flex items-center gap-3 transition-all duration-200 ${
+                              currentPageName === 'AdminMetrics' ?
+                                'shadow-sm' :
+                                'hover:opacity-80'}`
+                            }
+                            style={currentPageName === 'AdminMetrics' ? {
+                              background: 'var(--bg-slate-100)',
+                              color: 'var(--text-slate-900)'
+                            } : {
+                              color: 'var(--text-slate-600)'
+                            }}>
+                            <BarChart3 className="w-5 h-5" />
+                            <span className="font-semibold">Admin Metrics</span>
+                          </Link>
+                        }
                         {adminNavigationItems.map((item) =>
                           <Link
                             key={item.title}
