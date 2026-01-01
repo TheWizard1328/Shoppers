@@ -4,7 +4,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Edit, Trash2, Palette, Save, X, Copy, Check } from "lucide-react";
+import { Edit, Trash2, Palette, Save, X, Copy, Check, DollarSign } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -163,6 +164,43 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                 GPS Location: {store.latitude.toFixed(4)}, {store.longitude.toFixed(4)}
               </div>
             }
+
+            {/* Pays App Fees Checkbox */}
+            {currentUser && userHasRole(currentUser, 'admin') && (
+              <div className="flex items-center gap-2 mb-4 p-2 bg-amber-50 rounded-lg border border-amber-200">
+                <Checkbox
+                  id={`pays-fees-${store.id}`}
+                  checked={store.pays_app_fees || false}
+                  onCheckedChange={async (checked) => {
+                    try {
+                      const today = new Date().toISOString().split('T')[0];
+                      const historyEntry = {
+                        effective_date: today,
+                        pays_app_fees: checked,
+                        changed_by: currentUser?.user_name || currentUser?.full_name || 'Unknown'
+                      };
+                      const existingHistory = store.app_fee_history || [];
+                      await onSave({
+                        ...store,
+                        pays_app_fees: checked,
+                        app_fee_history: [...existingHistory, historyEntry]
+                      });
+                    } catch (error) {
+                      console.error("Error updating app fees status:", error);
+                    }
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <label
+                  htmlFor={`pays-fees-${store.id}`}
+                  className="text-sm font-medium text-amber-800 cursor-pointer flex items-center gap-1"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <DollarSign className="w-3.5 h-3.5" />
+                  Pays App Fees
+                </label>
+              </div>
+            )}
 
             {/* Color Selector */}
             <div className="flex items-center gap-2 mb-4">
