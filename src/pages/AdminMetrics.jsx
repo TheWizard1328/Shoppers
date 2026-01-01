@@ -386,7 +386,16 @@ export default function AdminMetrics() {
             <CardContent>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={metricsData.monthlyData}>
+                  <BarChart 
+                    data={metricsData.monthlyData}
+                    onClick={(data) => {
+                      if (data && data.activePayload && data.activePayload.length > 0) {
+                        const clickedMonth = data.activePayload[0].payload.monthNum;
+                        setSelectedMonth(clickedMonth);
+                      }
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  >
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="month" tick={{ fill: '#64748b', fontSize: 12 }} />
                     <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
@@ -403,11 +412,26 @@ export default function AdminMetrics() {
                       }}
                     />
                     <Legend />
-                    <Bar dataKey="payingStores" fill="#10b981" name="Paying App Fees" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="notPayingStores" fill="#f59e0b" name="Not Paying Fees" radius={[4, 4, 0, 0]} />
+                    <Bar 
+                      dataKey="payingStores" 
+                      fill="#10b981" 
+                      name="Paying App Fees" 
+                      radius={[4, 4, 0, 0]}
+                      opacity={(entry) => entry.monthNum === selectedMonth ? 1 : 0.6}
+                    />
+                    <Bar 
+                      dataKey="notPayingStores" 
+                      fill="#f59e0b" 
+                      name="Not Paying Fees" 
+                      radius={[4, 4, 0, 0]}
+                      opacity={(entry) => entry.monthNum === selectedMonth ? 1 : 0.6}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
+              <p className="text-xs text-slate-500 text-center mt-2">
+                Click on a month to filter the charts below • Currently viewing: <span className="font-semibold text-emerald-600">{MONTH_NAMES[selectedMonth - 1]}</span>
+              </p>
             </CardContent>
           </Card>
 
