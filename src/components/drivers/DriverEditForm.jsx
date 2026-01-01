@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { X, Save, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
-import { localUpdateAppUser } from '../utils/entityMutations';
+import { base44 } from '@/api/base44Client';
 
 export default function DriverEditForm({ driver, onSave, onCancel }) {
   const [formData, setFormData] = useState({
@@ -57,13 +57,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
         updates.pay_rate_history = [...existingHistory, historyEntry];
       }
 
-      // Get the AppUser ID for this driver
-      const appUserId = driver.appUserId || driver.id;
-      
-      // Update offline DB and online entity simultaneously
-      await localUpdateAppUser(appUserId, updates);
-      
-      // Call parent onSave to refresh UI
+      // Call parent onSave which handles the AppUser update
       await onSave(updates);
     } catch (error) {
       console.error('Error saving driver settings:', error);
