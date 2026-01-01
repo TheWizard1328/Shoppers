@@ -43,7 +43,7 @@ export default function DriverSettings() {
 
   // Get all users with driver role
   const drivers = useMemo(() => {
-    const driverUsers = users.filter(user => {
+    const driverUsers = users.filter((user) => {
       if (!user || !user.app_roles || !Array.isArray(user.app_roles)) return false;
       return user.app_roles.includes('driver');
     });
@@ -54,7 +54,7 @@ export default function DriverSettings() {
   const filteredDrivers = useMemo(() => {
     if (!searchQuery.trim()) return drivers;
     const query = searchQuery.toLowerCase();
-    return drivers.filter(driver => {
+    return drivers.filter((driver) => {
       const name = getDriverDisplayName(driver)?.toLowerCase() || '';
       const phone = driver.phone?.toLowerCase() || '';
       const email = driver.email?.toLowerCase() || '';
@@ -64,52 +64,52 @@ export default function DriverSettings() {
 
   // Get store name helper
   const getStoreName = (storeId) => {
-    const store = stores.find(s => s?.id === storeId);
+    const store = stores.find((s) => s?.id === storeId);
     return store?.name || 'Unassigned';
   };
 
   // Get driver status color
   const getStatusColor = (status) => {
     switch (status) {
-      case 'active': return 'bg-emerald-500';
-      case 'inactive': return 'bg-slate-400';
-      default: return 'bg-slate-400';
+      case 'active':return 'bg-emerald-500';
+      case 'inactive':return 'bg-slate-400';
+      default:return 'bg-slate-400';
     }
   };
 
   // Get driver duty status info - use fresh AppUser data for accurate status
   const getDriverDutyStatus = (driver) => {
     // CRITICAL: Use mergedAppUsers (fresh data) for accurate driver_status
-    const appUser = mergedAppUsers.find(au => au?.user_id === driver.id);
+    const appUser = mergedAppUsers.find((au) => au?.user_id === driver.id);
     const driverStatus = appUser?.driver_status ?? driver.driver_status ?? 'off_duty';
-    
+
     switch (driverStatus) {
-      case 'on_duty': return { label: 'On Duty', color: 'bg-emerald-100 text-emerald-800' };
-      case 'on_break': return { label: 'On Break', color: 'bg-yellow-100 text-yellow-800' };
-      case 'online': return { label: 'Online', color: 'bg-blue-100 text-blue-800' };
-      default: return { label: 'Off Duty', color: 'bg-slate-100 text-slate-600' };
+      case 'on_duty':return { label: 'On Duty', color: 'bg-emerald-100 text-emerald-800' };
+      case 'on_break':return { label: 'On Break', color: 'bg-yellow-100 text-yellow-800' };
+      case 'online':return { label: 'Online', color: 'bg-blue-100 text-blue-800' };
+      default:return { label: 'Off Duty', color: 'bg-slate-100 text-slate-600' };
     }
   };
 
   const handleSaveDriver = async (userId, updates) => {
     try {
       // Find the AppUser record by user_id (not the User's id)
-      const appUser = mergedAppUsers.find(au => au?.user_id === userId);
+      const appUser = mergedAppUsers.find((au) => au?.user_id === userId);
       if (!appUser) {
         throw new Error('AppUser record not found for this driver');
       }
-      
+
       // Update using the AppUser's actual ID
       await base44.entities.AppUser.update(appUser.id, updates);
-      
+
       // Refresh data
       const freshData = await base44.entities.AppUser.list();
       setFreshAppUsers(freshData || []);
-      
+
       if (refreshData) {
         await refreshData();
       }
-      
+
       setEditingDriver(null);
     } catch (error) {
       throw error;
@@ -135,8 +135,8 @@ export default function DriverSettings() {
             placeholder="Search drivers by name, phone, or email..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
+            className="pl-10" />
+
         </div>
       </div>
 
@@ -147,30 +147,30 @@ export default function DriverSettings() {
 
       {/* Drivers List - 2 per row */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {filteredDrivers.length === 0 ? (
-          <Card className="col-span-full" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+        {filteredDrivers.length === 0 ?
+        <Card className="col-span-full" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <CardContent className="py-8 text-center" style={{ color: 'var(--text-slate-500)' }}>
               {searchQuery ? 'No drivers match your search' : 'No drivers found'}
             </CardContent>
-          </Card>
-        ) : (
-          filteredDrivers.map(driver => {
-            // Get latest appUser data for this driver from fresh data
-            const latestAppUser = mergedAppUsers.find(au => au?.user_id === driver.id);
-            const dutyStatus = getDriverDutyStatus(driver);
-            
-            return (
-              <Card key={driver.id} className="hover:shadow-md transition-shadow" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          </Card> :
+
+        filteredDrivers.map((driver) => {
+          // Get latest appUser data for this driver from fresh data
+          const latestAppUser = mergedAppUsers.find((au) => au?.user_id === driver.id);
+          const dutyStatus = getDriverDutyStatus(driver);
+
+          return (
+            <Card key={driver.id} className="hover:shadow-md transition-shadow" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-4">
                     {/* Avatar */}
                     <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
-                      driver.app_roles?.includes('admin') 
-                        ? 'bg-gradient-to-br from-blue-500 to-blue-600'
-                        : driver.app_roles?.includes('dispatcher')
-                          ? 'bg-gradient-to-br from-red-500 to-red-600'
-                          : 'bg-gradient-to-br from-emerald-500 to-emerald-600'
-                    }`}>
+                  driver.app_roles?.includes('admin') ?
+                  'bg-gradient-to-br from-blue-500 to-blue-600' :
+                  driver.app_roles?.includes('dispatcher') ?
+                  'bg-gradient-to-br from-red-500 to-red-600' :
+                  'bg-gradient-to-br from-emerald-500 to-emerald-600'}`
+                  }>
                       <span className="text-white font-bold text-lg">
                         {(getDriverDisplayName(driver) || 'D')?.charAt(0).toUpperCase()}
                       </span>
@@ -189,49 +189,49 @@ export default function DriverSettings() {
                       </div>
                       
                       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm" style={{ color: 'var(--text-slate-600)' }}>
-                        {driver.phone && (
-                          <div className="flex items-center gap-1">
+                        {driver.phone &&
+                      <div className="flex items-center gap-1">
                             <Phone className="w-3.5 h-3.5" />
                             <a href={`tel:${driver.phone}`} className="hover:opacity-80">
                               {formatPhoneNumber(driver.phone)}
                             </a>
                           </div>
-                        )}
-                        {driver.email && (
-                          <div className="flex items-center gap-1 truncate">
+                      }
+                        {driver.email &&
+                      <div className="flex items-center gap-1 truncate">
                             <User className="w-3.5 h-3.5 flex-shrink-0" />
                             <span className="truncate text-xs">{driver.email}</span>
                           </div>
-                        )}
+                      }
                       </div>
                       
                       {/* Pay rates display */}
-                      {(driver.pay_rate_per_delivery > 0 || driver.extra_km_rate > 0 || driver.extra_km_limit > 0 || driver.oversized_item_rate > 0) && (
-                        <div className="flex gap-2 mt-1.5 text-xs flex-wrap" style={{ color: 'var(--text-slate-500)' }}>
-                          {driver.pay_rate_per_delivery > 0 && (
-                            <span>${Number(driver.pay_rate_per_delivery).toFixed(2)}/delivery</span>
-                          )}
-                          {driver.extra_km_rate > 0 && (
-                            <span>${Number(driver.extra_km_rate).toFixed(2)}/km</span>
-                          )}
-                          {driver.extra_km_limit > 0 && (
-                            <span>{Number(driver.extra_km_limit).toFixed(2)}km limit</span>
-                          )}
-                          {driver.oversized_item_rate > 0 && (
-                            <span>${Number(driver.oversized_item_rate).toFixed(2)}/oversized</span>
-                          )}
+                      {(driver.pay_rate_per_delivery > 0 || driver.extra_km_rate > 0 || driver.extra_km_limit > 0 || driver.oversized_item_rate > 0) &&
+                    <div className="flex gap-1.5 mt-1.5 text-xs flex-wrap" style={{ color: 'var(--text-slate-500)' }}>
+                          {driver.pay_rate_per_delivery > 0 &&
+                      <span>${Number(driver.pay_rate_per_delivery).toFixed(2)}/delivery</span>
+                      }
+                          {driver.extra_km_rate > 0 &&
+                      <span>${Number(driver.extra_km_rate).toFixed(2)}/km</span>
+                      }
+                          {driver.extra_km_limit > 0 &&
+                      <span>{Number(driver.extra_km_limit).toFixed(2)}km limit</span>
+                      }
+                          {driver.oversized_item_rate > 0 &&
+                      <span>${Number(driver.oversized_item_rate).toFixed(2)}/oversized</span>
+                      }
                         </div>
-                      )}
+                    }
                     </div>
 
                     {/* Actions */}
                     <div className="flex flex-col gap-2 items-end">
                       <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setEditingDriver(driver)}
-                        className="h-8 gap-1"
-                      >
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEditingDriver(driver)}
+                      className="h-8 gap-1">
+
                         <Edit className="w-3.5 h-3.5" />
                         <span className="text-xs">Edit</span>
                       </Button>
@@ -241,22 +241,22 @@ export default function DriverSettings() {
                     </div>
                   </div>
                 </CardContent>
-              </Card>
-            );
-          })
-        )}
+              </Card>);
+
+        })
+        }
       </div>
       
       {/* Edit Driver Form */}
-      {editingDriver && (
-        <DriverEditForm
-          driver={editingDriver}
-          onSave={async (updates) => {
-            await handleSaveDriver(editingDriver.id, updates);
-          }}
-          onCancel={() => setEditingDriver(null)}
-        />
-      )}
-    </div>
-  );
+      {editingDriver &&
+      <DriverEditForm
+        driver={editingDriver}
+        onSave={async (updates) => {
+          await handleSaveDriver(editingDriver.id, updates);
+        }}
+        onCancel={() => setEditingDriver(null)} />
+
+      }
+    </div>);
+
 }
