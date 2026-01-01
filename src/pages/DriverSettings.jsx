@@ -206,8 +206,8 @@ export default function DriverSettings() {
                       </div>
                       
                       {/* Pay rates display */}
-                      {(driver.pay_rate_per_delivery > 0 || driver.extra_km_rate > 0 || driver.extra_km_limit > 0) && (
-                        <div className="flex gap-2 mt-1.5 text-xs" style={{ color: 'var(--text-slate-500)' }}>
+                      {(driver.pay_rate_per_delivery > 0 || driver.extra_km_rate > 0 || driver.extra_km_limit > 0 || driver.oversized_item_rate > 0) && (
+                        <div className="flex gap-2 mt-1.5 text-xs flex-wrap" style={{ color: 'var(--text-slate-500)' }}>
                           {driver.pay_rate_per_delivery > 0 && (
                             <span>${driver.pay_rate_per_delivery}/delivery</span>
                           )}
@@ -216,6 +216,9 @@ export default function DriverSettings() {
                           )}
                           {driver.extra_km_limit > 0 && (
                             <span>{driver.extra_km_limit}km limit</span>
+                          )}
+                          {driver.oversized_item_rate > 0 && (
+                            <span>${driver.oversized_item_rate}/oversized</span>
                           )}
                         </div>
                       )}
