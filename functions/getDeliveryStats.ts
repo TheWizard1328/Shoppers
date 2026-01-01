@@ -384,16 +384,21 @@ Deno.serve(async (req) => {
           const extraKmRate = appUser.extra_km_rate || 0;
           const extraKmLimit = appUser.extra_km_limit || 0;
 
-          // Total Pay: completed patient deliveries * pay rate
-          const completedPatientDeliveries = todayDeliveries.filter(d => 
-            d && d.patient_id && isCompleted(d)
-          );
-          const basePayFromDeliveries = completedPatientDeliveries.length * payRatePerDelivery;
+          // Total Pay: completed, failed, returned patient deliveries + after-hours pickups * pay rate
+          const paidDeliveries = todayDeliveries.filter(d => {
+            if (!d) return false;
+            // Patient deliveries - completed, failed, or returned
+            if (d.patient_id) return isCompleted(d) || isFailed(d) || isReturn(d);
+            // After-hours pickups - completed or cancelled
+            if (d.after_hours_pickup) return d.status === 'completed' || d.status === 'cancelled';
+            return false;
+          });
+          const basePayFromDeliveries = paidDeliveries.length * payRatePerDelivery;
 
-          // Total Km & Extra Km: sum up distances, but only count extra if EACH distance > limit
+          // Total Km & Extra Km: sum up distances for ALL paid deliveries (completed, failed, returned, after-hours)
           let totalKm = 0;
           let totalExtraKm = 0;
-          const patientIds = completedPatientDeliveries.map(d => d.patient_id).filter(Boolean);
+          const patientIds = paidDeliveries.map(d => d.patient_id).filter(Boolean);
           
           if (patientIds.length > 0) {
             const patientsData = await base44.asServiceRole.entities.Patient.filter({ 
@@ -421,8 +426,8 @@ Deno.serve(async (req) => {
           performanceStats.totalExtraKm = totalExtraKm;
           performanceStats.extraKmLimit = extraKmLimit;
 
-          // Total Time on Duty: first to last actual_delivery_time (formatted as HH:mm)
-          const sortedByTime = completedPatientDeliveries
+          // Total Time on Duty: first to last actual_delivery_time for ALL paid deliveries
+          const sortedByTime = paidDeliveries
             .filter(d => d.actual_delivery_time)
             .sort((a, b) => new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time));
 
