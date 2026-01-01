@@ -62,6 +62,11 @@ class DriverLocationPoller {
    * @param {Date} selectedDate - Currently selected date
    */
   processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate) {
+    // Skip processing if paused (e.g., during imports)
+    if (this.isPaused) {
+      return;
+    }
+
     // Update internal current user reference
     this.currentUser = currentUser;
 
