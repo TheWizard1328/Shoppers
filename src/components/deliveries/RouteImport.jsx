@@ -1360,9 +1360,6 @@ export default function RouteImport({
 
             // Save backend records to IndexedDB for instant UI update
             await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, createdDeliveries);
-            
-            // Dispatch event to trigger UI refresh
-            window.dispatchEvent(new CustomEvent('deliveriesImported', { detail: { deliveries: createdDeliveries } }));
 
             // Count successful creates
             batch.forEach((cleanData) => {
