@@ -9,14 +9,22 @@ import { X, Save, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
 import { base44 } from '@/api/base44Client';
 
+// Helper to format number with min 2 decimals, preserving extra precision
+const formatRate = (value) => {
+  const num = parseFloat(value || 0);
+  const str = num.toString();
+  const decimals = str.includes('.') ? str.split('.')[1]?.length || 0 : 0;
+  return num.toFixed(Math.max(2, decimals));
+};
+
 export default function DriverEditForm({ driver, onSave, onCancel }) {
   const [formData, setFormData] = useState({
     status: driver.status || 'active',
     driver_status: driver.driver_status || 'off_duty',
-    pay_rate_per_delivery: Number(driver.pay_rate_per_delivery || 0).toFixed(2),
-    extra_km_rate: Number(driver.extra_km_rate || 0).toFixed(2),
-    extra_km_limit: Number(driver.extra_km_limit || 0).toFixed(2),
-    oversized_item_rate: Number(driver.oversized_item_rate || 0).toFixed(2)
+    pay_rate_per_delivery: formatRate(driver.pay_rate_per_delivery),
+    extra_km_rate: formatRate(driver.extra_km_rate),
+    extra_km_limit: formatRate(driver.extra_km_limit),
+    oversized_item_rate: formatRate(driver.oversized_item_rate)
   });
   const [isSaving, setIsSaving] = useState(false);
 
@@ -202,7 +210,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                         {format(new Date(entry.effective_date), 'MMM dd, yyyy')}
                       </span>
                       <div className="text-slate-600 text-[10px]">
-                            ${parseFloat(entry.pay_rate_per_delivery || 0).toString().includes('.') ? parseFloat(entry.pay_rate_per_delivery || 0).toFixed(Math.max(2, (entry.pay_rate_per_delivery?.toString().split('.')[1]?.length || 0))) : parseFloat(entry.pay_rate_per_delivery || 0).toFixed(2)} / ${parseFloat(entry.extra_km_rate || 0).toString().includes('.') ? parseFloat(entry.extra_km_rate || 0).toFixed(Math.max(2, (entry.extra_km_rate?.toString().split('.')[1]?.length || 0))) : parseFloat(entry.extra_km_rate || 0).toFixed(2)}/km / {parseFloat(entry.extra_km_limit || 0).toString().includes('.') ? parseFloat(entry.extra_km_limit || 0).toFixed(Math.max(2, (entry.extra_km_limit?.toString().split('.')[1]?.length || 0))) : parseFloat(entry.extra_km_limit || 0).toFixed(2)}km
+                            ${formatRate(entry.pay_rate_per_delivery)} / ${formatRate(entry.extra_km_rate)}/km / {formatRate(entry.extra_km_limit)}km
                           </div>
                     </div>
                   ))}
