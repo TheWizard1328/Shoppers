@@ -395,6 +395,11 @@ Deno.serve(async (req) => {
           });
           const basePayFromDeliveries = paidDeliveries.length * payRatePerDelivery;
 
+          // Oversized Item Pay: count oversized deliveries and multiply by oversized rate
+          const oversizedRate = appUser.oversized_item_rate || 0;
+          const oversizedDeliveries = paidDeliveries.filter(d => d.oversized === true);
+          const oversizedPay = oversizedDeliveries.length * oversizedRate;
+
           // Total Km & Extra Km: sum up distances for ALL paid deliveries (completed, failed, returned, after-hours)
           let totalKm = 0;
           let totalExtraKm = 0;
@@ -419,21 +424,21 @@ Deno.serve(async (req) => {
           }
 
           const extraKmPay = totalExtraKm * extraKmRate;
-          const totalPay = basePayFromDeliveries + extraKmPay;
+          const totalPay = basePayFromDeliveries + extraKmPay + oversizedPay;
 
           performanceStats.totalPay = totalPay;
           performanceStats.totalKm = totalKm;
           performanceStats.totalExtraKm = totalExtraKm;
           performanceStats.extraKmLimit = extraKmLimit;
 
-          // Total Time on Duty: first to last actual_delivery_time for ALL paid deliveries
-          const sortedByTime = paidDeliveries
-            .filter(d => d.actual_delivery_time)
+          // Total Time on Duty: time from first FINISHED stop to last FINISHED stop
+          const finishedDeliveries = paidDeliveries
+            .filter(d => d.actual_delivery_time && (isCompleted(d) || isFailed(d) || isReturn(d)))
             .sort((a, b) => new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time));
 
-          if (sortedByTime.length > 0) {
-            const firstTime = new Date(sortedByTime[0].actual_delivery_time);
-            const lastTime = new Date(sortedByTime[sortedByTime.length - 1].actual_delivery_time);
+          if (finishedDeliveries.length > 0) {
+            const firstTime = new Date(finishedDeliveries[0].actual_delivery_time);
+            const lastTime = new Date(finishedDeliveries[finishedDeliveries.length - 1].actual_delivery_time);
             const durationMs = lastTime - firstTime;
             const totalMinutes = Math.floor(durationMs / (1000 * 60));
             const hours = Math.floor(totalMinutes / 60);
