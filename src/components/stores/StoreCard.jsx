@@ -173,16 +173,16 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
             {/* Pays App Fees Checkbox */}
             {currentUser && userHasRole(currentUser, 'admin') && (() => {
               const history = store.app_fee_history || [];
-              const sortedHistory = [...history].sort((a, b) => 
-                new Date(b.effective_date) - new Date(a.effective_date)
+              const sortedHistory = [...history].sort((a, b) =>
+              new Date(b.effective_date) - new Date(a.effective_date)
               );
-              
+
               // Find current active period (most recent entry where pays_app_fees is true)
-              const currentPeriod = sortedHistory.find(h => h.pays_app_fees);
-              const endPeriod = currentPeriod ? sortedHistory.find(h => 
-                !h.pays_app_fees && new Date(h.effective_date) > new Date(currentPeriod.effective_date)
+              const currentPeriod = sortedHistory.find((h) => h.pays_app_fees);
+              const endPeriod = currentPeriod ? sortedHistory.find((h) =>
+              !h.pays_app_fees && new Date(h.effective_date) > new Date(currentPeriod.effective_date)
               ) : null;
-              
+
               const formatEffectiveDate = (dateStr) => {
                 if (!dateStr) return 'Unknown';
                 try {
@@ -196,27 +196,27 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                 if (!date) return;
                 const dateStr = format(date, 'yyyy-MM-dd');
                 const existingHistory = store.app_fee_history || [];
-                
+
                 let updatedHistory = existingHistory;
                 if (type === 'start' && currentPeriod) {
                   // Update the start date of current period
-                  updatedHistory = existingHistory.map(h => 
-                    h === currentPeriod ? { ...h, effective_date: dateStr } : h
+                  updatedHistory = existingHistory.map((h) =>
+                  h === currentPeriod ? { ...h, effective_date: dateStr } : h
                   );
                 } else if (type === 'end' && endPeriod) {
                   // Update the end date
-                  updatedHistory = existingHistory.map(h => 
-                    h === endPeriod ? { ...h, effective_date: dateStr } : h
+                  updatedHistory = existingHistory.map((h) =>
+                  h === endPeriod ? { ...h, effective_date: dateStr } : h
                   );
                 }
-                
+
                 // Use Store entity directly to update
                 const { Store } = await import('@/entities/Store');
                 await Store.update(store.id, { app_fee_history: updatedHistory });
                 if (onSave) {
                   await onSave({ ...store, app_fee_history: updatedHistory });
                 }
-                
+
                 setShowDatePicker(false);
                 setEditingDateType(null);
               };
@@ -253,25 +253,25 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                         } catch (error) {
                           console.error("Error updating app fees status:", error);
                         }
-                      }}
-                    />
+                      }} />
+
                     <label
-                      htmlFor={`pays-fees-${store.id}`}
-                      className="text-sm font-medium text-amber-800 cursor-pointer flex items-center gap-1"
-                    >
-                      <DollarSign className="w-3.5 h-3.5" />
-                      Pays App Fees
+                      htmlFor={`pays-fees-${store.id}`} className="text-sm font-medium text-amber-800 cursor-pointer flex items-center gap-1">App Fees
+
+
+
+
                     </label>
                   </div>
                   
                   {/* Effective Date Range Display */}
-                  {currentPeriod && (
-                    <Popover open={showDatePicker} onOpenChange={setShowDatePicker}>
+                  {currentPeriod &&
+                  <Popover open={showDatePicker} onOpenChange={setShowDatePicker}>
                       <PopoverTrigger asChild>
                         <button
-                          className="text-xs text-amber-700 hover:text-amber-900 flex items-center gap-1 ml-6 underline decoration-dotted"
-                          onClick={(e) => e.stopPropagation()}
-                        >
+                        className="text-xs text-amber-700 hover:text-amber-900 flex items-center gap-1 ml-6 underline decoration-dotted"
+                        onClick={(e) => e.stopPropagation()}>
+
                           <Calendar className="w-3 h-3" />
                           (Effective: {formatEffectiveDate(currentPeriod.effective_date)} → {endPeriod ? formatEffectiveDate(endPeriod.effective_date) : 'Present'})
                         </button>
@@ -281,38 +281,38 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                           <div className="text-sm font-medium text-slate-700">Edit Date Range</div>
                           <div className="flex gap-2">
                             <Button
-                              variant={editingDateType === 'start' ? 'default' : 'outline'}
-                              size="sm"
-                              onClick={() => setEditingDateType('start')}
-                            >
+                            variant={editingDateType === 'start' ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => setEditingDateType('start')}>
+
                               Start Date
                             </Button>
                             <Button
-                              variant={editingDateType === 'end' ? 'default' : 'outline'}
-                              size="sm"
-                              onClick={() => setEditingDateType('end')}
-                              disabled={!endPeriod && store.pays_app_fees}
-                            >
+                            variant={editingDateType === 'end' ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => setEditingDateType('end')}
+                            disabled={!endPeriod && store.pays_app_fees}>
+
                               End Date
                             </Button>
                           </div>
-                          {editingDateType && (
-                            <CalendarComponent
-                              mode="single"
-                              selected={editingDateType === 'start' 
-                                ? parseISO(currentPeriod.effective_date) 
-                                : endPeriod ? parseISO(endPeriod.effective_date) : new Date()
-                              }
-                              onSelect={(date) => handleDateSelect(date, editingDateType)}
-                              className="rounded-md border"
-                            />
-                          )}
+                          {editingDateType &&
+                        <CalendarComponent
+                          mode="single"
+                          selected={editingDateType === 'start' ?
+                          parseISO(currentPeriod.effective_date) :
+                          endPeriod ? parseISO(endPeriod.effective_date) : new Date()
+                          }
+                          onSelect={(date) => handleDateSelect(date, editingDateType)}
+                          className="rounded-md border" />
+
+                        }
                         </div>
                       </PopoverContent>
                     </Popover>
-                  )}
-                </div>
-              );
+                  }
+                </div>);
+
             })()}
 
             {/* Color Selector */}
