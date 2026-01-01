@@ -272,50 +272,6 @@ export default function RouteOptimizationSettings({ onClose, currentUser }) {
 
         <div className="border-t border-slate-200"></div>
 
-        {/* Route Constraints */}
-        <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-            <Target className="w-4 h-4" />
-            Route Constraints
-          </h3>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="maxDistance" className="text-sm">
-                Max Route Distance (km)
-              </Label>
-              <Input
-                id="maxDistance"
-                type="number"
-                min="0"
-                value={settings.maxRouteDistanceKm || ''}
-                onChange={(e) => handleSettingChange('maxRouteDistanceKm', parseInt(e.target.value) || null)}
-                placeholder="No limit"
-                className="h-9" />
-
-              <p className="text-xs text-slate-500">Leave empty for no limit</p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="maxTime" className="text-sm">
-                Max Route Time (minutes)
-              </Label>
-              <Input
-                id="maxTime"
-                type="number"
-                min="0"
-                value={settings.maxRouteTimeMinutes || ''}
-                onChange={(e) => handleSettingChange('maxRouteTimeMinutes', parseInt(e.target.value) || null)}
-                placeholder="No limit"
-                className="h-9" />
-
-              <p className="text-xs text-slate-500">Leave empty for no limit</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="border-t border-slate-200"></div>
-
         {/* Optimization Preferences */}
         <div className="space-y-4">
           <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
