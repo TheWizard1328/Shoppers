@@ -213,7 +213,6 @@ export default function RouteImport({
     if (store.dispatcher_id) {
       const dispatcher = usersToSearch.find((u) => u.id === store.dispatcher_id);
       if (dispatcher) {
-        console.log(`[RouteImport] Found dispatcher via ID for store ${store.name}:`, dispatcher.user_name || dispatcher.full_name);
         return dispatcher;
       } else {
         console.warn(`[RouteImport] Store ${store.name} has dispatcher_id (${store.dispatcher_id}) but no matching user found. Falling back to name-based lookup.`);
@@ -229,7 +228,6 @@ export default function RouteImport({
       });
 
       if (dispatcher) {
-        console.log(`[RouteImport] Found dispatcher via name fallback for store ${store.name}:`, dispatcher.user_name || dispatcher.full_name);
         return dispatcher;
       } else {
         console.warn(`[RouteImport] No dispatcher found by name "${store.dispatcher_name}" for store ${store.name}`);
@@ -275,13 +273,6 @@ export default function RouteImport({
       return driverMatch;
     });
 
-    console.log(`🔍 [RouteImport] Checking for match - Date: ${importedDeliveryDate}, DriverID: "${importedDriverId}", DriverName: "${importedDriverName}", AM/PM: ${importedAMPM || 'N/A'}`);
-    console.log(`🔍 [RouteImport] Found ${sameDateDeliveries.length} existing deliveries on same date for same driver`);
-    if (sameDateDeliveries.length > 0) {
-      console.log(`🔍 [RouteImport] Sample existing SIDs: ${sameDateDeliveries.slice(0, 5).map((d) => d.stop_id || 'none').join(', ')}`);
-    }
-    console.log(`🔍 [RouteImport] Import details - SID: "${importedDeliveryStopId}", PID: "${importedDeliveryPatientId}", TR: "${importedTrackingNumber}"`);
-
     // Check for multiple patient deliveries in same slot (require SID for patients only)
     let hasMultipleInSlot = false;
     if (importedAMPM && importedDeliveryPatientId) {
@@ -289,7 +280,6 @@ export default function RouteImport({
       const patientDeliveriesInSlot = sameSlotDeliveries.filter((d) => d.patient_id === importedDeliveryPatientId);
       if (patientDeliveriesInSlot.length > 1) {
         hasMultipleInSlot = true;
-        console.log(`⚠️ [RouteImport] Found ${patientDeliveriesInSlot.length} deliveries for patient "${importedPatient?.full_name}" in ${importedAMPM} slot - REQUIRING SID match`);
       }
     }
 
@@ -298,20 +288,14 @@ export default function RouteImport({
         const sidMatch = sameDateDeliveries.find((d) => {
           const existingSID = (d.stop_id || '').trim();
           const matches = existingSID === importedDeliveryStopId;
-          if (matches) {
-            console.log(`✅ [RouteImport] SID MATCH FOUND (multiple in slot): "${existingSID}" === "${importedDeliveryStopId}"`);
-          }
           return matches;
         });
         if (sidMatch) {
-          console.log(`✅ [RouteImport] Matched by stop_id (required due to multiple in slot). Delivery ID: ${sidMatch.id}`);
           return { match: sidMatch, reason: `SID Match (${importedDeliveryStopId})` };
         } else {
-          console.log(`🚫 [RouteImport] No SID match found - will create NEW delivery (multiple identical deliveries in slot)`);
           return { match: null, reason: 'Multiple in slot - SID required but not matched' };
         }
       } else {
-        console.log(`🚫 [RouteImport] No SID provided but multiple identical deliveries in slot - will create NEW delivery`);
         return { match: null, reason: 'Multiple in slot - no SID provided' };
       }
     }
@@ -320,18 +304,11 @@ export default function RouteImport({
       const sidMatch = sameDateDeliveries.find((d) => {
         const existingSID = (d.stop_id || '').trim();
         const matches = existingSID === importedDeliveryStopId;
-        if (matches) {
-          console.log(`✅ [RouteImport] SID MATCH FOUND: "${existingSID}" === "${importedDeliveryStopId}" for driver "${importedDriverName}"`);
-        }
         return matches;
       });
       if (sidMatch) {
-        console.log(`✅ [RouteImport] Matched by stop_id (${importedDeliveryStopId}), date, and driver. Delivery ID: ${sidMatch.id}`);
         return { match: sidMatch, reason: `SID Match (${importedDeliveryStopId})` };
       } else {
-        console.log(`❌ [RouteImport] No SID match for "${importedDeliveryStopId}". Existing SIDs on this date for this driver:`,
-        sameDateDeliveries.map((d) => d.stop_id).filter(Boolean));
-        console.log(`🔍 [RouteImport] SID not matched - attempting highly probable match based on PID, stop order, time, and TR range...`);
 
         if (importedDeliveryPatientId) {
           const importedStopOrder = importedDelivery.stop_order;
@@ -381,19 +358,13 @@ export default function RouteImport({
           if (highProbabilityMatches.length === 1) {
             const match = highProbabilityMatches[0];
             const reasonText = `Highly Probable: PID + ${match._probReasons.join(' + ')}`;
-            console.log(`✅ [RouteImport] Highly probable match found (score: ${match._probScore}): ${reasonText}`);
             return { match, reason: reasonText };
           } else if (highProbabilityMatches.length > 1) {
             highProbabilityMatches.sort((a, b) => (b._probScore || 0) - (a._probScore || 0));
             const bestMatch = highProbabilityMatches[0];
             const reasonText = `Highly Probable (Best): PID + ${bestMatch._probReasons.join(' + ')}`;
-            console.log(`✅ [RouteImport] Multiple high probability matches, selecting best (score: ${bestMatch._probScore}): ${reasonText}`);
             return { match: bestMatch, reason: reasonText };
-          } else {
-            console.log(`🚫 [RouteImport] No highly probable match found for delivery - continuing to other matching methods...`);
           }
-        } else {
-          console.log(`🔍 [RouteImport] No PID available - will try pickup matching methods below...`);
         }
       }
     }
@@ -406,11 +377,8 @@ export default function RouteImport({
 
       if (patientIdMatches.length === 1) {
         const patientIdMatch = patientIdMatches[0];
-        console.log(`✅ [RouteImport] Single PID MATCH FOUND: "${patientIdMatch.patient_id}" === "${importedDeliveryPatientId}" for driver "${importedDriverName}"`);
-        console.log(`✅ [RouteImport] Matched by patient_id (${importedDeliveryPatientId}), date, and driver. Delivery ID: ${patientIdMatch.id}`);
         return { match: patientIdMatch, reason: `PID Match (${importedDeliveryPatientId})` };
       } else if (patientIdMatches.length > 1) {
-        console.log(`🔍 [RouteImport] Found ${patientIdMatches.length} deliveries with PID "${importedDeliveryPatientId}", applying fuzzy matching...`);
 
         const importedTime = importedDelivery.actual_delivery_time ? new Date(importedDelivery.actual_delivery_time).getTime() : null;
         const importedStopOrder = importedDelivery.stop_order || null;
@@ -430,7 +398,6 @@ export default function RouteImport({
             if (timeDiff <= 3600000) {
               score += 10;
               reasons.push(`Time ±${timeDiffMinutes}min`);
-              console.log(`✅ [RouteImport] Time match: ${timeDiffMinutes} minutes difference (within 60min threshold)`);
             }
           }
 
@@ -439,7 +406,6 @@ export default function RouteImport({
             if (orderDiff <= 3) {
               score += 10;
               reasons.push(`Order ±${orderDiff}`);
-              console.log(`✅ [RouteImport] Stop order match: ${orderDiff} positions difference (within ±3 threshold)`);
             }
           }
 
@@ -452,15 +418,10 @@ export default function RouteImport({
 
         if (bestMatch && bestScore >= 10) {
           const reasonText = `PID Match + ${bestMatch._fuzzyReasons.join(', ')}`;
-          console.log(`✅ [RouteImport] Fuzzy match successful with score ${bestScore}: ${reasonText}`);
           return { match: bestMatch, reason: reasonText };
         } else {
-          console.log(`❌ [RouteImport] Multiple PID matches but no fuzzy criteria met - will create NEW delivery`);
           return { match: null, reason: `Multiple PID matches - fuzzy criteria not met` };
         }
-      } else {
-        console.log(`❌ [RouteImport] No PID match for "${importedDeliveryPatientId}". Existing PIDs on this date for this driver:`,
-        sameDateDeliveries.map((d) => d.patient_id).filter(Boolean).slice(0, 10));
       }
     }
 
@@ -468,17 +429,10 @@ export default function RouteImport({
       const trackingNumberMatch = sameDateDeliveries.find((d) => {
         const existingTR = (d.tracking_number || '').trim();
         const matches = existingTR === importedTrackingNumber;
-        if (matches) {
-          console.log(`✅ [RouteImport] TR MATCH FOUND: "${existingTR}" === "${importedTrackingNumber}" for driver "${importedDriverName}"`);
-        }
         return matches;
       });
       if (trackingNumberMatch) {
-        console.log(`✅ [RouteImport] Matched by tracking_number (${importedTrackingNumber}), date, and driver. Delivery ID: ${trackingNumberMatch.id}`);
         return { match: trackingNumberMatch, reason: `TR# Match (${importedTrackingNumber})` };
-      } else {
-        console.log(`❌ [RouteImport] No TR match for "${importedTrackingNumber}". Existing TRs on this date for this driver:`,
-        sameDateDeliveries.map((d) => d.tracking_number).filter(Boolean).slice(0, 10));
       }
     }
 
@@ -491,7 +445,6 @@ export default function RouteImport({
       );
 
       if (pickupMatch) {
-        console.log(`✅ [RouteImport] Matched generic pickup by store_id, date, and driver. Delivery ID: ${pickupMatch.id}`);
         return { match: pickupMatch, reason: `Pickup Match (Store)` };
       }
     }
@@ -501,8 +454,6 @@ export default function RouteImport({
       const importedAddress = (importedDelivery.delivery_address || '').toLowerCase().trim();
       const importedStopOrder = importedDelivery.stop_order;
       const importedTR = importedTrackingNumber ? importedTrackingNumber.trim() : null;
-
-      console.log(`🔍 [RouteImport] Attempting highly probable pickup match for store_id: ${importedDelivery.store_id}`);
 
       const highProbabilityPickups = sameDateDeliveries.filter((d) => {
         if (d.patient_id) return false;
@@ -550,18 +501,15 @@ export default function RouteImport({
       if (highProbabilityPickups.length === 1) {
         const match = highProbabilityPickups[0];
         const reasonText = `Highly Probable Pickup: Store + ${match._pickupProbReasons.join(' + ')}`;
-        console.log(`✅ [RouteImport] Highly probable pickup match found (score: ${match._pickupProbScore}): ${reasonText}`);
         return { match, reason: reasonText };
       } else if (highProbabilityPickups.length > 1) {
         highProbabilityPickups.sort((a, b) => (b._pickupProbScore || 0) - (a._pickupProbScore || 0));
         const bestMatch = highProbabilityPickups[0];
         const reasonText = `Highly Probable Pickup (Best): Store + ${bestMatch._pickupProbReasons.join(' + ')}`;
-        console.log(`✅ [RouteImport] Multiple high probability pickup matches, selecting best (score: ${bestMatch._pickupProbScore}): ${reasonText}`);
         return { match: bestMatch, reason: reasonText };
       }
     }
 
-    console.log(`❌ [RouteImport] NO MATCH FOUND for driver "${importedDriverName}" - will create new delivery`);
     return { match: null, reason: 'No match found - all criteria failed' };
   }, []);
 
@@ -630,10 +578,8 @@ export default function RouteImport({
   };
 
   const processCSVData = useCallback(async (csvText, fileName, selectedDriver, allDeliveriesData, patientsData, storesData) => {
-    console.log(`[RouteImport] Processing file: ${fileName}`);
 
     if (!csvText || !fileName || !selectedDriver || !patientsData || !storesData || !currentUser) {
-      console.error('[RouteImport] Missing required data for processing');
       return { deliveriesToCreate: [], deliveriesToUpdate: [], skippedItems: [], errors: [] };
     }
 
@@ -657,7 +603,6 @@ export default function RouteImport({
     let expectedDeliveries = 0;
     let lineNumber = 0;
 
-    console.log(`[RouteImport] Creating patient lookup map from ${patientsData.length} patients`);
     const patientsByPID = new Map();
     let patientsWithoutPID = 0;
     patientsData.forEach((patient) => {
@@ -670,12 +615,6 @@ export default function RouteImport({
         patientsWithoutPID++;
       }
     });
-
-    console.log(`[RouteImport] Patient PID map created with ${patientsByPID.size} entries`);
-    console.log(`[RouteImport] Patients without PID: ${patientsWithoutPID}`);
-    if (patientsByPID.size > 0) {
-      console.log(`[RouteImport] Sample PIDs:`, Array.from(patientsByPID.keys()).slice(0, 10));
-    }
 
     const existingDeliveryIds = new Set(allDeliveriesData.map((d) => d.delivery_id).filter(Boolean));
 
@@ -690,7 +629,6 @@ export default function RouteImport({
       }
 
       if (!line.trim()) {
-        console.log(`[RouteImport] Row ${lineNumber}: Skipping empty line.`);
         continue;
       }
 
@@ -698,7 +636,6 @@ export default function RouteImport({
       if (dateMetaMatch) {
         currentDate = dateMetaMatch[1];
         expectedDeliveries = parseInt(dateMetaMatch[2], 10);
-        console.log(`📅 Row ${lineNumber}: Date metadata found - Date: ${currentDate}, Expected Deliveries: ${expectedDeliveries}`);
         continue;
       }
 
@@ -731,7 +668,6 @@ export default function RouteImport({
       const completionTimeStr = values[5]?.replace(/"/g, '').trim();
       const travelDistStr = values[8]?.replace(/"/g, '').trim();
       const travelDist = travelDistStr && !isNaN(parseFloat(travelDistStr)) ? parseFloat(travelDistStr) : null;
-      console.log(`📏 Row ${lineNumber}: Travel Dist from col 9: "${travelDistStr}" -> ${travelDist}`);
       const stopId = (values[12] || '').replace(/"/g, '').trim();
       const patientPID = values[13]?.replace(/"/g, '').trim();
       const rawNotes = (values[15] || '').replace(/"/g, '').trim();
@@ -744,8 +680,6 @@ export default function RouteImport({
       } else if (ampmRawValue === 'AM' || ampmRawValue === 'PM') {
         ampmValue = ampmRawValue;
       }
-
-      console.log(`[RouteImport] Row ${lineNumber} - Order: ${stopOrder}, StoreAbbr: "${storeAbbr}", AM/PM: "${ampmValue || 'none'}" (raw: "${ampmRawValue}"), TR: "${trackingNumber}", SID: "${stopId}", PID: "${patientPID}"`);
 
       // CRITICAL: Pass storesData directly to avoid stale closure issues
       const store = findStoreByAbbreviation(storeAbbr, storesData);
@@ -778,7 +712,6 @@ export default function RouteImport({
         }
 
         patientId = patient.id;
-        console.log(`✅ Row ${lineNumber}: Found patient "${patient.full_name}" (ID: ${patient.id}) for PID "${patientPID}"`);
       }
 
       const dispatcher = findDispatcherByStore(store);
@@ -826,15 +759,11 @@ export default function RouteImport({
         const timeRegex = /^([01]?[0-9]|2[0-3]):([0-5][0-9])$/;
         if (timeRegex.test(completionTimeStr)) {
           newDeliveryData.actual_delivery_time = `${currentDate}T${completionTimeStr}:00`;
-          console.log(`🕒 Row ${lineNumber}: Set local time "${completionTimeStr}" on date "${currentDate}" as: "${newDeliveryData.actual_delivery_time}"`);
         } else {
           console.warn(`⚠️ Row ${lineNumber}: Invalid time format "${completionTimeStr}", skipping time assignment`);
           // Don't throw - just skip the time but continue with the record
         }
       }
-
-      console.log(`🔢 Row ${lineNumber}: Set stop_order to ${stopOrder} (from column 4)`);
-      console.log(`🕒 Row ${lineNumber}: Set ampm_deliveries to "${newDeliveryData.ampm_deliveries}" (1→AM, 2→PM from column 2)`);
 
       if (patientId) {
         newDeliveryData.patient_id = patientId;
@@ -849,7 +778,6 @@ export default function RouteImport({
         newDeliveryData.dont_ring_bell = patient.dont_ring_bell || false;
         newDeliveryData.back_door = patient.back_door || false;
         newDeliveryData.signature_needed = patient.signature_needed || false;
-        console.log(`📦 Row ${lineNumber}: Populated delivery data with patient info. Unit: "${newDeliveryData.unit_number}", Instructions: "${newDeliveryData.delivery_instructions}"`);
       } else {
         newDeliveryData.patient_id = null;
         newDeliveryData.delivery_address = store.address || '';
@@ -860,7 +788,6 @@ export default function RouteImport({
         if (!rawNotes.toLowerCase().includes('pickup') && !rawNotes.toLowerCase().includes('return')) {
           newDeliveryData.delivery_notes = `Pickup from ${store?.name || newDeliveryData.store_id}`;
         }
-        console.log(`🛍️ Row ${lineNumber}: Populated delivery data for store pickup.`);
       }
 
       let cleanedNotes = rawNotes.replace(/ - /g, '\n');
@@ -870,15 +797,11 @@ export default function RouteImport({
         newDeliveryData.first_delivery = true;
         cleanedNotes = cleanedNotes.replace(/first delivery/gi, '').trim();
         cleanedNotes = cleanedNotes.replace(/^[,\s\n]+|[,\s\n]+$/g, '').replace(/\s{2,}/g, ' ').replace(/\n{2,}/g, '\n');
-        console.log(`⭐ Row ${lineNumber}: Found "First Delivery" in notes, setting first_delivery=true`);
-        console.log(`📝 Row ${lineNumber}: Original notes: "${rawNotes}"`);
-        console.log(`📝 Row ${lineNumber}: Cleaned notes after removing "First Delivery": "${cleanedNotes}"`);
       }
 
       // CRITICAL: For pickups with 'failed' in notes, set status to 'cancelled'
       if (isPickup && notesLower.includes('failed')) {
         newDeliveryData.status = statusMap['Cancelled'];
-        console.log(`⚠️ Row ${lineNumber}: Pickup with FAILED in notes - setting status to "cancelled"`);
       } else if (notesLower.includes('failed')) {
         newDeliveryData.status = statusMap['Failed'];
       } else if (notesLower.includes('cancel')) {
@@ -917,7 +840,6 @@ export default function RouteImport({
 
             if (codType === 'dod') {
               paymentType = 'Debit';
-              console.log(`💳 Row ${lineNumber}: DOD detected - forcing payment type to Debit`);
             } else if (paymentType === 'cash') {
               paymentType = 'Cash';
             } else if (paymentType === 'debit') {
@@ -933,7 +855,6 @@ export default function RouteImport({
             if (amount > 0) {
               codPayments.push({ type: paymentType, amount });
               totalCodAmount += amount;
-              console.log(`💰 Row ${lineNumber}: Found ${codType.toUpperCase()} #${idx + 1}: $${amount} (${paymentType})`);
             }
           });
 
@@ -942,15 +863,8 @@ export default function RouteImport({
             newDeliveryData.cod_total_amount_required = totalCodAmount;
             newDeliveryData.cod_payment_type = codPayments[0].type;
             newDeliveryData.cod_amount = totalCodAmount.toString();
-            console.log(`💰 Row ${lineNumber}: Total COD for patient delivery: $${totalCodAmount} (${codPayments.length} payment(s))`);
-          } else {
-            console.log(`💰 Row ${lineNumber}: COD found but all amounts are 0 - setting to null`);
           }
-        } else {
-          console.log(`💰 Row ${lineNumber}: No COD/DOD found in notes for patient delivery`);
         }
-      } else {
-        console.log(`💰 Row ${lineNumber}: Pickup delivery - COD extraction skipped`);
       }
 
       const linesToRemove = [
@@ -979,7 +893,6 @@ export default function RouteImport({
 
         for (const pattern of linesToRemove) {
           if (pattern.test(noteLine)) {
-            console.log(`🗑️ Row ${lineNumber}: Removing line from notes: "${noteLine}"`);
             return false;
           }
         }
@@ -993,8 +906,6 @@ export default function RouteImport({
       if (newDeliveryData.delivery_notes === '' || newDeliveryData.delivery_notes === '-') {
         newDeliveryData.delivery_notes = null;
       }
-
-      console.log(`📝 Row ${lineNumber}: Cleaned notes: "${newDeliveryData.delivery_notes}"`);
 
       const matchResult = matchDeliveryToExisting(newDeliveryData, allDeliveriesData, patientsData);
       const existingDelivery = matchResult?.match || null;
@@ -1024,9 +935,6 @@ export default function RouteImport({
             _changes: changes,
             _matchReason: matchReason
           });
-          console.log(`🔄 Row ${lineNumber}: Identified as an update for existing delivery (ID: ${existingDelivery.id}) with ${changes.length} changes: ${changes.join(', ')}`);
-        } else {
-          console.log(`⏭️ Row ${lineNumber}: Skipping - no significant changes detected for existing delivery (ID: ${existingDelivery.id}).`);
         }
       } else {
         // For new deliveries: set travel_dist from import
@@ -1041,7 +949,6 @@ export default function RouteImport({
           stop_id: newDeliveryData.stop_id || null,
           _matchReason: matchReason
         });
-        console.log(`✨ Row ${lineNumber}: Identified as a new delivery (DID: ${newDeliveryId}).`);
       }
     }
 
@@ -1049,7 +956,6 @@ export default function RouteImport({
     // Matching criteria: Date + Driver + Store (col 1) + AM/PM (col 2)
     // For pickups: PUID = own stop_id
     // For patient deliveries: Find pickup with matching Date + Driver + Store + AM/PM
-    console.log(`📌 [RouteImport] Starting PUID assignment pass for ${deliveriesToCreate.length + deliveriesToUpdate.length} deliveries...`);
 
     // Build a map of pickups by date + driver_id + store_id + ampm_deliveries for quick lookup
     const allParsedDeliveries = [...deliveriesToCreate, ...deliveriesToUpdate];
@@ -1061,12 +967,9 @@ export default function RouteImport({
         const key = `${d.delivery_date}_${d.driver_id}_${d.store_id}_${d.ampm_deliveries || 'none'}`;
         if (!pickupMap.has(key)) {
           pickupMap.set(key, d.stop_id);
-          console.log(`📌 [RouteImport] Indexed pickup: date=${d.delivery_date}, driver=${d.driver_id}, store=${d.store_id}, AM/PM=${d.ampm_deliveries || 'none'}, SID=${d.stop_id}`);
         }
       }
     });
-
-    console.log(`📌 [RouteImport] Pickup map has ${pickupMap.size} entries`);
 
     // Now assign PUIDs
     allParsedDeliveries.forEach((d) => {
@@ -1079,10 +982,8 @@ export default function RouteImport({
         const matchingPuid = pickupMap.get(key);
         if (matchingPuid) {
           d.puid = matchingPuid;
-          console.log(`📌 [RouteImport] Assigned PUID "${matchingPuid}" to patient delivery (SID: ${d.stop_id}, date=${d.delivery_date}, driver=${d.driver_id}, store=${d.store_id}, AM/PM: ${d.ampm_deliveries})`);
         } else {
           d.puid = null;
-          console.log(`⚠️ [RouteImport] No pickup found for patient delivery (SID: ${d.stop_id}, date=${d.delivery_date}, driver=${d.driver_id}, store=${d.store_id}, AM/PM: ${d.ampm_deliveries}) - PUID left blank`);
         }
       }
     });
@@ -1091,12 +992,8 @@ export default function RouteImport({
     const totalToUpdate = deliveriesToUpdate.length;
     const totalForThisFile = totalToCreate + totalToUpdate;
 
-    console.log(`File "${fileName}": ${totalToCreate} to create, ${totalToUpdate} to update. Total: ${totalForThisFile}`);
-
     setProgressPercent(50);
     setProgressMessage('Parsing complete, preparing deliveries for ' + fileName + '...');
-
-    console.log(`[RouteImport] File ${fileName} processed: ${deliveriesToCreate.length} new, ${deliveriesToUpdate.length} updates, ${skippedItems.length} skipped, ${errors.length} errors`);
 
     return {
       deliveriesToCreate,
@@ -1110,7 +1007,6 @@ export default function RouteImport({
   React.useEffect(() => {
     const loadAllDrivers = async () => {
       try {
-        console.log('[RouteImport] Fetching ALL users from ALL cities...');
         const allAppUsers = await base44.entities.AppUser.list();
         const allAuthUsers = await base44.entities.User.list();
 
@@ -1130,7 +1026,6 @@ export default function RouteImport({
         });
 
         setAllDriverUsers(mergedUsers);
-        console.log(`[RouteImport] Loaded ${mergedUsers.length} users from ALL cities`);
       } catch (error) {
         console.error('[RouteImport] Error loading all drivers:', error);
         // Fallback to prop allUsers
@@ -1150,7 +1045,6 @@ export default function RouteImport({
     }
 
     const drivers = getAllDriverUsers(usersToUse, false);
-    console.log('[RouteImport] Available drivers:', drivers.length, drivers.map((d) => d.user_name || d.full_name));
     return sortUsers(drivers);
   }, [allDriverUsers, allUsers]);
 
@@ -1261,7 +1155,6 @@ export default function RouteImport({
       if (!selectedUser) throw new Error('Selected driver not found');
 
       // STEP 1: Extract date range from import files FIRST
-      console.log(`[RouteImport] 📅 Step 1: Extracting date range from ${files.length} import file(s)...`);
       setProgressMessage('Analyzing import files for date range...');
       setProgressPercent(5);
       
@@ -1274,28 +1167,20 @@ export default function RouteImport({
         return;
       }
       
-      console.log(`[RouteImport] 📅 Date range detected: ${minDate} to ${maxDate}`);
       setProgressMessage(`Date range: ${minDate} to ${maxDate}`);
       setProgressPercent(10);
 
-      console.log(`[RouteImport] Loading cached store data...`);
       setProgressMessage('Loading store data from cache...');
       // CRITICAL: Use getData instead of direct API call - respects rate limiting
       const freshStoresAll = await getData('Store', '-created_date', null, false);
       freshStoresRef.current = freshStoresAll || [];
       setAllStores(freshStoresAll || []);
-      console.log(`[RouteImport] Store data loaded: ${freshStoresAll?.length || 0} stores`);
-      if (freshStoresAll && freshStoresAll.length > 0) {
-        console.log(`[RouteImport] Store abbreviations available:`, freshStoresAll.map((s) => `${s.abbreviation || 'N/A'} (${s.name})`).slice(0, 30));
-      }
       setProgressPercent(15);
 
-      console.log(`[RouteImport] Loading cached patient data...`);
       setProgressMessage('Loading patient data from cache...');
       // CRITICAL: Use getData instead of direct API call - respects rate limiting
       const freshPatients = await getData('Patient', '-created_date', null, false);
       setPatients(freshPatients);
-      console.log(`[RouteImport] Patient data loaded: ${freshPatients?.length || 0} patients`);
       setProgressPercent(20);
 
       if (!freshPatients || freshPatients.length === 0) {
@@ -1305,22 +1190,12 @@ export default function RouteImport({
         return;
       }
 
-      if (freshPatients.length > 0) {
-        console.log(`[RouteImport] Sample patient data:`, freshPatients.slice(0, 3).map((p) => ({
-          id: p.id,
-          patient_id: p.patient_id,
-          full_name: p.full_name
-        })));
-      }
-
       // STEP 2: Fetch fresh deliveries for the SPECIFIC driver and date range
-      console.log(`[RouteImport] 🔄 Step 2: Fetching FRESH delivery data for driver "${selectedUser.user_name}" from ${minDate} to ${maxDate}...`);
       setProgressMessage(`Refreshing delivery cache for ${selectedUser.user_name || selectedUser.full_name} (${minDate} to ${maxDate})...`);
       setProgressPercent(25);
 
       // CRITICAL: Use $gte and $lte filters to get deliveries within the date range
       // This ensures we fetch fresh data directly from the database for the relevant period
-      console.log(`[RouteImport] Fetching deliveries with filter: driver_id=${selectedUser.id}, delivery_date >= ${minDate}, delivery_date <= ${maxDate}`);
       
       const freshDeliveries = await base44.entities.Delivery.filter(
         { 
@@ -1331,23 +1206,17 @@ export default function RouteImport({
         10000
       );
       
-      console.log(`[RouteImport] ✅ Loaded ${freshDeliveries.length} existing deliveries for driver "${selectedUser.user_name || selectedUser.full_name}" in date range ${minDate} to ${maxDate}`);
       setProgressPercent(35);
 
       if (freshDeliveries.length > 0) {
-        console.log('[RouteImport] Sample of driver\'s deliveries in date range:');
         freshDeliveries.slice(0, 5).forEach((d) => {
           console.log(`  - Date: "${d.delivery_date}", SID: "${d.stop_id || 'none'}", PID: "${d.patient_id || 'none'}", Store: "${d.store_id}"`);
         });
-      } else {
-        console.warn(`[RouteImport] ⚠️ NO existing deliveries found for driver "${selectedUser.user_name || selectedUser.full_name}" in date range ${minDate} to ${maxDate}. These will all be new records.`);
-      }
-
-      if (freshDeliveries.length > 0) {
-        console.log('[RouteImport] Sample of existing deliveries:');
         freshDeliveries.slice(0, 3).forEach((d) => {
           console.log(`  - ID: ${d.id}, Date: "${d.delivery_date}", SID: "${d.stop_id || 'none'}", PID: "${d.patient_id || 'none'}", TR: "${d.tracking_number || 'none'}"`);
         });
+      } else {
+        console.warn(`[RouteImport] ⚠️ NO existing deliveries found for driver "${selectedUser.user_name || selectedUser.full_name}" in date range ${minDate} to ${maxDate}. These will all be new records.`);
       }
 
       let totalToCreate = [];
@@ -1357,19 +1226,11 @@ export default function RouteImport({
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        console.log(`[RouteImport] Processing file ${i + 1} of ${files.length}: ${file.name}`);
         setProgressMessage(`Processing file ${i + 1} of ${files.length}: ${file.name}...`);
 
         const text = await file.text();
         // CRITICAL: Pass freshStoresAll directly to processCSVData to avoid stale closure
         const result = await processCSVData(text, file.name, selectedUser, freshDeliveries, freshPatients, freshStoresAll);
-
-        console.log(`[RouteImport] Processing complete for file ${file.name}:`, {
-          toCreate: result.deliveriesToCreate.length,
-          toUpdate: result.deliveriesToUpdate.length,
-          skipped: result.skippedItems.length,
-          errors: result.errors.length
-        });
 
         totalToCreate = [...totalToCreate, ...result.deliveriesToCreate];
         totalToUpdate = [...totalToUpdate, ...result.deliveriesToUpdate];
@@ -1379,8 +1240,6 @@ export default function RouteImport({
         const currentParsingProgress = Math.round((i + 1) / files.length * 45);
         setProgressPercent(40 + currentParsingProgress);
       }
-
-      console.log(`📌 [RouteImport] PUID assignment was done during parsing. Total: ${totalToCreate.length} to create, ${totalToUpdate.length} to update`);
 
       setProgressPercent(90);
       setProgressMessage('Parsing complete, generating preview data...');
@@ -1464,9 +1323,7 @@ export default function RouteImport({
       const deliveriesToCreateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'create');
       const deliveriesToUpdateFiltered = filteredPreviewDeliveries.filter((d) => d.action === 'update');
 
-      console.log(`📤 [RouteImport] Batch updating AM/PM for ${deliveriesToCreateFiltered.length} deliveries to create...`);
       batchUpdateAMPM(deliveriesToCreateFiltered);
-      console.log(`📤 [RouteImport] Batch updating AM/PM for ${deliveriesToUpdateFiltered.length} deliveries to update...`);
       batchUpdateAMPM(deliveriesToUpdateFiltered);
 
       // BATCH CREATE: Use bulkCreate DIRECTLY to backend (skip offline DB for imports)
@@ -1489,13 +1346,10 @@ export default function RouteImport({
           batches.push(cleanedDeliveries.slice(i, i + BATCH_SIZE));
         }
 
-        console.log(`📤 [RouteImport] Creating ${cleanedDeliveries.length} deliveries in ${batches.length} batch(es) of up to ${BATCH_SIZE}...`);
-
         let totalCreated = 0;
         for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
           const batch = batches[batchIndex];
           try {
-            console.log(`📤 [RouteImport] Batch ${batchIndex + 1}/${batches.length}: Creating ${batch.length} deliveries on backend...`);
 
             // CRITICAL: Create directly on backend using bulkCreate
             const createdDeliveries = await retryWithBackoff(async () => {
@@ -1523,8 +1377,6 @@ export default function RouteImport({
               created: totalCreated,
               current: totalCreated
             }));
-
-            console.log(`✅ [RouteImport] Batch ${batchIndex + 1} complete: ${batch.length} deliveries created on backend`);
 
             // Delay between batches to avoid rate limits
             if (batchIndex < batches.length - 1) {
@@ -1604,8 +1456,6 @@ export default function RouteImport({
 
             const cleanPayload = cleanDeliveryData(updatePayload);
 
-            console.log(`🔄 [RouteImport] Updating delivery ${i + 1}/${deliveriesToUpdateFiltered.length} on backend: ${cleanPayload.patient_name || 'Store Pickup'}`);
-            
             // CRITICAL: Update directly on backend
             const updatedDelivery = await retryWithBackoff(async () => {
               return await base44.entities.Delivery.update(id, cleanPayload);
@@ -1659,7 +1509,6 @@ export default function RouteImport({
       // Retry failed operations - directly on backend
       const totalFailed = failedCreations.length + failedUpdates.length;
       if (totalFailed > 0) {
-        console.log(`🔄 [RouteImport] Retrying ${totalFailed} failed operations (${failedCreations.length} creates, ${failedUpdates.length} updates)...`);
         setImportProgress((prev) => ({
           ...prev,
           phase: 'retrying',
@@ -1672,7 +1521,6 @@ export default function RouteImport({
           const { data: cleanData } = failedCreations[i];
 
           try {
-            console.log(`🔄 [RouteImport] Retrying create ${i + 1}/${failedCreations.length}: ${cleanData.patient_name || 'Store Pickup'}`);
 
             // Retry on backend
             const createdDelivery = await retryWithBackoff(async () => {
@@ -1692,7 +1540,6 @@ export default function RouteImport({
               created: prev.created + 1,
               current: i + 1
             }));
-            console.log(`✅ [RouteImport] Retry create successful for ${cleanData.patient_name || 'Store Pickup'}`);
           } catch (error) {
             console.error(`❌ Retry create failed for delivery ${cleanData.delivery_id || 'unknown'}:`, error);
             overallResults.errors.push(`Failed to create ${cleanData.patient_name || 'Store Pickup'} (${cleanData.delivery_id || 'no ID'}): ${error.message}`);
@@ -1712,8 +1559,6 @@ export default function RouteImport({
               throw new Error('Missing delivery ID');
             }
 
-            console.log(`🔄 [RouteImport] Retrying update ${i + 1}/${failedUpdates.length}: ${updatePayload.patient_name || 'Store Pickup'}`);
-
             // Retry on backend
             const updatedDelivery = await retryWithBackoff(async () => {
               return await base44.entities.Delivery.update(id, cleanDeliveryData(updatePayload));
@@ -1732,7 +1577,6 @@ export default function RouteImport({
               updated: prev.updated + 1,
               current: failedUpdateOffset + i + 1
             }));
-            console.log(`✅ [RouteImport] Retry update successful for ${updatePayload.patient_name || 'Store Pickup'}`);
           } catch (error) {
             console.error(`❌ Retry update failed for delivery ID ${id}:`, error);
             overallResults.errors.push(`Failed to update ${deliveryData.patient_name || 'Store Pickup'} (ID ${id}): ${error.message}`);
@@ -1751,7 +1595,6 @@ export default function RouteImport({
         currentFile: ''
       }));
 
-      console.log("✅ [RouteImport] Import complete - all data saved directly to backend");
       
       // Show results immediately - data is already on backend
       setImportResult(overallResults);
@@ -2375,14 +2218,12 @@ export default function RouteImport({
                   </Button>
                   <Button
                   onClick={async () => {
-                    console.log('✅ [RouteImport] Done clicked - data already synced to backend during import');
                     
                     // Data is already on backend from handleConfirmImport
                     // Just trigger parent refresh callback
                     if (onImportComplete) {
                       await onImportComplete();
                     }
-                    console.log('✅ [RouteImport] Import complete - triggering parent refresh');
                   }}
                   className="flex-1 bg-emerald-600 hover:bg-emerald-700"
                   disabled={isProcessing}>
