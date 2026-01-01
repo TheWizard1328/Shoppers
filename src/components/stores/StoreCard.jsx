@@ -197,19 +197,26 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                 const dateStr = format(date, 'yyyy-MM-dd');
                 const existingHistory = store.app_fee_history || [];
                 
+                let updatedHistory = existingHistory;
                 if (type === 'start' && currentPeriod) {
                   // Update the start date of current period
-                  const updatedHistory = existingHistory.map(h => 
+                  updatedHistory = existingHistory.map(h => 
                     h === currentPeriod ? { ...h, effective_date: dateStr } : h
                   );
-                  await onSave({ ...store, app_fee_history: updatedHistory });
                 } else if (type === 'end' && endPeriod) {
                   // Update the end date
-                  const updatedHistory = existingHistory.map(h => 
+                  updatedHistory = existingHistory.map(h => 
                     h === endPeriod ? { ...h, effective_date: dateStr } : h
                   );
+                }
+                
+                // Use Store entity directly to update
+                const { Store } = await import('@/entities/Store');
+                await Store.update(store.id, { app_fee_history: updatedHistory });
+                if (onSave) {
                   await onSave({ ...store, app_fee_history: updatedHistory });
                 }
+                
                 setShowDatePicker(false);
                 setEditingDateType(null);
               };
@@ -229,11 +236,20 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                             changed_by: currentUser?.user_name || currentUser?.full_name || 'Unknown'
                           };
                           const existingHistory = store.app_fee_history || [];
-                          await onSave({
-                            ...store,
+                          // Use Store entity directly to update
+                          const { Store } = await import('@/entities/Store');
+                          await Store.update(store.id, {
                             pays_app_fees: checked,
                             app_fee_history: [...existingHistory, historyEntry]
                           });
+                          // Trigger refresh via onSave callback
+                          if (onSave) {
+                            await onSave({
+                              ...store,
+                              pays_app_fees: checked,
+                              app_fee_history: [...existingHistory, historyEntry]
+                            });
+                          }
                         } catch (error) {
                           console.error("Error updating app fees status:", error);
                         }
