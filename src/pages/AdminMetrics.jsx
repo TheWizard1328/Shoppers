@@ -516,7 +516,7 @@ export default function AdminMetrics() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-amber-900">
                 <DollarSign className="w-5 h-5" />
-                App Fees Summary (This Month)
+                App Fees Summary ({MONTH_NAMES[selectedMonth - 1]} {selectedYear})
               </CardTitle>
               <CardDescription>
                 Stores with "Pays App Fees" enabled - {storeMetrics.totals?.stores_paying_fees || 0} of {storeMetrics.totals?.total_stores || 0} stores
