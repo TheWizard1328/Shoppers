@@ -580,7 +580,8 @@ export default function RouteImport({
     { key: 'oversized', label: 'Oversized' },
     { key: 'after_hours_pickup', label: 'After Hrs' },
     { key: 'ampm_deliveries', label: 'AM/PM' },
-    { key: 'first_delivery', label: 'First Delivery' }];
+    { key: 'first_delivery', label: 'First Delivery' },
+    { key: 'travel_dist', label: 'Travel Dist' }];
     // NOTE: PUID is intentionally excluded from change detection
     // When re-importing, we don't want to flag PUID differences as changes
     // because PUID is auto-assigned during import and may vary between imports
