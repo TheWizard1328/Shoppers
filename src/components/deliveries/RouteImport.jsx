@@ -998,7 +998,16 @@ export default function RouteImport({
       const existingDelivery = matchResult?.match || null;
       const matchReason = matchResult?.reason || 'Unknown';
 
+      // CRITICAL: Only set travel_dist if existing is 0/null/undefined OR if this is a new delivery
       if (existingDelivery) {
+        // For updates: only import travel_dist if existing value is 0 or not set
+        const existingTravelDist = existingDelivery.travel_dist;
+        if (travelDist !== null && (!existingTravelDist || existingTravelDist === 0)) {
+          newDeliveryData.travel_dist = travelDist;
+        } else {
+          // Keep existing travel_dist (don't overwrite non-zero values)
+          newDeliveryData.travel_dist = existingTravelDist;
+        }
         const changes = detectChanges(existingDelivery, newDeliveryData);
 
         if (changes.length > 0) {
