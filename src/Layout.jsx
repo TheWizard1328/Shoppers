@@ -62,6 +62,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { getEffectiveUser, clearUserCache } from "./components/utils/auth";
 import { base44 } from '@/api/base44Client';
 import { motion, AnimatePresence } from "framer-motion";
@@ -2556,11 +2557,38 @@ export default function Layout({ children, currentPageName }) {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-56 z-[10000]">
-                            <DropdownMenuLabel>Settings</DropdownMenuLabel>
+                            <div className="px-2 py-2 flex items-center justify-between">
+                              <DropdownMenuLabel>Settings</DropdownMenuLabel>
+                              {userHasRole(currentUser, 'admin') && !isAppOwner(currentUser) && (
+                                <label className="flex items-center gap-1 cursor-pointer">
+                                  <span className="text-[10px] font-medium" style={{ color: 'var(--text-slate-600)' }}>Import</span>
+                                  <Checkbox
+                                    checked={realUser?._tempImportAccess || false}
+                                    onCheckedChange={async (checked) => {
+                                      if (currentUser?._isImpersonating) return;
+                                      
+                                      // Store in sessionStorage for temporary access
+                                      if (checked) {
+                                        sessionStorage.setItem('tempImportAccess', 'true');
+                                      } else {
+                                        sessionStorage.removeItem('tempImportAccess');
+                                      }
+                                      
+                                      // Refresh current user
+                                      clearUserCache();
+                                      const refreshedUser = await getEffectiveUser();
+                                      if (refreshedUser) {
+                                        setCurrentUser(refreshedUser);
+                                      }
+                                    }}
+                                  />
+                                </label>
+                              )}
+                            </div>
                             <DropdownMenuSeparator />
 
-                            {/* Import Buttons - App Owner Only - Hidden on Mobile */}
-                            {!isMobile && realUser && isAppOwner(realUser) && (
+                            {/* Import Buttons - App Owner or Admins with temp access - Hidden on Mobile */}
+                            {!isMobile && realUser && canAccessImports(realUser) && (
                               <>
                                 <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer">
                                   <FileText className="w-4 h-4 mr-2" />
