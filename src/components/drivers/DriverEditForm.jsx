@@ -201,9 +201,9 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                       <span className="font-medium text-slate-700">
                         {format(new Date(entry.effective_date), 'MMM dd, yyyy')}
                       </span>
-                      <div className="text-slate-600">
-                        ${Number(entry.pay_rate_per_delivery || 0).toFixed(2)} / ${Number(entry.extra_km_rate || 0).toFixed(2)}/km / {Number(entry.extra_km_limit || 0).toFixed(2)}km limit
-                      </div>
+                      <div className="text-slate-600 text-[10px]">
+                            ${parseFloat(entry.pay_rate_per_delivery || 0).toString().includes('.') ? parseFloat(entry.pay_rate_per_delivery || 0).toFixed(Math.max(2, (entry.pay_rate_per_delivery?.toString().split('.')[1]?.length || 0))) : parseFloat(entry.pay_rate_per_delivery || 0).toFixed(2)} / ${parseFloat(entry.extra_km_rate || 0).toString().includes('.') ? parseFloat(entry.extra_km_rate || 0).toFixed(Math.max(2, (entry.extra_km_rate?.toString().split('.')[1]?.length || 0))) : parseFloat(entry.extra_km_rate || 0).toFixed(2)}/km / {parseFloat(entry.extra_km_limit || 0).toString().includes('.') ? parseFloat(entry.extra_km_limit || 0).toFixed(Math.max(2, (entry.extra_km_limit?.toString().split('.')[1]?.length || 0))) : parseFloat(entry.extra_km_limit || 0).toFixed(2)}km
+                          </div>
                     </div>
                   ))}
               </div>
