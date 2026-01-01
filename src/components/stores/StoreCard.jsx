@@ -214,7 +214,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                 const { Store } = await import('@/entities/Store');
                 await Store.update(store.id, { app_fee_history: updatedHistory });
                 // Invalidate cache and trigger UI refresh
-                const { invalidate } = await import('./utils/dataManager');
+                const { invalidate } = await import('@/components/utils/dataManager');
                 invalidate('Store');
                 window.dispatchEvent(new CustomEvent('storeUpdated', { detail: { storeId: store.id } }));
 
@@ -245,7 +245,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                           const { Store } = await import('@/entities/Store');
                           await Store.update(store.id, updatedData);
                           // Invalidate cache and trigger UI refresh
-                          const { invalidate } = await import('./utils/dataManager');
+                          const { invalidate } = await import('@/components/utils/dataManager');
                           invalidate('Store');
                           // Dispatch event to trigger refresh
                           window.dispatchEvent(new CustomEvent('storeUpdated', { detail: { storeId: store.id } }));
