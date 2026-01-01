@@ -475,7 +475,7 @@ export default function AdminMetrics() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Store className="w-5 h-5" />
-              Store Breakdown (This Month)
+              Store Breakdown ({MONTH_NAMES[selectedMonth - 1]} {selectedYear})
             </CardTitle>
           </CardHeader>
           <CardContent>
