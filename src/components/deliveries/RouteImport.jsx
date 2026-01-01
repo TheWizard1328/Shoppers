@@ -808,7 +808,8 @@ export default function RouteImport({
         after_hours_pickup: false,
         delivery_notes: rawNotes,
         first_delivery: false,
-        puid: null
+        puid: null,
+        travel_dist: travelDist
       };
 
       const assignedAMPM = ampmValue || determineDeliveryAMPM(newDeliveryData, allDeliveriesData);
