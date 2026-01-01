@@ -247,11 +247,100 @@ export default function AdminMetrics() {
     }
   }, [drivers, hasAccess, selectedYear, selectedMonth]);
 
+  // Recalculate month-specific data when selectedMonth changes (no re-fetch)
+  const recalculateMonthData = useCallback(() => {
+    if (!allYearDeliveries.length || !allStoresData.length) return;
+    
+    const year = parseInt(selectedYear);
+    const targetMonth = selectedMonth;
+    const targetMonthStart = `${year}-${String(targetMonth).padStart(2, '0')}-01`;
+    const targetMonthEnd = new Date(year, targetMonth, 0).toISOString().split('T')[0];
+    
+    const targetMonthDeliveries = allYearDeliveries.filter(d => {
+      if (!d?.delivery_date) return false;
+      return d.delivery_date >= targetMonthStart && d.delivery_date <= targetMonthEnd;
+    });
+
+    // Driver stats
+    const driverStats = {};
+    targetMonthDeliveries.forEach(d => {
+      if (!d.driver_id || !d.patient_id) return;
+      if (!driverStats[d.driver_id]) {
+        const driver = drivers.find(dr => dr?.id === d.driver_id);
+        driverStats[d.driver_id] = {
+          name: driver?.user_name || d.driver_name || 'Unknown',
+          completed: 0,
+          failed: 0,
+          total: 0
+        };
+      }
+      if (d.status === 'completed') driverStats[d.driver_id].completed++;
+      else if (d.status === 'failed') driverStats[d.driver_id].failed++;
+      driverStats[d.driver_id].total++;
+    });
+
+    const driverData = Object.values(driverStats)
+      .sort((a, b) => b.completed - a.completed)
+      .slice(0, 8);
+
+    // Store stats
+    const storeStats = {};
+    targetMonthDeliveries.forEach(d => {
+      if (!d.store_id || !d.patient_id) return;
+      if (!storeStats[d.store_id]) {
+        const store = allStoresData.find(s => s?.id === d.store_id);
+        storeStats[d.store_id] = {
+          name: store?.name || 'Unknown',
+          abbreviation: store?.abbreviation || '',
+          sortOrder: store?.sort_order ?? Infinity,
+          completed: 0,
+          failed: 0,
+          total: 0
+        };
+      }
+      if (d.status === 'completed') storeStats[d.store_id].completed++;
+      else if (d.status === 'failed') storeStats[d.store_id].failed++;
+      storeStats[d.store_id].total++;
+    });
+
+    const storeData = Object.values(storeStats)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+
+    setMetricsData(prev => ({
+      ...prev,
+      driverData,
+      storeData,
+      selectedMonthTotals: {
+        completed: targetMonthDeliveries.filter(d => d.status === 'completed' && d.patient_id).length,
+        failed: targetMonthDeliveries.filter(d => d.status === 'failed').length,
+        activeDrivers: Object.keys(driverStats).length
+      }
+    }));
+
+    // Load store fee metrics for new month
+    base44.functions.invoke('getStoreMetrics', {
+      year: year,
+      month: targetMonth
+    }).then(response => {
+      setStoreMetrics(response?.data || response);
+    }).catch(err => {
+      console.warn('Failed to load store metrics:', err);
+    });
+  }, [allYearDeliveries, allStoresData, selectedYear, selectedMonth, drivers]);
+
+  // Initial load when year changes
   useEffect(() => {
     if (hasAccess && isDataLoaded) {
       calculateMetrics();
     }
-  }, [calculateMetrics, hasAccess, isDataLoaded]);
+  }, [calculateMetrics, hasAccess, isDataLoaded, selectedYear]);
+
+  // Recalculate when month changes (without re-fetching)
+  useEffect(() => {
+    if (allYearDeliveries.length > 0) {
+      recalculateMonthData();
+    }
+  }, [selectedMonth, recalculateMonthData]);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
