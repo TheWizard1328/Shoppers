@@ -31,6 +31,18 @@ export default function StoresPage() {
 
   useEffect(() => {
     loadData();
+
+    // Listen for store updates from StoreCard (app fees checkbox, etc.)
+    const handleStoreUpdated = async (event) => {
+      const { storeId } = event.detail || {};
+      if (storeId) {
+        // Fetch fresh store data
+        const freshStores = await getData('Store', null, null, true);
+        setStores(sortStores(freshStores || []));
+      }
+    };
+    window.addEventListener('storeUpdated', handleStoreUpdated);
+    return () => window.removeEventListener('storeUpdated', handleStoreUpdated);
   }, []);
 
   // Sync context data for real-time updates - OPTIMIZED to prevent unnecessary re-renders
