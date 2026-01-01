@@ -1462,9 +1462,6 @@ export default function RouteImport({
             
             // Update IndexedDB with backend response for instant UI update
             await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
-            
-            // Dispatch event to trigger UI refresh
-            window.dispatchEvent(new CustomEvent('deliveriesImported', { detail: { deliveries: [updatedDelivery] } }));
 
             overallResults.updated++;
             overallResults.completed++;
