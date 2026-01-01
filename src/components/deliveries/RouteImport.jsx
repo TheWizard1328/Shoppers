@@ -1603,7 +1603,10 @@ export default function RouteImport({
       setProgressPercent(100);
       setProgressMessage('Import complete!');
       
-      // Broadcast removed - relying on smart refresh only
+      // CRITICAL: Resume smart refresh and location poller after import
+      smartRefreshManager.restart(); // Reset timers and resume
+      driverLocationPoller.resume();
+      console.log('▶️ [RouteImport] Resumed smart refresh and location poller after import');
 
     } catch (error) {
       console.error("❌ Overall import error:", error);
