@@ -23,8 +23,8 @@ export const canAccessImports = (user, adminImportEnabled = false) => {
   if (!user) return false;
   // App owners always have access
   if (user.role === 'admin') return true;
-  // Admins when global admin import is enabled
-  if (adminImportEnabled && userHasRole(user, 'admin')) return true;
+  // Kyle J when admin import is enabled
+  if (adminImportEnabled && user.user_name === 'Kyle J') return true;
   return false;
 };
 
