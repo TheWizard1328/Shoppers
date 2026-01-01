@@ -2317,59 +2317,72 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {displayedSettings.map(setting => {
-                    const selectedDriverName = setting.selected_driver_id 
-                      ? (setting.selected_driver_id === 'all' ? 'All Drivers' : getUserName(setting.selected_driver_id))
-                      : '-';
-                    
-                    return (
-                      <tr key={setting.id} className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
-                        {visibleColumns.includes('user_name') && (
-                          <td className="p-3 font-medium" style={{ color: 'var(--text-slate-900)' }}>{getUserName(setting.user_id)}</td>
-                        )}
-                        {visibleColumns.includes('device_id') && (
-                          <td className="p-3 font-mono text-xs" style={{ color: 'var(--text-slate-500)' }} title={setting.device_id}>
-                            {setting.device_id ? setting.device_id.substring(0, 16) + '...' : '-'}
-                          </td>
-                        )}
-                        {visibleColumns.includes('selected_driver') && (
-                          <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{selectedDriverName}</td>
-                        )}
-                        {visibleColumns.includes('selected_date') && (
-                          <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{setting.selected_date || '-'}</td>
-                        )}
-                        {visibleColumns.includes('sidebar_width') && (
-                          <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{setting.sidebar_width || 240}px</td>
-                        )}
-                        {visibleColumns.includes('theme') && (
-                          <td className="p-3">
-                            <Badge variant="secondary">{setting.theme_preference || 'auto'}</Badge>
-                          </td>
-                        )}
-                        {visibleColumns.includes('created') && (
-                          <td className="p-3 text-xs" style={{ color: 'var(--text-slate-600)' }}>
-                            {setting.created ? format(new Date(setting.created), 'MMM d, yyyy h:mm a') : '-'}
-                          </td>
-                        )}
-                        {visibleColumns.includes('updated') && (
-                          <td className="p-3 text-xs" style={{ color: 'var(--text-slate-600)' }}>
-                            {setting.updated ? format(new Date(setting.updated), 'MMM d, yyyy h:mm a') : '-'}
-                          </td>
-                        )}
-                        {visibleColumns.includes('actions') && (
-                          <td className="p-3">
-                            <Button 
-                              variant="destructive" 
-                              size="sm"
-                              onClick={() => handleDeleteSetting(setting.id)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })}
+                 {displayedSettings
+                   .sort((a, b) => {
+                     // Primary sort: updated_date descending
+                     const aUpdated = a.updated ? new Date(a.updated).getTime() : 0;
+                     const bUpdated = b.updated ? new Date(b.updated).getTime() : 0;
+                     if (aUpdated !== bUpdated) {
+                       return bUpdated - aUpdated;
+                     }
+                     // Secondary sort: created_date descending
+                     const aCreated = a.created ? new Date(a.created).getTime() : 0;
+                     const bCreated = b.created ? new Date(b.created).getTime() : 0;
+                     return bCreated - aCreated;
+                   })
+                   .map(setting => {
+                   const selectedDriverName = setting.selected_driver_id 
+                     ? (setting.selected_driver_id === 'all' ? 'All Drivers' : getUserName(setting.selected_driver_id))
+                     : '-';
+
+                   return (
+                     <tr key={setting.id} className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
+                       {visibleColumns.includes('user_name') && (
+                         <td className="p-3 font-medium" style={{ color: 'var(--text-slate-900)' }}>{getUserName(setting.user_id)}</td>
+                       )}
+                       {visibleColumns.includes('device_id') && (
+                         <td className="p-3 font-mono text-xs" style={{ color: 'var(--text-slate-500)' }} title={setting.device_id}>
+                           {setting.device_id ? setting.device_id.substring(0, 16) + '...' : '-'}
+                         </td>
+                       )}
+                       {visibleColumns.includes('selected_driver') && (
+                         <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{selectedDriverName}</td>
+                       )}
+                       {visibleColumns.includes('selected_date') && (
+                         <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{setting.selected_date || '-'}</td>
+                       )}
+                       {visibleColumns.includes('sidebar_width') && (
+                         <td className="p-3" style={{ color: 'var(--text-slate-900)' }}>{setting.sidebar_width || 240}px</td>
+                       )}
+                       {visibleColumns.includes('theme') && (
+                         <td className="p-3">
+                           <Badge variant="secondary">{setting.theme_preference || 'auto'}</Badge>
+                         </td>
+                       )}
+                       {visibleColumns.includes('created') && (
+                         <td className="p-3 text-xs" style={{ color: 'var(--text-slate-600)' }}>
+                           {setting.created ? format(new Date(setting.created), 'MMM d, yyyy h:mm a') : '-'}
+                         </td>
+                       )}
+                       {visibleColumns.includes('updated') && (
+                         <td className="p-3 text-xs" style={{ color: 'var(--text-slate-600)' }}>
+                           {setting.updated ? format(new Date(setting.updated), 'MMM d, yyyy h:mm a') : '-'}
+                         </td>
+                       )}
+                       {visibleColumns.includes('actions') && (
+                         <td className="p-3">
+                           <Button 
+                             variant="destructive" 
+                             size="sm"
+                             onClick={() => handleDeleteSetting(setting.id)}
+                           >
+                             <Trash2 className="w-4 h-4" />
+                           </Button>
+                         </td>
+                       )}
+                     </tr>
+                   );
+                 })}
                 </tbody>
               </table>
             </div>
