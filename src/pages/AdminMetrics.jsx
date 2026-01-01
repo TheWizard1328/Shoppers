@@ -448,7 +448,7 @@ export default function AdminMetrics() {
                   <DollarSign className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <p className="text-sm text-amber-700">Fees This Month</p>
+                  <p className="text-sm text-amber-700">{selectedMonth ? `Fees ${MONTH_NAMES[selectedMonth - 1]}` : `Fees ${selectedYear}`}</p>
                   <p className="text-2xl font-bold text-amber-900">
                     {formatCurrency(storeMetrics?.totals?.total_fees_owed || 0)}
                   </p>
