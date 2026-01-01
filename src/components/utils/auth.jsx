@@ -142,6 +142,11 @@ export const getEffectiveUser = async () => {
               return null;
             }
 
+            // Add temporary import access flag if enabled
+            if (sessionStorage.getItem('tempImportAccess') === 'true') {
+              mergedUser._tempImportAccess = true;
+            }
+
             // Update cache on successful fetch
             userCache.data = mergedUser;
             userCache.timestamp = now;

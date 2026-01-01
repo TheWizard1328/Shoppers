@@ -21,8 +21,11 @@ export const userHasRole = (user, role) => {
  */
 export const canAccessImports = (user) => {
   if (!user) return false;
-  // Check platform User.role for App Owner status
-  return user.role === 'admin';
+  // App owners always have access
+  if (user.role === 'admin') return true;
+  // Admins with temporary access enabled
+  if (user._tempImportAccess === true && userHasRole(user, 'admin')) return true;
+  return false;
 };
 
 /**
