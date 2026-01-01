@@ -440,7 +440,7 @@ export default function AdminMetrics() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="w-5 h-5" />
-                Driver Performance (This Month)
+                Driver Performance ({MONTH_NAMES[selectedMonth - 1]} {selectedYear})
               </CardTitle>
             </CardHeader>
             <CardContent>
