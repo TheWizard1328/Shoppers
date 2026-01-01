@@ -19,12 +19,12 @@ export const userHasRole = (user, role) => {
  * Check if user can access imports (Admin Utilities)
  * This checks PLATFORM admin role (App Owner) via User.role
  */
-export const canAccessImports = (user) => {
+export const canAccessImports = (user, adminImportEnabled = false) => {
   if (!user) return false;
   // App owners always have access
   if (user.role === 'admin') return true;
-  // Admins with temporary access enabled
-  if (user._tempImportAccess === true && userHasRole(user, 'admin')) return true;
+  // Admins when global admin import is enabled
+  if (adminImportEnabled && userHasRole(user, 'admin')) return true;
   return false;
 };
 

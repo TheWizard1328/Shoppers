@@ -646,6 +646,7 @@ export default function Layout({ children, currentPageName }) {
       const [unreadMessageCount, setUnreadMessageCount] = useState(0);
       const [initialConversation, setInitialConversation] = useState(null);
       const [appVersion, setAppVersion] = useState(DEFAULT_APP_VERSION);
+  const [adminImportEnabled, setAdminImportEnabled] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -696,6 +697,11 @@ export default function Layout({ children, currentPageName }) {
           if (settings[0].setting_value.appVersion) {
             const version = settings[0].setting_value.appVersion;
             setAppVersion(`v${version.major}.${version.minor}.${version.build}`);
+          }
+          
+          // Load admin import toggle state
+          if (settings[0].setting_value.adminImportEnabled !== undefined) {
+            setAdminImportEnabled(settings[0].setting_value.adminImportEnabled);
           }
         } else {
           smartRefreshManager._enabled = true;
@@ -1850,7 +1856,7 @@ export default function Layout({ children, currentPageName }) {
 
 
 
-    if (realUser && canAccessImports(realUser)) {
+    if (realUser && canAccessImports(realUser, adminImportEnabled)) {
       items.push({
         title: "Admin Utilities",
         pageName: 'AdminUtilities',
@@ -1859,7 +1865,7 @@ export default function Layout({ children, currentPageName }) {
       });
     }
     return items;
-  }, [entityCounts.cities, entityCounts.stores, entityCounts.users, realUser]);
+  }, [entityCounts.cities, entityCounts.stores, entityCounts.users, realUser, adminImportEnabled]);
 
   const constructUrlWithParams = useCallback((baseUrl) => {
     const currentParams = new URLSearchParams(location.search);
@@ -2564,22 +2570,25 @@ export default function Layout({ children, currentPageName }) {
                                   <label className="flex items-center gap-2 cursor-pointer">
                                     <span className="text-xs font-medium" style={{ color: 'var(--text-slate-600)' }}>Admin Import</span>
                                     <Switch
-                                      checked={sessionStorage.getItem('tempImportAccess') === 'true'}
+                                      checked={adminImportEnabled}
                                       onCheckedChange={async (checked) => {
                                         if (currentUser?._isImpersonating) return;
                                         
-                                        // Store in sessionStorage for temporary access
-                                        if (checked) {
-                                          sessionStorage.setItem('tempImportAccess', 'true');
-                                        } else {
-                                          sessionStorage.removeItem('tempImportAccess');
-                                        }
+                                        setAdminImportEnabled(checked);
                                         
-                                        // Refresh current user
-                                        clearUserCache();
-                                        const refreshedUser = await getEffectiveUser();
-                                        if (refreshedUser) {
-                                          setCurrentUser(refreshedUser);
+                                        // Save to AppSettings so all admins can see it
+                                        try {
+                                          const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+                                          if (settings && settings.length > 0) {
+                                            await base44.entities.AppSettings.update(settings[0].id, {
+                                              setting_value: {
+                                                ...settings[0].setting_value,
+                                                adminImportEnabled: checked
+                                              }
+                                            });
+                                          }
+                                        } catch (error) {
+                                          console.error('Failed to save admin import setting:', error);
                                         }
                                       }}
                                     />
@@ -2590,7 +2599,7 @@ export default function Layout({ children, currentPageName }) {
                             <DropdownMenuSeparator />
 
                             {/* Import Buttons - App Owner or Admins with temp access - Hidden on Mobile */}
-                            {!isMobile && realUser && canAccessImports(realUser) && (
+                            {!isMobile && realUser && canAccessImports(realUser, adminImportEnabled) && (
                               <>
                                 <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer">
                                   <FileText className="w-4 h-4 mr-2" />
@@ -3010,22 +3019,25 @@ export default function Layout({ children, currentPageName }) {
                                 <label className="flex items-center gap-2 cursor-pointer">
                                   <span className="text-xs font-medium" style={{ color: 'var(--text-slate-600)' }}>Admin Import</span>
                                   <Switch
-                                    checked={sessionStorage.getItem('tempImportAccess') === 'true'}
+                                    checked={adminImportEnabled}
                                     onCheckedChange={async (checked) => {
                                       if (currentUser?._isImpersonating) return;
-
-                                      // Store in sessionStorage for temporary access
-                                      if (checked) {
-                                        sessionStorage.setItem('tempImportAccess', 'true');
-                                      } else {
-                                        sessionStorage.removeItem('tempImportAccess');
-                                      }
-
-                                      // Refresh current user
-                                      clearUserCache();
-                                      const refreshedUser = await getEffectiveUser();
-                                      if (refreshedUser) {
-                                        setCurrentUser(refreshedUser);
+                                      
+                                      setAdminImportEnabled(checked);
+                                      
+                                      // Save to AppSettings so all admins can see it
+                                      try {
+                                        const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+                                        if (settings && settings.length > 0) {
+                                          await base44.entities.AppSettings.update(settings[0].id, {
+                                            setting_value: {
+                                              ...settings[0].setting_value,
+                                              adminImportEnabled: checked
+                                            }
+                                          });
+                                        }
+                                      } catch (error) {
+                                        console.error('Failed to save admin import setting:', error);
                                       }
                                     }}
                                   />
