@@ -233,7 +233,7 @@ export default function AdminMetrics() {
     } finally {
       setIsLoading(false);
     }
-  }, [drivers, hasAccess, selectedYear, selectedMonth]);
+  }, [drivers, hasAccess, selectedYear]);
 
   // Recalculate month-specific data when selectedMonth changes (no re-fetch)
   const recalculateMonthData = useCallback(() => {
