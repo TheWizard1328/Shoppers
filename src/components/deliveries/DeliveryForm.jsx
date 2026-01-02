@@ -3701,6 +3701,7 @@ export default function DeliveryForm({
                                 <>
                                   <SelectItem value="Staged">Staged</SelectItem>
                                   <SelectItem value="pending">Pending</SelectItem>
+                                  <SelectItem value="in_transit">In Transit</SelectItem>
                                 </>
                               )}
                             </SelectContent>
