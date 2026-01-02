@@ -62,36 +62,28 @@ Deno.serve(async (req) => {
     }
     console.log(`[Predictions] Found ${patientsWithDeliveries.size} patients already with deliveries on ${selectedDate}`);
 
-    // Helper function to count weeks between two dates (same day of week)
-    const getWeeksBetween = (fromDate, toDate) => {
-      const diffTime = toDate - fromDate;
-      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-      return Math.floor(diffDays / 7);
-    };
-
-    // Helper function to find the last delivery on the same day of week
-    const findLastDeliveryOnSameDay = (patientId, targetDayOfWeek, beforeDate) => {
-      // Look through existing deliveries for this patient on the same day of week
-      const patientDeliveries = existingDeliveries.filter(d => 
-        d && d.patient_id === patientId && d.status === 'completed'
-      );
-      
-      let lastMatchingDate = null;
-      for (const delivery of patientDeliveries) {
-        if (!delivery.delivery_date) continue;
-        const deliveryDate = new Date(delivery.delivery_date + 'T00:00:00');
-        if (deliveryDate.getDay() === targetDayOfWeek && deliveryDate < beforeDate) {
-          if (!lastMatchingDate || deliveryDate > lastMatchingDate) {
-            lastMatchingDate = deliveryDate;
-          }
+    // Helper: Check if lastDate falls within +/- windowDays of any cycle back from selectedDateObj
+    const matchesCyclePattern = (lastDate, intervalDays, windowDays, maxCycles) => {
+      for (let i = 1; i <= maxCycles; i++) {
+        const expectedDate = new Date(selectedDateObj);
+        expectedDate.setDate(selectedDateObj.getDate() - (i * intervalDays));
+        
+        const minDate = new Date(expectedDate);
+        minDate.setDate(expectedDate.getDate() - windowDays);
+        const maxDate = new Date(expectedDate);
+        maxDate.setDate(expectedDate.getDate() + windowDays);
+        
+        if (lastDate >= minDate && lastDate <= maxDate) {
+          return true;
         }
       }
-      return lastMatchingDate;
+      return false;
     };
 
-    // Filter patients based on their recurring schedule
     const predictions = [];
     const excludeSet = new Set(excludePatientIds);
+    const lookbackWindowDays = 2; // +/- 2 days for flexible matching
+    const maxCyclesBack = 3; // Check up to 3 cycles back
 
     for (const patient of patients) {
       if (!patient || excludeSet.has(patient.id)) continue;
@@ -106,100 +98,87 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Check if this patient should have a delivery on the selected date
       let shouldDeliver = false;
       let frequency = null;
 
-      // Check if patient has this day selected for weekly patterns
       const hasDaySelected = patient[`recurring_weekly_${selectedDayName}`];
 
-      // Daily deliveries - check first (highest frequency)
+      // Daily deliveries - highest priority
       if (patient.recurring_daily) {
         shouldDeliver = true;
         frequency = 'Daily';
       }
       // CRITICAL: Check Weekly x4 BEFORE Bi-Weekly BEFORE Weekly (more specific patterns first)
-      // Weekly x4 (Every 4 Weeks) - check specific day and 4-week interval
-      else if (patient.recurring_weekly_x4) {
-        // Weekly x4 requires a day selected
-        if (hasDaySelected) {
-          if (patient.last_delivery_date) {
-            const lastDate = new Date(patient.last_delivery_date + 'T00:00:00');
-            const daysDiff = Math.floor((selectedDateObj - lastDate) / (1000 * 60 * 60 * 24));
-            // Should deliver if at least 28 days have passed
-            if (daysDiff >= 28) {
-              shouldDeliver = true;
-              frequency = 'Every 4 Weeks';
-            }
-          } else {
-            // No last delivery - include in predictions
+      // Weekly x4 (Every 4 Weeks) - check specific day and pattern match within +/- 2 days over 3 cycles
+      else if (patient.recurring_weekly_x4 && hasDaySelected) {
+        if (!patient.last_delivery_date) {
+          shouldDeliver = true;
+          frequency = 'Every 4 Weeks';
+        } else {
+          const lastDate = new Date(patient.last_delivery_date + 'T00:00:00');
+          // Check if last delivery matches the 28-day cycle pattern (within +/- 2 days, up to 3 cycles back)
+          if (matchesCyclePattern(lastDate, 28, lookbackWindowDays, maxCyclesBack)) {
             shouldDeliver = true;
             frequency = 'Every 4 Weeks';
           }
         }
       }
       // Bi-weekly deliveries (Every 2 Weeks) - check BEFORE weekly
-      else if (patient.recurring_biweekly) {
-        // Bi-weekly requires a day selected
-        if (hasDaySelected) {
-          if (patient.last_delivery_date) {
-            const lastDate = new Date(patient.last_delivery_date + 'T00:00:00');
-            const daysDiff = Math.floor((selectedDateObj - lastDate) / (1000 * 60 * 60 * 24));
-            // Should deliver if at least 14 days have passed
-            if (daysDiff >= 14) {
-              shouldDeliver = true;
-              frequency = 'Every 2 Weeks';
-            }
-          } else {
-            // No last delivery - include in predictions
+      else if (patient.recurring_biweekly && hasDaySelected) {
+        if (!patient.last_delivery_date) {
+          shouldDeliver = true;
+          frequency = 'Every 2 Weeks';
+        } else {
+          const lastDate = new Date(patient.last_delivery_date + 'T00:00:00');
+          // Check if last delivery matches the 14-day cycle pattern (within +/- 2 days, up to 3 cycles back)
+          if (matchesCyclePattern(lastDate, 14, lookbackWindowDays, maxCyclesBack)) {
             shouldDeliver = true;
             frequency = 'Every 2 Weeks';
           }
         }
       }
       // Weekly deliveries (Every Week) - check LAST among weekly patterns
-      // Only if NOT biweekly and NOT weekly_x4 (those were already checked above)
       else if (hasDaySelected) {
-        if (patient.last_delivery_date) {
+        if (!patient.last_delivery_date) {
+          shouldDeliver = true;
+          frequency = 'Weekly';
+        } else {
           const lastDate = new Date(patient.last_delivery_date + 'T00:00:00');
-          const daysDiff = Math.floor((selectedDateObj - lastDate) / (1000 * 60 * 60 * 24));
-          // Should deliver if at least 7 days have passed
-          if (daysDiff >= 7) {
+          // Check if last delivery matches the 7-day cycle pattern (within +/- 2 days, up to 3 cycles back)
+          if (matchesCyclePattern(lastDate, 7, lookbackWindowDays, maxCyclesBack)) {
             shouldDeliver = true;
             frequency = 'Weekly';
           }
-        } else {
-          // No last delivery - include in predictions
-          shouldDeliver = true;
-          frequency = 'Weekly';
         }
       }
       // Monthly deliveries
       else if (patient.recurring_monthly) {
-        if (patient.last_delivery_date) {
+        if (!patient.last_delivery_date) {
+          shouldDeliver = true;
+          frequency = 'Monthly';
+        } else {
           const lastDate = new Date(patient.last_delivery_date + 'T00:00:00');
           const daysDiff = Math.floor((selectedDateObj - lastDate) / (1000 * 60 * 60 * 24));
-          if (daysDiff >= 28) {
+          // For monthly, check if at least ~26 days have passed (28 - 2 day window)
+          if (daysDiff >= 28 - lookbackWindowDays) {
             shouldDeliver = true;
             frequency = 'Monthly';
           }
-        } else {
-          shouldDeliver = true;
-          frequency = 'Monthly';
         }
       }
       // Bi-monthly deliveries
       else if (patient.recurring_bimonthly) {
-        if (patient.last_delivery_date) {
+        if (!patient.last_delivery_date) {
+          shouldDeliver = true;
+          frequency = 'Every 2 Months';
+        } else {
           const lastDate = new Date(patient.last_delivery_date + 'T00:00:00');
           const daysDiff = Math.floor((selectedDateObj - lastDate) / (1000 * 60 * 60 * 24));
-          if (daysDiff >= 56) {
+          // For bi-monthly, check if at least ~54 days have passed (56 - 2 day window)
+          if (daysDiff >= 56 - lookbackWindowDays) {
             shouldDeliver = true;
             frequency = 'Every 2 Months';
           }
-        } else {
-          shouldDeliver = true;
-          frequency = 'Every 2 Months';
         }
       }
 
