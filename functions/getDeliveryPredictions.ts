@@ -122,14 +122,10 @@ Deno.serve(async (req) => {
       const lastDate = patient.last_delivery_date ? new Date(patient.last_delivery_date + 'T00:00:00') : null;
       const daysSinceLast = lastDate ? Math.floor((selectedDateObj - lastDate) / (1000 * 60 * 60 * 24)) : null;
 
-      // 1) Daily: Show unless no delivery in past 3 days
+      // 1) Daily: Always show (no time cap)
       if (patient.recurring_daily) {
-        if (!lastDate || daysSinceLast <= 3) {
-          shouldDeliver = true;
-          frequency = 'Daily';
-        } else {
-          skipReason = `Daily but ${daysSinceLast} days > 3`;
-        }
+        shouldDeliver = true;
+        frequency = 'Daily';
       }
       // 2) Weekly: Show on selected day (no time cap)
       else if (hasDaySelected && !patient.recurring_biweekly && !patient.recurring_weekly_x4) {
