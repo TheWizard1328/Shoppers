@@ -113,60 +113,69 @@ Deno.serve(async (req) => {
       // Check if patient has this day selected for weekly patterns
       const hasDaySelected = patient[`recurring_weekly_${selectedDayName}`];
 
-      // Daily deliveries
+      // Daily deliveries - check first (highest frequency)
       if (patient.recurring_daily) {
         shouldDeliver = true;
         frequency = 'Daily';
       }
+      // CRITICAL: Check Weekly x4 BEFORE Bi-Weekly BEFORE Weekly (more specific patterns first)
       // Weekly x4 (Every 4 Weeks) - check specific day and 4-week interval
-      else if (patient.recurring_weekly_x4 && hasDaySelected) {
-        // Weekly x4 means every 4 weeks on the selected day(s)
-        if (patient.last_delivery_date) {
-          const lastDate = new Date(patient.last_delivery_date + 'T00:00:00');
-          const weeksBetween = getWeeksBetween(lastDate, selectedDateObj);
-          // Should deliver if at least 4 weeks (28 days) have passed
-          if (weeksBetween >= 4) {
+      else if (patient.recurring_weekly_x4) {
+        // Weekly x4 requires a day selected
+        if (hasDaySelected) {
+          if (patient.last_delivery_date) {
+            const lastDate = new Date(patient.last_delivery_date + 'T00:00:00');
+            const daysDiff = Math.floor((selectedDateObj - lastDate) / (1000 * 60 * 60 * 24));
+            // Should deliver if at least 28 days have passed
+            if (daysDiff >= 28) {
+              shouldDeliver = true;
+              frequency = 'Every 4 Weeks';
+            }
+          } else {
+            // No last delivery - include in predictions
             shouldDeliver = true;
             frequency = 'Every 4 Weeks';
           }
-        } else {
-          shouldDeliver = true;
-          frequency = 'Every 4 Weeks';
         }
       }
-      // Bi-weekly deliveries (Every 2 Weeks) - check specific day and 2-week interval
-      else if (patient.recurring_biweekly && hasDaySelected) {
-        if (patient.last_delivery_date) {
-          const lastDate = new Date(patient.last_delivery_date + 'T00:00:00');
-          const weeksBetween = getWeeksBetween(lastDate, selectedDateObj);
-          // Should deliver if at least 2 weeks have passed
-          if (weeksBetween >= 2) {
+      // Bi-weekly deliveries (Every 2 Weeks) - check BEFORE weekly
+      else if (patient.recurring_biweekly) {
+        // Bi-weekly requires a day selected
+        if (hasDaySelected) {
+          if (patient.last_delivery_date) {
+            const lastDate = new Date(patient.last_delivery_date + 'T00:00:00');
+            const daysDiff = Math.floor((selectedDateObj - lastDate) / (1000 * 60 * 60 * 24));
+            // Should deliver if at least 14 days have passed
+            if (daysDiff >= 14) {
+              shouldDeliver = true;
+              frequency = 'Every 2 Weeks';
+            }
+          } else {
+            // No last delivery - include in predictions
             shouldDeliver = true;
             frequency = 'Every 2 Weeks';
           }
-        } else {
-          shouldDeliver = true;
-          frequency = 'Every 2 Weeks';
         }
       }
-      // Weekly deliveries (Every Week) - check specific day, should be at least 1 week
-      else if (hasDaySelected && !patient.recurring_biweekly && !patient.recurring_weekly_x4) {
+      // Weekly deliveries (Every Week) - check LAST among weekly patterns
+      // Only if NOT biweekly and NOT weekly_x4 (those were already checked above)
+      else if (hasDaySelected) {
         if (patient.last_delivery_date) {
           const lastDate = new Date(patient.last_delivery_date + 'T00:00:00');
-          const weeksBetween = getWeeksBetween(lastDate, selectedDateObj);
-          // Should deliver if at least 1 week has passed
-          if (weeksBetween >= 1) {
+          const daysDiff = Math.floor((selectedDateObj - lastDate) / (1000 * 60 * 60 * 24));
+          // Should deliver if at least 7 days have passed
+          if (daysDiff >= 7) {
             shouldDeliver = true;
             frequency = 'Weekly';
           }
         } else {
+          // No last delivery - include in predictions
           shouldDeliver = true;
           frequency = 'Weekly';
         }
       }
       // Monthly deliveries
       else if (patient.recurring_monthly) {
-        // Check if last delivery was at least 28 days ago
         if (patient.last_delivery_date) {
           const lastDate = new Date(patient.last_delivery_date + 'T00:00:00');
           const daysDiff = Math.floor((selectedDateObj - lastDate) / (1000 * 60 * 60 * 24));
@@ -181,7 +190,6 @@ Deno.serve(async (req) => {
       }
       // Bi-monthly deliveries
       else if (patient.recurring_bimonthly) {
-        // Check if last delivery was at least 56 days ago
         if (patient.last_delivery_date) {
           const lastDate = new Date(patient.last_delivery_date + 'T00:00:00');
           const daysDiff = Math.floor((selectedDateObj - lastDate) / (1000 * 60 * 60 * 24));
