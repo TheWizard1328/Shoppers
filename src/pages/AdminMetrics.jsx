@@ -329,13 +329,13 @@ export default function AdminMetrics() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Store className="w-5 h-5" />
-              Store Breakdown ({selectedYear})
+              Store Breakdown ({selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} {selectedYear})
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-[350px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={metricsData.storeData}>
+                <BarChart data={filteredData?.storeData || metricsData.storeData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis 
                     dataKey="abbreviation" 
