@@ -553,7 +553,8 @@ export default function DeliveryForm({
 
       return patient.full_name?.toLowerCase().includes(searchLower) ||
       patient.address?.toLowerCase().includes(searchLower) ||
-      patient.phone?.toLowerCase().includes(searchLower);
+      patient.phone?.toLowerCase().includes(searchLower) ||
+      patient.notes?.toLowerCase().includes(searchLower);
     });
 
     // If no active patients found, search inactive patients as fallback
@@ -572,7 +573,8 @@ export default function DeliveryForm({
 
         return patient.full_name?.toLowerCase().includes(searchLower) ||
         patient.address?.toLowerCase().includes(searchLower) ||
-        patient.phone?.toLowerCase().includes(searchLower);
+        patient.phone?.toLowerCase().includes(searchLower) ||
+        patient.notes?.toLowerCase().includes(searchLower);
       });
     }
 
