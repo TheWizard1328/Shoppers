@@ -206,33 +206,56 @@ Deno.serve(async (req) => {
       driverMonthlyData.push(monthData);
     }
 
-    // Build day-by-day driver data for each month (for drill-down view) - billable vs non-billable
-    const driverDailyByMonth = {};
+    // Build driver breakdown data (billable vs non-billable per driver) - full year and by month
+    const driverStats = {}; // { driverId: { name, billable, nonBillable } }
+    const driverStatsByMonth = {}; // { monthNum: { driverId: stats } }
+    
     for (let m = 1; m <= 12; m++) {
-      const daysInMonth = new Date(year, m, 0).getDate();
-      const dailyData = [];
+      driverStatsByMonth[m] = {};
+    }
+
+    yearDeliveries.forEach(d => {
+      if (!d.driver_id || !d.patient_id) return;
       
-      for (let day = 1; day <= daysInMonth; day++) {
-        const dateStr = `${year}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        const dayData = { day: day, billable: 0, nonBillable: 0 };
-        
-        yearDeliveries.forEach(d => {
-          if (d.delivery_date !== dateStr || !d.patient_id || !d.driver_id) return;
-          
-          const store = stores.find(s => s?.id === d.store_id);
-          const isBillableDelivery = isBillable(d) && store && wasPayingFeesOnDate(store, d.delivery_date);
-          
-          if (isBillableDelivery) {
-            dayData.billable++;
-          } else {
-            dayData.nonBillable++;
-          }
-        });
-        
-        dailyData.push(dayData);
+      const month = d.delivery_date ? parseInt(d.delivery_date.split('-')[1]) : null;
+      const driver = drivers.find(dr => dr?.user_id === d.driver_id);
+      const driverName = driver?.user_name || d.driver_name || 'Unknown';
+      
+      const store = stores.find(s => s?.id === d.store_id);
+      const isBillableDelivery = isBillable(d) && store && wasPayingFeesOnDate(store, d.delivery_date);
+      
+      // Year total
+      if (!driverStats[d.driver_id]) {
+        driverStats[d.driver_id] = { name: driverName, billable: 0, nonBillable: 0 };
+      }
+      if (isBillableDelivery) {
+        driverStats[d.driver_id].billable++;
+      } else {
+        driverStats[d.driver_id].nonBillable++;
       }
       
-      driverDailyByMonth[m] = dailyData;
+      // By month
+      if (month && month >= 1 && month <= 12) {
+        if (!driverStatsByMonth[month][d.driver_id]) {
+          driverStatsByMonth[month][d.driver_id] = { name: driverName, billable: 0, nonBillable: 0 };
+        }
+        if (isBillableDelivery) {
+          driverStatsByMonth[month][d.driver_id].billable++;
+        } else {
+          driverStatsByMonth[month][d.driver_id].nonBillable++;
+        }
+      }
+    });
+
+    // Sort by total deliveries descending
+    const driverData = Object.values(driverStats)
+      .sort((a, b) => (b.billable + b.nonBillable) - (a.billable + a.nonBillable));
+    
+    // Convert monthly driver stats to sorted arrays
+    const driverDataByMonth = {};
+    for (let m = 1; m <= 12; m++) {
+      driverDataByMonth[m] = Object.values(driverStatsByMonth[m])
+        .sort((a, b) => (b.billable + b.nonBillable) - (a.billable + a.nonBillable));
     }
 
     // Store breakdown (full year + by month) - completed vs failed (not billable filtering for this chart)
@@ -313,7 +336,8 @@ Deno.serve(async (req) => {
       year,
       monthlyData,
       driverMonthlyData,
-      driverDailyByMonth,
+      driverData,
+      driverDataByMonth,
       driverNames: topDriverNames,
       storeData,
       storeDataByMonth,
