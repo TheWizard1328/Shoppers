@@ -659,6 +659,8 @@ export default function DeliveryForm({
       return;
     }
 
+    console.log('🔄 [DeliveryForm] Fetching predictions...', { trigger: predictionTrigger });
+
     const fetchPredictions = async () => {
       setIsLoadingPredictions(true);
 
