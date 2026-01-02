@@ -123,46 +123,66 @@ Deno.serve(async (req) => {
         return d.delivery_date >= monthStart && d.delivery_date <= monthEnd;
       });
 
-      const completed = monthDeliveries.filter(d => d.status === 'completed' && d.patient_id).length;
-      const failed = monthDeliveries.filter(d => d.status === 'failed').length;
-
-      // Calculate fees for this month
+      // Count billable vs non-billable
+      let billable = 0;
+      let nonBillable = 0;
       let monthFees = 0;
+
       monthDeliveries.forEach(d => {
-        if (!isBillable(d)) return;
-        const store = stores.find(s => s?.id === d.store_id);
-        if (store && wasPayingFeesOnDate(store, d.delivery_date)) {
-          monthFees += appFeeRate;
+        if (!d.patient_id) return; // Skip pickups
+        
+        if (isBillable(d)) {
+          const store = stores.find(s => s?.id === d.store_id);
+          if (store && wasPayingFeesOnDate(store, d.delivery_date)) {
+            billable++;
+            monthFees += appFeeRate;
+          } else {
+            nonBillable++;
+          }
+        } else {
+          nonBillable++;
         }
       });
+
       monthlyStoreFeeTotals[month - 1] = monthFees;
 
       monthlyData.push({
         month: MONTH_NAMES[month - 1],
         monthNum: month,
-        completed,
-        failed,
-        total: completed + failed
+        billable,
+        nonBillable,
+        total: billable + nonBillable
       });
     }
 
-    // Build driver performance data (12-month view)
-    const driverMonthlyMap = {};
+    // Build driver performance data (12-month view) - billable vs non-billable
+    const driverMonthlyMapBillable = {};
+    const driverMonthlyMapNonBillable = {};
     const driverTotals = {};
     const drivers = allAppUsers.filter(u => u?.app_roles?.includes('driver') && u.status === 'active');
 
     yearDeliveries.forEach(d => {
-      if (!d.driver_id || !d.patient_id || d.status !== 'completed') return;
+      if (!d.driver_id || !d.patient_id) return;
       if (!d.delivery_date) return;
 
       const month = parseInt(d.delivery_date.split('-')[1]);
       const driver = drivers.find(dr => dr?.user_id === d.driver_id);
       const driverName = driver?.user_name || d.driver_name || 'Unknown';
 
-      if (!driverMonthlyMap[month]) {
-        driverMonthlyMap[month] = {};
+      if (!driverMonthlyMapBillable[month]) {
+        driverMonthlyMapBillable[month] = {};
+        driverMonthlyMapNonBillable[month] = {};
       }
-      driverMonthlyMap[month][driverName] = (driverMonthlyMap[month][driverName] || 0) + 1;
+
+      // Check if billable and store was paying fees
+      const store = stores.find(s => s?.id === d.store_id);
+      const isBillableDelivery = isBillable(d) && store && wasPayingFeesOnDate(store, d.delivery_date);
+
+      if (isBillableDelivery) {
+        driverMonthlyMapBillable[month][driverName] = (driverMonthlyMapBillable[month][driverName] || 0) + 1;
+      } else {
+        driverMonthlyMapNonBillable[month][driverName] = (driverMonthlyMapNonBillable[month][driverName] || 0) + 1;
+      }
       driverTotals[driverName] = (driverTotals[driverName] || 0) + 1;
     });
 
@@ -175,13 +195,18 @@ Deno.serve(async (req) => {
     const driverMonthlyData = [];
     for (let m = 1; m <= 12; m++) {
       const monthData = { month: MONTH_NAMES[m - 1] };
+      let monthBillable = 0;
+      let monthNonBillable = 0;
       topDriverNames.forEach(name => {
-        monthData[name] = driverMonthlyMap[m]?.[name] || 0;
+        monthBillable += driverMonthlyMapBillable[m]?.[name] || 0;
+        monthNonBillable += driverMonthlyMapNonBillable[m]?.[name] || 0;
       });
+      monthData.billable = monthBillable;
+      monthData.nonBillable = monthNonBillable;
       driverMonthlyData.push(monthData);
     }
 
-    // Build day-by-day driver data for each month (for drill-down view)
+    // Build day-by-day driver data for each month (for drill-down view) - billable vs non-billable
     const driverDailyByMonth = {};
     for (let m = 1; m <= 12; m++) {
       const daysInMonth = new Date(year, m, 0).getDate();
@@ -189,16 +214,19 @@ Deno.serve(async (req) => {
       
       for (let day = 1; day <= daysInMonth; day++) {
         const dateStr = `${year}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        const dayData = { day: day };
+        const dayData = { day: day, billable: 0, nonBillable: 0 };
         
-        topDriverNames.forEach(driverName => {
-          const count = yearDeliveries.filter(d => 
-            d.delivery_date === dateStr && 
-            d.status === 'completed' && 
-            d.patient_id &&
-            (drivers.find(dr => dr?.user_id === d.driver_id)?.user_name === driverName || d.driver_name === driverName)
-          ).length;
-          dayData[driverName] = count;
+        yearDeliveries.forEach(d => {
+          if (d.delivery_date !== dateStr || !d.patient_id || !d.driver_id) return;
+          
+          const store = stores.find(s => s?.id === d.store_id);
+          const isBillableDelivery = isBillable(d) && store && wasPayingFeesOnDate(store, d.delivery_date);
+          
+          if (isBillableDelivery) {
+            dayData.billable++;
+          } else {
+            dayData.nonBillable++;
+          }
         });
         
         dailyData.push(dayData);
@@ -259,9 +287,18 @@ Deno.serve(async (req) => {
       storeDataByMonth[m] = Object.values(storeStatsByMonth[m]).sort((a, b) => a.sortOrder - b.sortOrder);
     }
 
-    // Year totals
-    const yearCompleted = yearDeliveries.filter(d => d.status === 'completed' && d.patient_id).length;
-    const yearFailed = yearDeliveries.filter(d => d.status === 'failed').length;
+    // Year totals - billable vs non-billable
+    let yearBillable = 0;
+    let yearNonBillable = 0;
+    yearDeliveries.forEach(d => {
+      if (!d.patient_id) return;
+      const store = stores.find(s => s?.id === d.store_id);
+      if (isBillable(d) && store && wasPayingFeesOnDate(store, d.delivery_date)) {
+        yearBillable++;
+      } else {
+        yearNonBillable++;
+      }
+    });
     const yearTotalFees = monthlyStoreFeeTotals.reduce((sum, f) => sum + f, 0);
 
     // Store fee metrics summary
@@ -281,9 +318,9 @@ Deno.serve(async (req) => {
       storeData,
       storeDataByMonth,
       yearTotals: {
-        completed: yearCompleted,
-        failed: yearFailed,
-        total: yearCompleted + yearFailed,
+        billable: yearBillable,
+        nonBillable: yearNonBillable,
+        total: yearBillable + yearNonBillable,
         activeDrivers: new Set(yearDeliveries.filter(d => d.driver_id).map(d => d.driver_id)).size
       },
       storeFeeTotals: {
