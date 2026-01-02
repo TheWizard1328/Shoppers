@@ -136,10 +136,14 @@ Deno.serve(async (req) => {
         shouldDeliver = true;
         frequency = 'Weekly';
       }
-      // 3) Bi-Weekly: Show on selected day (no time cap)
+      // 3) Bi-Weekly: Show on selected day if no last_delivery_date OR at least 14 days since last
       else if (patient.recurring_biweekly && hasDaySelected) {
-        shouldDeliver = true;
-        frequency = 'Every 2 Weeks';
+        if (!lastDate || daysSinceLast >= 14) {
+          shouldDeliver = true;
+          frequency = 'Every 2 Weeks';
+        } else {
+          skipReason = `Bi-Weekly but only ${daysSinceLast} days since last (<14)`;
+        }
       }
       // 4) Weekly x4: Show if no last_delivery_date OR day-of-month within +/- 3 days
       else if (patient.recurring_weekly_x4) {
