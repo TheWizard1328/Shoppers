@@ -276,6 +276,7 @@ Deno.serve(async (req) => {
       year,
       monthlyData,
       driverMonthlyData,
+      driverDailyByMonth,
       driverNames: topDriverNames,
       storeData,
       storeDataByMonth,
