@@ -3850,7 +3850,7 @@ export default function DeliveryForm({
                           </div>
                         </div>
 
-                        <div className="flex-1 space-y-2 relative">
+                        <div className="flex-1 space-y-2 relative" id="recurring-section">
                           <div className="py-1 flex items-center space-x-2">
                             <Checkbox
                             id="recurring"
@@ -3862,6 +3862,83 @@ export default function DeliveryForm({
                               Recurring
                             </Label>
                           </div>
+
+                          {/* Day Selection Popup for Weekly/Bi-Weekly - positioned over recurring section */}
+                          {showDayPopup &&
+                          <div className="absolute top-0 left-0 right-0 z-[100] rounded-lg shadow-xl p-3 border" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)' }}>
+                            <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-slate-900)' }}>Select Days</h3>
+                            <div className="space-y-2 mb-3">
+                              <CheckboxField
+                                id="recurring_weekly_mon"
+                                label="Monday"
+                                checked={formData.recurring_weekly_mon}
+                                onChange={(checked) => setFormData((prev) => ({ ...prev, recurring_weekly_mon: checked }))}
+                                disabled={isSaving}
+                              />
+                              <CheckboxField
+                                id="recurring_weekly_tue"
+                                label="Tuesday"
+                                checked={formData.recurring_weekly_tue}
+                                onChange={(checked) => setFormData((prev) => ({ ...prev, recurring_weekly_tue: checked }))}
+                                disabled={isSaving}
+                              />
+                              <CheckboxField
+                                id="recurring_weekly_wed"
+                                label="Wednesday"
+                                checked={formData.recurring_weekly_wed}
+                                onChange={(checked) => setFormData((prev) => ({ ...prev, recurring_weekly_wed: checked }))}
+                                disabled={isSaving}
+                              />
+                              <CheckboxField
+                                id="recurring_weekly_thu"
+                                label="Thursday"
+                                checked={formData.recurring_weekly_thu}
+                                onChange={(checked) => setFormData((prev) => ({ ...prev, recurring_weekly_thu: checked }))}
+                                disabled={isSaving}
+                              />
+                              <CheckboxField
+                                id="recurring_weekly_fri"
+                                label="Friday"
+                                checked={formData.recurring_weekly_fri}
+                                onChange={(checked) => setFormData((prev) => ({ ...prev, recurring_weekly_fri: checked }))}
+                                disabled={isSaving}
+                              />
+                              <CheckboxField
+                                id="recurring_weekly_sat"
+                                label="Saturday"
+                                checked={formData.recurring_weekly_sat}
+                                onChange={(checked) => setFormData((prev) => ({ ...prev, recurring_weekly_sat: checked }))}
+                                disabled={isSaving}
+                              />
+                              <CheckboxField
+                                id="recurring_weekly_sun"
+                                label="Sunday"
+                                checked={formData.recurring_weekly_sun}
+                                onChange={(checked) => setFormData((prev) => ({ ...prev, recurring_weekly_sun: checked }))}
+                                disabled={isSaving}
+                              />
+                            </div>
+                            <div className="flex gap-2 justify-end">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setShowDayPopup(false);
+                                  setActiveRecurringType(null);
+                                }}
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                size="sm"
+                                className="bg-emerald-600 hover:bg-emerald-700"
+                                onClick={handleWeeklyDaysDone}
+                              >
+                                Done
+                              </Button>
+                            </div>
+                          </div>
+                          }
 
                           <RadioGroup
                           value={currentFrequency}
