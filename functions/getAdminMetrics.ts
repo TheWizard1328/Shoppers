@@ -129,7 +129,11 @@ Deno.serve(async (req) => {
       let monthFees = 0;
 
       monthDeliveries.forEach(d => {
-        if (!d.patient_id) return; // Skip pickups
+        // Include patient deliveries AND after-hours pickups
+        const isPatientDelivery = !!d.patient_id;
+        const isAfterHoursPickup = !d.patient_id && d.after_hours_pickup;
+        
+        if (!isPatientDelivery && !isAfterHoursPickup) return; // Skip regular pickups
         
         if (isBillable(d)) {
           const store = stores.find(s => s?.id === d.store_id);
@@ -314,7 +318,10 @@ Deno.serve(async (req) => {
     let yearBillable = 0;
     let yearNonBillable = 0;
     yearDeliveries.forEach(d => {
-      if (!d.patient_id) return;
+      const isPatientDelivery = !!d.patient_id;
+      const isAfterHoursPickup = !d.patient_id && d.after_hours_pickup;
+      if (!isPatientDelivery && !isAfterHoursPickup) return;
+      
       const store = stores.find(s => s?.id === d.store_id);
       if (isBillable(d) && store && wasPayingFeesOnDate(store, d.delivery_date)) {
         yearBillable++;
