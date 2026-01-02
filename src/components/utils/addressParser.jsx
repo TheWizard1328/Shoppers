@@ -159,7 +159,39 @@ export function cleanAddressAndNotes(address, notes) {
         cleanedNotes = cleanedNotes.replace(/\bweekly\s*\([^)]+\)/gi, '').trim();
     }
     
-    if (/\bweekly\s+x\s*4\b/i.test(cleanedNotes)) {
+    // Weekly x4 with day: "Weekly x4 (Fri)" or "Weekly x4(Friday)"
+    const weeklyX4Match = cleanedNotes.match(/\bweekly\s+x\s*4\s*\(([^)]+)\)/i);
+    if (weeklyX4Match) {
+        recurring.recurring_weekly_x4 = true;
+        const dayStr = weeklyX4Match[1].toLowerCase().trim();
+        
+        // Extract the day and set recurring_weekly_x4_day
+        if (/\b(mon|monday)\b/i.test(dayStr)) {
+            recurring.recurring_weekly_x4_day = 'mon';
+            recurring.recurring_weekly_mon = true;
+        } else if (/\b(tue|tues|tuesday)\b/i.test(dayStr)) {
+            recurring.recurring_weekly_x4_day = 'tue';
+            recurring.recurring_weekly_tue = true;
+        } else if (/\b(wed|wednesday)\b/i.test(dayStr)) {
+            recurring.recurring_weekly_x4_day = 'wed';
+            recurring.recurring_weekly_wed = true;
+        } else if (/\b(thu|thur|thurs|thursday)\b/i.test(dayStr)) {
+            recurring.recurring_weekly_x4_day = 'thu';
+            recurring.recurring_weekly_thu = true;
+        } else if (/\b(fri|friday)\b/i.test(dayStr)) {
+            recurring.recurring_weekly_x4_day = 'fri';
+            recurring.recurring_weekly_fri = true;
+        } else if (/\b(sat|saturday)\b/i.test(dayStr)) {
+            recurring.recurring_weekly_x4_day = 'sat';
+            recurring.recurring_weekly_sat = true;
+        } else if (/\b(sun|sunday)\b/i.test(dayStr)) {
+            recurring.recurring_weekly_x4_day = 'sun';
+            recurring.recurring_weekly_sun = true;
+        }
+        
+        cleanedNotes = cleanedNotes.replace(/\bweekly\s+x\s*4\s*\([^)]+\)/gi, '').trim();
+    } else if (/\bweekly\s+x\s*4\b/i.test(cleanedNotes)) {
+        // Weekly x4 without day specified
         recurring.recurring_weekly_x4 = true;
         cleanedNotes = cleanedNotes.replace(/\bweekly\s+x\s*4\b/gi, '').trim();
     }
