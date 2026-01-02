@@ -181,6 +181,32 @@ Deno.serve(async (req) => {
       driverMonthlyData.push(monthData);
     }
 
+    // Build day-by-day driver data for each month (for drill-down view)
+    const driverDailyByMonth = {};
+    for (let m = 1; m <= 12; m++) {
+      const daysInMonth = new Date(year, m, 0).getDate();
+      const dailyData = [];
+      
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${year}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const dayData = { day: day };
+        
+        topDriverNames.forEach(driverName => {
+          const count = yearDeliveries.filter(d => 
+            d.delivery_date === dateStr && 
+            d.status === 'completed' && 
+            d.patient_id &&
+            (drivers.find(dr => dr?.user_id === d.driver_id)?.user_name === driverName || d.driver_name === driverName)
+          ).length;
+          dayData[driverName] = count;
+        });
+        
+        dailyData.push(dayData);
+      }
+      
+      driverDailyByMonth[m] = dailyData;
+    }
+
     // Store breakdown (full year + by month)
     const storeStats = {};
     const storeStatsByMonth = {}; // { monthNum: { storeId: stats } }
