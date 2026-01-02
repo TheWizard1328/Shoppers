@@ -99,6 +99,8 @@ Deno.serve(async (req) => {
     const lookbackWindowDays = 2; // +/- 2 days for flexible matching
     const maxCyclesBack = 3; // Check up to 3 cycles back
 
+    console.log(`[Predictions] Processing ${patients.length} recurring patients for ${selectedDate} (${selectedDayName})`);
+
     for (const patient of patients) {
       if (!patient || excludeSet.has(patient.id)) continue;
       
@@ -116,6 +118,15 @@ Deno.serve(async (req) => {
       let frequency = null;
 
       const hasDaySelected = patient[`recurring_weekly_${selectedDayName}`];
+      
+      // Debug: Log patient recurring flags
+      const hasAnyWeeklyFlag = patient.recurring_weekly_mon || patient.recurring_weekly_tue || 
+        patient.recurring_weekly_wed || patient.recurring_weekly_thu || 
+        patient.recurring_weekly_fri || patient.recurring_weekly_sat || patient.recurring_weekly_sun;
+      
+      if (patient.recurring_weekly_x4 || patient.recurring_biweekly || hasAnyWeeklyFlag) {
+        console.log(`[Predictions] Checking: ${patient.full_name} - weekly_x4=${patient.recurring_weekly_x4}, biweekly=${patient.recurring_biweekly}, hasDaySelected(${selectedDayName})=${hasDaySelected}, last=${patient.last_delivery_date}`);
+      }
 
       // Daily deliveries - highest priority
       if (patient.recurring_daily) {
@@ -123,41 +134,53 @@ Deno.serve(async (req) => {
         frequency = 'Daily';
       }
       // CRITICAL: Check Weekly x4 BEFORE Bi-Weekly BEFORE Weekly (more specific patterns first)
-      // Weekly x4 (Every 4 Weeks) - check specific day and pattern match within +/- 2 days over 3 cycles
-      else if (patient.recurring_weekly_x4 && hasDaySelected) {
-        if (!patient.last_delivery_date) {
-          console.log(`[Predictions] ✅ MATCH: ${patient.full_name} (Weekly x4) - no last delivery, including`);
-          shouldDeliver = true;
-          frequency = 'Every 4 Weeks';
-        } else {
-          const lastDate = new Date(patient.last_delivery_date + 'T00:00:00');
-          const daysSinceLast = Math.floor((selectedDateObj - lastDate) / (1000 * 60 * 60 * 24));
-          // Include if: pattern matches OR at least 28 days have passed
-          if (matchesCyclePattern(lastDate, 28, lookbackWindowDays, maxCyclesBack, patient.full_name, 'Weekly x4') || daysSinceLast >= 28) {
-            console.log(`[Predictions] ✅ MATCH: ${patient.full_name} (Weekly x4) - daysSinceLast=${daysSinceLast}`);
+      // Weekly x4 (Every 4 Weeks) - requires the specific day to be selected
+      else if (patient.recurring_weekly_x4) {
+        if (hasDaySelected) {
+          if (!patient.last_delivery_date) {
+            console.log(`[Predictions] ✅ MATCH: ${patient.full_name} (Weekly x4) - no last delivery, including`);
             shouldDeliver = true;
             frequency = 'Every 4 Weeks';
+          } else {
+            const lastDate = new Date(patient.last_delivery_date + 'T00:00:00');
+            const daysSinceLast = Math.floor((selectedDateObj - lastDate) / (1000 * 60 * 60 * 24));
+            // Include if: pattern matches OR at least 28 days have passed
+            if (matchesCyclePattern(lastDate, 28, lookbackWindowDays, maxCyclesBack, patient.full_name, 'Weekly x4') || daysSinceLast >= 28) {
+              console.log(`[Predictions] ✅ MATCH: ${patient.full_name} (Weekly x4) - daysSinceLast=${daysSinceLast}`);
+              shouldDeliver = true;
+              frequency = 'Every 4 Weeks';
+            } else {
+              console.log(`[Predictions] ❌ SKIP: ${patient.full_name} (Weekly x4) - daysSinceLast=${daysSinceLast} < 28 and no pattern match`);
+            }
           }
+        } else {
+          console.log(`[Predictions] ❌ SKIP: ${patient.full_name} (Weekly x4) - day ${selectedDayName} not selected`);
         }
       }
-      // Bi-weekly deliveries (Every 2 Weeks) - check BEFORE weekly
-      else if (patient.recurring_biweekly && hasDaySelected) {
-        if (!patient.last_delivery_date) {
-          console.log(`[Predictions] ✅ MATCH: ${patient.full_name} (Bi-Weekly) - no last delivery, including`);
-          shouldDeliver = true;
-          frequency = 'Every 2 Weeks';
-        } else {
-          const lastDate = new Date(patient.last_delivery_date + 'T00:00:00');
-          const daysSinceLast = Math.floor((selectedDateObj - lastDate) / (1000 * 60 * 60 * 24));
-          // Include if: pattern matches OR at least 14 days have passed
-          if (matchesCyclePattern(lastDate, 14, lookbackWindowDays, maxCyclesBack, patient.full_name, 'Bi-Weekly') || daysSinceLast >= 14) {
-            console.log(`[Predictions] ✅ MATCH: ${patient.full_name} (Bi-Weekly) - daysSinceLast=${daysSinceLast}`);
+      // Bi-weekly deliveries (Every 2 Weeks) - requires the specific day to be selected
+      else if (patient.recurring_biweekly) {
+        if (hasDaySelected) {
+          if (!patient.last_delivery_date) {
+            console.log(`[Predictions] ✅ MATCH: ${patient.full_name} (Bi-Weekly) - no last delivery, including`);
             shouldDeliver = true;
             frequency = 'Every 2 Weeks';
+          } else {
+            const lastDate = new Date(patient.last_delivery_date + 'T00:00:00');
+            const daysSinceLast = Math.floor((selectedDateObj - lastDate) / (1000 * 60 * 60 * 24));
+            // Include if: pattern matches OR at least 14 days have passed
+            if (matchesCyclePattern(lastDate, 14, lookbackWindowDays, maxCyclesBack, patient.full_name, 'Bi-Weekly') || daysSinceLast >= 14) {
+              console.log(`[Predictions] ✅ MATCH: ${patient.full_name} (Bi-Weekly) - daysSinceLast=${daysSinceLast}`);
+              shouldDeliver = true;
+              frequency = 'Every 2 Weeks';
+            } else {
+              console.log(`[Predictions] ❌ SKIP: ${patient.full_name} (Bi-Weekly) - daysSinceLast=${daysSinceLast} < 14 and no pattern match`);
+            }
           }
+        } else {
+          console.log(`[Predictions] ❌ SKIP: ${patient.full_name} (Bi-Weekly) - day ${selectedDayName} not selected`);
         }
       }
-      // Weekly deliveries (Every Week) - check LAST among weekly patterns
+      // Weekly deliveries (Every Week) - requires the specific day to be selected
       else if (hasDaySelected) {
         if (!patient.last_delivery_date) {
           console.log(`[Predictions] ✅ MATCH: ${patient.full_name} (Weekly) - no last delivery, including`);
@@ -171,6 +194,8 @@ Deno.serve(async (req) => {
             console.log(`[Predictions] ✅ MATCH: ${patient.full_name} (Weekly) - daysSinceLast=${daysSinceLast}`);
             shouldDeliver = true;
             frequency = 'Weekly';
+          } else {
+            console.log(`[Predictions] ❌ SKIP: ${patient.full_name} (Weekly) - daysSinceLast=${daysSinceLast} < 7 and no pattern match`);
           }
         }
       }
