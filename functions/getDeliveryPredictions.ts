@@ -126,12 +126,13 @@ Deno.serve(async (req) => {
       // Weekly x4 (Every 4 Weeks) - check specific day and pattern match within +/- 2 days over 3 cycles
       else if (patient.recurring_weekly_x4 && hasDaySelected) {
         if (!patient.last_delivery_date) {
+          console.log(`[Predictions] ✅ MATCH: ${patient.full_name} (Weekly x4) - no last delivery, including`);
           shouldDeliver = true;
           frequency = 'Every 4 Weeks';
         } else {
           const lastDate = new Date(patient.last_delivery_date + 'T00:00:00');
           // Check if last delivery matches the 28-day cycle pattern (within +/- 2 days, up to 3 cycles back)
-          if (matchesCyclePattern(lastDate, 28, lookbackWindowDays, maxCyclesBack)) {
+          if (matchesCyclePattern(lastDate, 28, lookbackWindowDays, maxCyclesBack, patient.full_name, 'Weekly x4')) {
             shouldDeliver = true;
             frequency = 'Every 4 Weeks';
           }
@@ -140,12 +141,13 @@ Deno.serve(async (req) => {
       // Bi-weekly deliveries (Every 2 Weeks) - check BEFORE weekly
       else if (patient.recurring_biweekly && hasDaySelected) {
         if (!patient.last_delivery_date) {
+          console.log(`[Predictions] ✅ MATCH: ${patient.full_name} (Bi-Weekly) - no last delivery, including`);
           shouldDeliver = true;
           frequency = 'Every 2 Weeks';
         } else {
           const lastDate = new Date(patient.last_delivery_date + 'T00:00:00');
           // Check if last delivery matches the 14-day cycle pattern (within +/- 2 days, up to 3 cycles back)
-          if (matchesCyclePattern(lastDate, 14, lookbackWindowDays, maxCyclesBack)) {
+          if (matchesCyclePattern(lastDate, 14, lookbackWindowDays, maxCyclesBack, patient.full_name, 'Bi-Weekly')) {
             shouldDeliver = true;
             frequency = 'Every 2 Weeks';
           }
@@ -154,12 +156,13 @@ Deno.serve(async (req) => {
       // Weekly deliveries (Every Week) - check LAST among weekly patterns
       else if (hasDaySelected) {
         if (!patient.last_delivery_date) {
+          console.log(`[Predictions] ✅ MATCH: ${patient.full_name} (Weekly) - no last delivery, including`);
           shouldDeliver = true;
           frequency = 'Weekly';
         } else {
           const lastDate = new Date(patient.last_delivery_date + 'T00:00:00');
           // Check if last delivery matches the 7-day cycle pattern (within +/- 2 days, up to 3 cycles back)
-          if (matchesCyclePattern(lastDate, 7, lookbackWindowDays, maxCyclesBack)) {
+          if (matchesCyclePattern(lastDate, 7, lookbackWindowDays, maxCyclesBack, patient.full_name, 'Weekly')) {
             shouldDeliver = true;
             frequency = 'Weekly';
           }
