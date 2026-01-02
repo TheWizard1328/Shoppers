@@ -63,7 +63,8 @@ Deno.serve(async (req) => {
     console.log(`[Predictions] Found ${patientsWithDeliveries.size} patients already with deliveries on ${selectedDate}`);
 
     // Helper: Check if lastDate falls within +/- windowDays of any cycle back from selectedDateObj
-    const matchesCyclePattern = (lastDate, intervalDays, windowDays, maxCycles) => {
+    const matchesCyclePattern = (lastDate, intervalDays, windowDays, maxCycles, patientName = '', patternType = '') => {
+      const debugInfo = [];
       for (let i = 1; i <= maxCycles; i++) {
         const expectedDate = new Date(selectedDateObj);
         expectedDate.setDate(selectedDateObj.getDate() - (i * intervalDays));
@@ -73,8 +74,21 @@ Deno.serve(async (req) => {
         const maxDate = new Date(expectedDate);
         maxDate.setDate(expectedDate.getDate() + windowDays);
         
+        const daysDiff = Math.floor((lastDate - expectedDate) / (1000 * 60 * 60 * 24));
+        debugInfo.push(`Cycle ${i}: expected=${expectedDate.toISOString().split('T')[0]}, range=[${minDate.toISOString().split('T')[0]} to ${maxDate.toISOString().split('T')[0]}], diff=${daysDiff}d`);
+        
         if (lastDate >= minDate && lastDate <= maxDate) {
+          console.log(`[Predictions] ✅ MATCH: ${patientName} (${patternType}) - last=${lastDate.toISOString().split('T')[0]} matched cycle ${i} (${expectedDate.toISOString().split('T')[0]} ±${windowDays}d)`);
           return true;
+        }
+      }
+      // Log near-misses (within 7 days of any expected cycle)
+      for (let i = 1; i <= maxCycles; i++) {
+        const expectedDate = new Date(selectedDateObj);
+        expectedDate.setDate(selectedDateObj.getDate() - (i * intervalDays));
+        const daysDiff = Math.abs(Math.floor((lastDate - expectedDate) / (1000 * 60 * 60 * 24)));
+        if (daysDiff <= 7 && daysDiff > windowDays) {
+          console.log(`[Predictions] ⚠️ NEAR-MISS: ${patientName} (${patternType}) - last=${lastDate.toISOString().split('T')[0]}, expected cycle ${i}=${expectedDate.toISOString().split('T')[0]}, off by ${daysDiff}d (needs ≤${windowDays}d)`);
         }
       }
       return false;
