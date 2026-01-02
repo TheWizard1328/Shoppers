@@ -46,16 +46,15 @@ export default function AdminMetrics() {
     checkAccess();
   }, []);
 
-  // Fetch metrics from backend
-  const fetchMetrics = useCallback(async () => {
+  // Fetch metrics from backend - only when year changes or on initial load
+  const fetchMetrics = useCallback(async (year) => {
     if (!hasAccess) return;
     
     setIsLoading(true);
     setError(null);
     
     try {
-      const year = parseInt(selectedYear);
-      const response = await base44.functions.invoke('getAdminMetrics', { year });
+      const response = await base44.functions.invoke('getAdminMetrics', { year: parseInt(year) });
       const data = response?.data || response;
       
       if (data?.error) {
@@ -63,19 +62,45 @@ export default function AdminMetrics() {
       }
       
       setMetricsData(data);
+      setSelectedMonth(null); // Reset month selection when year changes
     } catch (err) {
       console.error('Failed to fetch metrics:', err);
       setError(err.message || 'Failed to load metrics');
     } finally {
       setIsLoading(false);
     }
-  }, [hasAccess, selectedYear]);
+  }, [hasAccess]);
 
+  // Initial load
   useEffect(() => {
     if (hasAccess) {
-      fetchMetrics();
+      fetchMetrics(selectedYear);
     }
-  }, [fetchMetrics, hasAccess]);
+  }, [hasAccess]); // Only on hasAccess change, not selectedYear
+
+  // Handle year change without full refresh
+  const handleYearChange = (newYear) => {
+    setSelectedYear(newYear);
+    fetchMetrics(newYear);
+  };
+
+  // Filter data based on selected month (client-side filtering)
+  const filteredData = useMemo(() => {
+    if (!metricsData) return null;
+    if (!selectedMonth) return metricsData; // No month selected, return all year data
+
+    // Filter store data for selected month
+    const monthStoreData = metricsData.storeDataByMonth?.[selectedMonth] || metricsData.storeData;
+    
+    // Get month-specific fees
+    const monthFees = metricsData.storeFeeTotals?.monthlyFees?.[selectedMonth - 1] || 0;
+
+    return {
+      ...metricsData,
+      storeData: monthStoreData,
+      displayedFees: monthFees
+    };
+  }, [metricsData, selectedMonth]);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
