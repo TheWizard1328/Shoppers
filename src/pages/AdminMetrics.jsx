@@ -15,7 +15,10 @@ const MONTH_NAMES = [
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
 ];
 
-const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+const COLORS = {
+  billable: '#10b981',    // Green
+  nonBillable: '#f97316'  // Orange
+};
 
 export default function AdminMetrics() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -194,11 +197,11 @@ export default function AdminMetrics() {
                   <Package className="w-6 h-6 text-emerald-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-slate-500">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'Year'} Completed</p>
+                  <p className="text-sm text-slate-500">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'Year'} Billable</p>
                   <p className="text-2xl font-bold text-slate-900">
                     {(selectedMonth 
-                      ? metricsData.monthlyData?.[selectedMonth - 1]?.completed 
-                      : metricsData.yearTotals?.completed
+                      ? metricsData.monthlyData?.[selectedMonth - 1]?.billable 
+                      : metricsData.yearTotals?.billable
                     )?.toLocaleString() || 0}
                   </p>
                 </div>
@@ -209,15 +212,15 @@ export default function AdminMetrics() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className="p-3 bg-blue-100 rounded-lg">
-                  <TrendingUp className="w-6 h-6 text-blue-600" />
+                <div className="p-3 bg-orange-100 rounded-lg">
+                  <TrendingUp className="w-6 h-6 text-orange-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-slate-500">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'Year'} Failed</p>
+                  <p className="text-sm text-slate-500">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'Year'} Non-Billable</p>
                   <p className="text-2xl font-bold text-slate-900">
                     {(selectedMonth 
-                      ? metricsData.monthlyData?.[selectedMonth - 1]?.failed 
-                      : metricsData.yearTotals?.failed
+                      ? metricsData.monthlyData?.[selectedMonth - 1]?.nonBillable 
+                      : metricsData.yearTotals?.nonBillable
                     )?.toLocaleString() || 0}
                   </p>
                 </div>
@@ -246,13 +249,9 @@ export default function AdminMetrics() {
                   <DollarSign className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <p className="text-sm text-amber-700">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : selectedYear} Fees</p>
+                  <p className="text-sm text-amber-700">{selectedYear} Total Fees</p>
                   <p className="text-2xl font-bold text-amber-900">
-                    {formatCurrency(
-                      selectedMonth 
-                        ? (metricsData.storeFeeTotals?.monthlyFees?.[selectedMonth - 1] || 0)
-                        : (metricsData.storeFeeTotals?.total_fees_owed || 0)
-                    )}
+                    {formatCurrency(metricsData.storeFeeTotals?.total_fees_owed || 0)}
                   </p>
                 </div>
               </div>
@@ -376,16 +375,8 @@ export default function AdminMetrics() {
                     labelFormatter={(label) => selectedMonth ? `Day ${label}` : label}
                   />
                   <Legend wrapperStyle={{ fontSize: '11px' }} />
-                  {metricsData.driverNames?.map((driverName, index) => (
-                    <Bar 
-                      key={driverName}
-                      dataKey={driverName} 
-                      fill={COLORS[index % COLORS.length]} 
-                      name={driverName}
-                      radius={[2, 2, 0, 0]}
-                      barSize={selectedMonth ? 8 : 20}
-                    />
-                  ))}
+                  <Bar dataKey="billable" fill={COLORS.billable} name="Billable" radius={[2, 2, 0, 0]} barSize={selectedMonth ? 8 : 20} />
+                  <Bar dataKey="nonBillable" fill={COLORS.nonBillable} name="Non-Billable" radius={[2, 2, 0, 0]} barSize={selectedMonth ? 8 : 20} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
