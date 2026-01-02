@@ -268,6 +268,9 @@ export default function AdminMetrics() {
                 <BarChart3 className="w-5 h-5" />
                 Monthly Deliveries ({selectedYear})
               </CardTitle>
+              <CardDescription className="text-xs text-slate-500">
+                Click a month bar to filter Store Breakdown and Driver charts
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-[300px]">
