@@ -678,6 +678,7 @@ export default function DeliveryForm({
           } else {
             storeIdsToPredict = stores.map((s) => s.id);
           }
+          console.log('🔄 [DeliveryForm] Store IDs To Predict...', { storeIdsToPredict });
         } else if (userHasRole(currentUser, 'driver')) {
           const driverStores = stores.filter((store) => {
             const dateObj = new Date(formData.delivery_date + 'T00:00:00');
