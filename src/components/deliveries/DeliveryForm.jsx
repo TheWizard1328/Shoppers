@@ -4491,8 +4491,8 @@ export default function DeliveryForm({
 
       {/* Day Selection Popup for Weekly/Bi-Weekly */}
       {showDayPopup &&
-      <div className="fixed inset-0 z-[10020] bg-black/60 flex items-center justify-center p-4">
-          <div className="rounded-lg shadow-xl max-w-sm w-full p-4" style={{ background: 'var(--bg-white)' }}>
+      <div className="fixed inset-0 z-[10020] flex items-center justify-center p-4" style={{ pointerEvents: 'none' }}>
+          <div className="rounded-lg shadow-xl w-[40%] p-4" style={{ background: 'var(--bg-white)', pointerEvents: 'auto' }}>
             <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-slate-900)' }}>Select Days</h3>
             <div className="space-y-3 mb-4">
               <CheckboxField
