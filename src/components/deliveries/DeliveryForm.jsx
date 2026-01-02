@@ -735,7 +735,7 @@ export default function DeliveryForm({
     };
 
     fetchPredictions();
-  }, [delivery, formData.delivery_date, currentUser, stores, allDeliveries]);
+  }, [delivery, formData.delivery_date, currentUser, stores, allDeliveries, predictionTrigger]);
 
   const handlePatientSelect = useCallback(async (patient) => {
     if (!patient) return;
