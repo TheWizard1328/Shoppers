@@ -242,6 +242,8 @@ export default function AdminMetrics() {
       setMetricsData({
         monthlyData,
         driverData,
+        driverMonthlyData,
+        driverNames: topDriverNames,
         storeData,
         yearTotals: {
           completed: yearCompleted,
