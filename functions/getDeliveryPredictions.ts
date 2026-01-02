@@ -16,6 +16,11 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'selectedDate is required' }, { status: 400 });
     }
 
+    console.log(`[Predictions] ========== START ==========`);
+    console.log(`[Predictions] Selected Date: ${selectedDate}`);
+    console.log(`[Predictions] Store IDs: ${JSON.stringify(storeIds)}`);
+    console.log(`[Predictions] Exclude Patient IDs count: ${excludePatientIds.length}`);
+
     // Parse the selected date
     const dateParts = selectedDate.split('-');
     const year = parseInt(dateParts[0], 10);
@@ -27,6 +32,8 @@ Deno.serve(async (req) => {
     // Map day of week to recurring field names
     const dayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
     const selectedDayName = dayNames[dayOfWeek];
+
+    console.log(`[Predictions] Day of week: ${dayOfWeek} (${selectedDayName})`);
 
     // Build patient filter - fetch active patients, filter for recurring patterns in code
     let patientFilter = { 
@@ -55,6 +62,14 @@ Deno.serve(async (req) => {
     });
 
     console.log(`[Predictions] Found ${patients.length} patients with recurring patterns`);
+    
+    // Log first 10 recurring patients for debugging
+    if (patients.length > 0) {
+      console.log(`[Predictions] Sample recurring patients:`);
+      patients.slice(0, 10).forEach(p => {
+        console.log(`  - ${p.full_name}: daily=${p.recurring_daily}, weekly_${selectedDayName}=${p[`recurring_weekly_${selectedDayName}`]}, biweekly=${p.recurring_biweekly}, x4=${p.recurring_weekly_x4}, monthly=${p.recurring_monthly}, bimonthly=${p.recurring_bimonthly}, last_delivery=${p.last_delivery_date}`);
+      });
+    }
 
     // CRITICAL: Fetch all deliveries for selected date to exclude patients already on routes
     let existingDeliveriesFilter = {
@@ -80,37 +95,40 @@ Deno.serve(async (req) => {
 
     console.log(`[Predictions] Processing ${patients.length} recurring patients for ${selectedDate} (${selectedDayName}, dayOfWeek=${dayOfWeek})`);
 
+    let skippedAlreadyHasDelivery = 0;
+    let skippedNoPatternMatch = 0;
+    let skippedTooLongSinceLast = 0;
+    let skippedFutureLastDelivery = 0;
+    let matched = 0;
+
     for (const patient of patients) {
       if (!patient) continue;
       
       if (excludeSet.has(patient.id)) {
-        console.log(`[Predictions] SKIP ${patient.full_name}: in exclude list`);
         continue;
       }
       
       // Skip patients who already have a delivery on this date
       if (patientsWithDeliveries.has(patient.id)) {
-        console.log(`[Predictions] SKIP ${patient.full_name}: already has delivery on ${selectedDate}`);
+        skippedAlreadyHasDelivery++;
         continue;
       }
 
       let shouldDeliver = false;
       let frequency = null;
+      let skipReason = null;
 
       const hasDaySelected = patient[`recurring_weekly_${selectedDayName}`];
       const lastDate = patient.last_delivery_date ? new Date(patient.last_delivery_date + 'T00:00:00') : null;
       const daysSinceLast = lastDate ? Math.floor((selectedDateObj - lastDate) / (1000 * 60 * 60 * 24)) : null;
-
-      console.log(`[Predictions] Checking ${patient.full_name}: daily=${patient.recurring_daily}, weekly_${selectedDayName}=${hasDaySelected}, biweekly=${patient.recurring_biweekly}, x4=${patient.recurring_weekly_x4}, x4_day=${patient.recurring_weekly_x4_day}, monthly=${patient.recurring_monthly}, bimonthly=${patient.recurring_bimonthly}, lastDate=${patient.last_delivery_date}, daysSince=${daysSinceLast}`);
 
       // 1) Daily: Show unless no delivery in past 3 days
       if (patient.recurring_daily) {
         if (!lastDate || daysSinceLast <= 3) {
           shouldDeliver = true;
           frequency = 'Daily';
-          console.log(`[Predictions] MATCH ${patient.full_name}: Daily`);
         } else {
-          console.log(`[Predictions] SKIP ${patient.full_name}: Daily but ${daysSinceLast} days since last > 3`);
+          skipReason = `Daily but ${daysSinceLast} days > 3`;
         }
       }
       // 2) Weekly: Show on selected day, unless last delivery > 14 days ago
@@ -118,9 +136,8 @@ Deno.serve(async (req) => {
         if (!lastDate || daysSinceLast <= 14) {
           shouldDeliver = true;
           frequency = 'Weekly';
-          console.log(`[Predictions] MATCH ${patient.full_name}: Weekly on ${selectedDayName}`);
         } else {
-          console.log(`[Predictions] SKIP ${patient.full_name}: Weekly but ${daysSinceLast} days since last > 14`);
+          skipReason = `Weekly but ${daysSinceLast} days > 14`;
         }
       }
       // 3) Bi-Weekly: Show on selected day, unless last delivery > 28 days ago
@@ -128,9 +145,8 @@ Deno.serve(async (req) => {
         if (!lastDate || daysSinceLast <= 28) {
           shouldDeliver = true;
           frequency = 'Every 2 Weeks';
-          console.log(`[Predictions] MATCH ${patient.full_name}: Bi-Weekly on ${selectedDayName}`);
         } else {
-          console.log(`[Predictions] SKIP ${patient.full_name}: Bi-Weekly but ${daysSinceLast} days since last > 28`);
+          skipReason = `Bi-Weekly but ${daysSinceLast} days > 28`;
         }
       }
       // 4) Weekly x4: Show on selected day +/- 2 days, unless last delivery > 56 days ago
@@ -144,23 +160,20 @@ Deno.serve(async (req) => {
           const diff = Math.abs(dayOfWeek - targetDayIndex);
           const wrappedDiff = Math.min(diff, 7 - diff);
           dayMatches = wrappedDiff <= 2;
-          console.log(`[Predictions] ${patient.full_name}: x4 day check - target=${x4Day}(${targetDayIndex}), selected=${selectedDayName}(${dayOfWeek}), diff=${wrappedDiff}, matches=${dayMatches}`);
         } else if (hasDaySelected) {
           // Fallback: if no x4_day set but has a weekly day flag, use that
           dayMatches = true;
-          console.log(`[Predictions] ${patient.full_name}: x4 fallback to hasDaySelected=${hasDaySelected}`);
         }
         
         if (dayMatches) {
           if (!lastDate || daysSinceLast <= 56) {
             shouldDeliver = true;
             frequency = 'Every 4 Weeks';
-            console.log(`[Predictions] MATCH ${patient.full_name}: Weekly x4`);
           } else {
-            console.log(`[Predictions] SKIP ${patient.full_name}: Weekly x4 but ${daysSinceLast} days since last > 56`);
+            skipReason = `Weekly x4 but ${daysSinceLast} days > 56`;
           }
         } else {
-          console.log(`[Predictions] SKIP ${patient.full_name}: Weekly x4 day mismatch (x4_day=${x4Day}, selected=${selectedDayName})`);
+          skipReason = `Weekly x4 day mismatch (x4_day=${x4Day}, selected=${selectedDayName})`;
         }
       }
       // 5) Monthly: Show +/- 3 days of last delivery date, unless last delivery > 60 days ago
@@ -168,9 +181,8 @@ Deno.serve(async (req) => {
         if (!lastDate) {
           shouldDeliver = true;
           frequency = 'Monthly';
-          console.log(`[Predictions] MATCH ${patient.full_name}: Monthly (no last date)`);
         } else if (daysSinceLast > 60) {
-          console.log(`[Predictions] SKIP ${patient.full_name}: Monthly but ${daysSinceLast} days since last > 60`);
+          skipReason = `Monthly but ${daysSinceLast} days > 60`;
         } else {
           const lastDayOfMonth = lastDate.getDate();
           const selectedDayOfMonth = selectedDateObj.getDate();
@@ -178,9 +190,8 @@ Deno.serve(async (req) => {
           if (daysSinceLast >= 27 && dayDiff <= 3) {
             shouldDeliver = true;
             frequency = 'Monthly';
-            console.log(`[Predictions] MATCH ${patient.full_name}: Monthly (daysSince=${daysSinceLast}, dayDiff=${dayDiff})`);
           } else {
-            console.log(`[Predictions] SKIP ${patient.full_name}: Monthly daysSince=${daysSinceLast} (<27?) or dayDiff=${dayDiff} (>3?)`);
+            skipReason = `Monthly daysSince=${daysSinceLast} (<27?) or dayDiff=${dayDiff} (>3?)`;
           }
         }
       }
@@ -189,9 +200,8 @@ Deno.serve(async (req) => {
         if (!lastDate) {
           shouldDeliver = true;
           frequency = 'Every 2 Months';
-          console.log(`[Predictions] MATCH ${patient.full_name}: Bi-Monthly (no last date)`);
         } else if (daysSinceLast > 120) {
-          console.log(`[Predictions] SKIP ${patient.full_name}: Bi-Monthly but ${daysSinceLast} days since last > 120`);
+          skipReason = `Bi-Monthly but ${daysSinceLast} days > 120`;
         } else {
           const lastDayOfMonth = lastDate.getDate();
           const selectedDayOfMonth = selectedDateObj.getDate();
@@ -199,23 +209,24 @@ Deno.serve(async (req) => {
           if (daysSinceLast >= 57 && dayDiff <= 3) {
             shouldDeliver = true;
             frequency = 'Every 2 Months';
-            console.log(`[Predictions] MATCH ${patient.full_name}: Bi-Monthly (daysSince=${daysSinceLast}, dayDiff=${dayDiff})`);
           } else {
-            console.log(`[Predictions] SKIP ${patient.full_name}: Bi-Monthly daysSince=${daysSinceLast} (<57?) or dayDiff=${dayDiff} (>3?)`);
+            skipReason = `Bi-Monthly daysSince=${daysSinceLast} (<57?) or dayDiff=${dayDiff} (>3?)`;
           }
         }
       } else {
-        // Patient has recurring flag but no specific pattern matched
-        console.log(`[Predictions] SKIP ${patient.full_name}: has recurring flags but no pattern matched for ${selectedDayName}`);
+        // Patient has recurring flag but no specific pattern matched for today
+        skipReason = `No pattern matched for ${selectedDayName}`;
       }
 
       // Skip if last delivery was today or in the future
       if (shouldDeliver && lastDate && lastDate >= selectedDateObj) {
-        console.log(`[Predictions] SKIP ${patient.full_name}: last delivery ${patient.last_delivery_date} >= selected date`);
+        skipReason = `Last delivery ${patient.last_delivery_date} >= selected date`;
         shouldDeliver = false;
+        skippedFutureLastDelivery++;
       }
 
       if (shouldDeliver) {
+        matched++;
         predictions.push({
           patient_id: patient.id,
           patient_name: patient.full_name,
@@ -236,19 +247,46 @@ Deno.serve(async (req) => {
           longitude: patient.longitude,
           unit_number: patient.unit_number
         });
+      } else {
+        if (skipReason) {
+          if (skipReason.includes('days >')) {
+            skippedTooLongSinceLast++;
+          } else {
+            skippedNoPatternMatch++;
+          }
+          // Log individual skips for first 20 patients only
+          if (skippedNoPatternMatch + skippedTooLongSinceLast <= 20) {
+            console.log(`[Predictions] SKIP ${patient.full_name}: ${skipReason}`);
+          }
+        }
       }
     }
 
     // Sort predictions by patient name
     predictions.sort((a, b) => (a.patient_name || '').localeCompare(b.patient_name || ''));
 
-    console.log(`[Predictions] Final result: ${predictions.length} predictions`);
+    console.log(`[Predictions] ========== SUMMARY ==========`);
+    console.log(`[Predictions] Total recurring patients: ${patients.length}`);
+    console.log(`[Predictions] Skipped (already has delivery): ${skippedAlreadyHasDelivery}`);
+    console.log(`[Predictions] Skipped (no pattern match for ${selectedDayName}): ${skippedNoPatternMatch}`);
+    console.log(`[Predictions] Skipped (too long since last delivery): ${skippedTooLongSinceLast}`);
+    console.log(`[Predictions] Skipped (last delivery >= selected date): ${skippedFutureLastDelivery}`);
+    console.log(`[Predictions] MATCHED: ${matched}`);
+    console.log(`[Predictions] ========== END ==========`);
 
     return Response.json({ 
       predictions,
       count: predictions.length,
       selectedDate,
-      dayOfWeek: selectedDayName
+      dayOfWeek: selectedDayName,
+      debug: {
+        totalRecurring: patients.length,
+        skippedAlreadyHasDelivery,
+        skippedNoPatternMatch,
+        skippedTooLongSinceLast,
+        skippedFutureLastDelivery,
+        matched
+      }
     });
 
   } catch (error) {
