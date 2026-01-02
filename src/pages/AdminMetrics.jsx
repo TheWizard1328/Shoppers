@@ -522,26 +522,21 @@ export default function AdminMetrics() {
             </CardContent>
           </Card>
 
-          {/* Driver Performance Chart */}
+          {/* Driver Performance Chart - 12 Month View */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="w-5 h-5" />
-                Driver Performance ({selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} {selectedYear})
+                Driver Performance by Month ({selectedYear})
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={metricsData.driverData} layout="vertical">
+                  <BarChart data={metricsData.driverMonthlyData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis type="number" tick={{ fill: '#64748b', fontSize: 12 }} />
-                    <YAxis 
-                      dataKey="name" 
-                      type="category" 
-                      tick={{ fill: '#64748b', fontSize: 11 }} 
-                      width={80}
-                    />
+                    <XAxis dataKey="month" tick={{ fill: '#64748b', fontSize: 12 }} />
+                    <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
                     <Tooltip 
                       contentStyle={{ 
                         background: 'white', 
@@ -549,7 +544,16 @@ export default function AdminMetrics() {
                         borderRadius: '8px'
                       }}
                     />
-                    <Bar dataKey="completed" fill="#3b82f6" name="Completed" radius={[0, 4, 4, 0]} />
+                    <Legend wrapperStyle={{ fontSize: '11px' }} />
+                    {metricsData.driverNames?.map((driverName, index) => (
+                      <Bar 
+                        key={driverName}
+                        dataKey={driverName} 
+                        fill={COLORS[index % COLORS.length]} 
+                        name={driverName}
+                        radius={[2, 2, 0, 0]}
+                      />
+                    ))}
                   </BarChart>
                 </ResponsiveContainer>
               </div>
