@@ -81,14 +81,14 @@ export default function AdminMetrics() {
   // Initial load
   useEffect(() => {
     if (hasAccess) {
-      fetchMetrics(selectedYear);
+      fetchMetrics(selectedYear, true); // isInitial = true
     }
   }, [hasAccess]); // Only on hasAccess change, not selectedYear
 
   // Handle year change without full refresh
   const handleYearChange = (newYear) => {
     setSelectedYear(newYear);
-    fetchMetrics(newYear);
+    fetchMetrics(newYear, false); // isInitial = false - keeps content visible
   };
 
   // Filter data based on selected month (client-side filtering)
