@@ -131,78 +131,64 @@ Deno.serve(async (req) => {
           skipReason = `Daily but ${daysSinceLast} days > 3`;
         }
       }
-      // 2) Weekly: Show on selected day, unless last delivery > 15 days ago
+      // 2) Weekly: Show on selected day (no time cap)
       else if (hasDaySelected && !patient.recurring_biweekly && !patient.recurring_weekly_x4) {
-        if (!lastDate || daysSinceLast <= 15) {
-          shouldDeliver = true;
-          frequency = 'Weekly';
-        } else {
-          skipReason = `Weekly but ${daysSinceLast} days > 15`;
-        }
+        shouldDeliver = true;
+        frequency = 'Weekly';
       }
-      // 3) Bi-Weekly: Show on selected day, unless last delivery > 29 days ago
+      // 3) Bi-Weekly: Show on selected day (no time cap)
       else if (patient.recurring_biweekly && hasDaySelected) {
-        if (!lastDate || daysSinceLast <= 29) {
-          shouldDeliver = true;
-          frequency = 'Every 2 Weeks';
-        } else {
-          skipReason = `Bi-Weekly but ${daysSinceLast} days > 29`;
-        }
+        shouldDeliver = true;
+        frequency = 'Every 2 Weeks';
       }
-      // 4) Weekly x4: Show +/- 3 days of last delivery day-of-month, unless last delivery > 61 days ago
+      // 4) Weekly x4: Show if no last_delivery_date OR day-of-month within +/- 3 days
       else if (patient.recurring_weekly_x4) {
         if (!lastDate) {
           shouldDeliver = true;
           frequency = 'Every 4 Weeks';
-        } else if (daysSinceLast > 61) {
-          skipReason = `Weekly x4 but ${daysSinceLast} days > 61`;
         } else {
           const lastDayOfMonth = lastDate.getDate();
           const selectedDayOfMonth = selectedDateObj.getDate();
           const dayDiff = Math.abs(selectedDayOfMonth - lastDayOfMonth);
-          if (daysSinceLast >= 27 && dayDiff <= 3) {
+          if (dayDiff <= 3) {
             shouldDeliver = true;
             frequency = 'Every 4 Weeks';
           } else {
-            skipReason = `Weekly x4 daysSince=${daysSinceLast} (<27?) or dayDiff=${dayDiff} (>3?)`;
+            skipReason = `Weekly x4 dayDiff=${dayDiff} (>3)`;
           }
         }
       }
-      // 5) Monthly: Show +/- 3 days of last delivery day-of-month, unless last delivery > 61 days ago
+      // 5) Monthly: Show if no last_delivery_date OR day-of-month within +/- 3 days
       else if (patient.recurring_monthly) {
         if (!lastDate) {
           shouldDeliver = true;
           frequency = 'Monthly';
-        } else if (daysSinceLast > 61) {
-          skipReason = `Monthly but ${daysSinceLast} days > 61`;
         } else {
           const lastDayOfMonth = lastDate.getDate();
           const selectedDayOfMonth = selectedDateObj.getDate();
           const dayDiff = Math.abs(selectedDayOfMonth - lastDayOfMonth);
-          if (daysSinceLast >= 27 && dayDiff <= 3) {
+          if (dayDiff <= 3) {
             shouldDeliver = true;
             frequency = 'Monthly';
           } else {
-            skipReason = `Monthly daysSince=${daysSinceLast} (<27?) or dayDiff=${dayDiff} (>3?)`;
+            skipReason = `Monthly dayDiff=${dayDiff} (>3)`;
           }
         }
       }
-      // 6) Bi-Monthly: Show +/- 3 days of last delivery day-of-month, unless last delivery > 121 days ago
+      // 6) Bi-Monthly: Show if no last_delivery_date OR day-of-month within +/- 3 days
       else if (patient.recurring_bimonthly) {
         if (!lastDate) {
           shouldDeliver = true;
           frequency = 'Every 2 Months';
-        } else if (daysSinceLast > 121) {
-          skipReason = `Bi-Monthly but ${daysSinceLast} days > 121`;
         } else {
           const lastDayOfMonth = lastDate.getDate();
           const selectedDayOfMonth = selectedDateObj.getDate();
           const dayDiff = Math.abs(selectedDayOfMonth - lastDayOfMonth);
-          if (daysSinceLast >= 57 && dayDiff <= 3) {
+          if (dayDiff <= 3) {
             shouldDeliver = true;
             frequency = 'Every 2 Months';
           } else {
-            skipReason = `Bi-Monthly daysSince=${daysSinceLast} (<57?) or dayDiff=${dayDiff} (>3?)`;
+            skipReason = `Bi-Monthly dayDiff=${dayDiff} (>3)`;
           }
         }
       } else {
