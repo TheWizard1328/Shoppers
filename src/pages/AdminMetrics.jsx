@@ -161,7 +161,7 @@ export default function AdminMetrics() {
             </h1>
           </div>
           <div className="flex items-center gap-3">
-            <Select value={selectedYear} onValueChange={setSelectedYear}>
+            <Select value={selectedYear} onValueChange={handleYearChange}>
               <SelectTrigger className="w-28">
                 <SelectValue />
               </SelectTrigger>
@@ -171,7 +171,7 @@ export default function AdminMetrics() {
                 ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" onClick={fetchMetrics} disabled={isLoading}>
+            <Button variant="outline" onClick={() => fetchMetrics(selectedYear)} disabled={isLoading}>
               <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
