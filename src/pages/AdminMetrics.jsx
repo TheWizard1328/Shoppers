@@ -252,7 +252,16 @@ export default function AdminMetrics() {
             <CardContent>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={metricsData.monthlyData}>
+                  <BarChart 
+                    data={metricsData.monthlyData}
+                    onClick={(data) => {
+                      if (data && data.activePayload && data.activePayload.length > 0) {
+                        const clickedMonth = data.activePayload[0].payload.monthNum;
+                        setSelectedMonth(prev => prev === clickedMonth ? null : clickedMonth);
+                      }
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  >
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="month" tick={{ fill: '#64748b', fontSize: 12 }} />
                     <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
@@ -269,6 +278,9 @@ export default function AdminMetrics() {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
+              <p className="text-xs text-slate-500 text-center mt-2">
+                Click on a month to filter charts below • Currently viewing: <span className="font-semibold text-emerald-600">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All Year'}</span>
+              </p>
             </CardContent>
           </Card>
 
