@@ -98,7 +98,7 @@ const MetricCard = ({ title, value, subtitle, icon: Icon, trend, previousValue, 
 };
 
 // Helper function to get date ranges based on selection
-const getDateRanges = (rangeType) => {
+const getDateRanges = (rangeType, year = new Date().getFullYear()) => {
   const now = new Date();
   let start, end, prevStart, prevEnd;
 
@@ -139,38 +139,38 @@ const getDateRanges = (rangeType) => {
       break;
 
     case 'q1':
-      start = startOfQuarter(new Date(now.getFullYear(), 0, 1));
-      end = endOfQuarter(new Date(now.getFullYear(), 0, 1));
-      prevStart = startOfQuarter(subQuarters(new Date(now.getFullYear(), 0, 1), 1));
-      prevEnd = endOfQuarter(subQuarters(new Date(now.getFullYear(), 0, 1), 1));
+      start = startOfQuarter(new Date(year, 0, 1));
+      end = endOfQuarter(new Date(year, 0, 1));
+      prevStart = startOfQuarter(new Date(year - 1, 0, 1));
+      prevEnd = endOfQuarter(new Date(year - 1, 0, 1));
       break;
 
     case 'q2':
-      start = startOfQuarter(new Date(now.getFullYear(), 3, 1));
-      end = endOfQuarter(new Date(now.getFullYear(), 3, 1));
-      prevStart = startOfQuarter(subQuarters(new Date(now.getFullYear(), 3, 1), 1));
-      prevEnd = endOfQuarter(subQuarters(new Date(now.getFullYear(), 3, 1), 1));
+      start = startOfQuarter(new Date(year, 3, 1));
+      end = endOfQuarter(new Date(year, 3, 1));
+      prevStart = startOfQuarter(new Date(year - 1, 3, 1));
+      prevEnd = endOfQuarter(new Date(year - 1, 3, 1));
       break;
 
     case 'q3':
-      start = startOfQuarter(new Date(now.getFullYear(), 6, 1));
-      end = endOfQuarter(new Date(now.getFullYear(), 6, 1));
-      prevStart = startOfQuarter(subQuarters(new Date(now.getFullYear(), 6, 1), 1));
-      prevEnd = endOfQuarter(subQuarters(new Date(now.getFullYear(), 6, 1), 1));
+      start = startOfQuarter(new Date(year, 6, 1));
+      end = endOfQuarter(new Date(year, 6, 1));
+      prevStart = startOfQuarter(new Date(year - 1, 6, 1));
+      prevEnd = endOfQuarter(new Date(year - 1, 6, 1));
       break;
 
     case 'q4':
-      start = startOfQuarter(new Date(now.getFullYear(), 9, 1));
-      end = endOfQuarter(new Date(now.getFullYear(), 9, 1));
-      prevStart = startOfQuarter(subQuarters(new Date(now.getFullYear(), 9, 1), 1));
-      prevEnd = endOfQuarter(subQuarters(new Date(now.getFullYear(), 9, 1), 1));
+      start = startOfQuarter(new Date(year, 9, 1));
+      end = endOfQuarter(new Date(year, 9, 1));
+      prevStart = startOfQuarter(new Date(year - 1, 9, 1));
+      prevEnd = endOfQuarter(new Date(year - 1, 9, 1));
       break;
 
     case 'year':
-      start = startOfYear(now);
-      end = endOfYear(now);
-      prevStart = startOfYear(subYears(now, 1));
-      prevEnd = endOfYear(subYears(now, 1));
+      start = startOfYear(new Date(year, 0, 1));
+      end = endOfYear(new Date(year, 0, 1));
+      prevStart = startOfYear(new Date(year - 1, 0, 1));
+      prevEnd = endOfYear(new Date(year - 1, 0, 1));
       break;
 
     default: // Defaulting to 'week' calculation
@@ -185,6 +185,7 @@ const getDateRanges = (rangeType) => {
 
 export default function DeliveryMetrics() {
   const [dateRange, setDateRange] = useState('week');
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [startDate, setStartDate] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [endDate, setEndDate] = useState(endOfWeek(new Date(), { weekStartsOn: 1 }));
   const [prevStartDate, setPrevStartDate] = useState(null);
@@ -196,6 +197,11 @@ export default function DeliveryMetrics() {
   const [selectedDriver, setSelectedDriver] = useState('all');
   const [currentUser, setCurrentUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  
+  const availableYears = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    return [currentYear, currentYear - 1, currentYear - 2];
+  }, []);
 
   useEffect(() => {
     const loadUser = async () => {
@@ -206,12 +212,12 @@ export default function DeliveryMetrics() {
   }, []);
 
   useEffect(() => {
-    const ranges = getDateRanges(dateRange);
+    const ranges = getDateRanges(dateRange, selectedYear);
     setStartDate(ranges.start);
     setEndDate(ranges.end);
     setPrevStartDate(ranges.prevStart);
     setPrevEndDate(ranges.prevEnd);
-  }, [dateRange]);
+  }, [dateRange, selectedYear]);
 
   useEffect(() => {
     loadData();
@@ -896,6 +902,17 @@ export default function DeliveryMetrics() {
           </div>
 
           <div className="flex flex-wrap gap-3">
+            <Select value={selectedYear.toString()} onValueChange={(val) => setSelectedYear(parseInt(val))}>
+              <SelectTrigger className="w-24">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {availableYears.map(year => (
+                  <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
             <Select value={dateRange} onValueChange={setDateRange}>
               <SelectTrigger className="w-40">
                 <SelectValue />
@@ -906,11 +923,11 @@ export default function DeliveryMetrics() {
                 <SelectItem value="lastWeek">Last Week</SelectItem>
                 <SelectItem value="month">This Month</SelectItem>
                 <SelectItem value="lastMonth">Last Month</SelectItem>
-                <SelectItem value="q1">1st Quarter</SelectItem>
-                <SelectItem value="q2">2nd Quarter</SelectItem>
-                <SelectItem value="q3">3rd Quarter</SelectItem>
-                <SelectItem value="q4">4th Quarter</SelectItem>
-                <SelectItem value="year">This Year</SelectItem>
+                <SelectItem value="q1">Q1</SelectItem>
+                <SelectItem value="q2">Q2</SelectItem>
+                <SelectItem value="q3">Q3</SelectItem>
+                <SelectItem value="q4">Q4</SelectItem>
+                <SelectItem value="year">Full Year</SelectItem>
               </SelectContent>
             </Select>
 
