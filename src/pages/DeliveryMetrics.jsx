@@ -239,21 +239,28 @@ export default function DeliveryMetrics() {
     };
   }, [currentUser]);
 
-  const loadData = async () => {
+  const loadData = async (forceYear = null) => {
     if (!currentUser) return;
 
     setIsLoading(true);
     try {
-      // CRITICAL: Fetch ALL deliveries with explicit sort to get latest first
-      console.log('🔄 [DeliveryMetrics] Fetching fresh data from API...');
-      const deliveriesData = await Delivery.filter({}, '-delivery_date', 10000); // Get up to 10k deliveries, sorted by date descending
-      console.log(`✅ [DeliveryMetrics] Fetched ${deliveriesData.length} deliveries`);
+      const yearToFetch = forceYear || selectedYear;
+      console.log('🔄 [DeliveryMetrics] Fetching data for year:', yearToFetch);
       
-      // Show latest dates
-      if (deliveriesData.length > 0) {
-        const latestDates = [...new Set(deliveriesData.slice(0, 20).map(d => d.delivery_date))].sort().reverse();
-        console.log('📅 [DeliveryMetrics] Latest dates in fetched data:', latestDates);
-      }
+      // Use the same backend function as AdminMetrics to get full year data
+      const response = await base44.functions.invoke('getAdminMetrics', { year: yearToFetch });
+      const metricsResponse = response?.data || response;
+      
+      // Extract deliveries from the response - we need to fetch them separately since getAdminMetrics returns aggregated data
+      // Fetch deliveries for the entire year
+      const yearStart = `${yearToFetch}-01-01`;
+      const yearEnd = `${yearToFetch}-12-31`;
+      
+      const deliveriesData = await base44.entities.Delivery.filter({
+        delivery_date: { $gte: yearStart, $lte: yearEnd }
+      }, '-delivery_date', 50000);
+      
+      console.log(`✅ [DeliveryMetrics] Fetched ${deliveriesData.length} deliveries for ${yearToFetch}`);
 
       const [patientsData, storesData, appUsersData] = await Promise.all([
         Patient.filter({}),
@@ -302,8 +309,6 @@ export default function DeliveryMetrics() {
       }
 
       setDrivers(sortUsers(allDrivers));
-
-      // Store ALL fetched deliveries
       setDeliveries(deliveriesData || []);
 
       console.log(`✅ [DeliveryMetrics] Stored ${deliveriesData?.length || 0} total deliveries in state`);
