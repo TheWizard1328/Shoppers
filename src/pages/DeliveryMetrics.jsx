@@ -220,8 +220,10 @@ export default function DeliveryMetrics() {
   }, [dateRange, selectedYear]);
 
   useEffect(() => {
-    loadData();
-  }, [currentUser]); // Trigger reload when currentUser changes. No need for startDate/endDate here as filtering is moved.
+    if (currentUser) {
+      loadData(selectedYear);
+    }
+  }, [currentUser, selectedYear]); // Reload when user or year changes
 
   // Listen for broadcast sync events to refresh data
   useEffect(() => {
