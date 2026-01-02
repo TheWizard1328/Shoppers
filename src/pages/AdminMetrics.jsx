@@ -291,25 +291,23 @@ export default function AdminMetrics() {
             </CardContent>
           </Card>
 
-          {/* Driver Performance Chart - 12 Month View OR Daily View when month selected */}
+          {/* Store Breakdown */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Users className="w-5 h-5" />
-                Driver Performance {selectedMonth ? `- ${MONTH_NAMES[selectedMonth - 1]} ${selectedYear} (Daily)` : `by Month (${selectedYear})`}
+                <Store className="w-5 h-5" />
+                Store Breakdown ({selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} {selectedYear})
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart 
-                    data={selectedMonth ? metricsData.driverDailyByMonth?.[selectedMonth] : metricsData.driverMonthlyData} 
-                    barCategoryGap="15%"
-                  >
+                  <BarChart data={filteredData?.storeData || metricsData.storeData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis 
-                      dataKey={selectedMonth ? "day" : "month"} 
-                      tick={{ fill: '#64748b', fontSize: 12 }} 
+                      dataKey="abbreviation" 
+                      tick={{ fill: '#64748b', fontSize: 11 }}
+                      interval={0}
                     />
                     <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
                     <Tooltip 
@@ -318,43 +316,41 @@ export default function AdminMetrics() {
                         border: '1px solid #e2e8f0',
                         borderRadius: '8px'
                       }}
-                      labelFormatter={(label) => selectedMonth ? `Day ${label}` : label}
+                      formatter={(value, name) => [value, name]}
+                      labelFormatter={(label) => {
+                        const store = metricsData.storeData?.find(s => s.abbreviation === label);
+                        return store?.name || label;
+                      }}
                     />
-                    <Legend wrapperStyle={{ fontSize: '11px' }} />
-                    {metricsData.driverNames?.map((driverName, index) => (
-                      <Bar 
-                        key={driverName}
-                        dataKey={driverName} 
-                        fill={COLORS[index % COLORS.length]} 
-                        name={driverName}
-                        radius={[2, 2, 0, 0]}
-                        barSize={selectedMonth ? 8 : 20}
-                      />
-                    ))}
+                    <Legend />
+                    <Bar dataKey="completed" fill="#10b981" name="Completed" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="failed" fill="#ef4444" name="Failed" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </CardContent>
           </Card>
-        </div>
+          </div>
 
-        {/* Store Breakdown */}
-        <Card>
+          {/* Driver Performance Chart - 12 Month View OR Daily View when month selected */}
+          <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Store className="w-5 h-5" />
-              Store Breakdown ({selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} {selectedYear})
+              <Users className="w-5 h-5" />
+              Driver Performance {selectedMonth ? `- ${MONTH_NAMES[selectedMonth - 1]} ${selectedYear} (Daily)` : `by Month (${selectedYear})`}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-[350px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={filteredData?.storeData || metricsData.storeData}>
+                <BarChart 
+                  data={selectedMonth ? metricsData.driverDailyByMonth?.[selectedMonth] : metricsData.driverMonthlyData} 
+                  barCategoryGap="15%"
+                >
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis 
-                    dataKey="abbreviation" 
-                    tick={{ fill: '#64748b', fontSize: 11 }}
-                    interval={0}
+                    dataKey={selectedMonth ? "day" : "month"} 
+                    tick={{ fill: '#64748b', fontSize: 12 }} 
                   />
                   <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
                   <Tooltip 
@@ -363,20 +359,24 @@ export default function AdminMetrics() {
                       border: '1px solid #e2e8f0',
                       borderRadius: '8px'
                     }}
-                    formatter={(value, name) => [value, name]}
-                    labelFormatter={(label) => {
-                      const store = metricsData.storeData?.find(s => s.abbreviation === label);
-                      return store?.name || label;
-                    }}
+                    labelFormatter={(label) => selectedMonth ? `Day ${label}` : label}
                   />
-                  <Legend />
-                  <Bar dataKey="completed" fill="#10b981" name="Completed" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="failed" fill="#ef4444" name="Failed" radius={[4, 4, 0, 0]} />
+                  <Legend wrapperStyle={{ fontSize: '11px' }} />
+                  {metricsData.driverNames?.map((driverName, index) => (
+                    <Bar 
+                      key={driverName}
+                      dataKey={driverName} 
+                      fill={COLORS[index % COLORS.length]} 
+                      name={driverName}
+                      radius={[2, 2, 0, 0]}
+                      barSize={selectedMonth ? 8 : 20}
+                    />
+                  ))}
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
-        </Card>
+          </Card>
 
         {/* App Fees Summary */}
         {metricsData.storeFeeTotals && (
