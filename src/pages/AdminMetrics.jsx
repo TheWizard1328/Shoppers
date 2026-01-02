@@ -291,20 +291,26 @@ export default function AdminMetrics() {
             </CardContent>
           </Card>
 
-          {/* Driver Performance Chart - 12 Month View */}
+          {/* Driver Performance Chart - 12 Month View OR Daily View when month selected */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="w-5 h-5" />
-                Driver Performance by Month ({selectedYear})
+                Driver Performance {selectedMonth ? `- ${MONTH_NAMES[selectedMonth - 1]} ${selectedYear} (Daily)` : `by Month (${selectedYear})`}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={metricsData.driverMonthlyData} barCategoryGap="15%">
+                  <BarChart 
+                    data={selectedMonth ? metricsData.driverDailyByMonth?.[selectedMonth] : metricsData.driverMonthlyData} 
+                    barCategoryGap="15%"
+                  >
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="month" tick={{ fill: '#64748b', fontSize: 12 }} />
+                    <XAxis 
+                      dataKey={selectedMonth ? "day" : "month"} 
+                      tick={{ fill: '#64748b', fontSize: 12 }} 
+                    />
                     <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
                     <Tooltip 
                       contentStyle={{ 
@@ -312,6 +318,7 @@ export default function AdminMetrics() {
                         border: '1px solid #e2e8f0',
                         borderRadius: '8px'
                       }}
+                      labelFormatter={(label) => selectedMonth ? `Day ${label}` : label}
                     />
                     <Legend wrapperStyle={{ fontSize: '11px' }} />
                     {metricsData.driverNames?.map((driverName, index) => (
@@ -321,7 +328,7 @@ export default function AdminMetrics() {
                         fill={COLORS[index % COLORS.length]} 
                         name={driverName}
                         radius={[2, 2, 0, 0]}
-                        barSize={20}
+                        barSize={selectedMonth ? 8 : 20}
                       />
                     ))}
                   </BarChart>
