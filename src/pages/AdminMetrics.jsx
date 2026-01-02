@@ -48,10 +48,15 @@ export default function AdminMetrics() {
   }, []);
 
   // Fetch metrics from backend - only when year changes or on initial load
-  const fetchMetrics = useCallback(async (year) => {
+  const fetchMetrics = useCallback(async (year, isInitial = false) => {
     if (!hasAccess) return;
     
-    setIsLoading(true);
+    // Only show full loading screen on initial load
+    if (isInitial) {
+      setIsLoading(true);
+    } else {
+      setIsFetching(true);
+    }
     setError(null);
     
     try {
@@ -69,6 +74,7 @@ export default function AdminMetrics() {
       setError(err.message || 'Failed to load metrics');
     } finally {
       setIsLoading(false);
+      setIsFetching(false);
     }
   }, [hasAccess]);
 
