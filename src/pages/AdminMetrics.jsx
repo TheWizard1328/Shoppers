@@ -25,11 +25,8 @@ export default function AdminMetrics() {
   const [hasAccess, setHasAccess] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
-  const [selectedMonth, setSelectedMonth] = useState(null); // null = show all year, 1-12 = specific month
   const [metricsData, setMetricsData] = useState(null);
   const [storeMetrics, setStoreMetrics] = useState(null);
-  const [allYearDeliveries, setAllYearDeliveries] = useState([]); // Store all deliveries for filtering
-  const [allStoresData, setAllStoresData] = useState([]); // Store all stores for filtering
 
   const availableYears = useMemo(() => {
     const currentYear = new Date().getFullYear();
@@ -53,111 +50,50 @@ export default function AdminMetrics() {
 
   // Calculate metrics from deliveries
   const calculateMetrics = useCallback(async () => {
-    if (!hasAccess) return;
+    if (!isDataLoaded || !hasAccess) return;
     
     setIsLoading(true);
     try {
       const year = parseInt(selectedYear);
       
-      // CRITICAL: Fetch stores directly from backend to ensure we have them
-      const allStores = await base44.entities.Store.list();
-      
-      // CRITICAL: Fetch full year deliveries from backend in chunks to avoid limits
-      // Fetch all months in parallel to get around any query limits
-      const monthPromises = [];
-      for (let month = 1; month <= 12; month++) {
-        const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
-        const monthEndDate = new Date(year, month, 0);
-        const monthEnd = `${year}-${String(month).padStart(2, '0')}-${String(monthEndDate.getDate()).padStart(2, '0')}`;
-        
-        monthPromises.push(
-          base44.entities.Delivery.filter({
-            delivery_date: { $gte: monthStart, $lte: monthEnd }
-          })
-        );
-      }
-      
-      const monthResults = await Promise.all(monthPromises);
-      const yearDeliveries = monthResults.flat();
-      
-      // Store for later filtering
-      setAllYearDeliveries(yearDeliveries);
-      setAllStoresData(allStores);
-      
-      // Monthly delivery counts - split by store fee status
+      // Monthly delivery counts
       const monthlyData = [];
       for (let month = 1; month <= 12; month++) {
         const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
         const monthEnd = new Date(year, month, 0);
         const monthEndStr = monthEnd.toISOString().split('T')[0];
         
-        const monthDeliveries = yearDeliveries.filter(d => {
+        const monthDeliveries = deliveries.filter(d => {
           if (!d?.delivery_date) return false;
           return d.delivery_date >= monthStart && d.delivery_date <= monthEndStr;
         });
         
-        // Billable deliveries: completed patient deliveries + failed + after-hours pickups (completed/cancelled)
-        const billableDeliveries = monthDeliveries.filter(d => {
-          if (!d) return false;
-          // Patient deliveries (completed or failed)
-          if (d.patient_id && (d.status === 'completed' || d.status === 'failed')) return true;
-          // After-hours pickups (completed or cancelled)
-          if (!d.patient_id && d.after_hours_pickup && (d.status === 'completed' || d.status === 'cancelled')) return true;
-          return false;
-        });
-        
-        // Split billable deliveries by store fee status
-        let payingStoresCount = 0;
-        let notPayingStoresCount = 0;
-        
-        billableDeliveries.forEach(d => {
-          const deliveryStore = allStores.find(s => s?.id === d.store_id);
-          if (!deliveryStore) {
-            notPayingStoresCount++;
-            return;
-          }
-          
-          // Check if store was paying fees on this delivery date
-          const deliveryDateStr = d.delivery_date;
-          let wasPayingFees = false;
-          
-          // Check historical status if app_fee_history exists
-          if (deliveryStore.app_fee_history && Array.isArray(deliveryStore.app_fee_history) && deliveryStore.app_fee_history.length > 0) {
-            const sortedHistory = [...deliveryStore.app_fee_history].sort((a, b) => 
-              new Date(a.effective_date) - new Date(b.effective_date)
-            );
-            
-            // Find the applicable period for this delivery date
-            for (const entry of sortedHistory) {
-              if (entry.effective_date <= deliveryDateStr) {
-                wasPayingFees = entry.pays_app_fees;
-              } else {
-                break;
-              }
-            }
-          } else {
-            // No history - use current pays_app_fees status
-            wasPayingFees = deliveryStore.pays_app_fees || false;
-          }
-          
-          if (wasPayingFees) {
-            payingStoresCount++;
-          } else {
-            notPayingStoresCount++;
-          }
-        });
+        const completed = monthDeliveries.filter(d => d.status === 'completed' && d.patient_id).length;
+        const failed = monthDeliveries.filter(d => d.status === 'failed').length;
+        const afterHours = monthDeliveries.filter(d => d.after_hours_pickup).length;
         
         monthlyData.push({
           month: MONTH_NAMES[month - 1],
           monthNum: month,
-          payingStores: payingStoresCount,
-          notPayingStores: notPayingStoresCount
+          completed,
+          failed,
+          afterHours,
+          total: completed + failed
         });
       }
 
-      // Driver performance (full year - will be filtered by recalculateMonthData if month selected)
+      // Driver performance (current month)
+      const currentMonth = new Date().getMonth() + 1;
+      const currentMonthStart = `${year}-${String(currentMonth).padStart(2, '0')}-01`;
+      const currentMonthEnd = new Date(year, currentMonth, 0).toISOString().split('T')[0];
+      
+      const currentMonthDeliveries = deliveries.filter(d => {
+        if (!d?.delivery_date) return false;
+        return d.delivery_date >= currentMonthStart && d.delivery_date <= currentMonthEnd;
+      });
+
       const driverStats = {};
-      yearDeliveries.forEach(d => {
+      currentMonthDeliveries.forEach(d => {
         if (!d.driver_id || !d.patient_id) return;
         if (!driverStats[d.driver_id]) {
           const driver = drivers.find(dr => dr?.id === d.driver_id);
@@ -175,49 +111,14 @@ export default function AdminMetrics() {
 
       const driverData = Object.values(driverStats)
         .sort((a, b) => b.completed - a.completed)
-        .slice(0, 10);
+        .slice(0, 8);
 
-      // Driver monthly data for 12-month chart
-      const driverMonthlyMap = {};
-      const driverTotalsForSorting = {};
-      
-      yearDeliveries.forEach(d => {
-        if (!d.driver_id || !d.patient_id || d.status !== 'completed') return;
-        if (!d.delivery_date) return;
-        
-        const month = parseInt(d.delivery_date.split('-')[1]);
-        const driver = drivers.find(dr => dr?.id === d.driver_id);
-        const driverName = driver?.user_name || d.driver_name || 'Unknown';
-        
-        if (!driverMonthlyMap[month]) {
-          driverMonthlyMap[month] = { month: MONTH_NAMES[month - 1], monthNum: month };
-        }
-        driverMonthlyMap[month][driverName] = (driverMonthlyMap[month][driverName] || 0) + 1;
-        driverTotalsForSorting[driverName] = (driverTotalsForSorting[driverName] || 0) + 1;
-      });
-
-      // Get top 8 drivers by total deliveries
-      const topDriverNames = Object.entries(driverTotalsForSorting)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 8)
-        .map(([name]) => name);
-
-      // Build monthly data array with only top drivers
-      const driverMonthlyData = [];
-      for (let m = 1; m <= 12; m++) {
-        const monthData = { month: MONTH_NAMES[m - 1] };
-        topDriverNames.forEach(driverName => {
-          monthData[driverName] = driverMonthlyMap[m]?.[driverName] || 0;
-        });
-        driverMonthlyData.push(monthData);
-      }
-
-      // Store breakdown (full year)
+      // Store breakdown (current month)
       const storeStats = {};
-      yearDeliveries.forEach(d => {
+      currentMonthDeliveries.forEach(d => {
         if (!d.store_id || !d.patient_id) return;
         if (!storeStats[d.store_id]) {
-          const store = allStores.find(s => s?.id === d.store_id);
+          const store = stores.find(s => s?.id === d.store_id);
           storeStats[d.store_id] = {
             name: store?.name || 'Unknown',
             abbreviation: store?.abbreviation || '',
@@ -236,33 +137,39 @@ export default function AdminMetrics() {
         .sort((a, b) => a.sortOrder - b.sortOrder);
 
       // Year totals
+      const yearDeliveries = deliveries.filter(d => {
+        if (!d?.delivery_date) return false;
+        return d.delivery_date.startsWith(year.toString());
+      });
+
       const yearCompleted = yearDeliveries.filter(d => d.status === 'completed' && d.patient_id).length;
       const yearFailed = yearDeliveries.filter(d => d.status === 'failed').length;
 
       setMetricsData({
         monthlyData,
         driverData,
-        driverMonthlyData,
-        driverNames: topDriverNames,
         storeData,
         yearTotals: {
           completed: yearCompleted,
           failed: yearFailed,
-          total: yearCompleted + yearFailed,
-          activeDrivers: Object.keys(driverStats).length
+          total: yearCompleted + yearFailed
         },
-        selectedMonthTotals: null
+        currentMonthTotals: {
+          completed: currentMonthDeliveries.filter(d => d.status === 'completed' && d.patient_id).length,
+          failed: currentMonthDeliveries.filter(d => d.status === 'failed').length,
+          activeDrivers: Object.keys(driverStats).length
+        }
       });
 
-      // Load year-level store metrics (no month selected on initial load)
+      // Load store fee metrics
       try {
         const response = await base44.functions.invoke('getStoreMetrics', {
-          year: year
+          year: year,
+          month: currentMonth
         });
         setStoreMetrics(response?.data || response);
       } catch (err) {
         console.warn('Failed to load store metrics:', err);
-        setStoreMetrics(null);
       }
 
     } catch (error) {
@@ -270,113 +177,13 @@ export default function AdminMetrics() {
     } finally {
       setIsLoading(false);
     }
-  }, [drivers, hasAccess, selectedYear]);
+  }, [deliveries, drivers, stores, isDataLoaded, hasAccess, selectedYear]);
 
-  // Recalculate month-specific data when selectedMonth changes (no re-fetch)
-  const recalculateMonthData = useCallback(() => {
-    if (!allYearDeliveries.length || !allStoresData.length) return;
-    
-    const year = parseInt(selectedYear);
-    
-    // Filter deliveries: either specific month or all year
-    let targetDeliveries;
-    if (selectedMonth) {
-      const targetMonthStart = `${year}-${String(selectedMonth).padStart(2, '0')}-01`;
-      const targetMonthEnd = new Date(year, selectedMonth, 0).toISOString().split('T')[0];
-      targetDeliveries = allYearDeliveries.filter(d => {
-        if (!d?.delivery_date) return false;
-        return d.delivery_date >= targetMonthStart && d.delivery_date <= targetMonthEnd;
-      });
-    } else {
-      // All year
-      targetDeliveries = allYearDeliveries;
-    }
-
-    // Driver stats
-    const driverStats = {};
-    targetDeliveries.forEach(d => {
-      if (!d.driver_id || !d.patient_id) return;
-      if (!driverStats[d.driver_id]) {
-        const driver = drivers.find(dr => dr?.id === d.driver_id);
-        driverStats[d.driver_id] = {
-          name: driver?.user_name || d.driver_name || 'Unknown',
-          completed: 0,
-          failed: 0,
-          total: 0
-        };
-      }
-      if (d.status === 'completed') driverStats[d.driver_id].completed++;
-      else if (d.status === 'failed') driverStats[d.driver_id].failed++;
-      driverStats[d.driver_id].total++;
-    });
-
-    const driverData = Object.values(driverStats)
-      .sort((a, b) => b.completed - a.completed)
-      .slice(0, 10);
-
-    // Store stats
-    const storeStats = {};
-    targetDeliveries.forEach(d => {
-      if (!d.store_id || !d.patient_id) return;
-      if (!storeStats[d.store_id]) {
-        const store = allStoresData.find(s => s?.id === d.store_id);
-        storeStats[d.store_id] = {
-          name: store?.name || 'Unknown',
-          abbreviation: store?.abbreviation || '',
-          sortOrder: store?.sort_order ?? Infinity,
-          completed: 0,
-          failed: 0,
-          total: 0
-        };
-      }
-      if (d.status === 'completed') storeStats[d.store_id].completed++;
-      else if (d.status === 'failed') storeStats[d.store_id].failed++;
-      storeStats[d.store_id].total++;
-    });
-
-    const storeData = Object.values(storeStats)
-      .sort((a, b) => a.sortOrder - b.sortOrder);
-
-    setMetricsData(prev => ({
-      ...prev,
-      driverData,
-      storeData,
-      selectedMonthTotals: selectedMonth ? {
-        completed: targetDeliveries.filter(d => d.status === 'completed' && d.patient_id).length,
-        failed: targetDeliveries.filter(d => d.status === 'failed').length,
-        activeDrivers: Object.keys(driverStats).length
-      } : null,
-      yearTotals: {
-        ...prev?.yearTotals,
-        activeDrivers: Object.keys(driverStats).length
-      }
-    }));
-
-    // Load store fee metrics (year or specific month)
-    base44.functions.invoke('getStoreMetrics', {
-      year: year,
-      month: selectedMonth || undefined
-    }).then(response => {
-      setStoreMetrics(response?.data || response);
-    }).catch(err => {
-      console.warn('Failed to load store metrics:', err);
-    });
-  }, [allYearDeliveries, allStoresData, selectedYear, selectedMonth, drivers]);
-
-  // Initial load when year changes
   useEffect(() => {
     if (hasAccess && isDataLoaded) {
       calculateMetrics();
     }
-  }, [calculateMetrics, hasAccess, isDataLoaded, selectedYear]);
-
-  // Recalculate when month changes (without re-fetching) - only runs after initial data load
-  useEffect(() => {
-    if (allYearDeliveries.length > 0 && metricsData) {
-      recalculateMonthData();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMonth]);
+  }, [calculateMetrics, hasAccess, isDataLoaded]);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
@@ -457,8 +264,8 @@ export default function AdminMetrics() {
                   <TrendingUp className="w-6 h-6 text-blue-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-slate-500">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'Year'} Deliveries</p>
-                  <p className="text-2xl font-bold text-slate-900">{(selectedMonth ? metricsData.selectedMonthTotals?.completed : metricsData.yearTotals?.completed)?.toLocaleString() || 0}</p>
+                  <p className="text-sm text-slate-500">This Month</p>
+                  <p className="text-2xl font-bold text-slate-900">{metricsData.currentMonthTotals.completed.toLocaleString()}</p>
                 </div>
               </div>
             </CardContent>
@@ -471,8 +278,8 @@ export default function AdminMetrics() {
                   <Truck className="w-6 h-6 text-purple-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-slate-500">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'Year'} Drivers</p>
-                  <p className="text-2xl font-bold text-slate-900">{(selectedMonth ? metricsData.selectedMonthTotals?.activeDrivers : metricsData.yearTotals?.activeDrivers) || 0}</p>
+                  <p className="text-sm text-slate-500">Active Drivers</p>
+                  <p className="text-2xl font-bold text-slate-900">{metricsData.currentMonthTotals.activeDrivers}</p>
                 </div>
               </div>
             </CardContent>
@@ -485,7 +292,7 @@ export default function AdminMetrics() {
                   <DollarSign className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <p className="text-sm text-amber-700">{selectedMonth ? `Fees ${MONTH_NAMES[selectedMonth - 1]}` : `Fees ${selectedYear}`}</p>
+                  <p className="text-sm text-amber-700">Fees This Month</p>
                   <p className="text-2xl font-bold text-amber-900">
                     {formatCurrency(storeMetrics?.totals?.total_fees_owed || 0)}
                   </p>
@@ -502,26 +309,13 @@ export default function AdminMetrics() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <BarChart3 className="w-5 h-5" />
-                Billable Deliveries by Store Fee Status ({selectedYear})
+                Monthly Deliveries ({selectedYear})
               </CardTitle>
-              <CardDescription className="text-xs mt-1">
-                Includes completed + failed patient deliveries, and after-hours pickups (completed/cancelled)
-              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart 
-                    data={metricsData.monthlyData}
-                    onClick={(data) => {
-                      if (data && data.activePayload && data.activePayload.length > 0) {
-                        const clickedMonth = data.activePayload[0].payload.monthNum;
-                        // Toggle: deselect if clicking same month, otherwise select new month
-                        setSelectedMonth(prev => prev === clickedMonth ? null : clickedMonth);
-                      }
-                    }}
-                    style={{ cursor: 'pointer' }}
-                  >
+                  <BarChart data={metricsData.monthlyData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="month" tick={{ fill: '#64748b', fontSize: 12 }} />
                     <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
@@ -531,49 +325,36 @@ export default function AdminMetrics() {
                         border: '1px solid #e2e8f0',
                         borderRadius: '8px'
                       }}
-                      formatter={(value, name) => {
-                        if (name === 'Paying App Fees') return [value, 'Stores Paying Fees'];
-                        if (name === 'Not Paying Fees') return [value, 'Stores Not Paying Fees'];
-                        return [value, name];
-                      }}
                     />
                     <Legend />
-                    <Bar 
-                      dataKey="payingStores" 
-                      fill="#10b981" 
-                      name="Paying App Fees" 
-                      radius={[4, 4, 0, 0]}
-                    />
-                    <Bar 
-                      dataKey="notPayingStores" 
-                      fill="#f59e0b" 
-                      name="Not Paying Fees" 
-                      radius={[4, 4, 0, 0]}
-                    />
+                    <Bar dataKey="completed" fill="#10b981" name="Completed" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="failed" fill="#ef4444" name="Failed" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-              <p className="text-xs text-slate-500 text-center mt-2">
-                Click on a month to filter charts below (click again to deselect) • Currently viewing: <span className="font-semibold text-emerald-600">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All Year'}</span>
-              </p>
             </CardContent>
           </Card>
 
-          {/* Driver Performance Chart - 12 Month View */}
+          {/* Driver Performance Chart */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="w-5 h-5" />
-                Driver Performance by Month ({selectedYear})
+                Driver Performance (This Month)
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={metricsData.driverMonthlyData} barCategoryGap="20%">
+                  <BarChart data={metricsData.driverData} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="month" tick={{ fill: '#64748b', fontSize: 12 }} />
-                    <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
+                    <XAxis type="number" tick={{ fill: '#64748b', fontSize: 12 }} />
+                    <YAxis 
+                      dataKey="name" 
+                      type="category" 
+                      tick={{ fill: '#64748b', fontSize: 11 }} 
+                      width={80}
+                    />
                     <Tooltip 
                       contentStyle={{ 
                         background: 'white', 
@@ -581,17 +362,7 @@ export default function AdminMetrics() {
                         borderRadius: '8px'
                       }}
                     />
-                    <Legend wrapperStyle={{ fontSize: '11px' }} />
-                    {metricsData.driverNames?.map((driverName, index) => (
-                      <Bar 
-                        key={driverName}
-                        dataKey={driverName} 
-                        fill={COLORS[index % COLORS.length]} 
-                        name={driverName}
-                        radius={[2, 2, 0, 0]}
-                        barSize={30}
-                      />
-                    ))}
+                    <Bar dataKey="completed" fill="#3b82f6" name="Completed" radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -603,8 +374,8 @@ export default function AdminMetrics() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-            <Store className="w-5 h-5" />
-            Store Breakdown ({selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} {selectedYear})
+              <Store className="w-5 h-5" />
+              Store Breakdown (This Month)
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -645,7 +416,7 @@ export default function AdminMetrics() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-amber-900">
                 <DollarSign className="w-5 h-5" />
-                App Fees Summary ({selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} {selectedYear})
+                App Fees Summary (This Month)
               </CardTitle>
               <CardDescription>
                 Stores with "Pays App Fees" enabled - {storeMetrics.totals?.stores_paying_fees || 0} of {storeMetrics.totals?.total_stores || 0} stores
