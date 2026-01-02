@@ -118,115 +118,114 @@ Deno.serve(async (req) => {
       let frequency = null;
 
       const hasDaySelected = patient[`recurring_weekly_${selectedDayName}`];
-      
-      // Debug: Log patient recurring flags
-      const hasAnyWeeklyFlag = patient.recurring_weekly_mon || patient.recurring_weekly_tue || 
-        patient.recurring_weekly_wed || patient.recurring_weekly_thu || 
-        patient.recurring_weekly_fri || patient.recurring_weekly_sat || patient.recurring_weekly_sun;
-      
-      if (patient.recurring_weekly_x4 || patient.recurring_biweekly || hasAnyWeeklyFlag) {
-        console.log(`[Predictions] Checking: ${patient.full_name} - weekly_x4=${patient.recurring_weekly_x4}, biweekly=${patient.recurring_biweekly}, hasDaySelected(${selectedDayName})=${hasDaySelected}, last=${patient.last_delivery_date}`);
-      }
+      const lastDate = patient.last_delivery_date ? new Date(patient.last_delivery_date + 'T00:00:00') : null;
+      const daysSinceLast = lastDate ? Math.floor((selectedDateObj - lastDate) / (1000 * 60 * 60 * 24)) : null;
 
-      // Daily deliveries - highest priority
+      // NEW RULES:
+      // 1) Daily: Show unless no delivery in past 3 days (means they're inactive)
       if (patient.recurring_daily) {
-        shouldDeliver = true;
-        frequency = 'Daily';
-      }
-      // Weekly x4 (Every 4 Weeks) - NO day selection required, just interval-based
-      else if (patient.recurring_weekly_x4) {
-        if (!patient.last_delivery_date) {
-          console.log(`[Predictions] ✅ MATCH: ${patient.full_name} (Weekly x4) - no last delivery, including`);
+        if (!lastDate || daysSinceLast <= 3) {
           shouldDeliver = true;
-          frequency = 'Every 4 Weeks';
+          frequency = 'Daily';
         } else {
-          const lastDate = new Date(patient.last_delivery_date + 'T00:00:00');
-          const daysSinceLast = Math.floor((selectedDateObj - lastDate) / (1000 * 60 * 60 * 24));
-          // Include if at least 28 days have passed
-          if (daysSinceLast >= 28) {
-            console.log(`[Predictions] ✅ MATCH: ${patient.full_name} (Weekly x4) - daysSinceLast=${daysSinceLast} >= 28`);
-            shouldDeliver = true;
-            frequency = 'Every 4 Weeks';
-          } else {
-            console.log(`[Predictions] ❌ SKIP: ${patient.full_name} (Weekly x4) - daysSinceLast=${daysSinceLast} < 28`);
-          }
+          console.log(`[Predictions] ❌ SKIP: ${patient.full_name} (Daily) - last delivery ${daysSinceLast} days ago > 3 days`);
         }
       }
-      // Bi-weekly deliveries (Every 2 Weeks) - REQUIRES day selection (recurring_weekly_X)
-      else if (patient.recurring_biweekly && hasDaySelected) {
-        if (!patient.last_delivery_date) {
-          console.log(`[Predictions] ✅ MATCH: ${patient.full_name} (Bi-Weekly) - no last delivery, including`);
-          shouldDeliver = true;
-          frequency = 'Every 2 Weeks';
-        } else {
-          const lastDate = new Date(patient.last_delivery_date + 'T00:00:00');
-          const daysSinceLast = Math.floor((selectedDateObj - lastDate) / (1000 * 60 * 60 * 24));
-          // Include if at least 14 days have passed
-          if (daysSinceLast >= 14) {
-            console.log(`[Predictions] ✅ MATCH: ${patient.full_name} (Bi-Weekly) - daysSinceLast=${daysSinceLast} >= 14`);
-            shouldDeliver = true;
-            frequency = 'Every 2 Weeks';
-          } else {
-            console.log(`[Predictions] ❌ SKIP: ${patient.full_name} (Bi-Weekly) - daysSinceLast=${daysSinceLast} < 14`);
-          }
-        }
-      }
-      // Weekly deliveries (Every Week) - REQUIRES day selection (recurring_weekly_X)
-      else if (hasDaySelected && !patient.recurring_biweekly) {
-        if (!patient.last_delivery_date) {
-          console.log(`[Predictions] ✅ MATCH: ${patient.full_name} (Weekly) - no last delivery, including`);
+      // 2) Weekly: Show on selected day, unless last delivery > 14 days ago
+      else if (hasDaySelected && !patient.recurring_biweekly && !patient.recurring_weekly_x4) {
+        if (!lastDate || daysSinceLast <= 14) {
           shouldDeliver = true;
           frequency = 'Weekly';
+          console.log(`[Predictions] ✅ MATCH: ${patient.full_name} (Weekly) - daysSinceLast=${daysSinceLast}`);
         } else {
-          const lastDate = new Date(patient.last_delivery_date + 'T00:00:00');
-          const daysSinceLast = Math.floor((selectedDateObj - lastDate) / (1000 * 60 * 60 * 24));
-          // Include if: pattern matches OR at least 7 days have passed
-          if (matchesCyclePattern(lastDate, 7, lookbackWindowDays, maxCyclesBack, patient.full_name, 'Weekly') || daysSinceLast >= 7) {
-            console.log(`[Predictions] ✅ MATCH: ${patient.full_name} (Weekly) - daysSinceLast=${daysSinceLast}`);
-            shouldDeliver = true;
-            frequency = 'Weekly';
-          } else {
-            console.log(`[Predictions] ❌ SKIP: ${patient.full_name} (Weekly) - daysSinceLast=${daysSinceLast} < 7 and no pattern match`);
-          }
+          console.log(`[Predictions] ❌ SKIP: ${patient.full_name} (Weekly) - last delivery ${daysSinceLast} days ago > 14 days`);
         }
       }
-      // Monthly deliveries
+      // 3) Bi-Weekly: Show on selected day, unless last delivery > 28 days ago
+      else if (patient.recurring_biweekly && hasDaySelected) {
+        if (!lastDate || daysSinceLast <= 28) {
+          shouldDeliver = true;
+          frequency = 'Every 2 Weeks';
+          console.log(`[Predictions] ✅ MATCH: ${patient.full_name} (Bi-Weekly) - daysSinceLast=${daysSinceLast}`);
+        } else {
+          console.log(`[Predictions] ❌ SKIP: ${patient.full_name} (Bi-Weekly) - last delivery ${daysSinceLast} days ago > 28 days`);
+        }
+      }
+      // 4) Weekly x4: Show on selected day +/- 2 days, unless last delivery > 56 days ago
+      else if (patient.recurring_weekly_x4) {
+        // Check if selected day matches the weekly_x4_day field OR any recurring_weekly_X flag, with +/- 2 day tolerance
+        const x4Day = patient.recurring_weekly_x4_day;
+        const dayIndexMap = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+        const targetDayIndex = x4Day ? dayIndexMap[x4Day] : null;
+        
+        let dayMatches = false;
+        if (targetDayIndex !== null) {
+          // Check if selected day is within +/- 2 days of the target day
+          const diff = Math.abs(dayOfWeek - targetDayIndex);
+          const wrappedDiff = Math.min(diff, 7 - diff); // Handle week wrap-around
+          dayMatches = wrappedDiff <= 2;
+        }
+        
+        if (dayMatches) {
+          if (!lastDate || daysSinceLast <= 56) {
+            shouldDeliver = true;
+            frequency = 'Every 4 Weeks';
+            console.log(`[Predictions] ✅ MATCH: ${patient.full_name} (Weekly x4) - daysSinceLast=${daysSinceLast}, day=${selectedDayName} within ±2 of ${x4Day}`);
+          } else {
+            console.log(`[Predictions] ❌ SKIP: ${patient.full_name} (Weekly x4) - last delivery ${daysSinceLast} days ago > 56 days`);
+          }
+        } else {
+          console.log(`[Predictions] ❌ SKIP: ${patient.full_name} (Weekly x4) - day ${selectedDayName} not within ±2 of ${x4Day}`);
+        }
+      }
+      // 5) Monthly: Show +/- 3 days of last delivery date, unless last delivery > 60 days ago
       else if (patient.recurring_monthly) {
-        if (!patient.last_delivery_date) {
+        if (!lastDate) {
           shouldDeliver = true;
           frequency = 'Monthly';
+        } else if (daysSinceLast > 60) {
+          console.log(`[Predictions] ❌ SKIP: ${patient.full_name} (Monthly) - last delivery ${daysSinceLast} days ago > 60 days`);
         } else {
-          const lastDate = new Date(patient.last_delivery_date + 'T00:00:00');
-          const daysDiff = Math.floor((selectedDateObj - lastDate) / (1000 * 60 * 60 * 24));
-          // For monthly, check if at least ~26 days have passed (28 - 2 day window)
-          if (daysDiff >= 28 - lookbackWindowDays) {
+          // Check if we're within +/- 3 days of the monthly anniversary
+          const lastDayOfMonth = lastDate.getDate();
+          const selectedDayOfMonth = selectedDateObj.getDate();
+          const dayDiff = Math.abs(selectedDayOfMonth - lastDayOfMonth);
+          // Also check if we're at least ~27 days out (to avoid showing too early)
+          if (daysSinceLast >= 27 && dayDiff <= 3) {
             shouldDeliver = true;
             frequency = 'Monthly';
+            console.log(`[Predictions] ✅ MATCH: ${patient.full_name} (Monthly) - daysSinceLast=${daysSinceLast}, dayOfMonth diff=${dayDiff}`);
+          } else {
+            console.log(`[Predictions] ❌ SKIP: ${patient.full_name} (Monthly) - daysSinceLast=${daysSinceLast}, dayOfMonth diff=${dayDiff}`);
           }
         }
       }
-      // Bi-monthly deliveries
+      // 6) Bi-Monthly: Show +/- 3 days of last delivery date, unless last delivery > 120 days ago
       else if (patient.recurring_bimonthly) {
-        if (!patient.last_delivery_date) {
+        if (!lastDate) {
           shouldDeliver = true;
           frequency = 'Every 2 Months';
+        } else if (daysSinceLast > 120) {
+          console.log(`[Predictions] ❌ SKIP: ${patient.full_name} (Bi-Monthly) - last delivery ${daysSinceLast} days ago > 120 days`);
         } else {
-          const lastDate = new Date(patient.last_delivery_date + 'T00:00:00');
-          const daysDiff = Math.floor((selectedDateObj - lastDate) / (1000 * 60 * 60 * 24));
-          // For bi-monthly, check if at least ~54 days have passed (56 - 2 day window)
-          if (daysDiff >= 56 - lookbackWindowDays) {
+          // Check if we're within +/- 3 days of the bi-monthly anniversary
+          const lastDayOfMonth = lastDate.getDate();
+          const selectedDayOfMonth = selectedDateObj.getDate();
+          const dayDiff = Math.abs(selectedDayOfMonth - lastDayOfMonth);
+          // Also check if we're at least ~57 days out (to avoid showing too early)
+          if (daysSinceLast >= 57 && dayDiff <= 3) {
             shouldDeliver = true;
             frequency = 'Every 2 Months';
+            console.log(`[Predictions] ✅ MATCH: ${patient.full_name} (Bi-Monthly) - daysSinceLast=${daysSinceLast}, dayOfMonth diff=${dayDiff}`);
+          } else {
+            console.log(`[Predictions] ❌ SKIP: ${patient.full_name} (Bi-Monthly) - daysSinceLast=${daysSinceLast}, dayOfMonth diff=${dayDiff}`);
           }
         }
       }
 
       // Additional validation: skip if last delivery was today or in the future
-      if (shouldDeliver && patient.last_delivery_date) {
-        const lastDate = new Date(patient.last_delivery_date + 'T00:00:00');
-        if (lastDate >= selectedDateObj) {
-          shouldDeliver = false;
-        }
+      if (shouldDeliver && lastDate && lastDate >= selectedDateObj) {
+        shouldDeliver = false;
       }
 
       if (shouldDeliver) {
