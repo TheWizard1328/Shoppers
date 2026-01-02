@@ -33,6 +33,7 @@ import {
   deleteDeliveryLocal,
   batchCreateDeliveriesLocal } from
 '../utils/entityMutations';
+import DeliveryFormStaged from './DeliveryFormStaged';
 
 const CheckboxField = ({ id, label, checked, onChange, disabled }) =>
 <div className="flex items-center space-x-2">
@@ -4020,8 +4021,28 @@ export default function DeliveryForm({
                 {!delivery && !useMobileLayout &&
                 <div className="w-[300px] flex-shrink-0 p-3 rounded-lg border-2 flex flex-col h-full" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                   <Label className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>Staged: (S: {sortedStagedDeliveries.length} P: {sortedProjectedDeliveries.length})</Label>
-                  <div className="space-y-1 flex-1 overflow-y-auto min-h-0 custom-scrollbar">
-                    {/* Pending Deliveries Section */}
+                  <DeliveryFormStaged
+                    sortedStagedDeliveries={sortedStagedDeliveries}
+                    sortedProjectedDeliveries={sortedProjectedDeliveries}
+                    stores={stores}
+                    patients={patients}
+                    currentUser={currentUser}
+                    editingStagedId={editingStagedId}
+                    isMobileDevice={isMobileDevice}
+                    handleStagedDeliveryClick={handleStagedDeliveryClick}
+                    handleClearForm={handleClearForm}
+                    stagedDeliveries={stagedDeliveries}
+                    fullPredictionListRef={fullPredictionListRef}
+                    setProjectedDeliveries={setProjectedDeliveries}
+                    setStagedDeliveries={setStagedDeliveries}
+                    setEditingStagedId={setEditingStagedId}
+                    patientSearchInputRef={patientSearchInputRef}
+                    confirmAddProjectedToStaged={confirmAddProjectedToStaged}
+                    setDeleteConfirmation={setDeleteConfirmation}
+                    isLoadingPredictions={isLoadingPredictions}
+                  />
+
+                    {/* Refresh Projections Button */}
                     {sortedStagedDeliveries.filter(s => s.id).length > 0 && (
                       <>
                         <div className="text-[10px] font-semibold uppercase tracking-wider px-1 py-1 text-orange-600">
