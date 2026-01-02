@@ -181,10 +181,20 @@ Deno.serve(async (req) => {
       driverMonthlyData.push(monthData);
     }
 
-    // Store breakdown (full year)
+    // Store breakdown (full year + by month)
     const storeStats = {};
+    const storeStatsByMonth = {}; // { monthNum: { storeId: stats } }
+    
+    for (let m = 1; m <= 12; m++) {
+      storeStatsByMonth[m] = {};
+    }
+
     yearDeliveries.forEach(d => {
       if (!d.store_id || !d.patient_id) return;
+      
+      const month = d.delivery_date ? parseInt(d.delivery_date.split('-')[1]) : null;
+      
+      // Year total
       if (!storeStats[d.store_id]) {
         const store = stores.find(s => s?.id === d.store_id);
         storeStats[d.store_id] = {
@@ -197,9 +207,31 @@ Deno.serve(async (req) => {
       }
       if (d.status === 'completed') storeStats[d.store_id].completed++;
       else if (d.status === 'failed') storeStats[d.store_id].failed++;
+      
+      // By month
+      if (month && month >= 1 && month <= 12) {
+        if (!storeStatsByMonth[month][d.store_id]) {
+          const store = stores.find(s => s?.id === d.store_id);
+          storeStatsByMonth[month][d.store_id] = {
+            name: store?.name || 'Unknown',
+            abbreviation: store?.abbreviation || '',
+            sortOrder: store?.sort_order ?? Infinity,
+            completed: 0,
+            failed: 0
+          };
+        }
+        if (d.status === 'completed') storeStatsByMonth[month][d.store_id].completed++;
+        else if (d.status === 'failed') storeStatsByMonth[month][d.store_id].failed++;
+      }
     });
 
     const storeData = Object.values(storeStats).sort((a, b) => a.sortOrder - b.sortOrder);
+    
+    // Convert monthly store stats to sorted arrays
+    const storeDataByMonth = {};
+    for (let m = 1; m <= 12; m++) {
+      storeDataByMonth[m] = Object.values(storeStatsByMonth[m]).sort((a, b) => a.sortOrder - b.sortOrder);
+    }
 
     // Year totals
     const yearCompleted = yearDeliveries.filter(d => d.status === 'completed' && d.patient_id).length;
