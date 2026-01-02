@@ -22,6 +22,7 @@ export default function AdminMetrics() {
   const [hasAccess, setHasAccess] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
+  const [selectedMonth, setSelectedMonth] = useState(null); // null = all year, 1-12 = specific month
   const [metricsData, setMetricsData] = useState(null);
   const [error, setError] = useState(null);
 
