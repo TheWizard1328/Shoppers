@@ -4188,7 +4188,7 @@ export default function DeliveryForm({
                         </div>
                     }
 
-                      {!isLoadingPredictions && stagedDeliveries.length === 0 && projectedDeliveries.length === 0 &&
+                      {!isLoadingPredictions && sortedStagedDeliveries.length === 0 && sortedProjectedDeliveries.length === 0 &&
                     <div className="p-4 text-center text-slate-400 text-xs">
                           No deliveries staged yet
                         </div>
