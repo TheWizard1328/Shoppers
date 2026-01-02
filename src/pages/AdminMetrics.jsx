@@ -570,7 +570,7 @@ export default function AdminMetrics() {
             <CardContent>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={metricsData.driverMonthlyData}>
+                  <BarChart data={metricsData.driverMonthlyData} barCategoryGap="20%">
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="month" tick={{ fill: '#64748b', fontSize: 12 }} />
                     <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
@@ -589,6 +589,7 @@ export default function AdminMetrics() {
                         fill={COLORS[index % COLORS.length]} 
                         name={driverName}
                         radius={[2, 2, 0, 0]}
+                        barSize={30}
                       />
                     ))}
                   </BarChart>
