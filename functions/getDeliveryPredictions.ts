@@ -28,9 +28,10 @@ Deno.serve(async (req) => {
     const dayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
     const selectedDayName = dayNames[dayOfWeek];
 
-    // Build patient filter
+    // Build patient filter - fetch active patients, filter for recurring patterns in code
+    // CRITICAL: Don't filter by recurring=true since patients may have individual patterns set
+    // without the master recurring flag
     let patientFilter = { 
-      recurring: true,
       status: 'active'
     };
 
@@ -39,8 +40,18 @@ Deno.serve(async (req) => {
       patientFilter.store_id = { $in: storeIds };
     }
 
-    // Fetch recurring patients
-    const patients = await base44.entities.Patient.filter(patientFilter, 'full_name', 500);
+    // Fetch all active patients, then filter for those with any recurring pattern
+    const allPatients = await base44.entities.Patient.filter(patientFilter, 'full_name', 2000);
+    
+    // Filter to only patients with at least one recurring pattern set
+    const patients = allPatients.filter(p => {
+      if (!p) return false;
+      return p.recurring || 
+             p.recurring_daily || 
+             p.recurring_weekly_mon || p.recurring_weekly_tue || p.recurring_weekly_wed ||
+             p.recurring_weekly_thu || p.recurring_weekly_fri || p.recurring_weekly_sat || p.recurring_weekly_sun ||
+             p.recurring_biweekly || p.recurring_weekly_x4 || p.recurring_monthly || p.recurring_bimonthly;
+    });
 
     // CRITICAL: Fetch all deliveries for selected date to exclude patients already on routes
     // This includes: pending, in_transit, en_route, completed, failed statuses
