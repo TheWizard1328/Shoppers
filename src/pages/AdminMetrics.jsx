@@ -397,9 +397,13 @@ export default function AdminMetrics() {
                   </p>
                 </div>
                 <div className="p-4 bg-amber-100 rounded-lg border border-amber-300">
-                  <p className="text-sm text-amber-700">Total Fees Owed</p>
+                  <p className="text-sm text-amber-700">{selectedMonth ? 'Month' : 'Total'} Fees Owed</p>
                   <p className="text-2xl font-bold text-amber-900">
-                    {formatCurrency(metricsData.storeFeeTotals?.total_fees_owed || 0)}
+                    {formatCurrency(
+                      selectedMonth 
+                        ? (metricsData.storeFeeTotals?.monthlyFees?.[selectedMonth - 1] || 0)
+                        : (metricsData.storeFeeTotals?.total_fees_owed || 0)
+                    )}
                   </p>
                 </div>
               </div>
