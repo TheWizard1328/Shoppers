@@ -177,6 +177,41 @@ export default function AdminMetrics() {
         .sort((a, b) => b.completed - a.completed)
         .slice(0, 10);
 
+      // Driver monthly data for 12-month chart
+      const driverMonthlyMap = {};
+      const driverTotalsForSorting = {};
+      
+      yearDeliveries.forEach(d => {
+        if (!d.driver_id || !d.patient_id || d.status !== 'completed') return;
+        if (!d.delivery_date) return;
+        
+        const month = parseInt(d.delivery_date.split('-')[1]);
+        const driver = drivers.find(dr => dr?.id === d.driver_id);
+        const driverName = driver?.user_name || d.driver_name || 'Unknown';
+        
+        if (!driverMonthlyMap[month]) {
+          driverMonthlyMap[month] = { month: MONTH_NAMES[month - 1], monthNum: month };
+        }
+        driverMonthlyMap[month][driverName] = (driverMonthlyMap[month][driverName] || 0) + 1;
+        driverTotalsForSorting[driverName] = (driverTotalsForSorting[driverName] || 0) + 1;
+      });
+
+      // Get top 8 drivers by total deliveries
+      const topDriverNames = Object.entries(driverTotalsForSorting)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8)
+        .map(([name]) => name);
+
+      // Build monthly data array with only top drivers
+      const driverMonthlyData = [];
+      for (let m = 1; m <= 12; m++) {
+        const monthData = { month: MONTH_NAMES[m - 1] };
+        topDriverNames.forEach(driverName => {
+          monthData[driverName] = driverMonthlyMap[m]?.[driverName] || 0;
+        });
+        driverMonthlyData.push(monthData);
+      }
+
       // Store breakdown (full year)
       const storeStats = {};
       yearDeliveries.forEach(d => {
