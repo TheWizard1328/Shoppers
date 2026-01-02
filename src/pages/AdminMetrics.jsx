@@ -178,8 +178,8 @@ export default function AdminMetrics() {
                 ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" onClick={() => fetchMetrics(selectedYear)} disabled={isLoading}>
-              <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            <Button variant="outline" onClick={() => fetchMetrics(selectedYear, false)} disabled={isFetching}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
           </div>
