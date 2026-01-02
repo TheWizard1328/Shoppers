@@ -131,58 +131,50 @@ Deno.serve(async (req) => {
           skipReason = `Daily but ${daysSinceLast} days > 3`;
         }
       }
-      // 2) Weekly: Show on selected day, unless last delivery > 14 days ago
+      // 2) Weekly: Show on selected day, unless last delivery > 15 days ago
       else if (hasDaySelected && !patient.recurring_biweekly && !patient.recurring_weekly_x4) {
-        if (!lastDate || daysSinceLast <= 14) {
+        if (!lastDate || daysSinceLast <= 15) {
           shouldDeliver = true;
           frequency = 'Weekly';
         } else {
-          skipReason = `Weekly but ${daysSinceLast} days > 14`;
+          skipReason = `Weekly but ${daysSinceLast} days > 15`;
         }
       }
-      // 3) Bi-Weekly: Show on selected day, unless last delivery > 28 days ago
+      // 3) Bi-Weekly: Show on selected day, unless last delivery > 29 days ago
       else if (patient.recurring_biweekly && hasDaySelected) {
-        if (!lastDate || daysSinceLast <= 28) {
+        if (!lastDate || daysSinceLast <= 29) {
           shouldDeliver = true;
           frequency = 'Every 2 Weeks';
         } else {
-          skipReason = `Bi-Weekly but ${daysSinceLast} days > 28`;
+          skipReason = `Bi-Weekly but ${daysSinceLast} days > 29`;
         }
       }
-      // 4) Weekly x4: Show on selected day +/- 2 days, unless last delivery > 56 days ago
+      // 4) Weekly x4: Show +/- 3 days of last delivery day-of-month, unless last delivery > 61 days ago
       else if (patient.recurring_weekly_x4) {
-        const x4Day = patient.recurring_weekly_x4_day;
-        const dayIndexMap = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
-        const targetDayIndex = x4Day ? dayIndexMap[x4Day] : null;
-        
-        let dayMatches = false;
-        if (targetDayIndex !== null) {
-          const diff = Math.abs(dayOfWeek - targetDayIndex);
-          const wrappedDiff = Math.min(diff, 7 - diff);
-          dayMatches = wrappedDiff <= 2;
-        } else if (hasDaySelected) {
-          // Fallback: if no x4_day set but has a weekly day flag, use that
-          dayMatches = true;
-        }
-        
-        if (dayMatches) {
-          if (!lastDate || daysSinceLast <= 56) {
+        if (!lastDate) {
+          shouldDeliver = true;
+          frequency = 'Every 4 Weeks';
+        } else if (daysSinceLast > 61) {
+          skipReason = `Weekly x4 but ${daysSinceLast} days > 61`;
+        } else {
+          const lastDayOfMonth = lastDate.getDate();
+          const selectedDayOfMonth = selectedDateObj.getDate();
+          const dayDiff = Math.abs(selectedDayOfMonth - lastDayOfMonth);
+          if (daysSinceLast >= 27 && dayDiff <= 3) {
             shouldDeliver = true;
             frequency = 'Every 4 Weeks';
           } else {
-            skipReason = `Weekly x4 but ${daysSinceLast} days > 56`;
+            skipReason = `Weekly x4 daysSince=${daysSinceLast} (<27?) or dayDiff=${dayDiff} (>3?)`;
           }
-        } else {
-          skipReason = `Weekly x4 day mismatch (x4_day=${x4Day}, selected=${selectedDayName})`;
         }
       }
-      // 5) Monthly: Show +/- 3 days of last delivery date, unless last delivery > 60 days ago
+      // 5) Monthly: Show +/- 3 days of last delivery day-of-month, unless last delivery > 61 days ago
       else if (patient.recurring_monthly) {
         if (!lastDate) {
           shouldDeliver = true;
           frequency = 'Monthly';
-        } else if (daysSinceLast > 60) {
-          skipReason = `Monthly but ${daysSinceLast} days > 60`;
+        } else if (daysSinceLast > 61) {
+          skipReason = `Monthly but ${daysSinceLast} days > 61`;
         } else {
           const lastDayOfMonth = lastDate.getDate();
           const selectedDayOfMonth = selectedDateObj.getDate();
@@ -195,13 +187,13 @@ Deno.serve(async (req) => {
           }
         }
       }
-      // 6) Bi-Monthly: Show +/- 3 days of last delivery date, unless last delivery > 120 days ago
+      // 6) Bi-Monthly: Show +/- 3 days of last delivery day-of-month, unless last delivery > 121 days ago
       else if (patient.recurring_bimonthly) {
         if (!lastDate) {
           shouldDeliver = true;
           frequency = 'Every 2 Months';
-        } else if (daysSinceLast > 120) {
-          skipReason = `Bi-Monthly but ${daysSinceLast} days > 120`;
+        } else if (daysSinceLast > 121) {
+          skipReason = `Bi-Monthly but ${daysSinceLast} days > 121`;
         } else {
           const lastDayOfMonth = lastDate.getDate();
           const selectedDayOfMonth = selectedDateObj.getDate();
