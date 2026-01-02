@@ -4019,15 +4019,15 @@ export default function DeliveryForm({
                 {/* Staged Panel - STATIC */}
                 {!delivery && !useMobileLayout &&
                 <div className="w-[300px] flex-shrink-0 p-3 rounded-lg border-2 flex flex-col h-full" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                    <Label className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>Staged: (S: {sortedStagedDeliveries.length} P: {sortedProjectedDeliveries.length})</Label>
-                    <div className="space-y-1 flex-1 overflow-y-auto min-h-0 custom-scrollbar">
-                      {/* Pending Deliveries Section */}
-                      {sortedStagedDeliveries.filter(s => s.id).length > 0 && (
-                        <>
-                          <div className="text-[10px] font-semibold uppercase tracking-wider px-1 py-1 text-orange-600">
-                            Pending ({sortedStagedDeliveries.filter(s => s.id).length})
-                          </div>
-                          {sortedStagedDeliveries.filter(s => s.id).map((staged) => {
+                  <Label className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>Staged: (S: {sortedStagedDeliveries.length} P: {sortedProjectedDeliveries.length})</Label>
+                  <div className="space-y-1 flex-1 overflow-y-auto min-h-0 custom-scrollbar">
+                    {/* Pending Deliveries Section */}
+                    {sortedStagedDeliveries.filter(s => s.id).length > 0 && (
+                      <>
+                        <div className="text-[10px] font-semibold uppercase tracking-wider px-1 py-1 text-orange-600">
+                          Pending ({sortedStagedDeliveries.filter(s => s.id).length})
+                        </div>
+                        {sortedStagedDeliveries.filter(s => s.id).map((staged) => {
                       const stagedStore = stores?.find((s) => s && s.id === staged.store_id);
                       const storeColor = stagedStore ? getStoreColor(stagedStore) : '#64748b';
                       const fadedBgColor = hexToRgba(storeColor, 0.1);
@@ -4379,7 +4379,7 @@ export default function DeliveryForm({
                         </div>
                     }
 
-                      {!isLoadingPredictions && sortedStagedDeliveries.length === 0 && projectedDeliveries.length === 0 &&
+                      {!isLoadingPredictions && sortedStagedDeliveries.length === 0 && sortedProjectedDeliveries.length === 0 &&
                     <div className="p-4 text-center text-slate-400 text-xs">
                           No deliveries staged yet
                         </div>
