@@ -4021,7 +4021,13 @@ export default function DeliveryForm({
                 <div className="w-[300px] flex-shrink-0 p-3 rounded-lg border-2 flex flex-col h-full" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
                     <Label className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>Staged: (S: {sortedStagedDeliveries.length} P: {sortedProjectedDeliveries.length})</Label>
                     <div className="space-y-1 flex-1 overflow-y-auto min-h-0 custom-scrollbar">
-                      {sortedStagedDeliveries.map((staged) => {
+                      {/* Pending Deliveries Section */}
+                      {sortedStagedDeliveries.filter(s => s.id).length > 0 && (
+                        <>
+                          <div className="text-[10px] font-semibold uppercase tracking-wider px-1 py-1 text-orange-600">
+                            Pending ({sortedStagedDeliveries.filter(s => s.id).length})
+                          </div>
+                          {sortedStagedDeliveries.filter(s => s.id).map((staged) => {
                       const stagedStore = stores?.find((s) => s && s.id === staged.store_id);
                       const storeColor = stagedStore ? getStoreColor(stagedStore) : '#64748b';
                       const fadedBgColor = hexToRgba(storeColor, 0.1);
@@ -4143,7 +4149,7 @@ export default function DeliveryForm({
                               </div>
                               {/* Row 2: Reason + Special flags */}
                               <div className="flex items-center gap-1">
-                                <div className="truncate flex-1 min-w-0 text-slate-600 text-[10px]">{projected.reason}</div>
+                                <div className="truncate flex-1 min-w-0 text-slate-600 text-[10px]">{projected.frequency || projected.reason}</div>
                                 <div className="flex items-center gap-1 flex-shrink-0">
                                   <SpecialSymbolsBadges
                                     delivery={projected}
@@ -4230,7 +4236,7 @@ export default function DeliveryForm({
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-3 space-y-1">
-                      {sortedStagedDeliveries.map((staged) => {
+                      {sortedStagedDeliveries.filter(s => s.id).map((staged) => {
                       const stagedStore = stores?.find((s) => s && s.id === staged.store_id);
                       const storeColor = stagedStore ? getStoreColor(stagedStore) : '#64748b';
                       const fadedBgColor = hexToRgba(storeColor, 0.1);
@@ -4238,7 +4244,7 @@ export default function DeliveryForm({
                       return (
                         <div
                           key={staged._tempId}
-                          className={`flex p-2 rounded border text-xs cursor-pointer transition-colors ${editingStagedId === staged._tempId ? 'border-blue-300' : 'hover:bg-slate-50'}`}
+                          className={`flex p-2 rounded border-2 border-orange-300 text-xs cursor-pointer transition-colors ${editingStagedId === staged._tempId ? 'border-blue-300' : 'hover:bg-slate-50'}`}
                           style={{
                             backgroundColor: editingStagedId === staged._tempId ? hexToRgba(storeColor, 0.2) : fadedBgColor
                           }}
@@ -4294,31 +4300,7 @@ export default function DeliveryForm({
                               className="h-7 w-7 p-0 flex-shrink-0 bg-red-600 hover:bg-red-700 text-white rounded ml-1"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (staged.id) {
-                                  setDeleteConfirmation({ show: true, staged });
-                                } else {
-                                  // Remove from staged list
-                                  setStagedDeliveries((prev) => prev.filter((item) => item._tempId !== staged._tempId));
-                                  
-                                  // CRITICAL: Restore to projected list by filtering full list
-                                  const remainingStagedIds = new Set(
-                                    stagedDeliveries
-                                      .filter((item) => item._tempId !== staged._tempId)
-                                      .map(d => d.patient_id)
-                                      .filter(Boolean)
-                                  );
-                                  const filteredPredictions = fullPredictionListRef.current.filter(pred => !remainingStagedIds.has(pred.patient_id));
-                                  setProjectedDeliveries(filteredPredictions);
-                                  
-                                  if (editingStagedId === staged._tempId) {
-                                    setEditingStagedId(null);
-                                    handleClearForm();
-                                  }
-                                  
-                                  if (!isMobileDevice) {
-                                    setTimeout(() => patientSearchInputRef.current?.focus(), 100);
-                                  }
-                                }
+                                setDeleteConfirmation({ show: true, staged });
                               }}>
                               <Trash2 className="w-5 h-5" />
                             </Button>
@@ -4352,7 +4334,7 @@ export default function DeliveryForm({
                               </div>
                               {/* Row 2: Reason + Special flags */}
                               <div className="flex items-center gap-1">
-                                <div className="truncate flex-1 min-w-0 text-slate-600 text-[10px]">{projected.reason}</div>
+                                <div className="truncate flex-1 min-w-0 text-slate-600 text-[10px]">{projected.frequency || projected.reason}</div>
                                 <div className="flex items-center gap-1 flex-shrink-0">
                                   <SpecialSymbolsBadges
                                     delivery={projected}
