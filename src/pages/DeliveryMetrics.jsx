@@ -864,7 +864,7 @@ export default function DeliveryMetrics() {
 
     console.log('✅ [DeliveryMetrics] Final metrics:', result);
     return result;
-  }, [deliveries, patients, selectedDriver, drivers, prevStartDate, prevEndDate, startDate, endDate, dateRange]);
+  }, [deliveries, patients, selectedDriver, drivers, prevStartDate, prevEndDate, startDate, endDate, dateRange, selectedYear]);
 
   const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444']; // Added a color for 'returned' if needed in pie chart
 
