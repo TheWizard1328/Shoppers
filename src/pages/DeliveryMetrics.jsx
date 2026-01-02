@@ -249,18 +249,26 @@ export default function DeliveryMetrics() {
       const yearToFetch = forceYear || selectedYear;
       console.log('🔄 [DeliveryMetrics] Fetching data for year:', yearToFetch);
       
-      // Use the same backend function as AdminMetrics to get full year data
-      const response = await base44.functions.invoke('getAdminMetrics', { year: yearToFetch });
-      const metricsResponse = response?.data || response;
-      
-      // Extract deliveries from the response - we need to fetch them separately since getAdminMetrics returns aggregated data
-      // Fetch deliveries for the entire year
+      // Fetch deliveries for the entire year in monthly chunks to avoid API limits
       const yearStart = `${yearToFetch}-01-01`;
       const yearEnd = `${yearToFetch}-12-31`;
       
-      const deliveriesData = await base44.entities.Delivery.filter({
-        delivery_date: { $gte: yearStart, $lte: yearEnd }
-      }, '-delivery_date', 50000);
+      // Fetch month by month like getAdminMetrics does
+      const allDeliveries = [];
+      for (let month = 0; month < 12; month++) {
+        const monthStart = `${yearToFetch}-${String(month + 1).padStart(2, '0')}-01`;
+        const lastDay = new Date(yearToFetch, month + 1, 0).getDate();
+        const monthEnd = `${yearToFetch}-${String(month + 1).padStart(2, '0')}-${lastDay}`;
+        
+        const monthDeliveries = await base44.entities.Delivery.filter({
+          delivery_date: { $gte: monthStart, $lte: monthEnd }
+        }, '-delivery_date', 5000);
+        
+        allDeliveries.push(...monthDeliveries);
+        console.log(`📅 [DeliveryMetrics] Month ${month + 1}: ${monthDeliveries.length} deliveries`);
+      }
+      
+      const deliveriesData = allDeliveries;
       
       console.log(`✅ [DeliveryMetrics] Fetched ${deliveriesData.length} deliveries for ${yearToFetch}`);
 
