@@ -3760,7 +3760,6 @@ export default function DeliveryForm({
                         </div>
                     }
                     </div>
-                  }
 
                   {/* Section 4: Patient Name/Phone/Address/Unit */}
                   {!isPickupMode &&
