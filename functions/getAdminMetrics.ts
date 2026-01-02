@@ -235,7 +235,7 @@ Deno.serve(async (req) => {
       driverDailyByMonth[m] = dailyData;
     }
 
-    // Store breakdown (full year + by month)
+    // Store breakdown (full year + by month) - completed vs failed (not billable filtering for this chart)
     const storeStats = {};
     const storeStatsByMonth = {}; // { monthNum: { storeId: stats } }
     
