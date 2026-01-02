@@ -345,25 +345,29 @@ export default function AdminMetrics() {
           </Card>
           </div>
 
-          {/* Driver Performance Chart - 12 Month View OR Daily View when month selected */}
+          {/* Driver Performance Chart - Breakdown by Driver */}
           <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="w-5 h-5" />
-              Driver Performance {selectedMonth ? `- ${MONTH_NAMES[selectedMonth - 1]} ${selectedYear} (Daily)` : `by Month (${selectedYear})`}
+              Driver Breakdown ({selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} {selectedYear})
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-[350px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart 
-                  data={selectedMonth ? metricsData.driverDailyByMonth?.[selectedMonth] : metricsData.driverMonthlyData} 
+                  data={selectedMonth ? metricsData.driverDataByMonth?.[selectedMonth] : metricsData.driverData} 
                   barCategoryGap="15%"
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis 
-                    dataKey={selectedMonth ? "day" : "month"} 
-                    tick={{ fill: '#64748b', fontSize: 12 }} 
+                    dataKey="name" 
+                    tick={{ fill: '#64748b', fontSize: 11 }} 
+                    interval={0}
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
                   />
                   <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
                   <Tooltip 
@@ -372,11 +376,10 @@ export default function AdminMetrics() {
                       border: '1px solid #e2e8f0',
                       borderRadius: '8px'
                     }}
-                    labelFormatter={(label) => selectedMonth ? `Day ${label}` : label}
                   />
                   <Legend wrapperStyle={{ fontSize: '11px' }} />
-                  <Bar dataKey="billable" fill={COLORS.billable} name="Billable" radius={[2, 2, 0, 0]} barSize={selectedMonth ? 8 : 20} />
-                  <Bar dataKey="nonBillable" fill={COLORS.nonBillable} name="Non-Billable" radius={[2, 2, 0, 0]} barSize={selectedMonth ? 8 : 20} />
+                  <Bar dataKey="billable" fill={COLORS.billable} name="Billable" radius={[2, 2, 0, 0]} />
+                  <Bar dataKey="nonBillable" fill={COLORS.nonBillable} name="Non-Billable" radius={[2, 2, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
