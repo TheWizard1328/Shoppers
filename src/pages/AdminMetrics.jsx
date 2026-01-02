@@ -194,8 +194,13 @@ export default function AdminMetrics() {
                   <Package className="w-6 h-6 text-emerald-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-slate-500">Year Total</p>
-                  <p className="text-2xl font-bold text-slate-900">{metricsData.yearTotals?.completed?.toLocaleString() || 0}</p>
+                  <p className="text-sm text-slate-500">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'Year'} Completed</p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {(selectedMonth 
+                      ? metricsData.monthlyData?.[selectedMonth - 1]?.completed 
+                      : metricsData.yearTotals?.completed
+                    )?.toLocaleString() || 0}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -208,8 +213,13 @@ export default function AdminMetrics() {
                   <TrendingUp className="w-6 h-6 text-blue-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-slate-500">Year Failed</p>
-                  <p className="text-2xl font-bold text-slate-900">{metricsData.yearTotals?.failed?.toLocaleString() || 0}</p>
+                  <p className="text-sm text-slate-500">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'Year'} Failed</p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {(selectedMonth 
+                      ? metricsData.monthlyData?.[selectedMonth - 1]?.failed 
+                      : metricsData.yearTotals?.failed
+                    )?.toLocaleString() || 0}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -236,9 +246,13 @@ export default function AdminMetrics() {
                   <DollarSign className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <p className="text-sm text-amber-700">Fees {selectedYear}</p>
+                  <p className="text-sm text-amber-700">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : selectedYear} Fees</p>
                   <p className="text-2xl font-bold text-amber-900">
-                    {formatCurrency(metricsData.storeFeeTotals?.total_fees_owed || 0)}
+                    {formatCurrency(
+                      selectedMonth 
+                        ? (metricsData.storeFeeTotals?.monthlyFees?.[selectedMonth - 1] || 0)
+                        : (metricsData.storeFeeTotals?.total_fees_owed || 0)
+                    )}
                   </p>
                 </div>
               </div>
