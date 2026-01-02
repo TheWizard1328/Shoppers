@@ -4236,7 +4236,13 @@ export default function DeliveryForm({
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-3 space-y-1">
-                      {sortedStagedDeliveries.filter(s => s.id).map((staged) => {
+                      {/* Pending Deliveries Section */}
+                      {sortedStagedDeliveries.filter(s => s.id).length > 0 && (
+                        <>
+                          <div className="text-[10px] font-semibold uppercase tracking-wider px-1 py-1 text-orange-600">
+                            Pending ({sortedStagedDeliveries.filter(s => s.id).length})
+                          </div>
+                          {sortedStagedDeliveries.filter(s => s.id).map((staged) => {
                       const stagedStore = stores?.find((s) => s && s.id === staged.store_id);
                       const storeColor = stagedStore ? getStoreColor(stagedStore) : '#64748b';
                       const fadedBgColor = hexToRgba(storeColor, 0.1);
