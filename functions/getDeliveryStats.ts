@@ -373,9 +373,10 @@ Deno.serve(async (req) => {
       extraKmLimit: 0
     };
 
-    // Only calculate for single driver view (not "all")
-    if (driverId && driverId !== 'all') {
-      try {
+    try {
+      // CRITICAL: Calculate for both single driver AND "All Drivers" mode
+      if (driverId && driverId !== 'all') {
+        // SINGLE DRIVER MODE - use that driver's pay rates
         const driverAppUser = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
         const appUser = driverAppUser?.[0];
 
@@ -443,13 +444,13 @@ Deno.serve(async (req) => {
           performanceStats.extraKmLimit = extraKmLimit;
 
           // Total Time on Duty: time from first FINISHED stop to last FINISHED stop
-          const finishedDeliveries = paidDeliveries
+          const finishedDeliveriesForTime = paidDeliveries
             .filter(d => d.actual_delivery_time && (isCompleted(d) || isFailed(d) || isReturn(d)))
             .sort((a, b) => new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time));
 
-          if (finishedDeliveries.length > 0) {
-            const firstTime = new Date(finishedDeliveries[0].actual_delivery_time);
-            const lastTime = new Date(finishedDeliveries[finishedDeliveries.length - 1].actual_delivery_time);
+          if (finishedDeliveriesForTime.length > 0) {
+            const firstTime = new Date(finishedDeliveriesForTime[0].actual_delivery_time);
+            const lastTime = new Date(finishedDeliveriesForTime[finishedDeliveriesForTime.length - 1].actual_delivery_time);
             const durationMs = lastTime - firstTime;
             const totalMinutes = Math.floor(durationMs / (1000 * 60));
             const hours = Math.floor(totalMinutes / 60);
@@ -457,10 +458,130 @@ Deno.serve(async (req) => {
             performanceStats.totalTimeOnDuty = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
           }
         }
-      } catch (perfError) {
-        console.warn('⚠️ [getDeliveryStats] Performance stats error:', perfError.message);
-        // Continue with zeros
+      } else {
+        // ALL DRIVERS MODE - aggregate stats across all drivers
+        console.log('📊 [ALL DRIVERS MODE] Calculating aggregated performance stats');
+        
+        // Get unique driver IDs from today's deliveries
+        const uniqueDriverIds = [...new Set(todayDeliveries.map(d => d.driver_id).filter(Boolean))];
+        console.log(`   Found ${uniqueDriverIds.length} unique drivers with deliveries today`);
+        
+        // Fetch all AppUsers for these drivers to get their pay rates
+        const allDriverAppUsers = await base44.asServiceRole.entities.AppUser.filter({ 
+          user_id: { $in: uniqueDriverIds } 
+        });
+        
+        let totalPayAllDrivers = 0;
+        let totalKmAllDrivers = 0;
+        let totalExtraKmAllDrivers = 0;
+        let earliestStartTime = null;
+        let latestEndTime = null;
+        
+        // Process each driver's stats
+        for (const driverUserId of uniqueDriverIds) {
+          const driverAppUser = allDriverAppUsers.find(au => au?.user_id === driverUserId);
+          if (!driverAppUser) continue;
+          
+          const payRatePerDelivery = driverAppUser.pay_rate_per_delivery || 0;
+          const extraKmRate = driverAppUser.extra_km_rate || 0;
+          const extraKmLimit = driverAppUser.extra_km_limit || 0;
+          const oversizedRate = driverAppUser.oversized_item_rate || 0;
+          
+          // Filter deliveries for this driver
+          const driverDeliveries = todayDeliveries.filter(d => d?.driver_id === driverUserId);
+          
+          // Paid deliveries for this driver
+          const paidDeliveries = driverDeliveries.filter(d => {
+            if (!d) return false;
+            if (d.patient_id) return isCompleted(d) || isFailed(d) || isReturn(d);
+            if (d.after_hours_pickup) return d.status === 'completed' || d.status === 'cancelled';
+            return false;
+          });
+          
+          // Base pay from deliveries
+          const basePayFromDeliveries = paidDeliveries.length * payRatePerDelivery;
+          
+          // Oversized pay
+          const oversizedDeliveries = paidDeliveries.filter(d => d.oversized === true);
+          const oversizedPay = oversizedDeliveries.length * oversizedRate;
+          
+          // Total Km for this driver
+          const finishedDeliveries = driverDeliveries.filter(d => {
+            if (!d || !d.actual_delivery_time) return false;
+            return isCompleted(d) || isFailed(d) || isReturn(d);
+          });
+          
+          let driverTotalKm = 0;
+          finishedDeliveries.forEach(delivery => {
+            if (delivery?.travel_dist && typeof delivery.travel_dist === 'number') {
+              driverTotalKm += delivery.travel_dist;
+            }
+          });
+          
+          // Extra Km for this driver
+          let driverTotalExtraKm = 0;
+          const patientIds = paidDeliveries.map(d => d.patient_id).filter(Boolean);
+          
+          if (patientIds.length > 0) {
+            const patientsData = await base44.asServiceRole.entities.Patient.filter({ 
+              id: { $in: patientIds } 
+            });
+            
+            patientsData.forEach(patient => {
+              if (patient?.distance_from_store && typeof patient.distance_from_store === 'number') {
+                const distance = patient.distance_from_store;
+                if (distance > extraKmLimit) {
+                  driverTotalExtraKm += (distance - extraKmLimit);
+                }
+              }
+            });
+          }
+          
+          const extraKmPay = driverTotalExtraKm * extraKmRate;
+          const driverTotalPay = basePayFromDeliveries + extraKmPay + oversizedPay;
+          
+          // Accumulate totals
+          totalPayAllDrivers += driverTotalPay;
+          totalKmAllDrivers += driverTotalKm;
+          totalExtraKmAllDrivers += driverTotalExtraKm;
+          
+          // Track earliest/latest times across all drivers
+          const finishedDeliveriesForTime = paidDeliveries
+            .filter(d => d.actual_delivery_time && (isCompleted(d) || isFailed(d) || isReturn(d)))
+            .sort((a, b) => new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time));
+          
+          if (finishedDeliveriesForTime.length > 0) {
+            const driverFirstTime = new Date(finishedDeliveriesForTime[0].actual_delivery_time);
+            const driverLastTime = new Date(finishedDeliveriesForTime[finishedDeliveriesForTime.length - 1].actual_delivery_time);
+            
+            if (!earliestStartTime || driverFirstTime < earliestStartTime) {
+              earliestStartTime = driverFirstTime;
+            }
+            if (!latestEndTime || driverLastTime > latestEndTime) {
+              latestEndTime = driverLastTime;
+            }
+          }
+        }
+        
+        // Calculate total time on duty (earliest start to latest end)
+        if (earliestStartTime && latestEndTime) {
+          const durationMs = latestEndTime - earliestStartTime;
+          const totalMinutes = Math.floor(durationMs / (1000 * 60));
+          const hours = Math.floor(totalMinutes / 60);
+          const minutes = totalMinutes % 60;
+          performanceStats.totalTimeOnDuty = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+        }
+        
+        performanceStats.totalPay = totalPayAllDrivers;
+        performanceStats.totalKm = totalKmAllDrivers;
+        performanceStats.totalExtraKm = totalExtraKmAllDrivers;
+        performanceStats.extraKmLimit = 0; // Not applicable in "All Drivers" mode
+        
+        console.log('✅ [ALL DRIVERS MODE] Performance stats calculated:', performanceStats);
       }
+    } catch (perfError) {
+      console.warn('⚠️ [getDeliveryStats] Performance stats error:', perfError.message);
+      // Continue with zeros
     }
 
     // Build response based on user role
