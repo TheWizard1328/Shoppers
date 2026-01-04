@@ -2293,8 +2293,10 @@ export default function DeliveryForm({
       if (delivery && isCompletionStatus && completionTime) {
         const dateStr = formData.delivery_date;
         const timeStr = completionTime;
-        const completionDateTime = new Date(`${dateStr}T${timeStr}:00`);
-        dataToSave.actual_delivery_time = completionDateTime.toISOString();
+        // CRITICAL: Store as local time string WITHOUT UTC conversion
+        // Format: "YYYY-MM-DDTHH:MM:00" (no 'Z' suffix = treated as local time)
+        dataToSave.actual_delivery_time = `${dateStr}T${timeStr}:00`;
+        console.log('⏱️ [DeliveryForm] Saving actual_delivery_time as LOCAL:', dataToSave.actual_delivery_time);
       }
 
       // CRITICAL: Check if driver assignment changed
