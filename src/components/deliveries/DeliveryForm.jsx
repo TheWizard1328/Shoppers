@@ -118,6 +118,7 @@ export default function DeliveryForm({
       cod_total_amount_required: 0, cod_payments: [],
       cod_payment_type: "No Payment", cod_amount: "",
       tracking_number: "", delivery_stop_id: "", stop_id: "", puid: "",
+      paid_km_override: null,
       patient_name: "", patient_phone: "", unit_number: "", store_phone: "", store_id: "",
       mailbox_ok: false, call_upon_arrival: false, ring_bell: false,
       dont_ring_bell: false, back_door: false, signature_needed: false,
@@ -394,7 +395,8 @@ export default function DeliveryForm({
         recurring_biweekly: delivery.recurring_biweekly || false,
         recurring_weekly_x4: delivery.recurring_weekly_x4 || false,
         recurring_monthly: delivery.recurring_monthly || false,
-        recurring_bimonthly: delivery.recurring_bimonthly || false
+        recurring_bimonthly: delivery.recurring_bimonthly || false,
+        paid_km_override: delivery.paid_km_override ?? null
       });
 
       setIsPickupMode(!delivery.patient_id);
@@ -3469,6 +3471,25 @@ export default function DeliveryForm({
                       id="puid"
                       value={formData.puid || ''}
                       onChange={(e) => setFormData((prev) => ({ ...prev, puid: e.target.value }))}
+                      className="h-9 text-sm"
+                      disabled={isSaving} />
+
+                    </div>
+                    <div className="flex-1 space-y-1">
+                      <Label htmlFor="paid_km_override" className="text-xs">X-KM</Label>
+                      <Input
+                      id="paid_km_override"
+                      type="number"
+                      step="0.1"
+                      value={formData.paid_km_override ?? ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFormData((prev) => ({ 
+                          ...prev, 
+                          paid_km_override: val === '' ? null : parseFloat(val) 
+                        }));
+                      }}
+                      placeholder={selectedPatient?.distance_from_store ? selectedPatient.distance_from_store.toFixed(1) : ''}
                       className="h-9 text-sm"
                       disabled={isSaving} />
 
