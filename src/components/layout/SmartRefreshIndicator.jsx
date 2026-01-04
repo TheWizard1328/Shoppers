@@ -51,15 +51,12 @@ export default function SmartRefreshIndicator({ inline = false, onManualRefresh 
       setRecentUpdates(smartRefreshActivity.updatedEntities);
       setCurrentDisplayIndex(0);
     } else if (!smartRefreshActivity?.active && recentUpdates.length > 0) {
-      // Clear shortly after refresh cycle completes
-      const timer = setTimeout(() => {
-        setRecentUpdates([]);
-        setCurrentDisplayIndex(0);
-      }, 2000);
-      
-      return () => clearTimeout(timer);
+      // CRITICAL: Clear immediately when refresh cycle completes (active becomes false)
+      console.log('🔄 [SmartRefreshIndicator] Refresh cycle complete - clearing entity badges');
+      setRecentUpdates([]);
+      setCurrentDisplayIndex(0);
     }
-  }, [smartRefreshActivity, recentUpdates.length]);
+  }, [smartRefreshActivity?.active, smartRefreshActivity?.updatedEntities?.length]);
 
   // Cycle through entities - show each for 1 second
   useEffect(() => {
