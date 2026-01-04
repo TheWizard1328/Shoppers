@@ -423,37 +423,56 @@ export const loadDeliveries = async (
   
   console.log(`📥 [DataManager] Loading deliveries - selected: ${selectedDateStr}`);
   
-  // STEP 1: Check if offline DB has fresh data for selected date
+  // STEP 1: Check if offline DB has data for selected date (use as instant UI)
+  let usedOfflineData = false;
+  
   if (!forceRefresh) {
     try {
       const offlineDeliveries = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr);
       
       if (offlineDeliveries && offlineDeliveries.length > 0) {
-        // Check freshness via sync status
-        const syncStatus = await offlineDB.getSyncStatus('Delivery');
-        const isFresh = syncStatus?.lastSync && 
-          (Date.now() - new Date(syncStatus.lastSync).getTime()) < 10 * 60 * 1000;
+        console.log(`⚡ [DataManager] Instant UI from offline: ${offlineDeliveries.length} deliveries`);
+        onInitialLoadComplete(offlineDeliveries);
+        usedOfflineData = true;
         
-        if (isFresh) {
-          console.log(`✅ [DataManager] Using fresh offline data: ${offlineDeliveries.length} deliveries`);
-          onInitialLoadComplete(offlineDeliveries);
-          
-          // Still refresh from online in background (after 5 seconds)
-          setTimeout(async () => {
-            try {
-              const freshDeliveries = await loadDeliveriesForDate(selectedDateStr, priorityFilters, true);
-              if (freshDeliveries.length > 0) {
-                onInitialLoadComplete(freshDeliveries);
-              }
-              // Continue with background loading
-              await loadBackgroundDeliveries(selectedDateStr, priorityFilters, onFullMonthLoadComplete);
-            } catch (e) {
-              console.warn('Background refresh failed:', e.message);
+        // IMMEDIATELY sync with online (no delay) - selected date first
+        (async () => {
+          try {
+            console.log(`🔄 [DataManager] Syncing selected date ${selectedDateStr} with online...`);
+            const freshDeliveries = await Delivery.filter({
+              delivery_date: selectedDateStr,
+              ...priorityFilters
+            });
+            
+            // Update offline DB with fresh data
+            if (freshDeliveries.length > 0) {
+              await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, freshDeliveries);
             }
-          }, 5000);
-          
-          return offlineDeliveries;
-        }
+            
+            // Update UI with fresh data immediately
+            console.log(`✅ [DataManager] UI updated with ${freshDeliveries.length} fresh deliveries`);
+            onInitialLoadComplete(freshDeliveries);
+            
+            // Update sync timestamp
+            await offlineDB.updateSyncStatus('Delivery', {
+              lastSync: new Date().toISOString(),
+              status: 'synced'
+            });
+            
+            // Continue with background loading after selected date is synced
+            setTimeout(async () => {
+              await loadBackgroundDeliveries(selectedDateStr, priorityFilters, onFullMonthLoadComplete, freshDeliveries);
+            }, 2000);
+          } catch (e) {
+            console.warn('⚠️ [DataManager] Online sync failed, using offline data:', e.message);
+            // Still do background loading with offline data
+            setTimeout(async () => {
+              await loadBackgroundDeliveries(selectedDateStr, priorityFilters, onFullMonthLoadComplete, offlineDeliveries);
+            }, 2000);
+          }
+        })();
+        
+        return offlineDeliveries;
       }
     } catch (err) {
       console.warn('⚠️ [DataManager] Offline check failed:', err.message);
