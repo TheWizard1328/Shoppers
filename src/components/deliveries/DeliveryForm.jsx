@@ -4075,7 +4075,7 @@ export default function DeliveryForm({
                 {/* Staged Panel - STATIC */}
                 {!delivery && !useMobileLayout &&
                 <div className="w-[300px] flex-shrink-0 p-3 rounded-lg border-2 flex flex-col h-full" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-                  <Label className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>Staged & Pending (S: {sortedStagedDeliveries.filter(s => !s.id).length} P: {sortedStagedDeliveries.filter(s => s.id).length})</Label>
+                  <Label className="text-sm font-semibold mb-2" style={{ color: 'var(--text-slate-900)' }}>Deliveries: (S: {sortedStagedDeliveries.filter(s => !s.id).length} P: {sortedStagedDeliveries.filter(s => s.id).length})</Label>
                   <DeliveryFormStaged
                     sortedStagedDeliveries={sortedStagedDeliveries}
                     sortedProjectedDeliveries={sortedProjectedDeliveries}
@@ -4188,7 +4188,7 @@ export default function DeliveryForm({
                 className="gap-2"
                 style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                   <Package className="w-4 h-4" />
-                  Staged & Pending (S: {sortedStagedDeliveries.filter(s => !s.id).length} P: {sortedStagedDeliveries.filter(s => s.id).length})
+                  Deliveries: (S: {sortedStagedDeliveries.filter(s => !s.id).length} P: {sortedStagedDeliveries.filter(s => s.id).length})
                 </Button>
               }
               <div className="flex gap-2 ml-auto">
