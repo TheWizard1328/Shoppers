@@ -198,6 +198,7 @@ class SmartRefreshManager {
   resume() {
     console.log('▶️ [SmartRefresh] Resumed after mutations');
     this._paused = false;
+    this.isRefreshing = false; // CRITICAL: Clear stuck refresh state
   }
   
   /**
@@ -205,6 +206,16 @@ class SmartRefreshManager {
    */
   isPaused() {
     return this._paused;
+  }
+  
+  /**
+   * Force unlock - clears stuck refresh state
+   * CRITICAL: Call this to recover from errors that left refresh locked
+   */
+  forceUnlock() {
+    console.log('🔓 [SmartRefresh] Force unlocking stuck refresh state');
+    this.isRefreshing = false;
+    this._paused = false;
   }
   
   /**
@@ -680,12 +691,12 @@ class SmartRefreshManager {
    * Fast driver location refresh
    * @param currentAppUsers - Current AppUser data
    * @param forceRefresh - If true, bypasses the interval check (for initial load)
+   * CRITICAL: Never throws - always returns null on error to prevent stuck refresh
    */
   async refreshDriverLocations(currentAppUsers, forceRefresh = false) {
     try {
       // Check if disabled or paused - silently skip automatic polling (unless forced)
       if ((!this._enabled || this._paused) && !forceRefresh) {
-        console.log('⏸️ [SmartRefresh] Driver location refresh skipped - paused or disabled');
         return null;
       }
       
@@ -721,7 +732,6 @@ class SmartRefreshManager {
             return { ...au, ...serverVersion };
           } else {
             // Local is newer - keep local version (recent status change)
-            console.log(`🛡️ [SmartRefresh] Keeping local AppUser for ${au.user_name || au.user_id} - local is newer`);
             return au;
           }
         }
@@ -751,11 +761,8 @@ class SmartRefreshManager {
         }
       }
       
-      // CRITICAL: Always return updatedAppUsers (merged with server) for consistency
-      const finalAppUsers = updatedAppUsers;
-      
       // CRITICAL: Always dispatch event to driverLocationPoller with consistent data
-      // The poller handles filtering logic - SmartRefresh should NOT filter stale markers
+      const finalAppUsers = updatedAppUsers;
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
           detail: { appUsers: finalAppUsers }
@@ -771,7 +778,7 @@ class SmartRefreshManager {
         const { offlineManager } = await import('./offlineManager');
         await offlineManager.cacheData('AppUser', finalAppUsers);
       } catch (offlineError) {
-        console.warn('⚠️ [SmartRefresh] Failed to sync AppUsers to offline DB:', offlineError);
+        // Silent fail - don't block refresh cycle
       }
       
       return {
@@ -780,10 +787,14 @@ class SmartRefreshManager {
       };
       
     } catch (error) {
-      if (error.message?.includes('WebSocket') || error.message?.includes('closed')) {
-        return null;
+      // CRITICAL: Catch ALL errors and return null - never throw
+      if (error.response?.status === 429 || error.message?.includes('429')) {
+        console.warn('⏰ [SmartRefresh] Rate limit on driver locations - skipping cycle');
+      } else if (error.message?.includes('WebSocket') || error.message?.includes('closed')) {
+        console.warn('🔌 [SmartRefresh] WebSocket error on driver locations - skipping cycle');
+      } else {
+        console.warn('⚠️ [SmartRefresh] Error refreshing driver locations (non-fatal):', error.message || error);
       }
-      console.error('❌ [SmartRefresh] Error refreshing driver locations:', error);
       return null;
     }
   }
@@ -974,6 +985,7 @@ class SmartRefreshManager {
 
   /**
    * Smart refresh for stores
+   * CRITICAL: Never throws - always returns null on error
    */
   async refreshStores(currentStores) {
     try {
@@ -1006,7 +1018,6 @@ class SmartRefreshManager {
         return null;
       }
       
-      logDiffStats('Store', diff);
       const mergedStores = mergeEntityChanges(currentStores, diff);
       
       return {
@@ -1015,11 +1026,14 @@ class SmartRefreshManager {
       };
       
     } catch (error) {
-      if (error.message?.includes('WebSocket') || error.message?.includes('closed')) {
-        console.warn('⚠️ [SmartRefresh] WebSocket connection issue, skipping store refresh');
-        return null;
+      // CRITICAL: Catch ALL errors and return null - never throw
+      if (error.response?.status === 429 || error.message?.includes('429')) {
+        console.warn('⏰ [SmartRefresh] Rate limit on stores - skipping cycle');
+      } else if (error.message?.includes('WebSocket') || error.message?.includes('closed')) {
+        console.warn('🔌 [SmartRefresh] WebSocket error on stores - skipping cycle');
+      } else {
+        console.warn('⚠️ [SmartRefresh] Error refreshing stores (non-fatal):', error.message || error);
       }
-      console.error('❌ [SmartRefresh] Error refreshing stores:', error);
       return null;
     }
   }
@@ -1087,6 +1101,7 @@ class SmartRefreshManager {
   /**
    * Fast delivery status refresh - polls for status changes on active deliveries
    * CRITICAL: Uses offline database to minimize API calls, BUT fetches from API after broadcasts
+   * CRITICAL: Never throws - always returns null on error to prevent stuck refresh
    */
   async refreshActiveDeliveryStatuses(currentDeliveries, selectedDate, filters = {}) {
     try {
@@ -1111,7 +1126,6 @@ class SmartRefreshManager {
       
       if (needsApiFetch) {
         // Broadcast received - fetch from API to get the new/updated data
-        console.log(`📡 [SmartRefresh] Fetching deliveries from API after broadcast`);
         await this.waitForRateLimit();
         const cityOnlyFilter = { delivery_date: dateStr };
         
@@ -1212,7 +1226,6 @@ class SmartRefreshManager {
       // CRITICAL: Filter out deleted deliveries that might have come from stale offline DB
       const filteredCurrentDateDeliveries = updatedCurrentDateDeliveries.filter(d => {
         if (d && this.isDeliveryDeleted(d.id)) {
-          console.log(`🗑️ [SmartRefresh] Filtering out deleted delivery ${d.id} from refresh`);
           hasChanges = true;
           return false;
         }
@@ -1226,18 +1239,20 @@ class SmartRefreshManager {
         return null;
       }
       
-
-      
       return {
         hasChanges: true,
         deliveries: updatedDeliveries
       };
       
     } catch (error) {
-      if (error.message?.includes('WebSocket') || error.message?.includes('closed')) {
-        return null;
+      // CRITICAL: Catch ALL errors and return null - never throw
+      if (error.response?.status === 429 || error.message?.includes('429')) {
+        console.warn('⏰ [SmartRefresh] Rate limit on active deliveries - skipping cycle');
+      } else if (error.message?.includes('WebSocket') || error.message?.includes('closed')) {
+        console.warn('🔌 [SmartRefresh] WebSocket error on active deliveries - skipping cycle');
+      } else {
+        console.warn('⚠️ [SmartRefresh] Error refreshing active deliveries (non-fatal):', error.message || error);
       }
-      console.error('❌ [SmartRefresh] Error refreshing active delivery statuses:', error);
       return null;
     }
   }
@@ -1246,6 +1261,7 @@ class SmartRefreshManager {
    * LIGHTWEIGHT smart refresh - ONLY today's deliveries and driver locations
    * CRITICAL: Does NOT refresh patients or historical data - that's done on Dashboard mount only
    * Historical 90-day data and full patient lists should NEVER be fetched in the polling loop
+   * CRITICAL: ALWAYS unlocks refresh state in finally block to prevent stuck spinner
    */
   async performSmartRefresh(currentData, filters, isEntityUpdating = false) {
     // CRITICAL: When disabled, skip background polling
@@ -1292,13 +1308,21 @@ class SmartRefreshManager {
       return hasAnyUpdates ? updates : null;
       
     } catch (error) {
-      if (error.response?.status === 401 || error.response?.status === 403) {
-        console.warn('🔐 [SmartRefresh] Auth error during refresh - session may have expired');
-        return null;
+      // CRITICAL: Catch ALL errors and gracefully continue
+      // Never let an error stop the refresh cycle
+      if (error.response?.status === 429 || error.message?.includes('429')) {
+        console.warn('⏰ [SmartRefresh] Rate limit hit - will retry next cycle');
+        this.notifyRateLimit(true);
+      } else if (error.response?.status === 401 || error.response?.status === 403) {
+        console.warn('🔐 [SmartRefresh] Auth error - session may have expired');
+      } else if (error.message?.includes('WebSocket') || error.message?.includes('closed')) {
+        console.warn('🔌 [SmartRefresh] WebSocket error - will retry next cycle');
+      } else {
+        console.warn('⚠️ [SmartRefresh] Error during refresh (non-fatal):', error.message || error);
       }
-      console.error('❌ [SmartRefresh] Error during smart refresh:', error);
       return null;
     } finally {
+      // CRITICAL: ALWAYS unlock refresh state - prevents stuck spinner
       this.isRefreshing = false;
     }
   }
