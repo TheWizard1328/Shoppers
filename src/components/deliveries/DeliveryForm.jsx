@@ -4367,18 +4367,19 @@ export default function DeliveryForm({
                   const { invalidate } = await import('../utils/dataManager');
                   invalidate('Delivery');
 
-                  // Remove from staged list and update projected list ATOMICALLY
-                  setStagedDeliveries((prev) => {
-                    const filtered = prev.filter((item) => item.id !== staged.id && item._tempId !== staged._tempId);
-                    
-                    // CRITICAL: Update projected list based on remaining staged deliveries
-                    const remainingStagedIds = new Set(filtered.map(d => d.patient_id).filter(Boolean));
-                    const filteredPredictions = fullPredictionListRef.current.filter(pred => !remainingStagedIds.has(pred.patient_id));
-                    setProjectedDeliveries(filteredPredictions);
-                    console.log(`✅ [DeliveryForm] Restored ${filteredPredictions.length} projections after deletion`);
-                    
-                    return filtered;
-                  });
+                  // Remove from staged list
+                  setStagedDeliveries((prev) => prev.filter((item) => item.id !== staged.id && item._tempId !== staged._tempId));
+                  
+                  // CRITICAL: Update projected list - restore the deleted patient if it was a projection
+                  const remainingStagedIds = new Set(
+                    stagedDeliveries
+                      .filter((item) => item.id !== staged.id && item._tempId !== staged._tempId)
+                      .map(d => d.patient_id)
+                      .filter(Boolean)
+                  );
+                  const filteredPredictions = fullPredictionListRef.current.filter(pred => !remainingStagedIds.has(pred.patient_id));
+                  setProjectedDeliveries(filteredPredictions);
+                  console.log(`✅ [DeliveryForm] Restored ${filteredPredictions.length} projections after pending deletion`);
 
                   // Mark that we have changes to activate Done button
                   setHasChanges(true);
