@@ -23,12 +23,12 @@ class SmartRefreshManager {
     this.lastFullRefreshTime = 0; // Track full refresh separately
     
     // Real-time refresh intervals (milliseconds)
-    // CRITICAL: Faster intervals for better cross-device sync
+    // Balanced intervals for cross-device sync without hitting rate limits
     this.intervals = {
-      driverLocation: 3000,      //  3s - driver GPS locations (CRITICAL for live tracking)
-      activeDeliveries: 3000,    //  3s - today's active delivery statuses only
-      todayDeliveries: 3000,     //  3s - today's delivery changes only
-      appUsers: 5000,            //  5s - driver status, assignments (includes driver_status)
+      driverLocation: 5000,      //  5s - driver GPS locations (CRITICAL for live tracking)
+      activeDeliveries: 10000,   // 10s - today's active delivery statuses only
+      todayDeliveries: 10000,    // 10s - today's delivery changes only
+      appUsers: 10000,           // 10s - driver status, assignments (includes driver_status)
       todayPatients: 30000,      // 30s - patients on today's routes
       patients: 60000,           // 60s - all other patients
       stores: 120000             // 2min - store data (rarely changes)
