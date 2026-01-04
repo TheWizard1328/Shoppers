@@ -153,28 +153,123 @@ export default function GoogleAPILogViewer() {
     });
   }, [logs, dateFilter, customDateStart, customDateEnd, apiTypeFilter, userFilter]);
   
-  // Calculate hourly chart data
+  // User colors for multi-line chart
+  const userColors = [
+    '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6',
+    '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16'
+  ];
+  
+  // Calculate chart data based on date filter and user filter
   const hourlyChartData = useMemo(() => {
-    const hourlyMap = {};
-    const now = new Date();
+    const isAllUsers = !userFilter;
     
-    // Initialize last 24 hours
-    for (let i = 23; i >= 0; i--) {
-      const hour = new Date(now.getTime() - i * 60 * 60 * 1000);
-      const key = format(hour, 'HH:00');
-      hourlyMap[key] = { hour: key, calls: 0 };
-    }
-    
-    // Count calls per hour from filtered logs
-    filteredLogs.forEach(log => {
-      const logHour = format(new Date(log.timestamp), 'HH:00');
-      if (hourlyMap[logHour]) {
-        hourlyMap[logHour].calls++;
+    if (dateFilter === 'today' || dateFilter === 'yesterday') {
+      // HOURLY VIEW: 00:00 to 23:00 for single day
+      const targetDate = dateFilter === 'today' ? new Date() : subDays(new Date(), 1);
+      const targetDateStr = format(targetDate, 'yyyy-MM-dd');
+      
+      const hourlyMap = {};
+      // Initialize all 24 hours
+      for (let i = 0; i < 24; i++) {
+        const hourKey = `${String(i).padStart(2, '0')}:00`;
+        hourlyMap[hourKey] = { hour: hourKey, calls: 0 };
+        
+        // If showing all users, add keys for each user
+        if (isAllUsers) {
+          uniqueUsers.forEach(user => {
+            hourlyMap[hourKey][user] = 0;
+          });
+        }
       }
-    });
-    
-    return Object.values(hourlyMap);
-  }, [filteredLogs]);
+      
+      // Count calls per hour
+      filteredLogs.forEach(log => {
+        const logDate = format(new Date(log.timestamp), 'yyyy-MM-dd');
+        if (logDate !== targetDateStr) return;
+        
+        const logHour = format(new Date(log.timestamp), 'HH:00');
+        if (hourlyMap[logHour]) {
+          hourlyMap[logHour].calls++;
+          if (isAllUsers && log.user_name) {
+            hourlyMap[logHour][log.user_name] = (hourlyMap[logHour][log.user_name] || 0) + 1;
+          }
+        }
+      });
+      
+      return Object.values(hourlyMap);
+    } else if (dateFilter === 'week') {
+      // 6-HOUR DIVISIONS for last 7 days
+      const periodMap = {};
+      
+      // Generate 6-hour periods for last 7 days
+      for (let d = 6; d >= 0; d--) {
+        const day = subDays(new Date(), d);
+        const dayStr = format(day, 'MMM dd');
+        
+        ['00-06', '06-12', '12-18', '18-24'].forEach(period => {
+          const key = `${dayStr} ${period}`;
+          periodMap[key] = { hour: key, calls: 0 };
+          
+          if (isAllUsers) {
+            uniqueUsers.forEach(user => {
+              periodMap[key][user] = 0;
+            });
+          }
+        });
+      }
+      
+      // Count calls per period
+      filteredLogs.forEach(log => {
+        const logDate = new Date(log.timestamp);
+        const dayStr = format(logDate, 'MMM dd');
+        const hour = logDate.getHours();
+        
+        let period;
+        if (hour < 6) period = '00-06';
+        else if (hour < 12) period = '06-12';
+        else if (hour < 18) period = '12-18';
+        else period = '18-24';
+        
+        const key = `${dayStr} ${period}`;
+        if (periodMap[key]) {
+          periodMap[key].calls++;
+          if (isAllUsers && log.user_name) {
+            periodMap[key][log.user_name] = (periodMap[key][log.user_name] || 0) + 1;
+          }
+        }
+      });
+      
+      return Object.values(periodMap);
+    } else {
+      // Default: group by day for "all" or custom range
+      const dailyMap = {};
+      
+      filteredLogs.forEach(log => {
+        const dayKey = format(new Date(log.timestamp), 'MMM dd');
+        if (!dailyMap[dayKey]) {
+          dailyMap[dayKey] = { hour: dayKey, calls: 0 };
+          if (isAllUsers) {
+            uniqueUsers.forEach(user => {
+              dailyMap[dayKey][user] = 0;
+            });
+          }
+        }
+        dailyMap[dayKey].calls++;
+        if (isAllUsers && log.user_name) {
+          dailyMap[dayKey][log.user_name] = (dailyMap[dayKey][log.user_name] || 0) + 1;
+        }
+      });
+      
+      // Sort by date
+      const sortedData = Object.values(dailyMap).sort((a, b) => {
+        const dateA = new Date(a.hour + ', 2026');
+        const dateB = new Date(b.hour + ', 2026');
+        return dateA - dateB;
+      });
+      
+      return sortedData;
+    }
+  }, [filteredLogs, dateFilter, userFilter, uniqueUsers]);
   
   // Calculate API type distribution for bar chart
   const apiTypeChartData = useMemo(() => {
