@@ -468,44 +468,37 @@ Deno.serve(async (req) => {
           performanceStats.extraKmLimit = extraKmLimit;
 
           // Total Time on Duty: time from first FINISHED stop to last FINISHED stop
-          // Use ALL finished deliveries (not just paid ones) to get accurate time range
+          // CRITICAL: Extract just the time (HH:MM) from actual_delivery_time and calculate duration
+          // The times stored are local device times - no conversion needed
+          const extractTimeMinutes = (timeStr) => {
+            if (!timeStr) return 0;
+            // Extract HH:MM from the datetime string (could be "2026-01-03T10:10:00" or "2026-01-03T18:50:00.000Z")
+            const match = timeStr.match(/T(\d{2}):(\d{2})/);
+            if (match) {
+              return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+            }
+            return 0;
+          };
+          
           const allFinishedDeliveriesForTime = todayDeliveries
             .filter(d => d.actual_delivery_time)
-            .sort((a, b) => {
-              // CRITICAL: Parse times consistently - strip Z suffix and treat as local time
-              const parseLocalTime = (timeStr) => {
-                if (!timeStr) return 0;
-                // Remove Z suffix if present to treat as local time
-                const normalized = timeStr.replace('Z', '').replace('.000', '');
-                return new Date(normalized).getTime();
-              };
-              return parseLocalTime(a.actual_delivery_time) - parseLocalTime(b.actual_delivery_time);
-            });
+            .sort((a, b) => extractTimeMinutes(a.actual_delivery_time) - extractTimeMinutes(b.actual_delivery_time));
 
           if (allFinishedDeliveriesForTime.length > 0) {
-            // CRITICAL: Parse times consistently - strip Z suffix and treat as local time
-            const parseLocalTime = (timeStr) => {
-              if (!timeStr) return new Date(0);
-              // Remove Z suffix if present to treat as local time
-              const normalized = timeStr.replace('Z', '').replace('.000', '');
-              return new Date(normalized);
-            };
-            
             const firstTimeStr = allFinishedDeliveriesForTime[0].actual_delivery_time;
             const lastTimeStr = allFinishedDeliveriesForTime[allFinishedDeliveriesForTime.length - 1].actual_delivery_time;
             
-            const firstTime = parseLocalTime(firstTimeStr);
-            const lastTime = parseLocalTime(lastTimeStr);
+            const firstMinutes = extractTimeMinutes(firstTimeStr);
+            const lastMinutes = extractTimeMinutes(lastTimeStr);
             
-            console.log(`⏱️ [TIME DEBUG] First raw: ${firstTimeStr} -> parsed: ${firstTime.toISOString()}`);
-            console.log(`⏱️ [TIME DEBUG] Last raw: ${lastTimeStr} -> parsed: ${lastTime.toISOString()}`);
+            console.log(`⏱️ [TIME DEBUG] First raw: ${firstTimeStr} -> ${Math.floor(firstMinutes/60)}:${String(firstMinutes%60).padStart(2,'0')}`);
+            console.log(`⏱️ [TIME DEBUG] Last raw: ${lastTimeStr} -> ${Math.floor(lastMinutes/60)}:${String(lastMinutes%60).padStart(2,'0')}`);
             
-            const durationMs = lastTime - firstTime;
-            const totalMinutes = Math.floor(durationMs / (1000 * 60));
-            const hours = Math.floor(totalMinutes / 60);
-            const minutes = totalMinutes % 60;
+            const durationMinutes = lastMinutes - firstMinutes;
+            const hours = Math.floor(durationMinutes / 60);
+            const minutes = durationMinutes % 60;
             
-            console.log(`⏱️ [TIME DEBUG] Duration: ${durationMs}ms = ${totalMinutes}min = ${hours}h ${minutes}m`);
+            console.log(`⏱️ [TIME DEBUG] Duration: ${durationMinutes}min = ${hours}h ${minutes}m`);
             
             performanceStats.totalTimeOnDuty = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
           }
@@ -526,8 +519,8 @@ Deno.serve(async (req) => {
         let totalPayAllDrivers = 0;
         let totalKmAllDrivers = 0;
         let totalExtraKmAllDrivers = 0;
-        let earliestStartTime = null;
-        let latestEndTime = null;
+        let earliestStartMinutes = null;
+        let latestEndMinutes = null;
         
         // Process each driver's stats
         for (const driverUserId of uniqueDriverIds) {
@@ -626,36 +619,38 @@ Deno.serve(async (req) => {
           totalExtraKmAllDrivers += driverTotalExtraKm;
           
           // Track earliest/latest times across all drivers
-          // CRITICAL: Parse times consistently - strip Z suffix and treat as local time
-          const parseLocalTime = (timeStr) => {
-            if (!timeStr) return new Date(0);
-            const normalized = timeStr.replace('Z', '').replace('.000', '');
-            return new Date(normalized);
+          // CRITICAL: Extract just the time (HH:MM) as minutes for comparison
+          const extractTimeMinutes = (timeStr) => {
+            if (!timeStr) return 0;
+            const match = timeStr.match(/T(\d{2}):(\d{2})/);
+            if (match) {
+              return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+            }
+            return 0;
           };
           
           const finishedDeliveriesForTime = driverDeliveries
             .filter(d => d.actual_delivery_time)
-            .sort((a, b) => parseLocalTime(a.actual_delivery_time) - parseLocalTime(b.actual_delivery_time));
+            .sort((a, b) => extractTimeMinutes(a.actual_delivery_time) - extractTimeMinutes(b.actual_delivery_time));
           
           if (finishedDeliveriesForTime.length > 0) {
-            const driverFirstTime = parseLocalTime(finishedDeliveriesForTime[0].actual_delivery_time);
-            const driverLastTime = parseLocalTime(finishedDeliveriesForTime[finishedDeliveriesForTime.length - 1].actual_delivery_time);
+            const driverFirstMinutes = extractTimeMinutes(finishedDeliveriesForTime[0].actual_delivery_time);
+            const driverLastMinutes = extractTimeMinutes(finishedDeliveriesForTime[finishedDeliveriesForTime.length - 1].actual_delivery_time);
             
-            if (!earliestStartTime || driverFirstTime < earliestStartTime) {
-              earliestStartTime = driverFirstTime;
+            if (earliestStartMinutes === null || driverFirstMinutes < earliestStartMinutes) {
+              earliestStartMinutes = driverFirstMinutes;
             }
-            if (!latestEndTime || driverLastTime > latestEndTime) {
-              latestEndTime = driverLastTime;
+            if (latestEndMinutes === null || driverLastMinutes > latestEndMinutes) {
+              latestEndMinutes = driverLastMinutes;
             }
           }
         }
         
         // Calculate total time on duty (earliest start to latest end)
-        if (earliestStartTime && latestEndTime) {
-          const durationMs = latestEndTime - earliestStartTime;
-          const totalMinutes = Math.floor(durationMs / (1000 * 60));
-          const hours = Math.floor(totalMinutes / 60);
-          const minutes = totalMinutes % 60;
+        if (earliestStartMinutes !== null && latestEndMinutes !== null) {
+          const durationMinutes = latestEndMinutes - earliestStartMinutes;
+          const hours = Math.floor(durationMinutes / 60);
+          const minutes = durationMinutes % 60;
           performanceStats.totalTimeOnDuty = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
         }
         
