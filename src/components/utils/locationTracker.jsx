@@ -1,6 +1,7 @@
 import { base44 } from '@/api/base44Client';
 import { isMobileDevice as checkIsMobileDevice } from './deviceUtils';
 import { getRouteOptimizationSettings } from '../dashboard/RouteOptimizationSettings';
+import { broadcastMutation } from './realtimeSync';
 
 class LocationTracker {
   constructor() {
@@ -257,7 +258,11 @@ class LocationTracker {
       }
       
       // Update AppUser entity
-      await base44.entities.AppUser.update(this.appUserId, updateData);
+      const updatedAppUser = await base44.entities.AppUser.update(this.appUserId, updateData);
+      
+      // CRITICAL: Broadcast location update to other devices via WebSocket
+      // This ensures other users see driver location changes instantly
+      broadcastMutation('AppUser', 'update', this.appUserId, updatedAppUser);
       
       // CRITICAL: Update the currentUser reference with new coordinates
       // so the driverLocationPoller has access to them
