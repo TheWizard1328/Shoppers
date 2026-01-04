@@ -839,14 +839,13 @@ export default function Layout({ children, currentPageName }) {
     useEffect(() => {
       if (!currentUser) return;
 
-      // CRITICAL: Delay background sync much longer (60 seconds) to avoid rate limits on initial load
-      // The UI already loads from IndexedDB immediately via dataManager.getData()
-      const syncTimer = setTimeout(() => {
-        const selectedDateStr = globalFilters.getSelectedDate();
-        const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
-
-        performInitialSync(selectedDate).catch(() => {});
-      }, 60000);
+      // CRITICAL: Offline DB sync DISABLED to prevent rate limit issues
+      // Historical data is fetched on-demand only when needed
+      // const syncTimer = setTimeout(() => {
+      //   const selectedDateStr = globalFilters.getSelectedDate();
+      //   const selectedDate = selectedDateStr ? new Date(selectedDateStr + 'T00:00:00') : new Date();
+      //   performInitialSync(selectedDate).catch(() => {});
+      // }, 60000);
 
       // Set up periodic mutation processing (every 60 seconds to avoid rate limits)
       const mutationSyncInterval = setInterval(() => {
@@ -1067,7 +1066,7 @@ export default function Layout({ children, currentPageName }) {
       });
 
       return () => {
-        clearTimeout(syncTimer);
+        // clearTimeout(syncTimer);
         clearInterval(mutationSyncInterval);
         unsubscribeMutations();
         unsubscribeRealtime();
