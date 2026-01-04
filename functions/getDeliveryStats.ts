@@ -471,14 +471,27 @@ Deno.serve(async (req) => {
           // Use ALL finished deliveries (not just paid ones) to get accurate time range
           const allFinishedDeliveriesForTime = todayDeliveries
             .filter(d => d.actual_delivery_time)
-            .sort((a, b) => new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time));
+            .sort((a, b) => {
+              // CRITICAL: Normalize timestamps - ensure consistent UTC parsing
+              const timeA = a.actual_delivery_time.endsWith('Z') ? a.actual_delivery_time : a.actual_delivery_time + 'Z';
+              const timeB = b.actual_delivery_time.endsWith('Z') ? b.actual_delivery_time : b.actual_delivery_time + 'Z';
+              return new Date(timeA) - new Date(timeB);
+            });
 
           if (allFinishedDeliveriesForTime.length > 0) {
-            const firstTime = new Date(allFinishedDeliveriesForTime[0].actual_delivery_time);
-            const lastTime = new Date(allFinishedDeliveriesForTime[allFinishedDeliveriesForTime.length - 1].actual_delivery_time);
+            // CRITICAL: Normalize timestamps to ensure consistent parsing
+            const firstTimeStr = allFinishedDeliveriesForTime[0].actual_delivery_time;
+            const lastTimeStr = allFinishedDeliveriesForTime[allFinishedDeliveriesForTime.length - 1].actual_delivery_time;
             
-            console.log(`⏱️ [TIME DEBUG] First: ${allFinishedDeliveriesForTime[0].actual_delivery_time} -> ${firstTime.toISOString()}`);
-            console.log(`⏱️ [TIME DEBUG] Last: ${allFinishedDeliveriesForTime[allFinishedDeliveriesForTime.length - 1].actual_delivery_time} -> ${lastTime.toISOString()}`);
+            // Ensure both timestamps are treated consistently (add Z if missing)
+            const firstTimeNormalized = firstTimeStr.endsWith('Z') ? firstTimeStr : firstTimeStr + 'Z';
+            const lastTimeNormalized = lastTimeStr.endsWith('Z') ? lastTimeStr : lastTimeStr + 'Z';
+            
+            const firstTime = new Date(firstTimeNormalized);
+            const lastTime = new Date(lastTimeNormalized);
+            
+            console.log(`⏱️ [TIME DEBUG] First: ${firstTimeStr} -> normalized: ${firstTimeNormalized}`);
+            console.log(`⏱️ [TIME DEBUG] Last: ${lastTimeStr} -> normalized: ${lastTimeNormalized}`);
             
             const durationMs = lastTime - firstTime;
             const totalMinutes = Math.floor(durationMs / (1000 * 60));
