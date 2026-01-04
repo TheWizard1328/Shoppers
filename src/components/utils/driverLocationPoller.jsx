@@ -41,8 +41,6 @@ class DriverLocationPoller {
     this.requestDataRefresh = requestDataRefresh;
     this.currentUser = currentUser;
     this.isPolling = true;
-
-    console.log('🎯 [DriverLocationPoller] Initialized (no polling - using smartRefreshManager)');
   }
 
   stop() {
