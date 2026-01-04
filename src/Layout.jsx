@@ -1343,8 +1343,12 @@ export default function Layout({ children, currentPageName }) {
       }
     };
 
-      refreshIntervalRef.current = setInterval(performUnifiedRefresh, 30000); // 30 seconds (reduced frequency to prevent rate limits)
-      }, 10000); // Wait 10 seconds before starting unified refresh
+      // Start first refresh immediately
+      performUnifiedRefresh();
+      
+      // Then refresh every 5 seconds for faster cross-device sync
+      refreshIntervalRef.current = setInterval(performUnifiedRefresh, 5000);
+      }, 1000); // Wait only 1 second before starting
 
     return () => {
       clearTimeout(startupTimer);
@@ -1379,6 +1383,7 @@ export default function Layout({ children, currentPageName }) {
         if (document.visibilityState === 'visible') {
           await requestWakeLock();
           if (initialGlobalFiltersSet && currentUser && dataLoaded && !isFormOverlayOpen) {
+            // Force immediate refresh when app becomes visible
             smartRefreshManager.lastRefreshTimes = {
               driverLocation: 0,
               activeDeliveries: 0,
@@ -1410,6 +1415,7 @@ export default function Layout({ children, currentPageName }) {
       if (!initialGlobalFiltersSet || !currentUser || !dataLoaded) return;
       if (currentPageName !== 'Dashboard') return;
       
+      // Force immediate refresh when navigating to Dashboard
       smartRefreshManager.lastRefreshTimes = {
         driverLocation: 0,
         activeDeliveries: 0,
