@@ -1238,7 +1238,7 @@ export default function Layout({ children, currentPageName }) {
       }
     });
 
-    // CRITICAL: Delay unified refresh startup to avoid competing with initial data load
+    // CRITICAL: Delay unified refresh startup significantly to avoid rate limits on initial load
     const startupTimer = setTimeout(() => {
     const performUnifiedRefresh = async () => {
       if (!smartRefreshManager._enabled) return;
@@ -1343,12 +1343,12 @@ export default function Layout({ children, currentPageName }) {
       }
     };
 
-      // Start first refresh immediately
+      // Start first refresh after initial load settles
       performUnifiedRefresh();
-      
-      // Then refresh every 5 seconds for faster cross-device sync
-      refreshIntervalRef.current = setInterval(performUnifiedRefresh, 5000);
-      }, 1000); // Wait only 1 second before starting
+
+      // Then refresh every 20 seconds to prevent rate limits
+      refreshIntervalRef.current = setInterval(performUnifiedRefresh, 20000);
+      }, 5000); // Wait 5 seconds before starting to let initial load complete
 
     return () => {
       clearTimeout(startupTimer);
@@ -1575,12 +1575,19 @@ export default function Layout({ children, currentPageName }) {
       let workingCities = cities;
       const isAdmin = userHasRole(currentUser, 'admin');
 
-      // OPTIMIZED: Load AppUsers, Cities, and Stores in parallel (dataManager handles rate limiting)
-      const [allAppUsers, citiesData, allStores] = await Promise.all([
-        getData('AppUser', null, null, forceRefresh),
-        workingCities?.length > 0 ? Promise.resolve(workingCities) : City.list(),
-        getData('Store', null, null, forceRefresh)
-      ]);
+      // CRITICAL: Stagger initial data loads to prevent rate limiting
+      // Load Cities first (usually cached), then others with delays
+      const citiesData = workingCities?.length > 0 ? workingCities : await City.list();
+
+      // Small delay before next batch
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      const allStores = await getData('Store', null, null, forceRefresh);
+
+      // Another delay before AppUsers
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      const allAppUsers = await getData('AppUser', null, null, forceRefresh);
 
       if (citiesData && (!workingCities || workingCities.length === 0)) {
         citiesData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
