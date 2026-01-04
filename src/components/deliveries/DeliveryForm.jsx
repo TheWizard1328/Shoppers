@@ -924,7 +924,8 @@ export default function DeliveryForm({
       store_abbreviation: patientStore.abbreviation,
       distanceFromStore: distanceFromStore,
       delivery_address: patient.address || patientStore.address,
-      isNextDelivery: false
+      isNextDelivery: false,
+      paid_km_override: distanceFromStore ?? null
     }]);
 
     setHasChanges(true);
@@ -1501,7 +1502,8 @@ export default function DeliveryForm({
       store_name: store.name,
       store_abbreviation: store.abbreviation,
       distanceFromStore: distanceFromStore,
-      delivery_address: patient?.address || store.address
+      delivery_address: patient?.address || store.address,
+      paid_km_override: distanceFromStore ?? null
     }]);
 
     setHasChanges(true);
@@ -1618,7 +1620,8 @@ export default function DeliveryForm({
         first_delivery: formData.first_delivery || false,
         oversized: formData.oversized || false,
         fridge_item: formData.fridge_item || false,
-        signature_needed: formData.signature_needed || false
+        signature_needed: formData.signature_needed || false,
+        paid_km_override: formData.paid_km_override ?? null
       };
 
       console.log('📝 [DeliveryForm] Updated staged delivery:', {
@@ -2032,7 +2035,8 @@ export default function DeliveryForm({
               no_charge: updated.no_charge || false,
               extra_time: updated.extra_time || 0,
               time_window_start: updated.time_window_start || '',
-              time_window_end: updated.time_window_end || ''
+              time_window_end: updated.time_window_end || '',
+              paid_km_override: updated.paid_km_override ?? null
             };
 
             console.log(`[AddToRoute] 🔄 New Status will be: ${updateData.status}`);
@@ -2730,7 +2734,8 @@ export default function DeliveryForm({
         cod_total_amount_required: delivery.cod_total_amount_required || 0,
         cod_payments: delivery.cod_payments || [],
         ampm_deliveries: timeSlot,
-        puid: puid || ''
+        puid: puid || '',
+        paid_km_override: delivery.paid_km_override ?? distanceFromStore ?? null
       };
     }).filter(Boolean); // Filter out nulls if patient/store not found
 
@@ -2885,7 +2890,8 @@ export default function DeliveryForm({
       _originalProjected: projected,
       distanceFromStore: distanceFromStore,
       delivery_address: patient.address || '',
-      isNextDelivery: false
+      isNextDelivery: false,
+      paid_km_override: distanceFromStore ?? null
     };
 
     // CRITICAL: Remove from projected and add to staged in one synchronous batch
