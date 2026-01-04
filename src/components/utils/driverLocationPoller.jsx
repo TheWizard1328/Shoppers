@@ -156,15 +156,12 @@ class DriverLocationPoller {
       if (isSelf) {
         if (isMobileDevice) {
           // Mobile: ALWAYS block self marker - blue GPS dot is shown by the map component
-          console.log(`🚫 [DriverLocationPoller] MOBILE - Blocking self marker: ${user.user_name || user.full_name}`);
           return false;
         }
         // Desktop: ONLY show if location_tracking_enabled = true (actively sharing)
         if (user.location_tracking_enabled === true) {
-          console.log('✅ [DriverLocationPoller] Including self marker on DESKTOP (sharing ON)');
           return true;
         } else {
-          console.log('🚫 [DriverLocationPoller] Hiding self marker on DESKTOP (sharing OFF)');
           return false;
         }
       }
@@ -176,14 +173,12 @@ class DriverLocationPoller {
 
       // CRITICAL: Check location_updated_at to ensure location exists
       if (!user.location_updated_at) {
-        console.log(`🚫 [DriverLocationPoller] Hiding ${user.user_name} - no location_updated_at`);
         return false;
       }
 
       const locationAge = now - new Date(user.location_updated_at).getTime();
 
       // DEBUG: Log driver status for troubleshooting
-      console.log(`🔍 [DriverLocationPoller] ${user.user_name} status check: driver_status=${user.driver_status}, location_tracking_enabled=${user.location_tracking_enabled}`);
 
       // RULE 3: Dispatcher special handling - check BEFORE location_tracking_enabled filter
       // CRITICAL: Dispatchers can see driver markers if driver is NOT off_duty
@@ -203,30 +198,23 @@ class DriverLocationPoller {
           return true;
         });
         
-        console.log(`🔍 [DriverLocationPoller] Dispatcher check for ${user.user_name}: hasAssignedStops=${hasAssignedStops}, status=${user.driver_status}, storeIds=${Array.from(dispatcherStoreIds).join(',')}`);
-        
         if (!hasAssignedStops) {
-          console.log(`🚫 [DriverLocationPoller] Hiding ${user.user_name} for dispatcher - no assigned stops for their stores`);
           return false;
         }
         
         // CRITICAL: Must NOT be explicitly off_duty (on_duty, on_break, online, or undefined all visible)
         // undefined status means driver_status field wasn't loaded - treat as potentially active
         if (user.driver_status === 'off_duty') {
-          console.log(`🚫 [DriverLocationPoller] Hiding ${user.user_name} for dispatcher - driver is off_duty`);
           return false;
         }
         
         // CRITICAL: Show marker if driver has assigned stops and is NOT off_duty
         // This includes on_duty, on_break, online, AND undefined (data not yet loaded)
-        console.log(`✅ [DriverLocationPoller] Showing ${user.user_name} to dispatcher (status: ${user.driver_status || 'undefined'}, sharing: ${user.location_tracking_enabled})`);
-        return true;
       }
 
       // CRITICAL: For non-dispatchers, location_tracking_enabled MUST be true
       // This prevents showing markers when sharing is turned off
       if (user.location_tracking_enabled !== true) {
-        console.log(`🚫 [DriverLocationPoller] Hiding ${user.user_name} - location sharing is OFF`);
         return false;
       }
       
@@ -242,12 +230,9 @@ class DriverLocationPoller {
 
       return false;
     });
-    
-    console.log(`📍 [DriverLocationPoller] Found ${activeDriversWithLocation.length} active drivers with location`);
 
     // CRITICAL: ALWAYS notify subscribers with current locations to prevent disappearing markers
     // Don't check for changes - just broadcast the current state every time
-    console.log(`📍 [DriverLocationPoller] Broadcasting ${activeDriversWithLocation.length} driver locations`);
     
     const newLocations = new Map();
     activeDriversWithLocation.forEach(user => {
@@ -304,12 +289,10 @@ class DriverLocationPoller {
     }
 
     this.subscribers.add(callback);
-    console.log(`✅ [DriverLocationPoller] New subscriber added (total: ${this.subscribers.size})`);
 
     // Return unsubscribe function
     return () => {
       this.subscribers.delete(callback);
-      console.log(`🗑️ [DriverLocationPoller] Subscriber removed (total: ${this.subscribers.size})`);
     };
   }
 
