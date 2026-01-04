@@ -2323,19 +2323,29 @@ export default function DeliveryForm({
       // offlineMutations handles: pausing smart refresh, saving to offline DB, syncing to backend, restarting smart refresh
       if (delivery?.id) {
         console.log('📝 [DeliveryForm] Updating delivery via local-first mutation...');
-        console.log('📝 [DeliveryForm] Admin fields to save:', {
+        console.log('📝 [DeliveryForm] Fields to save:', {
           tracking_number: dataToSave.tracking_number,
           stop_id: dataToSave.stop_id,
           puid: dataToSave.puid,
-          paid_km_override: dataToSave.paid_km_override
+          paid_km_override: dataToSave.paid_km_override,
+          actual_delivery_time: dataToSave.actual_delivery_time,
+          status: dataToSave.status
         });
         
         const updatedDelivery = await updateDeliveryLocal(delivery.id, dataToSave);
         console.log('✅ [DeliveryForm] Delivery updated - UI should update immediately via mutation notification');
         
-        // CRITICAL: Force stats refresh after admin field updates
+        // CRITICAL: Force stats refresh AND deliveries update after any delivery update
         window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-        console.log('✅ [DeliveryForm] Triggered stats refresh');
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: { 
+            deliveryId: delivery.id,
+            deliveryDate: formData.delivery_date, 
+            driverId: formData.driver_id,
+            triggeredBy: 'deliveryFormUpdate'
+          }
+        }));
+        console.log('✅ [DeliveryForm] Triggered stats and deliveries refresh');
         
         // NOTE: updateDeliveryLocal already notifies mutation listeners immediately after local save
         // The Layout component subscribes to these mutations and updates state instantly
