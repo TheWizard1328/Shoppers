@@ -23,37 +23,35 @@ class SmartRefreshManager {
     this.lastFullRefreshTime = 0; // Track full refresh separately
     
     // Real-time refresh intervals (milliseconds)
-    // CRITICAL: Driver location is critical for live tracking - must be fast
-    // Historical data (90 days, patients) should ONLY be loaded on Dashboard mount, NOT every poll
+    // CRITICAL: Faster intervals for better cross-device sync
     this.intervals = {
-      driverLocation: 5000,      //  5s - driver GPS locations (CRITICAL for live tracking)
-      activeDeliveries: 5000,    //  5s - today's active delivery statuses only
-      todayDeliveries: 5000,     //  5s - today's delivery changes only
-      appUsers: 15000,           // 15s - driver status, assignments (includes driver_status)
-      todayPatients: 120000,     // 2min - patients on today's routes only (rarely change)
-      patients: 300000,          // 5min - all other patients (ONLY on explicit refresh)
-      stores: 300000             // 5min - store data (rarely changes)
+      driverLocation: 3000,      //  3s - driver GPS locations (CRITICAL for live tracking)
+      activeDeliveries: 3000,    //  3s - today's active delivery statuses only
+      todayDeliveries: 3000,     //  3s - today's delivery changes only
+      appUsers: 5000,            //  5s - driver status, assignments (includes driver_status)
+      todayPatients: 30000,      // 30s - patients on today's routes
+      patients: 60000,           // 60s - all other patients
+      stores: 120000             // 2min - store data (rarely changes)
     };
     
     // Track last refresh time for each entity type
-    // Initialize to NOW so the first refresh waits for the full interval
-    const now = Date.now();
+    // Initialize to 0 so the first refresh happens immediately
     this.lastRefreshTimes = {
-      driverLocation: now,
-      activeDeliveries: now,
-      todayDeliveries: now,
-      appUsers: now,
-      todayPatients: now,
-      patients: now,
-      stores: now
+      driverLocation: 0,
+      activeDeliveries: 0,
+      todayDeliveries: 0,
+      appUsers: 0,
+      todayPatients: 0,
+      patients: 0,
+      stores: 0
     };
     
-    // Rate limit protection - CRITICAL: Extended delays to prevent backend crashes
+    // Rate limit protection
     this.lastApiCallTime = 0;
-    this.minTimeBetweenCalls = 2000; // 2 seconds minimum between API calls
-    this.consecutiveErrors = 0; // Track consecutive errors for exponential backoff
-    this.maxConsecutiveErrors = 5; // Max errors before longer cooldown
-    this.errorCooldownUntil = 0; // Timestamp when error cooldown expires
+    this.minTimeBetweenCalls = 500; // 500ms minimum between API calls (reduced for faster sync)
+    this.consecutiveErrors = 0;
+    this.maxConsecutiveErrors = 3; // Reduced - fail faster and recover
+    this.errorCooldownUntil = 0;
     
     // Rate limit error callback
     this.rateLimitCallback = null;
@@ -320,10 +318,10 @@ class SmartRefreshManager {
     this.consecutiveErrors++;
     
     if (this.consecutiveErrors >= this.maxConsecutiveErrors) {
-      // Trigger long cooldown: 30 seconds
-      this.errorCooldownUntil = Date.now() + 30000;
-      console.warn(`🛑 [SmartRefresh] ${this.consecutiveErrors} consecutive errors - entering 30s cooldown`);
-      this.consecutiveErrors = 0; // Reset counter after cooldown
+      // Trigger shorter cooldown: 10 seconds (reduced for faster recovery)
+      this.errorCooldownUntil = Date.now() + 10000;
+      console.warn(`🛑 [SmartRefresh] ${this.consecutiveErrors} consecutive errors - entering 10s cooldown`);
+      this.consecutiveErrors = 0;
     }
   }
   
@@ -1315,24 +1313,31 @@ class SmartRefreshManager {
   }
 
   /**
-   * LIGHTWEIGHT smart refresh - ONLY today's deliveries and driver locations
-   * CRITICAL: Does NOT refresh patients or historical data - that's done on Dashboard mount only
-   * Historical 90-day data and full patient lists should NEVER be fetched in the polling loop
+   * LIGHTWEIGHT smart refresh - polls for delivery and AppUser changes
    * CRITICAL: ALWAYS unlocks refresh state in finally block to prevent stuck spinner
    */
   async performSmartRefresh(currentData, filters, isEntityUpdating = false) {
     // CRITICAL: When disabled, skip background polling
     if (!this._enabled) {
+      this.isRefreshing = false; // Always ensure unlocked
       return null;
     }
     
     // CRITICAL: Skip if paused during mutations
     if (this._paused) {
+      this.isRefreshing = false;
       return null;
     }
     
     if (isEntityUpdating) {
+      this.isRefreshing = false;
       return null;
+    }
+    
+    // CRITICAL: Auto-unlock if stuck for more than 30 seconds
+    if (this.isRefreshing && this._refreshStartTime && (Date.now() - this._refreshStartTime > 30000)) {
+      console.warn('🔓 [SmartRefresh] Auto-unlocking stuck refresh state (>30s)');
+      this.isRefreshing = false;
     }
     
     if (this.isRefreshing) {
@@ -1347,33 +1352,33 @@ class SmartRefreshManager {
     }
     
     this.isRefreshing = true;
+    this._refreshStartTime = Date.now();
     const updates = {};
     
     try {
-      // CRITICAL: Smart refresh should ONLY poll for:
-      // 1. Driver locations (handled separately by refreshDriverLocations)
-      // 2. Active delivery statuses for TODAY only (handled by refreshActiveDeliveryStatuses)
-      //
-      // It should NEVER poll for:
-      // - Historical 90-day delivery data (loaded once on Dashboard mount)
-      // - Full patient list (loaded once on Dashboard mount)
-      // - Store data (loaded once on app init)
-      //
-      // These are triggered by broadcast events from other devices when they make changes
+      // Refresh AppUsers (includes driver status)
+      if (this.shouldRefresh('appUsers') && currentData.appUsers) {
+        try {
+          const appUserResult = await this.refreshAppUsers(currentData.appUsers);
+          if (appUserResult?.hasChanges) {
+            updates.appUsers = appUserResult.appUsers;
+          }
+          this.markRefreshed('appUsers');
+        } catch (e) {
+          console.warn('⚠️ [SmartRefresh] AppUser refresh failed:', e.message);
+        }
+      }
       
       const hasAnyUpdates = Object.keys(updates).length > 0;
       return hasAnyUpdates ? updates : null;
       
     } catch (error) {
       // CRITICAL: Catch ALL errors and gracefully continue
-      // Never let an error stop the refresh cycle
       if (error.response?.status === 429 || error.message?.includes('429')) {
         console.warn('⏰ [SmartRefresh] Rate limit hit - will retry next cycle');
         this.notifyRateLimit(true);
       } else if (error.response?.status === 401 || error.response?.status === 403) {
         console.warn('🔐 [SmartRefresh] Auth error - session may have expired');
-      } else if (error.message?.includes('WebSocket') || error.message?.includes('closed')) {
-        console.warn('🔌 [SmartRefresh] WebSocket error - will retry next cycle');
       } else {
         console.warn('⚠️ [SmartRefresh] Error during refresh (non-fatal):', error.message || error);
       }
@@ -1381,6 +1386,7 @@ class SmartRefreshManager {
     } finally {
       // CRITICAL: ALWAYS unlock refresh state - prevents stuck spinner
       this.isRefreshing = false;
+      this._refreshStartTime = null;
     }
   }
   
