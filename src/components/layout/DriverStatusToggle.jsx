@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { useAppData } from "../utils/AppDataContext";
 import { fabControlEvents } from "../utils/fabControlEvents";
 import { loadUserSettings, getSetting } from "../utils/userSettingsManager";
+import { broadcastMutation } from "../utils/realtimeSync";
 
 /**
  * 3-way driver status toggle for mobile header
@@ -222,8 +223,11 @@ export default function DriverStatusToggle({ currentUser, onStatusChange, onBrea
       
       // CRITICAL: Update AppUser entity IMMEDIATELY with all fields
       console.log('📝 [DriverStatusToggle] Updating AppUser with:', updatePayload);
-      await base44.entities.AppUser.update(appUserId, updatePayload);
+      const updatedAppUser = await base44.entities.AppUser.update(appUserId, updatePayload);
       console.log('✅ [DriverStatusToggle] AppUser updated successfully');
+      
+      // CRITICAL: Broadcast status change to other devices via WebSocket
+      broadcastMutation('AppUser', 'update', appUserId, updatedAppUser);
       
       // CRITICAL: Call backend function to enforce single active device
       console.log('📱 Calling setDriverStatus backend function...');
