@@ -4131,7 +4131,7 @@ export default function DeliveryForm({
                   className="absolute right-0 top-0 bottom-0 w-[300px] shadow-2xl flex flex-col" style={{ background: 'var(--bg-white)' }}>
 
                     <div className="border-b p-4 flex items-center justify-between" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
-                      <h3 className="text-lg font-semibold" style={{ color: 'var(--text-slate-900)' }}>Staged & Pending (S: {sortedStagedDeliveries.filter(s => !s.id).length} P: {sortedStagedDeliveries.filter(s => s.id).length})</h3>
+                      <h3 className="text-lg font-semibold" style={{ color: 'var(--text-slate-900)' }}>Deliveries: (S: {sortedStagedDeliveries.filter(s => !s.id).length} P: {sortedStagedDeliveries.filter(s => s.id).length})</h3>
                       <Button variant="ghost" size="icon" onClick={() => setShowStagedPanel(false)}>
                         <X className="w-4 h-4" />
                       </Button>
