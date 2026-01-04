@@ -3486,16 +3486,13 @@ export default function DeliveryForm({
                       <Input
                       id="paid_km_override"
                       type="text"
-                      inputMode="decimal"
                       value={formData.paid_km_override ?? ''}
                       onChange={(e) => {
                         const val = e.target.value;
-                        if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                          setFormData((prev) => ({ 
-                            ...prev, 
-                            paid_km_override: val === '' ? null : parseFloat(val) || null
-                          }));
-                        }
+                        setFormData((prev) => ({ 
+                          ...prev, 
+                          paid_km_override: val === '' ? null : val
+                        }));
                       }}
                       placeholder={selectedPatient?.distance_from_store ? selectedPatient.distance_from_store.toFixed(1) : ''}
                       className="h-9 text-sm"
