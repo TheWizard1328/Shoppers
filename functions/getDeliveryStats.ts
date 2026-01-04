@@ -414,25 +414,49 @@ Deno.serve(async (req) => {
             }
           });
 
-          // Extra Km: sum up distances from patient records that exceed limit
+          // Extra Km: sum up distances using paid_km_override if available, otherwise patient distance_from_store
           let totalExtraKm = 0;
-          const patientIds = paidDeliveries.map(d => d.patient_id).filter(Boolean);
           
-          if (patientIds.length > 0) {
-            const patientsData = await base44.asServiceRole.entities.Patient.filter({ 
-              id: { $in: patientIds } 
-            });
+          // CRITICAL: Use paid_km_override if set, otherwise use patient distance_from_store
+          paidDeliveries.forEach(delivery => {
+            if (!delivery?.patient_id) return;
             
-            patientsData.forEach(patient => {
-              if (patient?.distance_from_store && typeof patient.distance_from_store === 'number') {
-                const distance = patient.distance_from_store;
-                
-                // CRITICAL: Only count extra km if THIS patient's distance exceeds limit
-                if (distance > extraKmLimit) {
-                  totalExtraKm += (distance - extraKmLimit);
-                }
+            // Check if delivery has X-KM override
+            if (delivery.paid_km_override !== null && delivery.paid_km_override !== undefined) {
+              const distance = parseFloat(delivery.paid_km_override);
+              if (!isNaN(distance) && distance > extraKmLimit) {
+                totalExtraKm += (distance - extraKmLimit);
               }
-            });
+            }
+          });
+          
+          // Batch fetch patients only for deliveries without override
+          const deliveriesNeedingPatientDistance = paidDeliveries.filter(d => 
+            d.patient_id && (d.paid_km_override === null || d.paid_km_override === undefined)
+          );
+          
+          if (deliveriesNeedingPatientDistance.length > 0) {
+            const patientIds = deliveriesNeedingPatientDistance.map(d => d.patient_id).filter(Boolean);
+            
+            if (patientIds.length > 0) {
+              const patientsData = await base44.asServiceRole.entities.Patient.filter({ 
+                id: { $in: patientIds } 
+              });
+              
+              const patientMap = new Map(patientsData.map(p => [p.id, p]));
+              
+              deliveriesNeedingPatientDistance.forEach(delivery => {
+                const patient = patientMap.get(delivery.patient_id);
+                if (patient?.distance_from_store && typeof patient.distance_from_store === 'number') {
+                  const distance = patient.distance_from_store;
+                  
+                  // CRITICAL: Only count extra km if THIS patient's distance exceeds limit
+                  if (distance > extraKmLimit) {
+                    totalExtraKm += (distance - extraKmLimit);
+                  }
+                }
+              });
+            }
           }
 
           const extraKmPay = totalExtraKm * extraKmRate;
@@ -520,21 +544,49 @@ Deno.serve(async (req) => {
           
           // Extra Km for this driver
           let driverTotalExtraKm = 0;
-          const patientIds = paidDeliveries.map(d => d.patient_id).filter(Boolean);
           
-          if (patientIds.length > 0) {
-            const patientsData = await base44.asServiceRole.entities.Patient.filter({ 
-              id: { $in: patientIds } 
-            });
+          // CRITICAL: Use paid_km_override if set, otherwise use patient distance_from_store
+          paidDeliveries.forEach(delivery => {
+            if (!delivery?.patient_id) return;
             
-            patientsData.forEach(patient => {
-              if (patient?.distance_from_store && typeof patient.distance_from_store === 'number') {
-                const distance = patient.distance_from_store;
-                if (distance > extraKmLimit) {
-                  driverTotalExtraKm += (distance - extraKmLimit);
-                }
+            // Check if delivery has X-KM override
+            if (delivery.paid_km_override !== null && delivery.paid_km_override !== undefined) {
+              const distance = parseFloat(delivery.paid_km_override);
+              if (!isNaN(distance) && distance > extraKmLimit) {
+                driverTotalExtraKm += (distance - extraKmLimit);
               }
-            });
+            } else {
+              // No override - use patient's distance_from_store (requires patient lookup)
+              // We'll batch fetch patients below
+            }
+          });
+          
+          // Batch fetch patients only if needed (deliveries without override)
+          const deliveriesNeedingPatientDistance = paidDeliveries.filter(d => 
+            d.patient_id && (d.paid_km_override === null || d.paid_km_override === undefined)
+          );
+          
+          if (deliveriesNeedingPatientDistance.length > 0) {
+            const patientIds = deliveriesNeedingPatientDistance.map(d => d.patient_id).filter(Boolean);
+            
+            if (patientIds.length > 0) {
+              const patientsData = await base44.asServiceRole.entities.Patient.filter({ 
+                id: { $in: patientIds } 
+              });
+              
+              // Create map for fast lookup
+              const patientMap = new Map(patientsData.map(p => [p.id, p]));
+              
+              deliveriesNeedingPatientDistance.forEach(delivery => {
+                const patient = patientMap.get(delivery.patient_id);
+                if (patient?.distance_from_store && typeof patient.distance_from_store === 'number') {
+                  const distance = patient.distance_from_store;
+                  if (distance > extraKmLimit) {
+                    driverTotalExtraKm += (distance - extraKmLimit);
+                  }
+                }
+              });
+            }
           }
           
           const extraKmPay = driverTotalExtraKm * extraKmRate;
