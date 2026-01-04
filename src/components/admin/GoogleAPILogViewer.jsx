@@ -501,16 +501,57 @@ export default function GoogleAPILogViewer() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           {/* Hourly Call Volume */}
           <div className="bg-white border rounded-lg p-4">
-            <h3 className="font-semibold text-slate-900 mb-4">Hourly Call Volume (Last 24h)</h3>
-            <ResponsiveContainer width="100%" height={200}>
+            <h3 className="font-semibold text-slate-900 mb-4">
+              {dateFilter === 'today' ? 'Today\'s Call Volume (00:00-23:59)' :
+               dateFilter === 'yesterday' ? 'Yesterday\'s Call Volume (00:00-23:59)' :
+               dateFilter === 'week' ? 'Last 7 Days Call Volume (6-hour periods)' :
+               'Call Volume by Day'}
+            </h3>
+            <ResponsiveContainer width="100%" height={!userFilter && uniqueUsers.length > 1 ? 280 : 200}>
               <LineChart data={hourlyChartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="hour" tick={{ fontSize: 11 }} stroke="#64748b" />
+                <XAxis 
+                  dataKey="hour" 
+                  tick={{ fontSize: dateFilter === 'week' ? 9 : 11 }} 
+                  stroke="#64748b"
+                  angle={dateFilter === 'week' ? -45 : 0}
+                  textAnchor={dateFilter === 'week' ? 'end' : 'middle'}
+                  height={dateFilter === 'week' ? 60 : 30}
+                />
                 <YAxis tick={{ fontSize: 11 }} stroke="#64748b" />
                 <Tooltip
                   contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px' }}
                 />
-                <Line type="monotone" dataKey="calls" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                {/* Show multiple lines for each user when "All Users" is selected */}
+                {!userFilter && uniqueUsers.length > 1 ? (
+                  <>
+                    <Legend wrapperStyle={{ fontSize: '11px' }} />
+                    {/* Total line (thicker, dashed) */}
+                    <Line 
+                      type="monotone" 
+                      dataKey="calls" 
+                      name="Total" 
+                      stroke="#1e293b" 
+                      strokeWidth={3} 
+                      strokeDasharray="5 5"
+                      dot={false} 
+                    />
+                    {/* Individual user lines */}
+                    {uniqueUsers.slice(0, 10).map((user, idx) => (
+                      <Line
+                        key={user}
+                        type="monotone"
+                        dataKey={user}
+                        name={user}
+                        stroke={userColors[idx % userColors.length]}
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                    ))}
+                  </>
+                ) : (
+                  <Line type="monotone" dataKey="calls" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                )}
               </LineChart>
             </ResponsiveContainer>
           </div>
