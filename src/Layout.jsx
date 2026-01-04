@@ -91,6 +91,7 @@ import { ResizableDivider } from './components/ui/resizable-divider';
 import { performInitialSync, processPendingMutations } from './components/utils/offlineSync';
 import OfflineSyncIndicator from './components/layout/OfflineSyncIndicator';
 import { subscribeMutations } from './components/utils/entityMutations';
+import { realtimeSync, subscribeToRealtime } from './components/utils/realtimeSync';
 
 // App version will be loaded from AppSettings
 const DEFAULT_APP_VERSION = 'v1.0.0';
@@ -990,10 +991,87 @@ export default function Layout({ children, currentPageName }) {
       };
       window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
 
+      // ========================================
+      // REAL-TIME SYNC - WebSocket for instant updates
+      // ========================================
+      realtimeSync.connect();
+
+      const unsubscribeRealtime = subscribeToRealtime((update) => {
+        if (update.type === 'connected') {
+          console.log('✅ [Layout] Real-time sync connected');
+          return;
+        }
+
+        if (update.type === 'disconnected') {
+          console.log('🔌 [Layout] Real-time sync disconnected');
+          return;
+        }
+
+        if (update.type !== 'entity_change') return;
+
+        console.log(`📥 [Layout] Real-time update: ${update.entity} ${update.action}`, update.id || update.ids);
+
+        // Handle Delivery updates
+        if (update.entity === 'Delivery') {
+          if (update.action === 'create') {
+            setDeliveries(prev => {
+              if (prev.some(d => d?.id === update.id)) return prev;
+              return [...prev, update.data];
+            });
+          } else if (update.action === 'update') {
+            setDeliveries(prev => prev.map(d => 
+              d?.id === update.id ? { ...d, ...update.data } : d
+            ));
+          } else if (update.action === 'delete') {
+            setDeliveries(prev => prev.filter(d => d?.id !== update.id));
+          } else if (update.action === 'batch_delete' && update.ids) {
+            const idsToDelete = new Set(update.ids);
+            setDeliveries(prev => prev.filter(d => !idsToDelete.has(d?.id)));
+          }
+        }
+
+        // Handle AppUser updates (driver location, status, tracking)
+        if (update.entity === 'AppUser') {
+          if (update.action === 'update') {
+            setAppUsers(prev => prev.map(au => 
+              au?.id === update.id ? { ...au, ...update.data } : au
+            ));
+
+            // Also update users array for merged user data
+            setUsers(prev => prev.map(u => 
+              u?.id === update.data?.user_id ? { ...u, ...update.data } : u
+            ));
+
+            // Dispatch event to update map markers immediately
+            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+              detail: { appUsers: null, singleUpdate: update.data }
+            }));
+          }
+        }
+
+        // Handle Patient updates
+        if (update.entity === 'Patient') {
+          if (update.action === 'create') {
+            setPatients(prev => {
+              if (prev.some(p => p?.id === update.id)) return prev;
+              return [...prev, update.data];
+            });
+          } else if (update.action === 'update') {
+            setPatients(prev => prev.map(p => 
+              p?.id === update.id ? { ...p, ...update.data } : p
+            ));
+          } else if (update.action === 'delete') {
+            setPatients(prev => prev.filter(p => p?.id !== update.id));
+          }
+        }
+      });
+
       return () => {
         clearTimeout(syncTimer);
         clearInterval(mutationSyncInterval);
         unsubscribeMutations();
+        unsubscribeRealtime();
+        realtimeSync.disconnect();
         window.removeEventListener('offlineSyncComplete', handleSyncComplete);
         window.removeEventListener('deliveriesImported', handleDeliveriesImported);
         window.removeEventListener('offlineDeliveriesDeleted', handleOfflineDeliveriesDeleted);
