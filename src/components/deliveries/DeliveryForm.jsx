@@ -2146,7 +2146,19 @@ export default function DeliveryForm({
         return; // CRITICAL: Exit early to prevent duplicate processing
       }
 
-      // CRITICAL: Clear staged state FIRST to unblock UI immediately
+      // CRITICAL: Trigger IMMEDIATE UI update BEFORE closing form
+      console.log('[AddToRoute] 🔄 IMMEDIATE: Dispatching deliveries updated event...');
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: { 
+          deliveryDate: formData.delivery_date, 
+          driverId: formData.driver_id,
+          triggeredBy: 'doneButtonCreates',
+          immediate: true // NEW: Flag to force immediate refresh
+        }
+      }));
+      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+
+      // CRITICAL: Clear staged state AFTER dispatching event
       console.log('[AddToRoute] 🧹 Clearing staged deliveries from state...');
       setStagedDeliveries([]);
       setProjectedDeliveries([]);
@@ -2160,7 +2172,7 @@ export default function DeliveryForm({
       // Close form IMMEDIATELY to unblock UI
       onCancel();
 
-      // CRITICAL: Force backend refresh and UI update AFTER form closes (non-blocking)
+      // CRITICAL: Force backend refresh and activate FAB AFTER form closes (non-blocking)
       setTimeout(async () => {
         try {
           if (formData.driver_id && formData.delivery_date) {
@@ -2177,23 +2189,13 @@ export default function DeliveryForm({
           invalidate('Delivery');
           invalidateDeliveriesForDate(formData.delivery_date);
 
-          // Force UI refresh
-          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-            detail: { 
-              deliveryDate: formData.delivery_date, 
-              driverId: formData.driver_id,
-              triggeredBy: 'doneButtonCreates' 
-            }
-          }));
-          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-
           // Activate FAB
           const { fabControlEvents } = await import('../utils/fabControlEvents');
           fabControlEvents.notifyDataReady();
           
           // CRITICAL: Trigger done button event to activate FAB phase 1 for 500ms
           fabControlEvents.notifyDoneButtonClicked();
-          console.log('[AddToRoute] ✅ Background: UI refreshed, FAB activated, and done button event triggered');
+          console.log('[AddToRoute] ✅ Background: FAB activated and done button event triggered');
         } catch (error) {
           console.error('[AddToRoute] ❌ Background refresh failed:', error);
         }
