@@ -13,6 +13,7 @@
 
 import { base44 } from '@/api/base44Client';
 import { offlineDB } from './offlineDatabase';
+import { broadcastMutation } from './realtimeSync';
 
 // ========================================
 // LISTENERS & STATE
@@ -142,7 +143,8 @@ export const createPatient = async (patientData, options = {}) => {
       // Notify UI to replace temp with real
       notifyMutation({ type: 'replace', entity: 'Patient', oldId: tempId, newId: backendPatient.id, data: backendPatient });
       
-      // Broadcast removed
+      // Broadcast to other devices
+      broadcastMutation('Patient', 'create', backendPatient.id, backendPatient);
       
       await restartSmartRefresh();
       return backendPatient;
@@ -204,6 +206,9 @@ export const updatePatient = async (patientId, updates, options = {}) => {
       // STEP 5: Notify UI with backend version
       notifyMutation({ type: 'update', entity: 'Patient', id: patientId, data: backendPatient });
       
+      // Broadcast to other devices
+      broadcastMutation('Patient', 'update', patientId, backendPatient);
+      
     } catch (error) {
       console.warn('⚠️ [EntityMutations] Patient update sync failed, queuing:', error.message);
       await offlineDB.addPendingMutation({ operation: 'update', entity: 'Patient', recordId: patientId, payload: updates });
@@ -247,7 +252,9 @@ export const deletePatient = async (patientId, options = {}) => {
       // CRITICAL: Mark as deleted in smart refresh to prevent resurrection
       const { smartRefreshManager } = await import('./smartRefreshManager');
       smartRefreshManager.deletedPatientIds.add(patientId);
-      console.log(`🗑️ [EntityMutations] Marked patient ${patientId} as deleted in smart refresh`);
+      
+      // Broadcast to other devices
+      broadcastMutation('Patient', 'delete', patientId, null);
     } catch (error) {
       console.warn('⚠️ [EntityMutations] Patient delete sync failed, queuing:', error.message);
       await offlineDB.addPendingMutation({ operation: 'delete', entity: 'Patient', recordId: patientId });
@@ -304,6 +311,9 @@ export const createDelivery = async (deliveryData, options = {}) => {
       
       // STEP 5: Notify UI to replace temp with real
       notifyMutation({ type: 'replace', entity: 'Delivery', oldId: tempId, newId: backendDelivery.id, data: backendDelivery });
+      
+      // Broadcast to other devices
+      broadcastMutation('Delivery', 'create', backendDelivery.id, backendDelivery);
       
       await restartSmartRefresh();
       return backendDelivery;
@@ -375,6 +385,9 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
       // STEP 5: Notify UI with backend version (most up-to-date)
       notifyMutation({ type: 'update', entity: 'Delivery', id: deliveryId, data: backendDelivery });
       
+      // Broadcast to other devices
+      broadcastMutation('Delivery', 'update', deliveryId, backendDelivery);
+      
     } catch (error) {
       console.warn('⚠️ [EntityMutations] Delivery update sync failed, queuing:', error.message);
       await offlineDB.addPendingMutation({ operation: 'update', entity: 'Delivery', recordId: deliveryId, payload: updates });
@@ -429,6 +442,9 @@ export const deleteDelivery = async (deliveryId, options = {}) => {
 
     // STEP 5: Notify UI immediately
     notifyMutation({ type: 'delete', entity: 'Delivery', id: deliveryId, data: null });
+    
+    // Broadcast to other devices
+    broadcastMutation('Delivery', 'delete', deliveryId, null);
     
     await restartSmartRefresh();
     return true;
@@ -488,6 +504,9 @@ export const batchCreateDeliveries = async (deliveriesData, options = {}) => {
       backendDeliveries.forEach((backend, i) => {
         notifyMutation({ type: 'replace', entity: 'Delivery', oldId: localDeliveries[i].id, newId: backend.id, data: backend });
       });
+      
+      // Broadcast to other devices
+      backendDeliveries.forEach(d => broadcastMutation('Delivery', 'create', d.id, d));
       
       await restartSmartRefresh();
       return backendDeliveries;
@@ -558,6 +577,9 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
       ids: deliveryIds,
       data: null 
     });
+
+    // Broadcast to other devices
+    broadcastMutation('Delivery', 'batch_delete', null, null, deliveryIds);
 
     await restartSmartRefresh();
     return true;
@@ -642,8 +664,9 @@ export const updateAppUser = (id, updates, options) => updateEntity('AppUser', i
 export const deleteAppUser = (id, options) => deleteEntity('AppUser', id, options);
 
 /**
- * Update AppUser with immediate UI refresh (local-first pattern)
- * Updates backend and notifies UI immediately
+ * Update AppUser with immediate UI refresh and real-time broadcast
+ * Updates backend, notifies UI immediately, and broadcasts to other devices
+ * CRITICAL: Used for driver status, location, and tracking changes
  */
 export const localUpdateAppUser = async (appUserId, updates, options = {}) => {
   if (mutationsPaused) throw new Error('Mutations are paused');
@@ -657,7 +680,11 @@ export const localUpdateAppUser = async (appUserId, updates, options = {}) => {
     // Notify UI immediately so DriverSettings refreshes
     notifyMutation({ type: 'update', entity: 'AppUser', id: appUserId, data: result });
     
-    console.log(`✅ [EntityMutations] AppUser ${appUserId} updated successfully`);
+    // CRITICAL: Broadcast to other devices for real-time sync
+    // This ensures driver location/status changes are instantly visible
+    broadcastMutation('AppUser', 'update', appUserId, result);
+    
+    console.log(`✅ [EntityMutations] AppUser ${appUserId} updated and broadcast`);
     return result;
   } catch (error) {
     console.error(`❌ [EntityMutations] Failed to update AppUser ${appUserId}:`, error);
