@@ -471,14 +471,34 @@ Deno.serve(async (req) => {
           // Use ALL finished deliveries (not just paid ones) to get accurate time range
           const allFinishedDeliveriesForTime = todayDeliveries
             .filter(d => d.actual_delivery_time)
-            .sort((a, b) => new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time));
+            .sort((a, b) => {
+              // CRITICAL: Parse times consistently - strip Z suffix and treat as local time
+              const parseLocalTime = (timeStr) => {
+                if (!timeStr) return 0;
+                // Remove Z suffix if present to treat as local time
+                const normalized = timeStr.replace('Z', '').replace('.000', '');
+                return new Date(normalized).getTime();
+              };
+              return parseLocalTime(a.actual_delivery_time) - parseLocalTime(b.actual_delivery_time);
+            });
 
           if (allFinishedDeliveriesForTime.length > 0) {
-            const firstTime = new Date(allFinishedDeliveriesForTime[0].actual_delivery_time);
-            const lastTime = new Date(allFinishedDeliveriesForTime[allFinishedDeliveriesForTime.length - 1].actual_delivery_time);
+            // CRITICAL: Parse times consistently - strip Z suffix and treat as local time
+            const parseLocalTime = (timeStr) => {
+              if (!timeStr) return new Date(0);
+              // Remove Z suffix if present to treat as local time
+              const normalized = timeStr.replace('Z', '').replace('.000', '');
+              return new Date(normalized);
+            };
             
-            console.log(`⏱️ [TIME DEBUG] First: ${allFinishedDeliveriesForTime[0].actual_delivery_time} -> ${firstTime.toISOString()}`);
-            console.log(`⏱️ [TIME DEBUG] Last: ${allFinishedDeliveriesForTime[allFinishedDeliveriesForTime.length - 1].actual_delivery_time} -> ${lastTime.toISOString()}`);
+            const firstTimeStr = allFinishedDeliveriesForTime[0].actual_delivery_time;
+            const lastTimeStr = allFinishedDeliveriesForTime[allFinishedDeliveriesForTime.length - 1].actual_delivery_time;
+            
+            const firstTime = parseLocalTime(firstTimeStr);
+            const lastTime = parseLocalTime(lastTimeStr);
+            
+            console.log(`⏱️ [TIME DEBUG] First raw: ${firstTimeStr} -> parsed: ${firstTime.toISOString()}`);
+            console.log(`⏱️ [TIME DEBUG] Last raw: ${lastTimeStr} -> parsed: ${lastTime.toISOString()}`);
             
             const durationMs = lastTime - firstTime;
             const totalMinutes = Math.floor(durationMs / (1000 * 60));
@@ -606,13 +626,20 @@ Deno.serve(async (req) => {
           totalExtraKmAllDrivers += driverTotalExtraKm;
           
           // Track earliest/latest times across all drivers
-          const finishedDeliveriesForTime = paidDeliveries
-            .filter(d => d.actual_delivery_time && (isCompleted(d) || isFailed(d) || isReturn(d)))
-            .sort((a, b) => new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time));
+          // CRITICAL: Parse times consistently - strip Z suffix and treat as local time
+          const parseLocalTime = (timeStr) => {
+            if (!timeStr) return new Date(0);
+            const normalized = timeStr.replace('Z', '').replace('.000', '');
+            return new Date(normalized);
+          };
+          
+          const finishedDeliveriesForTime = driverDeliveries
+            .filter(d => d.actual_delivery_time)
+            .sort((a, b) => parseLocalTime(a.actual_delivery_time) - parseLocalTime(b.actual_delivery_time));
           
           if (finishedDeliveriesForTime.length > 0) {
-            const driverFirstTime = new Date(finishedDeliveriesForTime[0].actual_delivery_time);
-            const driverLastTime = new Date(finishedDeliveriesForTime[finishedDeliveriesForTime.length - 1].actual_delivery_time);
+            const driverFirstTime = parseLocalTime(finishedDeliveriesForTime[0].actual_delivery_time);
+            const driverLastTime = parseLocalTime(finishedDeliveriesForTime[finishedDeliveriesForTime.length - 1].actual_delivery_time);
             
             if (!earliestStartTime || driverFirstTime < earliestStartTime) {
               earliestStartTime = driverFirstTime;
