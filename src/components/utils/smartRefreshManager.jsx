@@ -23,15 +23,15 @@ class SmartRefreshManager {
     this.lastFullRefreshTime = 0; // Track full refresh separately
     
     // Real-time refresh intervals (milliseconds)
-    // Balanced intervals for cross-device sync without hitting rate limits
+    // CRITICAL: Increased intervals to prevent rate limiting while maintaining sync
     this.intervals = {
-      driverLocation: 5000,      //  5s - driver GPS locations (CRITICAL for live tracking)
-      activeDeliveries: 10000,   // 10s - today's active delivery statuses only
-      todayDeliveries: 10000,    // 10s - today's delivery changes only
-      appUsers: 10000,           // 10s - driver status, assignments (includes driver_status)
-      todayPatients: 30000,      // 30s - patients on today's routes
-      patients: 60000,           // 60s - all other patients
-      stores: 120000             // 2min - store data (rarely changes)
+      driverLocation: 15000,     // 15s - driver GPS locations
+      activeDeliveries: 20000,   // 20s - today's active delivery statuses only
+      todayDeliveries: 20000,    // 20s - today's delivery changes only
+      appUsers: 20000,           // 20s - driver status, assignments (includes driver_status)
+      todayPatients: 60000,      // 60s - patients on today's routes
+      patients: 120000,          // 2min - all other patients
+      stores: 300000             // 5min - store data (rarely changes)
     };
     
     // Track last refresh time for each entity type
@@ -48,9 +48,9 @@ class SmartRefreshManager {
     
     // Rate limit protection
     this.lastApiCallTime = 0;
-    this.minTimeBetweenCalls = 500; // 500ms minimum between API calls (reduced for faster sync)
+    this.minTimeBetweenCalls = 2000; // 2s minimum between API calls to prevent rate limits
     this.consecutiveErrors = 0;
-    this.maxConsecutiveErrors = 3; // Reduced - fail faster and recover
+    this.maxConsecutiveErrors = 2; // Fail fast and enter cooldown
     this.errorCooldownUntil = 0;
     
     // Rate limit error callback
@@ -318,10 +318,11 @@ class SmartRefreshManager {
     this.consecutiveErrors++;
     
     if (this.consecutiveErrors >= this.maxConsecutiveErrors) {
-      // Trigger shorter cooldown: 10 seconds (reduced for faster recovery)
-      this.errorCooldownUntil = Date.now() + 10000;
-      console.warn(`🛑 [SmartRefresh] ${this.consecutiveErrors} consecutive errors - entering 10s cooldown`);
+      // Trigger 30 second cooldown on rate limit errors
+      this.errorCooldownUntil = Date.now() + 30000;
+      console.warn(`🛑 [SmartRefresh] ${this.consecutiveErrors} consecutive errors - entering 30s cooldown`);
       this.consecutiveErrors = 0;
+      this.notifyRateLimit(true);
     }
   }
   
