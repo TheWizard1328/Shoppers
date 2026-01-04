@@ -468,17 +468,25 @@ Deno.serve(async (req) => {
           performanceStats.extraKmLimit = extraKmLimit;
 
           // Total Time on Duty: time from first FINISHED stop to last FINISHED stop
-          const finishedDeliveriesForTime = paidDeliveries
-            .filter(d => d.actual_delivery_time && (isCompleted(d) || isFailed(d) || isReturn(d)))
+          // Use ALL finished deliveries (not just paid ones) to get accurate time range
+          const allFinishedDeliveriesForTime = todayDeliveries
+            .filter(d => d.actual_delivery_time)
             .sort((a, b) => new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time));
 
-          if (finishedDeliveriesForTime.length > 0) {
-            const firstTime = new Date(finishedDeliveriesForTime[0].actual_delivery_time);
-            const lastTime = new Date(finishedDeliveriesForTime[finishedDeliveriesForTime.length - 1].actual_delivery_time);
+          if (allFinishedDeliveriesForTime.length > 0) {
+            const firstTime = new Date(allFinishedDeliveriesForTime[0].actual_delivery_time);
+            const lastTime = new Date(allFinishedDeliveriesForTime[allFinishedDeliveriesForTime.length - 1].actual_delivery_time);
+            
+            console.log(`⏱️ [TIME DEBUG] First: ${allFinishedDeliveriesForTime[0].actual_delivery_time} -> ${firstTime.toISOString()}`);
+            console.log(`⏱️ [TIME DEBUG] Last: ${allFinishedDeliveriesForTime[allFinishedDeliveriesForTime.length - 1].actual_delivery_time} -> ${lastTime.toISOString()}`);
+            
             const durationMs = lastTime - firstTime;
             const totalMinutes = Math.floor(durationMs / (1000 * 60));
             const hours = Math.floor(totalMinutes / 60);
             const minutes = totalMinutes % 60;
+            
+            console.log(`⏱️ [TIME DEBUG] Duration: ${durationMs}ms = ${totalMinutes}min = ${hours}h ${minutes}m`);
+            
             performanceStats.totalTimeOnDuty = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
           }
         }
