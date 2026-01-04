@@ -50,7 +50,10 @@ class SmartRefreshManager {
     
     // Rate limit protection - CRITICAL: Extended delays to prevent backend crashes
     this.lastApiCallTime = 0;
-    this.minTimeBetweenCalls = 1000; // 1 second minimum between API calls
+    this.minTimeBetweenCalls = 2000; // 2 seconds minimum between API calls
+    this.consecutiveErrors = 0; // Track consecutive errors for exponential backoff
+    this.maxConsecutiveErrors = 5; // Max errors before longer cooldown
+    this.errorCooldownUntil = 0; // Timestamp when error cooldown expires
     
     // Rate limit error callback
     this.rateLimitCallback = null;
@@ -291,14 +294,47 @@ class SmartRefreshManager {
   
   /**
    * Wait for rate limit cooldown if needed
+   * CRITICAL: Implements exponential backoff on consecutive errors
    */
   async waitForRateLimit() {
     const now = Date.now();
+    
+    // CRITICAL: Check if we're in error cooldown period
+    if (now < this.errorCooldownUntil) {
+      const waitTime = this.errorCooldownUntil - now;
+      console.log(`⏰ [SmartRefresh] In error cooldown - waiting ${waitTime}ms`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+    
     const timeSinceLastCall = now - this.lastApiCallTime;
     if (timeSinceLastCall < this.minTimeBetweenCalls) {
       await new Promise(resolve => setTimeout(resolve, this.minTimeBetweenCalls - timeSinceLastCall));
     }
     this.lastApiCallTime = Date.now();
+  }
+  
+  /**
+   * Record an error and trigger exponential backoff if needed
+   */
+  recordError() {
+    this.consecutiveErrors++;
+    
+    if (this.consecutiveErrors >= this.maxConsecutiveErrors) {
+      // Trigger long cooldown: 30 seconds
+      this.errorCooldownUntil = Date.now() + 30000;
+      console.warn(`🛑 [SmartRefresh] ${this.consecutiveErrors} consecutive errors - entering 30s cooldown`);
+      this.consecutiveErrors = 0; // Reset counter after cooldown
+    }
+  }
+  
+  /**
+   * Record a successful API call - resets error counter
+   */
+  recordSuccess() {
+    if (this.consecutiveErrors > 0) {
+      console.log(`✅ [SmartRefresh] Successful call - resetting error counter (was ${this.consecutiveErrors})`);
+      this.consecutiveErrors = 0;
+    }
   }
   
   /**
@@ -714,6 +750,9 @@ class SmartRefreshManager {
         app_roles: { $in: ['driver'] }
       });
       
+      // Record success
+      this.recordSuccess();
+      
       if (!allAppUsers || allAppUsers.length === 0) {
         return null;
       }
@@ -787,9 +826,13 @@ class SmartRefreshManager {
       };
       
     } catch (error) {
+      // CRITICAL: Record error for exponential backoff
+      this.recordError();
+      
       // CRITICAL: Catch ALL errors and return null - never throw
       if (error.response?.status === 429 || error.message?.includes('429')) {
         console.warn('⏰ [SmartRefresh] Rate limit on driver locations - skipping cycle');
+        this.notifyRateLimit(true);
       } else if (error.message?.includes('WebSocket') || error.message?.includes('closed')) {
         console.warn('🔌 [SmartRefresh] WebSocket error on driver locations - skipping cycle');
       } else {
@@ -1008,6 +1051,9 @@ class SmartRefreshManager {
       
       const updatedStores = await base44.entities.Store.filter(queryFilter);
       
+      // Record success
+      this.recordSuccess();
+      
       if (!updatedStores || updatedStores.length === 0) {
         return null;
       }
@@ -1026,9 +1072,13 @@ class SmartRefreshManager {
       };
       
     } catch (error) {
+      // CRITICAL: Record error for exponential backoff
+      this.recordError();
+      
       // CRITICAL: Catch ALL errors and return null - never throw
       if (error.response?.status === 429 || error.message?.includes('429')) {
         console.warn('⏰ [SmartRefresh] Rate limit on stores - skipping cycle');
+        this.notifyRateLimit(true);
       } else if (error.message?.includes('WebSocket') || error.message?.includes('closed')) {
         console.warn('🔌 [SmartRefresh] WebSocket error on stores - skipping cycle');
       } else {
@@ -1134,12 +1184,15 @@ class SmartRefreshManager {
         }
         
         fetchedDeliveries = await base44.entities.Delivery.filter(cityOnlyFilter);
-        
+
+        // Record success
+        this.recordSuccess();
+
         if (fetchedDeliveries && fetchedDeliveries.length > 0) {
-          // Update offline DB with fresh API data
-          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, fetchedDeliveries);
+        // Update offline DB with fresh API data
+        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, fetchedDeliveries);
         }
-      } else {
+        } else {
         // No broadcast - use offline DB first (faster, prevents rate limits)
         fetchedDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
         
@@ -1245,9 +1298,13 @@ class SmartRefreshManager {
       };
       
     } catch (error) {
+      // CRITICAL: Record error for exponential backoff
+      this.recordError();
+      
       // CRITICAL: Catch ALL errors and return null - never throw
       if (error.response?.status === 429 || error.message?.includes('429')) {
         console.warn('⏰ [SmartRefresh] Rate limit on active deliveries - skipping cycle');
+        this.notifyRateLimit(true);
       } else if (error.message?.includes('WebSocket') || error.message?.includes('closed')) {
         console.warn('🔌 [SmartRefresh] WebSocket error on active deliveries - skipping cycle');
       } else {
