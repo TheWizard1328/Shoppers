@@ -159,39 +159,57 @@ export const createPatient = async (patientData, options = {}) => {
 };
 
 /**
- * Update a Patient (local-first)
+ * Update a Patient (local-first with guaranteed cache refresh)
  */
 export const updatePatient = async (patientId, updates, options = {}) => {
   if (mutationsPaused) throw new Error('Mutations are paused');
   await pauseSmartRefresh();
 
   try {
-    // Get existing from IndexedDB
     const patients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
     const existing = patients.find(p => p.id === patientId);
     
     if (!existing) {
-      // Not in IndexedDB - update backend directly
+      // Not in IndexedDB - update backend directly, then sync to local
       const backendPatient = await base44.entities.Patient.update(patientId, updates);
       await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [backendPatient]);
+      
+      // CRITICAL: Invalidate cache
+      const { invalidate } = await import('./dataManager');
+      invalidate('Patient');
+      
       notifyMutation({ type: 'update', entity: 'Patient', id: patientId, data: backendPatient });
-      // Broadcast removed
       await restartSmartRefresh();
       return backendPatient;
     }
 
-    // Update locally first
+    // STEP 1: Update IndexedDB locally first
     const updated = { ...existing, ...updates, updated_date: new Date().toISOString() };
     await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [updated]);
-    notifyMutation({ type: 'update', entity: 'Patient', id: patientId, data: updated });
+    console.log('💾 [EntityMutations] Updated IndexedDB for patient:', patientId);
 
-    // Sync to backend
+    // STEP 2: Sync to backend
     try {
-      await base44.entities.Patient.update(patientId, updates);
-      // Broadcast removed
+      const backendPatient = await base44.entities.Patient.update(patientId, updates);
+      console.log('☁️ [EntityMutations] Backend updated patient:', patientId);
+      
+      // STEP 3: Update IndexedDB with backend version
+      await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, [backendPatient]);
+      
+      // STEP 4: CRITICAL - Invalidate cache
+      const { invalidate } = await import('./dataManager');
+      invalidate('Patient');
+      console.log('🗑️ [EntityMutations] Invalidated Patient cache');
+      
+      // STEP 5: Notify UI with backend version
+      notifyMutation({ type: 'update', entity: 'Patient', id: patientId, data: backendPatient });
+      
     } catch (error) {
       console.warn('⚠️ [EntityMutations] Patient update sync failed, queuing:', error.message);
       await offlineDB.addPendingMutation({ operation: 'update', entity: 'Patient', recordId: patientId, payload: updates });
+      
+      // Notify UI with local version if backend fails
+      notifyMutation({ type: 'update', entity: 'Patient', id: patientId, data: updated });
     }
 
     await restartSmartRefresh();
@@ -244,7 +262,7 @@ export const deletePatient = async (patientId, options = {}) => {
 };
 
 /**
- * Create a Delivery (local-first)
+ * Create a Delivery (local-first with guaranteed cache refresh)
  */
 export const createDelivery = async (deliveryData, options = {}) => {
   if (mutationsPaused) throw new Error('Mutations are paused');
@@ -260,12 +278,16 @@ export const createDelivery = async (deliveryData, options = {}) => {
       _isLocal: true
     };
 
+    // STEP 1: Save to IndexedDB with temp ID
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [localDelivery]);
     notifyMutation({ type: 'create', entity: 'Delivery', id: tempId, data: localDelivery });
 
     try {
+      // STEP 2: Create on backend
       const backendDelivery = await base44.entities.Delivery.create(deliveryData);
+      console.log('☁️ [EntityMutations] Backend created:', backendDelivery.id);
       
+      // STEP 3: Replace temp with real in IndexedDB
       const db = await offlineDB.openDatabase();
       const tx = db.transaction([offlineDB.STORES.DELIVERIES], 'readwrite');
       await new Promise((resolve, reject) => {
@@ -275,8 +297,13 @@ export const createDelivery = async (deliveryData, options = {}) => {
       });
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [backendDelivery]);
       
+      // STEP 4: CRITICAL - Invalidate dataManager cache
+      const { invalidate } = await import('./dataManager');
+      invalidate('Delivery');
+      console.log('🗑️ [EntityMutations] Invalidated Delivery cache after create');
+      
+      // STEP 5: Notify UI to replace temp with real
       notifyMutation({ type: 'replace', entity: 'Delivery', oldId: tempId, newId: backendDelivery.id, data: backendDelivery });
-      // Broadcast removed
       
       await restartSmartRefresh();
       return backendDelivery;
@@ -293,7 +320,7 @@ export const createDelivery = async (deliveryData, options = {}) => {
 };
 
 /**
- * Update a Delivery (local-first)
+ * Update a Delivery (local-first with guaranteed cache refresh)
  */
 export const updateDelivery = async (deliveryId, updates, options = {}) => {
   const { skipSmartRefresh = false } = options;
@@ -305,12 +332,16 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
     const existing = deliveries.find(d => d.id === deliveryId);
     
     if (!existing) {
-      // Not in IndexedDB - update backend directly
+      // Not in IndexedDB - update backend directly, then sync to local
       try {
         const backendDelivery = await base44.entities.Delivery.update(deliveryId, updates);
         await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [backendDelivery]);
+        
+        // CRITICAL: Invalidate dataManager cache to force refresh
+        const { invalidate } = await import('./dataManager');
+        invalidate('Delivery');
+        
         notifyMutation({ type: 'update', entity: 'Delivery', id: deliveryId, data: backendDelivery });
-        // Broadcast removed
         if (!skipSmartRefresh) await restartSmartRefresh();
         return backendDelivery;
       } catch (error) {
@@ -323,20 +354,35 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
       }
     }
 
+    // STEP 1: Update IndexedDB locally FIRST
     const updated = { ...existing, ...updates, updated_date: new Date().toISOString() };
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updated]);
+    console.log('💾 [EntityMutations] Updated IndexedDB for:', deliveryId);
     
-    // CRITICAL: Notify UI IMMEDIATELY after local save for instant UI update
-    console.log('🔔 [EntityMutations] Notifying UI immediately after local save for:', deliveryId);
-    notifyMutation({ type: 'update', entity: 'Delivery', id: deliveryId, data: updated });
-
+    // STEP 2: Update backend (sync to server)
     try {
-      await base44.entities.Delivery.update(deliveryId, updates);
-      // Broadcast removed
+      const backendDelivery = await base44.entities.Delivery.update(deliveryId, updates);
+      console.log('☁️ [EntityMutations] Backend updated for:', deliveryId);
+      
+      // STEP 3: Update IndexedDB with backend response (authoritative version)
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [backendDelivery]);
+      
+      // STEP 4: CRITICAL - Invalidate dataManager cache to force fresh fetch
+      const { invalidate } = await import('./dataManager');
+      invalidate('Delivery');
+      console.log('🗑️ [EntityMutations] Invalidated Delivery cache');
+      
+      // STEP 5: Notify UI with backend version (most up-to-date)
+      notifyMutation({ type: 'update', entity: 'Delivery', id: deliveryId, data: backendDelivery });
+      
     } catch (error) {
       console.warn('⚠️ [EntityMutations] Delivery update sync failed, queuing:', error.message);
       await offlineDB.addPendingMutation({ operation: 'update', entity: 'Delivery', recordId: deliveryId, payload: updates });
+      
+      // STEP 5 (fallback): Notify UI with local version if backend fails
+      notifyMutation({ type: 'update', entity: 'Delivery', id: deliveryId, data: updated });
     }
+    
     if (!skipSmartRefresh) await restartSmartRefresh();
     return updated;
   } catch (error) {
@@ -346,13 +392,14 @@ export const updateDelivery = async (deliveryId, updates, options = {}) => {
 };
 
 /**
- * Delete a Delivery (local-first)
+ * Delete a Delivery (local-first with guaranteed cache refresh)
  */
 export const deleteDelivery = async (deliveryId, options = {}) => {
   if (mutationsPaused) throw new Error('Mutations are paused');
   await pauseSmartRefresh();
 
   try {
+    // STEP 1: Delete from IndexedDB
     const db = await offlineDB.openDatabase();
     const tx = db.transaction([offlineDB.STORES.DELIVERIES], 'readwrite');
     await new Promise((resolve, reject) => {
@@ -360,16 +407,29 @@ export const deleteDelivery = async (deliveryId, options = {}) => {
       req.onsuccess = resolve;
       req.onerror = () => reject(req.error);
     });
+    console.log('💾 [EntityMutations] Deleted from IndexedDB:', deliveryId);
 
+    // STEP 2: Delete from backend
     try {
       await base44.entities.Delivery.delete(deliveryId);
-      // Broadcast removed
+      console.log('☁️ [EntityMutations] Backend deleted:', deliveryId);
     } catch (error) {
       console.warn('⚠️ [EntityMutations] Delivery delete sync failed, queuing:', error.message);
       await offlineDB.addPendingMutation({ operation: 'delete', entity: 'Delivery', recordId: deliveryId });
     }
 
+    // STEP 3: CRITICAL - Invalidate dataManager cache
+    const { invalidate } = await import('./dataManager');
+    invalidate('Delivery');
+    console.log('🗑️ [EntityMutations] Invalidated Delivery cache after delete');
+    
+    // STEP 4: Mark as deleted in smart refresh to prevent resurrection
+    const { smartRefreshManager } = await import('./smartRefreshManager');
+    smartRefreshManager.deletedDeliveryIds.add(deliveryId);
+
+    // STEP 5: Notify UI immediately
     notifyMutation({ type: 'delete', entity: 'Delivery', id: deliveryId, data: null });
+    
     await restartSmartRefresh();
     return true;
   } catch (error) {
@@ -379,7 +439,7 @@ export const deleteDelivery = async (deliveryId, options = {}) => {
 };
 
 /**
- * Batch create deliveries (local-first)
+ * Batch create deliveries (local-first with guaranteed cache refresh)
  */
 export const batchCreateDeliveries = async (deliveriesData, options = {}) => {
   if (mutationsPaused) throw new Error('Mutations are paused');
@@ -394,12 +454,16 @@ export const batchCreateDeliveries = async (deliveriesData, options = {}) => {
       _isLocal: true
     }));
 
+    // STEP 1: Save to IndexedDB with temp IDs
     await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, localDeliveries);
     localDeliveries.forEach(d => notifyMutation({ type: 'create', entity: 'Delivery', id: d.id, data: d }));
 
     try {
+      // STEP 2: Create on backend
       const backendDeliveries = await base44.entities.Delivery.bulkCreate(deliveriesData);
+      console.log(`☁️ [EntityMutations] Backend created ${backendDeliveries.length} deliveries`);
       
+      // STEP 3: Replace temps with real in IndexedDB
       const db = await offlineDB.openDatabase();
       const tx = db.transaction([offlineDB.STORES.DELIVERIES], 'readwrite');
       const store = tx.objectStore(offlineDB.STORES.DELIVERIES);
@@ -413,12 +477,18 @@ export const batchCreateDeliveries = async (deliveriesData, options = {}) => {
       }
       
       await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, backendDeliveries);
+      console.log(`💾 [EntityMutations] Updated IndexedDB with ${backendDeliveries.length} real deliveries`);
       
+      // STEP 4: CRITICAL - Invalidate dataManager cache
+      const { invalidate } = await import('./dataManager');
+      invalidate('Delivery');
+      console.log('🗑️ [EntityMutations] Invalidated Delivery cache after batch create');
+      
+      // STEP 5: Notify UI to replace temps with real
       backendDeliveries.forEach((backend, i) => {
         notifyMutation({ type: 'replace', entity: 'Delivery', oldId: localDeliveries[i].id, newId: backend.id, data: backend });
       });
       
-      // Broadcast removed
       await restartSmartRefresh();
       return backendDeliveries;
     } catch (error) {
@@ -436,7 +506,7 @@ export const batchCreateDeliveries = async (deliveriesData, options = {}) => {
 };
 
 /**
- * Batch delete deliveries (local-first)
+ * Batch delete deliveries (local-first with guaranteed cache refresh)
  */
 export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
   if (mutationsPaused) throw new Error('Mutations are paused');
@@ -445,7 +515,7 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
   try {
     console.log(`🗑️ [EntityMutations] Batch deleting ${deliveryIds.length} deliveries...`);
     
-    // Remove all from IndexedDB
+    // STEP 1: Remove all from IndexedDB
     const db = await offlineDB.openDatabase();
     const tx = db.transaction([offlineDB.STORES.DELIVERIES], 'readwrite');
     const store = tx.objectStore(offlineDB.STORES.DELIVERIES);
@@ -457,18 +527,23 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
         req.onerror = () => reject(req.error);
       });
     }
+    console.log(`💾 [EntityMutations] Deleted ${deliveryIds.length} from IndexedDB`);
 
-    // Sync to backend (batch delete via delete_entities tool)
+    // STEP 2: Delete from backend
     try {
-      // Use Base44 SDK to batch delete (query-based delete)
       const deletePromises = deliveryIds.map(id => base44.entities.Delivery.delete(id));
       await Promise.all(deletePromises);
-      console.log(`✅ [EntityMutations] Batch deleted ${deliveryIds.length} deliveries from backend`);
+      console.log(`☁️ [EntityMutations] Backend deleted ${deliveryIds.length} deliveries`);
       
-      // CRITICAL: Mark these IDs as deleted in smart refresh to prevent resurrection
+      // STEP 3: CRITICAL - Invalidate dataManager cache
+      const { invalidate } = await import('./dataManager');
+      invalidate('Delivery');
+      console.log('🗑️ [EntityMutations] Invalidated Delivery cache after batch delete');
+      
+      // STEP 4: Mark as deleted in smart refresh
       const { smartRefreshManager } = await import('./smartRefreshManager');
       deliveryIds.forEach(id => smartRefreshManager.deletedDeliveryIds.add(id));
-      console.log(`🗑️ [EntityMutations] Marked ${deliveryIds.length} deliveries as deleted in smart refresh`);
+      console.log(`🗑️ [EntityMutations] Marked ${deliveryIds.length} deliveries as deleted`);
     } catch (error) {
       console.warn('⚠️ [EntityMutations] Batch delete sync failed, queuing:', error.message);
       for (const id of deliveryIds) {
@@ -476,7 +551,7 @@ export const batchDeleteDeliveries = async (deliveryIds, options = {}) => {
       }
     }
 
-    // CRITICAL: Single UI notification for all deletes (batched)
+    // STEP 5: Notify UI immediately
     notifyMutation({ 
       type: 'batch_delete', 
       entity: 'Delivery', 

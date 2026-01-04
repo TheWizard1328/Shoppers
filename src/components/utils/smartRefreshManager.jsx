@@ -223,6 +223,11 @@ class SmartRefreshManager {
       patients: 0,
       stores: 0
     };
+    
+    // CRITICAL: Clear the API fetch flag to reset fetch behavior
+    if (this._pendingApiFetch) {
+      this._pendingApiFetch.clear();
+    }
   }
   
   /**
