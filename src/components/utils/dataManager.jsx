@@ -16,6 +16,7 @@ import {
   batchCreateDeliveriesLocal,
   subscribeMutations
 } from './offlineMutations';
+import { connectionMonitor } from './connectionMonitor';
 
 const entities = {
   Patient,
@@ -99,6 +100,7 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
         return [];
       }
 
+      const startTime = Date.now();
       let data;
       
       // FIXED: Use correct method signatures
@@ -127,6 +129,10 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
 
       cache.set(cacheKey, data);
       cacheTimestamps.set(cacheKey, Date.now());
+      
+      // Track response time for connection quality
+      const responseTime = Date.now() - startTime;
+      connectionMonitor.recordResponseTime(responseTime);
 
       // BACKGROUND: Save to IndexedDB for offline access
       if (entityName === 'Patient' || entityName === 'Delivery') {
@@ -162,10 +168,13 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
         }
 
         if (error.response?.status === 429 || error.message?.includes('429')) {
+          connectionMonitor.recordError('rate_limit');
           // Exponential backoff for rate limits: 2s, 4s, 8s
           const backoffDelay = Math.min(2000 * Math.pow(2, attempt), 10000);
           await new Promise(resolve => setTimeout(resolve, backoffDelay));
           if (attempt < retries - 1) continue;
+        } else {
+          connectionMonitor.recordError('network');
         }
 
         break;

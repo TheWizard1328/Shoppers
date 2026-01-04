@@ -66,6 +66,7 @@ import ProactiveAlertSystem from "@/components/dashboard/ProactiveAlertSystem";
 import SmartRefreshIndicator from "@/components/layout/SmartRefreshIndicator";
 import { offlineManager } from "@/components/utils/offlineManager";
 import { offlineDeliveryManager } from "@/components/utils/offlineDeliveryManager";
+import ConnectionIndicator from "@/components/dashboard/ConnectionIndicator";
 // import OfflineIndicator from "@/components/dashboard/OfflineIndicator";
 // import OfflineSyncIndicator from '@/components/layout/OfflineSyncIndicator';
 import DashboardOfflineSync from '@/components/dashboard/DashboardOfflineSync';
@@ -6210,9 +6211,10 @@ function Dashboard() {
               <div className="pr-1 flex items-center gap-2">
                 <h2 className="pl-2 text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>Dashboard</h2>
                 {currentUser &&
-                <SmartRefreshIndicator
-                  inline={true}
-                  onManualRefresh={async () => {
+                <div className="flex items-center gap-1.5">
+                  <SmartRefreshIndicator
+                    inline={true}
+                    onManualRefresh={async () => {
                     // CRITICAL: Only affect active driver on mobile devices
                     if (!isMobile) {
                       return;
@@ -6374,7 +6376,10 @@ function Dashboard() {
                     }
 
                   }} />
-
+                  
+                  {/* Connection Quality Indicator - App Owner Only */}
+                  {isAppOwner(currentUser) && <ConnectionIndicator />}
+                </div>
                 }
               </div>
 

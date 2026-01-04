@@ -20,7 +20,7 @@ const FRESHNESS_THRESHOLD = 10 * 60 * 1000; // 10 minutes
 const DELIVERY_BATCH_DAYS = 7; // Fetch 7 days at a time for historical
 const PATIENT_BATCH_SIZE = 250; // 250 patients at a time
 const BATCH_COOLDOWN = 1000; // 1 second between batches
-const HISTORICAL_DAYS = 14; // Only keep 14 days of historical data
+const HISTORICAL_DAYS = 30; // Keep 30 days of historical data for broader offline access
 
 let syncInProgress = false;
 let syncPaused = false;
@@ -218,25 +218,26 @@ export const performBackgroundSync = async (selectedDateStr) => {
       }
     }
     
-    // ===== STEP 2: Sync past 14 days (7 days at a time) =====
-    console.log('   📅 Syncing past 14 days...');
+    // ===== STEP 2: Sync past 30 days (7 days at a time with 1s cooldown) =====
+    console.log('   📅 Syncing past 30 days...');
     
-    // First batch: days 1-7
-    await syncDeliveryDateRange(
-      format(subDays(today, 7), 'yyyy-MM-dd'),
-      format(subDays(today, 1), 'yyyy-MM-dd'),
-      selectedDateStr
-    );
+    const chunks = [
+      { start: 1, end: 7 },
+      { start: 8, end: 14 },
+      { start: 15, end: 21 },
+      { start: 22, end: 30 }
+    ];
     
-    await new Promise(r => setTimeout(r, BATCH_COOLDOWN * 2));
-    
-    // Second batch: days 8-14
-    if (!syncPaused) {
+    for (const chunk of chunks) {
+      if (syncPaused) break;
+      
       await syncDeliveryDateRange(
-        format(subDays(today, 14), 'yyyy-MM-dd'),
-        format(subDays(today, 8), 'yyyy-MM-dd'),
+        format(subDays(today, chunk.end), 'yyyy-MM-dd'),
+        format(subDays(today, chunk.start), 'yyyy-MM-dd'),
         selectedDateStr
       );
+      
+      await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
     }
     
     // ===== STEP 3: Sync remaining patients (250 at a time) =====
