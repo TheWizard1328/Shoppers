@@ -9,6 +9,8 @@
  * - Heartbeat/keepalive
  * - Broadcasts local mutations to other devices
  * - Receives and applies remote mutations instantly
+ * 
+ * NOTE: This is a pure JavaScript utility - no React hooks allowed here.
  */
 
 // WebSocket connection state
