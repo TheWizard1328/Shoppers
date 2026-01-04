@@ -1,56 +1,45 @@
 /**
- * Offline Sync Manager
- * Handles background synchronization of Patients and Deliveries to IndexedDB
+ * Offline Sync Manager v2
+ * 
+ * STRATEGY:
+ * 1. If offline DB is fresh (< 10 min), load from there FIRST then refresh from online
+ * 2. Priority order: AppUsers → Deliveries (selected date) → Patients (for those deliveries)
+ * 3. Background sync: Today + 6 future days, then past 14 days (7 days at a time)
+ * 4. Patient sync: 250 at a time with 1 sec cooldown
+ * 5. NEVER clear the entire DB - only merge/update records
  */
 
 import { offlineDB } from './offlineDatabase';
 import { Patient } from '@/entities/Patient';
 import { Delivery } from '@/entities/Delivery';
+import { AppUser } from '@/entities/AppUser';
 import { format, subDays } from 'date-fns';
 
-// Import for backend sync
-const { Patient: PatientEntity, Delivery: DeliveryEntity } = { Patient, Delivery };
-
-const BATCH_SIZE = 500; // Fetch records in batches to avoid memory issues
-const SYNC_DELAY_BETWEEN_BATCHES = 1500; // 1500ms delay between batches to avoid rate limits
-const FULL_SYNC_CHECK_INTERVAL = 24 * 60 * 60 * 1000; // Check for full sync every 24 hours
-const LOCAL_CACHE_DAYS = 90; // 3 months of historical data in local cache
+// Configuration
+const FRESHNESS_THRESHOLD = 10 * 60 * 1000; // 10 minutes
+const DELIVERY_BATCH_DAYS = 7; // Fetch 7 days at a time for historical
+const PATIENT_BATCH_SIZE = 250; // 250 patients at a time
+const BATCH_COOLDOWN = 1000; // 1 second between batches
+const HISTORICAL_DAYS = 14; // Only keep 14 days of historical data
 
 let syncInProgress = false;
-let syncPaused = false; // CRITICAL: Pause sync during route optimization
+let syncPaused = false;
 let syncListeners = [];
 
-// Track full sync completion state
-let fullSyncCompleted = {
-  patients: false,
-  deliveries: false,
-  lastFullSyncDate: null
-};
+// ==================== SYNC CONTROL ====================
 
-/**
- * Pause offline sync (during route optimization)
- */
 export const pauseOfflineSync = () => {
   console.log('⏸️ [OfflineSync] Paused');
   syncPaused = true;
 };
 
-/**
- * Resume offline sync
- */
 export const resumeOfflineSync = () => {
   console.log('▶️ [OfflineSync] Resumed');
   syncPaused = false;
 };
 
-/**
- * Check if offline sync is paused
- */
 export const isOfflineSyncPaused = () => syncPaused;
 
-/**
- * Subscribe to sync status changes
- */
 export const subscribeSyncStatus = (callback) => {
   syncListeners.push(callback);
   return () => {
@@ -58,492 +47,221 @@ export const subscribeSyncStatus = (callback) => {
   };
 };
 
-/**
- * Notify all listeners of sync status
- */
 const notifySyncStatus = (status) => {
   syncListeners.forEach(callback => {
-    try {
-      callback(status);
-    } catch (error) {}
+    try { callback(status); } catch (e) {}
   });
 };
 
+// ==================== FRESHNESS CHECK ====================
+
 /**
- * Check if full sync is needed (first time or 24h+ since last full sync)
+ * Check if offline data is fresh (synced within last 10 minutes)
  */
-const needsFullSync = async (entity) => {
-  const syncStatus = await offlineDB.getSyncStatus(entity);
-  if (!syncStatus || !syncStatus.lastFullSync) return true;
-  const hoursSinceLastSync = (Date.now() - new Date(syncStatus.lastFullSync).getTime()) / (1000 * 60 * 60);
-  return hoursSinceLastSync >= 24;
+const isOfflineDataFresh = async (entityName) => {
+  const syncStatus = await offlineDB.getSyncStatus(entityName);
+  if (!syncStatus || !syncStatus.lastSync) return false;
+  
+  const lastSyncTime = new Date(syncStatus.lastSync).getTime();
+  const age = Date.now() - lastSyncTime;
+  
+  return age < FRESHNESS_THRESHOLD;
 };
 
 /**
- * Sync Patients to IndexedDB - FULL or INCREMENTAL
- * Uses chunked fetching (500 records per batch) to avoid rate limits
+ * Get all fresh offline data if available
  */
-const syncPatients = async (forceFullSync = false) => {
-  // CRITICAL: Check if sync is paused
-  if (syncPaused) {
-    console.log('⏸️ [OfflineSync] syncPatients skipped - sync is paused');
-    return { success: true, skipped: true };
+export const getOfflineDataIfFresh = async () => {
+  const [deliveryFresh, patientFresh] = await Promise.all([
+    isOfflineDataFresh('Delivery'),
+    isOfflineDataFresh('Patient')
+  ]);
+  
+  if (!deliveryFresh && !patientFresh) {
+    return null; // Not fresh, need to fetch from online
   }
+  
+  const [deliveries, patients] = await Promise.all([
+    deliveryFresh ? offlineDB.getAll(offlineDB.STORES.DELIVERIES) : [],
+    patientFresh ? offlineDB.getAll(offlineDB.STORES.PATIENTS) : []
+  ]);
+  
+  return {
+    deliveries: deliveryFresh ? deliveries : null,
+    patients: patientFresh ? patients : null,
+    deliveryFresh,
+    patientFresh
+  };
+};
 
-  const isFullSync = forceFullSync || await needsFullSync('Patient');
-  notifySyncStatus({ entity: 'Patient', status: 'syncing', progress: 0, syncType: isFullSync ? 'full' : 'incremental' });
+// ==================== PRIORITY DATA LOADING ====================
 
+/**
+ * Load priority data for initial display
+ * Order: AppUsers → Deliveries (selected date) → Patients (for those deliveries)
+ */
+export const loadPriorityData = async (selectedDateStr, filters = {}) => {
+  if (syncPaused) return { skipped: true };
+  
+  console.log(`📥 [OfflineSync] Loading priority data for ${selectedDateStr}...`);
+  notifySyncStatus({ status: 'loading_priority', date: selectedDateStr });
+  
   try {
+    // Step 1: AppUsers (fast, small dataset)
+    const appUsers = await AppUser.list();
+    console.log(`   ✅ Loaded ${appUsers.length} AppUsers`);
+    
+    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+    
+    // Step 2: Deliveries for selected date
+    const deliveryFilter = { delivery_date: selectedDateStr, ...filters };
+    const deliveries = await Delivery.filter(deliveryFilter);
+    console.log(`   ✅ Loaded ${deliveries.length} deliveries for ${selectedDateStr}`);
+    
+    // Save to offline DB immediately (merge, don't clear)
+    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+    
+    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+    
+    // Step 3: Patients for those deliveries
+    const patientIds = [...new Set(deliveries.map(d => d.patient_id).filter(Boolean))];
     let patients = [];
     
-    if (isFullSync) {
-      // CHUNKED FETCHING: Fetch patients in batches of 500 to avoid rate limits
-      let skip = 0;
-      let hasMore = true;
-      let chunkIndex = 0;
-      
-      console.log('📥 [OfflineSync] Starting chunked patient fetch (500 per batch)...');
-      
-      while (hasMore) {
-        if (syncPaused) {
-          console.log('⏸️ [OfflineSync] syncPatients interrupted during fetch - sync paused');
-          return { success: true, partial: true, count: patients.length };
-        }
+    if (patientIds.length > 0) {
+      // Fetch patients in batches
+      for (let i = 0; i < patientIds.length; i += PATIENT_BATCH_SIZE) {
+        if (syncPaused) break;
         
-        const chunk = await Patient.list('-created_date', BATCH_SIZE, skip);
+        const batchIds = patientIds.slice(i, i + PATIENT_BATCH_SIZE);
+        const batchPatients = await Patient.filter({ id: { $in: batchIds } });
+        patients.push(...batchPatients);
         
-        if (chunk.length === 0) {
-          hasMore = false;
-        } else {
-          patients.push(...chunk);
-          skip += chunk.length;
-          chunkIndex++;
-          
-          console.log(`   Chunk ${chunkIndex}: fetched ${chunk.length} patients (total: ${patients.length})`);
-          notifySyncStatus({ entity: 'Patient', status: 'fetching', count: patients.length });
-          
-          // If we got less than BATCH_SIZE, we've reached the end
-          if (chunk.length < BATCH_SIZE) {
-            hasMore = false;
-          } else {
-            // Wait between chunks to avoid rate limits
-            await new Promise(resolve => setTimeout(resolve, 2000));
-          }
+        if (i + PATIENT_BATCH_SIZE < patientIds.length) {
+          await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
         }
       }
       
-      console.log(`✅ [OfflineSync] Fetched all ${patients.length} patients in ${chunkIndex} chunks`);
-    } else {
-      // Incremental sync - fetch all and filter (smaller dataset expected)
-      const lastSync = await offlineDB.getSyncStatus('Patient');
-      const lastSyncDate = lastSync?.lastSync || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      const allPatients = await Patient.list();
-      patients = allPatients.filter(p => {
-        const updated = new Date(p.updated_date || p.created_date);
-        return updated >= new Date(lastSyncDate);
-      });
-      
-      if (patients.length > allPatients.length * 0.5) {
-        patients = allPatients;
-      }
-    }
-
-    const cleanPatients = patients.filter(p => !p.id.startsWith('temp_'));
-    
-    if (isFullSync) {
-      const localPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
-      const backendIds = new Set(cleanPatients.map(p => p.id));
-      const recordsToDelete = localPatients.filter(p => !p.id.startsWith('temp_') && !backendIds.has(p.id));
-      
-      if (recordsToDelete.length > 0) {
-        console.log(`🗑️ [OfflineSync] Removing ${recordsToDelete.length} deleted patients from IndexedDB...`);
-        const db = await offlineDB.openDatabase();
-        const transaction = db.transaction([offlineDB.STORES.PATIENTS], 'readwrite');
-        const store = transaction.objectStore(offlineDB.STORES.PATIENTS);
-        
-        for (const record of recordsToDelete) {
-          await new Promise((resolve, reject) => {
-            const request = store.delete(record.id);
-            request.onsuccess = () => resolve();
-            request.onerror = () => reject(request.error);
-          });
-        }
-      }
+      console.log(`   ✅ Loaded ${patients.length} patients for deliveries`);
+      await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patients);
     }
     
-    // Save to IndexedDB in batches
-    const batches = [];
-    for (let i = 0; i < cleanPatients.length; i += BATCH_SIZE) {
-      batches.push(cleanPatients.slice(i, i + BATCH_SIZE));
-    }
-
-    let totalSaved = 0;
-    for (let i = 0; i < batches.length; i++) {
-      // Check pause state before each batch
-      if (syncPaused) {
-        console.log('⏸️ [OfflineSync] syncPatients interrupted - sync paused mid-operation');
-        return { success: true, partial: true, count: totalSaved };
-      }
-
-      const batch = batches[i];
-      const result = await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, batch);
-      totalSaved += result.count;
-      
-      const progress = Math.round(((i + 1) / batches.length) * 100);
-      notifySyncStatus({ entity: 'Patient', status: 'syncing', progress, count: totalSaved });
-      
-      if (i < batches.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, SYNC_DELAY_BETWEEN_BATCHES));
-      }
-    }
-
-    // Update sync status with full sync marker
-    const syncStatusUpdate = {
-      recordCount: totalSaved,
-      status: 'synced',
-      lastSync: new Date().toISOString()
-    };
+    // Update sync timestamps
+    await Promise.all([
+      offlineDB.updateSyncStatus('Delivery', { 
+        recordCount: deliveries.length, 
+        status: 'synced',
+        lastSync: new Date().toISOString()
+      }),
+      offlineDB.updateSyncStatus('Patient', { 
+        recordCount: patients.length, 
+        status: 'synced',
+        lastSync: new Date().toISOString()
+      })
+    ]);
     
-    if (isFullSync) {
-      syncStatusUpdate.lastFullSync = new Date().toISOString();
-      fullSyncCompleted.patients = true;
-    }
+    notifySyncStatus({ status: 'priority_loaded', deliveries: deliveries.length, patients: patients.length });
     
-    await offlineDB.updateSyncStatus('Patient', syncStatusUpdate);
-    notifySyncStatus({ entity: 'Patient', status: 'synced', count: totalSaved, syncType: isFullSync ? 'full' : 'incremental' });
-    return { success: true, count: totalSaved, syncType: isFullSync ? 'full' : 'incremental' };
+    return { appUsers, deliveries, patients };
   } catch (error) {
-    console.error('❌ [OfflineSync] Patient sync error:', error);
-    notifySyncStatus({ entity: 'Patient', status: 'error', error: error.message });
-    return { success: false, error: error.message };
-  }
-};
-
-/**
- * Sync Deliveries to IndexedDB - FULL or INCREMENTAL
- * FULL SYNC: Today + 6 days future, then 90 days past in 30-day chunks
- * INCREMENTAL SYNC: Priority dates + changed dates only
- */
-const syncDeliveries = async (selectedDate = null, forceFullSync = false) => {
-  // CRITICAL: Check if sync is paused
-  if (syncPaused) {
-    console.log('⏸️ [OfflineSync] syncDeliveries skipped - sync is paused');
-    return { success: true, skipped: true };
-  }
-
-  const isFullSync = forceFullSync || await needsFullSync('Delivery');
-  notifySyncStatus({ entity: 'Delivery', status: 'syncing', progress: 0, syncType: isFullSync ? 'full' : 'incremental' });
-
-  try {
-    const today = new Date();
-    const todayStr = format(today, 'yyyy-MM-dd');
-    const selectedDateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : todayStr;
-
-    let totalSaved = 0;
-    const allDeliveries = [];
-
-    if (isFullSync) {
-      // FULL SYNC: Fetch deliveries by date range (today + future + past 90 days)
-      // CRITICAL: Do NOT clear existing data - merge with what's already in IndexedDB
-      console.log('📥 [OfflineSync] Starting FULL delivery fetch by date range...');
-      
-      // First, load existing deliveries from IndexedDB to preserve them
-      const existingDeliveries = await offlineDB.getAll(offlineDB.STORES.DELIVERIES);
-      const existingById = new Map(existingDeliveries.map(d => [d.id, d]));
-      console.log(`   📦 Loaded ${existingDeliveries.length} existing deliveries from IndexedDB`);
-      
-      // Build date list: today, 6 days forward, then 90 days back
-      const datesToFetch = [];
-      datesToFetch.push(todayStr); // Today first
-      
-      for (let i = 1; i <= 6; i++) {
-        const futureDate = new Date(today);
-        futureDate.setDate(today.getDate() + i);
-        datesToFetch.push(format(futureDate, 'yyyy-MM-dd'));
-      }
-      
-      for (let i = 1; i <= LOCAL_CACHE_DAYS; i++) {
-        const pastDate = new Date(today);
-        pastDate.setDate(today.getDate() - i);
-        datesToFetch.push(format(pastDate, 'yyyy-MM-dd'));
-      }
-      
-      console.log(`   📅 Will fetch ${datesToFetch.length} dates (today + 6 future + ${LOCAL_CACHE_DAYS} past)`);
-      
-      let fetchedCount = 0;
-      for (let i = 0; i < datesToFetch.length; i++) {
-        if (syncPaused) {
-          console.log('⏸️ [OfflineSync] syncDeliveries interrupted - sync paused');
-          break;
-        }
-        
-        const dateStr = datesToFetch[i];
-        
-        try {
-          const dateDeliveries = await Delivery.filter({ delivery_date: dateStr });
-          
-          // Merge with existing (backend wins for conflicts)
-          for (const delivery of dateDeliveries) {
-            existingById.set(delivery.id, delivery);
-          }
-          
-          fetchedCount += dateDeliveries.length;
-          
-          const progress = Math.round(((i + 1) / datesToFetch.length) * 90);
-          notifySyncStatus({ entity: 'Delivery', status: 'fetching', count: fetchedCount, progress });
-          
-          // Rate limit protection: wait between date fetches
-          if (i < datesToFetch.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 500));
-          }
-        } catch (error) {
-          // If rate limited, wait and continue
-          if (error.response?.status === 429 || error.message?.includes('429')) {
-            console.log(`⏰ [OfflineSync] Rate limit on date ${dateStr} - waiting 5s...`);
-            await new Promise(resolve => setTimeout(resolve, 5000));
-          }
-          // Continue with other dates even if one fails
-        }
-      }
-      
-      // Convert map back to array
-      allDeliveries.push(...existingById.values());
-      console.log(`✅ [OfflineSync] Merged ${fetchedCount} fetched + ${existingDeliveries.length} existing = ${allDeliveries.length} total deliveries`);
-      
-    } else {
-      // INCREMENTAL SYNC: Priority dates + changed dates only
-      let consecutiveDaysWithoutChanges = 0;
-      
-      const selectedDateDeliveries = await Delivery.filter({ delivery_date: selectedDateStr });
-      if (selectedDateDeliveries.length > 0) {
-        allDeliveries.push(...selectedDateDeliveries);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-
-      if (selectedDateStr !== todayStr) {
-        const todayDeliveries = await Delivery.filter({ delivery_date: todayStr });
-        if (todayDeliveries.length > 0) {
-          allDeliveries.push(...todayDeliveries);
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      }
-      
-      // Build date list: 6 days forward, then 90 days back
-      const datesToSync = [];
-      
-      for (let i = 1; i <= 6; i++) {
-        const futureDate = new Date(today);
-        futureDate.setDate(today.getDate() + i);
-        const futureDateStr = format(futureDate, 'yyyy-MM-dd');
-        if (futureDateStr !== selectedDateStr) {
-          datesToSync.push(futureDateStr);
-        }
-      }
-      
-      for (let i = 1; i <= LOCAL_CACHE_DAYS; i++) {
-        const pastDate = new Date(today);
-        pastDate.setDate(today.getDate() - i);
-        const pastDateStr = format(pastDate, 'yyyy-MM-dd');
-        if (pastDateStr !== selectedDateStr) {
-          datesToSync.push(pastDateStr);
-        }
-      }
-
-      const earlyExitThreshold = 10;
-
-      for (let i = 0; i < datesToSync.length; i++) {
-        if (syncPaused) {
-          console.log('⏸️ [OfflineSync] syncDeliveries interrupted - sync paused mid-operation');
-          break;
-        }
-
-        const dateStr = datesToSync[i];
-        const localDeliveriesForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
-        const backendDeliveriesForDate = await Delivery.filter({ delivery_date: dateStr });
-        
-        const hasChanges = checkForChanges(localDeliveriesForDate, backendDeliveriesForDate);
-        
-        if (hasChanges) {
-          allDeliveries.push(...backendDeliveriesForDate);
-          consecutiveDaysWithoutChanges = 0;
-        } else {
-          consecutiveDaysWithoutChanges++;
-          allDeliveries.push(...localDeliveriesForDate);
-        }
-        
-        if (consecutiveDaysWithoutChanges >= earlyExitThreshold) {
-          break;
-        }
-        
-        const progress = Math.round(((i + 1) / datesToSync.length) * 100);
-        notifySyncStatus({ entity: 'Delivery', status: 'syncing', progress, count: allDeliveries.length, syncType: 'incremental' });
-        
-        await new Promise(resolve => setTimeout(resolve, 1500));
-      }
-    }
-
-    // CRITICAL: Remove temp IDs before saving backend data to prevent duplicates
-    console.log(`🧹 [OfflineSync] Filtering out temp IDs from backend data...`);
-    const cleanDeliveries = allDeliveries.filter(d => !d.id.startsWith('temp_'));
-    console.log(`   Removed ${allDeliveries.length - cleanDeliveries.length} temp records`);
-    
-    // CRITICAL: Do NOT delete records during full sync - we're merging, not replacing
-    // Deletion detection only happens during bidirectional sync when we can confirm
-    // a record was explicitly deleted on the backend
-    // This prevents clearing historical data that wasn't fetched in this sync window
-    
-    // Save to IndexedDB in batches
-    console.log(`💾 [OfflineSync] Saving ${cleanDeliveries.length} total deliveries to IndexedDB...`);
-    const batches = [];
-    for (let i = 0; i < cleanDeliveries.length; i += BATCH_SIZE) {
-      batches.push(cleanDeliveries.slice(i, i + BATCH_SIZE));
-    }
-
-    for (let i = 0; i < batches.length; i++) {
-      if (syncPaused) {
-        console.log('⏸️ [OfflineSync] syncDeliveries batch interrupted - sync paused');
-        return { success: true, partial: true, count: totalSaved };
-      }
-
-      const batch = batches[i];
-      const result = await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, batch);
-      totalSaved += result.count;
-      
-      if (i < batches.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, SYNC_DELAY_BETWEEN_BATCHES));
-      }
-    }
-    
-    console.log(`✅ [OfflineSync] Saved ${totalSaved} deliveries to IndexedDB`);
-    
-    // CRITICAL: Trigger UI update after syncing deliveries
-    window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
-
-    // Update sync status with full sync marker
-    const syncStatusUpdate = {
-      recordCount: totalSaved,
-      status: 'synced',
-      lastSync: new Date().toISOString()
-    };
-    
-    if (isFullSync) {
-      syncStatusUpdate.lastFullSync = new Date().toISOString();
-      fullSyncCompleted.deliveries = true;
-      fullSyncCompleted.lastFullSyncDate = new Date().toISOString();
-    }
-    
-    await offlineDB.updateSyncStatus('Delivery', syncStatusUpdate);
-    notifySyncStatus({ entity: 'Delivery', status: 'synced', count: totalSaved, syncType: isFullSync ? 'full' : 'incremental' });
-    return { success: true, count: totalSaved, syncType: isFullSync ? 'full' : 'incremental' };
-  } catch (error) {
-    console.error('❌ [OfflineSync] Delivery sync error:', error);
-    notifySyncStatus({ entity: 'Delivery', status: 'error', error: error.message });
-    return { success: false, error: error.message };
-  }
-};
-
-/**
- * Check if there are changes between local and backend data
- */
-const checkForChanges = (localRecords, backendRecords) => {
-  if (localRecords.length !== backendRecords.length) {
-    return true; // Different count = changes
-  }
-  
-  const localIds = new Set(localRecords.map(r => r.id));
-  const backendIds = new Set(backendRecords.map(r => r.id));
-  
-  // Check for additions or deletions
-  if (localIds.size !== backendIds.size) {
-    return true;
-  }
-  
-  for (const id of backendIds) {
-    if (!localIds.has(id)) {
-      return true; // New record
-    }
-  }
-  
-  // Check for updates (compare updated_date)
-  for (const backendRecord of backendRecords) {
-    const localRecord = localRecords.find(r => r.id === backendRecord.id);
-    if (!localRecord) {
-      return true;
-    }
-    
-    const backendTime = new Date(backendRecord.updated_date || backendRecord.created_date).getTime();
-    const localTime = new Date(localRecord.updated_date || localRecord.created_date).getTime();
-    
-    if (backendTime !== localTime) {
-      return true; // Record was updated
-    }
-  }
-  
-  return false; // No changes
-};
-
-/**
- * Perform initial sync if needed - FULL or INCREMENTAL based on last sync time
- * CRITICAL: This is a BACKGROUND sync - the UI uses cached IndexedDB data first
- * Only run this AFTER the UI is loaded and displayed to prevent rate limits
- */
-export const performInitialSync = async (selectedDate = null) => {
-  if (syncInProgress || syncPaused) {
-    console.log(`⏸️ [OfflineSync] performInitialSync skipped - ${syncInProgress ? 'in progress' : 'paused'}`);
-    return;
-  }
-
-  // CRITICAL: Check if we have recent data - if so, skip sync entirely for now
-  const patientStatus = await offlineDB.getSyncStatus('Patient');
-  const deliveryStatus = await offlineDB.getSyncStatus('Delivery');
-  
-  const hasRecentPatientSync = patientStatus?.lastSync && 
-    (Date.now() - new Date(patientStatus.lastSync).getTime()) < 5 * 60 * 1000; // 5 minutes
-  const hasRecentDeliverySync = deliveryStatus?.lastSync && 
-    (Date.now() - new Date(deliveryStatus.lastSync).getTime()) < 5 * 60 * 1000; // 5 minutes
-  
-  if (hasRecentPatientSync && hasRecentDeliverySync) {
-    console.log('⏭️ [OfflineSync] Skipping initial sync - data synced within last 5 minutes');
-    return { patients: { skipped: true }, deliveries: { skipped: true } };
-  }
-
-  syncInProgress = true;
-  notifySyncStatus({ status: 'starting' });
-
-  try {
-    // CRITICAL: Wait 30 seconds before starting background sync to let UI load first
-    console.log('⏳ [OfflineSync] Waiting 30s before starting background sync to avoid rate limits...');
-    await new Promise(resolve => setTimeout(resolve, 30000));
-    
-    // Check again if sync was paused during wait
-    if (syncPaused) {
-      console.log('⏸️ [OfflineSync] Sync was paused during wait period');
-      return;
-    }
-
-    await processPendingMutations();
-    await new Promise(resolve => setTimeout(resolve, 5000));
-
-    const needsPatientFullSync = await needsFullSync('Patient');
-    const needsDeliveryFullSync = await needsFullSync('Delivery');
-    
-    const results = { patients: null, deliveries: null };
-
-    results.patients = await syncPatients(needsPatientFullSync);
-    // CRITICAL: Increased delay to 15 seconds between entity syncs to avoid rate limits
-    await new Promise(resolve => setTimeout(resolve, 15000));
-    results.deliveries = await syncDeliveries(selectedDate, needsDeliveryFullSync);
-
-    const syncSummary = {
-      patients: `${results.patients.syncType?.toUpperCase() || 'SKIPPED'} - ${results.patients.count || 0} records`,
-      deliveries: `${results.deliveries.syncType?.toUpperCase() || 'SKIPPED'} - ${results.deliveries.count || 0} records`
-    };
-
-    notifySyncStatus({ status: 'complete', results: syncSummary });
-    return results;
-  } catch (error) {
+    console.error('❌ [OfflineSync] Priority load failed:', error);
     notifySyncStatus({ status: 'error', error: error.message });
-    // Don't throw - this is a background operation
+    return { error: error.message };
+  }
+};
+
+// ==================== BACKGROUND SYNC ====================
+
+/**
+ * Background sync: Today + 6 future days, then past 14 days (7 days at a time)
+ * NEVER clears DB - only merges new data
+ */
+export const performBackgroundSync = async (selectedDateStr) => {
+  if (syncInProgress || syncPaused) {
+    console.log(`⏸️ [OfflineSync] Background sync skipped - ${syncInProgress ? 'in progress' : 'paused'}`);
+    return { skipped: true };
+  }
+  
+  syncInProgress = true;
+  console.log('📥 [OfflineSync] Starting background sync...');
+  notifySyncStatus({ status: 'background_syncing' });
+  
+  const today = new Date();
+  const todayStr = format(today, 'yyyy-MM-dd');
+  
+  try {
+    // ===== STEP 1: Sync today + 6 future days =====
+    console.log('   📅 Syncing today + 6 future days...');
+    
+    for (let i = 0; i <= 6; i++) {
+      if (syncPaused) break;
+      
+      const fetchDate = new Date(today);
+      fetchDate.setDate(today.getDate() + i);
+      const fetchDateStr = format(fetchDate, 'yyyy-MM-dd');
+      
+      // Skip if already loaded as selected date
+      if (fetchDateStr === selectedDateStr) continue;
+      
+      try {
+        const dateDeliveries = await Delivery.filter({ delivery_date: fetchDateStr });
+        if (dateDeliveries.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, dateDeliveries);
+          console.log(`      ✅ ${fetchDateStr}: ${dateDeliveries.length} deliveries`);
+        }
+        
+        await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+      } catch (error) {
+        console.warn(`      ⚠️ ${fetchDateStr} failed:`, error.message);
+        if (error.response?.status === 429) {
+          await new Promise(r => setTimeout(r, 5000)); // Extra cooldown on rate limit
+        }
+      }
+    }
+    
+    // ===== STEP 2: Sync past 14 days (7 days at a time) =====
+    console.log('   📅 Syncing past 14 days...');
+    
+    // First batch: days 1-7
+    await syncDeliveryDateRange(
+      format(subDays(today, 7), 'yyyy-MM-dd'),
+      format(subDays(today, 1), 'yyyy-MM-dd'),
+      selectedDateStr
+    );
+    
+    await new Promise(r => setTimeout(r, BATCH_COOLDOWN * 2));
+    
+    // Second batch: days 8-14
+    if (!syncPaused) {
+      await syncDeliveryDateRange(
+        format(subDays(today, 14), 'yyyy-MM-dd'),
+        format(subDays(today, 8), 'yyyy-MM-dd'),
+        selectedDateStr
+      );
+    }
+    
+    // ===== STEP 3: Sync remaining patients (250 at a time) =====
+    if (!syncPaused) {
+      console.log('   👥 Syncing patients...');
+      await syncAllPatients();
+    }
+    
+    // Update final sync status
+    const stats = await offlineDB.getStats();
+    await offlineDB.updateSyncStatus('Delivery', {
+      recordCount: stats?.deliveries?.count || 0,
+      status: 'synced',
+      lastSync: new Date().toISOString(),
+      lastFullSync: new Date().toISOString()
+    });
+    
+    console.log('✅ [OfflineSync] Background sync complete');
+    notifySyncStatus({ status: 'complete' });
+    window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
+    
+    return { success: true };
+  } catch (error) {
+    console.error('❌ [OfflineSync] Background sync failed:', error);
+    notifySyncStatus({ status: 'error', error: error.message });
     return { error: error.message };
   } finally {
     syncInProgress = false;
@@ -551,318 +269,240 @@ export const performInitialSync = async (selectedDate = null) => {
 };
 
 /**
- * Force FULL sync (clear and re-sync all data)
+ * Sync deliveries for a date range (used for historical batches)
  */
-export const forceSyncAll = async () => {
-  if (syncInProgress || syncPaused) {
-    console.log(`⏸️ [OfflineSync] forceSyncAll skipped - ${syncInProgress ? 'in progress' : 'paused'}`);
-    return;
-  }
-
-  syncInProgress = true;
-  notifySyncStatus({ status: 'force_syncing' });
-
+const syncDeliveryDateRange = async (startDate, endDate, skipDate = null) => {
+  if (syncPaused) return;
+  
+  console.log(`      📅 Fetching ${startDate} to ${endDate}...`);
+  
   try {
-    const results = await performBidirectionalSync();
-    notifySyncStatus({ status: 'complete', results });
-    return results;
+    const deliveries = await Delivery.filter({
+      delivery_date: { $gte: startDate, $lte: endDate }
+    });
+    
+    // Filter out the skip date if provided
+    const filteredDeliveries = skipDate 
+      ? deliveries.filter(d => d.delivery_date !== skipDate)
+      : deliveries;
+    
+    if (filteredDeliveries.length > 0) {
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, filteredDeliveries);
+      console.log(`      ✅ Saved ${filteredDeliveries.length} deliveries`);
+    }
   } catch (error) {
-    notifySyncStatus({ status: 'error', error: error.message });
-    throw error;
-  } finally {
-    syncInProgress = false;
+    console.warn(`      ⚠️ Date range sync failed:`, error.message);
+    if (error.response?.status === 429) {
+      await new Promise(r => setTimeout(r, 5000));
+    }
   }
 };
 
 /**
- * Process pending mutations (sync local changes to backend)
+ * Sync all patients in batches of 250
  */
-export const processPendingMutations = async () => {
-  // CRITICAL: Check if sync is paused
-  if (syncPaused) {
-    console.log('⏸️ [OfflineSync] processPendingMutations skipped - sync is paused');
-    return { success: true, skipped: true };
+const syncAllPatients = async () => {
+  if (syncPaused) return;
+  
+  try {
+    let skip = 0;
+    let hasMore = true;
+    let totalSynced = 0;
+    
+    while (hasMore && !syncPaused) {
+      const batch = await Patient.list('-created_date', PATIENT_BATCH_SIZE, skip);
+      
+      if (batch.length === 0) {
+        hasMore = false;
+      } else {
+        // Filter out temp IDs
+        const cleanBatch = batch.filter(p => !p.id.startsWith('temp_'));
+        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, cleanBatch);
+        
+        totalSynced += cleanBatch.length;
+        skip += batch.length;
+        
+        console.log(`      👥 Synced ${totalSynced} patients...`);
+        
+        if (batch.length < PATIENT_BATCH_SIZE) {
+          hasMore = false;
+        } else {
+          await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+        }
+      }
+    }
+    
+    await offlineDB.updateSyncStatus('Patient', {
+      recordCount: totalSynced,
+      status: 'synced',
+      lastSync: new Date().toISOString(),
+      lastFullSync: new Date().toISOString()
+    });
+    
+    console.log(`      ✅ Patient sync complete: ${totalSynced} total`);
+  } catch (error) {
+    console.warn('      ⚠️ Patient sync failed:', error.message);
   }
+};
 
+// ==================== ON-DEMAND DATA LOADING ====================
+
+/**
+ * Load and cache deliveries for a specific date (when user navigates to historical date)
+ * This adds to the offline DB for faster access later
+ */
+export const loadAndCacheDeliveriesForDate = async (dateStr) => {
+  if (syncPaused) return [];
+  
+  console.log(`📥 [OfflineSync] Loading deliveries for ${dateStr} (on-demand)...`);
+  
+  try {
+    const deliveries = await Delivery.filter({ delivery_date: dateStr });
+    
+    if (deliveries.length > 0) {
+      // Add to offline DB (merge, don't replace)
+      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+      console.log(`   ✅ Cached ${deliveries.length} deliveries for ${dateStr}`);
+    }
+    
+    return deliveries;
+  } catch (error) {
+    console.warn(`   ⚠️ Failed to load ${dateStr}:`, error.message);
+    return [];
+  }
+};
+
+// ==================== INITIAL SYNC (ENTRY POINT) ====================
+
+/**
+ * Main entry point for initial sync
+ * Checks freshness first, loads from offline if fresh, then refreshes in background
+ */
+export const performInitialSync = async (selectedDate = null) => {
+  if (syncInProgress || syncPaused) {
+    console.log(`⏸️ [OfflineSync] performInitialSync skipped`);
+    return { skipped: true };
+  }
+  
+  const selectedDateStr = selectedDate 
+    ? format(selectedDate, 'yyyy-MM-dd') 
+    : format(new Date(), 'yyyy-MM-dd');
+  
+  // Check if offline data is fresh
+  const freshData = await getOfflineDataIfFresh();
+  
+  if (freshData && freshData.deliveryFresh && freshData.patientFresh) {
+    console.log('⏭️ [OfflineSync] Offline data is fresh (< 10 min), using cached data');
+    
+    // Schedule background refresh after 30 seconds
+    setTimeout(() => {
+      performBackgroundSync(selectedDateStr).catch(() => {});
+    }, 30000);
+    
+    return { 
+      fromCache: true, 
+      deliveries: freshData.deliveries?.length || 0,
+      patients: freshData.patients?.length || 0
+    };
+  }
+  
+  // Data not fresh - load priority data first
+  const priorityResult = await loadPriorityData(selectedDateStr);
+  
+  if (priorityResult.error) {
+    return priorityResult;
+  }
+  
+  // Schedule background sync after 10 seconds
+  setTimeout(() => {
+    performBackgroundSync(selectedDateStr).catch(() => {});
+  }, 10000);
+  
+  return priorityResult;
+};
+
+// ==================== LEGACY EXPORTS (COMPATIBILITY) ====================
+
+export const processPendingMutations = async () => {
+  if (syncPaused) return { success: true, skipped: true };
+  
   const mutations = await offlineDB.getPendingMutations();
   if (mutations.length === 0) return { success: true, processed: 0 };
-
-  notifySyncStatus({ status: 'processing_mutations', count: mutations.length });
-
+  
   let successCount = 0;
   let failCount = 0;
-
+  
   for (const mutation of mutations) {
-    // Check pause state before each mutation
-    if (syncPaused) {
-      console.log('⏸️ [OfflineSync] processPendingMutations interrupted - sync paused');
-      break;
-    }
-
+    if (syncPaused) break;
+    
     try {
-      if ((mutation.operation === 'update' || mutation.operation === 'delete') && mutation.recordId.startsWith('temp_')) {
+      if (mutation.recordId?.startsWith('temp_')) {
         await offlineDB.removePendingMutation(mutation.mutationId);
         continue;
       }
       
-      // Execute the mutation on the backend
       const Entity = mutation.entity === 'Patient' ? Patient : Delivery;
       
-      try {
-        if (mutation.operation === 'create') {
-          await Entity.create(mutation.payload);
-        } else if (mutation.operation === 'update') {
-          await Entity.update(mutation.recordId, mutation.payload);
-        } else if (mutation.operation === 'delete') {
-          await Entity.delete(mutation.recordId);
-        }
-      } catch (syncError) {
-        if (syncError.response?.status === 404 || syncError.message?.includes('not found')) {
-          await offlineDB.removePendingMutation(mutation.mutationId);
-          successCount++;
-          continue;
-        }
-        throw syncError;
+      if (mutation.operation === 'create') {
+        await Entity.create(mutation.payload);
+      } else if (mutation.operation === 'update') {
+        await Entity.update(mutation.recordId, mutation.payload);
+      } else if (mutation.operation === 'delete') {
+        await Entity.delete(mutation.recordId);
       }
-
+      
       await offlineDB.removePendingMutation(mutation.mutationId);
       successCount++;
-      // CRITICAL: Longer delay between mutations to prevent rate limits
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
     } catch (error) {
       await offlineDB.updateMutationRetry(mutation.mutationId, (mutation.retryCount || 0) + 1);
       failCount++;
       
-      if (error.response?.status === 429 || error.message?.includes('429')) {
-        console.log('⏰ [OfflineSync] Rate limit hit - waiting 10s before continuing...');
-        await new Promise(resolve => setTimeout(resolve, 10000));
-      } else {
-        await new Promise(resolve => setTimeout(resolve, 2000));
+      if (error.response?.status === 429) {
+        await new Promise(r => setTimeout(r, 10000));
       }
     }
   }
-
-  notifySyncStatus({ status: 'mutations_processed', successCount, failCount });
+  
   return { success: failCount === 0, processed: successCount, failed: failCount };
 };
 
-/**
- * Bidirectional sync - compare local vs online and update both sides
- */
-export const performBidirectionalSync = async () => {
-  if (syncInProgress || syncPaused) {
-    console.log(`⏸️ [OfflineSync] performBidirectionalSync skipped - ${syncInProgress ? 'in progress' : 'paused'}`);
-    return;
-  }
-
+export const forceSyncAll = async () => {
+  if (syncInProgress || syncPaused) return { skipped: true };
+  
   syncInProgress = true;
-  notifySyncStatus({ status: 'bidirectional_syncing' });
-
+  notifySyncStatus({ status: 'force_syncing' });
+  
   try {
-    await processPendingMutations();
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Fetch patients from backend
-    const backendPatients = await Patient.list();
-    
-    // Fetch deliveries using optimized incremental approach
-    const backendDeliveries = [];
-    const today = new Date();
-    const todayStr = format(today, 'yyyy-MM-dd');
-    
-    // Priority dates first
-    const priorityDates = [todayStr];
-    for (const dateStr of priorityDates) {
-      const dateDeliveries = await Delivery.filter({ delivery_date: dateStr });
-      backendDeliveries.push(...dateDeliveries);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-    
-    // Then scan backwards/forwards with early exit
-    let consecutiveDaysWithoutChanges = 0;
-    const datesToCheck = [];
-    
-    for (let i = 1; i <= 7; i++) {
-      const futureDate = new Date(today);
-      futureDate.setDate(today.getDate() + i);
-      datesToCheck.push(format(futureDate, 'yyyy-MM-dd'));
-    }
-    
-    for (let i = 1; i <= LOCAL_CACHE_DAYS; i++) {
-      const pastDate = new Date(today);
-      pastDate.setDate(today.getDate() - i);
-      datesToCheck.push(format(pastDate, 'yyyy-MM-dd'));
-    }
-    
-    for (const dateStr of datesToCheck) {
-      // Check pause state
-      if (syncPaused) {
-        console.log('⏸️ [OfflineSync] performBidirectionalSync interrupted - sync paused');
-        break;
-      }
-
-      const localForDate = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
-      const backendForDate = await Delivery.filter({ delivery_date: dateStr });
-      
-      const hasChanges = checkForChanges(localForDate, backendForDate);
-      
-      if (hasChanges) {
-        backendDeliveries.push(...backendForDate);
-        consecutiveDaysWithoutChanges = 0;
-      } else {
-        backendDeliveries.push(...localForDate);
-        consecutiveDaysWithoutChanges++;
-      }
-      
-      if (consecutiveDaysWithoutChanges >= 10) {
-        console.log(`🛑 [OfflineSync] Early exit after 10 days without changes`);
-        break;
-      }
-      
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-
-    const [localPatients, localDeliveries] = await Promise.all([
-      offlineDB.getAll(offlineDB.STORES.PATIENTS),
-      offlineDB.getAll(offlineDB.STORES.DELIVERIES)
-    ]);
-
-    const cleanBackendPatients = backendPatients.filter(p => !p.id.startsWith('temp_'));
-    const cleanBackendDeliveries = backendDeliveries.filter(d => !d.id.startsWith('temp_'));
-    
-    // Compare and merge (with deletion detection)
-    const updatedPatients = await mergeData(localPatients, cleanBackendPatients, 'Patient');
-    const updatedDeliveries = await mergeData(localDeliveries, cleanBackendDeliveries, 'Delivery');
-
-    if (updatedPatients.length > 0) {
-      await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, updatedPatients);
-    }
-    
-    if (updatedDeliveries.length > 0) {
-      await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, updatedDeliveries);
-    }
-
-    // Update sync status
-    await Promise.all([
-      offlineDB.updateSyncStatus('Patient', { recordCount: backendPatients.length, status: 'synced' }),
-      offlineDB.updateSyncStatus('Delivery', { recordCount: backendDeliveries.length, status: 'synced' })
-    ]);
-
-    const results = {
-      patients: { total: backendPatients.length, updated: updatedPatients.length },
-      deliveries: { total: backendDeliveries.length, updated: updatedDeliveries.length }
-    };
-
-    notifySyncStatus({ status: 'complete', results });
-    window.dispatchEvent(new CustomEvent('offlineSyncComplete'));
-    return results;
+    const selectedDateStr = format(new Date(), 'yyyy-MM-dd');
+    await loadPriorityData(selectedDateStr);
+    await performBackgroundSync(selectedDateStr);
+    return { success: true };
   } catch (error) {
-    notifySyncStatus({ status: 'error', error: error.message });
-    throw error;
+    return { error: error.message };
   } finally {
     syncInProgress = false;
   }
 };
 
-/**
- * Merge local and backend data - backend wins for conflicts (newer updated_date)
- * CRITICAL: Also handles deletions by removing records that exist locally but not on backend
- */
-const mergeData = async (localRecords, backendRecords, entityName) => {
-  const localMap = new Map(localRecords.map(r => [r.id, r]));
-  const backendIds = new Set(backendRecords.map(r => r.id));
-  const merged = [];
+export const performBidirectionalSync = forceSyncAll;
 
-  // STEP 1: Process backend records (new + updated)
-  for (const backendRecord of backendRecords) {
-    const localRecord = localMap.get(backendRecord.id);
-    
-    if (!localRecord) {
-      // New record from backend
-      merged.push(backendRecord);
-    } else {
-      // Compare updated_date - backend wins if newer or equal
-      const backendTime = new Date(backendRecord.updated_date || backendRecord.created_date).getTime();
-      const localTime = new Date(localRecord.updated_date || localRecord.created_date).getTime();
-      
-      if (backendTime >= localTime) {
-        merged.push(backendRecord);
-      } else {
-        // Keep local version if newer
-        merged.push(localRecord);
-      }
-    }
-  }
-
-  // STEP 2: CRITICAL - Delete records that exist locally but NOT on backend
-  // These were deleted by other users/devices and need to be removed locally
-  const recordsToDelete = [];
-  for (const localRecord of localRecords) {
-    // Skip temp records (they're local-only and will be synced later)
-    if (localRecord.id.startsWith('temp_')) {
-      merged.push(localRecord);
-      continue;
-    }
-    
-    if (!backendIds.has(localRecord.id)) {
-      recordsToDelete.push(localRecord.id);
-    }
-  }
-
-  if (recordsToDelete.length > 0) {
-    const db = await offlineDB.openDatabase();
-    const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : offlineDB.STORES.DELIVERIES;
-    const transaction = db.transaction([storeName], 'readwrite');
-    const store = transaction.objectStore(storeName);
-    
-    for (const id of recordsToDelete) {
-      await new Promise((resolve, reject) => {
-        const request = store.delete(id);
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-      });
-    }
-  }
-
-  return merged;
-};
-
-/**
- * Handle a delete broadcast from another device
- * This removes the record from IndexedDB immediately
- */
 export const handleDeleteBroadcast = async (entityName, recordId) => {
   if (!entityName || !recordId) return;
   
   try {
     const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : offlineDB.STORES.DELIVERIES;
-    const db = await offlineDB.openDatabase();
-    const transaction = db.transaction([storeName], 'readwrite');
-    const store = transaction.objectStore(storeName);
-    
-    await new Promise((resolve, reject) => {
-      const request = store.delete(recordId);
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
-    
-    console.log(`🗑️ [OfflineSync] Deleted ${entityName} ${recordId} from IndexedDB via broadcast`);
+    await offlineDB.deleteRecord(storeName, recordId);
+    console.log(`🗑️ [OfflineSync] Deleted ${entityName} ${recordId} from offline DB`);
     return true;
   } catch (error) {
-    console.error(`❌ [OfflineSync] Failed to delete ${entityName} ${recordId} from IndexedDB:`, error);
     return false;
   }
 };
 
-/**
- * Get sync statistics including full sync status
- */
 export const getSyncStats = async () => {
   const stats = await offlineDB.getStats();
   const pendingMutations = await offlineDB.getPendingMutations();
-  
-  // Get sync status for each entity
   const patientStatus = await offlineDB.getSyncStatus('Patient');
   const deliveryStatus = await offlineDB.getSyncStatus('Delivery');
   

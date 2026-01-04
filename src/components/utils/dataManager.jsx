@@ -397,15 +397,18 @@ export const loadFullMonthDeliveries = async (filters = {}, forceRefresh = false
 };
 
 /**
- * Load deliveries: selected date first, then today + 6 days future ONLY
- * NO HISTORICAL DATA FETCHING to prevent rate limits and bottlenecks
+ * Load deliveries with offline-first strategy:
+ * 1. Check offline DB freshness (< 10 min)
+ * 2. If fresh, load from offline first, then refresh from online
+ * 3. If not fresh, load selected date from online first
+ * 4. Background: today + 6 future days, then past 14 days
  * 
  * @param {string} selectedDateStr - Selected date (yyyy-MM-dd)
  * @param {object} priorityFilters - Filters for priority loads
  * @param {object} backgroundFilters - Filters for background data
  * @param {boolean} forceRefresh - Force bypass cache
  * @param {function} onInitialLoadComplete - Callback for instant UI (selected date)
- * @param {function} onFullMonthLoadComplete - Callback for background data (today + 6 days)
+ * @param {function} onFullMonthLoadComplete - Callback for background data
  */
 export const loadDeliveries = async (
   selectedDateStr,
@@ -418,62 +421,132 @@ export const loadDeliveries = async (
   const today = new Date();
   const todayStr = format(today, 'yyyy-MM-dd');
   
-  console.log(`📥 [DataManager] Loading deliveries - selected: ${selectedDateStr}, today: ${todayStr}`);
+  console.log(`📥 [DataManager] Loading deliveries - selected: ${selectedDateStr}`);
   
-  // STEP 1: Fetch selected date FIRST (highest priority)
+  // STEP 1: Check if offline DB has fresh data for selected date
+  if (!forceRefresh) {
+    try {
+      const offlineDeliveries = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', selectedDateStr);
+      
+      if (offlineDeliveries && offlineDeliveries.length > 0) {
+        // Check freshness via sync status
+        const syncStatus = await offlineDB.getSyncStatus('Delivery');
+        const isFresh = syncStatus?.lastSync && 
+          (Date.now() - new Date(syncStatus.lastSync).getTime()) < 10 * 60 * 1000;
+        
+        if (isFresh) {
+          console.log(`✅ [DataManager] Using fresh offline data: ${offlineDeliveries.length} deliveries`);
+          onInitialLoadComplete(offlineDeliveries);
+          
+          // Still refresh from online in background (after 5 seconds)
+          setTimeout(async () => {
+            try {
+              const freshDeliveries = await loadDeliveriesForDate(selectedDateStr, priorityFilters, true);
+              if (freshDeliveries.length > 0) {
+                onInitialLoadComplete(freshDeliveries);
+              }
+              // Continue with background loading
+              await loadBackgroundDeliveries(selectedDateStr, priorityFilters, onFullMonthLoadComplete);
+            } catch (e) {
+              console.warn('Background refresh failed:', e.message);
+            }
+          }, 5000);
+          
+          return offlineDeliveries;
+        }
+      }
+    } catch (err) {
+      console.warn('⚠️ [DataManager] Offline check failed:', err.message);
+    }
+  }
+  
+  // STEP 2: Fetch selected date from online (not fresh or forced)
   const selectedDateDeliveries = await loadDeliveriesForDate(selectedDateStr, priorityFilters, forceRefresh);
   console.log(`✅ [DataManager] Loaded ${selectedDateDeliveries.length} deliveries for ${selectedDateStr}`);
   
-  // CRITICAL: Fire instant UI callback IMMEDIATELY
+  // Fire instant UI callback
   onInitialLoadComplete(selectedDateDeliveries);
   
-  // STEP 2: Background fetch today + 6 days future (no historical)
+  // STEP 3: Background load (today + 6 future, then past 14 days)
   setTimeout(async () => {
-    try {
-      const deliveryMap = new Map();
-      selectedDateDeliveries.forEach(d => deliveryMap.set(d.id, d));
-
-      console.log(`📡 [DataManager] Background: fetching today + 6 days future...`);
-
-      // Fetch today + next 6 days (7 days total)
-      for (let i = 0; i <= 6; i++) {
-        const fetchDate = new Date(today);
-        fetchDate.setDate(today.getDate() + i);
-        const fetchDateStr = format(fetchDate, 'yyyy-MM-dd');
-        
-        // Skip if already fetched in step 1
-        if (fetchDateStr === selectedDateStr) {
-          continue;
-        }
-        
-        try {
-          const dateDeliveries = await loadDeliveriesForDate(fetchDateStr, priorityFilters, forceRefresh);
-          dateDeliveries.forEach(d => deliveryMap.set(d.id, d));
-          console.log(`   ✅ Loaded ${dateDeliveries.length} for ${fetchDateStr}`);
-          
-          // Wait 2 seconds between date fetches
-          if (i < 6) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
-          }
-        } catch (error) {
-          console.warn(`   ⚠️ Failed to fetch ${fetchDateStr}:`, error.message);
-          // Continue with other dates
-        }
-      }
-
-      const allDeliveries = Array.from(deliveryMap.values());
-      console.log(`✅ [DataManager] Background complete: ${allDeliveries.length} total deliveries`);
-      
-      // Update UI with all loaded data
-      onFullMonthLoadComplete(allDeliveries);
-
-    } catch (error) {
-      console.error('❌ [DataManager] Background load failed:', error);
-      onFullMonthLoadComplete(selectedDateDeliveries);
-    }
-  }, 3000); // Start background load after 3 seconds
+    await loadBackgroundDeliveries(selectedDateStr, priorityFilters, onFullMonthLoadComplete, selectedDateDeliveries);
+  }, 3000);
 
   return selectedDateDeliveries;
+};
+
+/**
+ * Background delivery loading: today + 6 future, then past 14 days
+ */
+const loadBackgroundDeliveries = async (selectedDateStr, filters, onComplete, initialDeliveries = []) => {
+  const today = new Date();
+  const deliveryMap = new Map();
+  
+  // Add initial deliveries
+  initialDeliveries.forEach(d => deliveryMap.set(d.id, d));
+  
+  console.log(`📡 [DataManager] Background: loading today + 6 future days...`);
+  
+  // Load today + 6 future days
+  for (let i = 0; i <= 6; i++) {
+    const fetchDate = new Date(today);
+    fetchDate.setDate(today.getDate() + i);
+    const fetchDateStr = format(fetchDate, 'yyyy-MM-dd');
+    
+    if (fetchDateStr === selectedDateStr) continue;
+    
+    try {
+      const dateDeliveries = await loadDeliveriesForDate(fetchDateStr, filters, false);
+      dateDeliveries.forEach(d => deliveryMap.set(d.id, d));
+      
+      if (i < 6) {
+        await new Promise(r => setTimeout(r, 1000));
+      }
+    } catch (error) {
+      console.warn(`   ⚠️ ${fetchDateStr} failed:`, error.message);
+    }
+  }
+  
+  // Update UI with future data
+  onComplete(Array.from(deliveryMap.values()));
+  
+  // Wait before loading historical
+  await new Promise(r => setTimeout(r, 2000));
+  
+  console.log(`📡 [DataManager] Background: loading past 14 days...`);
+  
+  // Load past 14 days (7 days at a time)
+  // Days 1-7
+  try {
+    const chunk1 = await getDeliveriesForDateRange(
+      format(subDays(today, 7), 'yyyy-MM-dd'),
+      format(subDays(today, 1), 'yyyy-MM-dd'),
+      filters,
+      false
+    );
+    chunk1.forEach(d => deliveryMap.set(d.id, d));
+    onComplete(Array.from(deliveryMap.values()));
+  } catch (e) {
+    console.warn('   ⚠️ Days 1-7 failed:', e.message);
+  }
+  
+  await new Promise(r => setTimeout(r, 1000));
+  
+  // Days 8-14
+  try {
+    const chunk2 = await getDeliveriesForDateRange(
+      format(subDays(today, 14), 'yyyy-MM-dd'),
+      format(subDays(today, 8), 'yyyy-MM-dd'),
+      filters,
+      false
+    );
+    chunk2.forEach(d => deliveryMap.set(d.id, d));
+    onComplete(Array.from(deliveryMap.values()));
+  } catch (e) {
+    console.warn('   ⚠️ Days 8-14 failed:', e.message);
+  }
+  
+  console.log(`✅ [DataManager] Background complete: ${deliveryMap.size} total deliveries`);
 };
 
 /**
