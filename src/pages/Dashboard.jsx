@@ -1024,10 +1024,10 @@ function Dashboard() {
       // Mouse over or expanded - full opacity
       setStatsPanelOpacity(1);
     } else {
-      // Mouse left and not expanded - start 3 second timer to fade
+      // Mouse left and not expanded - start 5 second timer to fade
       statsPanelFadeTimeoutRef.current = setTimeout(() => {
         setStatsPanelOpacity(0.5);
-      }, 3000);
+      }, 5000);
     }
   }, [isExpanded]);
 
@@ -1043,9 +1043,23 @@ function Dashboard() {
       // When collapsing, start fade timer
       statsPanelFadeTimeoutRef.current = setTimeout(() => {
         setStatsPanelOpacity(0.5);
-      }, 3000);
+      }, 5000);
     }
   }, [isExpanded]);
+
+  // Auto-fade stats card 5 seconds after initial load/refresh
+  useEffect(() => {
+    if (!isDataLoaded) return;
+    
+    // Start fade timer on initial load
+    const initialFadeTimer = setTimeout(() => {
+      if (!isExpanded) {
+        setStatsPanelOpacity(0.5);
+      }
+    }, 5000);
+    
+    return () => clearTimeout(initialFadeTimer);
+  }, [isDataLoaded, isExpanded]);
 
   // Track when the last programmatic map move happened (to debounce interaction handler)
   const lastProgrammaticMapMoveRef = useRef(0);
