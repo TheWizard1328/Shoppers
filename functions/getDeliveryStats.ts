@@ -469,41 +469,23 @@ Deno.serve(async (req) => {
 
           // Total Time on Duty: time from first FINISHED stop to last FINISHED stop
           // Use ALL finished deliveries (not just paid ones) to get accurate time range
-          
-          // CRITICAL: Extract just the time portion from timestamps to avoid timezone issues
-          // The actual_delivery_time stores LOCAL time - we just need to compare the time-of-day
-          const extractTimeMinutes = (timestamp) => {
-            if (!timestamp) return null;
-            // Extract HH:MM from the timestamp (works for both formats)
-            // Format: "2026-01-03T10:10:00" or "2026-01-03T18:50:00.000Z"
-            const match = timestamp.match(/T(\d{2}):(\d{2})/);
-            if (!match) return null;
-            const hours = parseInt(match[1], 10);
-            const minutes = parseInt(match[2], 10);
-            return hours * 60 + minutes;
-          };
-          
-          const deliveriesWithTime = todayDeliveries
+          const allFinishedDeliveriesForTime = todayDeliveries
             .filter(d => d.actual_delivery_time)
-            .map(d => ({
-              ...d,
-              _timeMinutes: extractTimeMinutes(d.actual_delivery_time)
-            }))
-            .filter(d => d._timeMinutes !== null)
-            .sort((a, b) => a._timeMinutes - b._timeMinutes);
+            .sort((a, b) => new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time));
 
-          if (deliveriesWithTime.length > 0) {
-            const firstTimeMinutes = deliveriesWithTime[0]._timeMinutes;
-            const lastTimeMinutes = deliveriesWithTime[deliveriesWithTime.length - 1]._timeMinutes;
+          if (allFinishedDeliveriesForTime.length > 0) {
+            const firstTime = new Date(allFinishedDeliveriesForTime[0].actual_delivery_time);
+            const lastTime = new Date(allFinishedDeliveriesForTime[allFinishedDeliveriesForTime.length - 1].actual_delivery_time);
             
-            console.log(`⏱️ [TIME DEBUG] First: ${deliveriesWithTime[0].actual_delivery_time} -> ${firstTimeMinutes} minutes`);
-            console.log(`⏱️ [TIME DEBUG] Last: ${deliveriesWithTime[deliveriesWithTime.length - 1].actual_delivery_time} -> ${lastTimeMinutes} minutes`);
+            console.log(`⏱️ [TIME DEBUG] First: ${allFinishedDeliveriesForTime[0].actual_delivery_time} -> ${firstTime.toISOString()}`);
+            console.log(`⏱️ [TIME DEBUG] Last: ${allFinishedDeliveriesForTime[allFinishedDeliveriesForTime.length - 1].actual_delivery_time} -> ${lastTime.toISOString()}`);
             
-            const durationMinutes = lastTimeMinutes - firstTimeMinutes;
-            const hours = Math.floor(durationMinutes / 60);
-            const minutes = durationMinutes % 60;
+            const durationMs = lastTime - firstTime;
+            const totalMinutes = Math.floor(durationMs / (1000 * 60));
+            const hours = Math.floor(totalMinutes / 60);
+            const minutes = totalMinutes % 60;
             
-            console.log(`⏱️ [TIME DEBUG] Duration: ${durationMinutes}min = ${hours}h ${minutes}m`);
+            console.log(`⏱️ [TIME DEBUG] Duration: ${durationMs}ms = ${totalMinutes}min = ${hours}h ${minutes}m`);
             
             performanceStats.totalTimeOnDuty = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
           }
