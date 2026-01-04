@@ -13,7 +13,16 @@
 
 import { base44 } from '@/api/base44Client';
 import { offlineDB } from './offlineDatabase';
-import { broadcastMutation } from './realtimeSync';
+
+// Lazy load broadcastMutation to avoid circular dependency issues
+const broadcastMutation = async (entity, action, id, data, ids = null) => {
+  try {
+    const { broadcastMutation: broadcast } = await import('./realtimeSync');
+    return broadcast(entity, action, id, data, ids);
+  } catch (error) {
+    console.warn('[EntityMutations] Could not broadcast mutation:', error.message);
+  }
+};
 
 // ========================================
 // LISTENERS & STATE

@@ -1,7 +1,16 @@
 import { base44 } from '@/api/base44Client';
 import { isMobileDevice as checkIsMobileDevice } from './deviceUtils';
 import { getRouteOptimizationSettings } from '../dashboard/RouteOptimizationSettings';
-import { broadcastMutation } from './realtimeSync';
+
+// Lazy load broadcastMutation to avoid circular dependency issues
+const broadcastMutation = async (entity, action, id, data) => {
+  try {
+    const { broadcastMutation: broadcast } = await import('./realtimeSync');
+    return broadcast(entity, action, id, data);
+  } catch (error) {
+    console.warn('[LocationTracker] Could not broadcast mutation:', error.message);
+  }
+};
 
 class LocationTracker {
   constructor() {

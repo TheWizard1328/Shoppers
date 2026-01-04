@@ -9,7 +9,16 @@ import { toast } from "sonner";
 import { useAppData } from "../utils/AppDataContext";
 import { fabControlEvents } from "../utils/fabControlEvents";
 import { loadUserSettings, getSetting } from "../utils/userSettingsManager";
-import { broadcastMutation } from "../utils/realtimeSync";
+
+// Lazy load broadcastMutation to avoid circular dependency issues
+const broadcastMutation = async (entity, action, id, data) => {
+  try {
+    const { broadcastMutation: broadcast } = await import('../utils/realtimeSync');
+    return broadcast(entity, action, id, data);
+  } catch (error) {
+    console.warn('[DriverStatusToggle] Could not broadcast mutation:', error.message);
+  }
+};
 
 /**
  * 3-way driver status toggle for mobile header
