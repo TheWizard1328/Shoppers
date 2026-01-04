@@ -3485,15 +3485,17 @@ export default function DeliveryForm({
                       <Label htmlFor="paid_km_override" className="text-xs">X-KM</Label>
                       <Input
                       id="paid_km_override"
-                      type="number"
-                      step="0.1"
+                      type="text"
+                      inputMode="decimal"
                       value={formData.paid_km_override ?? ''}
                       onChange={(e) => {
                         const val = e.target.value;
-                        setFormData((prev) => ({ 
-                          ...prev, 
-                          paid_km_override: val === '' ? null : parseFloat(val) 
-                        }));
+                        if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                          setFormData((prev) => ({ 
+                            ...prev, 
+                            paid_km_override: val === '' ? null : parseFloat(val) || null
+                          }));
+                        }
                       }}
                       placeholder={selectedPatient?.distance_from_store ? selectedPatient.distance_from_store.toFixed(1) : ''}
                       className="h-9 text-sm"
