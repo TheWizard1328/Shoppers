@@ -1148,7 +1148,7 @@ class SmartRefreshManager {
 
   /**
    * Fast delivery status refresh - polls for status changes on active deliveries
-   * CRITICAL: Uses offline database to minimize API calls, BUT fetches from API after broadcasts
+   * CRITICAL: ALWAYS fetches from API for active day to ensure cross-device sync
    * CRITICAL: Never throws - always returns null on error to prevent stuck refresh
    */
   async refreshActiveDeliveryStatuses(currentDeliveries, selectedDate, filters = {}) {
@@ -1165,51 +1165,30 @@ class SmartRefreshManager {
       this.markRefreshed('activeDeliveries');
       
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      
-      // CRITICAL: Check if we received a broadcast and need to fetch from API
-      const needsApiFetch = this.shouldFetchFromApi('Delivery');
-      
       const { offlineDB } = await import('./offlineDatabase');
-      let fetchedDeliveries;
       
-      if (needsApiFetch) {
-        // Broadcast received - fetch from API to get the new/updated data
-        await this.waitForRateLimit();
-        const cityOnlyFilter = { delivery_date: dateStr };
-        
-        if (filters.deliveryFilter && filters.deliveryFilter.store_id) {
-          cityOnlyFilter.store_id = filters.deliveryFilter.store_id;
-        }
-        
+      // CRITICAL: ALWAYS fetch from API for selected date to ensure cross-device sync
+      // Offline DB is only used as fallback when API fails
+      await this.waitForRateLimit();
+      const cityOnlyFilter = { delivery_date: dateStr };
+      
+      if (filters.deliveryFilter && filters.deliveryFilter.store_id) {
+        cityOnlyFilter.store_id = filters.deliveryFilter.store_id;
+      }
+      
+      let fetchedDeliveries;
+      try {
         fetchedDeliveries = await base44.entities.Delivery.filter(cityOnlyFilter);
-
-        // Record success
         this.recordSuccess();
-
-        if (fetchedDeliveries && fetchedDeliveries.length > 0) {
-        // Update offline DB with fresh API data
-        await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, fetchedDeliveries);
-        }
-        } else {
-        // No broadcast - use offline DB first (faster, prevents rate limits)
-        fetchedDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
         
-        if (!fetchedDeliveries || fetchedDeliveries.length === 0) {
-          // No offline data - fetch from API as fallback
-          await this.waitForRateLimit();
-          const cityOnlyFilter = { delivery_date: dateStr };
-          
-          if (filters.deliveryFilter && filters.deliveryFilter.store_id) {
-            cityOnlyFilter.store_id = filters.deliveryFilter.store_id;
-          }
-          
-          fetchedDeliveries = await base44.entities.Delivery.filter(cityOnlyFilter);
-          
-          if (fetchedDeliveries && fetchedDeliveries.length > 0) {
-            // Cache to offline DB for next time
-            await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, fetchedDeliveries);
-          }
+        // Update offline DB with fresh API data
+        if (fetchedDeliveries && fetchedDeliveries.length > 0) {
+          await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, fetchedDeliveries);
         }
+      } catch (apiError) {
+        // API failed - fall back to offline DB
+        console.warn('⚠️ [SmartRefresh] API failed, using offline DB:', apiError.message);
+        fetchedDeliveries = await offlineDB.getByDate(offlineDB.STORES.DELIVERIES, dateStr);
       }
       
       if (!fetchedDeliveries || fetchedDeliveries.length === 0) {
@@ -1229,19 +1208,28 @@ class SmartRefreshManager {
       const updatedCurrentDateDeliveries = currentDateDeliveries.map(d => {
         if (!d) return d;
         
-        // CRITICAL: Skip if delivery has pending local update
+        // CRITICAL: Skip if delivery has pending local update (recently edited by this user)
         if (this.hasPendingUpdate(d.id)) {
           return d;
         }
         
         const fetchedVersion = fetchedDeliveries.find(fd => fd.id === d.id);
         if (fetchedVersion) {
-          // BIDIRECTIONAL: Compare timestamps - only use server data if newer
+          // IMPROVED CONFLICT RESOLUTION: Server is authoritative for synced data
+          // Only keep local if it has a pending update (handled above)
           const localTime = new Date(d.updated_date || 0).getTime();
           const serverTime = new Date(fetchedVersion.updated_date || 0).getTime();
           
-          if (serverTime > localTime) {
-            // Server is newer - use server data
+          // CRITICAL: Use server data if timestamps differ by more than 1 second
+          // This prevents clock skew issues while still respecting actual updates
+          const timeDiff = Math.abs(serverTime - localTime);
+          const hasRealChange = timeDiff > 1000 || 
+            d.status !== fetchedVersion.status ||
+            d.driver_id !== fetchedVersion.driver_id ||
+            d.stop_order !== fetchedVersion.stop_order;
+          
+          if (hasRealChange) {
+            // Server has different data - use server version (authoritative)
             hasChanges = true;
             changedDeliveries.push({
               name: fetchedVersion.patient_name || 'Pickup',
@@ -1251,10 +1239,9 @@ class SmartRefreshManager {
               newDriver: fetchedVersion.driver_name
             });
             return fetchedVersion;
-          } else {
-            // Local is newer or equal - keep local data
-            return d;
           }
+          // No real change - keep current (avoids unnecessary re-renders)
+          return d;
         }
         return d;
       });
