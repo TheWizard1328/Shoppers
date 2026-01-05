@@ -1357,6 +1357,14 @@ class SmartRefreshManager {
         }
       }
       
+      // CRITICAL: Periodically check if offline sync needs restart (every 2 minutes)
+      if (!this._lastOfflineSyncCheck || (Date.now() - this._lastOfflineSyncCheck > 120000)) {
+        this._lastOfflineSyncCheck = Date.now();
+        this.checkAndRestartOfflineSync().catch(e => {
+          console.warn('⚠️ [SmartRefresh] Offline sync check failed:', e.message);
+        });
+      }
+      
       const hasAnyUpdates = Object.keys(updates).length > 0;
       return hasAnyUpdates ? updates : null;
       
