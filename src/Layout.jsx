@@ -217,12 +217,17 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
           setStats(data);
           lastFetchRef.current = { date: selectedDateStr, driver: selectedDriverId, timestamp: now };
 
-          // CRITICAL: Dispatch event to pass performance stats to Dashboard
+          // CRITICAL: Dispatch events to pass stats to Dashboard
           if (data.performanceStats) {
             window.dispatchEvent(new CustomEvent('performanceStatsUpdated', {
               detail: data.performanceStats
             }));
           }
+
+          // Dispatch delivery stats (today's counts)
+          window.dispatchEvent(new CustomEvent('deliveryStatsUpdated', {
+            detail: data
+          }));
         } else {
           setHasError(true);
         }
