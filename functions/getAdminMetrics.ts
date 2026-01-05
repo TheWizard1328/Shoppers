@@ -43,15 +43,17 @@ Deno.serve(async (req) => {
     } catch (e) {}
 
     const year = body.year || new Date().getFullYear();
+    const cityId = body.cityId || null; // null = all cities
+    const cacheKey = `${year}-${cityId || 'all'}`;
     const cacheDate = getCacheDateKey();
 
     // Check cache
-    if (metricsCache.year === year && metricsCache.cacheDate === cacheDate && metricsCache.data) {
+    if (metricsCache.year === cacheKey && metricsCache.cacheDate === cacheDate && metricsCache.data) {
       console.log('📊 [getAdminMetrics] Returning CACHED data');
       return Response.json(metricsCache.data);
     }
 
-    console.log(`📊 [getAdminMetrics] Computing metrics for year ${year}...`);
+    console.log(`📊 [getAdminMetrics] Computing metrics for year ${year}, city ${cityId || 'all'}...`);
 
     // Fetch all data in parallel
     const [stores, allAppUsers, appSettings] = await Promise.all([
