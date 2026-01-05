@@ -96,9 +96,9 @@ Deno.serve(async (req) => {
     const monthResults = await Promise.all(monthPromises);
     let yearDeliveries = monthResults.flat();
 
-    // Filter deliveries by city (via store)
+    // Filter deliveries by city (via store) - only if cityId is specified
     if (cityId) {
-      yearDeliveries = yearDeliveries.filter(d => d?.store_id && storeIds.has(d.store_id));
+      yearDeliveries = yearDeliveries.filter(d => d?.store_id && cityStoreIds.has(d.store_id));
     }
 
     console.log(`📦 [getAdminMetrics] Loaded ${yearDeliveries.length} deliveries for ${year} (city: ${cityId || 'all'})`);
