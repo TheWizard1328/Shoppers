@@ -1484,6 +1484,62 @@ class SmartRefreshManager {
     this.deletedDeliveryIds.clear();
     this.deletedPatientIds.clear();
   }
+  
+  /**
+   * CRITICAL: Check and restart offline sync if it failed to start
+   * Called periodically by the smart refresh cycle
+   */
+  async checkAndRestartOfflineSync() {
+    try {
+      const { offlineDB } = await import('./offlineDatabase');
+      const { performBackgroundSync, isOfflineSyncPaused } = await import('./offlineSync');
+      
+      // Don't restart if paused
+      if (isOfflineSyncPaused()) {
+        return { skipped: true, reason: 'paused' };
+      }
+      
+      // Get current offline DB stats
+      const stats = await offlineDB.getStats();
+      const deliveryCount = stats?.deliveries?.count || 0;
+      const patientCount = stats?.patients?.count || 0;
+      
+      console.log(`🔍 [SmartRefresh] Offline DB check - Deliveries: ${deliveryCount}, Patients: ${patientCount}`);
+      
+      // CRITICAL: If we have very few deliveries or patients, offline sync likely failed
+      // A healthy offline DB should have at least 50 deliveries from the last 30 days
+      const needsSync = deliveryCount < 50 || patientCount < 10;
+      
+      if (needsSync) {
+        console.log(`⚠️ [SmartRefresh] Offline DB appears incomplete - triggering background sync`);
+        
+        // Get selected date from global filters
+        const { globalFilters } = await import('./globalFilters');
+        const selectedDateStr = globalFilters.getSelectedDate() || new Date().toISOString().split('T')[0];
+        
+        // Trigger background sync (non-blocking)
+        performBackgroundSync(selectedDateStr).then(result => {
+          if (result.success) {
+            console.log(`✅ [SmartRefresh] Background sync completed successfully`);
+          } else if (result.skipped) {
+            console.log(`⏸️ [SmartRefresh] Background sync was skipped`);
+          } else if (result.error) {
+            console.warn(`⚠️ [SmartRefresh] Background sync failed: ${result.error}`);
+          }
+        }).catch(err => {
+          console.warn(`⚠️ [SmartRefresh] Background sync error: ${err.message}`);
+        });
+        
+        return { triggered: true, deliveryCount, patientCount };
+      }
+      
+      return { skipped: true, reason: 'sufficient_data', deliveryCount, patientCount };
+      
+    } catch (error) {
+      console.warn(`⚠️ [SmartRefresh] Error checking offline sync:`, error.message);
+      return { error: error.message };
+    }
+  }
 }
 
 export const smartRefreshManager = new SmartRefreshManager();
