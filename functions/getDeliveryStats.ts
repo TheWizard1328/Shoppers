@@ -290,11 +290,12 @@ Deno.serve(async (req) => {
     // TODAY'S STATS - Counts deliveries only (excludes pickups)
     // ===========================================
     
-    // Completed: Only completed deliveries (has patient_id) OR after-hours pickups (completed OR cancelled)
+    // Completed (Payable): Completed, failed, OR returned deliveries (has patient_id) OR after-hours pickups (completed OR cancelled)
+    // CRITICAL: Failed deliveries are PAID deliveries - they count toward the completed/payable total
     const todayCompleted = todayDeliveries.filter(d => {
       if (!d) return false;
-      // Patient deliveries - must be completed and not returns
-      if (d.patient_id) return isCompleted(d);
+      // Patient deliveries - completed, failed, or returned all count as payable
+      if (d.patient_id) return isCompleted(d) || isFailed(d) || isReturn(d);
       // After hours pickups - completed OR cancelled count as completed
       if (d.after_hours_pickup) return d.status === 'completed' || d.status === 'cancelled';
       return false;
