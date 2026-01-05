@@ -380,29 +380,6 @@ Deno.serve(async (req) => {
       storeDataByMonth[m] = Object.values(storeStatsByMonth[m]).sort((a, b) => a.sortOrder - b.sortOrder);
     }
     
-    // Build list of stores to show in the grid
-    // Show: all ACTIVE stores in city + any INACTIVE stores that have delivery data
-    const storeIdsInDeliveries = new Set(yearDeliveries.map(d => d?.store_id).filter(Boolean));
-    
-    let storesForGrid;
-    if (cityId) {
-      // Active stores in city + inactive stores with delivery data
-      const activeStoresInCity = cityStores.filter(s => s?.status !== 'inactive');
-      const inactiveStoresWithData = cityStores.filter(s => 
-        s?.status === 'inactive' && storeIdsInDeliveries.has(s.id)
-      );
-      storesForGrid = [...activeStoresInCity, ...inactiveStoresWithData]
-        .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
-    } else {
-      // No city filter - active stores + inactive stores with delivery data
-      const activeStores = allStores.filter(s => s?.status !== 'inactive');
-      const inactiveStoresWithData = allStores.filter(s => 
-        s?.status === 'inactive' && storeIdsInDeliveries.has(s.id)
-      );
-      storesForGrid = [...activeStores, ...inactiveStoresWithData]
-        .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
-    }
-    
     // Build monthly store data for the grid (deliveries per store per month + fees)
     const monthlyStoreData = {};
     const monthlyStoreFees = {};
