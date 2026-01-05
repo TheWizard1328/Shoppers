@@ -1317,8 +1317,14 @@ export default function Layout({ children, currentPageName }) {
 
         const activeDeliveryUpdates = await smartRefreshManager.refreshActiveDeliveryStatuses(deliveries, selectedDate, filters);
         if (activeDeliveryUpdates?.hasChanges) {
-          setDeliveries(activeDeliveryUpdates.deliveries);
+          // CRITICAL: Force new array reference to ensure React detects the change
+          setDeliveries([...activeDeliveryUpdates.deliveries]);
           if (!updatedEntities.includes('deliveries')) updatedEntities.push('deliveries');
+
+          // Dispatch event to notify Dashboard of delivery changes
+          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+            detail: { source: 'smartRefresh', count: activeDeliveryUpdates.deliveries.length }
+          }));
         }
 
         const storesUpdate = await smartRefreshManager.refreshStores(stores);
