@@ -2633,7 +2633,7 @@ export default function DeliveryMap({
                 pickup.isOtherDriver // NEW
               )}
               zIndexOffset={dynamicZIndex}
-              draggable={!pickup.useSimpleCircle && !pickup.isOtherDriver}
+              draggable={!pickup.useSimpleCircle && !pickup.isOtherDriver && isFanned}
               eventHandlers={pickup.isOtherDriver ? {
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
@@ -2649,7 +2649,11 @@ export default function DeliveryMap({
               } : {
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
-                  handleMarkerClickForFanning(pickup, 'pickup');
+                  if (isFanned && onMarkerClick) {
+                    onMarkerClick(pickup);
+                  } else {
+                    handleMarkerClickForFanning(pickup, 'pickup');
+                  }
                 },
                 mouseover: (e) => e.target.openPopup(),
                 mouseout: (e) => e.target.closePopup(),
@@ -2664,7 +2668,7 @@ export default function DeliveryMap({
               {/* Show popup for non-clustered markers or expanded cluster markers */}
               {!pickup.useSimpleCircle && !pickup.isOtherDriver && (
                 isClustered && !isFanned ? (
-                  // Clustered markers show unified popup with all marker info
+                  // Clustered markers show unified popup with all marker info and clickable stops
                   <Popup autoPan={true} autoPanPadding={[50, 50]} closeButton={false} offset={[0, -20]} className="custom-popup">
                     <div className="min-w-[200px] max-w-[300px] space-y-2">
                       <div className="font-semibold text-sm pb-1 border-b" style={{ color: 'var(--text-slate-900)', borderColor: 'var(--border-slate-200)' }}>
@@ -2677,13 +2681,32 @@ export default function DeliveryMap({
                         const allMarkersAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation]
                           .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
                         
+                        // Find first incomplete stop
+                        const firstIncomplete = allMarkersAtLocation.find(m => !FINISHED_STATUSES.includes(m.status));
+                        
                         return allMarkersAtLocation.map((m, idx) => {
                           const isFinished = FINISHED_STATUSES.includes(m.status);
                           const finishedTime = m.actual_delivery_time ? format(new Date(m.actual_delivery_time), 'HH:mm') : null;
+                          const isFirstIncomplete = m.id === firstIncomplete?.id;
                           
                           return (
-                            <div key={`cluster-item-${m.id}`} className="text-xs py-1 border-b last:border-0" style={{ borderColor: 'var(--border-slate-200)' }}>
-                              <div className="font-medium" style={{ color: 'var(--text-slate-900)' }}>
+                            <div 
+                              key={`cluster-item-${m.id}`} 
+                              className="text-xs py-1 border-b last:border-0 cursor-pointer hover:bg-slate-50 transition-colors px-1 -mx-1 rounded"
+                              style={{ borderColor: 'var(--border-slate-200)' }}
+                              onClick={() => {
+                                // CRITICAL: Close cluster popup immediately
+                                const popups = document.querySelectorAll('.leaflet-popup');
+                                popups.forEach(p => p.remove());
+                                
+                                // Center card for clicked stop
+                                const cardElement = document.getElementById(`stop-card-${m.id}`);
+                                if (cardElement) {
+                                  cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                                }
+                              }}
+                            >
+                              <div className="font-medium" style={{ color: isFirstIncomplete ? '#3B82F6' : 'var(--text-slate-900)' }}>
                                 #{m.number || m.stop_order} - {m.markerType === 'pickup' ? m.store?.name : m.patient?.full_name}
                               </div>
                               {isFinished && finishedTime ? (
@@ -2909,7 +2932,7 @@ export default function DeliveryMap({
                 delivery.isOtherDriver // NEW
               )}
               zIndexOffset={dynamicZIndex}
-              draggable={!delivery.useSimpleCircle && !delivery.isOtherDriver}
+              draggable={!delivery.useSimpleCircle && !delivery.isOtherDriver && isFanned}
               eventHandlers={delivery.isOtherDriver ? {
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
@@ -2925,7 +2948,11 @@ export default function DeliveryMap({
               } : {
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
-                  handleMarkerClickForFanning(delivery, 'delivery');
+                  if (isFanned && onMarkerClick) {
+                    onMarkerClick(delivery);
+                  } else {
+                    handleMarkerClickForFanning(delivery, 'delivery');
+                  }
                 },
                 mouseover: (e) => e.target.openPopup(),
                 mouseout: (e) => e.target.closePopup(),
@@ -2940,7 +2967,7 @@ export default function DeliveryMap({
               {/* Show popup for non-clustered markers or expanded cluster markers */}
               {!delivery.useSimpleCircle && !delivery.isOtherDriver && (
                 isClustered && !isFanned ? (
-                  // Clustered markers show unified popup with all marker info
+                  // Clustered markers show unified popup with all marker info and clickable stops
                   <Popup autoPan={true} autoPanPadding={[50, 50]} closeButton={false} offset={[0, -20]} className="custom-popup">
                     <div className="min-w-[200px] max-w-[300px] space-y-2">
                       <div className="font-semibold text-sm pb-1 border-b" style={{ color: 'var(--text-slate-900)', borderColor: 'var(--border-slate-200)' }}>
@@ -2953,13 +2980,32 @@ export default function DeliveryMap({
                         const allMarkersAtLocation = [...pickupsAtLocation, ...deliveriesAtLocation]
                           .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
                         
+                        // Find first incomplete stop
+                        const firstIncomplete = allMarkersAtLocation.find(m => !FINISHED_STATUSES.includes(m.status));
+                        
                         return allMarkersAtLocation.map((m, idx) => {
                           const isFinished = FINISHED_STATUSES.includes(m.status);
                           const finishedTime = m.actual_delivery_time ? format(new Date(m.actual_delivery_time), 'HH:mm') : null;
+                          const isFirstIncomplete = m.id === firstIncomplete?.id;
                           
                           return (
-                            <div key={`cluster-item-${m.id}`} className="text-xs py-1 border-b last:border-0" style={{ borderColor: 'var(--border-slate-200)' }}>
-                              <div className="font-medium" style={{ color: 'var(--text-slate-900)' }}>
+                            <div 
+                              key={`cluster-item-${m.id}`} 
+                              className="text-xs py-1 border-b last:border-0 cursor-pointer hover:bg-slate-50 transition-colors px-1 -mx-1 rounded"
+                              style={{ borderColor: 'var(--border-slate-200)' }}
+                              onClick={() => {
+                                // CRITICAL: Close cluster popup immediately
+                                const popups = document.querySelectorAll('.leaflet-popup');
+                                popups.forEach(p => p.remove());
+                                
+                                // Center card for clicked stop
+                                const cardElement = document.getElementById(`stop-card-${m.id}`);
+                                if (cardElement) {
+                                  cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                                }
+                              }}
+                            >
+                              <div className="font-medium" style={{ color: isFirstIncomplete ? '#3B82F6' : 'var(--text-slate-900)' }}>
                                 #{m.number || m.stop_order} - {m.markerType === 'pickup' ? m.store?.name : m.patient?.full_name}
                               </div>
                               {isFinished && finishedTime ? (
