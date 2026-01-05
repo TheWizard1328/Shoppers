@@ -103,6 +103,29 @@ Deno.serve(async (req) => {
 
     console.log(`📦 [getAdminMetrics] Loaded ${yearDeliveries.length} deliveries for ${year} (city: ${cityId || 'all'})`);
 
+    // Build list of stores to show in the grid
+    // Show: all ACTIVE stores in city + any INACTIVE stores that have delivery data
+    const storeIdsInDeliveries = new Set(yearDeliveries.map(d => d?.store_id).filter(Boolean));
+    
+    let storesForGrid;
+    if (cityId) {
+      // Active stores in city + inactive stores with delivery data
+      const activeStoresInCity = cityStores.filter(s => s?.status !== 'inactive');
+      const inactiveStoresWithData = cityStores.filter(s => 
+        s?.status === 'inactive' && storeIdsInDeliveries.has(s.id)
+      );
+      storesForGrid = [...activeStoresInCity, ...inactiveStoresWithData]
+        .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+    } else {
+      // No city filter - active stores + inactive stores with delivery data
+      const activeStores = allStores.filter(s => s?.status !== 'inactive');
+      const inactiveStoresWithData = allStores.filter(s => 
+        s?.status === 'inactive' && storeIdsInDeliveries.has(s.id)
+      );
+      storesForGrid = [...activeStores, ...inactiveStoresWithData]
+        .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+    }
+
     // Helper: Check if store was paying fees on date
     const wasPayingFeesOnDate = (store, dateStr) => {
       if (!store.app_fee_history || store.app_fee_history.length === 0) {
