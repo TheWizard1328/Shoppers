@@ -335,6 +335,15 @@ Deno.serve(async (req) => {
       storeDataByMonth[m] = Object.values(storeStatsByMonth[m]).sort((a, b) => a.sortOrder - b.sortOrder);
     }
     
+    // Get all unique store IDs from deliveries (this captures transferred deliveries too)
+    const storeIdsInDeliveries = new Set(yearDeliveries.map(d => d?.store_id).filter(Boolean));
+    
+    // Build list of stores to show in the grid (all stores that appear in deliveries)
+    const storesForGrid = Array.from(storeIdsInDeliveries)
+      .map(id => allStoresMap.get(id))
+      .filter(Boolean)
+      .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+    
     // Build monthly store data for the grid (deliveries per store per month + fees)
     const monthlyStoreData = {};
     const monthlyStoreFees = {};
@@ -347,7 +356,7 @@ Deno.serve(async (req) => {
       const monthEndDate = new Date(year, m, 0);
       const monthEnd = monthEndDate.toISOString().split('T')[0];
       
-      stores.forEach(store => {
+      storesForGrid.forEach(store => {
         if (!store) return;
         
         // Count completed deliveries for this store in this month
