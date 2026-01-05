@@ -91,7 +91,7 @@ export default function DualStatsMarquee({
         <div className="grid grid-cols-4 gap-1">
           <StatBadge
             icon={DollarSign}
-            value={performanceStats?.totalPay !== undefined ? `$${performanceStats.totalPay.toFixed(2)}` : '$0.00'}
+            value={performanceStats?.totalPay !== undefined ? `${performanceStats.totalPay.toFixed(2)}` : '$0.00'}
             color="green"
             label="Pay"
             tooltip={`Total Pay: $${performanceStats?.totalPay?.toFixed(2) || '0.00'}`}
