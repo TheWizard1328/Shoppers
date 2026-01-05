@@ -295,9 +295,11 @@ Deno.serve(async (req) => {
       
       const month = d.delivery_date ? parseInt(d.delivery_date.split('-')[1]) : null;
       
+      // Use allStoresMap for lookups
+      const store = allStoresMap.get(d.store_id);
+      
       // Year total
       if (!storeStats[d.store_id]) {
-        const store = stores.find(s => s?.id === d.store_id);
         storeStats[d.store_id] = {
           name: store?.name || 'Unknown',
           abbreviation: store?.abbreviation || '',
@@ -312,7 +314,6 @@ Deno.serve(async (req) => {
       // By month
       if (month && month >= 1 && month <= 12) {
         if (!storeStatsByMonth[month][d.store_id]) {
-          const store = stores.find(s => s?.id === d.store_id);
           storeStatsByMonth[month][d.store_id] = {
             name: store?.name || 'Unknown',
             abbreviation: store?.abbreviation || '',
