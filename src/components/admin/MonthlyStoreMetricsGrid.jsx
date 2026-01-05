@@ -1,0 +1,221 @@
+import React, { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Table, DollarSign } from 'lucide-react';
+
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/**
+ * Monthly Store Metrics Grid
+ * Shows either:
+ * 1. Total deliveries per store per month
+ * 2. Total payable app fees per store per month
+ */
+export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear }) {
+  const [viewMode, setViewMode] = useState('deliveries'); // 'deliveries' or 'fees'
+  
+  if (!metricsData) return null;
+  
+  const stores = metricsData.storeData || [];
+  const monthlyStoreData = metricsData.monthlyStoreData || {};
+  const monthlyStoreFees = metricsData.monthlyStoreFees || {};
+  
+  // Calculate totals and averages per store (yearly)
+  const calculateStoreTotals = () => {
+    const totals = {};
+    const counts = {};
+    
+    stores.forEach(store => {
+      totals[store.abbreviation] = 0;
+      counts[store.abbreviation] = 0;
+    });
+    
+    // Sum up all months
+    for (let month = 1; month <= 12; month++) {
+      const monthData = monthlyStoreData[month] || [];
+      monthData.forEach(storeData => {
+        if (totals[storeData.abbreviation] !== undefined) {
+          const value = viewMode === 'deliveries' ? storeData.completed : (storeData.fees || 0);
+          totals[storeData.abbreviation] += value;
+          if (value > 0) counts[storeData.abbreviation]++;
+        }
+      });
+    }
+    
+    return { totals, counts };
+  };
+  
+  const { totals, counts } = calculateStoreTotals();
+  
+  // Get grand total
+  const grandTotal = Object.values(totals).reduce((sum, val) => sum + val, 0);
+  
+  // Calculate monthly totals (row totals)
+  const getMonthTotal = (month) => {
+    const monthData = monthlyStoreData[month] || [];
+    return monthData.reduce((sum, store) => {
+      return sum + (viewMode === 'deliveries' ? store.completed : (store.fees || 0));
+    }, 0);
+  };
+  
+  // Get value for a specific store and month
+  const getValue = (storeAbbr, month) => {
+    const monthData = monthlyStoreData[month] || [];
+    const storeData = monthData.find(s => s.abbreviation === storeAbbr);
+    if (!storeData) return null;
+    return viewMode === 'deliveries' ? storeData.completed : (storeData.fees || 0);
+  };
+  
+  // Format value based on view mode
+  const formatValue = (value) => {
+    if (value === null || value === undefined || value === 0) return '';
+    if (viewMode === 'fees') {
+      return `$${value.toFixed(2)}`;
+    }
+    return value.toLocaleString();
+  };
+  
+  // Get store color for header
+  const getStoreColor = (store) => {
+    return store.color || '#64748b';
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-base">
+            {viewMode === 'deliveries' ? (
+              <Table className="w-5 h-5" />
+            ) : (
+              <DollarSign className="w-5 h-5" />
+            )}
+            Monthly Store {viewMode === 'deliveries' ? 'Deliveries' : 'App Fees'} ({selectedYear})
+          </CardTitle>
+          <div className="flex gap-1">
+            <Button
+              size="sm"
+              variant={viewMode === 'deliveries' ? 'default' : 'outline'}
+              onClick={() => setViewMode('deliveries')}
+              className="text-xs h-7 px-2"
+            >
+              Deliveries
+            </Button>
+            <Button
+              size="sm"
+              variant={viewMode === 'fees' ? 'default' : 'outline'}
+              onClick={() => setViewMode('fees')}
+              className="text-xs h-7 px-2"
+            >
+              App Fees
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b bg-slate-50">
+                <th className="text-left p-2 font-medium text-slate-600 sticky left-0 bg-slate-50 z-10">Mon</th>
+                {stores.map(store => (
+                  <th 
+                    key={store.abbreviation} 
+                    className="text-center p-2 font-bold min-w-[50px]"
+                    style={{ color: getStoreColor(store) }}
+                    title={store.name}
+                  >
+                    {store.abbreviation}
+                  </th>
+                ))}
+                <th className="text-center p-2 font-bold text-slate-900 border-l-2 border-purple-300 min-w-[60px]">Tot</th>
+              </tr>
+            </thead>
+            <tbody>
+              {MONTH_NAMES.map((monthName, idx) => {
+                const month = idx + 1;
+                const monthTotal = getMonthTotal(month);
+                return (
+                  <tr key={month} className="border-b hover:bg-slate-50">
+                    <td className="p-2 font-medium text-slate-600 sticky left-0 bg-white z-10">{monthName}</td>
+                    {stores.map(store => {
+                      const value = getValue(store.abbreviation, month);
+                      return (
+                        <td 
+                          key={store.abbreviation} 
+                          className="text-center p-2 tabular-nums"
+                          style={{ color: value > 0 ? getStoreColor(store) : '#94a3b8' }}
+                        >
+                          {formatValue(value)}
+                        </td>
+                      );
+                    })}
+                    <td className="text-center p-2 font-semibold text-slate-900 border-l-2 border-purple-300 tabular-nums">
+                      {formatValue(monthTotal)}
+                    </td>
+                  </tr>
+                );
+              })}
+              {/* Totals Row */}
+              <tr className="border-t-2 border-slate-300 bg-slate-100 font-semibold">
+                <td className="p-2 text-slate-700 sticky left-0 bg-slate-100 z-10">Tot</td>
+                {stores.map(store => (
+                  <td 
+                    key={store.abbreviation} 
+                    className="text-center p-2 tabular-nums"
+                    style={{ color: getStoreColor(store) }}
+                  >
+                    {formatValue(totals[store.abbreviation])}
+                  </td>
+                ))}
+                <td className="text-center p-2 font-bold text-slate-900 border-l-2 border-purple-300 tabular-nums">
+                  {formatValue(grandTotal)}
+                </td>
+              </tr>
+              {/* Average Row */}
+              <tr className="bg-slate-50">
+                <td className="p-2 text-slate-600 sticky left-0 bg-slate-50 z-10">AVG</td>
+                {stores.map(store => {
+                  const avg = counts[store.abbreviation] > 0 
+                    ? totals[store.abbreviation] / 12 
+                    : 0;
+                  return (
+                    <td 
+                      key={store.abbreviation} 
+                      className="text-center p-2 tabular-nums text-slate-600"
+                    >
+                      {avg > 0 ? formatValue(Math.round(avg)) : ''}
+                    </td>
+                  );
+                })}
+                <td className="text-center p-2 font-semibold text-slate-700 border-l-2 border-purple-300 tabular-nums">
+                  {formatValue(Math.round(grandTotal / 12))}
+                </td>
+              </tr>
+              {/* Percentage Row (only for fees view) */}
+              {viewMode === 'fees' && grandTotal > 0 && (
+                <tr className="bg-slate-50 border-t">
+                  <td className="p-2 text-slate-600 sticky left-0 bg-slate-50 z-10">%</td>
+                  {stores.map(store => {
+                    const pct = grandTotal > 0 
+                      ? (totals[store.abbreviation] / grandTotal) * 100 
+                      : 0;
+                    return (
+                      <td 
+                        key={store.abbreviation} 
+                        className="text-center p-2 tabular-nums text-slate-500"
+                      >
+                        {pct > 0 ? `${pct.toFixed(0)}%` : ''}
+                      </td>
+                    );
+                  })}
+                  <td className="text-center p-2 text-slate-500 border-l-2 border-purple-300">100%</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
