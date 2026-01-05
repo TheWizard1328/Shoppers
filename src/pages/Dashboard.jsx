@@ -6202,7 +6202,7 @@ function Dashboard() {
               if (retractClustersRef.current) {
                 retractClustersRef.current();
               }
-            }} className="px-2 py-0.5 rounded-2xl shadow-xl border min-w-[340px] cursor-pointer" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', pointerEvents: 'auto', touchAction: 'manipulation', position: 'relative' }}>
+            }} className="px-2 py-0.5 rounded-2xl shadow-xl border min-w-[345px] cursor-pointer" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', pointerEvents: 'auto', touchAction: 'manipulation', position: 'relative' }}>
 
 
             
