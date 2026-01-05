@@ -335,14 +335,21 @@ Deno.serve(async (req) => {
       storeDataByMonth[m] = Object.values(storeStatsByMonth[m]).sort((a, b) => a.sortOrder - b.sortOrder);
     }
     
-    // Get all unique store IDs from deliveries (this captures transferred deliveries too)
-    const storeIdsInDeliveries = new Set(yearDeliveries.map(d => d?.store_id).filter(Boolean));
-    
-    // Build list of stores to show in the grid (all stores that appear in deliveries)
-    const storesForGrid = Array.from(storeIdsInDeliveries)
-      .map(id => allStoresMap.get(id))
-      .filter(Boolean)
-      .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+    // Build list of stores to show in the grid
+    // If city filter is applied, show ALL stores in that city (even those with 0 deliveries)
+    // If no city filter, show all stores that appear in deliveries
+    let storesForGrid;
+    if (cityId) {
+      // Show all stores in the selected city
+      storesForGrid = cityStores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+    } else {
+      // No city filter - show stores that appear in deliveries
+      const storeIdsInDeliveries = new Set(yearDeliveries.map(d => d?.store_id).filter(Boolean));
+      storesForGrid = Array.from(storeIdsInDeliveries)
+        .map(id => allStoresMap.get(id))
+        .filter(Boolean)
+        .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+    }
     
     // Build monthly store data for the grid (deliveries per store per month + fees)
     const monthlyStoreData = {};
