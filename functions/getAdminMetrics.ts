@@ -291,28 +291,26 @@ Deno.serve(async (req) => {
       storeStatsByMonth[m] = {};
     }
 
-    // Pre-populate with all city stores (ensures all stores appear even with 0 deliveries)
-    if (cityId) {
-      cityStores.forEach(store => {
-        if (!store?.id) return;
-        storeStats[store.id] = {
+    // Pre-populate with storesForGrid (active stores + inactive stores with data)
+    storesForGrid.forEach(store => {
+      if (!store?.id) return;
+      storeStats[store.id] = {
+        name: store.name || 'Unknown',
+        abbreviation: store.abbreviation || '',
+        sortOrder: store.sort_order ?? Infinity,
+        completed: 0,
+        failed: 0
+      };
+      for (let m = 1; m <= 12; m++) {
+        storeStatsByMonth[m][store.id] = {
           name: store.name || 'Unknown',
           abbreviation: store.abbreviation || '',
           sortOrder: store.sort_order ?? Infinity,
           completed: 0,
           failed: 0
         };
-        for (let m = 1; m <= 12; m++) {
-          storeStatsByMonth[m][store.id] = {
-            name: store.name || 'Unknown',
-            abbreviation: store.abbreviation || '',
-            sortOrder: store.sort_order ?? Infinity,
-            completed: 0,
-            failed: 0
-          };
-        }
-      });
-    }
+      }
+    });
 
     yearDeliveries.forEach(d => {
       if (!d.store_id || !d.patient_id) return;
