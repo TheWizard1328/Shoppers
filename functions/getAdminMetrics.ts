@@ -313,6 +313,52 @@ Deno.serve(async (req) => {
     for (let m = 1; m <= 12; m++) {
       storeDataByMonth[m] = Object.values(storeStatsByMonth[m]).sort((a, b) => a.sortOrder - b.sortOrder);
     }
+    
+    // Build monthly store data for the grid (deliveries per store per month + fees)
+    const monthlyStoreData = {};
+    const monthlyStoreFees = {};
+    
+    for (let m = 1; m <= 12; m++) {
+      monthlyStoreData[m] = [];
+      monthlyStoreFees[m] = [];
+      
+      const monthStart = `${year}-${String(m).padStart(2, '0')}-01`;
+      const monthEndDate = new Date(year, m, 0);
+      const monthEnd = monthEndDate.toISOString().split('T')[0];
+      
+      stores.forEach(store => {
+        if (!store) return;
+        
+        // Count completed deliveries for this store in this month
+        const storeMonthDeliveries = yearDeliveries.filter(d => 
+          d?.store_id === store.id && 
+          d?.patient_id && 
+          d?.delivery_date >= monthStart && 
+          d?.delivery_date <= monthEnd &&
+          d?.status === 'completed'
+        );
+        
+        // Calculate fees for billable deliveries where store was paying fees
+        let storeFees = 0;
+        storeMonthDeliveries.forEach(d => {
+          if (isBillable(d) && wasPayingFeesOnDate(store, d.delivery_date)) {
+            storeFees += appFeeRate;
+          }
+        });
+        
+        monthlyStoreData[m].push({
+          name: store.name || 'Unknown',
+          abbreviation: store.abbreviation || '',
+          color: store.color || '#64748b',
+          sortOrder: store.sort_order ?? Infinity,
+          completed: storeMonthDeliveries.length,
+          fees: storeFees
+        });
+      });
+      
+      // Sort by sort_order
+      monthlyStoreData[m].sort((a, b) => a.sortOrder - b.sortOrder);
+    }
 
     // Year totals - billable vs non-billable
     let yearBillable = 0;
