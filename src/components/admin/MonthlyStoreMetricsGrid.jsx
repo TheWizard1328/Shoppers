@@ -16,9 +16,20 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear }) {
   
   if (!metricsData) return null;
   
-  const stores = metricsData.storeData || [];
   const monthlyStoreData = metricsData.monthlyStoreData || {};
   const monthlyStoreFees = metricsData.monthlyStoreFees || {};
+  
+  // Build stores list from monthlyStoreData (all unique stores across all months)
+  const storeMap = new Map();
+  for (let month = 1; month <= 12; month++) {
+    const monthData = monthlyStoreData[month] || [];
+    monthData.forEach(store => {
+      if (store.abbreviation && !storeMap.has(store.abbreviation)) {
+        storeMap.set(store.abbreviation, store);
+      }
+    });
+  }
+  const stores = Array.from(storeMap.values()).sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity));
   
   // Calculate totals and averages per store (yearly)
   const calculateStoreTotals = () => {
