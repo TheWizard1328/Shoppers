@@ -244,7 +244,8 @@ Deno.serve(async (req) => {
       const driver = drivers.find(dr => dr?.user_id === d.driver_id);
       const driverName = driver?.user_name || d.driver_name || 'Unknown';
       
-      const store = stores.find(s => s?.id === d.store_id);
+      // Use allStoresMap for lookups
+      const store = allStoresMap.get(d.store_id);
       const isBillableDelivery = isBillable(d) && store && wasPayingFeesOnDate(store, d.delivery_date);
       
       // Year total
