@@ -13,7 +13,7 @@ export default function ConflictResolutionDialog({ conflicts, onResolve, onClose
   const hasMore = currentIndex < conflicts.length - 1;
   
   const handleResolve = (resolution) => {
-    onResolve(conflict.action.id, resolution);
+    onResolve(conflict.id || conflict.action?.id, resolution);
     
     if (hasMore) {
       setCurrentIndex(prev => prev + 1);
@@ -30,14 +30,14 @@ export default function ConflictResolutionDialog({ conflicts, onResolve, onClose
   };
   
   const getChangedFields = () => {
-    const clientData = conflict.action.data || {};
-    const serverData = conflict.serverData || {};
+    const clientData = conflict.localRecord || conflict.action?.data || {};
+    const serverData = conflict.serverRecord || conflict.serverData || {};
     
     const allKeys = new Set([...Object.keys(clientData), ...Object.keys(serverData)]);
     const changes = [];
     
     allKeys.forEach(key => {
-      if (key.startsWith('_')) return; // Skip internal fields
+      if (key.startsWith('_') || key === 'id' || key === 'created_date' || key === 'updated_date') return; // Skip internal fields
       
       const clientValue = clientData[key];
       const serverValue = serverData[key];
@@ -86,7 +86,7 @@ export default function ConflictResolutionDialog({ conflicts, onResolve, onClose
               <div className="space-y-2 text-sm">
                 <div className="flex items-center gap-2 text-slate-600">
                   <Clock className="w-3 h-3" />
-                  <span>{format(new Date(conflict.action.timestamp), 'MMM dd, HH:mm:ss')}</span>
+                  <span>{conflict.timestamp ? format(new Date(conflict.timestamp), 'MMM dd, HH:mm:ss') : format(new Date(conflict.action?.timestamp), 'MMM dd, HH:mm:ss')}</span>
                 </div>
               </div>
             </div>
@@ -144,14 +144,20 @@ export default function ConflictResolutionDialog({ conflicts, onResolve, onClose
             className="gap-2"
           >
             <Database className="w-4 h-4" />
-            Keep Server Version
+            Keep Server
           </Button>
           <Button
-            onClick={() => handleResolve('client')}
+            onClick={() => handleResolve('merge')}
+            className="gap-2 bg-purple-600 hover:bg-purple-700"
+          >
+            Merge Fields
+          </Button>
+          <Button
+            onClick={() => handleResolve('local')}
             className="gap-2 bg-blue-600 hover:bg-blue-700"
           >
             <Smartphone className="w-4 h-4" />
-            Keep My Changes
+            Keep Mine
           </Button>
         </DialogFooter>
       </DialogContent>

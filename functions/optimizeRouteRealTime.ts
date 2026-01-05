@@ -274,6 +274,9 @@ Deno.serve(async (req) => {
     }
 
     console.log(`🔄 [optimizeRouteRealTime] Optimizing route for driver ${driverId} on ${deliveryDate}`);
+    
+    // CRITICAL: Resilience - check network before API call, use fallback if offline
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
     console.log('📍 [optimizeRouteRealTime] Determining starting location...');
     const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
@@ -843,34 +846,78 @@ Deno.serve(async (req) => {
         `traffic_model=best_guess&` +
         `key=${googleMapsKey}`;
 
-      const directionsResponse = await fetch(directionsUrl);
-      const directionsData = await directionsResponse.json();
-
-      // Increment API counter
-      const updatedPolylineRecord = await base44.asServiceRole.entities.DriverRoutePolyline.update(polylineRecord.id, {
-        daily_generation_count: (polylineRecord.daily_generation_count || 0) + 1,
-        last_generated_at: new Date().toISOString()
-      });
-      polylineRecord = updatedPolylineRecord;
-
-      if (directionsData.status !== 'OK') {
-        console.error('❌ [optimizeRouteRealTime] Google Directions API failed:', directionsData.status, directionsData.error_message);
-        return Response.json({ 
-          error: 'Failed to get directions',
-          status: directionsData.status,
-          message: directionsData.error_message
-        }, { status: 500 });
+      // CRITICAL: Retry with exponential backoff for resilience
+      let directionsData = null;
+      let retries = 3;
+      
+      for (let attempt = 0; attempt < retries; attempt++) {
+        try {
+          if (attempt > 0) {
+            const backoff = Math.min(1000 * Math.pow(2, attempt), 5000);
+            console.log(`   ⏳ Retry ${attempt} after ${backoff}ms...`);
+            await new Promise(r => setTimeout(r, backoff));
+          }
+          
+          const directionsResponse = await fetch(directionsUrl, { signal: AbortSignal.timeout(15000) });
+          directionsData = await directionsResponse.json();
+          
+          if (directionsData.status === 'OK') {
+            console.log(`   ✅ Directions API succeeded on attempt ${attempt + 1}`);
+            break;
+          } else if (directionsData.status === 'OVER_QUERY_LIMIT') {
+            console.warn(`   ⚠️ API quota exceeded on attempt ${attempt + 1}`);
+            if (attempt < retries - 1) continue;
+          } else {
+            console.error(`   ❌ Directions API error: ${directionsData.status}`);
+            break;
+          }
+        } catch (fetchError) {
+          console.error(`   ❌ Attempt ${attempt + 1} failed:`, fetchError.message);
+          if (attempt === retries - 1) {
+            // All retries failed - use crow-flies fallback
+            console.warn('   ⚠️ All retries failed - using crow-flies fallback');
+            directionsData = null;
+          }
+        }
       }
 
-      // Extract legs - each leg is the travel between consecutive waypoints
-      // legs[0] = origin to first waypoint (or destination if no waypoints)
-      // legs[1] = first waypoint to second waypoint, etc.
-      directionsLegs = directionsData.routes[0].legs.map(leg => ({
-        duration: leg.duration_in_traffic?.value || leg.duration?.value || 0,
-        distance: leg.distance?.value || 0
-      }));
+      // Increment API counter only if API call was successful
+      if (directionsData) {
+        const updatedPolylineRecord = await base44.asServiceRole.entities.DriverRoutePolyline.update(polylineRecord.id, {
+          daily_generation_count: (polylineRecord.daily_generation_count || 0) + 1,
+          last_generated_at: new Date().toISOString()
+        });
+        polylineRecord = updatedPolylineRecord;
+      }
+
+      if (!directionsData || directionsData.status !== 'OK') {
+        console.warn('⚠️ [optimizeRouteRealTime] Using crow-flies fallback for travel times');
+        
+        // Fallback: Calculate crow-flies distance for each leg
+        directionsLegs = [];
+        let prevPos = isNextDeliveryStopData || driverLocation;
+        
+        for (const coord of finalRouteCoords) {
+          const distKm = calculateCrowFliesDistance(prevPos.lat, prevPos.lng, coord.lat, coord.lng);
+          const durationSeconds = Math.ceil((distKm / 40) * 60 * 60 * 1.3); // ~40 km/h + 30% buffer
+          directionsLegs.push({
+            duration: durationSeconds,
+            distance: distKm * 1000
+          });
+          prevPos = coord;
+        }
+        
+        console.log(`✅ [optimizeRouteRealTime] Using crow-flies fallback: ${directionsLegs.length} legs`);
+      } else {
+        // Extract legs from successful API response
+        directionsLegs = directionsData.routes[0].legs.map(leg => ({
+          duration: leg.duration_in_traffic?.value || leg.duration?.value || 0,
+          distance: leg.distance?.value || 0
+        }));
+        
+        console.log(`✅ [optimizeRouteRealTime] Directions API returned ${directionsLegs.length} legs`);
+      }
       
-      console.log(`✅ [optimizeRouteRealTime] Directions API returned ${directionsLegs.length} legs`);
       directionsLegs.forEach((leg, i) => {
         console.log(`   Leg ${i+1}: ${Math.ceil(leg.duration/60)} min, ${(leg.distance/1000).toFixed(1)} km`);
       });

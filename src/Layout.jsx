@@ -92,6 +92,7 @@ import { performInitialSync, processPendingMutations } from './components/utils/
 import OfflineSyncIndicator from './components/layout/OfflineSyncIndicator';
 import { subscribeMutations } from './components/utils/entityMutations';
 import { realtimeSync, subscribeToRealtime } from './components/utils/realtimeSync';
+import ConflictManager from './components/dashboard/ConflictManager';
 
 // App version will be loaded from AppSettings
 const DEFAULT_APP_VERSION = 'v1.0.0';
@@ -943,6 +944,21 @@ export default function Layout({ children, currentPageName }) {
       };
       window.addEventListener('offlineSyncComplete', handleSyncComplete);
 
+      // Listen for conflict events and show resolution UI
+      const handleConflict = async (event) => {
+        const { conflicts } = event.detail || {};
+        if (!conflicts || conflicts.length === 0) return;
+
+        // Import conflict resolver dynamically
+        const { getPendingConflicts, resolveConflictManually } = await import('./components/utils/offlineConflictResolver');
+        const { default: ConflictResolutionDialog } = await import('./components/offline/ConflictResolutionDialog');
+
+        // Show conflict resolution dialog
+        // This will be handled by a global conflict manager
+        console.log(`⚠️ [Layout] ${conflicts.length} conflicts detected`);
+      };
+      window.addEventListener('dataConflictsDetected', handleConflict);
+
       // Listen for offline deletions and update UI immediately
       const handleOfflineDeliveriesDeleted = (event) => {
         const { deletedIds } = event.detail || {};
@@ -1075,6 +1091,7 @@ export default function Layout({ children, currentPageName }) {
         window.removeEventListener('deliveriesImported', handleDeliveriesImported);
         window.removeEventListener('offlineDeliveriesDeleted', handleOfflineDeliveriesDeleted);
         window.removeEventListener('deliveriesUpdated', handleDeliveriesUpdated);
+        window.removeEventListener('dataConflictsDetected', handleConflict);
       };
       }, [currentUser]);
 
@@ -2540,6 +2557,9 @@ export default function Layout({ children, currentPageName }) {
                       onUnreadCountChange={setUnreadMessageCount}
                     />
                   )}
+
+                  {/* Global Conflict Manager */}
+                  <ConflictManager />
                   
                   {/* Message Notification Balloon */}
                   {currentUser && !showMessaging && (

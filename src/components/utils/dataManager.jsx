@@ -541,37 +541,32 @@ const loadBackgroundDeliveries = async (selectedDateStr, filters, onComplete, in
   // Wait before loading historical
   await new Promise(r => setTimeout(r, 2000));
   
-  console.log(`📡 [DataManager] Background: loading past 14 days...`);
+  console.log(`📡 [DataManager] Background: loading past 30 days (7 days at a time)...`);
   
-  // Load past 14 days (7 days at a time)
-  // Days 1-7
-  try {
-    const chunk1 = await getDeliveriesForDateRange(
-      format(subDays(today, 7), 'yyyy-MM-dd'),
-      format(subDays(today, 1), 'yyyy-MM-dd'),
-      filters,
-      false
-    );
-    chunk1.forEach(d => deliveryMap.set(d.id, d));
-    onComplete(Array.from(deliveryMap.values()));
-  } catch (e) {
-    console.warn('   ⚠️ Days 1-7 failed:', e.message);
-  }
+  const chunks = [
+    { start: 1, end: 7, label: 'Days 1-7' },
+    { start: 8, end: 14, label: 'Days 8-14' },
+    { start: 15, end: 21, label: 'Days 15-21' },
+    { start: 22, end: 30, label: 'Days 22-30' }
+  ];
   
-  await new Promise(r => setTimeout(r, 1000));
-  
-  // Days 8-14
-  try {
-    const chunk2 = await getDeliveriesForDateRange(
-      format(subDays(today, 14), 'yyyy-MM-dd'),
-      format(subDays(today, 8), 'yyyy-MM-dd'),
-      filters,
-      false
-    );
-    chunk2.forEach(d => deliveryMap.set(d.id, d));
-    onComplete(Array.from(deliveryMap.values()));
-  } catch (e) {
-    console.warn('   ⚠️ Days 8-14 failed:', e.message);
+  for (const chunk of chunks) {
+    try {
+      const chunkDeliveries = await getDeliveriesForDateRange(
+        format(subDays(today, chunk.end), 'yyyy-MM-dd'),
+        format(subDays(today, chunk.start), 'yyyy-MM-dd'),
+        filters,
+        false
+      );
+      chunkDeliveries.forEach(d => deliveryMap.set(d.id, d));
+      onComplete(Array.from(deliveryMap.values()));
+      console.log(`   ✅ ${chunk.label}: ${chunkDeliveries.length} deliveries`);
+      
+      // 1 second cooldown between chunks
+      await new Promise(r => setTimeout(r, 1000));
+    } catch (e) {
+      console.warn(`   ⚠️ ${chunk.label} failed:`, e.message);
+    }
   }
   
   console.log(`✅ [DataManager] Background complete: ${deliveryMap.size} total deliveries`);

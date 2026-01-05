@@ -90,12 +90,21 @@ const resolveLastWriteWins = (localRecord, serverRecord) => {
 const resolveFieldLevelMerge = (localRecord, serverRecord) => {
   const merged = { ...serverRecord }; // Start with server as base
   
-  // Critical fields that should always use local version if modified
-  const criticalFields = ['status', 'actual_delivery_time', 'delivery_notes', 'cod_payments', 'stop_order'];
+  // Critical fields that should always use local version if modified (driver-updated fields)
+  const criticalFields = [
+    'status', 
+    'actual_delivery_time', 
+    'delivery_notes', 
+    'cod_payments', 
+    'stop_order',
+    'delivery_time_eta',
+    'isNextDelivery'
+  ];
   
   criticalFields.forEach(field => {
-    if (localRecord[field] !== undefined && localRecord[field] !== serverRecord[field]) {
+    if (localRecord[field] !== undefined && JSON.stringify(localRecord[field]) !== JSON.stringify(serverRecord[field])) {
       merged[field] = localRecord[field];
+      console.log(`   🔀 Merged field: ${field} (using local value)`);
     }
   });
   
@@ -109,7 +118,7 @@ export const syncRecordWithConflictResolution = async (
   entityName, 
   recordId, 
   localRecord, 
-  strategy = 'last_write_wins'
+  strategy = 'field_merge' // Default to field-level merge
 ) => {
   try {
     console.log(`🔄 [ConflictResolver] Syncing ${entityName} ${recordId}...`);
@@ -142,11 +151,13 @@ export const syncRecordWithConflictResolution = async (
     if (strategy === 'last_write_wins') {
       resolution = resolveLastWriteWins(localRecord, conflictCheck.serverRecord);
     } else if (strategy === 'field_merge') {
+      // Auto-apply field merge for most cases
       resolution = resolveFieldLevelMerge(localRecord, conflictCheck.serverRecord);
-    } else {
-      // Prompt user - queue conflict
+      console.log(`   🔀 Auto-applying field-level merge`);
+    } else if (strategy === 'prompt_user') {
+      // Queue for user resolution
       const conflict = {
-        id: `conflict_${Date.now()}`,
+        id: `conflict_${Date.now()}_${recordId}`,
         entityName,
         recordId,
         localRecord,
@@ -157,7 +168,15 @@ export const syncRecordWithConflictResolution = async (
       pendingConflicts.push(conflict);
       notifyConflictListeners(conflict);
       
+      // Dispatch global event for UI
+      window.dispatchEvent(new CustomEvent('dataConflictsDetected', {
+        detail: { conflicts: [conflict] }
+      }));
+      
       return { success: false, conflict: true, requiresUserInput: true, conflictId: conflict.id };
+    } else {
+      // Default to field merge
+      resolution = resolveFieldLevelMerge(localRecord, conflictCheck.serverRecord);
     }
     
     // Apply resolution
@@ -206,10 +225,28 @@ export const resolveConflictManually = async (conflictId, choice) => {
   
   try {
     const Entity = conflict.entityName === 'Patient' ? base44.entities.Patient : base44.entities.Delivery;
-    const dataToUse = choice === 'local' ? conflict.localRecord : conflict.serverRecord;
+    let dataToUse;
     
     if (choice === 'local') {
-      // Apply local changes
+      dataToUse = conflict.localRecord;
+    } else if (choice === 'server') {
+      dataToUse = conflict.serverRecord;
+    } else if (choice === 'merge') {
+      // Field-level merge: Start with server, overlay local changes for critical fields
+      dataToUse = { ...conflict.serverRecord };
+      const criticalFields = ['status', 'actual_delivery_time', 'delivery_notes', 'cod_payments', 'stop_order', 'delivery_time_eta'];
+      
+      criticalFields.forEach(field => {
+        if (conflict.localRecord[field] !== undefined && conflict.localRecord[field] !== conflict.serverRecord[field]) {
+          dataToUse[field] = conflict.localRecord[field];
+        }
+      });
+    } else {
+      dataToUse = conflict.serverRecord; // Default to server
+    }
+    
+    if (choice === 'local' || choice === 'merge') {
+      // Apply changes to server
       const cleanRecord = { ...dataToUse };
       delete cleanRecord.id;
       delete cleanRecord.created_date;
