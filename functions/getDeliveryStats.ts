@@ -30,7 +30,13 @@ Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
     
     // Get authenticated user
-    const user = await base44.auth.me();
+    let user;
+    try {
+      user = await base44.auth.me();
+    } catch (authError) {
+      console.error('❌ Auth error:', authError.message);
+      return Response.json({ error: 'Authentication failed: ' + authError.message }, { status: 401 });
+    }
     
     if (!user) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
@@ -686,10 +692,20 @@ Deno.serve(async (req) => {
     return Response.json(response);
   } catch (error) {
     console.error('❌❌❌ CRITICAL ERROR in getDeliveryStats:', error);
+    console.error('Error type:', error.constructor?.name);
+    console.error('Error message:', error.message);
     console.error('Stack trace:', error.stack);
+    
+    // Return detailed error for debugging
     return Response.json({ 
-      error: error.message || 'Unknown error',
-      details: error.stack?.split('\n').slice(0, 3).join(' | ')
-    }, { status: 500 });
+      error: error.message || 'Unknown error occurred',
+      errorType: error.constructor?.name || 'Error',
+      details: error.stack?.split('\n').slice(0, 5).join('\n')
+    }, { 
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
   }
 });
