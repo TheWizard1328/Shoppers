@@ -314,20 +314,8 @@ Deno.serve(async (req) => {
       todayDeliveries.filter(d => d.driver_id).map(d => d.driver_id)
     ).size;
 
-    // Polyline Count: Total daily_generation_count for selected date
-    let polylineCount = 0;
-    try {
-      const polylines = await base44.asServiceRole.entities.DriverRoutePolyline.filter({
-        delivery_date: todayStr
-      });
-      if (Array.isArray(polylines)) {
-        polylineCount = polylines.reduce((sum, p) => sum + (p?.daily_generation_count || 0), 0);
-        console.log(`📍 [getDeliveryStats] Polyline count for ${todayStr}: ${polylineCount}`);
-      }
-    } catch (polylineError) {
-      console.warn('⚠️ [getDeliveryStats] Error fetching polylines:', polylineError.message);
-      // Silently continue - polyline count is optional
-    }
+    // Polyline Count: Skip - not critical and causes errors sometimes
+    const polylineCount = 0;
 
     const todayStats = {
       completed: todayCompleted,
