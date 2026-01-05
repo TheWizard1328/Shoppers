@@ -72,6 +72,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
       color: "", // This field was removed from the outline, but keeping it in defaultData and `store` merge for robustness.
       dispatcher_name: "",
       dispatcher_id: null,
+      status: "active",
       // Weekday fields
       weekday_am_start: "09:00",
       weekday_am_end: "12:00",
