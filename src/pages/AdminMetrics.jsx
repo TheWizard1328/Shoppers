@@ -187,6 +187,17 @@ export default function AdminMetrics() {
             </h1>
           </div>
           <div className="flex items-center gap-3">
+            <Select value={selectedCityId} onValueChange={handleCityChange}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="All Cities" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Cities</SelectItem>
+                {cities.map(city => (
+                  <SelectItem key={city.id} value={city.id}>{city.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={selectedYear} onValueChange={handleYearChange}>
               <SelectTrigger className="w-28">
                 <SelectValue />
@@ -197,7 +208,7 @@ export default function AdminMetrics() {
                 ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" onClick={() => fetchMetrics(selectedYear, false)} disabled={isFetching}>
+            <Button variant="outline" onClick={() => fetchMetrics(selectedYear, selectedCityId, false)} disabled={isFetching}>
               <RefreshCw className={`w-4 h-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
