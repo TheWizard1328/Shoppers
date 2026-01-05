@@ -436,7 +436,7 @@ Deno.serve(async (req) => {
       storeFeeTotals: {
         total_fees_owed: yearTotalFees,
         stores_paying_fees: storesPayingFees,
-        total_stores: stores.length,
+        total_stores: storesForGrid.length,
         total_billable_while_paying: totalBillableWhilePaying,
         app_fee_rate: appFeeRate,
         monthlyFees: monthlyStoreFeeTotals
