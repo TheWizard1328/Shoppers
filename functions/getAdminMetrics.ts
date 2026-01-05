@@ -429,7 +429,7 @@ Deno.serve(async (req) => {
 
     // Cache the result
     metricsCache.data = response;
-    metricsCache.year = year;
+    metricsCache.year = cacheKey;
     metricsCache.cacheDate = cacheDate;
 
     console.log('✅ [getAdminMetrics] Metrics computed and cached');
