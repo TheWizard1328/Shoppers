@@ -196,12 +196,11 @@ export default function AdminMetrics() {
             </h1>
           </div>
           <div className="flex items-center gap-3">
-            <Select value={selectedCityId} onValueChange={handleCityChange}>
+            <Select value={selectedCityId || ''} onValueChange={handleCityChange}>
               <SelectTrigger className="w-40">
-                <SelectValue placeholder="All Cities" />
+                <SelectValue placeholder="Select City" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Cities</SelectItem>
                 {cities.map(city => (
                   <SelectItem key={city.id} value={city.id}>{city.name}</SelectItem>
                 ))}
