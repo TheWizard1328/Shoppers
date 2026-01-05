@@ -197,8 +197,8 @@ Deno.serve(async (req) => {
         driverMonthlyMapNonBillable[month] = {};
       }
 
-      // Check if billable and store was paying fees
-      const store = stores.find(s => s?.id === d.store_id);
+      // Check if billable and store was paying fees - use allStoresMap for lookups
+      const store = allStoresMap.get(d.store_id);
       const isBillableDelivery = isBillable(d) && store && wasPayingFeesOnDate(store, d.delivery_date);
 
       if (isBillableDelivery) {
