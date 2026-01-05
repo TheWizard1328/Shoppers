@@ -398,7 +398,8 @@ Deno.serve(async (req) => {
       const isAfterHoursPickup = !d.patient_id && d.after_hours_pickup;
       if (!isPatientDelivery && !isAfterHoursPickup) return;
       
-      const store = stores.find(s => s?.id === d.store_id);
+      // Use allStoresMap for lookups
+      const store = allStoresMap.get(d.store_id);
       if (isBillable(d) && store && wasPayingFeesOnDate(store, d.delivery_date)) {
         yearBillable++;
       } else {
