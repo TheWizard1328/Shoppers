@@ -44,12 +44,33 @@ const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount, smal
 };
 
 export default function DualStatsMarquee({
-  stats,
-  tooltipValues,
+  deliveryStats, // Stats from getDeliveryStats function
   isDispatcher,
   isDriver,
   performanceStats // { totalPay, totalKm, totalExtraKm, totalTimeOnDuty }
 }) {
+  // Use stats directly from getDeliveryStats
+  const stats = deliveryStats?.today || {
+    completed: 0,
+    activeStops: 0,
+    failed: 0,
+    returns: 0,
+    activeDrivers: 0
+  };
+  
+  // Build tooltips based on backend stats
+  const tooltipValues = {
+    total: isDispatcher 
+      ? `Total: ${stats.activeStops} stops (${stats.activeDrivers} drivers)` 
+      : `Total: ${stats.activeStops} stops`,
+    inTransit: isDispatcher 
+      ? `In-Transit: ${stats.activeStops} stops (${stats.activeDrivers} drivers)` 
+      : `In-Transit: ${stats.activeStops} stops`,
+    completed: isDispatcher 
+      ? `Completed: ${stats.completed} stops (${stats.activeDrivers} drivers)` 
+      : `Completed: ${stats.completed} stops`,
+    failed: `${stats.failed} Failed / ${stats.returns} Returned`
+  };
   return (
     <div className="py-0.5">
       {/* Row 1: Delivery Stats - 4 columns */}
