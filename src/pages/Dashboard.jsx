@@ -348,15 +348,24 @@ function Dashboard() {
   });
   const [showSmartPrioritization, setShowSmartPrioritization] = useState(false);
   const [performanceStats, setPerformanceStats] = useState(null);
+  const [deliveryStats, setDeliveryStats] = useState(null);
 
-  // Listen for performance stats updates from QuickStats (Layout)
+  // Listen for performance stats AND delivery stats updates from Layout (QuickStats)
   useEffect(() => {
     const handlePerformanceStatsUpdate = (event) => {
       setPerformanceStats(event.detail);
     };
+    
+    const handleDeliveryStatsUpdate = (event) => {
+      setDeliveryStats(event.detail);
+    };
 
     window.addEventListener('performanceStatsUpdated', handlePerformanceStatsUpdate);
-    return () => window.removeEventListener('performanceStatsUpdated', handlePerformanceStatsUpdate);
+    window.addEventListener('deliveryStatsUpdated', handleDeliveryStatsUpdate);
+    return () => {
+      window.removeEventListener('performanceStatsUpdated', handlePerformanceStatsUpdate);
+      window.removeEventListener('deliveryStatsUpdated', handleDeliveryStatsUpdate);
+    };
   }, []);
 
   // Track previous map state for restoring when card is collapsed
