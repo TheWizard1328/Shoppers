@@ -1546,7 +1546,10 @@ export default function DeliveryMap({
   
   const driverHomeMarkers = useMemo(() => {
     if (!showRoutes || !currentUser || !isViewingCurrentDate) {
-      prevDriverHomeMarkersRef.current = [];
+      // CRITICAL: Don't clear the cache if we already have markers - preserve them during smart refresh
+      if (prevDriverHomeMarkersRef.current.length > 0) {
+        return prevDriverHomeMarkersRef.current;
+      }
       return [];
     }
 
@@ -1568,6 +1571,12 @@ export default function DeliveryMap({
         driversWithActiveStops.add(delivery.driver_id);
       }
     });
+
+    // CRITICAL: If no active stops found but we have cached markers, preserve them during refresh
+    // This prevents flickering when deliveries array briefly becomes empty during smart refresh
+    if (driversWithActiveStops.size === 0 && prevDriverHomeMarkersRef.current.length > 0) {
+      return prevDriverHomeMarkersRef.current;
+    }
 
     const homeMarkers = [];
     driversWithActiveStops.forEach((driverId) => {
@@ -1608,6 +1617,12 @@ export default function DeliveryMap({
     const prevKey = prevDriverHomeMarkersRef.current.map(m => `${m.id}:${m.latitude}:${m.longitude}`).join('|');
     
     if (newKey === prevKey && prevDriverHomeMarkersRef.current.length > 0) {
+      return prevDriverHomeMarkersRef.current;
+    }
+    
+    // CRITICAL: If new markers are empty but we had markers before, preserve them
+    // This handles the case where deliveries briefly become empty during refresh
+    if (homeMarkers.length === 0 && prevDriverHomeMarkersRef.current.length > 0) {
       return prevDriverHomeMarkersRef.current;
     }
     
