@@ -57,8 +57,8 @@ export default function AdminMetrics() {
     checkAccess();
   }, []);
 
-  // Fetch metrics from backend - only when year changes or on initial load
-  const fetchMetrics = useCallback(async (year, isInitial = false) => {
+  // Fetch metrics from backend - only when year or city changes or on initial load
+  const fetchMetrics = useCallback(async (year, cityId, isInitial = false) => {
     if (!hasAccess) return;
     
     // Only show full loading screen on initial load
@@ -70,7 +70,10 @@ export default function AdminMetrics() {
     setError(null);
     
     try {
-      const response = await base44.functions.invoke('getAdminMetrics', { year: parseInt(year) });
+      const response = await base44.functions.invoke('getAdminMetrics', { 
+        year: parseInt(year),
+        cityId: cityId === 'all' ? null : cityId
+      });
       const data = response?.data || response;
       
       if (data?.error) {
