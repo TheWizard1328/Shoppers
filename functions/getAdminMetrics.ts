@@ -408,11 +408,11 @@ Deno.serve(async (req) => {
     });
     const yearTotalFees = monthlyStoreFeeTotals.reduce((sum, f) => sum + f, 0);
 
-    // Store fee metrics summary
-    const storesPayingFees = stores.filter(s => s.pays_app_fees).length;
+    // Store fee metrics summary - use storesForGrid for accurate counts
+    const storesPayingFees = storesForGrid.filter(s => s.pays_app_fees).length;
     const totalBillableWhilePaying = yearDeliveries.filter(d => {
       if (!isBillable(d)) return false;
-      const store = stores.find(s => s?.id === d.store_id);
+      const store = allStoresMap.get(d.store_id);
       return store && wasPayingFeesOnDate(store, d.delivery_date);
     }).length;
 
