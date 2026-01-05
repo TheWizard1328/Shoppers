@@ -28,10 +28,11 @@ export default function AdminMetrics() {
   const [isFetching, setIsFetching] = useState(false); // For year changes (doesn't hide content)
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState(null); // null = all year, 1-12 = specific month
-  const [selectedCityId, setSelectedCityId] = useState('all'); // 'all' or specific city ID
+  const [selectedCityId, setSelectedCityId] = useState(null); // Will be set to user's city
   const [cities, setCities] = useState([]);
   const [metricsData, setMetricsData] = useState(null);
   const [error, setError] = useState(null);
+  const [initialCitySet, setInitialCitySet] = useState(false);
 
   const availableYears = useMemo(() => {
     const currentYear = new Date().getFullYear();
@@ -48,7 +49,15 @@ export default function AdminMetrics() {
         
         // Load cities for filter
         const citiesData = await base44.entities.City.list();
-        setCities(citiesData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)));
+        const sortedCities = citiesData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+        setCities(sortedCities);
+        
+        // Default to user's city_id, or first city if not set
+        const defaultCityId = user?.city_id || sortedCities[0]?.id || null;
+        if (defaultCityId) {
+          setSelectedCityId(defaultCityId);
+          setInitialCitySet(true);
+        }
       } catch (error) {
         console.error('Access check failed:', error);
         setHasAccess(false);
