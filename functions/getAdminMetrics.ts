@@ -283,11 +283,35 @@ Deno.serve(async (req) => {
     }
 
     // Store breakdown (full year + by month) - completed vs failed (not billable filtering for this chart)
+    // Initialize all stores in the city with 0 counts first (so all stores appear in charts)
     const storeStats = {};
     const storeStatsByMonth = {}; // { monthNum: { storeId: stats } }
     
     for (let m = 1; m <= 12; m++) {
       storeStatsByMonth[m] = {};
+    }
+
+    // Pre-populate with all city stores (ensures all stores appear even with 0 deliveries)
+    if (cityId) {
+      cityStores.forEach(store => {
+        if (!store?.id) return;
+        storeStats[store.id] = {
+          name: store.name || 'Unknown',
+          abbreviation: store.abbreviation || '',
+          sortOrder: store.sort_order ?? Infinity,
+          completed: 0,
+          failed: 0
+        };
+        for (let m = 1; m <= 12; m++) {
+          storeStatsByMonth[m][store.id] = {
+            name: store.name || 'Unknown',
+            abbreviation: store.abbreviation || '',
+            sortOrder: store.sort_order ?? Infinity,
+            completed: 0,
+            failed: 0
+          };
+        }
+      });
     }
 
     yearDeliveries.forEach(d => {
