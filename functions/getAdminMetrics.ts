@@ -394,6 +394,8 @@ Deno.serve(async (req) => {
       driverNames: topDriverNames,
       storeData,
       storeDataByMonth,
+      monthlyStoreData,  // NEW: For monthly store deliveries grid
+      monthlyStoreFees,  // NEW: For monthly store fees grid
       yearTotals: {
         billable: yearBillable,
         nonBillable: yearNonBillable,
