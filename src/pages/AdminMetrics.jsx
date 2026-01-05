@@ -349,46 +349,52 @@ export default function AdminMetrics() {
           </Card>
           </div>
 
+        {/* Second Row: Driver Breakdown + Monthly Store Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Driver Performance Chart - Breakdown by Driver */}
           <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="w-5 h-5" />
-              Driver Breakdown ({selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} {selectedYear})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[350px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart 
-                  data={selectedMonth ? metricsData.driverDataByMonth?.[selectedMonth] : metricsData.driverData} 
-                  barCategoryGap="15%"
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis 
-                    dataKey="name" 
-                    tick={{ fill: '#64748b', fontSize: 11 }} 
-                    interval={0}
-                    angle={-45}
-                    textAnchor="end"
-                    height={80}
-                  />
-                  <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
-                  <Tooltip 
-                    contentStyle={{ 
-                      background: 'white', 
-                      border: '1px solid #e2e8f0',
-                      borderRadius: '8px'
-                    }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: '11px' }} />
-                  <Bar dataKey="billable" fill={COLORS.billable} name="Billable" radius={[2, 2, 0, 0]} />
-                  <Bar dataKey="nonBillable" fill={COLORS.nonBillable} name="Non-Billable" radius={[2, 2, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                Driver Breakdown ({selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} {selectedYear})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[350px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart 
+                    data={selectedMonth ? metricsData.driverDataByMonth?.[selectedMonth] : metricsData.driverData} 
+                    barCategoryGap="15%"
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis 
+                      dataKey="name" 
+                      tick={{ fill: '#64748b', fontSize: 11 }} 
+                      interval={0}
+                      angle={-45}
+                      textAnchor="end"
+                      height={80}
+                    />
+                    <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        background: 'white', 
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '8px'
+                      }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: '11px' }} />
+                    <Bar dataKey="billable" fill={COLORS.billable} name="Billable" radius={[2, 2, 0, 0]} />
+                    <Bar dataKey="nonBillable" fill={COLORS.nonBillable} name="Non-Billable" radius={[2, 2, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
           </Card>
+
+          {/* Monthly Store Metrics Grid */}
+          <MonthlyStoreMetricsGrid metricsData={metricsData} selectedYear={selectedYear} />
+        </div>
 
         {/* App Fees Summary */}
         {metricsData.storeFeeTotals && (
