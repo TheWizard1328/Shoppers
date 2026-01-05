@@ -100,12 +100,12 @@ export default function AdminMetrics() {
     }
   }, [hasAccess]);
 
-  // Initial load
+  // Initial load - wait for city to be set
   useEffect(() => {
-    if (hasAccess) {
+    if (hasAccess && initialCitySet && selectedCityId) {
       fetchMetrics(selectedYear, selectedCityId, true); // isInitial = true
     }
-  }, [hasAccess]); // Only on hasAccess change, not selectedYear
+  }, [hasAccess, initialCitySet, selectedCityId]); // Wait for city selection
 
   // Handle year change without full refresh
   const handleYearChange = (newYear) => {
