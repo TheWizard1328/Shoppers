@@ -1206,7 +1206,37 @@ class SmartRefreshManager {
       const currentDateDeliveries = currentDeliveries.filter(d => d && d.delivery_date === dateStr);
       const otherDateDeliveries = currentDeliveries.filter(d => d && d.delivery_date !== dateStr);
       
-      const updatedCurrentDateDeliveries = currentDateDeliveries.map(d => {
+      // CRITICAL: Build a Set of IDs that exist on the server for this date
+      const serverDeliveryIds = new Set(fetchedDeliveries.map(fd => fd.id));
+      
+      // CRITICAL: Detect deliveries that were DELETED on server (exist locally but not on server)
+      const deletedDeliveries = currentDateDeliveries.filter(d => {
+        if (!d) return false;
+        // Skip if has pending local update (user just created it, might not be synced yet)
+        if (this.hasPendingUpdate(d.id)) return false;
+        // Skip temp IDs (local-only, not yet synced)
+        if (d.id && d.id.startsWith('temp_')) return false;
+        // If not on server, it was deleted
+        return !serverDeliveryIds.has(d.id);
+      });
+      
+      if (deletedDeliveries.length > 0) {
+        console.log(`🗑️ [SmartRefresh] Detected ${deletedDeliveries.length} deliveries deleted on server:`, 
+          deletedDeliveries.map(d => d.patient_name || d.id).join(', '));
+        hasChanges = true;
+      }
+      
+      // Filter out deleted deliveries from current date deliveries
+      const survivingCurrentDateDeliveries = currentDateDeliveries.filter(d => {
+        if (!d) return false;
+        // Keep if has pending update or is temp ID
+        if (this.hasPendingUpdate(d.id)) return true;
+        if (d.id && d.id.startsWith('temp_')) return true;
+        // Keep only if exists on server
+        return serverDeliveryIds.has(d.id);
+      });
+      
+      const updatedCurrentDateDeliveries = survivingCurrentDateDeliveries.map(d => {
         if (!d) return d;
         
         // CRITICAL: Skip if delivery has pending local update (recently edited by this user)
