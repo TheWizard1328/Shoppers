@@ -45,6 +45,7 @@ const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount, smal
 
 export default function DualStatsMarquee({
   deliveryStats, // Stats from getDeliveryStats function
+  localStats, // Stats calculated locally in Dashboard (for pickup counts)
   isDispatcher,
   isDriver,
   performanceStats // { totalPay, totalKm, totalExtraKm, totalTimeOnDuty }
@@ -61,14 +62,18 @@ export default function DualStatsMarquee({
   // Build tooltips based on backend stats
   const tooltipValues = {
     total: isDispatcher 
-      ? `Total: ${stats.activeStops} stops (${stats.activeDrivers} drivers)` 
-      : `Total: ${stats.activeStops} stops`,
-    inTransit: isDispatcher 
-      ? `In-Transit: ${stats.activeStops} stops (${stats.activeDrivers} drivers)` 
-      : `In-Transit: ${stats.activeStops} stops`,
+      ? `Total: ${localStats?.total || 0} stops (${stats.activeDrivers} drivers)` 
+      : isDriver && localStats?.totalPickups > 0
+        ? `Total: ${localStats?.total || 0} stops (${localStats.totalPickups} pickups)`
+        : `Total: ${localStats?.total || 0} stops`,
+    activeStops: isDispatcher 
+      ? `Active: ${stats.activeStops} stops (${stats.activeDrivers} drivers)` 
+      : `Active: ${stats.activeStops} stops`,
     completed: isDispatcher 
       ? `Completed: ${stats.completed} stops (${stats.activeDrivers} drivers)` 
-      : `Completed: ${stats.completed} stops`,
+      : isDriver && localStats?.completedPickups > 0
+        ? `Completed: ${stats.completed} stops (${localStats.completedPickups} pickups)`
+        : `Completed: ${stats.completed} stops`,
     failed: `${stats.failed} Failed / ${stats.returns} Returned`
   };
   return (
