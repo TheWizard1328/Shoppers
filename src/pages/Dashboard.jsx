@@ -6479,8 +6479,7 @@ function Dashboard() {
 
             <div className="flex items-center justify-between gap-3">
               <DualStatsMarquee
-                stats={stats}
-                tooltipValues={tooltipValues}
+                deliveryStats={deliveryStats}
                 isDispatcher={isDispatcher}
                 isDriver={isDriver}
                 performanceStats={performanceStats} />
