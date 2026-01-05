@@ -6686,27 +6686,28 @@ function Dashboard() {
           onMouseLeave={() => handleCardInteraction(false)}>
               <div className="flex flex-wrap gap-x-2 gap-y-1.5 items-center justify-center">
                 {driverRoutes.map((route) => {
-                 // CRITICAL: Find the actual driver user object to get correct name
-                 const driver = users.find(u => u && u.id === route.driverId);
-                 const displayName = driver?.user_name || driver?.full_name || route.driverName || 'Unknown';
+                  // CRITICAL: Find the actual driver user object to recalculate fresh color
+                  const driver = users.find(u => u && u.id === route.driverId);
+                  const displayName = driver?.user_name || driver?.full_name || route.driverName || 'Unknown';
+                  const freshColor = driver ? getDriverColor(driver) : route.color;
 
-                 return (
-                   <div
-                     key={route.driverId}
-                     className="flex items-center gap-1.5">
+                  return (
+                    <div
+                      key={route.driverId}
+                      className="flex items-center gap-1.5">
 
-                     <div
-                       className="w-3 h-3 rounded-full border-2 border-white shadow-sm flex-shrink-0"
-                       style={{ backgroundColor: route.color }} />
+                      <div
+                        className="w-3 h-3 rounded-full border-2 border-white shadow-sm flex-shrink-0"
+                        style={{ backgroundColor: freshColor }} />
 
-                     <span className="text-xs font-medium whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>
-                       {displayName}
-                     </span>
-                     <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
-                       ({route.totalStops})
-                     </span>
-                   </div>
-                 );
+                      <span className="text-xs font-medium whitespace-nowrap" style={{ color: 'var(--text-slate-700)' }}>
+                        {displayName}
+                      </span>
+                      <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
+                        ({route.totalStops})
+                      </span>
+                    </div>
+                  );
                 })}
               </div>
             </div>
