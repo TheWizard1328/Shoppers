@@ -401,30 +401,45 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                         </div>
                     </div>
 
-                    <div>
-                        <Label htmlFor="dispatcher_id">Assigned Dispatcher</Label>
-                        <Select
-              value={formData.dispatcher_id || 'null'}
-              onValueChange={handleDispatcherSelect}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <Label htmlFor="dispatcher_id">Assigned Dispatcher</Label>
+                            <Select
+                              value={formData.dispatcher_id || 'null'}
+                              onValueChange={handleDispatcherSelect}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select dispatcher...">
+                                        {formData.dispatcher_id ?
+                                          sortedUsers.find((u) => u.id === formData.dispatcher_id)?.user_name || sortedUsers.find((u) => u.id === formData.dispatcher_id)?.full_name :
+                                          "Select dispatcher..."}
+                                    </SelectValue>
+                                </SelectTrigger>
+                                <SelectContent className="z-[10001]" position="popper" sideOffset={4}>
+                                    <SelectItem value="null">No Dispatcher</SelectItem>
+                                    {sortedUsers
+                                        .filter((u) => u && u.app_roles && u.app_roles.includes('dispatcher'))
+                                        .map((dispatcher) =>
+                                            <SelectItem key={dispatcher.id} value={dispatcher.id}>
+                                                {dispatcher.user_name || dispatcher.full_name}
+                                            </SelectItem>
+                                        )}
+                                </SelectContent>
+                            </Select>
+                        </div>
 
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select dispatcher...">
-                                    {formData.dispatcher_id ?
-                  sortedUsers.find((u) => u.id === formData.dispatcher_id)?.user_name || sortedUsers.find((u) => u.id === formData.dispatcher_id)?.full_name :
-                  "Select dispatcher..."}
-                                </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent className="z-[10001]" position="popper" sideOffset={4}>
-                                <SelectItem value="null">No Dispatcher</SelectItem>
-                                {sortedUsers
-                                    .filter((u) => u && u.app_roles && u.app_roles.includes('dispatcher'))
-                                    .map((dispatcher) =>
-                                        <SelectItem key={dispatcher.id} value={dispatcher.id}>
-                                            {dispatcher.user_name || dispatcher.full_name}
-                                        </SelectItem>
-                                    )}
-                            </SelectContent>
-                        </Select>
+                        <div>
+                            <Label htmlFor="status">Store Status</Label>
+                            <div className="flex items-center gap-3 h-10 mt-1">
+                                <Switch
+                                    id="status"
+                                    checked={formData.status !== 'inactive'}
+                                    onCheckedChange={(checked) => setFormData({ ...formData, status: checked ? 'active' : 'inactive' })}
+                                />
+                                <Label htmlFor="status" className={`font-medium ${formData.status === 'inactive' ? 'text-red-600' : 'text-green-600'}`}>
+                                    {formData.status === 'inactive' ? 'Inactive' : 'Active'}
+                                </Label>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
