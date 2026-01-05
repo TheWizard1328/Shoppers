@@ -9,6 +9,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { getEffectiveUser } from '@/components/utils/auth';
 import { isAppOwner } from '../components/utils/userRoles';
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
+import MonthlyStoreMetricsGrid from '../components/admin/MonthlyStoreMetricsGrid';
 
 const MONTH_NAMES = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
