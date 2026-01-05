@@ -56,11 +56,19 @@ Deno.serve(async (req) => {
     console.log(`📊 [getAdminMetrics] Computing metrics for year ${year}, city ${cityId || 'all'}...`);
 
     // Fetch all data in parallel
-    const [stores, allAppUsers, appSettings] = await Promise.all([
+    const [allStores, allAppUsers, appSettings] = await Promise.all([
       base44.asServiceRole.entities.Store.list(),
       base44.asServiceRole.entities.AppUser.list(),
       base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' })
     ]);
+
+    // Filter stores by city if cityId is specified
+    const stores = cityId 
+      ? allStores.filter(s => s?.city_id === cityId)
+      : allStores;
+    
+    // Get store IDs for filtering deliveries
+    const storeIds = new Set(stores.map(s => s?.id).filter(Boolean));
 
     // Get app fee rate
     let appFeeRate = 0;
