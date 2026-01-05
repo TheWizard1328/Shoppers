@@ -28,6 +28,8 @@ export default function AdminMetrics() {
   const [isFetching, setIsFetching] = useState(false); // For year changes (doesn't hide content)
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState(null); // null = all year, 1-12 = specific month
+  const [selectedCityId, setSelectedCityId] = useState('all'); // 'all' or specific city ID
+  const [cities, setCities] = useState([]);
   const [metricsData, setMetricsData] = useState(null);
   const [error, setError] = useState(null);
 
