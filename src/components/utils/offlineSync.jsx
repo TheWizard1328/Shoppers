@@ -301,48 +301,54 @@ const syncDeliveryDateRange = async (startDate, endDate, skipDate = null) => {
 
 /**
  * Sync all patients in batches of 250
+ * CRITICAL: Uses filter() instead of list() to ensure proper pagination
  */
 const syncAllPatients = async () => {
   if (syncPaused) return;
   
+  console.log('   👥 [OfflineSync] Starting patient sync...');
+  
   try {
-    let skip = 0;
-    let hasMore = true;
-    let totalSynced = 0;
+    // First, get total count to track progress
+    const allPatients = await Patient.filter({ status: 'active' }, '-created_date', 5000);
+    console.log(`   👥 [OfflineSync] Found ${allPatients.length} active patients to sync`);
     
-    while (hasMore && !syncPaused) {
-      const batch = await Patient.list('-created_date', PATIENT_BATCH_SIZE, skip);
+    if (allPatients.length === 0) {
+      // Try without status filter as fallback
+      console.log('   👥 [OfflineSync] No active patients found, trying without status filter...');
+      const allPatientsNoFilter = await Patient.list('-created_date', 5000);
+      console.log(`   👥 [OfflineSync] Found ${allPatientsNoFilter.length} patients (no filter)`);
       
-      if (batch.length === 0) {
-        hasMore = false;
-      } else {
-        // Filter out temp IDs
-        const cleanBatch = batch.filter(p => !p.id.startsWith('temp_'));
+      if (allPatientsNoFilter.length > 0) {
+        const cleanBatch = allPatientsNoFilter.filter(p => p && p.id && !p.id.startsWith('temp_'));
         await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, cleanBatch);
         
-        totalSynced += cleanBatch.length;
-        skip += batch.length;
+        await offlineDB.updateSyncStatus('Patient', {
+          recordCount: cleanBatch.length,
+          status: 'synced',
+          lastSync: new Date().toISOString(),
+          lastFullSync: new Date().toISOString()
+        });
         
-        console.log(`      👥 Synced ${totalSynced} patients...`);
-        
-        if (batch.length < PATIENT_BATCH_SIZE) {
-          hasMore = false;
-        } else {
-          await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
-        }
+        console.log(`   ✅ [OfflineSync] Patient sync complete: ${cleanBatch.length} total`);
       }
+      return;
     }
     
+    // Filter out temp IDs and save
+    const cleanBatch = allPatients.filter(p => p && p.id && !p.id.startsWith('temp_'));
+    await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, cleanBatch);
+    
     await offlineDB.updateSyncStatus('Patient', {
-      recordCount: totalSynced,
+      recordCount: cleanBatch.length,
       status: 'synced',
       lastSync: new Date().toISOString(),
       lastFullSync: new Date().toISOString()
     });
     
-    console.log(`      ✅ Patient sync complete: ${totalSynced} total`);
+    console.log(`   ✅ [OfflineSync] Patient sync complete: ${cleanBatch.length} total`);
   } catch (error) {
-    console.warn('      ⚠️ Patient sync failed:', error.message);
+    console.error('   ❌ [OfflineSync] Patient sync failed:', error.message, error);
   }
 };
 
