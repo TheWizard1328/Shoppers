@@ -62,13 +62,16 @@ Deno.serve(async (req) => {
       base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' })
     ]);
 
-    // Filter stores by city if cityId is specified
-    const stores = cityId 
+    // Filter stores by city if cityId is specified (for display filtering)
+    const cityStores = cityId 
       ? allStores.filter(s => s?.city_id === cityId)
       : allStores;
     
     // Get store IDs for filtering deliveries
-    const storeIds = new Set(stores.map(s => s?.id).filter(Boolean));
+    const cityStoreIds = new Set(cityStores.map(s => s?.id).filter(Boolean));
+    
+    // Keep ALL stores available for lookups (deliveries may have stores from other cities)
+    const allStoresMap = new Map(allStores.map(s => [s?.id, s]).filter(([id]) => id));
 
     // Get app fee rate
     let appFeeRate = 0;
