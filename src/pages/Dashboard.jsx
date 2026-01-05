@@ -750,19 +750,10 @@ function Dashboard() {
     const inTransitDeliveries = safeDeliveries.filter((d) => d && (d.status === 'in_transit' || d.status === 'en_route'));
     const inTransit = inTransitDeliveries.length;
 
-    // CRITICAL: Completed (Payable) includes completed, failed, and returned deliveries
-    // Failed deliveries are PAID deliveries and should count toward the total
     const completedDeliveries = safeDeliveries.filter((d) => {
-      if (!d) return false;
-      // Include completed, failed, or returned deliveries (all are payable)
-      if (d.status === 'completed' && !isReturn(d)) return true;
-      if (d.status === 'failed' && !isReturn(d)) return true;
-      return false;
-    });
-
-    const returnedDeliveries = safeDeliveries.filter((d) => {
-      if (!d) return false;
-      return isReturn(d);
+      if (!d || d.status !== 'completed') return false;
+      if (isReturn(d)) return false;
+      return true;
     });
 
     // CRITICAL: After Hours Pickups count as completed (completed OR cancelled status)
@@ -770,7 +761,7 @@ function Dashboard() {
     d && !d.patient_id && d.after_hours_pickup === true && (d.status === 'completed' || d.status === 'cancelled')
     ).length;
 
-    const completed = completedDeliveries.length + returnedDeliveries.length + afterHoursPickupsCompleted;
+    const completed = completedDeliveries.length + afterHoursPickupsCompleted;
 
     const returned = safeDeliveries.filter(isReturn).length;
     const failed = safeDeliveries.filter((d) => {
