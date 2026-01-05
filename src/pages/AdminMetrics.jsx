@@ -38,13 +38,17 @@ export default function AdminMetrics() {
     return [currentYear, currentYear - 1, currentYear - 2];
   }, []);
 
-  // Check access
+  // Check access and load cities
   useEffect(() => {
     const checkAccess = async () => {
       try {
         const user = await getEffectiveUser();
         setCurrentUser(user);
         setHasAccess(isAppOwner(user));
+        
+        // Load cities for filter
+        const citiesData = await base44.entities.City.list();
+        setCities(citiesData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)));
       } catch (error) {
         console.error('Access check failed:', error);
         setHasAccess(false);
