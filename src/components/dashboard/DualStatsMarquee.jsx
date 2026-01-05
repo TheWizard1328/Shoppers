@@ -82,16 +82,24 @@ export default function DualStatsMarquee({
       <div className="grid grid-cols-4 gap-1 mb-2">
         <StatBadge
           icon={Package}
+          value={localStats?.total || 0}
+          driverCount={isDispatcher ? stats.activeDrivers : isDriver && localStats?.totalPickups > 0 ? localStats.totalPickups : undefined}
+          color="blue"
+          label="Total"
+          tooltip={tooltipValues.total} />
+
+        <StatBadge
+          icon={Truck}
           value={stats.activeStops}
           driverCount={isDispatcher ? stats.activeDrivers : undefined}
-          color="blue"
+          color="purple"
           label="Active"
-          tooltip={tooltipValues.total} />
+          tooltip={tooltipValues.activeStops} />
 
         <StatBadge
           icon={CheckCircle}
           value={stats.completed}
-          driverCount={isDispatcher ? stats.activeDrivers : undefined}
+          driverCount={isDispatcher ? stats.activeDrivers : isDriver && localStats?.completedPickups > 0 ? localStats.completedPickups : undefined}
           color="green"
           label="Completed"
           tooltip={tooltipValues.completed} />
