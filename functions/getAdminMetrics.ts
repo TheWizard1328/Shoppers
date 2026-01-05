@@ -154,7 +154,8 @@ Deno.serve(async (req) => {
         if (!isPatientDelivery && !isAfterHoursPickup) return; // Skip regular pickups
         
         if (isBillable(d)) {
-          const store = stores.find(s => s?.id === d.store_id);
+          // Use allStoresMap to find store (handles transferred deliveries from other cities)
+          const store = allStoresMap.get(d.store_id);
           if (store && wasPayingFeesOnDate(store, d.delivery_date)) {
             billable++;
             monthFees += appFeeRate;
