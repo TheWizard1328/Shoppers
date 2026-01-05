@@ -420,10 +420,12 @@ export default function PatientImport({ onImportComplete, onImportStart, current
 
   const comparePatientData = (existingPatient, newData) => {
     const changes = [];
+    // CRITICAL: Removed 'store_id' from comparison - patient import should NOT change store assignments
+    // Store assignment is set at creation time and should only be changed manually by admins
     const fieldsToCompare = [
     'full_name', 'address', 'unit_number', 'phone', 'notes', 'last_delivery_date',
     'distance_from_store', 'time_window_start', 'time_window_end',
-    'latitude', 'longitude', 'store_id', 'patient_id', 'status',
+    'latitude', 'longitude', 'patient_id', 'status',
     // Recurring patterns (excluding 'recurring' as it's a derived/old field)
     'recurring_daily', 'recurring_weekly_mon', 'recurring_weekly_tue', 'recurring_weekly_wed',
     'recurring_weekly_thu', 'recurring_weekly_fri', 'recurring_weekly_sat', 'recurring_weekly_sun',
