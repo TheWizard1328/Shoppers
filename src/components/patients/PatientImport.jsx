@@ -606,20 +606,27 @@ export default function PatientImport({ onImportComplete, onImportStart, current
             }
 
             if (existingPatient) {
-              const changes = comparePatientData(existingPatient, patientData);
+              // CRITICAL: For updates, preserve the existing store_id - don't change it from CSV
+              // The store_id from CSV is only used for NEW patient creation
+              const patientDataForUpdate = {
+                ...patientData,
+                store_id: existingPatient.store_id // Always preserve existing store assignment
+              };
+              
+              const changes = comparePatientData(existingPatient, patientDataForUpdate);
               if (changes.length > 0) {
                 toUpdate.push({
                   id: existingPatient.id,
-                  data: patientData,
+                  data: patientDataForUpdate,
                   existing: existingPatient,
                   changes: changes,
                   fileName: file.name,
                   rowNumber: rowNumber,
                   willGeocode: willGeocode
                 });
-                console.log(`PatientImport: Preview: Patient ${patientData.full_name} (${existingPatient.id}) to be updated. Changes:`, changes);
+                console.log(`PatientImport: Preview: Patient ${patientDataForUpdate.full_name} (${existingPatient.id}) to be updated. Changes:`, changes);
               } else {
-                console.log(`PatientImport: Preview: Patient ${patientData.full_name} (${existingPatient.id}) found, no changes needed.`);
+                console.log(`PatientImport: Preview: Patient ${patientDataForUpdate.full_name} (${existingPatient.id}) found, no changes needed.`);
               }
             } else {
               toCreate.push({
