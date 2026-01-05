@@ -360,18 +360,25 @@ Deno.serve(async (req) => {
     }
     
     // Build list of stores to show in the grid
-    // If city filter is applied, show ALL stores in that city (even those with 0 deliveries)
-    // If no city filter, show all stores that appear in deliveries
+    // Show: all ACTIVE stores in city + any INACTIVE stores that have delivery data
+    const storeIdsInDeliveries = new Set(yearDeliveries.map(d => d?.store_id).filter(Boolean));
+    
     let storesForGrid;
     if (cityId) {
-      // Show all stores in the selected city
-      storesForGrid = cityStores.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+      // Active stores in city + inactive stores with delivery data
+      const activeStoresInCity = cityStores.filter(s => s?.status !== 'inactive');
+      const inactiveStoresWithData = cityStores.filter(s => 
+        s?.status === 'inactive' && storeIdsInDeliveries.has(s.id)
+      );
+      storesForGrid = [...activeStoresInCity, ...inactiveStoresWithData]
+        .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
     } else {
-      // No city filter - show stores that appear in deliveries
-      const storeIdsInDeliveries = new Set(yearDeliveries.map(d => d?.store_id).filter(Boolean));
-      storesForGrid = Array.from(storeIdsInDeliveries)
-        .map(id => allStoresMap.get(id))
-        .filter(Boolean)
+      // No city filter - active stores + inactive stores with delivery data
+      const activeStores = allStores.filter(s => s?.status !== 'inactive');
+      const inactiveStoresWithData = allStores.filter(s => 
+        s?.status === 'inactive' && storeIdsInDeliveries.has(s.id)
+      );
+      storesForGrid = [...activeStores, ...inactiveStoresWithData]
         .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
     }
     
