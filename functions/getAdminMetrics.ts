@@ -91,9 +91,14 @@ Deno.serve(async (req) => {
     }
 
     const monthResults = await Promise.all(monthPromises);
-    const yearDeliveries = monthResults.flat();
+    let yearDeliveries = monthResults.flat();
 
-    console.log(`📦 [getAdminMetrics] Loaded ${yearDeliveries.length} deliveries for ${year}`);
+    // Filter deliveries by city (via store)
+    if (cityId) {
+      yearDeliveries = yearDeliveries.filter(d => d?.store_id && storeIds.has(d.store_id));
+    }
+
+    console.log(`📦 [getAdminMetrics] Loaded ${yearDeliveries.length} deliveries for ${year} (city: ${cityId || 'all'})`);
 
     // Helper: Check if store was paying fees on date
     const wasPayingFeesOnDate = (store, dateStr) => {
