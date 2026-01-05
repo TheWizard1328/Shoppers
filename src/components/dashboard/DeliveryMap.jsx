@@ -1665,7 +1665,9 @@ export default function DeliveryMap({
         driver: driverForRoute,
         color: routeColor,
         stops: [],
-        sortOrder: driverForRoute?.sort_order ?? Infinity
+        sortOrder: driverForRoute?.sort_order ?? Infinity,
+        // CRITICAL: Store both the route color AND the driver object for legend lookup
+        _driverObj: driverForRoute
       };
     }
     routesByDriver[driverId].stops.push(delivery);
