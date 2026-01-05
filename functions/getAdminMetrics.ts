@@ -143,9 +143,12 @@ Deno.serve(async (req) => {
     };
 
     // Helper: Check if delivery is billable
+    // Billable = Completed, Failed, and After Hours Pickups (Completed or Cancelled)
     const isBillable = (d) => {
       if (!d) return false;
+      // Patient deliveries: completed or failed
       if (d.patient_id && (d.status === 'completed' || d.status === 'failed')) return true;
+      // After hours pickups (no patient_id): completed or cancelled
       if (!d.patient_id && d.after_hours_pickup && (d.status === 'completed' || d.status === 'cancelled')) return true;
       return false;
     };
