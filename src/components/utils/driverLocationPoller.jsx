@@ -60,7 +60,7 @@ class DriverLocationPoller {
    * @param {Array} appUsers - Array of AppUser objects with location data
    * @param {Date} selectedDate - Currently selected date
    */
-  processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate) {
+  processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate, forceNotify = false) {
     // Skip processing if paused (e.g., during imports)
     if (this.isPaused) {
       return;
@@ -71,7 +71,7 @@ class DriverLocationPoller {
 
     // Log incoming data count (reduced verbosity)
     if (appUsers?.length > 0) {
-      console.log(`📍 [DriverLocationPoller] Processing ${appUsers.length} appUsers`);
+      console.log(`📍 [DriverLocationPoller] Processing ${appUsers.length} appUsers (force: ${forceNotify})`);
     }
 
     // Determine if current device is mobile
@@ -242,18 +242,18 @@ class DriverLocationPoller {
 
     // CRITICAL: ALWAYS notify subscribers with current locations to prevent disappearing markers
     // Don't check for changes - just broadcast the current state every time
-    
+
     const newLocations = new Map();
     activeDriversWithLocation.forEach(user => {
       const locationKey = `${user.id}_${user.current_latitude}_${user.current_longitude}_${user.driver_status}`;
       newLocations.set(user.id, locationKey);
     });
-    
-    this.lastLocations = newLocations;
-    this.notifySubscribers(activeDriversWithLocation);
-  }
 
-  notifySubscribers(activeDriversWithLocation) {
+    this.lastLocations = newLocations;
+    this.notifySubscribers(activeDriversWithLocation, forceNotify);
+    }
+
+  notifySubscribers(activeDriversWithLocation, forceNotify = false) {
     // Convert array of users to array of location objects
     const currentUserId = this.currentUser?.id;
     const currentUserUserId = this.currentUser?.user_id;
@@ -283,16 +283,17 @@ class DriverLocationPoller {
     });
 
     // CRITICAL: Only notify if locations actually changed to prevent flickering
+    // UNLESS forceNotify is true (when deliveries update)
     const newKey = locationObjects.map(loc => 
       `${loc.id}:${loc.latitude?.toFixed(6)}:${loc.longitude?.toFixed(6)}:${loc.driver_status}:${loc.location_tracking_enabled}`
     ).sort().join('|');
 
-    if (this._lastNotifiedKey === newKey) {
+    if (!forceNotify && this._lastNotifiedKey === newKey) {
       console.log('⏭️ [DriverLocationPoller] Skipping notify - no changes detected');
       return;
     }
 
-    console.log(`📢 [DriverLocationPoller] Notifying subscribers - ${locationObjects.length} locations`);
+    console.log(`📢 [DriverLocationPoller] Notifying subscribers - ${locationObjects.length} locations (force: ${forceNotify})`);
     this._lastNotifiedKey = newKey;
 
     this.subscribers.forEach(callback => {
