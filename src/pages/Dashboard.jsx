@@ -6637,7 +6637,7 @@ function Dashboard() {
             right: '64px' // Position to the left of MapViewCycleFAB
           }}>
             <Button
-            onClick={async () => {
+              onClick={async () => {
               if (isReoptimizing) return;
 
               setIsReoptimizing(true);
