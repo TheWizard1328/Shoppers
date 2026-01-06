@@ -4454,7 +4454,7 @@ function Dashboard() {
   const handleReoptimizeRoute = async () => {
     try {
       setIsReoptimizing(true);
-      setOptimizationMessage('Re-optimizing current stage...');
+      setOptimizationMessage('Re-optimizing route...');
 
       const deliveryDate = format(selectedDate, 'yyyy-MM-dd');
       const now = new Date();
@@ -4475,6 +4475,11 @@ function Dashboard() {
         // Refresh data to show new order
         invalidateDeliveriesForDate(deliveryDate);
         await refreshData();
+
+        // CRITICAL: Force map to re-render route lines
+        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+          detail: { driverId: currentUser.id, deliveryDate: deliveryDate, triggeredBy: 'reoptimizeRoute' }
+        }));
 
         // Trigger map view update
         setIsMapViewLocked(true);
