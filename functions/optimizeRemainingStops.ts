@@ -160,16 +160,22 @@ Deno.serve(async (req) => {
       };
     }).filter(s => s.lat && s.lng);
 
-    // STEP 1: Sort all incomplete stops by delivery_time_start
+    // STEP 1: CRITICAL - Sort by isNextDelivery FIRST, then by delivery_time_start
     stops.sort((a, b) => {
+      // CRITICAL: isNextDelivery ALWAYS comes first (regardless of time)
+      if (a.delivery.isNextDelivery && !b.delivery.isNextDelivery) return -1;
+      if (!a.delivery.isNextDelivery && b.delivery.isNextDelivery) return 1;
+      
+      // Then sort by time
       if (a.timeMinutes !== b.timeMinutes) return a.timeMinutes - b.timeMinutes;
+      
       // Pickups before deliveries at same time
       if (a.isPickup && !b.isPickup) return -1;
       if (!a.isPickup && b.isPickup) return 1;
       return 0;
     });
 
-    console.log(`📋 [optimizeRemainingStops] Sorted ${stops.length} stops by delivery_time_start`);
+    console.log(`📋 [optimizeRemainingStops] Sorted ${stops.length} stops (isNextDelivery first, then by time)`);
 
     // STEP 2: Divide route into stages (each stage ends at a pickup)
     const stages = [];
