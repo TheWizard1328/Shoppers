@@ -128,7 +128,13 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
     if (isACompleted && !isBCompleted) return -1; // a (completed) comes first
     if (!isACompleted && isBCompleted) return 1; // b (completed) comes first
 
-    // 2. Sort by time
+    // 2. CRITICAL: For incomplete deliveries, isNextDelivery ALWAYS comes first
+    if (!isACompleted && !isBCompleted) {
+      if (a.isNextDelivery && !b.isNextDelivery) return -1; // a is next delivery, comes first
+      if (!a.isNextDelivery && b.isNextDelivery) return 1; // b is next delivery, comes first
+    }
+
+    // 3. Sort by time
     let timeA, timeB;
 
     if (isACompleted) {
