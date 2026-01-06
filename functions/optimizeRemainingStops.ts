@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
-    console.log('✅ User authenticated:', user.email);
+    console.log('✅ [optimizeRemainingStops] User authenticated:', user.email);
 
     const body = await req.json();
     const { driverId, deliveryDate, currentLocalTime, deviceTime } = body;
@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
       currentMinutes = mountainHours * 60 + now.getUTCMinutes();
     }
 
-    console.log(`🔄 Optimizing remaining stops for driver ${driverId} on ${deliveryDate}`);
+    console.log(`🔄 [optimizeRemainingStops] Optimizing remaining stops for driver ${driverId} on ${deliveryDate}`);
     
     // Get driver info
     const appUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
       return Response.json({ message: 'No deliveries found', routeChanged: false });
     }
 
-    console.log(`📦 Found ${allDeliveries.length} deliveries`);
+    console.log(`📦 [optimizeRemainingStops] Found ${allDeliveries.length} deliveries`);
 
     // Separate completed and incomplete deliveries
     const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
@@ -164,7 +164,7 @@ Deno.serve(async (req) => {
       return 0;
     });
 
-    console.log(`📋 Sorted ${stops.length} stops by delivery_time_start`);
+    console.log(`📋 [optimizeRemainingStops] Sorted ${stops.length} stops by delivery_time_start`);
 
     // STEP 2: Divide route into stages (each stage ends at a pickup)
     const stages = [];
@@ -186,14 +186,14 @@ Deno.serve(async (req) => {
       stages.push(currentStageStops);
     }
 
-    console.log(`📊 Divided into ${stages.length} stages`);
+    console.log(`📊 [optimizeRemainingStops] Divided into ${stages.length} stages`);
 
     // STEP 2.5: Check if first stage needs combining
     if (stages.length > 1 && stages[0].length === 1 && stages[0][0].isPickup) {
-      console.log('🔗 First stage has only pickup - combining with next stage');
+      console.log('🔗 [optimizeRemainingStops] First stage has only pickup - combining with next stage');
       const combinedStage = [...stages[0], ...stages[1]];
       stages.splice(0, 2, combinedStage);
-      console.log(`📊 After combining: ${stages.length} stages`);
+      console.log(`📊 [optimizeRemainingStops] After combining: ${stages.length} stages`);
     }
 
     // STEP 3: Determine starting location for current stage
@@ -235,11 +235,11 @@ Deno.serve(async (req) => {
       }, { status: 404 });
     }
 
-    console.log(`📍 Starting from: ${locationSource} (${currentPosition.lat}, ${currentPosition.lng})`);
+    console.log(`📍 [optimizeRemainingStops] Starting from: ${locationSource} (${currentPosition.lat}, ${currentPosition.lng})`);
 
     // STEP 4: Optimize ONLY the current (first) stage using Google Directions API
     const currentStage = stages[0];
-    console.log(`\n🎯 Optimizing current stage: ${currentStage.length} stops`);
+    console.log(`\n🎯 [optimizeRemainingStops] Optimizing current stage: ${currentStage.length} stops`);
 
     const googleMapsKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
     let optimizedCurrentStage = [];
@@ -250,7 +250,7 @@ Deno.serve(async (req) => {
     // Just use it as-is for Google API (no re-sorting, no optimize:true)
     const currentStageSorted = currentStage;
 
-    console.log(`📋 Using time-sorted order for current stage`);
+    console.log(`📋 [optimizeRemainingStops] Using time-sorted order for current stage`);
 
     // Get travel times from Google Directions API (with time-based pre-ordering)
     if (currentStageSorted.length > 0) {
@@ -289,7 +289,7 @@ Deno.serve(async (req) => {
               break;
             }
           } catch (err) {
-            console.warn(`Directions API attempt ${attempt + 1} failed:`, err.message);
+            console.warn(`[optimizeRemainingStops] Directions API attempt ${attempt + 1} failed:`, err.message);
           }
         }
 
@@ -298,13 +298,13 @@ Deno.serve(async (req) => {
             duration: leg.duration_in_traffic?.value || leg.duration?.value || 0,
             distance: leg.distance?.value || 0
           }));
-          console.log('✅ Google Directions API success');
+          console.log('✅ [optimizeRemainingStops] Google Directions API success');
           
           // Use the pre-sorted order (don't apply Google's waypoint_order)
           optimizedCurrentStage = currentStageSorted;
         } else {
           // Fallback to crow-flies
-          console.log('⚠️ Google API failed - using crow-flies fallback');
+          console.log('⚠️ [optimizeRemainingStops] Google API failed - using crow-flies fallback');
           optimizedCurrentStage = currentStageSorted;
           let prevPos = currentPosition;
           for (const stop of optimizedCurrentStage) {
@@ -344,7 +344,7 @@ Deno.serve(async (req) => {
       const serviceTime = stop.delivery.extra_time || (stop.isPickup ? 15 : 5);
       cumulativeTime += serviceTime;
 
-      console.log(`  ✅ ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta}`);
+      console.log(`  ✅ [optimizeRemainingStops] ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta}`);
     }
 
     // STEP 6: Update ETAs for current stage in database
@@ -403,7 +403,7 @@ Deno.serve(async (req) => {
       return 0;
     });
 
-    console.log(`\n🔢 Re-sorted ${activeStops.length} stops by delivery_time_start for stop_order assignment`);
+    console.log(`\n🔢 [optimizeRemainingStops] Re-sorted ${activeStops.length} stops by delivery_time_start for stop_order assignment`);
 
     // STEP 10: Re-assign stop_order numbers to match the sorted order
     const startingOrder = completedDeliveries.length;
@@ -413,7 +413,7 @@ Deno.serve(async (req) => {
         stop_order: newOrder,
         display_stop_order: newOrder
       });
-      console.log(`  🔢 Stop #${newOrder}: ${activeStops[i].patient_name || 'Pickup'}`);
+      console.log(`  🔢 [optimizeRemainingStops] Stop #${newOrder}: ${activeStops[i].patient_name || 'Pickup'}`);
     }
 
     // Update polyline record
@@ -436,7 +436,7 @@ Deno.serve(async (req) => {
       last_generated_at: new Date().toISOString()
     });
 
-    console.log(`\n✅ Route optimization complete - ${activeStops.length} stops updated, ${totalApiCalls} API calls`);
+    console.log(`\n✅ [optimizeRemainingStops] Route optimization complete - ${activeStops.length} stops updated, ${totalApiCalls} API calls`);
 
     return Response.json({
       success: true,
