@@ -335,14 +335,29 @@ Deno.serve(async (req) => {
       }
     }
 
-    // STEP 5: Calculate ETAs for current stage
+    // STEP 6: Calculate ETAs for ALL stops (all stages)
     let cumulativeTime = currentMinutes;
-    const currentStageETAs = [];
-
-    for (let i = 0; i < optimizedCurrentStage.length; i++) {
-      const stop = optimizedCurrentStage[i];
+    
+    for (let i = 0; i < optimizedAllStops.length; i++) {
+      const stop = optimizedAllStops[i];
+      const isInFirstStage = i < currentStageSorted.length;
       
-      const travelSeconds = directionsLegs[i] ? directionsLegs[i].duration : 300;
+      // Use Google travel time for first stage, crow-flies for remaining
+      let travelSeconds;
+      if (isInFirstStage && directionsLegs[i]) {
+        travelSeconds = directionsLegs[i].duration;
+      } else {
+        // Crow-flies fallback for stages beyond first
+        if (i === 0) {
+          const dist = calculateCrowFliesDistance(currentPosition.lat, currentPosition.lng, stop.lat, stop.lng);
+          travelSeconds = Math.ceil((dist / 40) * 60 * 60 * 1.3);
+        } else {
+          const prevStop = optimizedAllStops[i - 1];
+          const dist = calculateCrowFliesDistance(prevStop.lat, prevStop.lng, stop.lat, stop.lng);
+          travelSeconds = Math.ceil((dist / 40) * 60 * 60 * 1.3);
+        }
+      }
+      
       const travelMinutes = Math.ceil(travelSeconds / 60);
       cumulativeTime += travelMinutes;
 
@@ -355,71 +370,26 @@ Deno.serve(async (req) => {
       }
 
       const eta = formatMinutesToTime(cumulativeTime);
-      currentStageETAs.push({ deliveryId: stop.delivery.id, eta });
+
+      await base44.asServiceRole.entities.Delivery.update(stop.delivery.id, {
+        delivery_time_eta: eta
+      });
 
       const serviceTime = stop.delivery.extra_time || (stop.isPickup ? 15 : 5);
       cumulativeTime += serviceTime;
 
-      console.log(`  ✅ ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta}`);
+      console.log(`  ✅ Stop ${i + 1}: ${stop.delivery.patient_name || 'Pickup'} - ETA: ${eta}`);
     }
 
-    // STEP 6: Update ETAs for current stage in database
-    for (const { deliveryId, eta } of currentStageETAs) {
-      await base44.asServiceRole.entities.Delivery.update(deliveryId, {
-        delivery_time_eta: eta
-      });
-    }
-
-    // STEP 7: Calculate ETAs for remaining stages (without Google API)
-    for (let stageIdx = 1; stageIdx < stages.length; stageIdx++) {
-      const stageStops = stages[stageIdx];
-      
-      for (const stop of stageStops) {
-        const travelMinutes = 10; // Estimated travel between stops
-        cumulativeTime += travelMinutes;
-
-        if (stop.delivery.time_window_start) {
-          const windowStart = parseTimeToMinutes(stop.delivery.time_window_start);
-          if (cumulativeTime < windowStart) {
-            cumulativeTime = windowStart;
-          }
-        }
-
-        const eta = formatMinutesToTime(cumulativeTime);
-        
-        await base44.asServiceRole.entities.Delivery.update(stop.delivery.id, {
-          delivery_time_eta: eta
-        });
-
-        const serviceTime = stop.delivery.extra_time || (stop.isPickup ? 15 : 5);
-        cumulativeTime += serviceTime;
-      }
-    }
-
-    // STEP 8: Re-fetch all incomplete deliveries with updated ETAs
-    const updatedIncomplete = await base44.asServiceRole.entities.Delivery.filter({
-      driver_id: driverId,
-      delivery_date: deliveryDate
-    });
-    
-    const activeStops = updatedIncomplete.filter(d => !finishedStatuses.includes(d.status));
-
-    // STEP 9: Re-sort by ETA
-    activeStops.sort((a, b) => {
-      const etaA = a.delivery_time_eta || a.delivery_time_start || '99:99';
-      const etaB = b.delivery_time_eta || b.delivery_time_start || '99:99';
-      return etaA.localeCompare(etaB);
-    });
-
-    // STEP 10: Re-assign stop_order numbers
+    // STEP 7: Re-assign stop_order numbers based on optimized order
     const startingOrder = completedDeliveries.length;
-    for (let i = 0; i < activeStops.length; i++) {
+    for (let i = 0; i < optimizedAllStops.length; i++) {
       const newOrder = startingOrder + i + 1;
-      await base44.asServiceRole.entities.Delivery.update(activeStops[i].id, {
+      await base44.asServiceRole.entities.Delivery.update(optimizedAllStops[i].delivery.id, {
         stop_order: newOrder,
         display_stop_order: newOrder
       });
-      console.log(`  🔢 Stop #${newOrder}: ${activeStops[i].patient_name || 'Pickup'}`);
+      console.log(`  🔢 Stop #${newOrder}: ${optimizedAllStops[i].delivery.patient_name || 'Pickup'}`);
     }
 
     // Update polyline record
