@@ -2664,10 +2664,8 @@ function Dashboard() {
       // CRITICAL: Returning from another page - delay longer before unlocking
       const wasReturning = !!savedFabPhaseOnUnmount;
 
-      // CRITICAL: Different unlock timers based on context
-      // - Returning from another page: 2000ms (let user see where they were)
-      // - Fresh load: 500ms (quick unlock)
-      const lockDuration = wasReturning ? 2000 : 500;
+      // CRITICAL: Always use 500ms for initial unlock (Phase 1 & 3)
+      const lockDuration = 500;
 
       if (finalPhase === 1 || finalPhase === 3) {
         const expiresAt = Date.now() + lockDuration;
@@ -2700,7 +2698,7 @@ function Dashboard() {
           }
         }
       }, 500);
-    }, 800); // Delay FAB activation by 800ms to ensure all markers are rendered
+    }, 1500); // Delay FAB activation to ensure all markers are rendered and prevent premature triggering
   }, [renderSequence.fullDeliveriesLoaded, renderSequence.fabPhaseReady, initialMapViewApplied, deliveriesWithStopOrder.length, isDriver, driverLocation, deliveriesWithStopOrder, nextStopCoordinates, deliveries.length, allDriverLocations.length, showAllDriverMarkers]);
 
   // CRITICAL: Dedicated effect to scroll to next delivery card on initial load
