@@ -1420,6 +1420,9 @@ export default function DeliveryMap({
         }
       }
       // CRITICAL: RULE 3 - Pure dispatchers: Only show drivers with active deliveries in their stores
+      // CRITICAL: Dispatchers can ONLY see shared location marker when driver is on_duty
+      // on_break = show polyline only, NOT shared marker
+      // off_duty = show nothing
       else if (isPureDispatcher) {
         const dispatcherStoreIds = new Set(currentUser.store_ids || []);
         const hasActiveDelivery = (deliveriesForLocationFilter || []).some(delivery =>
@@ -1431,6 +1434,14 @@ export default function DeliveryMap({
         );
 
         if (!hasActiveDelivery) return null;
+        
+        // CRITICAL: Dispatchers can ONLY see shared location marker when driver is on_duty
+        // on_break = polyline only (handled below), NOT shared marker
+        // off_duty = nothing
+        if (user.driver_status !== 'on_duty') return null;
+        
+        // CRITICAL: Must have location_tracking_enabled = true
+        if (user.location_tracking_enabled !== true) return null;
       }
       // No access for other roles
       else {
