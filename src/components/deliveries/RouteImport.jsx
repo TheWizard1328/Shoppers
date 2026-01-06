@@ -669,7 +669,7 @@ export default function RouteImport({
       const stopOrder = parseInt(values[3]?.trim()) || 0;
       const completionTimeStr = values[5]?.replace(/"/g, '').trim();
       const travelDistStr = values[8]?.replace(/"/g, '').trim();
-      const travelDist = travelDistStr && !isNaN(parseFloat(travelDistStr)) ? parseFloat(travelDistStr) : null;
+      const travelDist = travelDistStr && !isNaN(parseFloat(travelDistStr)) ? parseFloat(parseFloat(travelDistStr).toFixed(2)) : null;
       const stopId = (values[12] || '').replace(/"/g, '').trim();
       const patientPID = values[13]?.replace(/"/g, '').trim();
       const rawNotes = (values[15] || '').replace(/"/g, '').trim();
@@ -918,10 +918,10 @@ export default function RouteImport({
         // For updates: only import travel_dist if existing value is 0 or not set
         const existingTravelDist = existingDelivery.travel_dist;
         if (travelDist !== null && (!existingTravelDist || existingTravelDist === 0)) {
-          newDeliveryData.travel_dist = travelDist;
+          newDeliveryData.travel_dist = parseFloat(travelDist.toFixed(2));
         } else {
           // Keep existing travel_dist (don't overwrite non-zero values)
-          newDeliveryData.travel_dist = existingTravelDist;
+          newDeliveryData.travel_dist = existingTravelDist !== null && existingTravelDist !== undefined ? parseFloat(existingTravelDist.toFixed(2)) : null;
         }
         const changes = detectChanges(existingDelivery, newDeliveryData);
 
@@ -939,8 +939,8 @@ export default function RouteImport({
           });
         }
       } else {
-        // For new deliveries: set travel_dist from import
-        newDeliveryData.travel_dist = travelDist;
+        // For new deliveries: set travel_dist from import with 2 decimal precision
+        newDeliveryData.travel_dist = travelDist !== null && travelDist !== undefined ? parseFloat(travelDist.toFixed(2)) : null;
         
         const newDeliveryId = generateDeliveryId(Array.from(existingDeliveryIds));
         existingDeliveryIds.add(newDeliveryId);

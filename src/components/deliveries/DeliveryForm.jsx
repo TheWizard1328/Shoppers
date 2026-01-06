@@ -925,7 +925,7 @@ export default function DeliveryForm({
       distanceFromStore: distanceFromStore,
       delivery_address: patient.address || patientStore.address,
       isNextDelivery: false,
-      paid_km_override: distanceFromStore ?? null
+      paid_km_override: distanceFromStore !== null && distanceFromStore !== undefined ? parseFloat(distanceFromStore.toFixed(2)) : null
     }]);
 
     setHasChanges(true);
@@ -1503,7 +1503,7 @@ export default function DeliveryForm({
       store_abbreviation: store.abbreviation,
       distanceFromStore: distanceFromStore,
       delivery_address: patient?.address || store.address,
-      paid_km_override: distanceFromStore ?? null
+      paid_km_override: distanceFromStore !== null && distanceFromStore !== undefined ? parseFloat(distanceFromStore.toFixed(2)) : null
     }]);
 
     setHasChanges(true);
@@ -1621,8 +1621,10 @@ export default function DeliveryForm({
         oversized: formData.oversized || false,
         fridge_item: formData.fridge_item || false,
         signature_needed: formData.signature_needed || false,
-        paid_km_override: formData.paid_km_override ?? null
-      };
+        paid_km_override: formData.paid_km_override !== null && formData.paid_km_override !== undefined 
+          ? parseFloat(formData.paid_km_override.toFixed(2)) 
+          : null
+        };
 
       console.log('📝 [DeliveryForm] Updated staged delivery:', {
         _tempId: updatedStaged._tempId,
@@ -2915,8 +2917,8 @@ export default function DeliveryForm({
       distanceFromStore: distanceFromStore,
       delivery_address: patient.address || '',
       isNextDelivery: false,
-      paid_km_override: distanceFromStore ?? null
-    };
+      paid_km_override: distanceFromStore !== null && distanceFromStore !== undefined ? parseFloat(distanceFromStore.toFixed(2)) : null
+      };
 
     // CRITICAL: Remove from projected and add to staged in one synchronous batch
     setProjectedDeliveries((prev) => prev.filter((p) => p.patient_id !== projected.patient_id));
@@ -3510,15 +3512,20 @@ export default function DeliveryForm({
                       <Input
                       id="paid_km_override"
                       type="text"
-                      value={formData.paid_km_override ?? ''}
+                      value={formData.paid_km_override !== null && formData.paid_km_override !== undefined ? parseFloat(formData.paid_km_override).toFixed(2) : ''}
                       onChange={(e) => {
                         const val = e.target.value;
-                        setFormData((prev) => ({ 
-                          ...prev, 
-                          paid_km_override: val === '' ? null : val
-                        }));
+                        if (val === '') {
+                          setFormData((prev) => ({ ...prev, paid_km_override: null }));
+                        } else {
+                          const parsed = parseFloat(val);
+                          setFormData((prev) => ({ 
+                            ...prev, 
+                            paid_km_override: isNaN(parsed) ? null : parseFloat(parsed.toFixed(2))
+                          }));
+                        }
                       }}
-                      placeholder={selectedPatient?.distance_from_store ? selectedPatient.distance_from_store.toFixed(1) : ''}
+                      placeholder={selectedPatient?.distance_from_store ? selectedPatient.distance_from_store.toFixed(2) : ''}
                       className="h-9 text-sm"
                       disabled={isSaving} />
 
