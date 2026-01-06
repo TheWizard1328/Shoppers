@@ -4456,6 +4456,13 @@ function Dashboard() {
       setIsReoptimizing(true);
       setOptimizationMessage('Re-optimizing route...');
 
+      // CRITICAL: Pause smart refresh manager BEFORE optimization
+      console.log('⏸️ [FAB Reoptimize] Pausing smart refresh, offline sync, and mutations');
+      setIsEntityUpdating(true);
+      pauseOfflineMutations();
+      pauseOfflineSync();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
       const deliveryDate = format(selectedDate, 'yyyy-MM-dd');
       const now = new Date();
       const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -4498,6 +4505,13 @@ function Dashboard() {
       setOptimizationMessage(`Error: ${error.message}`);
       setTimeout(() => setOptimizationMessage(null), 5000);
     } finally {
+      // CRITICAL: Resume smart refresh, offline sync, and mutations AFTER optimization
+      console.log('▶️ [FAB Reoptimize] Resuming smart refresh, offline sync, and mutations');
+      resumeOfflineMutations();
+      resumeOfflineSync();
+      setIsEntityUpdating(false);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      
       setIsReoptimizing(false);
     }
   };
