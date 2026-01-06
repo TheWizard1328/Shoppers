@@ -6637,7 +6637,133 @@ function Dashboard() {
             right: '64px' // Position to the left of MapViewCycleFAB
           }}>
             <Button
-            onClick={handleReoptimizeRoute}
+            onClick={async () => {
+              if (isReoptimizing) return;
+
+              setIsReoptimizing(true);
+              setOptimizationMessage('Re-optimizing route...');
+
+              // CRITICAL: Pause smart refresh manager BEFORE optimization
+              console.log('⏸️ [FAB Reoptimize] Pausing smart refresh, offline sync, and mutations');
+              setIsEntityUpdating(true);
+              pauseOfflineMutations();
+              pauseOfflineSync();
+              await new Promise((resolve) => setTimeout(resolve, 100));
+
+              // STEP 0: Unlock FAB if it's on phase 2 (permanently locked)
+              if (mapViewPhase === 2 && isMapViewLocked) {
+                if (mapLockTimeoutRef.current) {
+                  clearTimeout(mapLockTimeoutRef.current);
+                  mapLockTimeoutRef.current = null;
+                }
+                mapLockExpiresAtRef.current = null;
+                setIsMapViewLocked(false);
+              }
+
+              // STEP 1: Zoom out to show all incomplete/pending stops
+              const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+              const incompleteStops = deliveriesWithStopOrder.filter((d) =>
+                d && !finishedStatuses.includes(d.status)
+              );
+              
+              console.log('🚀 [optimizeRemainingStops] incompleteStops.length', incompleteStops.length);
+
+              if (incompleteStops.length > 0) {
+                const allCoordinates = [];
+
+                // Add driver's current location if available
+                if (driverLocation?.latitude && driverLocation?.longitude) {
+                  allCoordinates.push([driverLocation.latitude, driverLocation.longitude]);
+                }
+
+                // Add driver's home location
+                if (currentUser?.home_latitude && currentUser?.home_longitude) {
+                  allCoordinates.push([currentUser.home_latitude, currentUser.home_longitude]);
+                }
+
+                // Add all incomplete stop coordinates
+                incompleteStops.forEach((stop) => {
+                  if (stop.patient_id) {
+                    const patient = patients.find((p) => p && p.id === stop.patient_id);
+                    if (patient?.latitude && patient?.longitude) {
+                      allCoordinates.push([patient.latitude, patient.longitude]);
+                    }
+                  } else if (stop.store_id) {
+                    const store = stores.find((s) => s && s.id === stop.store_id);
+                    if (store?.latitude && store?.longitude) {
+                      allCoordinates.push([store.latitude, store.longitude]);
+                    }
+                  }
+                });
+
+                if (allCoordinates.length > 0) {
+                  const padding = getMapPadding(false, deliveriesWithStopOrder.length > 0);
+                  setShouldFitBounds({
+                    bounds: allCoordinates,
+                    options: {
+                      ...padding,
+                      maxZoom: 14,
+                      animate: true
+                    }
+                  });
+                  setMapCenter(null);
+                  setMapZoom(null);
+                }
+              }
+
+              try {
+                const deliveryDate = format(selectedDate, 'yyyy-MM-dd');
+                const now = new Date();
+                const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+                const response = await base44.functions.invoke('optimizeRemainingStops', {
+                  driverId: currentUser.id,
+                  deliveryDate: deliveryDate,
+                  currentLocalTime: currentLocalTime,
+                  deviceTime: now.toISOString()
+                });
+
+                const data = response?.data || response;
+
+                if (data?.success) {
+                  setOptimizationMessage(`Route optimized! ${data.optimizedCount} stops updated.`);
+
+                  // Refresh data to show new order
+                  invalidateDeliveriesForDate(deliveryDate);
+                  await refreshData();
+
+                  // CRITICAL: Force map to re-render route lines
+                  window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                    detail: { driverId: currentUser.id, deliveryDate: deliveryDate, triggeredBy: 'reoptimizeRoute' }
+                  }));
+
+                  // Trigger map view update
+                  setIsMapViewLocked(true);
+                  setMapViewTrigger((prev) => prev + 1);
+
+                  setTimeout(() => {
+                    setOptimizationMessage(null);
+                    setIsMapViewLocked(false);
+                  }, 3000);
+                } else {
+                  setOptimizationMessage(data?.error || 'Optimization failed');
+                  setTimeout(() => setOptimizationMessage(null), 5000);
+                }
+              } catch (error) {
+                console.error('❌ [handleReoptimizeRoute] Error:', error);
+                setOptimizationMessage(`Error: ${error.message}`);
+                setTimeout(() => setOptimizationMessage(null), 5000);
+              } finally {
+                // CRITICAL: Resume smart refresh, offline sync, and mutations AFTER optimization
+                console.log('▶️ [FAB Reoptimize] Resuming smart refresh, offline sync, and mutations');
+                resumeOfflineMutations();
+                resumeOfflineSync();
+                setIsEntityUpdating(false);
+                await new Promise((resolve) => setTimeout(resolve, 100));
+                
+                setIsReoptimizing(false);
+              }
+            }}
             disabled={isReoptimizing || isDateFinished || !filteredDeliveries.some((d) => d && d.status === 'in_transit')}
             title="Re-optimize entire route using Google Maps"
             className={`inline-flex items-center justify-center whitespace-nowrap text-sm font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 text-primary-foreground h-10 w-10 rounded-lg shadow-2xl p-0 relative transition-all duration-200 ${
