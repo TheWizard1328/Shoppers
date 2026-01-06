@@ -6381,6 +6381,32 @@ function Dashboard() {
               retractClustersRef.current();
             }
           }}>
+          
+          {/* Optimization Message Banner - Above Stop Cards */}
+          <AnimatePresence>
+            {optimizationMessage &&
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="flex justify-center mb-2 pointer-events-auto">
+              <div className="rounded-lg shadow-2xl border-2 border-emerald-500 p-3 flex items-center gap-3 max-w-[90vw]" style={{ background: 'var(--bg-white)' }}>
+                {isOptimizing &&
+                <div className="animate-spin w-4 h-4 border-3 border-emerald-500 border-t-transparent rounded-full flex-shrink-0"></div>
+                }
+                <p className="font-medium flex-1 text-sm" style={{ color: 'var(--text-slate-900)' }}>{optimizationMessage}</p>
+                {!isOptimizing &&
+                <button
+                  onClick={() => setOptimizationMessage(null)}
+                  className="text-slate-400 hover:text-slate-600 flex-shrink-0">
+                    <X className="w-3.5 h-3.5" style={{ color: 'var(--text-slate-400)' }} />
+                  </button>
+                }
+              </div>
+            </motion.div>
+            }
+          </AnimatePresence>
+          
           <div
             className="overflow-x-auto overflow-y-visible scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent pointer-events-auto"
             style={isMobile ? { scrollSnapType: 'x mandatory' } : {}}
