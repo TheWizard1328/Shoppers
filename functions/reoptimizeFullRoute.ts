@@ -198,10 +198,19 @@ Deno.serve(async (req) => {
     const destLng = driverAppUser.home_longitude;
     console.log(`🏠 [ReoptimizeFullRoute] Destination: Driver's home location`);
 
+    // CRITICAL: Sort all active deliveries by delivery_time_start FIRST
+    const sortedActiveDeliveries = [...activeDeliveries].sort((a, b) => {
+      const timeA = a.delivery_time_start || '99:99';
+      const timeB = b.delivery_time_start || '99:99';
+      return timeA.localeCompare(timeB);
+    });
+    
+    console.log('📋 [ReoptimizeFullRoute] Sorted active deliveries by delivery_time_start');
+
     // Build waypoints array (exclude isNextDelivery - it stays locked)
     const stopsToOptimize = isNextDeliveryStop 
-      ? activeDeliveries.filter(d => d.id !== isNextDeliveryStop.id)
-      : activeDeliveries;
+      ? sortedActiveDeliveries.filter(d => d.id !== isNextDeliveryStop.id)
+      : sortedActiveDeliveries;
 
     // Enrich stops with coordinates
     const enrichedStops = stopsToOptimize.map(delivery => {
