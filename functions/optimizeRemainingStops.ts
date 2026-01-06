@@ -246,41 +246,19 @@ Deno.serve(async (req) => {
     let directionsLegs = [];
     let totalApiCalls = 0;
 
-    // Separate pickups and deliveries in current stage
-    const pickupsInStage = currentStage.filter(s => s.isPickup);
-    const deliveriesInStage = currentStage.filter(s => !s.isPickup);
+    // CRITICAL: Sort current stage by delivery_time_start BEFORE optimization
+    const currentStageSorted = [...currentStage].sort((a, b) => {
+      if (a.timeMinutes !== b.timeMinutes) return a.timeMinutes - b.timeMinutes;
+      if (a.isPickup && !b.isPickup) return -1;
+      if (!a.isPickup && b.isPickup) return 1;
+      return 0;
+    });
 
-    // Nearest neighbor optimization for deliveries
-    const optimizedDeliveries = [];
-    let tempPos = currentPosition;
-    const remainingDeliveries = [...deliveriesInStage];
+    console.log(`📋 Sorted current stage by delivery_time_start before Google optimization`);
 
-    while (remainingDeliveries.length > 0) {
-      let nearestIdx = 0;
-      let nearestDist = Infinity;
-
-      for (let i = 0; i < remainingDeliveries.length; i++) {
-        const dist = calculateCrowFliesDistance(
-          tempPos.lat, tempPos.lng,
-          remainingDeliveries[i].lat, remainingDeliveries[i].lng
-        );
-        if (dist < nearestDist) {
-          nearestDist = dist;
-          nearestIdx = i;
-        }
-      }
-
-      const nearest = remainingDeliveries.splice(nearestIdx, 1)[0];
-      optimizedDeliveries.push(nearest);
-      tempPos = { lat: nearest.lat, lng: nearest.lng };
-    }
-
-    // Combine: optimized deliveries + pickups at end
-    optimizedCurrentStage = [...optimizedDeliveries, ...pickupsInStage];
-
-    // Get travel times from Google Directions API (with fallback)
-    if (optimizedCurrentStage.length > 0) {
-      const routeCoords = [currentPosition, ...optimizedCurrentStage.map(s => ({ lat: s.lat, lng: s.lng }))];
+    // Get travel times from Google Directions API (with time-based pre-ordering)
+    if (currentStageSorted.length > 0) {
+      const routeCoords = [currentPosition, ...currentStageSorted.map(s => ({ lat: s.lat, lng: s.lng }))];
       
       if (routeCoords.length >= 2) {
         const origin = `${routeCoords[0].lat},${routeCoords[0].lng}`;
@@ -296,9 +274,10 @@ Deno.serve(async (req) => {
           function_name: 'optimizeRemainingStops',
           user_id: user.id,
           user_name: user.full_name,
-          metadata: { driver_id: driverId, delivery_date: deliveryDate, stops_count: optimizedCurrentStage.length }
+          metadata: { driver_id: driverId, delivery_date: deliveryDate, stops_count: currentStageSorted.length }
         });
 
+        // CRITICAL: Don't use optimize:true - respect the time-based order
         const directionsUrl = `https://maps.googleapis.com/maps/api/directions/json?` +
           `origin=${origin}&destination=${destination}${waypointsStr}&` +
           `departure_time=now&traffic_model=best_guess&key=${googleMapsKey}`;
@@ -324,9 +303,13 @@ Deno.serve(async (req) => {
             distance: leg.distance?.value || 0
           }));
           console.log('✅ Google Directions API success');
+          
+          // Use the pre-sorted order (don't apply Google's waypoint_order)
+          optimizedCurrentStage = currentStageSorted;
         } else {
           // Fallback to crow-flies
           console.log('⚠️ Google API failed - using crow-flies fallback');
+          optimizedCurrentStage = currentStageSorted;
           let prevPos = currentPosition;
           for (const stop of optimizedCurrentStage) {
             const distKm = calculateCrowFliesDistance(prevPos.lat, prevPos.lng, stop.lat, stop.lng);
