@@ -267,47 +267,58 @@ Deno.serve(async (req) => {
 
     for (let stageIdx = 0; stageIdx < stages.length; stageIdx++) {
       const stageStops = stages[stageIdx];
-      console.log(`\n--- Stage ${stageIdx + 1}: ${stageStops.length} stops ---`);
+      const isNextDeliveryStage = stageIdx === 0 && nextDeliveryStop && stageStops.length === 1 && stageStops[0].isNextDelivery;
+      
+      console.log(`\n--- Stage ${stageIdx + 1}: ${stageStops.length} stops ${isNextDeliveryStage ? '(isNextDelivery - LOCKED)' : ''} ---`);
 
-      // Determine stage end location (pickup at end, or driver home for final stage)
-      const lastStopInStage = stageStops[stageStops.length - 1];
-      const stageEndLocation = lastStopInStage.isPickup 
-        ? { lat: lastStopInStage.lat, lng: lastStopInStage.lng }
-        : (driverAppUser.home_latitude && driverAppUser.home_longitude)
-          ? { lat: driverAppUser.home_latitude, lng: driverAppUser.home_longitude }
-          : null;
+      // CRITICAL: If this is the isNextDelivery stage, don't optimize - just process it as-is
+      let optimizedStageStops;
+      
+      if (isNextDeliveryStage) {
+        // isNextDelivery stop is locked in position - no optimization needed
+        optimizedStageStops = stageStops;
+        console.log(`🔒 isNextDelivery stop locked - no optimization`);
+      } else {
+        // Determine stage end location (pickup at end, or driver home for final stage)
+        const lastStopInStage = stageStops[stageStops.length - 1];
+        const stageEndLocation = lastStopInStage.isPickup 
+          ? { lat: lastStopInStage.lat, lng: lastStopInStage.lng }
+          : (driverAppUser.home_latitude && driverAppUser.home_longitude)
+            ? { lat: driverAppUser.home_latitude, lng: driverAppUser.home_longitude }
+            : null;
 
-      // Separate pickups (stay at end) and deliveries (to optimize)
-      const pickupsInStage = stageStops.filter(s => s.isPickup);
-      const deliveriesInStage = stageStops.filter(s => !s.isPickup);
+        // Separate pickups (stay at end) and deliveries (to optimize)
+        const pickupsInStage = stageStops.filter(s => s.isPickup);
+        const deliveriesInStage = stageStops.filter(s => !s.isPickup);
 
-      // Optimize deliveries within stage using nearest neighbor from current position
-      const optimizedDeliveries = [];
-      let tempPos = currentPosition;
-      const remainingDeliveries = [...deliveriesInStage];
+        // Optimize deliveries within stage using nearest neighbor from current position
+        const optimizedDeliveries = [];
+        let tempPos = currentPosition;
+        const remainingDeliveries = [...deliveriesInStage];
 
-      while (remainingDeliveries.length > 0) {
-        let nearestIdx = 0;
-        let nearestDist = Infinity;
+        while (remainingDeliveries.length > 0) {
+          let nearestIdx = 0;
+          let nearestDist = Infinity;
 
-        for (let i = 0; i < remainingDeliveries.length; i++) {
-          const dist = calculateCrowFliesDistance(
-            tempPos.lat, tempPos.lng,
-            remainingDeliveries[i].lat, remainingDeliveries[i].lng
-          );
-          if (dist < nearestDist) {
-            nearestDist = dist;
-            nearestIdx = i;
+          for (let i = 0; i < remainingDeliveries.length; i++) {
+            const dist = calculateCrowFliesDistance(
+              tempPos.lat, tempPos.lng,
+              remainingDeliveries[i].lat, remainingDeliveries[i].lng
+            );
+            if (dist < nearestDist) {
+              nearestDist = dist;
+              nearestIdx = i;
+            }
           }
+
+          const nearest = remainingDeliveries.splice(nearestIdx, 1)[0];
+          optimizedDeliveries.push(nearest);
+          tempPos = { lat: nearest.lat, lng: nearest.lng };
         }
 
-        const nearest = remainingDeliveries.splice(nearestIdx, 1)[0];
-        optimizedDeliveries.push(nearest);
-        tempPos = { lat: nearest.lat, lng: nearest.lng };
+        // Combine: optimized deliveries + pickups at end
+        optimizedStageStops = [...optimizedDeliveries, ...pickupsInStage];
       }
-
-      // Combine: optimized deliveries + pickups at end
-      const optimizedStageStops = [...optimizedDeliveries, ...pickupsInStage];
 
       // Get travel times from Google Directions API
       let directionsLegs = [];
