@@ -320,66 +320,20 @@ Deno.serve(async (req) => {
         optimizedStageStops = [...optimizedDeliveries, ...pickupsInStage];
       }
 
-      // Get travel times from Google Directions API
+      // Calculate travel times using crow-flies distance (no Google API)
       let directionsLegs = [];
       
       if (optimizedStageStops.length > 0) {
-        const routeCoords = [currentPosition, ...optimizedStageStops.map(s => ({ lat: s.lat, lng: s.lng }))];
-        
-        if (routeCoords.length >= 2) {
-          const origin = `${routeCoords[0].lat},${routeCoords[0].lng}`;
-          const destination = `${routeCoords[routeCoords.length - 1].lat},${routeCoords[routeCoords.length - 1].lng}`;
-          const waypoints = routeCoords.slice(1, -1).map(c => `${c.lat},${c.lng}`);
-          const waypointsStr = waypoints.length > 0 ? `&waypoints=${waypoints.join('|')}` : '';
-
-          // Log API call
-          await base44.asServiceRole.entities.GoogleAPILog.create({
-            timestamp: new Date().toISOString(),
-            api_type: 'Directions',
-            purpose: `Stage ${stageIdx + 1} optimization for driver ${driverAppUser.user_name || driverId}`,
-            function_name: 'optimizeRouteRealTime',
-            user_id: user.id,
-            user_name: user.full_name,
-            metadata: { driver_id: driverId, delivery_date: deliveryDate, stage: stageIdx + 1, stops_count: optimizedStageStops.length }
+        let prevPos = currentPosition;
+        for (const stop of optimizedStageStops) {
+          const distKm = calculateCrowFliesDistance(prevPos.lat, prevPos.lng, stop.lat, stop.lng);
+          directionsLegs.push({
+            duration: Math.ceil((distKm / 40) * 60 * 60 * 1.3), // 40 km/h + 30% buffer
+            distance: distKm * 1000
           });
-
-          const directionsUrl = `https://maps.googleapis.com/maps/api/directions/json?` +
-            `origin=${origin}&destination=${destination}${waypointsStr}&` +
-            `departure_time=now&traffic_model=best_guess&key=${googleMapsKey}`;
-
-          let directionsData = null;
-          for (let attempt = 0; attempt < 3; attempt++) {
-            try {
-              if (attempt > 0) await new Promise(r => setTimeout(r, Math.min(1000 * Math.pow(2, attempt), 5000)));
-              const response = await fetch(directionsUrl, { signal: AbortSignal.timeout(15000) });
-              directionsData = await response.json();
-              if (directionsData.status === 'OK') {
-                totalApiCalls++;
-                break;
-              }
-            } catch (err) {
-              console.warn(`Directions API attempt ${attempt + 1} failed:`, err.message);
-            }
-          }
-
-          if (directionsData?.status === 'OK') {
-            directionsLegs = directionsData.routes[0].legs.map(leg => ({
-              duration: leg.duration_in_traffic?.value || leg.duration?.value || 0,
-              distance: leg.distance?.value || 0
-            }));
-          } else {
-            // Fallback to crow-flies
-            let prevPos = currentPosition;
-            for (const stop of optimizedStageStops) {
-              const distKm = calculateCrowFliesDistance(prevPos.lat, prevPos.lng, stop.lat, stop.lng);
-              directionsLegs.push({
-                duration: Math.ceil((distKm / 40) * 60 * 60 * 1.3),
-                distance: distKm * 1000
-              });
-              prevPos = { lat: stop.lat, lng: stop.lng };
-            }
-          }
+          prevPos = { lat: stop.lat, lng: stop.lng };
         }
+        console.log(`📏 [Stage ${stageIdx + 1}] Using crow-flies distance (no Google API)`);
       }
 
       // STEP 4: Update ETAs and stop orders

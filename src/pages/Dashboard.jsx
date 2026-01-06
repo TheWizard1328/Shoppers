@@ -2788,10 +2788,10 @@ function Dashboard() {
     };
   }, []);
 
-  // Periodic ETA optimizer - runs every 15 minutes for current driver, only if moved 500m+
-  const lastETAUpdateLocationRef = useRef(null);
+  // Periodic route optimizer - runs every 5 minutes for on-duty drivers who have moved 100m+
+  const lastRouteOptimizeLocationRef = useRef(null);
 
-  // Periodic ETA optimizer - ONLY for mobile drivers viewing their own route
+  // Periodic route optimizer - ONLY for mobile drivers viewing their own route
   useEffect(() => {
     // CRITICAL: Only run for mobile devices with driver role viewing their own route
     if (!isMobile || !userHasRole(currentUser, 'driver') || !currentUser) {
@@ -2802,9 +2802,23 @@ function Dashboard() {
       return;
     }
 
-    const runETAOptimizer = async () => {
+    const runRouteOptimizer = async () => {
       try {
         const dateStr = format(selectedDate, 'yyyy-MM-dd');
+
+        // CRITICAL: Only run if viewing today's date
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        if (dateStr !== todayStr) {
+          console.log('⏭️ [Route Optimizer] Skipping - not viewing today');
+          return;
+        }
+
+        // CRITICAL: Only run if driver is on_duty
+        const appUser = appUsers?.find((au) => au?.user_id === currentUser.id);
+        if (!appUser || appUser.driver_status !== 'on_duty') {
+          console.log('⏭️ [Route Optimizer] Skipping - driver not on_duty');
+          return;
+        }
 
         // CRITICAL: Don't run optimizer if no deliveries loaded yet
         if (!filteredDeliveries || filteredDeliveries.length === 0) {
@@ -2814,66 +2828,75 @@ function Dashboard() {
         // Check if route is complete - stop running optimizer if no incomplete stops
         const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
         const hasIncompleteStops = filteredDeliveries.some((d) =>
-        d && !finishedStatuses.includes(d.status)
+          d && !finishedStatuses.includes(d.status)
         );
 
         if (!hasIncompleteStops) {
+          console.log('⏭️ [Route Optimizer] Skipping - no incomplete stops');
           return;
         }
 
-        // CRITICAL: Only update if driver has moved 500m+ since last ETA update
+        // CRITICAL: Only update if driver has moved 100m+ since last optimization
         if (driverLocation?.latitude && driverLocation?.longitude) {
-          if (lastETAUpdateLocationRef.current) {
+          if (lastRouteOptimizeLocationRef.current) {
             const distanceMoved = calculateDistance(
-              lastETAUpdateLocationRef.current.lat,
-              lastETAUpdateLocationRef.current.lon,
+              lastRouteOptimizeLocationRef.current.lat,
+              lastRouteOptimizeLocationRef.current.lon,
               driverLocation.latitude,
               driverLocation.longitude
             ) * 1000; // Convert km to meters
 
-            if (distanceMoved < 500) {
-              console.log(`⏭️ [ETA - Periodic] Skipping update - driver moved only ${Math.round(distanceMoved)}m (< 500m)`);
+            if (distanceMoved < 100) {
+              console.log(`⏭️ [Route Optimizer] Skipping - driver moved only ${Math.round(distanceMoved)}m (< 100m)`);
               return;
             }
-            console.log(`✅ [ETA - Periodic] Driver moved ${Math.round(distanceMoved)}m - updating ETAs`);
+            console.log(`✅ [Route Optimizer] Driver moved ${Math.round(distanceMoved)}m - optimizing route`);
           }
 
           // Store current location for next comparison
-          lastETAUpdateLocationRef.current = {
+          lastRouteOptimizeLocationRef.current = {
             lat: driverLocation.latitude,
             lon: driverLocation.longitude
           };
+        } else {
+          console.log('⏭️ [Route Optimizer] Skipping - no driver location available');
+          return;
         }
 
         // Get current local time in HH:mm format
         const now = new Date();
         const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-        console.log('📡 [ETA - Periodic] Calling calculateRealTimeETA for mobile driver...');
-        const response = await base44.functions.invoke('calculateRealTimeETA', {
+        console.log('📡 [Route Optimizer - 5min] Calling optimizeRouteRealTime...');
+        const response = await base44.functions.invoke('optimizeRouteRealTime', {
           driverId: currentUser.id,
           deliveryDate: dateStr,
-          currentLocalTime: localTimeString // Backend calculates and saves ETAs directly
+          currentLocalTime: localTimeString,
+          deviceTime: now.toISOString(),
+          generatePolyline: false
         });
-        console.log('✅ [ETA - Periodic] calculateRealTimeETA completed');
-        // Backend now handles all ETA calculations and database updates - no need to recalculate here
+        console.log('✅ [Route Optimizer - 5min] optimizeRouteRealTime completed');
+
+        // Trigger UI refresh
+        invalidateDeliveriesForDate(dateStr);
+        await refreshData();
 
       } catch (error) {
-        console.warn('⚠️ [ETA - Periodic] Periodic ETA optimizer failed:', error);
+        console.warn('⚠️ [Route Optimizer - 5min] Failed:', error);
       }
     };
 
-    // Run after initial delay (2 minutes) to avoid competing with data load
-    const initialTimer = setTimeout(runETAOptimizer, 120000);
+    // Run after initial delay (5 minutes) to avoid competing with data load
+    const initialTimer = setTimeout(runRouteOptimizer, 300000);
 
-    // Then run every 15 minutes
-    const interval = setInterval(runETAOptimizer, 900000);
+    // Then run every 5 minutes
+    const interval = setInterval(runRouteOptimizer, 300000);
 
     return () => {
       clearTimeout(initialTimer);
       clearInterval(interval);
     };
-  }, [isMobile, isDriver, isDataLoaded, currentUser, selectedDriverId, selectedDate, filteredDeliveries, driverLocation]);
+  }, [isMobile, isDriver, isDataLoaded, currentUser, selectedDriverId, selectedDate, filteredDeliveries, driverLocation, appUsers]);
 
   useEffect(() => {
     // CRITICAL: Skip auto-center if initial FAB phase has been applied
@@ -5047,24 +5070,7 @@ function Dashboard() {
       // CRITICAL: Recalculate stop orders after status change
       await recalculateStopOrders(targetDelivery.driver_id, deliveryDate);
 
-      // CRITICAL: Update ETAs when transitioning to in_transit (mobile drivers)
-      if (['in_transit', 'en_route'].includes(newStatus) && isMobile && userHasRole(currentUser, 'driver')) {
-        try {
-          const now = new Date();
-          const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-          await base44.functions.invoke('optimizeRouteRealTime', {
-            driverId: targetDelivery.driver_id,
-            deliveryDate: deliveryDate,
-            currentLocalTime: localTimeString,
-            deviceTime: now.toISOString(),
-            generatePolyline: true
-          });
-          console.log('✅ [STATUS UPDATE] Route optimized after transitioning to in_transit');
-        } catch (optimizeError) {
-          console.warn('⚠️ [STATUS UPDATE] Route optimization failed:', optimizeError);
-        }
-      }
+      // Route optimization removed - now only runs on 5-minute timer when driver moves 100m+
 
       // CRITICAL: Force full data refresh to sync UI
       invalidateDeliveriesForDate(deliveryDate);
@@ -5422,51 +5428,8 @@ function Dashboard() {
       });
       console.log(`   ✅ ETA set to ${etaString}`);
 
-      // STEP 7: Re-optimize the route from this delivery onward
-      console.log('🔄 [START] Step 7: Re-optimizing route from this delivery onward...');
-      try {
-        const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-        const optimizeResponse = await base44.functions.invoke('optimizeRouteRealTime', {
-          driverId: driverId,
-          deliveryDate: deliveryDate,
-          currentLocalTime: localTimeString,
-          deviceTime: now.toISOString(),
-          generatePolyline: true
-        });
-
-        const optimizeData = optimizeResponse?.data || optimizeResponse;
-        console.log(`   ✅ Route optimization: ${optimizeData?.success ? 'success' : 'error'}`);
-
-        // CRITICAL: Force map to re-render route lines after optimization
-        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-          detail: { driverId: driverId, deliveryDate: deliveryDate, triggeredBy: 'startDeliveryOptimization' }
-        }));
-      } catch (optimizeError) {
-        console.warn('   ⚠️ Route optimization failed:', optimizeError.message);
-      }
-
-      // STEP 8: Update ETAs for all remaining stops (mobile drivers only)
-      if (isMobile && userHasRole(currentUser, 'driver')) {
-        console.log('⏱️ [START] Step 8: Updating ETAs for all stops...');
-        try {
-          const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-          await base44.functions.invoke('calculateRealTimeETA', {
-            driverId: driverId,
-            deliveryDate: deliveryDate,
-            currentLocalTime: localTimeString
-          });
-          console.log('   ✅ ETAs updated');
-
-          // CRITICAL: Force map to re-render route lines after ETA update
-          window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-            detail: { driverId: driverId, deliveryDate: deliveryDate, triggeredBy: 'startDeliveryETA' }
-          }));
-        } catch (etaError) {
-          console.warn('   ⚠️ ETA calculation failed:', etaError.message);
-        }
-      }
+      // STEP 7: Route optimization removed - now only runs on 5-minute timer when driver moves 100m+
+      console.log('⏭️ [START] Skipping route optimization (handled by timer)');
 
       // STEP 9: Final UI refresh and database sync
       console.log('🔄 [START] Step 9: Final UI refresh and database sync...');
@@ -5849,24 +5812,9 @@ function Dashboard() {
                       console.log('✅ [Refresh Spinner] Driver locations refreshed and markers updated');
                     }
 
-                    // STEP 2: Run recursive route optimization (includes ETA updates)
-                    try {
-                      console.log('🔄 [Refresh Spinner] Running optimizeRouteRealTime...');
-                      const optimizeResponse = await base44.functions.invoke('optimizeRouteRealTime', {
-                        driverId: activeDriverId,
-                        deliveryDate: selectedDateStr,
-                        currentLocalTime: currentLocalTime,
-                        generatePolyline: false
-                      });
-                      console.log('✅ [Refresh Spinner] Route optimized - ETAs updated by backend');
-
-                      // CRITICAL: Force map to re-render route lines
-                      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                        detail: { driverId: activeDriverId, deliveryDate: selectedDateStr, triggeredBy: 'refreshOptimization' }
-                      }));
-                    } catch (optimizeError) {
-                      console.warn('⚠️ [Refresh Spinner] Route optimizer failed:', optimizeError);
-                    }
+                    // STEP 2: Route optimization removed from manual refresh
+                    // Optimization now only runs on 5-minute timer when driver moves 100m+
+                    console.log('⏭️ [Refresh Spinner] Skipping route optimization (runs on timer only)');
 
                     // STEP 3: Force reload deliveries for active driver
                     invalidateDeliveriesForDate(selectedDateStr);
