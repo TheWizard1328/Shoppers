@@ -399,9 +399,13 @@ Deno.serve(async (req) => {
     
     const activeStops = updatedIncomplete.filter(d => !finishedStatuses.includes(d.status));
 
-    // STEP 9: CRITICAL - Re-sort activeStops by delivery_time_start (same as STEP 1)
-    // This ensures the stop_order assignment matches the time-based order
+    // STEP 9: CRITICAL - Re-sort activeStops (same logic as STEP 1)
+    // isNextDelivery FIRST, then by time
     activeStops.sort((a, b) => {
+      // CRITICAL: isNextDelivery ALWAYS comes first
+      if (a.isNextDelivery && !b.isNextDelivery) return -1;
+      if (!a.isNextDelivery && b.isNextDelivery) return 1;
+      
       const timeA = parseTimeToMinutes(a.delivery_time_start);
       const timeB = parseTimeToMinutes(b.delivery_time_start);
       if (timeA !== timeB) return timeA - timeB;
@@ -414,7 +418,7 @@ Deno.serve(async (req) => {
       return 0;
     });
 
-    console.log(`\n🔢 [optimizeRemainingStops] Re-sorted ${activeStops.length} stops by delivery_time_start for stop_order assignment`);
+    console.log(`\n🔢 [optimizeRemainingStops] Re-sorted ${activeStops.length} stops (isNextDelivery first, then by time)`);
 
     // STEP 10: Re-assign stop_order numbers to match the sorted order
     const startingOrder = completedDeliveries.length;
