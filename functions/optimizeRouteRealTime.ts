@@ -214,10 +214,19 @@ Deno.serve(async (req) => {
     console.log(`📋 Sorted ${stopsToOptimize.length} stops (after isNextDelivery) by delivery_time_start`);
 
     // STEP 2: Divide route into stages (each stage ends at a pickup)
+    // CRITICAL: isNextDelivery stop is processed FIRST with its own stage, remaining stops follow
     const stages = [];
+    
+    // If there's an isNextDelivery stop, it gets processed first as its own "stage"
+    if (nextDeliveryStop) {
+      stages.push([nextDeliveryStop]);
+      console.log(`🎯 isNextDelivery stop locked at position 1: ${nextDeliveryStop.delivery.patient_name || 'Pickup'}`);
+    }
+    
+    // Now process remaining stops into stages
     let currentStageStops = [];
     
-    for (const stop of stops) {
+    for (const stop of stopsToOptimize) {
       if (stop.isPickup && currentStageStops.length > 0) {
         // End current stage, pickup becomes end of this stage
         currentStageStops.push(stop);
@@ -233,7 +242,7 @@ Deno.serve(async (req) => {
       stages.push(currentStageStops);
     }
 
-    console.log(`📊 Divided into ${stages.length} stages`);
+    console.log(`📊 Divided into ${stages.length} stages (first stage is isNextDelivery if set)`);
 
     // STEP 3: Optimize each stage using Google Directions API
     const googleMapsKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
