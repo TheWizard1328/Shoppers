@@ -750,6 +750,9 @@ export default function RouteImport({
       };
 
       // Only set travel_dist if parsed value exists (don't overwrite existing non-zero values during updates)
+      if (travelDist !== null && travelDist !== undefined) {
+        newDeliveryData.travel_dist = parseFloat(travelDist.toFixed(2));
+      }
 
       const assignedAMPM = ampmValue || determineDeliveryAMPM(newDeliveryData, allDeliveriesData);
       newDeliveryData.ampm_deliveries = assignedAMPM;
