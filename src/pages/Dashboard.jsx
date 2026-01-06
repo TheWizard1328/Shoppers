@@ -1636,15 +1636,17 @@ function Dashboard() {
       // Callback provided for future use, but not actively calling refreshData
       // to prevent triggering auto-selection every 15 seconds
     }, currentUser); // CRITICAL: Pass currentUser so poller knows who "self" is
-    const unsubscribe = driverLocationPoller.subscribe((locations) => {if (!locations || !Array.isArray(locations)) return; // CRITICAL: TRIPLE-CHECK filtering on mobile - block ANY marker matching current user ID
-        // This is the FINAL defense against self-markers appearing on mobile
-        const currentUserId = currentUser?.id;const currentUserUserId = currentUser?.user_id;
-        const filteredLocations = isMobile && isDriver ?
+    const unsubscribe = driverLocationPoller.subscribe((locations) => {
+      if (!locations || !Array.isArray(locations)) return;
+      
+      const currentUserId = currentUser?.id;
+      const currentUserUserId = currentUser?.user_id;
+      const filteredLocations = isMobile && isDriver ?
         locations.filter((loc) => {
           const locId = loc.driver_id || loc.user_id || loc.id;
           const isSelfMarker = locId === currentUserId ||
-          locId === currentUserUserId ||
-          loc._isSelf === true;
+            locId === currentUserUserId ||
+            loc._isSelf === true;
           if (isSelfMarker) {
             console.log('🚫 [Dashboard] BLOCKING self shared marker on mobile (ID match)', { locId, currentUserId });
             return false;
@@ -1653,12 +1655,10 @@ function Dashboard() {
         }) :
         locations;
 
-        console.log(`📍 [Dashboard] Setting ${filteredLocations.length} driver locations (mobile: ${isMobile}, filtered self: ${locations.length - filteredLocations.length})`);
+      console.log(`📍 [Dashboard] Setting ${filteredLocations.length} driver locations (mobile: ${isMobile}, filtered self: ${locations.length - filteredLocations.length})`);
 
-        // CRITICAL: Replace locations entirely (don't merge)
-        // Merging can cause stale self-markers to persist on mobile
-        setAllDriverLocations(filteredLocations);
-      });
+      setAllDriverLocations(filteredLocations);
+    });
 
     return () => {
       unsubscribe();
