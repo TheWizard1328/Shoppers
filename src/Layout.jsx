@@ -1012,7 +1012,7 @@ export default function Layout({ children, currentPageName }) {
         // CRITICAL: Immediately dispatch driverLocationsUpdated with current appUsers
         // This ensures map markers update without waiting for next smart refresh cycle
         window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-          detail: { appUsers: allAppUsers }
+          detail: { appUsers }
         }));
       };
       window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
