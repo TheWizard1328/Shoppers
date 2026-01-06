@@ -1301,6 +1301,39 @@ class SmartRefreshManager {
         return true;
       });
       
+      // CRITICAL: Ensure isNextDelivery stop is first among incomplete deliveries
+      // This must happen BEFORE any optimizer runs to prevent it from being reordered
+      const incompleteDeliveries = filteredCurrentDateDeliveries.filter(d => 
+        d && !['completed', 'failed', 'cancelled', 'returned'].includes(d.status)
+      );
+      const completedDeliveries = filteredCurrentDateDeliveries.filter(d => 
+        d && ['completed', 'failed', 'cancelled', 'returned'].includes(d.status)
+      );
+      
+      // Find the isNextDelivery stop
+      const nextDeliveryStop = incompleteDeliveries.find(d => d.isNextDelivery === true);
+      
+      if (nextDeliveryStop) {
+        // Get the first stop_order among incomplete deliveries
+        const minIncompleteOrder = Math.min(...incompleteDeliveries.map(d => d.stop_order || Infinity));
+        
+        // If isNextDelivery stop is not at the first incomplete position, fix it
+        if (nextDeliveryStop.stop_order !== minIncompleteOrder) {
+          console.log(`🔧 [SmartRefresh] Fixing isNextDelivery stop order: ${nextDeliveryStop.patient_name || 'Pickup'} should be first (order ${minIncompleteOrder})`);
+          
+          // Update the stop locally to have the first position
+          nextDeliveryStop.stop_order = minIncompleteOrder;
+          hasChanges = true;
+          
+          // Also update in the database (async, don't await to keep refresh fast)
+          base44.entities.Delivery.update(nextDeliveryStop.id, {
+            stop_order: minIncompleteOrder
+          }).catch(err => {
+            console.warn(`⚠️ [SmartRefresh] Failed to update isNextDelivery stop order in DB:`, err.message);
+          });
+        }
+      }
+      
       // CRITICAL: Merge back with other dates
       const updatedDeliveries = [...otherDateDeliveries, ...filteredCurrentDateDeliveries];
       
