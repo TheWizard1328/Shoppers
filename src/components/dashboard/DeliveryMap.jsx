@@ -2260,93 +2260,197 @@ export default function DeliveryMap({
         }
 
         {/* STRAIGHT BLUE DASHED LINE - From driver location (or fallback) to NEXT stop only */}
+        {/* For drivers: show when on_duty or on_break */}
+        {/* For dispatchers: show for assigned drivers who are on_duty or on_break */}
         {isViewingCurrentDate && (() => {
           const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
           
-          // CRITICAL: Only show for current user who is a driver
-          if (!currentUser || !userHasRole(currentUser, 'driver')) return null;
+          const isCurrentUserDriver = currentUser && userHasRole(currentUser, 'driver');
+          const isCurrentUserDispatcher = currentUser && userHasRole(currentUser, 'dispatcher');
+          const isCurrentUserAdmin = currentUser && userHasRole(currentUser, 'admin');
           
-          // Get all incomplete deliveries for the current driver, sorted by stop_order
-          const incompleteDeliveries = deliveryMarkers.filter(d => 
-            d && 
-            d.driver_id === currentUser?.id &&
-            !finishedStatuses.includes(d.status) &&
-            d.status !== 'pending'
-          ).sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
-          
-          const incompletePickups = pickupMarkers.filter(p => 
-            p && 
-            p.driver_id === currentUser?.id &&
-            !finishedStatuses.includes(p.status) &&
-            p.status !== 'pending'
-          ).sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
-          
-          // Combine and get the first (next) stop
-          const allIncompleteStops = [...incompletePickups, ...incompleteDeliveries]
-            .sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
-          
-          const nextStop = allIncompleteStops[0];
-          
-          if (!nextStop) return null;
-          
-          // CRITICAL: Determine the starting point for the blue dashed line
-          // Priority: 1) Live driver location, 2) Last completed stop, 3) Driver's home location
-          let startPoint = null;
-          
-          // 1) Check for live driver location (blue dot)
-          if (currentDriverLocation?.latitude && currentDriverLocation?.longitude) {
-            startPoint = [currentDriverLocation.latitude, currentDriverLocation.longitude];
-          }
-          
-          // 2) If no live location, check for shared driver marker (driverLocationMarkers)
-          if (!startPoint) {
-            const sharedDriverMarker = driverLocationMarkers.find(m => m.driver?.id === currentUser?.id);
-            if (sharedDriverMarker?.latitude && sharedDriverMarker?.longitude) {
-              startPoint = [sharedDriverMarker.latitude, sharedDriverMarker.longitude];
-            }
-          }
-          
-          // 3) If still no location, check for completed stops (use last completed)
-          if (!startPoint) {
-            const allDriverStops = [...deliveryMarkers, ...pickupMarkers].filter(d => 
-              d && d.driver_id === currentUser?.id
-            );
-            const completedStops = allDriverStops
-              .filter(s => finishedStatuses.includes(s.status) && s.actual_delivery_time)
-              .sort((a, b) => new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time));
+          // CRITICAL: For drivers viewing their own route
+          if (isCurrentUserDriver && !isCurrentUserDispatcher && !isCurrentUserAdmin) {
+            // Get all incomplete deliveries for the current driver, sorted by stop_order
+            const incompleteDeliveries = deliveryMarkers.filter(d => 
+              d && 
+              d.driver_id === currentUser?.id &&
+              !finishedStatuses.includes(d.status) &&
+              d.status !== 'pending'
+            ).sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
             
-            if (completedStops.length > 0) {
-              const lastCompleted = completedStops[0];
-              startPoint = [lastCompleted.latitude, lastCompleted.longitude];
+            const incompletePickups = pickupMarkers.filter(p => 
+              p && 
+              p.driver_id === currentUser?.id &&
+              !finishedStatuses.includes(p.status) &&
+              p.status !== 'pending'
+            ).sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
+            
+            // Combine and get the first (next) stop
+            const allIncompleteStops = [...incompletePickups, ...incompleteDeliveries]
+              .sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
+            
+            const nextStop = allIncompleteStops[0];
+            
+            if (!nextStop) return null;
+            
+            // CRITICAL: Determine the starting point for the blue dashed line
+            // Priority: 1) Live driver location, 2) Last completed stop, 3) Driver's home location
+            let startPoint = null;
+            
+            // 1) Check for live driver location (blue dot)
+            if (currentDriverLocation?.latitude && currentDriverLocation?.longitude) {
+              startPoint = [currentDriverLocation.latitude, currentDriverLocation.longitude];
             }
+            
+            // 2) If no live location, check for shared driver marker (driverLocationMarkers)
+            if (!startPoint) {
+              const sharedDriverMarker = driverLocationMarkers.find(m => m.driver?.id === currentUser?.id);
+              if (sharedDriverMarker?.latitude && sharedDriverMarker?.longitude) {
+                startPoint = [sharedDriverMarker.latitude, sharedDriverMarker.longitude];
+              }
+            }
+            
+            // 3) If still no location, check for completed stops (use last completed)
+            if (!startPoint) {
+              const allDriverStops = [...deliveryMarkers, ...pickupMarkers].filter(d => 
+                d && d.driver_id === currentUser?.id
+              );
+              const completedStops = allDriverStops
+                .filter(s => finishedStatuses.includes(s.status) && s.actual_delivery_time)
+                .sort((a, b) => new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time));
+              
+              if (completedStops.length > 0) {
+                const lastCompleted = completedStops[0];
+                startPoint = [lastCompleted.latitude, lastCompleted.longitude];
+              }
+            }
+            
+            // 4) If no completed stops, use driver's home location
+            if (!startPoint && currentUser?.home_latitude && currentUser?.home_longitude) {
+              startPoint = [currentUser.home_latitude, currentUser.home_longitude];
+            }
+            
+            // If we still don't have a start point, don't draw the line
+            if (!startPoint) return null;
+            
+            return (
+              <Polyline
+                key={`driver-to-next-stop-${nextStop.id}`}
+                positions={[
+                  startPoint,
+                  [nextStop.latitude, nextStop.longitude]
+                ]}
+                pathOptions={{
+                  color: '#3B82F6', // Blue
+                  weight: 4,
+                  opacity: 0.7,
+                  dashArray: '10, 5', // Dashed line
+                  lineJoin: 'round',
+                  lineCap: 'round'
+                }}
+                pane="overlayPane"
+              />
+            );
           }
           
-          // 4) If no completed stops, use driver's home location
-          if (!startPoint && currentUser?.home_latitude && currentUser?.home_longitude) {
-            startPoint = [currentUser.home_latitude, currentUser.home_longitude];
+          // CRITICAL: For dispatchers viewing assigned drivers
+          // Show blue dashed polyline for drivers who are on_duty OR on_break (NOT off_duty)
+          if (isCurrentUserDispatcher && !isCurrentUserAdmin) {
+            const dispatcherStoreIds = new Set(currentUser.store_ids || []);
+            const todayStr = format(new Date(), 'yyyy-MM-dd');
+            
+            // Find all drivers with active deliveries in dispatcher's stores who are on_duty or on_break
+            const polylines = [];
+            
+            // Get unique driver IDs from current deliveries
+            const driverIdsWithActiveStops = new Set();
+            safeDeliveries.forEach(d => {
+              if (!d || !d.driver_id) return;
+              if (!dispatcherStoreIds.has(d.store_id)) return;
+              if (finishedStatuses.includes(d.status)) return;
+              if (d.status === 'pending') return;
+              driverIdsWithActiveStops.add(d.driver_id);
+            });
+            
+            driverIdsWithActiveStops.forEach(driverId => {
+              // Find driver's AppUser to check status
+              const driverAppUser = safeUsers.find(u => u && u.id === driverId);
+              
+              // CRITICAL: Only show polyline if driver is on_duty OR on_break
+              // off_duty = no polyline
+              if (!driverAppUser) return;
+              if (driverAppUser.driver_status !== 'on_duty' && driverAppUser.driver_status !== 'on_break') return;
+              
+              // Get next stop for this driver
+              const driverIncompleteDeliveries = deliveryMarkers.filter(d => 
+                d && 
+                d.driver_id === driverId &&
+                !finishedStatuses.includes(d.status) &&
+                d.status !== 'pending'
+              ).sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
+              
+              const driverIncompletePickups = pickupMarkers.filter(p => 
+                p && 
+                p.driver_id === driverId &&
+                !finishedStatuses.includes(p.status) &&
+                p.status !== 'pending'
+              ).sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
+              
+              const driverAllIncomplete = [...driverIncompletePickups, ...driverIncompleteDeliveries]
+                .sort((a, b) => (a.stop_order || 999) - (b.stop_order || 999));
+              
+              const nextStop = driverAllIncomplete[0];
+              if (!nextStop) return;
+              
+              // Determine start point - use driver's current location or last completed stop
+              let startPoint = null;
+              
+              // 1) Try driver's current location (if sharing is enabled)
+              if (driverAppUser.current_latitude && driverAppUser.current_longitude && driverAppUser.location_tracking_enabled) {
+                startPoint = [driverAppUser.current_latitude, driverAppUser.current_longitude];
+              }
+              
+              // 2) Fall back to last completed stop
+              if (!startPoint) {
+                const allDriverStops = [...deliveryMarkers, ...pickupMarkers].filter(d => 
+                  d && d.driver_id === driverId
+                );
+                const completedStops = allDriverStops
+                  .filter(s => finishedStatuses.includes(s.status) && s.actual_delivery_time)
+                  .sort((a, b) => new Date(b.actual_delivery_time) - new Date(a.actual_delivery_time));
+                
+                if (completedStops.length > 0) {
+                  startPoint = [completedStops[0].latitude, completedStops[0].longitude];
+                }
+              }
+              
+              if (!startPoint) return;
+              
+              polylines.push(
+                <Polyline
+                  key={`dispatcher-driver-to-next-${driverId}-${nextStop.id}`}
+                  positions={[
+                    startPoint,
+                    [nextStop.latitude, nextStop.longitude]
+                  ]}
+                  pathOptions={{
+                    color: '#3B82F6', // Blue
+                    weight: 4,
+                    opacity: 0.7,
+                    dashArray: '10, 5', // Dashed line
+                    lineJoin: 'round',
+                    lineCap: 'round'
+                  }}
+                  pane="overlayPane"
+                />
+              );
+            });
+            
+            return polylines.length > 0 ? polylines : null;
           }
           
-          // If we still don't have a start point, don't draw the line
-          if (!startPoint) return null;
-          
-          return (
-            <Polyline
-              key={`driver-to-next-stop-${nextStop.id}`}
-              positions={[
-                startPoint,
-                [nextStop.latitude, nextStop.longitude]
-              ]}
-              pathOptions={{
-                color: '#3B82F6', // Blue
-                weight: 4,
-                opacity: 0.7,
-                dashArray: '10, 5', // Dashed line
-                lineJoin: 'round',
-                lineCap: 'round'
-              }}
-              pane="overlayPane"
-            />
-          );
+          return null;
         })()}
 
         {/* Draw Routes - NOW WITH INTERACTIVE HIGHLIGHTING */}

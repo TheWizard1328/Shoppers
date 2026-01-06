@@ -179,12 +179,12 @@ class DriverLocationPoller {
       // DEBUG: Log driver status for troubleshooting
 
       // RULE 3: Dispatcher special handling - check BEFORE location_tracking_enabled filter
-      // CRITICAL: Dispatchers can see driver markers if driver is NOT off_duty
-      // Location sharing setting is ignored for dispatchers - they always see active drivers
+      // CRITICAL: Dispatchers can ONLY see driver markers when driver is on_duty
+      // on_break or off_duty = NO shared location marker visible to dispatchers
       if (isDispatcher && !isAdmin) {
         const dispatcherStoreIds = new Set(this.currentUser.store_ids || []);
         
-        // For dispatchers: driver must have assigned stops (pickups OR deliveries) AND NOT be off_duty
+        // For dispatchers: driver must have assigned stops (pickups OR deliveries) AND be on_duty
         // Check if driver has ANY active stops for dispatcher's stores
         const hasAssignedStops = (deliveries || []).some(delivery => {
           if (!delivery) return false;
@@ -200,14 +200,15 @@ class DriverLocationPoller {
           return false;
         }
         
-        // CRITICAL: Must NOT be explicitly off_duty (on_duty, on_break, online, or undefined all visible)
-        // undefined status means driver_status field wasn't loaded - treat as potentially active
-        if (user.driver_status === 'off_duty') {
+        // CRITICAL: Dispatchers can ONLY see shared location marker when driver is on_duty
+        // on_break = show polyline only (handled in DeliveryMap), NOT shared marker
+        // off_duty = show nothing
+        if (user.driver_status !== 'on_duty') {
           return false;
         }
         
-        // CRITICAL: Show marker if driver has assigned stops and is NOT off_duty
-        // This includes on_duty, on_break, online, AND undefined (data not yet loaded)
+        // Driver is on_duty with assigned stops - show shared location marker
+        return true;
       }
 
       // CRITICAL: For non-dispatchers, location_tracking_enabled MUST be true
