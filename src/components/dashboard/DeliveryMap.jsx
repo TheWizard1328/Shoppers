@@ -2356,7 +2356,7 @@ export default function DeliveryMap({
           
           // CRITICAL: For pure dispatchers (not drivers) viewing assigned drivers
           // Show blue dashed polyline for drivers who are on_duty OR on_break (NOT off_duty)
-          if (isCurrentUserDispatcher && !isCurrentUserAdmin) {
+          if (isCurrentUserDispatcher && !isCurrentUserDriver && !isCurrentUserAdmin) {
             const dispatcherStoreIds = new Set(currentUser.store_ids || []);
             
             // Find all drivers with active deliveries in dispatcher's stores who are on_duty or on_break
