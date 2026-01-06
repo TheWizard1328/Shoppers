@@ -282,19 +282,9 @@ class DriverLocationPoller {
       };
     });
 
-    // CRITICAL: Only notify if locations actually changed to prevent flickering
-    // UNLESS forceNotify is true (when deliveries update)
-    const newKey = locationObjects.map(loc => 
-      `${loc.id}:${loc.latitude?.toFixed(6)}:${loc.longitude?.toFixed(6)}:${loc.driver_status}:${loc.location_tracking_enabled}`
-    ).sort().join('|');
-
-    if (!forceNotify && this._lastNotifiedKey === newKey) {
-      console.log('⏭️ [DriverLocationPoller] Skipping notify - no changes detected');
-      return;
-    }
-
-    console.log(`📢 [DriverLocationPoller] Notifying subscribers - ${locationObjects.length} locations (force: ${forceNotify})`);
-    this._lastNotifiedKey = newKey;
+    // CRITICAL: ALWAYS notify to prevent disappearing markers
+    // The deduplication check was causing markers to disappear
+    console.log(`📢 [DriverLocationPoller] Notifying subscribers - ${locationObjects.length} locations`);
 
     this.subscribers.forEach(callback => {
       try {
