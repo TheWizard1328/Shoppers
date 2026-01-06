@@ -2160,166 +2160,126 @@ export default function StopCard({
                     onStartDelivery &&
                     <Button onClick={async (e) => {
                       e.stopPropagation();
-
-                      // CRITICAL: Deactivate FAB before action
-                      fabControlEvents.deactivateFAB();
-
                       setIsStarting(true);
 
-                      // Step 1: Run smart refresh
-                      console.log('🟢 [START] Step 1: Running smart refresh...');
-                      smartRefreshManager.lastRefreshTimes = {
-                        driverLocation: 0,
-                        activeDeliveries: 0,
-                        todayDeliveries: 0,
-                        appUsers: 0,
-                        patients: 0,
-                        stores: 0
-                      };
-                      await new Promise((resolve) => setTimeout(resolve, 200));
+                      // ═══════════ PHASE 1: IMMEDIATE UI UPDATE ═══════════
+                      console.log('🎯 [START] PHASE 1: Immediate UI update...');
 
-                      // Step 2: Pause smart refresh
-                      console.log('🟢 [START] Step 2: Pausing smart refresh...');
-                      setIsEntityUpdating(true);
-                      await new Promise((resolve) => setTimeout(resolve, 100));
-
-                      try {
-                        // CRITICAL: Verify delivery still exists before starting
-                        const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
-                        if (!deliveryExists || deliveryExists.length === 0) {
-                          console.warn('⚠️ [START] Delivery no longer exists - aborting');
-                          throw new Error('This delivery has been deleted. Please refresh the page.');
-                        }
-
-                        // Step 1 already done above
-
-                        // Step 3: Clear all isNextDelivery and set selected stop to true
-                        // CRITICAL: Use skipSmartRefresh for all batch updates
-                        console.log('🟢 [START] Step 3: Setting isNextDelivery...');
-                        const driverDeliveries = allDeliveries.filter((d) =>
+                      // Step 1: Clear all isNextDelivery flags and set this one to true (LOCAL ONLY)
+                      const driverDeliveries = allDeliveries.filter((d) =>
                         d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
-                        );
+                      );
 
-                        for (const d of driverDeliveries) {
-                          if (d.id !== delivery.id && d.isNextDelivery) {
-                            await updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true });
-                          }
+                      // Build batch updates for immediate local state change
+                      const localUpdates = [];
+                      for (const d of driverDeliveries) {
+                        if (d.id !== delivery.id && d.isNextDelivery) {
+                          localUpdates.push({ ...d, isNextDelivery: false });
+                        } else if (d.id === delivery.id) {
+                          localUpdates.push({ ...d, isNextDelivery: true });
+                        } else {
+                          localUpdates.push(d);
                         }
-                        await updateDeliveryLocal(delivery.id, { isNextDelivery: true }, { skipSmartRefresh: true });
-                        console.log('  ✅ isNextDelivery flags updated');
-
-                        // Step 4: Set stop order to total finished stops + 1
-                        console.log('🟢 [START] Step 4: Setting stop order...');
-                        const finishedStops = driverDeliveries.filter((d) =>
-                        FINISHED_STATUSES.includes(d.status)
-                        ).length;
-                        const newStopOrder = finishedStops + 1;
-                        await updateDeliveryLocal(delivery.id, { stop_order: newStopOrder }, { skipSmartRefresh: true });
-                        console.log(`  ✅ Stop order set to ${newStopOrder}`);
-
-                        // Step 5: Set delivery_time_start to current time BEFORE running optimizer
-                        console.log('🟢 [START] Step 5a: Setting delivery_time_start to current time...');
-                        const now = new Date();
-                        const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-                        await updateDeliveryLocal(delivery.id, {
-                          delivery_time_start: currentLocalTime
-                        }, { skipSmartRefresh: true });
-                        console.log(`  ✅ delivery_time_start set to ${currentLocalTime}`);
-
-                        // Step 5b: Run Route Optimizer (with current local time and this stop's location)
-                        console.log('🟢 [START] Step 5b: Running route optimizer...');
-                        try {
-                          // Use this stop's location as starting point
-                          let startLat, startLng;
-                          if (delivery.puid) {
-                            // Pickup - use store location
-                            const store = stores.find((s) => s.id === delivery.store_id);
-                            startLat = store?.latitude;
-                            startLng = store?.longitude;
-                          } else {
-                            // Delivery - use patient location
-                            const patient = patients.find((p) => p.id === delivery.patient_id);
-                            startLat = patient?.latitude;
-                            startLng = patient?.longitude;
-                          }
-
-                          console.log('🔄 [Start Button] Running optimizeRouteRealTime...');
-                          const optimizeResponse = await base44.functions.invoke('optimizeRouteRealTime', {
-                            driverId: delivery.driver_id,
-                            deliveryDate: delivery.delivery_date,
-                            currentLocalTime: currentLocalTime,
-                            startLocation: startLat && startLng ? { lat: startLat, lng: startLng } : null,
-                            generatePolyline: false
-                          });
-                          console.log('✅ [Start Button] Route optimized');
-
-                          // CRITICAL: Refresh UI to show reordered stops
-                          invalidate('Delivery');
-                          await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                          console.log('✅ [Start Button] UI refreshed with new stop order');
-
-                          // Step 6: Apply optimized stop orders to local state immediately
-                          // CRITICAL: Use skipSmartRefresh for all batch updates
-                          console.log('🟢 [START] Step 6: Resorting optimized stops...');
-                          const responseData = optimizeResponse?.data || optimizeResponse;
-                          if (responseData?.durationUpdates) {
-                            // Update backend with new stop orders
-                            for (const update of responseData.durationUpdates) {
-                              await updateDeliveryLocal(update.deliveryId, {
-                                stop_order: update.newOrder
-                              }, { skipSmartRefresh: true });
-                            }
-                            console.log('  ✅ Stop orders updated from optimizer');
-                          }
-                        } catch (optimizeError) {
-                          console.warn('⚠️ Route optimizer failed, continuing without optimization:', optimizeError);
-                        }
-
-                        // Step 8-9: Invalidate and refresh UI to sync everything
-                        console.log('🟢 [START] Step 8-9: Refreshing data...');
-                        invalidate('Delivery');
-                        await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                        console.log('  ✅ UI and DBs synced');
-
-                        // CRITICAL: Trigger map update
-                        window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                          detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                        }));
-
-                        await ensureDriverOnline();
-
-                        // Send notification
-                        if (userHasRole(currentUser, 'driver')) {
-                          await notifyDriverStarted({
-                            driver: currentUser,
-                            patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
-                            delivery,
-                            store,
-                            appUsers
-                          });
-                        }
-
-                        console.log('✅ [START] Complete');
-                      } catch (error) {
-                        console.error('❌ [START] Error:', error);
-                        alert('Failed to start delivery. Please try again.');
-                      } finally {
-                        // Step 10: Reset and resume smart refresh
-                        console.log('🟢 [START] Step 10: Resetting smart refresh...');
-                        smartRefreshManager.lastRefreshTimes = {
-                          driverLocation: 0,
-                          activeDeliveries: 0,
-                          todayDeliveries: 0,
-                          appUsers: 0,
-                          patients: 0,
-                          stores: 0
-                        };
-                        setIsEntityUpdating(false);
-                        setIsStarting(false);
-                        fabControlEvents.reactivateFAB(false); // Don't skip scroll - let FAB center the card
-                        console.log('  ✅ Smart refresh resumed');
                       }
+
+                      // Update local state IMMEDIATELY for instant UI feedback
+                      if (updateDeliveriesLocally) {
+                        const otherDeliveries = allDeliveries.filter((d) =>
+                          d && (d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date)
+                        );
+                        updateDeliveriesLocally([...otherDeliveries, ...localUpdates], true);
+                      }
+
+                      // Trigger immediate map/UI update
+                      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+                        detail: { triggeredBy: 'start', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                      }));
+
+                      console.log('✅ [START] PHASE 1 Complete - UI updated instantly');
+
+                      // ═══════════ PHASE 2: BACKGROUND DATABASE & OPTIMIZATION ═══════════
+                      // Run in background - don't block UI
+                      (async () => {
+                        try {
+                          console.log('🔄 [START] PHASE 2: Background tasks starting...');
+                          setIsEntityUpdating(true);
+
+                          // Step 2: Persist isNextDelivery changes to offline/online DB
+                          for (const d of driverDeliveries) {
+                            if (d.id !== delivery.id && d.isNextDelivery) {
+                              await updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true });
+                            }
+                          }
+                          await updateDeliveryLocal(delivery.id, { isNextDelivery: true }, { skipSmartRefresh: true });
+
+                          // Step 3: Set delivery_time_start to current time
+                          const now = new Date();
+                          const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                          await updateDeliveryLocal(delivery.id, {
+                            delivery_time_start: currentLocalTime
+                          }, { skipSmartRefresh: true });
+
+                          // Step 4: Run Route Optimizer in background
+                          try {
+                            let startLat, startLng;
+                            if (delivery.puid) {
+                              const storeForLoc = stores.find((s) => s.id === delivery.store_id);
+                              startLat = storeForLoc?.latitude;
+                              startLng = storeForLoc?.longitude;
+                            } else {
+                              const patientForLoc = patients.find((p) => p.id === delivery.patient_id);
+                              startLat = patientForLoc?.latitude;
+                              startLng = patientForLoc?.longitude;
+                            }
+
+                            console.log('🔄 [START] Running optimizeRouteRealTime...');
+                            await base44.functions.invoke('optimizeRouteRealTime', {
+                              driverId: delivery.driver_id,
+                              deliveryDate: delivery.delivery_date,
+                              currentLocalTime: currentLocalTime,
+                              startLocation: startLat && startLng ? { lat: startLat, lng: startLng } : null,
+                              generatePolyline: false
+                            });
+                            console.log('✅ [START] Route optimized');
+
+                            // Refresh UI with optimized stop orders
+                            invalidate('Delivery');
+                            await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+
+                            // Trigger final map update
+                            window.dispatchEvent(new CustomEvent('routeOptimizationComplete'));
+                          } catch (optimizeError) {
+                            console.warn('⚠️ [START] Route optimizer failed:', optimizeError);
+                          }
+
+                          // Step 5: Ensure driver is online
+                          await ensureDriverOnline();
+
+                          // Step 6: Send notification (fire and forget)
+                          if (userHasRole(currentUser, 'driver')) {
+                            notifyDriverStarted({
+                              driver: currentUser,
+                              patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
+                              delivery,
+                              store,
+                              appUsers
+                            }).catch((err) => console.warn('Notification failed:', err));
+                          }
+
+                          console.log('✅ [START] PHASE 2 Complete - Background tasks done');
+                        } catch (error) {
+                          console.error('❌ [START] Background error:', error);
+                        } finally {
+                          setIsEntityUpdating(false);
+                          setIsStarting(false);
+                        }
+                      })();
+
+                      // CRITICAL: Re-enable button immediately after UI update (don't wait for background)
+                      setTimeout(() => {
+                        setIsStarting(false);
+                      }, 300);
+
                     }} size="sm" disabled={isStarting} className="bg-blue-600 px-3 text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-8 border-r border-blue-500 !text-white">
                               {isStarting ? <Loader2 className="w-3 h-3 mr-1 !text-white animate-spin" /> : <Clock className="w-3 h-3 mr-1 !text-white" />}
                               <span className="text-white">Start</span>
