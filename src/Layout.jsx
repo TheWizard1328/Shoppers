@@ -1008,6 +1008,12 @@ export default function Layout({ children, currentPageName }) {
             triggerFullDataLoadRef.current(true);
           }
         }
+
+        // CRITICAL: Immediately dispatch driverLocationsUpdated with current appUsers
+        // This ensures map markers update without waiting for next smart refresh cycle
+        window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+          detail: { appUsers: allAppUsers }
+        }));
       };
       window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
 
