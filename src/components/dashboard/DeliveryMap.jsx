@@ -2358,24 +2358,30 @@ export default function DeliveryMap({
           // Show blue dashed polyline for drivers who are on_duty OR on_break (NOT off_duty)
           if (isCurrentUserDispatcher && !isCurrentUserAdmin) {
             const dispatcherStoreIds = new Set(currentUser.store_ids || []);
-            const todayStr = format(new Date(), 'yyyy-MM-dd');
             
             // Find all drivers with active deliveries in dispatcher's stores who are on_duty or on_break
             const polylines = [];
             
             // Get unique driver IDs from current deliveries
             const driverIdsWithActiveStops = new Set();
-            safeDeliveries.forEach(d => {
+            deliveryMarkers.forEach(d => {
               if (!d || !d.driver_id) return;
               if (!dispatcherStoreIds.has(d.store_id)) return;
               if (finishedStatuses.includes(d.status)) return;
               if (d.status === 'pending') return;
               driverIdsWithActiveStops.add(d.driver_id);
             });
+            pickupMarkers.forEach(p => {
+              if (!p || !p.driver_id) return;
+              if (!dispatcherStoreIds.has(p.store_id)) return;
+              if (finishedStatuses.includes(p.status)) return;
+              if (p.status === 'pending') return;
+              driverIdsWithActiveStops.add(p.driver_id);
+            });
             
             driverIdsWithActiveStops.forEach(driverId => {
               // Find driver's AppUser to check status
-              const driverAppUser = safeUsers.find(u => u && u.id === driverId);
+              const driverAppUser = realtimeAppUsers.find(u => u && u.id === driverId);
               
               // CRITICAL: Only show polyline if driver is on_duty OR on_break
               // off_duty = no polyline
