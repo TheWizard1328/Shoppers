@@ -237,36 +237,20 @@ Deno.serve(async (req) => {
 
     console.log(`📍 Starting from: ${locationSource} (${currentPosition.lat}, ${currentPosition.lng})`);
 
-    // STEP 4: Optimize ALL stages (not just first) using Google Directions API
-    console.log(`\n🎯 Optimizing all ${stages.length} stages`);
+    // STEP 4: Optimize ONLY the current (first) stage using Google Directions API
+    const currentStage = stages[0];
+    console.log(`\n🎯 Optimizing current stage: ${currentStage.length} stops`);
 
     const googleMapsKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
-    let optimizedAllStops = [];
+    let optimizedCurrentStage = [];
+    let directionsLegs = [];
     let totalApiCalls = 0;
 
-    // CRITICAL: Process each stage separately, sorted by delivery_time_start
-    for (let stageIdx = 0; stageIdx < stages.length; stageIdx++) {
-      const stage = stages[stageIdx];
-      console.log(`\n🔄 Stage ${stageIdx + 1}/${stages.length}: ${stage.length} stops`);
+    // CRITICAL: Current stage is already sorted by delivery_time_start from STEP 1
+    // Just use it as-is for Google API (no re-sorting, no optimize:true)
+    const currentStageSorted = currentStage;
 
-      // Sort stage by delivery_time_start
-      const stageSorted = [...stage].sort((a, b) => {
-        if (a.timeMinutes !== b.timeMinutes) return a.timeMinutes - b.timeMinutes;
-        if (a.isPickup && !b.isPickup) return -1;
-        if (!a.isPickup && b.isPickup) return 1;
-        return 0;
-      });
-
-      optimizedAllStops.push(...stageSorted);
-      console.log(`📋 Sorted stage ${stageIdx + 1} by delivery_time_start`);
-    }
-
-    // STEP 5: Get travel times from Google Directions API for the FIRST stage only
-    const currentStage = stages[0];
-    const currentStageSorted = optimizedAllStops.slice(0, currentStage.length);
-    let directionsLegs = [];
-
-    console.log(`\n🗺️ Getting Google travel times for first stage (${currentStageSorted.length} stops)`);
+    console.log(`📋 Using time-sorted order for current stage`);
 
     // Get travel times from Google Directions API (with time-based pre-ordering)
     if (currentStageSorted.length > 0) {
