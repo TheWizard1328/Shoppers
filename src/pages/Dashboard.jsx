@@ -6658,6 +6658,8 @@ function Dashboard() {
               const incompleteStops = deliveriesWithStopOrder.filter((d) =>
               d && !finishedStatuses.includes(d.status)
               );
+              
+              console.log('🚀 [optimizeRemainingStops] incompleteStops.length', incompleteStops.length);
 
               if (incompleteStops.length > 0) {
                 const allCoordinates = [];
