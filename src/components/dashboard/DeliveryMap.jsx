@@ -2354,7 +2354,7 @@ export default function DeliveryMap({
             );
           }
           
-          // CRITICAL: For dispatchers viewing assigned drivers
+          // CRITICAL: For pure dispatchers (not drivers) viewing assigned drivers
           // Show blue dashed polyline for drivers who are on_duty OR on_break (NOT off_duty)
           if (isCurrentUserDispatcher && !isCurrentUserAdmin) {
             const dispatcherStoreIds = new Set(currentUser.store_ids || []);
