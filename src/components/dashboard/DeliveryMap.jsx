@@ -2269,8 +2269,8 @@ export default function DeliveryMap({
           const isCurrentUserDispatcher = currentUser && userHasRole(currentUser, 'dispatcher');
           const isCurrentUserAdmin = currentUser && userHasRole(currentUser, 'admin');
           
-          // CRITICAL: For drivers viewing their own route
-          if (isCurrentUserDriver && !isCurrentUserDispatcher && !isCurrentUserAdmin) {
+          // CRITICAL: For drivers viewing their own route (including driver-dispatchers and driver-admins)
+          if (isCurrentUserDriver) {
             // Get all incomplete deliveries for the current driver, sorted by stop_order
             const incompleteDeliveries = deliveryMarkers.filter(d => 
               d && 
