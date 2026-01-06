@@ -119,6 +119,11 @@ Deno.serve(async (req) => {
       });
     }
 
+    console.log(`📊 [optimizeRemainingStops] Incomplete deliveries breakdown:`);
+    incompleteDeliveries.forEach(d => {
+      console.log(`   - ${d.patient_name || 'Pickup'}: isNextDelivery=${d.isNextDelivery}, delivery_time_start=${d.delivery_time_start}`);
+    });
+
     // Get patient and store data for coordinates
     const patientIds = [...new Set(incompleteDeliveries.filter(d => d.patient_id).map(d => d.patient_id))];
     const patients = patientIds.length > 0 
