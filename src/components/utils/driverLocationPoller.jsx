@@ -9,6 +9,7 @@ class DriverLocationPoller {
     this.isPaused = false; // Pause flag for imports
     this.requestDataRefresh = null; // Callback to request data refresh from parent
     this.currentUser = null;
+    this._lastNotifiedKey = null; // CRITICAL: Track last notification to prevent duplicates
   }
 
   /**
@@ -276,10 +277,23 @@ class DriverLocationPoller {
         location_updated_at: user.location_updated_at,
         driver_status: user.driver_status,
         location_tracking_enabled: user.location_tracking_enabled,
-        _isSelf: isSelf, // Flag to identify own marker
-        _isOnBreak: isOnBreak && isSelf // Special flag for styling own marker when on break
+        _isSelf: isSelf,
+        _isOnBreak: isOnBreak && isSelf
       };
     });
+
+    // CRITICAL: Only notify if locations actually changed to prevent flickering
+    const newKey = locationObjects.map(loc => 
+      `${loc.id}:${loc.latitude?.toFixed(6)}:${loc.longitude?.toFixed(6)}:${loc.driver_status}:${loc.location_tracking_enabled}`
+    ).sort().join('|');
+
+    if (this._lastNotifiedKey === newKey) {
+      console.log('⏭️ [DriverLocationPoller] Skipping notify - no changes detected');
+      return;
+    }
+
+    console.log(`📢 [DriverLocationPoller] Notifying subscribers - ${locationObjects.length} locations`);
+    this._lastNotifiedKey = newKey;
 
     this.subscribers.forEach(callback => {
       try {
