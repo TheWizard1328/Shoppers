@@ -252,41 +252,56 @@ export default function ImportActiveRoutes({
       return driverMatch;
     });
 
-    // Match by Stop ID
+    // Priority 1: Match by Stop ID (SID) - must be unique
     if (importedDeliveryStopId) {
-      const sidMatch = sameDateDeliveries.find((d) => {
+      const sidMatches = sameDateDeliveries.filter((d) => {
         const existingSID = (d.stop_id || '').trim();
         return existingSID === importedDeliveryStopId;
       });
-      if (sidMatch) {
-        return { match: sidMatch, reason: `SID Match (${importedDeliveryStopId})` };
+      if (sidMatches.length === 1) {
+        return { match: sidMatches[0], reason: `SID Match (${importedDeliveryStopId})` };
       }
     }
 
-    // Match by Tracking Number
-    if (importedTrackingNumber && importedTrackingNumber !== '' && importedTrackingNumber !== '-1') {
-      const trackingNumberMatch = sameDateDeliveries.find((d) => {
-        const existingTR = (d.tracking_number || '').trim();
-        return existingTR === importedTrackingNumber;
-      });
-      if (trackingNumberMatch) {
-        return { match: trackingNumberMatch, reason: `TR# Match (${importedTrackingNumber})` };
+    // Priority 2: Match by Tracking Number (TR#) - exact match or same 20-digit range
+    if (importedTrackingNumber && importedTrackingNumber !== '') {
+      const importedTRInt = parseInt(importedTrackingNumber, 10);
+      if (!isNaN(importedTRInt)) {
+        const importedTRRange = Math.floor(importedTRInt / 20);
+        
+        const trackingNumberMatch = sameDateDeliveries.find((d) => {
+          const existingTR = (d.tracking_number || '').trim();
+          if (existingTR === importedTrackingNumber) return true; // Exact match
+          
+          // Range match: 0-19, 20-39, 40-59, etc.
+          const existingTRInt = parseInt(existingTR, 10);
+          if (!isNaN(existingTRInt)) {
+            const existingTRRange = Math.floor(existingTRInt / 20);
+            return existingTRRange === importedTRRange;
+          }
+          
+          return false;
+        });
+        
+        if (trackingNumberMatch) {
+          return { match: trackingNumberMatch, reason: `TR# Match (${importedTrackingNumber})` };
+        }
       }
     }
 
-    // Match by Patient ID + Store
+    // Priority 3: Match by Patient ID (PID) only
     if (importedDeliveryPatientId) {
-      const patientIdMatches = sameDateDeliveries.filter((d) => {
+      const patientIdMatch = sameDateDeliveries.find((d) => {
         const existingPID = (d.patient_id || '').trim();
-        return existingPID === importedDeliveryPatientId && d.store_id === importedDelivery.store_id;
+        return existingPID === importedDeliveryPatientId;
       });
 
-      if (patientIdMatches.length === 1) {
-        return { match: patientIdMatches[0], reason: `PID + Store Match` };
+      if (patientIdMatch) {
+        return { match: patientIdMatch, reason: `PID Match (${importedDeliveryPatientId})` };
       }
     }
 
-    // Match for pickups (no patient_id)
+    // Priority 4: Match for pickups (abbreviation + AM/PM)
     if (!importedDeliveryPatientId && importedDelivery.store_id) {
       const pickupMatch = sameDateDeliveries.find((d) =>
         d.store_id === importedDelivery.store_id &&
@@ -295,7 +310,7 @@ export default function ImportActiveRoutes({
       );
 
       if (pickupMatch) {
-        return { match: pickupMatch, reason: `Pickup Match (Store + AM/PM)` };
+        return { match: pickupMatch, reason: `Pickup Match (Abbr + AM/PM)` };
       }
     }
 
@@ -434,25 +449,22 @@ export default function ImportActiveRoutes({
         continue;
       }
 
-      // CRITICAL: Updated column mapping
-      // Columns 0-11: Same as before
-      // Column 12: Ignored (same as before)
-      // Column 13: NEW - Ignored boolean column
-      // Columns 14-17: Shifted from previous 13-16
-      const storeAbbr = values[0]?.replace(/"/g, '').trim();
-      const ampmRawValue = values[1]?.replace(/"/g, '').trim();
-      const trackingNumber = values[2]?.replace(/"/g, '').trim(); // RULE 8: TR# in column 3 (index 2)
-      const stopOrder = parseInt(values[3]?.trim()) || 0; // RULE 7: Stop Order in column 4 (index 3)
-      const deliveryStartTimeStr = values[5]?.replace(/"/g, '').trim(); // RULE 5: Delivery start time
-      const deliveryEndTimeStr = values[6]?.replace(/"/g, '').trim(); // RULE 6: Delivery end time (for en_route)
-      const travelDistStr = values[8]?.replace(/"/g, '').trim();
+      // CRITICAL: Updated column mapping for Active Routes
+      const storeAbbr = values[0]?.replace(/"/g, '').trim(); // Column 1
+      const ampmRawValue = values[1]?.replace(/"/g, '').trim(); // Column 2
+      const trackingNumber = values[2]?.replace(/"/g, '').trim(); // Column 3: TR#
+      const stopOrder = parseInt(values[3]?.trim()) || 0; // Column 4: Stop Order (0 = incomplete)
+      const pendingIndicator = parseInt(values[4]?.trim()) || 0; // Column 5: Negative = pending
+      const deliveryStartTimeStr = values[5]?.replace(/"/g, '').trim(); // Column 6: Start time
+      const deliveryEndTimeStr = values[6]?.replace(/"/g, '').trim(); // Column 7: End time
+      const travelDistStr = values[8]?.replace(/"/g, '').trim(); // Column 9: Travel distance
       const travelDist = travelDistStr && !isNaN(parseFloat(travelDistStr)) ? parseFloat(parseFloat(travelDistStr).toFixed(2)) : null;
       
-      // Column 12: Ignored (same as original)
-      // Column 13: NEW - Ignored boolean column (RULE 3)
-      const stopId = (values[14] || '').replace(/"/g, '').trim(); // Shifted from 12 to 14
-      const patientPID = values[15]?.replace(/"/g, '').trim(); // Shifted from 13 to 15
-      const rawNotes = (values[17] || '').replace(/"/g, '').trim(); // Shifted from 15 to 17
+      // Column 13: Ignored (original)
+      // Column 14: Ignored (new boolean column)
+      const stopId = (values[14] || '').replace(/"/g, '').trim(); // Column 15: SID
+      const patientPID = values[15]?.replace(/"/g, '').trim(); // Column 16: PID
+      const rawNotes = (values[17] || '').replace(/"/g, '').trim(); // Column 18: Notes
 
       let ampmValue = null;
       if (ampmRawValue === '1') {
@@ -498,27 +510,26 @@ export default function ImportActiveRoutes({
       const dispatcher = findDispatcherByStore(store);
       const dispatcherId = dispatcher ? dispatcher.id : null;
 
-      // RULE 4, 5, 6: Determine status based on TR# and time columns
+      // Status determination based on column 5 (pendingIndicator), stopOrder, and time columns
       let deliveryStatus = 'pending';
       let actualDeliveryTime = null;
       let deliveryTimeStart = null;
       let deliveryTimeEnd = null;
 
-      // RULE 9: Pending stops have negative value in column 3 (TR#)
-      const trackingNumberInt = parseInt(trackingNumber, 10);
-      const isPendingStop = trackingNumberInt < 0;
+      // RULE 1: Pending stops have negative value in column 5
+      const isPendingStop = pendingIndicator < 0;
 
       if (isPendingStop) {
         // Pending stop
         deliveryStatus = 'pending';
         deliveryTimeStart = null;
         deliveryTimeEnd = null;
-      } else if (deliveryStartTimeStr && !deliveryEndTimeStr) {
-        // RULE 5: Completed/Failed - has start time only
+      } else if (stopOrder > 0 && deliveryStartTimeStr && !deliveryEndTimeStr) {
+        // RULE 2: Completed - stopOrder > 0, has start time only
         deliveryStatus = 'completed';
         actualDeliveryTime = `${currentDate}T${deliveryStartTimeStr}:00`;
-      } else if (deliveryStartTimeStr && deliveryEndTimeStr) {
-        // RULE 6: In Transit/En Route - has both start and end times
+      } else if (stopOrder === 0 && deliveryStartTimeStr && deliveryEndTimeStr) {
+        // RULE 3: In Transit/En Route - stopOrder = 0, has both times
         deliveryStatus = isPickup ? 'en_route' : 'in_transit';
         deliveryTimeStart = deliveryStartTimeStr;
         deliveryTimeEnd = deliveryEndTimeStr;
@@ -530,7 +541,7 @@ export default function ImportActiveRoutes({
         dispatcher_id: dispatcherId || null,
         driver_id: selectedDriver.id,
         driver_name: selectedDriver.user_name || selectedDriver.full_name,
-        tracking_number: isPendingStop ? null : trackingNumber, // Don't store negative TR# for pending
+        tracking_number: trackingNumber || null,
         stop_order: stopOrder,
         stop_id: stopId || null,
         status: deliveryStatus,
@@ -1447,16 +1458,16 @@ export default function ImportActiveRoutes({
 
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
                     <h4 className="font-semibold mb-2">CSV Format (Active Routes)</h4>
-                    <ul className="list-disc list-inside space-y-1">
+                    <ul className="list-disc list-inside space-y-1 text-xs">
                       <li>Row 1: Ignored (header)</li>
-                      <li>Row 2+: Date metadata: <code className="font-mono">#YYYY-MM-DD#,TotalDeliveries,...</code></li>
-                      <li>Columns 1-12: Same as original</li>
-                      <li>Column 13: Ignored (new boolean column)</li>
-                      <li>Columns 14-17: SID, PID, ?, Notes</li>
-                      <li>Stop Order in column 4, TR# in column 3</li>
-                      <li>Completed: Time in col 6 only</li>
-                      <li>En Route: Time in both col 6 & 7</li>
-                      <li>Pending: Negative TR# (col 3)</li>
+                      <li>Row 2+: Date: <code>#YYYY-MM-DD#,Count,...</code></li>
+                      <li>Col 1: Store Abbr, Col 2: AM/PM</li>
+                      <li>Col 3: TR#, Col 4: Stop Order, Col 5: Pending Flag</li>
+                      <li>Col 6-7: Start/End Time, Col 9: Travel Dist</li>
+                      <li>Col 13-14: Ignored, Col 15: SID</li>
+                      <li>Col 16: PID, Col 18: Notes</li>
+                      <li><strong>Status:</strong> Pending (Col 5 negative), Completed (Order &gt; 0, Col 6 only), En Route (Order = 0, Col 6+7)</li>
+                      <li><strong>Match:</strong> SID → TR# (±20 range) → PID → Abbr+AM/PM</li>
                     </ul>
                   </div>
                 </div>
