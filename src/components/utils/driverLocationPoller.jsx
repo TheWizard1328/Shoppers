@@ -180,12 +180,11 @@ class DriverLocationPoller {
       // DEBUG: Log driver status for troubleshooting
 
       // RULE 3: Dispatcher special handling - check BEFORE location_tracking_enabled filter
-      // CRITICAL: Dispatchers can ONLY see driver markers when driver is on_duty
-      // on_break or off_duty = NO shared location marker visible to dispatchers
+      // CRITICAL: Dispatchers see driver markers when driver has assigned stops AND (on_duty OR on_break)
       if (isDispatcher && !isAdmin && !isDriver) {
         const dispatcherStoreIds = new Set(this.currentUser.store_ids || []);
         
-        // For dispatchers: driver must have assigned stops (pickups OR deliveries) AND be on_duty
+        // For dispatchers: driver must have assigned stops (pickups OR deliveries)
         // Check if driver has ANY active stops for dispatcher's stores
         const hasAssignedStops = (deliveries || []).some(delivery => {
           if (!delivery) return false;
@@ -202,11 +201,10 @@ class DriverLocationPoller {
           return false;
         }
         
-        // CRITICAL: Dispatchers can ONLY see shared location marker when driver is on_duty
-        // on_break = show polyline only (handled in DeliveryMap), NOT shared marker
+        // CRITICAL: Dispatchers see shared location marker when driver is on_duty OR on_break
         // off_duty = show nothing
-        if (user.driver_status !== 'on_duty') {
-          console.log(`🚫 [DriverLocationPoller] Dispatcher: driver ${user.user_name} is ${user.driver_status}, not on_duty`);
+        if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') {
+          console.log(`🚫 [DriverLocationPoller] Dispatcher: driver ${user.user_name} is ${user.driver_status}, not on_duty/on_break`);
           return false;
         }
         
@@ -216,8 +214,8 @@ class DriverLocationPoller {
           return false;
         }
         
-        // Driver is on_duty with assigned stops and sharing enabled - show shared location marker
-        console.log(`✅ [DriverLocationPoller] Dispatcher: showing driver ${user.user_name} - on_duty with active stops`);
+        // Driver is on_duty/on_break with assigned stops and sharing enabled - show shared location marker
+        console.log(`✅ [DriverLocationPoller] Dispatcher: showing driver ${user.user_name} - ${user.driver_status} with active stops`);
         return true;
       }
 
