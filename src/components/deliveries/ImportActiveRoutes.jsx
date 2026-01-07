@@ -725,32 +725,31 @@ export default function ImportActiveRoutes({
           id: existingDelivery.id
         };
 
-        // CRITICAL: Only update stop_order if imported > 0 AND different from existing
+        // CRITICAL: Update stop_order if imported > 0 AND different from existing
         if (stopOrder > 0 && stopOrder !== existingDelivery.stop_order) {
           updatedDeliveryData.stop_order = stopOrder;
         }
         // Otherwise keep existing stop_order (already in updatedDeliveryData from spread)
 
-        // CRITICAL: Only update tracking_number if imported has a value
-        if (newDeliveryData.tracking_number) {
+        // CRITICAL: Update tracking_number if imported has a value AND different from existing
+        if (newDeliveryData.tracking_number && newDeliveryData.tracking_number !== existingDelivery.tracking_number) {
           updatedDeliveryData.tracking_number = newDeliveryData.tracking_number;
         }
         // Otherwise keep existing tracking_number
 
-        // CRITICAL: Status logic - only update if completing or failing
-        // Pending patient deliveries stay pending unless explicitly completed/failed
-        const isCompletedOrFailed = newDeliveryData.status === 'completed' || newDeliveryData.status === 'failed' || newDeliveryData.status === 'cancelled';
-        if (isCompletedOrFailed) {
-          updatedDeliveryData.status = newDeliveryData.status;
+        // CRITICAL: Status logic - ALWAYS update status from import
+        // This ensures drivers can see real-time status updates (pending→in_transit→completed)
+        updatedDeliveryData.status = newDeliveryData.status;
+        
+        // Update time fields based on status
+        if (newDeliveryData.status === 'completed' || newDeliveryData.status === 'failed' || newDeliveryData.status === 'cancelled') {
           updatedDeliveryData.actual_delivery_time = newDeliveryData.actual_delivery_time;
-        } else if (!patientId) {
-          // Pickups can be en_route
-          updatedDeliveryData.status = newDeliveryData.status;
+        } else if (newDeliveryData.status === 'in_transit' || newDeliveryData.status === 'en_route') {
+          // For active deliveries, update time windows
           if (newDeliveryData.delivery_time_start) updatedDeliveryData.delivery_time_start = newDeliveryData.delivery_time_start;
           if (newDeliveryData.delivery_time_end) updatedDeliveryData.delivery_time_end = newDeliveryData.delivery_time_end;
           if (newDeliveryData.delivery_time_eta) updatedDeliveryData.delivery_time_eta = newDeliveryData.delivery_time_eta;
         }
-        // Patient deliveries that aren't completed/failed keep their existing status
 
         // Apply other non-critical fields from import
         if (newDeliveryData.stop_id) updatedDeliveryData.stop_id = newDeliveryData.stop_id;
