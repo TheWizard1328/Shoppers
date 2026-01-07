@@ -242,32 +242,40 @@ export default function GoogleAPILogViewer() {
       return Object.values(periodMap);
     } else {
       // Default: group by day for "all" or custom range
-      const dailyMap = {};
+      const dailyMap = new Map();
       
       filteredLogs.forEach(log => {
-        const dayKey = format(new Date(log.timestamp), 'MMM dd');
-        if (!dailyMap[dayKey]) {
-          dailyMap[dayKey] = { hour: dayKey, calls: 0 };
+        const logDate = new Date(log.timestamp);
+        const dayKey = format(logDate, 'MMM dd yyyy');
+        const displayKey = format(logDate, 'MMM dd');
+        
+        if (!dailyMap.has(dayKey)) {
+          dailyMap.set(dayKey, { 
+            hour: displayKey, 
+            calls: 0,
+            sortDate: logDate
+          });
           if (isAllUsers) {
             uniqueUsers.forEach(user => {
-              dailyMap[dayKey][user] = 0;
+              dailyMap.get(dayKey)[user] = 0;
             });
           }
         }
-        dailyMap[dayKey].calls++;
+        
+        const entry = dailyMap.get(dayKey);
+        entry.calls++;
         if (isAllUsers && log.user_name) {
-          dailyMap[dayKey][log.user_name] = (dailyMap[dayKey][log.user_name] || 0) + 1;
+          entry[log.user_name] = (entry[log.user_name] || 0) + 1;
         }
       });
       
-      // Sort by date
-      const sortedData = Object.values(dailyMap).sort((a, b) => {
-        const dateA = new Date(a.hour + ', 2026');
-        const dateB = new Date(b.hour + ', 2026');
-        return dateA - dateB;
+      // Sort by actual date
+      const sortedData = Array.from(dailyMap.values()).sort((a, b) => {
+        return a.sortDate - b.sortDate;
       });
       
-      return sortedData;
+      // Remove sortDate before returning
+      return sortedData.map(({ sortDate, ...rest }) => rest);
     }
   }, [filteredLogs, dateFilter, userFilter, uniqueUsers]);
   
