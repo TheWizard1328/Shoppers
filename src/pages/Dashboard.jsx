@@ -3837,7 +3837,12 @@ function Dashboard() {
               stop.stop_id = generateUniqueSID(allDeliveriesForDate);
             }
 
+            // CRITICAL: Generate delivery_id for new stops
+            const deliveryId = stop.delivery_id || `DID-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            
             const payload = {
+              delivery_id: deliveryId,
+              dispatcher_id: currentUser?.id || null,
               patient_id: stop.patient_id || null,
               store_id: stop.store_id,
               driver_id: driverId,
@@ -4387,7 +4392,12 @@ function Dashboard() {
           stop.stop_id = generateUniqueSID(allDeliveriesForDate);
         }
 
+        // CRITICAL: Generate delivery_id for new stops
+        const deliveryId = stop.delivery_id || `DID-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
         const payload = {
+          delivery_id: deliveryId,
+          dispatcher_id: currentUser?.id || null,
           patient_id: stop.patient_id || null,
           store_id: stop.store_id,
           driver_id: driverId,
