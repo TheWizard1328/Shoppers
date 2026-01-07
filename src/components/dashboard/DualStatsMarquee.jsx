@@ -49,7 +49,24 @@ export default function DualStatsMarquee({
   isDriver,
   performanceStats // { totalPay, totalKm, totalExtraKm, totalTimeOnDuty }
 }) {
-  // Use stats directly from getDeliveryStats
+  // CRITICAL: For DRIVERS - basic numbers are deliveries, superscripts are pickups
+  // For DISPATCHERS - basic numbers are deliveries, superscripts are unique driver counts
+  
+  // Basic values (patient deliveries only)
+  const totalDeliveries = localStats?.total || 0;
+  const completedDeliveries = localStats?.completed || 0;
+  const failedDeliveries = localStats?.failed || 0;
+  const returnedDeliveries = localStats?.returned || 0;
+  
+  // Pickup values for drivers
+  const totalPickups = localStats?.totalPickups || 0;
+  const activePickups = (localStats?.enRoutePickups || 0); // En Route pickups only
+  const completedPickups = localStats?.completedPickups || 0;
+  
+  // Active delivery counts (for active stops badge)
+  const inTransitDeliveries = localStats?.inTransit || 0;
+  
+  // Driver counts for dispatchers (from backend stats)
   const stats = deliveryStats?.today || {
     completed: 0,
     activeStops: 0,
@@ -58,29 +75,28 @@ export default function DualStatsMarquee({
     activeDrivers: 0
   };
   
-  // CRITICAL: Active stops = inTransit + enRoute (both patient deliveries and pickups)
-  const activeStopsCount = (localStats?.inTransit || 0) + (localStats?.enRoute || 0);
+  const totalDrivers = stats.activeDrivers || 0;
+  const activeDrivers = stats.activeDrivers || 0;
+  const completedDrivers = stats.activeDrivers || 0;
   
-  // CRITICAL: If localStats.total is 0, we're on an empty date - show all zeros
-  const hasData = (localStats?.total || 0) > 0;
-  const displayStats = hasData ? stats : { completed: 0, activeStops: 0, failed: 0, returns: 0, activeDrivers: 0 };
-  
-  // Build tooltips based on backend stats
+  // Build tooltips
   const tooltipValues = {
     total: isDispatcher 
-      ? `Total: ${localStats?.total || 0} stops (${displayStats.activeDrivers} drivers)` 
-      : isDriver && localStats?.totalPickups > 0
-        ? `Total: ${localStats?.total || 0} stops (${localStats.totalPickups} pickups)`
-        : `Total: ${localStats?.total || 0} stops`,
+      ? `Total Deliveries: ${totalDeliveries} (${totalDrivers} drivers)` 
+      : isDriver && totalPickups > 0
+        ? `Total Deliveries: ${totalDeliveries}, Total Pickups: ${totalPickups}`
+        : `Total Stops: ${totalDeliveries}`,
     activeStops: isDispatcher 
-      ? `Active: ${activeStopsCount} stops (${displayStats.activeDrivers} drivers)` 
-      : `Active: ${activeStopsCount} stops`,
+      ? `In Transit Deliveries: ${inTransitDeliveries} (${activeDrivers} drivers)` 
+      : isDriver && activePickups > 0
+        ? `In Transit Deliveries: ${inTransitDeliveries}, En Route Pickups: ${activePickups}`
+        : `Active Stops: ${inTransitDeliveries}`,
     completed: isDispatcher 
-      ? `Completed: ${displayStats.completed} stops (${displayStats.activeDrivers} drivers)` 
-      : isDriver && localStats?.completedPickups > 0
-        ? `Completed: ${displayStats.completed} stops (${localStats.completedPickups} pickups)`
-        : `Completed: ${displayStats.completed} stops`,
-    failed: `${displayStats.failed} Failed / ${displayStats.returns} Returned`
+      ? `Completed Deliveries: ${completedDeliveries} (${completedDrivers} drivers)` 
+      : isDriver && completedPickups > 0
+        ? `Completed Deliveries: ${completedDeliveries}, Completed Pickups: ${completedPickups}`
+        : `Completed Stops: ${completedDeliveries}`,
+    failed: `Failed: ${failedDeliveries}, Returned: ${returnedDeliveries}`
   };
   return (
     <div className="py-0.5">
@@ -88,31 +104,31 @@ export default function DualStatsMarquee({
       <div className="grid grid-cols-4 gap-1 mb-2">
         <StatBadge
           icon={Package}
-          value={localStats?.total || 0}
-          driverCount={isDispatcher ? stats.activeDrivers : isDriver && localStats?.totalPickups > 0 ? localStats.totalPickups : undefined}
+          value={totalDeliveries}
+          driverCount={isDispatcher ? totalDrivers : isDriver && totalPickups > 0 ? totalPickups : undefined}
           color="blue"
           label="Total"
           tooltip={tooltipValues.total} />
 
         <StatBadge
           icon={Truck}
-          value={activeStopsCount}
-          driverCount={isDispatcher ? displayStats.activeDrivers : undefined}
+          value={inTransitDeliveries}
+          driverCount={isDispatcher ? activeDrivers : isDriver && activePickups > 0 ? activePickups : undefined}
           color="purple"
           label="Active"
           tooltip={tooltipValues.activeStops} />
 
         <StatBadge
           icon={CheckCircle}
-          value={displayStats.completed}
-          driverCount={isDispatcher ? displayStats.activeDrivers : isDriver && localStats?.completedPickups > 0 ? localStats.completedPickups : undefined}
+          value={completedDeliveries}
+          driverCount={isDispatcher ? completedDrivers : isDriver && completedPickups > 0 ? completedPickups : undefined}
           color="green"
           label="Completed"
           tooltip={tooltipValues.completed} />
 
         <StatBadge
           icon={XCircle}
-          value={`${displayStats.failed}/${displayStats.returns}`}
+          value={`${failedDeliveries}/${returnedDeliveries}`}
           color="red"
           label="Failed/Returned"
           tooltip={tooltipValues.failed} />

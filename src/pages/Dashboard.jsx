@@ -787,10 +787,12 @@ function Dashboard() {
       return false;
     }).length;
 
-    // CRITICAL: Calculate pickup counts for drivers (removed - now counted in inTransit/enRoute above)
+    // CRITICAL: Calculate pickup counts for superscript badges
     const totalPickups = allPickups.length;
+    const inTransitPickups = allPickups.filter((d) => d && d.status === 'in_transit').length;
+    const enRoutePickups = allPickups.filter((d) => d && d.status === 'en_route').length;
     const completedPickups = allPickups.filter((d) =>
-    d && d.status === 'completed'
+      d && (d.status === 'completed' || d.status === 'cancelled')
     ).length;
 
     // DISPATCHER: Calculate unique driver counts for superscript (from ALL deliveries including pickups)
@@ -825,7 +827,7 @@ function Dashboard() {
     return {
       total, inTransit, enRoute, completed, failed, returned,
       totalDrivers, inTransitDrivers, completedDrivers,
-      totalPickups, completedPickups
+      totalPickups, inTransitPickups, enRoutePickups, completedPickups
     };
   }, [filteredDeliveries, patients, isDispatcher, currentUser?.store_ids]);
 
