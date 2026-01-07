@@ -770,11 +770,27 @@ export default function ImportActiveRoutes({
           updatedDeliveryData.travel_dist = newDeliveryData.travel_dist;
         }
         if (newDeliveryData.ampm_deliveries) updatedDeliveryData.ampm_deliveries = newDeliveryData.ampm_deliveries;
+        // CRITICAL: COD handling for updates
+        // If transitioning to completed AND there's a COD amount, mark as collected
+        // If still incomplete, just update the required amount
         if (newDeliveryData.cod_total_amount_required > 0) {
+          const wasIncomplete = existingDelivery.status === 'pending' || existingDelivery.status === 'in_transit' || existingDelivery.status === 'en_route';
+          const isNowComplete = newDeliveryData.status === 'completed' || newDeliveryData.status === 'failed' || newDeliveryData.status === 'cancelled';
+          
           updatedDeliveryData.cod_total_amount_required = newDeliveryData.cod_total_amount_required;
-          updatedDeliveryData.cod_payments = newDeliveryData.cod_payments;
-          updatedDeliveryData.cod_payment_type = newDeliveryData.cod_payment_type;
-          updatedDeliveryData.cod_amount = newDeliveryData.cod_amount;
+          
+          if (wasIncomplete && isNowComplete) {
+            // Transitioning to complete - mark COD as collected with payment type from import
+            const paymentType = newDeliveryData.cod_payment_type !== 'No Payment' ? newDeliveryData.cod_payment_type : 'Cash';
+            updatedDeliveryData.cod_payments = [{ type: paymentType, amount: newDeliveryData.cod_total_amount_required }];
+            updatedDeliveryData.cod_payment_type = paymentType;
+            updatedDeliveryData.cod_amount = newDeliveryData.cod_total_amount_required.toString();
+          } else if (!isNowComplete) {
+            // Still incomplete - keep COD as required but not collected
+            updatedDeliveryData.cod_payments = [];
+            updatedDeliveryData.cod_payment_type = 'No Payment';
+            updatedDeliveryData.cod_amount = '';
+          }
         }
         if (newDeliveryData.signature_needed) updatedDeliveryData.signature_needed = newDeliveryData.signature_needed;
         if (newDeliveryData.fridge_item) updatedDeliveryData.fridge_item = newDeliveryData.fridge_item;
