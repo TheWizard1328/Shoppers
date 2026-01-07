@@ -462,9 +462,9 @@ export default function ImportActiveRoutes({
       
       // Column 13: Ignored (original)
       // Column 14: Ignored (new boolean column)
-      const stopId = (values[14] || '').replace(/"/g, '').trim(); // Column 15: SID
-      const patientPID = values[15]?.replace(/"/g, '').trim(); // Column 16: PID
-      const rawNotes = (values[17] || '').replace(/"/g, '').trim(); // Column 18: Notes
+      const stopId = (values[13] || '').replace(/"/g, '').trim(); // Column 14: SID (index 13)
+      const patientPID = values[14]?.replace(/"/g, '').trim(); // Column 15: PID (index 14)
+      const rawNotes = (values[16] || '').replace(/"/g, '').trim(); // Column 17: Notes (index 16)
 
       let ampmValue = null;
       if (ampmRawValue === '1') {
@@ -1464,8 +1464,8 @@ export default function ImportActiveRoutes({
                       <li>Col 1: Store Abbr, Col 2: AM/PM</li>
                       <li>Col 3: TR#, Col 4: Stop Order, Col 5: Pending Flag</li>
                       <li>Col 6-7: Start/End Time, Col 9: Travel Dist</li>
-                      <li>Col 13-14: Ignored, Col 15: SID</li>
-                      <li>Col 16: PID, Col 18: Notes</li>
+                      <li>Col 13-14: Ignored, Col 14: SID</li>
+                      <li>Col 15: PID, Col 17: Notes</li>
                       <li><strong>Status:</strong> Pending (Col 5 negative), Completed (Order &gt; 0, Col 6 only), En Route (Order = 0, Col 6+7)</li>
                       <li><strong>Match:</strong> SID → TR# (±20 range) → PID → Abbr+AM/PM</li>
                     </ul>
