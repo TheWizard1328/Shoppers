@@ -3221,8 +3221,8 @@ export default function Layout({ children, currentPageName }) {
                     <div className="flex-1"></div>
 
                         {/* --- PHASE 4: SUBTLE SETTINGS MENU (MOBILE) --- */}
-                        {/* Show for admins (with cities) OR drivers/app owners (for Active Stops import) */}
-                        {((userHasRole(currentUser, 'admin') && cities && cities.length > 0) || userHasRole(realUser, 'driver') || isAppOwner(realUser)) && (
+                        {/* Show for admins (with cities) OR drivers (for Active Stops import and theme) */}
+                        {((userHasRole(currentUser, 'admin') && cities && cities.length > 0) || userHasRole(currentUser, 'driver')) && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
@@ -3265,9 +3265,12 @@ export default function Layout({ children, currentPageName }) {
                           </div>
                           <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
 
-                          {/* Theme Toggle - Mobile Only */}
+                          {/* Theme Toggle - Mobile Only (for all users including drivers) */}
                           {isMobile && (
                             <>
+                              <DropdownMenuLabel className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                Display
+                              </DropdownMenuLabel>
                               <div className="px-2 py-2">
                                 <label className="text-xs font-medium mb-1.5 block" style={{ color: 'var(--text-slate-700)' }}>
                                   Theme
@@ -3312,9 +3315,8 @@ export default function Layout({ children, currentPageName }) {
                           </>
                           )}
 
-                          {/* Active Stops Import - Drivers or App Owners (Desktop & Mobile) */}
-                          {/* Show for drivers always, or app owners who don't have full import access */}
-                          {realUser && (userHasRole(realUser, 'driver') || (isAppOwner(realUser) && !canAccessImports(realUser, adminImportEnabled))) && (
+                          {/* Active Stops Import - Drivers (all devices) or App Owners without full access */}
+                          {(userHasRole(currentUser, 'driver') || (isAppOwner(currentUser) && !canAccessImports(currentUser, adminImportEnabled))) && (
                           <>
                             <DropdownMenuLabel className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                               Import
