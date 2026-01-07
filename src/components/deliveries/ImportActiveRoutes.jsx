@@ -1624,7 +1624,7 @@ export default function ImportActiveRoutes({
                               <td className="p-1 font-mono text-xs w-28">
                                 <div className="flex flex-col">
                                   <span>{delivery.tracking_number || '-'}</span>
-                                  {delivery.puid && <span className="text-slate-500 text-[10px]">PUID: {delivery.puid}</span>}
+                                  {delivery.puid && <span className="text-slate-500 text-[10px]">{delivery.puid}</span>}
                                 </div>
                               </td>
                               <td className="p-1 font-mono text-xs w-22">
