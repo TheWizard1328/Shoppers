@@ -80,6 +80,7 @@ import { ResizableDivider } from './components/ui/resizable-divider';
       import { getUserAgentInfo } from './components/utils/deviceUtils';
       import PatientImport from './components/patients/PatientImport';
       import RouteImport from './components/deliveries/RouteImport';
+      import ImportActiveRoutes from './components/deliveries/ImportActiveRoutes';
       import DriverStatusToggle from './components/layout/DriverStatusToggle';
       import { loadUserSettings, saveSetting, clearSettingsCache } from './components/utils/userSettingsManager';
       import MessagingPanel from './components/messaging/MessagingPanel';
@@ -587,6 +588,7 @@ export default function Layout({ children, currentPageName }) {
   const [smartRefreshActivity, setSmartRefreshActivity] = useState({ active: false, updatedEntities: [] });
   const [showPatientImport, setShowPatientImport] = useState(false);
   const [showDeliveryImport, setShowDeliveryImport] = useState(false);
+  const [showActiveRoutesImport, setShowActiveRoutesImport] = useState(false);
 
   const [deliveries, setDeliveries] = useState([]);
   const [patients, setPatients] = useState([]);
@@ -2591,35 +2593,56 @@ export default function Layout({ children, currentPageName }) {
                   )}
 
                   {showDeliveryImport && (
-                                            <RouteImport
-                                  onCancel={() => {
-                                    setShowDeliveryImport(false);
-                                    setIsFormOverlayOpen(false);
-                                    // Clean up global callback
-                                    if (typeof window !== 'undefined') {
-                                      delete window.__routeImportStartCallback;
-                                    }
-                                  }}
-                                  onImportStart={() => {
-                                    setIsFormOverlayOpen(true);
-                                  }}
-                                  onImportComplete={async () => {
-                                                                                                        setShowDeliveryImport(false);
-                                                                                                        setIsFormOverlayOpen(false);
-                                                                                                        if (typeof window !== 'undefined') {
-                                                                                                          delete window.__routeImportStartCallback;
-                                                                                                        }
-                                                                                                        invalidate('Delivery');
-                                                                                                        invalidate('Patient');
-                                                                                                        await triggerFullDataLoadRef.current(true);
-                                                                                                        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-                                                                                                      }}
-                        stores={stores}
-                        allUsers={users}
-                        currentUser={currentUser}
-                        allDeliveries={deliveries}
-                      />
-                    )}
+                                                        <RouteImport
+                                              onCancel={() => {
+                                                setShowDeliveryImport(false);
+                                                setIsFormOverlayOpen(false);
+                                                // Clean up global callback
+                                                if (typeof window !== 'undefined') {
+                                                  delete window.__routeImportStartCallback;
+                                                }
+                                              }}
+                                              onImportStart={() => {
+                                                setIsFormOverlayOpen(true);
+                                              }}
+                                              onImportComplete={async () => {
+                                                                                                                    setShowDeliveryImport(false);
+                                                                                                                    setIsFormOverlayOpen(false);
+                                                                                                                    if (typeof window !== 'undefined') {
+                                                                                                                      delete window.__routeImportStartCallback;
+                                                                                                                    }
+                                                                                                                    invalidate('Delivery');
+                                                                                                                    invalidate('Patient');
+                                                                                                                    await triggerFullDataLoadRef.current(true);
+                                                                                                                    window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+                                                                                                                  }}
+                                    stores={stores}
+                                    allUsers={users}
+                                    currentUser={currentUser}
+                                    allDeliveries={deliveries}
+                                  />
+                                )}
+
+                  {showActiveRoutesImport && (
+                    <ImportActiveRoutes
+                      onCancel={() => {
+                        setShowActiveRoutesImport(false);
+                        setIsFormOverlayOpen(false);
+                      }}
+                      onImportComplete={async () => {
+                        setShowActiveRoutesImport(false);
+                        setIsFormOverlayOpen(false);
+                        invalidate('Delivery');
+                        invalidate('Patient');
+                        await triggerFullDataLoadRef.current(true);
+                        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+                      }}
+                      stores={stores}
+                      allUsers={users}
+                      currentUser={currentUser}
+                      allDeliveries={deliveries}
+                    />
+                  )}
 
       {isLoadingLayout ? (
         <div className="h-screen flex items-center justify-center bg-slate-50">
@@ -2764,13 +2787,20 @@ export default function Layout({ children, currentPageName }) {
                             {/* Import Buttons - App Owner or Admins with temp access - Hidden on Mobile */}
                             {!isMobile && realUser && canAccessImports(realUser, adminImportEnabled) && (
                               <>
+                                <DropdownMenuLabel className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                  Data Importers
+                                </DropdownMenuLabel>
                                 <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer">
                                   <FileText className="w-4 h-4 mr-2" />
-                                  Patient Import
+                                  Patient Info
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => setShowDeliveryImport(true)} className="cursor-pointer">
                                   <FileText className="w-4 h-4 mr-2" />
-                                  Delivery Import
+                                  Past Routes
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setShowActiveRoutesImport(true)} className="cursor-pointer">
+                                  <FileText className="w-4 h-4 mr-2" />
+                                  Active Stops
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                               </>
@@ -3239,13 +3269,20 @@ export default function Layout({ children, currentPageName }) {
                           {/* Import Buttons - App Owner Only - Hidden on Mobile */}
                           {!isMobile && realUser && isAppOwner(realUser) && (
                             <>
+                              <DropdownMenuLabel className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                Data Importers
+                              </DropdownMenuLabel>
                               <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer">
                                 <FileText className="w-4 h-4 mr-2" />
-                                Patient Import
+                                Patient Info
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => setShowDeliveryImport(true)} className="cursor-pointer">
                                 <FileText className="w-4 h-4 mr-2" />
-                                Delivery Import
+                                Past Routes
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setShowActiveRoutesImport(true)} className="cursor-pointer">
+                                <FileText className="w-4 h-4 mr-2" />
+                                Active Stops
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                             </>
