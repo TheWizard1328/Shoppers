@@ -823,10 +823,13 @@ function Dashboard() {
         
         allDriverIds.forEach((driverId) => {
           const driverStops = relevantDeliveries.filter((d) => d?.driver_id === driverId);
+          
+          // CRITICAL: Only count if driver has at least one completed delivery (not just failed/cancelled)
+          const hasCompletedStops = driverStops.some((d) => d && d.status === 'completed');
           const allFinished = driverStops.length > 0 && 
             driverStops.every((d) => d && finishedStatuses.includes(d.status));
           
-          if (allFinished) {
+          if (hasCompletedStops && allFinished) {
             completedDrivers++;
           }
         });
