@@ -714,9 +714,13 @@ export default function ImportActiveRoutes({
           const updatedDeliveryData = {
             ...existingDelivery,
             ...newDeliveryData,
-            id: existingDelivery.id,
-            stop_order: stopOrder // CRITICAL: Update stop_order from import
+            id: existingDelivery.id
           };
+
+          // CRITICAL: Only update stop_order if imported value is > 0
+          if (stopOrder > 0) {
+            updatedDeliveryData.stop_order = stopOrder;
+          }
 
           deliveriesToUpdate.push({
             ...updatedDeliveryData,
