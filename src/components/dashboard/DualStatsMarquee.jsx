@@ -60,7 +60,7 @@ export default function DualStatsMarquee({
   
   // Pickup values for drivers
   const totalPickups = localStats?.totalPickups || 0;
-  const activePickups = (localStats?.enRoutePickups || 0); // En Route pickups only
+  const activePickups = (localStats?.activePickupsEnRoute || 0); // En Route pickups only
   const completedPickups = localStats?.completedPickups || 0;
   
   // Active delivery counts (for active stops badge)

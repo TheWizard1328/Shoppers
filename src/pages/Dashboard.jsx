@@ -789,8 +789,8 @@ function Dashboard() {
 
     // CRITICAL: Calculate pickup counts for superscript badges
     const totalPickups = allPickups.length;
-    const inTransitPickups = allPickups.filter((d) => d && d.status === 'in_transit').length;
-    const enRoutePickups = allPickups.filter((d) => d && d.status === 'en_route').length;
+    const activePickupsInTransit = inTransitPickups.length;
+    const activePickupsEnRoute = enRoutePickups.length;
     const completedPickups = allPickups.filter((d) =>
       d && (d.status === 'completed' || d.status === 'cancelled')
     ).length;
@@ -827,7 +827,7 @@ function Dashboard() {
     return {
       total, inTransit, enRoute, completed, failed, returned,
       totalDrivers, inTransitDrivers, completedDrivers,
-      totalPickups, inTransitPickups, enRoutePickups, completedPickups
+      totalPickups, activePickupsInTransit, activePickupsEnRoute, completedPickups
     };
   }, [filteredDeliveries, patients, isDispatcher, currentUser?.store_ids]);
 
