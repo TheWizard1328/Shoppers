@@ -741,9 +741,11 @@ export default function ImportActiveRoutes({
         const newDeliveryId = generateDeliveryId(Array.from(existingDeliveryIds));
         existingDeliveryIds.add(newDeliveryId);
 
+        // CRITICAL: Ensure delivery_id and dispatcher_id are set for new deliveries
         deliveriesToCreate.push({
           ...newDeliveryData,
           delivery_id: newDeliveryId,
+          dispatcher_id: dispatcherId || null,
           stop_id: newDeliveryData.stop_id || null,
           _matchReason: matchReason
         });
