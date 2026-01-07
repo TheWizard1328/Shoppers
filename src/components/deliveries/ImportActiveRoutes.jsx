@@ -552,9 +552,7 @@ export default function ImportActiveRoutes({
         // EXCEPTION: Pickups with times should be en_route even if pending indicator is negative
         deliveryStatus = 'en_route';
         deliveryTimeStart = deliveryStartTimeStr;
-        const [hours, minutes] = deliveryStartTimeStr.split(':').map(Number);
-        const endHours = (hours + 1) % 24;
-        deliveryTimeEnd = `${String(endHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+        deliveryTimeEnd = deliveryEndTimeStr;
         deliveryTimeEta = deliveryStartTimeStr;
       } else if (isPendingIndicator) {
         // Pending indicator is negative - status is pending
