@@ -343,6 +343,30 @@ export default function ImportActiveRoutes({
       const normalizedExisting = existingValue === null || existingValue === undefined || (typeof existingValue === 'string' && existingValue.trim() === '') ? null : existingValue;
       const normalizedImported = importedValue === null || importedValue === undefined || (typeof importedValue === 'string' && importedValue.trim() === '') ? null : importedValue;
 
+      // CRITICAL: Skip stop_order comparison if imported value is 0 (will keep existing)
+      if (field.key === 'stop_order') {
+        const importedStopOrder = typeof normalizedImported === 'number' ? normalizedImported : parseInt(normalizedImported) || 0;
+        // Only show change if imported > 0 AND different from existing
+        if (importedStopOrder > 0 && normalizedExisting !== normalizedImported) {
+          changes.push(`${field.label}: ${normalizedExisting || 'none'} → ${normalizedImported}`);
+        }
+        return; // Skip normal comparison for stop_order
+      }
+
+      // CRITICAL: Skip TR# comparison if values match OR if existing already has a value
+      // (we don't want to show TR# change if it's effectively the same tracking info)
+      if (field.key === 'tracking_number') {
+        // If both have values and they match exactly, no change
+        if (normalizedExisting === normalizedImported) return;
+        // If existing has a value and imported is empty/null, no change (keep existing)
+        if (normalizedExisting && !normalizedImported) return;
+        // Only show change if imported has a value AND it's different
+        if (normalizedImported && normalizedExisting !== normalizedImported) {
+          changes.push(`${field.label}: ${normalizedExisting || 'none'} → ${normalizedImported}`);
+        }
+        return;
+      }
+
       if (field.key === 'actual_delivery_time') {
         const existingTimeStr = normalizedExisting ? format(new Date(normalizedExisting), 'HH:mm') : null;
         const importedTimeStr = normalizedImported ? format(new Date(normalizedImported), 'HH:mm') : null;
