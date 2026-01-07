@@ -750,15 +750,20 @@ export default function ImportActiveRoutes({
       }
     }
 
-    // PUID Assignment Pass
+    // PUID Assignment Pass and Pending Delivery Time Assignment
     const allParsedDeliveries = [...deliveriesToCreate, ...deliveriesToUpdate];
     const pickupMap = new Map();
+    const pickupTimeMap = new Map(); // Track pickup delivery_time_start for pending deliveries
 
     allParsedDeliveries.forEach((d) => {
       if (!d.patient_id && d.store_id && d.stop_id) {
         const key = `${d.delivery_date}_${d.driver_id}_${d.store_id}_${d.ampm_deliveries || 'none'}`;
         if (!pickupMap.has(key)) {
           pickupMap.set(key, d.stop_id);
+        }
+        // Store pickup's delivery_time_start for pending delivery time assignment
+        if (d.delivery_time_start && !pickupTimeMap.has(key)) {
+          pickupTimeMap.set(key, d.delivery_time_start);
         }
       }
     });
@@ -773,6 +778,25 @@ export default function ImportActiveRoutes({
           d.puid = matchingPuid;
         } else {
           d.puid = null;
+        }
+        
+        // CRITICAL: For pending deliveries, set delivery_time_start from pickup + 5 min
+        if (d.status === 'pending' && !d.delivery_time_start) {
+          const pickupTimeStart = pickupTimeMap.get(key);
+          if (pickupTimeStart) {
+            const [hours, minutes] = pickupTimeStart.split(':').map(Number);
+            const totalMinutes = hours * 60 + minutes + 5;
+            const newHours = Math.floor(totalMinutes / 60) % 24;
+            const newMinutes = totalMinutes % 60;
+            d.delivery_time_start = `${String(newHours).padStart(2, '0')}:${String(newMinutes).padStart(2, '0')}`;
+            // Set delivery_time_end to 1 hour after delivery_time_start
+            const endTotalMinutes = totalMinutes + 60;
+            const endHours = Math.floor(endTotalMinutes / 60) % 24;
+            const endMinutes = endTotalMinutes % 60;
+            d.delivery_time_end = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
+            // Set ETA to delivery_time_start
+            d.delivery_time_eta = d.delivery_time_start;
+          }
         }
       }
     });
