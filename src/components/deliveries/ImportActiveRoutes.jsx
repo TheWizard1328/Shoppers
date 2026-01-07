@@ -541,45 +541,38 @@ export default function ImportActiveRoutes({
       let deliveryTimeEnd = null;
       let deliveryTimeEta = null;
 
-      // RULE 1: Pending stops have negative value in column 5
-      const isPendingStop = pendingIndicator < 0;
-
-      if (isPendingStop && !isPickup) {
-        // Pending stop (only for non-pickups - pickups should be en_route if they have times)
-        deliveryStatus = 'pending';
-        deliveryTimeStart = null;
-        deliveryTimeEnd = null;
-      } else if (isPendingStop && isPickup && deliveryStartTimeStr && deliveryEndTimeStr) {
-        // Pickups with times should be en_route even if pending indicator is negative
-        deliveryStatus = 'en_route';
-        deliveryTimeStart = deliveryStartTimeStr;
-        const [hours, minutes] = deliveryStartTimeStr.split(':').map(Number);
-        const endHours = (hours + 1) % 24;
-        deliveryTimeEnd = `${String(endHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-        deliveryTimeEta = deliveryStartTimeStr;
-      } else if (isPendingStop && isPickup) {
-        // Pending pickup without times
-        deliveryStatus = 'pending';
-        deliveryTimeStart = null;
-        deliveryTimeEnd = null;
-      } else if (stopOrder > 0 && deliveryStartTimeStr && !deliveryEndTimeStr) {
-        // RULE 2: Completed - stopOrder > 0, has start time only
+      // RULE: Determine status based on original stop order, times, and pickup type
+      // CRITICAL: originalStopOrder is used for status determination (before sequential assignment)
+      
+      if (originalStopOrder > 0 && deliveryStartTimeStr && !deliveryEndTimeStr) {
+        // Completed - has stop order > 0, has start time only
         deliveryStatus = 'completed';
         actualDeliveryTime = `${currentDate}T${deliveryStartTimeStr}:00`;
-      } else if (stopOrder === 0 && deliveryStartTimeStr && deliveryEndTimeStr) {
-        // RULE 3: In Transit/En Route - stopOrder = 0, has both times
+      } else if (originalStopOrder === 0 && deliveryStartTimeStr && deliveryEndTimeStr) {
+        // Active (in transit/en route) - stop order = 0, has both times
         deliveryStatus = isPickup ? 'en_route' : 'in_transit';
-        // For incomplete active deliveries/pickups: set delivery_time_start from imported data
         deliveryTimeStart = deliveryStartTimeStr;
-        // For pickups: set delivery_time_end to 1 hour after delivery_time_start
         if (isPickup) {
-          // Parse start time and add 1 hour
           const [hours, minutes] = deliveryStartTimeStr.split(':').map(Number);
           const endHours = (hours + 1) % 24;
           deliveryTimeEnd = `${String(endHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
         }
-        // Set ETA to delivery_time_start for incomplete stops
         deliveryTimeEta = deliveryStartTimeStr;
+      } else if (deliveryStartTimeStr && deliveryEndTimeStr) {
+        // Has times but no clear status from stop order - assume active
+        deliveryStatus = isPickup ? 'en_route' : 'in_transit';
+        deliveryTimeStart = deliveryStartTimeStr;
+        if (isPickup) {
+          const [hours, minutes] = deliveryStartTimeStr.split(':').map(Number);
+          const endHours = (hours + 1) % 24;
+          deliveryTimeEnd = `${String(endHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+        }
+        deliveryTimeEta = deliveryStartTimeStr;
+      } else {
+        // No times - pending
+        deliveryStatus = 'pending';
+        deliveryTimeStart = null;
+        deliveryTimeEnd = null;
       }
 
       const newDeliveryData = {
