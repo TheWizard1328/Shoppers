@@ -3230,40 +3230,45 @@ export default function Layout({ children, currentPageName }) {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-56 z-[10002]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}>
-                          <div className="px-2 py-2">
-                            <div className="flex items-center justify-between">
-                              <DropdownMenuLabel className="p-0" style={{ color: 'var(--text-slate-900)' }}>Settings</DropdownMenuLabel>
-                              {isAppOwner(currentUser) && (
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                  <span className="text-xs font-medium" style={{ color: 'var(--text-slate-600)' }}>Admin Import</span>
-                                  <Switch
-                                    checked={adminImportEnabled}
-                                    onCheckedChange={async (checked) => {
-                                      if (currentUser?._isImpersonating) return;
-                                      
-                                      setAdminImportEnabled(checked);
-                                      
-                                      // Save to AppSettings so all admins can see it
-                                      try {
-                                        const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-                                        if (settings && settings.length > 0) {
-                                          await base44.entities.AppSettings.update(settings[0].id, {
-                                            setting_value: {
-                                              ...settings[0].setting_value,
-                                              adminImportEnabled: checked
+                          {/* Settings header and Admin Import toggle - only for admins/app owners */}
+                          {(userHasRole(currentUser, 'admin') || isAppOwner(currentUser)) && (
+                            <>
+                              <div className="px-2 py-2">
+                                <div className="flex items-center justify-between">
+                                  <DropdownMenuLabel className="p-0" style={{ color: 'var(--text-slate-900)' }}>Settings</DropdownMenuLabel>
+                                  {isAppOwner(currentUser) && (
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                      <span className="text-xs font-medium" style={{ color: 'var(--text-slate-600)' }}>Admin Import</span>
+                                      <Switch
+                                        checked={adminImportEnabled}
+                                        onCheckedChange={async (checked) => {
+                                          if (currentUser?._isImpersonating) return;
+                                          
+                                          setAdminImportEnabled(checked);
+                                          
+                                          // Save to AppSettings so all admins can see it
+                                          try {
+                                            const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+                                            if (settings && settings.length > 0) {
+                                              await base44.entities.AppSettings.update(settings[0].id, {
+                                                setting_value: {
+                                                  ...settings[0].setting_value,
+                                                  adminImportEnabled: checked
+                                                }
+                                              });
                                             }
-                                          });
-                                        }
-                                      } catch (error) {
-                                        console.error('Failed to save admin import setting:', error);
-                                      }
-                                    }}
-                                  />
-                                </label>
-                              )}
-                            </div>
-                          </div>
-                          <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
+                                          } catch (error) {
+                                            console.error('Failed to save admin import setting:', error);
+                                          }
+                                        }}
+                                      />
+                                    </label>
+                                  )}
+                                </div>
+                              </div>
+                              <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
+                            </>
+                          )}
 
                           {/* Theme Toggle - Mobile Only (for all users including drivers) */}
                           {isMobile && (
