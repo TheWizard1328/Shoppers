@@ -819,7 +819,7 @@ function Dashboard() {
     }
 
     return {
-      total, inTransit, completed, failed, returned,
+      total, inTransit, enRoute, completed, failed, returned,
       totalDrivers, inTransitDrivers, completedDrivers,
       totalPickups, inTransitPickups, completedPickups
     };
