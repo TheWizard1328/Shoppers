@@ -514,6 +514,25 @@ export default function ImportActiveRoutes({
       const dispatcher = findDispatcherByStore(store);
       const dispatcherId = dispatcher ? dispatcher.id : null;
 
+      // If stopOrder is 0 or missing, assign sequential stop order based on max existing
+      if (stopOrder === 0 || !rawStopOrder) {
+        const dateDriverKey = `${currentDate}_${selectedDriver.id}`;
+        
+        // Initialize max stop order from existing deliveries for this date/driver
+        if (!maxStopOrderByDateDriver.has(dateDriverKey)) {
+          const existingStopOrders = allDeliveriesData
+            .filter((d) => d.delivery_date === currentDate && d.driver_id === selectedDriver.id)
+            .map((d) => d.stop_order || 0);
+          const maxExisting = existingStopOrders.length > 0 ? Math.max(...existingStopOrders) : 0;
+          maxStopOrderByDateDriver.set(dateDriverKey, maxExisting);
+        }
+        
+        // Increment and assign next stop order
+        const nextStopOrder = maxStopOrderByDateDriver.get(dateDriverKey) + 1;
+        maxStopOrderByDateDriver.set(dateDriverKey, nextStopOrder);
+        stopOrder = nextStopOrder;
+      }
+
       // Status determination based on column 5 (pendingIndicator), stopOrder, and time columns
       let deliveryStatus = 'pending';
       let actualDeliveryTime = null;
