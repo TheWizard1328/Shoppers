@@ -732,34 +732,59 @@ export default function ImportActiveRoutes({
       const matchReason = matchResult?.reason || 'Unknown';
 
       if (existingDelivery) {
-        // EXISTING DELIVERY: Build final data first, then detect changes
+        // EXISTING DELIVERY: Start with existing data, selectively apply imports
         const updatedDeliveryData = {
           ...existingDelivery,
-          ...newDeliveryData,
           id: existingDelivery.id
         };
 
-        // Rule 1: If imported stop_order is 0, keep existing stop_order
-        // Rule 3: If imported > 0 and different from current, update it
+        // CRITICAL: Only update stop_order if imported > 0 AND different from existing
         if (stopOrder > 0 && stopOrder !== existingDelivery.stop_order) {
           updatedDeliveryData.stop_order = stopOrder;
-        } else {
-          updatedDeliveryData.stop_order = existingDelivery.stop_order;
         }
+        // Otherwise keep existing stop_order (already in updatedDeliveryData from spread)
 
-        // CRITICAL: Keep existing tracking_number if imported is empty/null
-        if (!newDeliveryData.tracking_number && existingDelivery.tracking_number) {
-          updatedDeliveryData.tracking_number = existingDelivery.tracking_number;
+        // CRITICAL: Only update tracking_number if imported has a value
+        if (newDeliveryData.tracking_number) {
+          updatedDeliveryData.tracking_number = newDeliveryData.tracking_number;
         }
+        // Otherwise keep existing tracking_number
 
-        // CRITICAL: Keep existing status if imported incorrectly determines en_route for non-pickups
-        // Pending stops should stay pending unless explicitly completed
-        if (existingDelivery.status === 'pending' && newDeliveryData.status === 'en_route' && patientId) {
-          updatedDeliveryData.status = 'pending';
+        // CRITICAL: Status logic - only update if completing or failing
+        // Pending patient deliveries stay pending unless explicitly completed/failed
+        const isCompletedOrFailed = newDeliveryData.status === 'completed' || newDeliveryData.status === 'failed' || newDeliveryData.status === 'cancelled';
+        if (isCompletedOrFailed) {
+          updatedDeliveryData.status = newDeliveryData.status;
+          updatedDeliveryData.actual_delivery_time = newDeliveryData.actual_delivery_time;
+        } else if (!patientId) {
+          // Pickups can be en_route
+          updatedDeliveryData.status = newDeliveryData.status;
+          if (newDeliveryData.delivery_time_start) updatedDeliveryData.delivery_time_start = newDeliveryData.delivery_time_start;
+          if (newDeliveryData.delivery_time_end) updatedDeliveryData.delivery_time_end = newDeliveryData.delivery_time_end;
+          if (newDeliveryData.delivery_time_eta) updatedDeliveryData.delivery_time_eta = newDeliveryData.delivery_time_eta;
         }
-        if (existingDelivery.status === 'pending' && newDeliveryData.status === 'in_transit' && patientId) {
-          updatedDeliveryData.status = 'pending';
+        // Patient deliveries that aren't completed/failed keep their existing status
+
+        // Apply other non-critical fields from import
+        if (newDeliveryData.stop_id) updatedDeliveryData.stop_id = newDeliveryData.stop_id;
+        if (newDeliveryData.puid) updatedDeliveryData.puid = newDeliveryData.puid;
+        if (newDeliveryData.travel_dist !== null && newDeliveryData.travel_dist !== undefined) {
+          updatedDeliveryData.travel_dist = newDeliveryData.travel_dist;
         }
+        if (newDeliveryData.ampm_deliveries) updatedDeliveryData.ampm_deliveries = newDeliveryData.ampm_deliveries;
+        if (newDeliveryData.cod_total_amount_required > 0) {
+          updatedDeliveryData.cod_total_amount_required = newDeliveryData.cod_total_amount_required;
+          updatedDeliveryData.cod_payments = newDeliveryData.cod_payments;
+          updatedDeliveryData.cod_payment_type = newDeliveryData.cod_payment_type;
+          updatedDeliveryData.cod_amount = newDeliveryData.cod_amount;
+        }
+        if (newDeliveryData.signature_needed) updatedDeliveryData.signature_needed = newDeliveryData.signature_needed;
+        if (newDeliveryData.fridge_item) updatedDeliveryData.fridge_item = newDeliveryData.fridge_item;
+        if (newDeliveryData.oversized) updatedDeliveryData.oversized = newDeliveryData.oversized;
+        if (newDeliveryData.after_hours_pickup) updatedDeliveryData.after_hours_pickup = newDeliveryData.after_hours_pickup;
+        if (newDeliveryData.first_delivery) updatedDeliveryData.first_delivery = newDeliveryData.first_delivery;
+        if (newDeliveryData.time_window_start) updatedDeliveryData.time_window_start = newDeliveryData.time_window_start;
+        if (newDeliveryData.time_window_end) updatedDeliveryData.time_window_end = newDeliveryData.time_window_end;
 
         // Now detect changes between existing and FINAL updated data
         const changes = detectChanges(existingDelivery, updatedDeliveryData);
