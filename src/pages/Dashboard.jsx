@@ -757,14 +757,12 @@ function Dashboard() {
 
     const total = safeDeliveries.length;
 
-    // CRITICAL: Count active stops from BOTH patient deliveries AND pickups
-    const inTransitPatientDeliveries = safeDeliveries.filter((d) => d && d.status === 'in_transit');
-    const enRoutePatientDeliveries = safeDeliveries.filter((d) => d && d.status === 'en_route');
-    const inTransitPickups = allPickups.filter((d) => d && d.status === 'in_transit');
+    // CRITICAL: In Transit = deliveries only, En Route = pickups only
+    const inTransitDeliveries = safeDeliveries.filter((d) => d && d.status === 'in_transit');
     const enRoutePickups = allPickups.filter((d) => d && d.status === 'en_route');
     
-    const inTransit = inTransitPatientDeliveries.length + inTransitPickups.length;
-    const enRoute = enRoutePatientDeliveries.length + enRoutePickups.length;
+    const inTransit = inTransitDeliveries.length;
+    const enRoute = enRoutePickups.length;
 
     const completedDeliveries = safeDeliveries.filter((d) => {
       if (!d || d.status !== 'completed') return false;
@@ -789,11 +787,16 @@ function Dashboard() {
 
     // CRITICAL: Calculate pickup counts for superscript badges
     const totalPickups = allPickups.length;
-    const activePickupsInTransit = inTransitPickups.length;
     const activePickupsEnRoute = enRoutePickups.length;
-    const completedPickups = allPickups.filter((d) =>
+    
+    // CRITICAL: Completed pickups count ONLY if ALL stops are completed for this driver
+    const finishedStatuses = ['completed', 'failed', 'cancelled'];
+    const allStopsCompleted = relevantDeliveries.length > 0 && 
+      relevantDeliveries.every((d) => d && finishedStatuses.includes(d.status));
+    
+    const completedPickups = allStopsCompleted ? allPickups.filter((d) =>
       d && (d.status === 'completed' || d.status === 'cancelled')
-    ).length;
+    ).length : 0;
 
     // DISPATCHER: Calculate unique driver counts for superscript (from ALL deliveries including pickups)
     let totalDrivers = 0;
@@ -827,7 +830,7 @@ function Dashboard() {
     return {
       total, inTransit, enRoute, completed, failed, returned,
       totalDrivers, inTransitDrivers, completedDrivers,
-      totalPickups, activePickupsInTransit, activePickupsEnRoute, completedPickups
+      totalPickups, activePickupsEnRoute, completedPickups
     };
   }, [filteredDeliveries, patients, isDispatcher, currentUser?.store_ids]);
 
