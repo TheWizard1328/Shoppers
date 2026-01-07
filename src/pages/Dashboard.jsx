@@ -1684,10 +1684,21 @@ function Dashboard() {
 
       setAllDriverLocations(filteredLocations);
     });
+    
+    // CRITICAL: Process initial location data immediately on mount
+    driverLocationPoller.processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate, true);
+    
+    // CRITICAL: Listen for driverLocationsUpdated events and reprocess
+    const handleLocationUpdate = () => {
+      console.log('📍 [Dashboard] driverLocationsUpdated event - reprocessing locations');
+      driverLocationPoller.processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate, true);
+    };
+    window.addEventListener('driverLocationsUpdated', handleLocationUpdate);
 
     return () => {
       unsubscribe();
       driverLocationPoller.stop();
+      window.removeEventListener('driverLocationsUpdated', handleLocationUpdate);
     };
   }, [isDataLoaded, currentUser?.id, currentUser?.user_id, deliveries, drivers, isMobile, isDriver, appUsers, stores, selectedDate, users]);
 
