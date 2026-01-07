@@ -457,7 +457,8 @@ export default function ImportActiveRoutes({
       const ampmRawValue = values[1]?.replace(/"/g, '').trim(); // Column 2
       const trackingNumber = values[2]?.replace(/"/g, '').trim(); // Column 3: TR#
       const rawStopOrder = values[3]?.trim();
-      let stopOrder = parseInt(rawStopOrder) || 0; // Column 4: Stop Order (0 = incomplete)
+      const originalStopOrder = parseInt(rawStopOrder) || 0; // Column 4: Stop Order (0 = incomplete)
+      let stopOrder = originalStopOrder;
       const pendingIndicator = parseInt(values[4]?.trim()) || 0; // Column 5: Negative = pending
       const deliveryStartTimeStr = values[5]?.replace(/"/g, '').trim(); // Column 6: Start time
       const deliveryEndTimeStr = values[6]?.replace(/"/g, '').trim(); // Column 7: End time
