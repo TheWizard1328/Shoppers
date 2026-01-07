@@ -1393,6 +1393,27 @@ export default function ImportActiveRoutes({
       driverLocationPoller.resume();
       console.log('▶️ [ImportActiveRoutes] Resumed smart refresh and location poller');
 
+      // CRITICAL: Dispatch events to update UI for ALL drivers (not just the imported driver)
+      // This ensures "Show All" checkbox properly displays updated data
+      window.dispatchEvent(new CustomEvent('deliveriesImported', {
+        detail: { 
+          source: 'activeRoutesImport',
+          driverId: selectedDriverId,
+          count: overallResults.created + overallResults.updated
+        }
+      }));
+      
+      // Force refresh of delivery stats
+      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+      
+      // Trigger full data refresh for Dashboard
+      window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
+        detail: { 
+          triggeredBy: 'activeRoutesImport',
+          forceRefresh: true
+        }
+      }));
+
     } catch (error) {
       console.error("❌ Overall import error:", error);
       overallResults.errors.push(`Overall import process failed: ${error.message}`);
