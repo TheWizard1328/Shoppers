@@ -818,7 +818,7 @@ function Dashboard() {
     return {
       total, inTransit, enRoute, completed, failed, returned,
       totalDrivers, inTransitDrivers, completedDrivers,
-      totalPickups, inTransitPickups, completedPickups
+      totalPickups, completedPickups
     };
   }, [filteredDeliveries, patients, isDispatcher, currentUser?.store_ids]);
 
