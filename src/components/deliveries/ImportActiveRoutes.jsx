@@ -586,6 +586,8 @@ export default function ImportActiveRoutes({
         delivery_time_start: deliveryTimeStart,
         delivery_time_end: deliveryTimeEnd,
         delivery_time_eta: deliveryTimeEta,
+        time_window_start: deliveryTimeStart,
+        time_window_end: deliveryTimeEnd,
         extra_time: 0,
         ampm_deliveries: ampmValue,
         cod_total_amount_required: 0,
@@ -634,12 +636,15 @@ export default function ImportActiveRoutes({
         newDeliveryData.back_door = patient.back_door || false;
         newDeliveryData.signature_needed = patient.signature_needed || false;
         
-        // Override time windows from patient record if they exist
+        // CRITICAL: Override time windows from patient record FIRST (highest priority)
+        // If patient has time windows, use those. Otherwise, keep import values from CSV.
         if (patient.time_window_start) {
           newDeliveryData.time_window_start = patient.time_window_start;
+          newDeliveryData.delivery_time_start = patient.time_window_start;
         }
         if (patient.time_window_end) {
           newDeliveryData.time_window_end = patient.time_window_end;
+          newDeliveryData.delivery_time_end = patient.time_window_end;
         }
       } else {
         newDeliveryData.patient_id = null;
