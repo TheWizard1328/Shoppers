@@ -814,17 +814,20 @@ function Dashboard() {
       inTransitDrivers = inTransitDriverIds.size;
 
       // CRITICAL: Count drivers with completed patient deliveries OR completed/cancelled after-hours pickups
-      const completedPatientDeliveries = safeDeliveries.filter((d) => {
-        if (!d || d.status !== 'completed') return false;
-        if (isReturn(d)) return false;
-        return true;
-      });
-      const completedAfterHoursPickups = relevantDeliveries.filter((d) =>
-        d && !d.patient_id && d.after_hours_pickup === true && (d.status === 'completed' || d.status === 'cancelled')
-      );
-      const allCompletedStops = [...completedPatientDeliveries, ...completedAfterHoursPickups];
-      const completedDriverIds = new Set(allCompletedStops.map((d) => d?.driver_id).filter(Boolean));
-      completedDrivers = completedDriverIds.size;
+      // ONLY if completed > 0 (don't show driver count when no completed deliveries)
+      if (completed > 0) {
+        const completedPatientDeliveries = safeDeliveries.filter((d) => {
+          if (!d || d.status !== 'completed') return false;
+          if (isReturn(d)) return false;
+          return true;
+        });
+        const completedAfterHoursPickups = relevantDeliveries.filter((d) =>
+          d && !d.patient_id && d.after_hours_pickup === true && (d.status === 'completed' || d.status === 'cancelled')
+        );
+        const allCompletedStops = [...completedPatientDeliveries, ...completedAfterHoursPickups];
+        const completedDriverIds = new Set(allCompletedStops.map((d) => d?.driver_id).filter(Boolean));
+        completedDrivers = completedDriverIds.size;
+      }
     }
 
     return {
