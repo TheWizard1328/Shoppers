@@ -263,29 +263,16 @@ export default function ImportActiveRoutes({
       }
     }
 
-    // Priority 2: Match by Tracking Number (TR#) - exact match or same 20-digit range
+    // Priority 2: Match by Tracking Number (TR#) - EXACT MATCH ONLY
+    // Range matching removed as it was causing incorrect matches for pending deliveries
     if (importedTrackingNumber && importedTrackingNumber !== '') {
-      const importedTRInt = parseInt(importedTrackingNumber, 10);
-      if (!isNaN(importedTRInt)) {
-        const importedTRRange = Math.floor(importedTRInt / 20);
-        
-        const trackingNumberMatch = sameDateDeliveries.find((d) => {
-          const existingTR = (d.tracking_number || '').trim();
-          if (existingTR === importedTrackingNumber) return true; // Exact match
-          
-          // Range match: 0-19, 20-39, 40-59, etc.
-          const existingTRInt = parseInt(existingTR, 10);
-          if (!isNaN(existingTRInt)) {
-            const existingTRRange = Math.floor(existingTRInt / 20);
-            return existingTRRange === importedTRRange;
-          }
-          
-          return false;
-        });
-        
-        if (trackingNumberMatch) {
-          return { match: trackingNumberMatch, reason: `TR# Match (${importedTrackingNumber})` };
-        }
+      const trackingNumberMatch = sameDateDeliveries.find((d) => {
+        const existingTR = (d.tracking_number || '').trim();
+        return existingTR === importedTrackingNumber; // Exact match only
+      });
+      
+      if (trackingNumberMatch) {
+        return { match: trackingNumberMatch, reason: `TR# Match (${importedTrackingNumber})` };
       }
     }
 
