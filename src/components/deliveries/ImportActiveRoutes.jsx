@@ -782,7 +782,7 @@ export default function ImportActiveRoutes({
           d.puid = null;
         }
         
-        // CRITICAL: For pending deliveries, set delivery_time_start from pickup + 5 min
+        // CRITICAL: For pending deliveries, set delivery_time_start from pickup + 5 min (only if not already set)
         if (d.status === 'pending' && !d.delivery_time_start) {
           const pickupTimeStart = pickupTimeMap.get(key);
           if (pickupTimeStart) {
@@ -791,13 +791,9 @@ export default function ImportActiveRoutes({
             const newHours = Math.floor(totalMinutes / 60) % 24;
             const newMinutes = totalMinutes % 60;
             d.delivery_time_start = `${String(newHours).padStart(2, '0')}:${String(newMinutes).padStart(2, '0')}`;
-            // Set delivery_time_end to 1 hour after delivery_time_start
-            const endTotalMinutes = totalMinutes + 60;
-            const endHours = Math.floor(endTotalMinutes / 60) % 24;
-            const endMinutes = endTotalMinutes % 60;
-            d.delivery_time_end = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
             // Set ETA to delivery_time_start
             d.delivery_time_eta = d.delivery_time_start;
+            // NOTE: Do NOT set delivery_time_end - only set if patient has time window preference
           }
         }
       }
