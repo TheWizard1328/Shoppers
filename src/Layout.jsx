@@ -927,6 +927,11 @@ export default function Layout({ children, currentPageName }) {
               const exists = prev.some(a => a?.id === mutation.id);
               return exists ? prev : [...prev, mutation.data];
             });
+
+            // CRITICAL: Immediately dispatch location update for new AppUser
+            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+              detail: { appUsers: null, singleUpdate: mutation.data }
+            }));
           }
         } else if (mutation.type === 'update') {
           if (mutation.entity === 'Patient') {
@@ -939,6 +944,11 @@ export default function Layout({ children, currentPageName }) {
             setCities(prev => prev.map(c => c?.id === mutation.id ? { ...c, ...mutation.data } : c));
           } else if (mutation.entity === 'AppUser') {
             setAppUsers(prev => prev.map(a => a?.id === mutation.id ? { ...a, ...mutation.data } : a));
+
+            // CRITICAL: Immediately dispatch location update for AppUser changes
+            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+              detail: { appUsers: null, singleUpdate: mutation.data }
+            }));
           }
         }
       });
