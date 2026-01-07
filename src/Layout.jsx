@@ -3221,8 +3221,8 @@ export default function Layout({ children, currentPageName }) {
                     <div className="flex-1"></div>
 
                         {/* --- PHASE 4: SUBTLE SETTINGS MENU (MOBILE) --- */}
-                        {/* Only show if at least one menu item is visible */}
-                        {userHasRole(currentUser, 'admin') && cities && cities.length > 0 && (
+                        {/* Show for admins (with cities) OR drivers (for Active Stops import) */}
+                        {((userHasRole(currentUser, 'admin') && cities && cities.length > 0) || userHasRole(currentUser, 'driver')) && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
