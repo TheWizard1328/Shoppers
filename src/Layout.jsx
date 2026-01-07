@@ -3221,8 +3221,8 @@ export default function Layout({ children, currentPageName }) {
                     <div className="flex-1"></div>
 
                         {/* --- PHASE 4: SUBTLE SETTINGS MENU (MOBILE) --- */}
-                        {/* Show for admins (with cities) OR drivers (for Active Stops import) */}
-                        {((userHasRole(currentUser, 'admin') && cities && cities.length > 0) || userHasRole(currentUser, 'driver')) && (
+                        {/* Show for admins (with cities) OR drivers/app owners (for Active Stops import) */}
+                        {((userHasRole(currentUser, 'admin') && cities && cities.length > 0) || userHasRole(realUser, 'driver') || isAppOwner(realUser)) && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
@@ -3313,7 +3313,8 @@ export default function Layout({ children, currentPageName }) {
                           )}
 
                           {/* Active Stops Import - Drivers or App Owners (Desktop & Mobile) */}
-                          {realUser && (userHasRole(realUser, 'driver') || isAppOwner(realUser)) && !canAccessImports(realUser, adminImportEnabled) && (
+                          {/* Show for drivers always, or app owners who don't have full import access */}
+                          {realUser && (userHasRole(realUser, 'driver') || (isAppOwner(realUser) && !canAccessImports(realUser, adminImportEnabled))) && (
                           <>
                             <DropdownMenuLabel className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                               Import
