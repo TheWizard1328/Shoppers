@@ -787,11 +787,8 @@ function Dashboard() {
       return false;
     }).length;
 
-    // CRITICAL: Calculate pickup counts for drivers (total, in_transit, completed pickups)
+    // CRITICAL: Calculate pickup counts for drivers (removed - now counted in inTransit/enRoute above)
     const totalPickups = allPickups.length;
-    const inTransitPickups = allPickups.filter((d) =>
-    d && (d.status === 'in_transit' || d.status === 'en_route')
-    ).length;
     const completedPickups = allPickups.filter((d) =>
     d && d.status === 'completed'
     ).length;
