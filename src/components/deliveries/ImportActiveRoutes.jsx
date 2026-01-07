@@ -515,6 +515,7 @@ export default function ImportActiveRoutes({
       let actualDeliveryTime = null;
       let deliveryTimeStart = null;
       let deliveryTimeEnd = null;
+      let deliveryTimeEta = null;
 
       // RULE 1: Pending stops have negative value in column 5
       const isPendingStop = pendingIndicator < 0;
@@ -531,8 +532,14 @@ export default function ImportActiveRoutes({
       } else if (stopOrder === 0 && deliveryStartTimeStr && deliveryEndTimeStr) {
         // RULE 3: In Transit/En Route - stopOrder = 0, has both times
         deliveryStatus = isPickup ? 'en_route' : 'in_transit';
+        // For incomplete active deliveries/pickups: set delivery_time_start
         deliveryTimeStart = deliveryStartTimeStr;
-        deliveryTimeEnd = deliveryEndTimeStr;
+        // For pickups: also set delivery_time_end
+        if (isPickup) {
+          deliveryTimeEnd = deliveryEndTimeStr;
+        }
+        // Set ETA from end time for incomplete stops
+        deliveryTimeEta = deliveryEndTimeStr;
       }
 
       const newDeliveryData = {
@@ -548,6 +555,7 @@ export default function ImportActiveRoutes({
         actual_delivery_time: actualDeliveryTime,
         delivery_time_start: deliveryTimeStart,
         delivery_time_end: deliveryTimeEnd,
+        delivery_time_eta: deliveryTimeEta,
         extra_time: 0,
         ampm_deliveries: ampmValue,
         cod_total_amount_required: 0,
@@ -569,10 +577,16 @@ export default function ImportActiveRoutes({
       if (deliveryStatus === 'completed') {
         if (isPickup && notesLower.includes('failed')) {
           newDeliveryData.status = 'cancelled';
+          // For cancelled: actual_delivery_time = delivery_time_start
+          newDeliveryData.actual_delivery_time = actualDeliveryTime;
         } else if (notesLower.includes('failed')) {
           newDeliveryData.status = 'failed';
+          // For failed: actual_delivery_time = delivery_time_start
+          newDeliveryData.actual_delivery_time = actualDeliveryTime;
         } else if (notesLower.includes('cancel')) {
           newDeliveryData.status = 'cancelled';
+          // For cancelled: actual_delivery_time = delivery_time_start
+          newDeliveryData.actual_delivery_time = actualDeliveryTime;
         }
       }
 
@@ -589,6 +603,14 @@ export default function ImportActiveRoutes({
         newDeliveryData.dont_ring_bell = patient.dont_ring_bell || false;
         newDeliveryData.back_door = patient.back_door || false;
         newDeliveryData.signature_needed = patient.signature_needed || false;
+        
+        // Override time windows from patient record if they exist
+        if (patient.time_window_start) {
+          newDeliveryData.time_window_start = patient.time_window_start;
+        }
+        if (patient.time_window_end) {
+          newDeliveryData.time_window_end = patient.time_window_end;
+        }
       } else {
         newDeliveryData.patient_id = null;
         newDeliveryData.delivery_address = store.address || '';
