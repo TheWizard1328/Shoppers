@@ -708,16 +708,24 @@ export default function ImportActiveRoutes({
       const matchReason = matchResult?.reason || 'Unknown';
 
       if (existingDelivery) {
-        // EXISTING DELIVERY: Always use imported stop_order (even if 0)
+        // EXISTING DELIVERY: Only update stop_order if imported > 0 AND different from current
         const changes = detectChanges(existingDelivery, newDeliveryData);
 
         if (changes.length > 0) {
           const updatedDeliveryData = {
             ...existingDelivery,
             ...newDeliveryData,
-            id: existingDelivery.id,
-            stop_order: stopOrder // Use imported stop_order for updates
+            id: existingDelivery.id
           };
+
+          // Rule 1: If imported stop_order is 0, skip stop_order update (keep existing)
+          // Rule 3: If imported > 0 and different from current, update it
+          if (stopOrder > 0 && stopOrder !== existingDelivery.stop_order) {
+            updatedDeliveryData.stop_order = stopOrder;
+          } else {
+            // Keep existing stop_order
+            updatedDeliveryData.stop_order = existingDelivery.stop_order;
+          }
 
           deliveriesToUpdate.push({
             ...updatedDeliveryData,
