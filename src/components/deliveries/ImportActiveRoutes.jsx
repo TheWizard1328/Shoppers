@@ -541,25 +541,28 @@ export default function ImportActiveRoutes({
       let deliveryTimeEnd = null;
       let deliveryTimeEta = null;
 
-      // RULE: Determine status based on original stop order, times, and pickup type
-      // CRITICAL: originalStopOrder is used for status determination (before sequential assignment)
+      // RULE: Determine status based on pending indicator (col 5), stop order, times, and pickup type
+      const isPendingIndicator = pendingIndicator < 0; // Column 5 negative = pending
       
       if (originalStopOrder > 0 && deliveryStartTimeStr && !deliveryEndTimeStr) {
         // Completed - has stop order > 0, has start time only
         deliveryStatus = 'completed';
         actualDeliveryTime = `${currentDate}T${deliveryStartTimeStr}:00`;
-      } else if (originalStopOrder === 0 && deliveryStartTimeStr && deliveryEndTimeStr) {
-        // Active (in transit/en route) - stop order = 0, has both times
-        deliveryStatus = isPickup ? 'en_route' : 'in_transit';
+      } else if (isPendingIndicator && isPickup && deliveryStartTimeStr && deliveryEndTimeStr) {
+        // EXCEPTION: Pickups with times should be en_route even if pending indicator is negative
+        deliveryStatus = 'en_route';
         deliveryTimeStart = deliveryStartTimeStr;
-        if (isPickup) {
-          const [hours, minutes] = deliveryStartTimeStr.split(':').map(Number);
-          const endHours = (hours + 1) % 24;
-          deliveryTimeEnd = `${String(endHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-        }
+        const [hours, minutes] = deliveryStartTimeStr.split(':').map(Number);
+        const endHours = (hours + 1) % 24;
+        deliveryTimeEnd = `${String(endHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
         deliveryTimeEta = deliveryStartTimeStr;
-      } else if (deliveryStartTimeStr && deliveryEndTimeStr) {
-        // Has times but no clear status from stop order - assume active
+      } else if (isPendingIndicator) {
+        // Pending indicator is negative - status is pending
+        deliveryStatus = 'pending';
+        deliveryTimeStart = null;
+        deliveryTimeEnd = null;
+      } else if (originalStopOrder === 0 && deliveryStartTimeStr && deliveryEndTimeStr) {
+        // Active (in transit/en route) - stop order = 0, has both times, not pending
         deliveryStatus = isPickup ? 'en_route' : 'in_transit';
         deliveryTimeStart = deliveryStartTimeStr;
         if (isPickup) {
@@ -569,7 +572,7 @@ export default function ImportActiveRoutes({
         }
         deliveryTimeEta = deliveryStartTimeStr;
       } else {
-        // No times - pending
+        // No times or unclear - pending
         deliveryStatus = 'pending';
         deliveryTimeStart = null;
         deliveryTimeEnd = null;
