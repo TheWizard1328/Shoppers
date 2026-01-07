@@ -732,6 +732,7 @@ function Dashboard() {
     if (!Array.isArray(safeDeliveries)) return {
       total: 0,
       inTransit: 0,
+      enRoute: 0,
       completed: 0,
       failed: 0, returned: 0,
       totalDrivers: 0, inTransitDrivers: 0, completedDrivers: 0, totalPickups: 0
@@ -756,8 +757,14 @@ function Dashboard() {
 
     const total = safeDeliveries.length;
 
-    const inTransitDeliveries = safeDeliveries.filter((d) => d && (d.status === 'in_transit' || d.status === 'en_route'));
-    const inTransit = inTransitDeliveries.length;
+    // CRITICAL: Count active stops from BOTH patient deliveries AND pickups
+    const inTransitPatientDeliveries = safeDeliveries.filter((d) => d && d.status === 'in_transit');
+    const enRoutePatientDeliveries = safeDeliveries.filter((d) => d && d.status === 'en_route');
+    const inTransitPickups = allPickups.filter((d) => d && d.status === 'in_transit');
+    const enRoutePickups = allPickups.filter((d) => d && d.status === 'en_route');
+    
+    const inTransit = inTransitPatientDeliveries.length + inTransitPickups.length;
+    const enRoute = enRoutePatientDeliveries.length + enRoutePickups.length;
 
     const completedDeliveries = safeDeliveries.filter((d) => {
       if (!d || d.status !== 'completed') return false;
