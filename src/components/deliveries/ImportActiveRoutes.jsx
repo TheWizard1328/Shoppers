@@ -541,8 +541,8 @@ export default function ImportActiveRoutes({
           const endHours = (hours + 1) % 24;
           deliveryTimeEnd = `${String(endHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
         }
-        // Set ETA from end time for incomplete stops
-        deliveryTimeEta = deliveryEndTimeStr;
+        // Set ETA to delivery_time_start for incomplete stops
+        deliveryTimeEta = deliveryStartTimeStr;
       }
 
       const newDeliveryData = {
