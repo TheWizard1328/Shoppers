@@ -1760,7 +1760,13 @@ export default function ImportActiveRoutes({
                               </td>
                               <td className="p-1 w-24 font-medium">{delivery.delivery_date}</td>
                               <td className="p-1 w-12 text-xs font-mono">{delivery.ampm_deliveries || '-'}</td>
-                              <td className="p-1 font-mono text-xs w-14">{delivery.stop_order}</td>
+                              <td className="p-1 font-mono text-xs w-14">
+                                {delivery.action === 'update' ? (
+                                  <span title="From existing delivery">{delivery.stop_order}</span>
+                                ) : (
+                                  delivery.stop_order
+                                )}
+                              </td>
                               <td className="p-1 font-mono text-xs w-28">
                                 <div className="flex flex-col">
                                   <span>{delivery.tracking_number || '-'}</span>
