@@ -397,6 +397,9 @@ export default function ImportActiveRoutes({
 
     const existingDeliveryIds = new Set(allDeliveriesData.map((d) => d.delivery_id).filter(Boolean));
 
+    // Track max stop order per date/driver for assigning sequential stop orders to new stops
+    const maxStopOrderByDateDriver = new Map();
+
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       lineNumber = i + 1;
