@@ -732,25 +732,39 @@ export default function ImportActiveRoutes({
       const matchReason = matchResult?.reason || 'Unknown';
 
       if (existingDelivery) {
-        // EXISTING DELIVERY: Only update stop_order if imported > 0 AND different from current
-        const changes = detectChanges(existingDelivery, newDeliveryData);
+        // EXISTING DELIVERY: Build final data first, then detect changes
+        const updatedDeliveryData = {
+          ...existingDelivery,
+          ...newDeliveryData,
+          id: existingDelivery.id
+        };
+
+        // Rule 1: If imported stop_order is 0, keep existing stop_order
+        // Rule 3: If imported > 0 and different from current, update it
+        if (stopOrder > 0 && stopOrder !== existingDelivery.stop_order) {
+          updatedDeliveryData.stop_order = stopOrder;
+        } else {
+          updatedDeliveryData.stop_order = existingDelivery.stop_order;
+        }
+
+        // CRITICAL: Keep existing tracking_number if imported is empty/null
+        if (!newDeliveryData.tracking_number && existingDelivery.tracking_number) {
+          updatedDeliveryData.tracking_number = existingDelivery.tracking_number;
+        }
+
+        // CRITICAL: Keep existing status if imported incorrectly determines en_route for non-pickups
+        // Pending stops should stay pending unless explicitly completed
+        if (existingDelivery.status === 'pending' && newDeliveryData.status === 'en_route' && patientId) {
+          updatedDeliveryData.status = 'pending';
+        }
+        if (existingDelivery.status === 'pending' && newDeliveryData.status === 'in_transit' && patientId) {
+          updatedDeliveryData.status = 'pending';
+        }
+
+        // Now detect changes between existing and FINAL updated data
+        const changes = detectChanges(existingDelivery, updatedDeliveryData);
 
         if (changes.length > 0) {
-          const updatedDeliveryData = {
-            ...existingDelivery,
-            ...newDeliveryData,
-            id: existingDelivery.id
-          };
-
-          // Rule 1: If imported stop_order is 0, skip stop_order update (keep existing)
-          // Rule 3: If imported > 0 and different from current, update it
-          if (stopOrder > 0 && stopOrder !== existingDelivery.stop_order) {
-            updatedDeliveryData.stop_order = stopOrder;
-          } else {
-            // Keep existing stop_order
-            updatedDeliveryData.stop_order = existingDelivery.stop_order;
-          }
-
           deliveriesToUpdate.push({
             ...updatedDeliveryData,
             _changes: changes,
