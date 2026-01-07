@@ -708,19 +708,16 @@ export default function ImportActiveRoutes({
       const matchReason = matchResult?.reason || 'Unknown';
 
       if (existingDelivery) {
+        // EXISTING DELIVERY: Always use imported stop_order (even if 0)
         const changes = detectChanges(existingDelivery, newDeliveryData);
 
         if (changes.length > 0) {
           const updatedDeliveryData = {
             ...existingDelivery,
             ...newDeliveryData,
-            id: existingDelivery.id
+            id: existingDelivery.id,
+            stop_order: stopOrder // Use imported stop_order for updates
           };
-
-          // CRITICAL: Only update stop_order if imported value is > 0
-          if (stopOrder > 0) {
-            updatedDeliveryData.stop_order = stopOrder;
-          }
 
           deliveriesToUpdate.push({
             ...updatedDeliveryData,
@@ -729,7 +726,7 @@ export default function ImportActiveRoutes({
           });
         }
       } else {
-        // NEW DELIVERY: Assign sequential stop order if not provided
+        // NEW DELIVERY: Assign sequential stop order only if imported value is 0 or missing
         if (stopOrder === 0 || !rawStopOrder) {
           const dateDriverKey = `${currentDate}_${selectedDriver.id}`;
           
@@ -742,7 +739,7 @@ export default function ImportActiveRoutes({
             maxStopOrderByDateDriver.set(dateDriverKey, maxExisting);
           }
           
-          // Increment and assign next stop order
+          // Increment and assign next stop order for NEW deliveries only
           const nextStopOrder = maxStopOrderByDateDriver.get(dateDriverKey) + 1;
           maxStopOrderByDateDriver.set(dateDriverKey, nextStopOrder);
           stopOrder = nextStopOrder;
