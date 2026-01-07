@@ -2816,6 +2816,20 @@ export default function Layout({ children, currentPageName }) {
                               </>
                             )}
 
+                            {/* Active Stops Import - Drivers Only */}
+                            {!isMobile && realUser && userHasRole(realUser, 'driver') && !canAccessImports(realUser, adminImportEnabled) && (
+                              <>
+                                <DropdownMenuLabel className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                  Import
+                                </DropdownMenuLabel>
+                                <DropdownMenuItem onClick={() => setShowActiveRoutesImport(true)} className="cursor-pointer">
+                                  <FileText className="w-4 h-4 mr-2" />
+                                  Active Stops
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                              </>
+                            )}
+
                             {/* City Filter - Admin Only */}
                             {userHasRole(currentUser, 'admin') && cities && cities.length > 0 && (
                               <div className="px-2 py-2">
@@ -3278,24 +3292,38 @@ export default function Layout({ children, currentPageName }) {
 
                           {/* Import Buttons - App Owner Only - Hidden on Mobile */}
                           {!isMobile && realUser && isAppOwner(realUser) && (
-                            <>
-                              <DropdownMenuLabel className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                Data Importers
-                              </DropdownMenuLabel>
-                              <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer">
-                                <FileText className="w-4 h-4 mr-2" />
-                                Patient Info
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => setShowDeliveryImport(true)} className="cursor-pointer">
-                                <FileText className="w-4 h-4 mr-2" />
-                                Past Routes
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => setShowActiveRoutesImport(true)} className="cursor-pointer">
-                                <FileText className="w-4 h-4 mr-2" />
-                                Active Stops
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                            </>
+                          <>
+                            <DropdownMenuLabel className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                              Data Importers
+                            </DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer">
+                              <FileText className="w-4 h-4 mr-2" />
+                              Patient Info
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setShowDeliveryImport(true)} className="cursor-pointer">
+                              <FileText className="w-4 h-4 mr-2" />
+                              Past Routes
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setShowActiveRoutesImport(true)} className="cursor-pointer">
+                              <FileText className="w-4 h-4 mr-2" />
+                              Active Stops
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                          </>
+                          )}
+
+                          {/* Active Stops Import - Drivers Only */}
+                          {!isMobile && realUser && userHasRole(realUser, 'driver') && !isAppOwner(realUser) && (
+                          <>
+                            <DropdownMenuLabel className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                              Import
+                            </DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => setShowActiveRoutesImport(true)} className="cursor-pointer">
+                              <FileText className="w-4 h-4 mr-2" />
+                              Active Stops
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                          </>
                           )}
 
                           {/* City Filter - Admin Only */}
