@@ -789,12 +789,12 @@ function Dashboard() {
     const totalPickups = allPickups.length;
     const activePickupsEnRoute = enRoutePickups.length;
     
-    // CRITICAL: Completed pickups count ONLY if ALL stops are completed for this driver
+    // CRITICAL: Completed pickups count ONLY if completed > 0 AND ALL stops are completed for this driver
     const finishedStatuses = ['completed', 'failed', 'cancelled'];
     const allStopsCompleted = relevantDeliveries.length > 0 && 
       relevantDeliveries.every((d) => d && finishedStatuses.includes(d.status));
     
-    const completedPickups = allStopsCompleted ? allPickups.filter((d) =>
+    const completedPickups = (completed > 0 && allStopsCompleted) ? allPickups.filter((d) =>
       d && (d.status === 'completed' || d.status === 'cancelled')
     ).length : 0;
 
