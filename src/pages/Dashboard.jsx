@@ -1646,21 +1646,16 @@ function Dashboard() {
   }, [isDriver, currentUser, isMobile, deliveriesWithStopOrder, patients, stores, mapViewPhase, getMapPadding, appUsers]);
 
   // Track other drivers' locations via poller (for all-drivers mode or when checkbox is checked)
+  // CRITICAL: Initialize poller once on mount
   useEffect(() => {
-    if (!isDataLoaded || !currentUser || !deliveries || !drivers) {
+    if (!isDataLoaded || !currentUser) {
       return;
     }
 
     driverLocationPoller.start(() => {
-
-
-
-
-
-
-      // Callback provided for future use, but not actively calling refreshData
-      // to prevent triggering auto-selection every 15 seconds
-    }, currentUser); // CRITICAL: Pass currentUser so poller knows who "self" is
+      // Callback provided for future use
+    }, currentUser);
+    
     const unsubscribe = driverLocationPoller.subscribe((locations) => {
       if (!locations || !Array.isArray(locations)) return;
       
@@ -1685,13 +1680,9 @@ function Dashboard() {
       setAllDriverLocations(filteredLocations);
     });
     
-    // CRITICAL: Process initial location data immediately on mount
-    driverLocationPoller.processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate, true);
-    
-    // CRITICAL: Listen for driverLocationsUpdated events and reprocess
+    // Listen for location update events
     const handleLocationUpdate = () => {
-      console.log('📍 [Dashboard] driverLocationsUpdated event - reprocessing locations');
-      driverLocationPoller.processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate, true);
+      console.log('📍 [Dashboard] driverLocationsUpdated event received');
     };
     window.addEventListener('driverLocationsUpdated', handleLocationUpdate);
 
@@ -1700,7 +1691,18 @@ function Dashboard() {
       driverLocationPoller.stop();
       window.removeEventListener('driverLocationsUpdated', handleLocationUpdate);
     };
-  }, [isDataLoaded, currentUser?.id, currentUser?.user_id, deliveries, drivers, isMobile, isDriver, appUsers, stores, selectedDate, users]);
+  }, [isDataLoaded, currentUser?.id, currentUser?.user_id, isMobile, isDriver]);
+  
+  // CRITICAL: Separate effect to reprocess location data when dependencies change
+  // This ensures the poller has updated data without restarting (which would clear subscribers)
+  useEffect(() => {
+    if (!isDataLoaded || !currentUser || !deliveries || !drivers || !appUsers) {
+      return;
+    }
+    
+    console.log('📍 [Dashboard] Reprocessing location data - data updated');
+    driverLocationPoller.processLocationData(currentUser, deliveries, drivers, stores, appUsers, selectedDate, true);
+  }, [isDataLoaded, currentUser?.id, deliveries, drivers, appUsers, stores, selectedDate]);
 
   // REMOVED: This effect was causing re-processing on every appUsers/deliveries change
   // Location processing is now handled once on mount in the poller initialization effect above // Fetch and display current-to-next polyline for display
