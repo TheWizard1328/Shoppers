@@ -809,9 +809,12 @@ function Dashboard() {
       totalDrivers = allDriverIds.size;
 
       // CRITICAL: Count drivers with ANY in_transit or en_route stops (patient deliveries + pickups)
-      const inTransitAll = relevantDeliveries.filter((d) => d && (d.status === 'in_transit' || d.status === 'en_route'));
-      const inTransitDriverIds = new Set(inTransitAll.map((d) => d?.driver_id).filter(Boolean));
-      inTransitDrivers = inTransitDriverIds.size;
+      // ONLY if inTransit + enRoute > 0
+      if (inTransit + enRoute > 0) {
+        const inTransitAll = relevantDeliveries.filter((d) => d && (d.status === 'in_transit' || d.status === 'en_route'));
+        const inTransitDriverIds = new Set(inTransitAll.map((d) => d?.driver_id).filter(Boolean));
+        inTransitDrivers = inTransitDriverIds.size;
+      }
 
       // CRITICAL: Count drivers with completed patient deliveries OR completed/cancelled after-hours pickups
       // ONLY if completed > 0 (don't show driver count when no completed deliveries)
