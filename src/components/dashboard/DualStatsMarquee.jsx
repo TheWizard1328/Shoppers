@@ -58,9 +58,8 @@ export default function DualStatsMarquee({
     activeDrivers: 0
   };
   
-  // CRITICAL: Calculate activeStops locally to EXCLUDE pending stops
-  // Active stops = in_transit + en_route only (NOT pending)
-  const activeStopsCount = (localStats?.inTransit || 0) + (localStats?.enRoute || 0);
+  // CRITICAL: Use localStats.inTransit which already includes both in_transit + en_route
+  const activeStopsCount = localStats?.inTransit || 0;
   
   // CRITICAL: If localStats.total is 0, we're on an empty date - show all zeros
   const hasData = (localStats?.total || 0) > 0;
