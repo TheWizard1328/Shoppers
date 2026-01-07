@@ -4946,9 +4946,59 @@ function Dashboard() {
         updateData.delivery_time_start = `${String(Math.floor(startMinutes / 60) % 24).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
       }
 
-      // CRITICAL: Always clear isNextDelivery flag when completing/failing deliveries
+      // CRITICAL: Calculate "as the crow flies" distance from previous completed stop
       if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
         updateData.isNextDelivery = false;
+        
+        // Calculate travel distance from previous completed stop
+        const finishedStatuses = ['completed', 'failed', 'cancelled'];
+        const completedStops = deliveriesWithStopOrder
+          .filter((d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate && finishedStatuses.includes(d.status))
+          .sort((a, b) => {
+            if (!a.actual_delivery_time || !b.actual_delivery_time) return 0;
+            return new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time);
+          });
+        
+        if (completedStops.length === 0) {
+          // First completed stop - distance is 0
+          updateData.travel_dist = 0;
+          console.log('📏 [Crow Flies] First completed stop - travel_dist = 0 km');
+        } else {
+          // Calculate distance from last completed stop
+          const lastStop = completedStops[completedStops.length - 1];
+          let lastLat, lastLon, currentLat, currentLon;
+          
+          // Get coordinates of last completed stop
+          if (lastStop.patient_id) {
+            const lastPatient = patients.find((p) => p && p.id === lastStop.patient_id);
+            lastLat = lastPatient?.latitude;
+            lastLon = lastPatient?.longitude;
+          } else if (lastStop.store_id) {
+            const lastStore = stores.find((s) => s && s.id === lastStop.store_id);
+            lastLat = lastStore?.latitude;
+            lastLon = lastStore?.longitude;
+          }
+          
+          // Get coordinates of current stop
+          if (targetDelivery.patient_id) {
+            const currentPatient = patients.find((p) => p && p.id === targetDelivery.patient_id);
+            currentLat = currentPatient?.latitude;
+            currentLon = currentPatient?.longitude;
+          } else if (targetDelivery.store_id) {
+            const currentStore = stores.find((s) => s && s.id === targetDelivery.store_id);
+            currentLat = currentStore?.latitude;
+            currentLon = currentStore?.longitude;
+          }
+          
+          if (lastLat && lastLon && currentLat && currentLon) {
+            const distance = calculateDistance(lastLat, lastLon, currentLat, currentLon);
+            updateData.travel_dist = Math.round(distance * 100) / 100; // Round to 2 decimals
+            console.log(`📏 [Crow Flies] Distance from last stop: ${updateData.travel_dist} km`);
+          } else {
+            updateData.travel_dist = 0;
+            console.log('📏 [Crow Flies] Missing coordinates - travel_dist = 0 km');
+          }
+        }
       }
 
       // CRITICAL: Cancelled pickups are treated as completed (with timestamp)
