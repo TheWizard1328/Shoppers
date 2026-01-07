@@ -58,22 +58,30 @@ export default function DualStatsMarquee({
     activeDrivers: 0
   };
   
+  // CRITICAL: Calculate activeStops locally to EXCLUDE pending stops
+  // Active stops = in_transit + en_route only (NOT pending)
+  const activeStopsCount = localStats?.inTransit || 0;
+  
+  // CRITICAL: If localStats.total is 0, we're on an empty date - show all zeros
+  const hasData = (localStats?.total || 0) > 0;
+  const displayStats = hasData ? stats : { completed: 0, activeStops: 0, failed: 0, returns: 0, activeDrivers: 0 };
+  
   // Build tooltips based on backend stats
   const tooltipValues = {
     total: isDispatcher 
-      ? `Total: ${localStats?.total || 0} stops (${stats.activeDrivers} drivers)` 
+      ? `Total: ${localStats?.total || 0} stops (${displayStats.activeDrivers} drivers)` 
       : isDriver && localStats?.totalPickups > 0
         ? `Total: ${localStats?.total || 0} stops (${localStats.totalPickups} pickups)`
         : `Total: ${localStats?.total || 0} stops`,
     activeStops: isDispatcher 
-      ? `Active: ${stats.activeStops} stops (${stats.activeDrivers} drivers)` 
-      : `Active: ${stats.activeStops} stops`,
+      ? `Active: ${activeStopsCount} stops (${displayStats.activeDrivers} drivers)` 
+      : `Active: ${activeStopsCount} stops`,
     completed: isDispatcher 
-      ? `Completed: ${stats.completed} stops (${stats.activeDrivers} drivers)` 
+      ? `Completed: ${displayStats.completed} stops (${displayStats.activeDrivers} drivers)` 
       : isDriver && localStats?.completedPickups > 0
-        ? `Completed: ${stats.completed} stops (${localStats.completedPickups} pickups)`
-        : `Completed: ${stats.completed} stops`,
-    failed: `${stats.failed} Failed / ${stats.returns} Returned`
+        ? `Completed: ${displayStats.completed} stops (${localStats.completedPickups} pickups)`
+        : `Completed: ${displayStats.completed} stops`,
+    failed: `${displayStats.failed} Failed / ${displayStats.returns} Returned`
   };
   return (
     <div className="py-0.5">
