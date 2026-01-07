@@ -97,23 +97,23 @@ export default function DualStatsMarquee({
 
         <StatBadge
           icon={Truck}
-          value={stats.activeStops}
-          driverCount={isDispatcher ? stats.activeDrivers : undefined}
+          value={activeStopsCount}
+          driverCount={isDispatcher ? displayStats.activeDrivers : undefined}
           color="purple"
           label="Active"
           tooltip={tooltipValues.activeStops} />
 
         <StatBadge
           icon={CheckCircle}
-          value={stats.completed}
-          driverCount={isDispatcher ? stats.activeDrivers : isDriver && localStats?.completedPickups > 0 ? localStats.completedPickups : undefined}
+          value={displayStats.completed}
+          driverCount={isDispatcher ? displayStats.activeDrivers : isDriver && localStats?.completedPickups > 0 ? localStats.completedPickups : undefined}
           color="green"
           label="Completed"
           tooltip={tooltipValues.completed} />
 
         <StatBadge
           icon={XCircle}
-          value={`${stats.failed}/${stats.returns}`}
+          value={`${displayStats.failed}/${displayStats.returns}`}
           color="red"
           label="Failed/Returned"
           tooltip={tooltipValues.failed} />
