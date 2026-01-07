@@ -563,11 +563,7 @@ export default function ImportActiveRoutes({
         // Active (in transit/en route) - stop order = 0, has both times, not pending
         deliveryStatus = isPickup ? 'en_route' : 'in_transit';
         deliveryTimeStart = deliveryStartTimeStr;
-        if (isPickup) {
-          const [hours, minutes] = deliveryStartTimeStr.split(':').map(Number);
-          const endHours = (hours + 1) % 24;
-          deliveryTimeEnd = `${String(endHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-        }
+        deliveryTimeEnd = deliveryEndTimeStr;
         deliveryTimeEta = deliveryStartTimeStr;
       } else {
         // No times or unclear - pending
