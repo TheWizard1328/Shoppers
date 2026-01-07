@@ -1763,7 +1763,14 @@ export default function StopCard({
                               size="sm" />
 
                                 <span className="text-xs font-semibold" style={{ color: 'var(--text-slate-600)' }}>
-                                  TR#{projectedDelivery.tracking_number || '??'}
+                                  {(() => {
+                                    const storeAbbr = store?.abbreviation?.slice(0, 2).toUpperCase() || 'XX';
+                                    const trackingNum = parseInt(projectedDelivery.tracking_number) || 0;
+                                    const formattedNum = trackingNum > 99 ?
+                                      trackingNum.toString().padStart(3, '0') :
+                                      trackingNum.toString().padStart(2, '0');
+                                    return `${storeAbbr}${formattedNum}`;
+                                  })()}
                                 </span>
                                 {/* Individual accept button - only for assigned driver, dispatcher, or admin */}
                                 {canAccessAcceptButtons &&
