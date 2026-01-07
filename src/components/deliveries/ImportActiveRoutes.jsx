@@ -532,11 +532,14 @@ export default function ImportActiveRoutes({
       } else if (stopOrder === 0 && deliveryStartTimeStr && deliveryEndTimeStr) {
         // RULE 3: In Transit/En Route - stopOrder = 0, has both times
         deliveryStatus = isPickup ? 'en_route' : 'in_transit';
-        // For incomplete active deliveries/pickups: set delivery_time_start
+        // For incomplete active deliveries/pickups: set delivery_time_start from imported data
         deliveryTimeStart = deliveryStartTimeStr;
-        // For pickups: also set delivery_time_end
+        // For pickups: set delivery_time_end to 1 hour after delivery_time_start
         if (isPickup) {
-          deliveryTimeEnd = deliveryEndTimeStr;
+          // Parse start time and add 1 hour
+          const [hours, minutes] = deliveryStartTimeStr.split(':').map(Number);
+          const endHours = (hours + 1) % 24;
+          deliveryTimeEnd = `${String(endHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
         }
         // Set ETA from end time for incomplete stops
         deliveryTimeEta = deliveryEndTimeStr;
