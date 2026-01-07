@@ -2816,8 +2816,8 @@ export default function Layout({ children, currentPageName }) {
                               </>
                             )}
 
-                            {/* Active Stops Import - Drivers Only */}
-                            {!isMobile && realUser && userHasRole(realUser, 'driver') && !canAccessImports(realUser, adminImportEnabled) && (
+                            {/* Active Stops Import - Drivers or App Owners (Desktop only) */}
+                            {!isMobile && realUser && (userHasRole(realUser, 'driver') || isAppOwner(realUser)) && !canAccessImports(realUser, adminImportEnabled) && (
                               <>
                                 <DropdownMenuLabel className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                                   Import
@@ -3312,18 +3312,18 @@ export default function Layout({ children, currentPageName }) {
                           </>
                           )}
 
-                          {/* Active Stops Import - Drivers Only (Desktop & Mobile) */}
-                          {realUser && userHasRole(realUser, 'driver') && !isAppOwner(realUser) && (
-                            <>
-                              <DropdownMenuLabel className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                Import
-                              </DropdownMenuLabel>
-                              <DropdownMenuItem onClick={() => setShowActiveRoutesImport(true)} className="cursor-pointer">
-                                <FileText className="w-4 h-4 mr-2" />
-                                Active Stops
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                            </>
+                          {/* Active Stops Import - Drivers or App Owners (Desktop & Mobile) */}
+                          {realUser && (userHasRole(realUser, 'driver') || isAppOwner(realUser)) && !canAccessImports(realUser, adminImportEnabled) && (
+                          <>
+                            <DropdownMenuLabel className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                              Import
+                            </DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => setShowActiveRoutesImport(true)} className="cursor-pointer">
+                              <FileText className="w-4 h-4 mr-2" />
+                              Active Stops
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                          </>
                           )}
 
                           {/* City Filter - Admin Only */}
