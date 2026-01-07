@@ -1588,7 +1588,7 @@ export default function ImportActiveRoutes({
                           <th className="p-1 text-left w-24">Date</th>
                           <th className="p-1 text-left w-12">A/P</th>
                           <th className="p-1 text-left w-14">Order</th>
-                          <th className="p-1 text-left w-22">TR#</th>
+                          <th className="p-1 text-left w-28">TR# / PUID</th>
                           <th className="p-1 text-left w-22">SID/PID</th>
                           <th className="p-1 text-left w-48">Patient/Pickup</th>
                           <th className="p-1 text-left w-24">Status</th>
@@ -1621,7 +1621,12 @@ export default function ImportActiveRoutes({
                               <td className="p-1 w-24 font-medium">{delivery.delivery_date}</td>
                               <td className="p-1 w-12 text-xs font-mono">{delivery.ampm_deliveries || '-'}</td>
                               <td className="p-1 font-mono text-xs w-14">{delivery.stop_order}</td>
-                              <td className="p-1 font-mono text-xs w-22">{delivery.tracking_number || '-'}</td>
+                              <td className="p-1 font-mono text-xs w-28">
+                                <div className="flex flex-col">
+                                  <span>{delivery.tracking_number || '-'}</span>
+                                  {delivery.puid && <span className="text-slate-500 text-[10px]">PUID: {delivery.puid}</span>}
+                                </div>
+                              </td>
                               <td className="p-1 font-mono text-xs w-22">
                                 <div className="flex flex-col">
                                   {delivery.stop_id && <span className="font-semibold">{delivery.stop_id}</span>}
