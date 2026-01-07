@@ -672,13 +672,15 @@ export default function ImportActiveRoutes({
       }
 
       // Parse COD from notes
+      // For incomplete stops: set cod_total_amount_required (amount owed)
+      // For completed stops: set cod_payments (amount collected) with payment type from import
       if (patientId) {
         const codRegex = /(cod|dod)\s*[\$]?\s*([\d.]+)\s*(cash|debit|credit|check|cheque)?/gi;
         const codMatches = [...rawNotes.matchAll(codRegex)];
 
         if (codMatches.length > 0) {
-          const codPayments = [];
           let totalCodAmount = 0;
+          let detectedPaymentType = 'Cash'; // Default
 
           codMatches.forEach((match) => {
             const codType = (match[1] || '').toLowerCase();
@@ -686,30 +688,40 @@ export default function ImportActiveRoutes({
             let paymentType = (match[3] || '').toLowerCase();
 
             if (codType === 'dod') {
-              paymentType = 'Debit';
+              detectedPaymentType = 'Debit';
             } else if (paymentType === 'cash') {
-              paymentType = 'Cash';
+              detectedPaymentType = 'Cash';
             } else if (paymentType === 'debit') {
-              paymentType = 'Debit';
+              detectedPaymentType = 'Debit';
             } else if (paymentType === 'credit') {
-              paymentType = 'Credit';
+              detectedPaymentType = 'Credit';
             } else if (paymentType === 'check' || paymentType === 'cheque') {
-              paymentType = 'Check';
-            } else {
-              paymentType = 'Cash';
+              detectedPaymentType = 'Check';
             }
 
             if (amount > 0) {
-              codPayments.push({ type: paymentType, amount });
               totalCodAmount += amount;
             }
           });
 
-          if (codPayments.length > 0) {
-            newDeliveryData.cod_payments = codPayments;
-            newDeliveryData.cod_total_amount_required = totalCodAmount;
-            newDeliveryData.cod_payment_type = codPayments[0].type;
-            newDeliveryData.cod_amount = totalCodAmount.toString();
+          if (totalCodAmount > 0) {
+            // CRITICAL: For incomplete stops, only set the amount required (not collected yet)
+            // For completed stops, mark as collected with payment type
+            const isCompleted = deliveryStatus === 'completed' || deliveryStatus === 'failed' || deliveryStatus === 'cancelled';
+            
+            if (isCompleted) {
+              // Stop is complete - COD was collected
+              newDeliveryData.cod_payments = [{ type: detectedPaymentType, amount: totalCodAmount }];
+              newDeliveryData.cod_total_amount_required = totalCodAmount;
+              newDeliveryData.cod_payment_type = detectedPaymentType;
+              newDeliveryData.cod_amount = totalCodAmount.toString();
+            } else {
+              // Stop is incomplete - COD is required but not yet collected
+              newDeliveryData.cod_payments = []; // Empty - not collected yet
+              newDeliveryData.cod_total_amount_required = totalCodAmount;
+              newDeliveryData.cod_payment_type = 'No Payment'; // Not collected yet
+              newDeliveryData.cod_amount = '';
+            }
           }
         }
       }
