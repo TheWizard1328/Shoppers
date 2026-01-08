@@ -336,13 +336,180 @@ class SmartRefreshManager {
   }
   
   /**
-   * Record a successful API call - resets error counter
+   * Record a successful API call - resets error counter and recovery state
    */
   recordSuccess() {
     if (this.consecutiveErrors > 0) {
       console.log(`✅ [SmartRefresh] Successful call - resetting error counter (was ${this.consecutiveErrors})`);
       this.consecutiveErrors = 0;
     }
+    
+    // AUTO-RECOVERY: Reset connection error tracking on success
+    this._connectionErrorCount = 0;
+    this._lastSuccessfulRefresh = Date.now();
+    this._recoveryAttempts = 0;
+    this._recoveryBackoffMs = 10000;
+    
+    // Clear recovery mode if we were in it
+    if (this._isInRecoveryMode) {
+      console.log('🎉 [SmartRefresh] Connection restored - exiting recovery mode');
+      this._isInRecoveryMode = false;
+      this.notifyRateLimit(false);
+      
+      // Dispatch event so UI can show connection restored
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('connectionRestored'));
+      }
+    }
+  }
+  
+  /**
+   * Record a connection error and trigger auto-recovery if needed
+   */
+  recordConnectionError(error) {
+    this._connectionErrorCount++;
+    
+    const isRateLimit = error?.response?.status === 429 || error?.message?.includes('429');
+    const isConnectionError = error?.message?.includes('WebSocket') || 
+                               error?.message?.includes('network') ||
+                               error?.message?.includes('fetch') ||
+                               error?.message?.includes('Failed to fetch') ||
+                               error?.code === 'ECONNREFUSED';
+    
+    console.warn(`⚠️ [SmartRefresh] Connection error #${this._connectionErrorCount}:`, error?.message || error);
+    
+    // Enter recovery mode after 3 consecutive errors
+    if (this._connectionErrorCount >= 3 && !this._isInRecoveryMode) {
+      console.log('🔄 [SmartRefresh] Entering auto-recovery mode');
+      this._isInRecoveryMode = true;
+      
+      // Notify UI about connection issues
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('connectionError', {
+          detail: { 
+            errorCount: this._connectionErrorCount,
+            isRateLimit,
+            willRetryIn: this._recoveryBackoffMs 
+          }
+        }));
+      }
+      
+      this.scheduleAutoRecovery();
+    }
+  }
+  
+  /**
+   * Schedule an automatic recovery attempt with exponential backoff
+   */
+  scheduleAutoRecovery() {
+    // Clear any existing timer
+    if (this._autoRecoveryTimer) {
+      clearTimeout(this._autoRecoveryTimer);
+    }
+    
+    if (this._recoveryAttempts >= this._maxRecoveryAttempts) {
+      console.log('⏹️ [SmartRefresh] Max recovery attempts reached - waiting for user action or network change');
+      
+      // Listen for online event to restart recovery
+      if (typeof window !== 'undefined') {
+        const handleOnline = () => {
+          console.log('🌐 [SmartRefresh] Network online detected - restarting recovery');
+          this._recoveryAttempts = 0;
+          this._recoveryBackoffMs = 10000;
+          this.scheduleAutoRecovery();
+          window.removeEventListener('online', handleOnline);
+        };
+        window.addEventListener('online', handleOnline);
+      }
+      return;
+    }
+    
+    console.log(`⏰ [SmartRefresh] Scheduling recovery attempt ${this._recoveryAttempts + 1}/${this._maxRecoveryAttempts} in ${this._recoveryBackoffMs / 1000}s`);
+    
+    this._autoRecoveryTimer = setTimeout(async () => {
+      await this.attemptRecovery();
+    }, this._recoveryBackoffMs);
+    
+    // Exponential backoff: 10s -> 20s -> 40s -> 60s (capped)
+    this._recoveryBackoffMs = Math.min(this._recoveryBackoffMs * 2, 60000);
+  }
+  
+  /**
+   * Attempt to recover connection by testing a simple API call
+   */
+  async attemptRecovery() {
+    this._recoveryAttempts++;
+    console.log(`🔄 [SmartRefresh] Recovery attempt ${this._recoveryAttempts}/${this._maxRecoveryAttempts}...`);
+    
+    // Notify UI that we're attempting recovery
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('recoveryAttempt', {
+        detail: { attempt: this._recoveryAttempts, maxAttempts: this._maxRecoveryAttempts }
+      }));
+    }
+    
+    try {
+      // Simple test: fetch AppUser count (lightweight)
+      const testResult = await base44.entities.AppUser.filter({}, '-updated_date', 1);
+      
+      if (testResult) {
+        // Success! Reset all error states
+        console.log('✅ [SmartRefresh] Recovery successful - connection restored');
+        this.recordSuccess();
+        
+        // Force refresh all data to catch up
+        this.forceFullRefresh();
+        
+        return true;
+      }
+    } catch (error) {
+      console.warn(`⚠️ [SmartRefresh] Recovery attempt ${this._recoveryAttempts} failed:`, error.message);
+      
+      // Schedule next attempt
+      this.scheduleAutoRecovery();
+      
+      return false;
+    }
+    
+    return false;
+  }
+  
+  /**
+   * Force a full refresh of all data - called after recovery
+   */
+  forceFullRefresh() {
+    console.log('🔄 [SmartRefresh] Forcing full refresh after recovery...');
+    
+    // Reset all refresh timers to force immediate refresh
+    this.lastRefreshTimes = {
+      driverLocation: 0,
+      activeDeliveries: 0,
+      todayDeliveries: 0,
+      appUsers: 0,
+      todayPatients: 0,
+      patients: 0,
+      stores: 0
+    };
+    
+    // Clear error cooldown
+    this.errorCooldownUntil = 0;
+    this.consecutiveErrors = 0;
+    
+    // Notify UI to refresh
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('forceDataRefresh'));
+    }
+  }
+  
+  /**
+   * Manual recovery trigger - can be called from UI
+   */
+  triggerManualRecovery() {
+    console.log('👆 [SmartRefresh] Manual recovery triggered');
+    this._recoveryAttempts = 0;
+    this._recoveryBackoffMs = 5000; // Shorter wait for manual trigger
+    this._connectionErrorCount = 0;
+    this.scheduleAutoRecovery();
   }
   
   /**
