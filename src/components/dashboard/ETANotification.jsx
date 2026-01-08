@@ -20,15 +20,17 @@ export default function ETANotification({
   // Define finished statuses to exclude from ETA notifications
   const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
 
-  // Import userHasRole for role checking
-  const { userHasRole } = require('../utils/userRoles');
-
   useEffect(() => {
     if (!deliveries || deliveries.length === 0) return;
     
     // CRITICAL: Only show ETA notifications to drivers, not dispatchers
-    if (!currentUser || !userHasRole(currentUser, 'driver')) return;
-    if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'driver')) return;
+    if (!currentUser) return;
+    
+    // Check if user has driver role
+    const hasDriverRole = currentUser.app_roles && Array.isArray(currentUser.app_roles) && currentUser.app_roles.includes('driver');
+    const hasDispatcherRole = currentUser.app_roles && Array.isArray(currentUser.app_roles) && currentUser.app_roles.includes('dispatcher');
+    
+    if (!hasDriverRole || (hasDispatcherRole && !hasDriverRole)) return;
 
     // Check for significant ETA changes - ONLY for in-transit deliveries
     deliveries.forEach(delivery => {
