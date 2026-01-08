@@ -826,9 +826,16 @@ export default function StopCard({
                 <div className="text-[11px] min-h-[14px]" style={{ color: 'var(--text-slate-500)' }}>
                   {!FINISHED_STATUSES.includes(delivery.status) && (delivery.time_window_start || delivery.time_window_end) &&
                   <>
-                      {delivery.time_window_start && formatTime12Hour(delivery.time_window_start)}
-                      {delivery.time_window_start && delivery.time_window_end && ' - '}
-                      {delivery.time_window_end && formatTime12Hour(delivery.time_window_end)}
+                      {delivery.time_window_start && delivery.time_window_end ? (
+                        // Both start and end time
+                        <>{formatTime12Hour(delivery.time_window_start)} → {formatTime12Hour(delivery.time_window_end)}</>
+                      ) : delivery.time_window_start ? (
+                        // Start time only (after this time)
+                        <>{formatTime12Hour(delivery.time_window_start)} →</>
+                      ) : delivery.time_window_end ? (
+                        // End time only (before this time)
+                        <>← {formatTime12Hour(delivery.time_window_end)}</>
+                      ) : null}
                     </>
                   }
                 </div>
