@@ -5214,6 +5214,22 @@ function Dashboard() {
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: { driverId: targetDelivery.driver_id, deliveryDate: deliveryDate, triggeredBy: 'statusUpdate' }
       }));
+      
+      // CRITICAL: If "Show All" is checked, refresh ALL drivers' deliveries for the date
+      if (showAllDriverMarkers) {
+        console.log('📥 [Status Update] Show All enabled - fetching all drivers deliveries');
+        const allDriversDeliveries = await base44.entities.Delivery.filter({
+          delivery_date: deliveryDate
+        });
+        
+        // Dispatch event with full deliveries to update ALL markers immediately
+        window.dispatchEvent(new CustomEvent('deliveriesImported', {
+          detail: { 
+            source: 'statusUpdate',
+            deliveries: allDriversDeliveries
+          }
+        }));
+      }
 
       if (!skipAutoCenter) {
         hasAutoSelectedRef.current = false;
