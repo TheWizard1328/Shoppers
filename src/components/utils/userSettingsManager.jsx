@@ -371,25 +371,38 @@ export async function loadUserSettings(userId) {
     }, '-created_date', 10);
 
     if (deviceSettings && deviceSettings.length > 0) {
-      // CRITICAL: If multiple records exist, delete duplicates and keep the first one
+      // CRITICAL: If multiple records exist, delete duplicates and keep the OLDEST one (most likely the original)
       if (deviceSettings.length > 1) {
         console.warn(`⚠️ [UserSettings] Found ${deviceSettings.length} duplicate records, cleaning up...`);
-        for (let i = 1; i < deviceSettings.length; i++) {
-          try {
-            await UserSettings.delete(deviceSettings[i].id);
-            console.log(`   Deleted duplicate record: ${deviceSettings[i].id}`);
-          } catch (deleteError) {
-            console.warn('   Failed to delete duplicate:', deleteError.message);
+        // Sort by created_date ascending - keep the oldest
+        const sorted = [...deviceSettings].sort((a, b) => 
+          new Date(a.created_date || a.created || 0) - new Date(b.created_date || b.created || 0)
+        );
+        const keepRecord = sorted[0];
+        
+        for (let i = 0; i < deviceSettings.length; i++) {
+          if (deviceSettings[i].id !== keepRecord.id) {
+            try {
+              await UserSettings.delete(deviceSettings[i].id);
+              console.log(`   Deleted duplicate record: ${deviceSettings[i].id}`);
+            } catch (deleteError) {
+              console.warn('   Failed to delete duplicate:', deleteError.message);
+            }
           }
         }
+        
+        // Use the oldest record
+        deviceSettings[0] = keepRecord;
       }
       
       // STEP 3: Merge defaults → global settings → device-specific settings
       // Priority: device-specific > global > defaults
+      // CRITICAL: globalSettings only contains GLOBAL_SETTINGS keys (units, notifications)
+      // Device-specific settings (selected_driver_id, selected_date) come ONLY from this device's record
       cachedSettings = { 
         ...DEFAULT_SETTINGS, 
-        ...globalSettings, // Apply global settings (synced across devices)
-        ...deviceSettings[0] // Override with device-specific settings
+        ...globalSettings, // Apply global settings (ONLY units, notifications, etc.)
+        ...deviceSettings[0] // Override with THIS device's settings (includes driver/date selection)
       };
       currentUserId = userId;
       
