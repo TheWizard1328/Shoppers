@@ -916,16 +916,22 @@ export default function RouteImport({
       const existingDelivery = matchResult?.match || null;
       const matchReason = matchResult?.reason || 'Unknown';
 
-      // CRITICAL: Only set travel_dist if existing is 0/null/undefined OR if this is a new delivery
+      // CRITICAL: For updates, compare travel_dist values and update if different
       if (existingDelivery) {
-        // For updates: only import travel_dist if existing value is 0 or not set
         const existingTravelDist = existingDelivery.travel_dist;
-        if (travelDist !== null && (!existingTravelDist || existingTravelDist === 0)) {
-          newDeliveryData.travel_dist = parseFloat(travelDist.toFixed(2));
+        const importedTravelDist = travelDist !== null && travelDist !== undefined ? parseFloat(travelDist.toFixed(2)) : null;
+        
+        // CRITICAL: Always use imported travel_dist if it's a valid number
+        // This ensures CSV col 9 (travel distance) is compared and updated
+        if (importedTravelDist !== null) {
+          newDeliveryData.travel_dist = importedTravelDist;
+        } else if (existingTravelDist !== null && existingTravelDist !== undefined) {
+          // Keep existing if import has no value
+          newDeliveryData.travel_dist = parseFloat(existingTravelDist.toFixed(2));
         } else {
-          // Keep existing travel_dist (don't overwrite non-zero values)
-          newDeliveryData.travel_dist = existingTravelDist !== null && existingTravelDist !== undefined ? parseFloat(existingTravelDist.toFixed(2)) : null;
+          newDeliveryData.travel_dist = null;
         }
+        
         const changes = detectChanges(existingDelivery, newDeliveryData);
 
         if (changes.length > 0) {
