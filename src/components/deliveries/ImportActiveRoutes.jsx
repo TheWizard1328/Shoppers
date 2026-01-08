@@ -1277,6 +1277,63 @@ export default function ImportActiveRoutes({
       
       setImportResult(overallResults);
       setProgressPercent(100);
+      setProgressMessage('Updating next delivery flags...');
+      
+      // CRITICAL: Update isNextDelivery flags for all imported dates/drivers
+      try {
+        const usersToSearch = allDriverUsers.length > 0 ? allDriverUsers : allUsers || [];
+        const selectedUser = usersToSearch.find((u) => u.id === selectedDriverId);
+        
+        if (selectedUser) {
+          const { minDate, maxDate } = await extractDateRangeFromFiles(files);
+          
+          if (minDate && maxDate) {
+            // Get all deliveries for this driver in the date range
+            const allDriverDeliveries = await base44.entities.Delivery.filter({
+              driver_id: selectedUser.id,
+              delivery_date: { $gte: minDate, $lte: maxDate }
+            });
+            
+            // Group by date
+            const deliveriesByDate = {};
+            allDriverDeliveries.forEach(d => {
+              if (!d || !d.delivery_date) return;
+              if (!deliveriesByDate[d.delivery_date]) {
+                deliveriesByDate[d.delivery_date] = [];
+              }
+              deliveriesByDate[d.delivery_date].push(d);
+            });
+            
+            // Process each date
+            for (const [date, dateDeliveries] of Object.entries(deliveriesByDate)) {
+              const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+              
+              // STEP 1: Reset ALL isNextDelivery flags to false
+              const resetPromises = dateDeliveries
+                .filter(d => d.isNextDelivery === true)
+                .map(d => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
+              
+              if (resetPromises.length > 0) {
+                await Promise.all(resetPromises);
+              }
+              
+              // STEP 2: Find first incomplete stop (en_route or in_transit, NOT pending)
+              const incompleteDeliveries = dateDeliveries
+                .filter(d => !finishedStatuses.includes(d.status) && d.status !== 'pending')
+                .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+              
+              if (incompleteDeliveries.length > 0) {
+                const nextStop = incompleteDeliveries[0];
+                await base44.entities.Delivery.update(nextStop.id, { isNextDelivery: true });
+                console.log(`✅ [ImportActiveRoutes] Set isNextDelivery=true for ${date}: Stop #${nextStop.stop_order}`);
+              }
+            }
+          }
+        }
+      } catch (flagError) {
+        console.error('❌ [ImportActiveRoutes] Failed to update isNextDelivery flags:', flagError);
+      }
+      
       setProgressMessage('Import complete!');
       
       smartRefreshManager.restart();
