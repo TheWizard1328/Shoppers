@@ -5120,8 +5120,10 @@ function Dashboard() {
       const allDriverDeliveries = deliveriesWithStopOrder.filter((d) =>
       d && d.driver_id === driverId && d.delivery_date === targetDelivery.delivery_date
       );
-      const routeComplete = allDriverDeliveries.length > 0 &&
-      allDriverDeliveries.every((d) => finishedStatuses.includes(d.status) || isReturnByMarkers(d));
+      // CRITICAL: Only count patient deliveries for route completion, NOT pickups
+      const patientDeliveriesOnly = allDriverDeliveries.filter(d => d && d.patient_id);
+      const routeComplete = patientDeliveriesOnly.length > 0 &&
+        patientDeliveriesOnly.every((d) => finishedStatuses.includes(d.status) || isReturnByMarkers(d));
 
       if (routeComplete && finishedStatuses.includes(newStatus)) {
         const summaryKey = `${driverId}_${targetDelivery.delivery_date}`;
@@ -5608,8 +5610,10 @@ function Dashboard() {
         /\breturn\b/i.test(patientFullName);
       };
 
-      const routeComplete = allDriverDeliveriesForStart.length > 0 &&
-      allDriverDeliveriesForStart.every((d) => finishedStatuses.includes(d.status) || checkIsReturn(d));
+      // CRITICAL: Only count patient deliveries for route completion, NOT pickups
+      const patientDeliveriesForStart = allDriverDeliveriesForStart.filter(d => d && d.patient_id);
+      const routeComplete = patientDeliveriesForStart.length > 0 &&
+        patientDeliveriesForStart.every((d) => finishedStatuses.includes(d.status) || checkIsReturn(d));
 
       if (routeComplete) {
         const summaryKey = `${driverId}_${deliveryDate}`;
@@ -6829,9 +6833,39 @@ function Dashboard() {
           patients={patients}
           stores={stores}
           driver={summaryDriver || currentUser}
-          onClose={() => {
+          onClose={async () => {
             setShowRouteSummary(false);
             setSummaryDriver(null);
+            
+            // CRITICAL: After summary is closed, turn off location tracking and set driver to off_duty
+            if (isDriver && currentUser?.id) {
+              try {
+                console.log('🔄 [Route Complete] Disabling location tracking and setting off_duty...');
+                
+                // Stop location tracking
+                if (locationTracker.isTracking) {
+                  await locationTracker.stopTracking();
+                }
+                
+                // Update AppUser to off_duty and disable location tracking
+                const appUsersList = await base44.entities.AppUser.filter({ user_id: currentUser.id });
+                const appUser = appUsersList?.[0];
+                
+                if (appUser) {
+                  await base44.entities.AppUser.update(appUser.id, {
+                    driver_status: 'off_duty',
+                    location_tracking_enabled: false
+                  });
+                  
+                  console.log('✅ [Route Complete] Driver set to off_duty with tracking disabled');
+                  
+                  // Refresh user to update UI
+                  await refreshUser();
+                }
+              } catch (error) {
+                console.error('❌ [Route Complete] Failed to update driver status:', error);
+              }
+            }
           }} />
         }
       </AnimatePresence>
