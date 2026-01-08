@@ -58,13 +58,15 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
   
   const cacheKey = `${entityName}_${sortKey || 'default'}_${JSON.stringify(query) || 'noquery'}_${limit || 'all'}`;
   
-  // OFFLINE-FIRST: Try IndexedDB for Patient and Delivery entities
+  // OFFLINE-FIRST: Try IndexedDB for Patient and Delivery entities ALWAYS (unless forced)
+  // CRITICAL: This prevents rate limits by using local data first
   if (!forceRefresh && (entityName === 'Patient' || entityName === 'Delivery')) {
     try {
       const storeName = entityName === 'Patient' ? offlineDB.STORES.PATIENTS : offlineDB.STORES.DELIVERIES;
       let offlineData = await offlineDB.getAll(storeName);
       
       if (offlineData && offlineData.length > 0) {
+        console.log(`⚡ [dataManager] Using offline ${entityName}: ${offlineData.length} records`);
         cache.set(cacheKey, offlineData);
         cacheTimestamps.set(cacheKey, Date.now());
         return offlineData;
@@ -74,9 +76,11 @@ export const getData = async (entityName, sortKey = null, queryOrLimit = null, f
     }
   }
   
+  // Check in-memory cache before network call
   if (!forceRefresh && cache.has(cacheKey)) {
     const timestamp = cacheTimestamps.get(cacheKey);
     if (timestamp && Date.now() - timestamp < CACHE_DURATION) {
+      console.log(`⚡ [dataManager] Using cached ${entityName}: ${cache.get(cacheKey)?.length || 0} records`);
       return cache.get(cacheKey);
     }
   }
