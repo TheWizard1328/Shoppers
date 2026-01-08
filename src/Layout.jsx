@@ -704,17 +704,21 @@ export default function Layout({ children, currentPageName }) {
       try {
         const settings = await loadUserSettings(fetchedUser.id);
 
-        // Apply sidebar width
+        // Apply sidebar width (device-specific, safe to use from settings)
         if (settings.sidebar_width) {
           setSidebarWidth(settings.sidebar_width);
         }
 
         // Apply theme preference (mobile only - desktop always light)
         if (settings.theme_preference && isMobile) {
-        setThemePreference(settings.theme_preference);
+          setThemePreference(settings.theme_preference);
         } else {
-        setThemePreference('light');
+          setThemePreference('light');
         }
+
+        // CRITICAL: Do NOT apply selected_driver_id or selected_date from UserSettings
+        // These are managed by globalFilters which uses localStorage (device-specific)
+        // UserSettings was incorrectly syncing these across devices causing the glitch
 
         setUserSettingsLoaded(true);
       } catch (settingsError) {
