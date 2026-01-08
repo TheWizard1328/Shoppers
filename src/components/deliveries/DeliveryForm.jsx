@@ -2781,6 +2781,9 @@ export default function DeliveryForm({
 
   useEffect(() => {
     // Auto-update PUID when store changes for an existing delivery
+    // CRITICAL: Skip if editing a staged delivery (PUID already set from staged item)
+    if (editingStagedId) return;
+    
     if (delivery && !isPickupMode && formData.store_id && formData.delivery_date && allDeliveries && stores) {
       const store = stores.find((s) => s && s.id === formData.store_id);
       if (store) {
@@ -2792,7 +2795,7 @@ export default function DeliveryForm({
         }
       }
     }
-  }, [formData.store_id, delivery, isPickupMode, formData.delivery_date, stores, allDeliveries]);
+  }, [formData.store_id, delivery, isPickupMode, formData.delivery_date, stores, allDeliveries, editingStagedId]);
 
   const confirmAddProjectedToStaged = useCallback(async (projected) => {
     const store = stores.find((s) => s && s.id === projected.store_id);
