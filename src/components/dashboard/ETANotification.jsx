@@ -94,12 +94,12 @@ export default function ETANotification({
         initial={{ opacity: 0, y: -50, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: -50, scale: 0.95 }}
-        className="fixed top-20 z-[10000] px-4"
+        className="fixed top-20 z-[10000]"
         style={{
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: 'calc(100% - 2rem)',
-          maxWidth: '28rem'
+          left: '1rem',
+          right: '1rem',
+          maxWidth: '28rem',
+          margin: '0 auto'
         }}
       >
         <div 
