@@ -1134,7 +1134,8 @@ export default function Layout({ children, currentPageName }) {
         window.removeEventListener('offlineDeliveriesDeleted', handleOfflineDeliveriesDeleted);
         window.removeEventListener('deliveriesUpdated', handleDeliveriesUpdated);
         window.removeEventListener('dataConflictsDetected', handleConflict);
-      };
+        window.removeEventListener('forceDataRefresh', handleForceDataRefresh);
+        };
       }, [currentUser]);
 
     // Fetch unread message count - only when messaging panel is closed
