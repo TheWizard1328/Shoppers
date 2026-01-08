@@ -5027,29 +5027,26 @@ function Dashboard() {
 
       // CRITICAL: Cancelled pickups are treated as completed (with timestamp)
       if (['completed', 'failed', 'delivered'].includes(newStatus) || newStatus === 'cancelled' && isPickup) {
-        // CRITICAL: Check if this is first or last PATIENT delivery for rounding (ignore pickups)
+        // CRITICAL: Check if this is first or last STOP (pickups + patient deliveries) for rounding
         const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-        const allDriverDeliveries = deliveriesWithStopOrder.filter((d) =>
+        const allDriverStops = deliveriesWithStopOrder.filter((d) =>
           d && d.driver_id === driverId && d.delivery_date === targetDelivery.delivery_date
         );
         
-        // CRITICAL: Only count PATIENT deliveries for first/last rounding
-        const patientDeliveriesOnly = allDriverDeliveries.filter(d => d && d.patient_id);
-        
-        // First delivery = first patient delivery being completed (all others still incomplete)
-        const completedPatientCount = patientDeliveriesOnly.filter((d) => finishedStatuses.includes(d.status)).length;
-        const isFirstPatientDelivery = completedPatientCount === 0 && targetDelivery.patient_id;
+        // First stop = first stop being completed (all others still incomplete)
+        const completedStopsCount = allDriverStops.filter((d) => finishedStatuses.includes(d.status)).length;
+        const isFirstStop = completedStopsCount === 0;
 
-        // Last delivery = this is the last incomplete patient delivery
-        const incompletePatientCount = patientDeliveriesOnly.filter((d) => !finishedStatuses.includes(d.status)).length;
-        const isLastPatientDelivery = incompletePatientCount === 1 && targetDelivery.patient_id; // This one will be the last after completion
+        // Last stop = this is the last incomplete stop
+        const incompleteStopsCount = allDriverStops.filter((d) => !finishedStatuses.includes(d.status)).length;
+        const isLastStop = incompleteStopsCount === 1; // This one will be the last after completion
 
-        console.log(`⏱️ [TIME ROUNDING] Patient Delivery - First: ${isFirstPatientDelivery}, Last: ${isLastPatientDelivery}, Completed: ${completedPatientCount}, Incomplete: ${incompletePatientCount}`);
+        console.log(`⏱️ [TIME ROUNDING] Stop - First: ${isFirstStop}, Last: ${isLastStop}, Completed: ${completedStopsCount}, Incomplete: ${incompleteStopsCount}`);
 
-        // CRITICAL: Round to nearest 5 minutes if first or last PATIENT delivery
-        if ((isFirstPatientDelivery || isLastPatientDelivery) && targetDelivery.patient_id) {
+        // CRITICAL: Round to nearest 5 minutes if first or last STOP (pickup or delivery)
+        if (isFirstStop || isLastStop) {
           currentTimeISO = roundCompletionTime(currentTimeISO);
-          console.log(`⏱️ [TIME ROUNDING] Applied to ${isFirstPatientDelivery ? 'FIRST' : 'LAST'} patient delivery - rounded to: ${currentTimeISO}`);
+          console.log(`⏱️ [TIME ROUNDING] Applied to ${isFirstStop ? 'FIRST' : 'LAST'} stop - rounded to: ${currentTimeISO}`);
         }
 
         updateData.actual_delivery_time = currentTimeISO;
