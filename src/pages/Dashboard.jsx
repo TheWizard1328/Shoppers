@@ -5037,23 +5037,29 @@ function Dashboard() {
 
       // CRITICAL: Cancelled pickups are treated as completed (with timestamp)
       if (['completed', 'failed', 'delivered'].includes(newStatus) || newStatus === 'cancelled' && isPickup) {
-        // CRITICAL: Check if this is first or last delivery for rounding
+        // CRITICAL: Check if this is first or last PATIENT delivery for rounding (ignore pickups)
         const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
         const allDriverDeliveries = deliveriesWithStopOrder.filter((d) =>
-        d && d.driver_id === driverId && d.delivery_date === targetDelivery.delivery_date
+          d && d.driver_id === driverId && d.delivery_date === targetDelivery.delivery_date
         );
+        
+        // CRITICAL: Only count PATIENT deliveries for first/last rounding
+        const patientDeliveriesOnly = allDriverDeliveries.filter(d => d && d.patient_id);
+        
+        // First delivery = first patient delivery being completed (all others still incomplete)
+        const completedPatientCount = patientDeliveriesOnly.filter((d) => finishedStatuses.includes(d.status)).length;
+        const isFirstDelivery = completedPatientCount === 0 && targetDelivery.patient_id;
 
-        // First delivery = first one being completed (all others still incomplete)
-        const completedCount = allDriverDeliveries.filter((d) => finishedStatuses.includes(d.status)).length;
-        const isFirstDelivery = completedCount === 0;
+        // Last delivery = this is the last incomplete patient delivery
+        const incompletePatientCount = patientDeliveriesOnly.filter((d) => !finishedStatuses.includes(d.status)).length;
+        const isLastDelivery = incompletePatientCount === 1 && targetDelivery.patient_id; // This one will be the last after completion
 
-        // Last delivery = this is the last incomplete one
-        const incompleteCount = allDriverDeliveries.filter((d) => !finishedStatuses.includes(d.status)).length;
-        const isLastDelivery = incompleteCount === 1; // This one will be the last after completion
+        console.log(`⏱️ [TIME ROUNDING] First: ${isFirstDelivery}, Last: ${isLastDelivery}, Completed: ${completedPatientCount}, Incomplete: ${incompletePatientCount}`);
 
-        // Round the timestamp if first or last
+        // Round the timestamp if first or last PATIENT delivery
         if (isFirstDelivery || isLastDelivery) {
           currentTimeISO = roundCompletionTime(currentTimeISO, isFirstDelivery, isLastDelivery);
+          console.log(`⏱️ [TIME ROUNDING] Applied - rounded to: ${currentTimeISO}`);
         }
 
         updateData.actual_delivery_time = currentTimeISO;
@@ -5125,14 +5131,22 @@ function Dashboard() {
       const routeComplete = patientDeliveriesOnly.length > 0 &&
         patientDeliveriesOnly.every((d) => finishedStatuses.includes(d.status) || isReturnByMarkers(d));
 
+      console.log(`🔍 [Route Complete Check] Patient deliveries: ${patientDeliveriesOnly.length}, All finished: ${routeComplete}, New status: ${newStatus}`);
+
       if (routeComplete && finishedStatuses.includes(newStatus)) {
         const summaryKey = `${driverId}_${targetDelivery.delivery_date}`;
         if (!hasShownSummaryRef.current.has(summaryKey)) {
-          console.log('🎉 [STATUS UPDATE] Route complete - showing summary');
+          console.log('🎉 [STATUS UPDATE] Route complete - showing summary and resetting to Phase 1');
           const completedDriver = users.find((u) => u && u.id === driverId) || currentUser;
           setSummaryDriver(completedDriver);
           setShowRouteSummary(true);
           hasShownSummaryRef.current.add(summaryKey);
+          
+          // CRITICAL: Reset FAB to Phase 1 when route is complete
+          setMapViewPhase(1);
+          if (currentUser?.id) {
+            saveSetting(currentUser.id, 'fab_map_cycle_phase', 1);
+          }
         }
       }
 
@@ -5615,14 +5629,22 @@ function Dashboard() {
       const routeComplete = patientDeliveriesForStart.length > 0 &&
         patientDeliveriesForStart.every((d) => finishedStatuses.includes(d.status) || checkIsReturn(d));
 
+      console.log(`🔍 [Route Complete Check - Start] Patient deliveries: ${patientDeliveriesForStart.length}, All finished: ${routeComplete}`);
+
       if (routeComplete) {
         const summaryKey = `${driverId}_${deliveryDate}`;
         if (!hasShownSummaryRef.current.has(summaryKey)) {
-          console.log('🎉 [START] Route complete - showing summary');
+          console.log('🎉 [START] Route complete - showing summary and resetting to Phase 1');
           const completedDriver = users.find((u) => u && u.id === driverId) || currentUser;
           setSummaryDriver(completedDriver);
           setShowRouteSummary(true);
           hasShownSummaryRef.current.add(summaryKey);
+          
+          // CRITICAL: Reset FAB to Phase 1 when route is complete
+          setMapViewPhase(1);
+          if (currentUser?.id) {
+            saveSetting(currentUser.id, 'fab_map_cycle_phase', 1);
+          }
         }
       }
 
