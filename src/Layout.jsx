@@ -1004,6 +1004,14 @@ export default function Layout({ children, currentPageName }) {
             deliveries.forEach(d => map.set(d.id, d));
             return Array.from(map.values());
           });
+
+          // CRITICAL: Force dispatch driverLocationsUpdated to update map markers immediately
+          // This ensures "Show All" checkbox shows updated markers for other drivers
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+              detail: { appUsers }
+            }));
+          }, 500);
         }
       };
       window.addEventListener('deliveriesImported', handleDeliveriesImported);
