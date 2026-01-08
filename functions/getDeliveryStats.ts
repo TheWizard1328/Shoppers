@@ -614,39 +614,38 @@ Deno.serve(async (req) => {
           totalKmAllDrivers += driverTotalKm;
           totalExtraKmAllDrivers += driverTotalExtraKm;
           
-          // Track earliest/latest times across all drivers using full timestamps
-          const parseDeliveryTimeForAllDrivers = (timeStr) => {
+          // Track earliest/latest times across all drivers - extract local time directly
+          const extractLocalTimeMinutesForAllDrivers = (timeStr) => {
             if (!timeStr) return null;
-            try {
-              return new Date(timeStr);
-            } catch {
-              return null;
+            const match = timeStr.match(/T(\d{2}):(\d{2})/);
+            if (match) {
+              return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
             }
+            return null;
           };
           
           const finishedDeliveriesForTime = driverDeliveries
             .filter(d => d.actual_delivery_time)
-            .map(d => ({ ...d, parsedTime: parseDeliveryTimeForAllDrivers(d.actual_delivery_time) }))
-            .filter(d => d.parsedTime !== null)
-            .sort((a, b) => a.parsedTime.getTime() - b.parsedTime.getTime());
+            .map(d => ({ ...d, localMinutes: extractLocalTimeMinutesForAllDrivers(d.actual_delivery_time) }))
+            .filter(d => d.localMinutes !== null)
+            .sort((a, b) => a.localMinutes - b.localMinutes);
           
           if (finishedDeliveriesForTime.length > 0) {
-            const driverFirstMs = finishedDeliveriesForTime[0].parsedTime.getTime();
-            const driverLastMs = finishedDeliveriesForTime[finishedDeliveriesForTime.length - 1].parsedTime.getTime();
+            const driverFirstMinutes = finishedDeliveriesForTime[0].localMinutes;
+            const driverLastMinutes = finishedDeliveriesForTime[finishedDeliveriesForTime.length - 1].localMinutes;
             
-            if (earliestStartMinutes === null || driverFirstMs < earliestStartMinutes) {
-              earliestStartMinutes = driverFirstMs;
+            if (earliestStartMinutes === null || driverFirstMinutes < earliestStartMinutes) {
+              earliestStartMinutes = driverFirstMinutes;
             }
-            if (latestEndMinutes === null || driverLastMs > latestEndMinutes) {
-              latestEndMinutes = driverLastMs;
+            if (latestEndMinutes === null || driverLastMinutes > latestEndMinutes) {
+              latestEndMinutes = driverLastMinutes;
             }
           }
         }
         
-        // Calculate total time on duty (earliest start to latest end) using milliseconds
+        // Calculate total time on duty (earliest start to latest end) using local minutes
         if (earliestStartMinutes !== null && latestEndMinutes !== null) {
-          const durationMs = latestEndMinutes - earliestStartMinutes;
-          const durationMinutes = Math.floor(durationMs / (1000 * 60));
+          const durationMinutes = latestEndMinutes - earliestStartMinutes;
           const hours = Math.floor(durationMinutes / 60);
           const minutes = durationMinutes % 60;
           performanceStats.totalTimeOnDuty = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
