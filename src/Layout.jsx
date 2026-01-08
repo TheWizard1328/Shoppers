@@ -180,16 +180,17 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
   }, [selectedDateStr, selectedDriverId]);
 
   // Fetch stats - only when filters change or on delivery events
+  // CRITICAL: Use longer cache duration and avoid fetching on every driver change
   useEffect(() => {
     if (!currentUser) return;
 
     const fetchStats = async (force = false) => {
-      // Skip if same filters and fetched within last 30 seconds (unless forced)
+      // CRITICAL: Skip if same DATE and fetched within last 60 seconds (unless forced)
+      // Driver changes should NOT trigger new API calls - use cached data
       const now = Date.now();
       if (!force && 
           lastFetchRef.current.date === selectedDateStr && 
-          lastFetchRef.current.driver === selectedDriverId &&
-          now - lastFetchRef.current.timestamp < 30000) {
+          now - lastFetchRef.current.timestamp < 60000) {
         return;
       }
 
@@ -243,23 +244,23 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
       }
     };
 
-    // Initial fetch
-    fetchStats();
+    // Initial fetch - delay slightly to let offline data load first
+    const timer = setTimeout(() => fetchStats(), 2000);
 
     // Listen for delivery changes (imports, status changes, etc.)
     const handleDeliveryChange = () => fetchStats(true);
     window.addEventListener('refreshDeliveryStats', handleDeliveryChange);
     window.addEventListener('deliveriesImported', handleDeliveryChange);
     window.addEventListener('offlineSyncComplete', handleDeliveryChange);
-    window.addEventListener('deliveriesUpdated', handleDeliveryChange);
+    // CRITICAL: Removed deliveriesUpdated - too frequent, causes rate limits
 
     return () => {
+      clearTimeout(timer);
       window.removeEventListener('refreshDeliveryStats', handleDeliveryChange);
       window.removeEventListener('deliveriesImported', handleDeliveryChange);
       window.removeEventListener('offlineSyncComplete', handleDeliveryChange);
-      window.removeEventListener('deliveriesUpdated', handleDeliveryChange);
     };
-  }, [currentUser, selectedDateStr, storeIds, selectedDriverId]);
+  }, [currentUser, selectedDateStr, storeIds]); // CRITICAL: Removed selectedDriverId - don't refetch on driver change
 
   const StatItem = ({ icon: Icon, label, value, colorClass }) =>
       <div className="flex items-center justify-between text-sm">
