@@ -1393,18 +1393,42 @@ export default function ImportActiveRoutes({
       driverLocationPoller.resume();
       console.log('▶️ [ImportActiveRoutes] Resumed smart refresh and location poller');
 
-      // CRITICAL: Dispatch events to update UI for ALL drivers (not just the imported driver)
-      // This ensures "Show All" checkbox properly displays updated data
-      window.dispatchEvent(new CustomEvent('deliveriesImported', {
-        detail: { 
-          source: 'activeRoutesImport',
-          driverId: selectedDriverId,
-          count: overallResults.created + overallResults.updated
-        }
-      }));
+      // CRITICAL: Load ALL drivers' deliveries for the date range to ensure "Show All" has complete data
+      const { minDate, maxDate } = await extractDateRangeFromFiles(files);
+      
+      if (minDate && maxDate) {
+        console.log(`📥 [ImportActiveRoutes] Fetching all drivers' deliveries for ${minDate} to ${maxDate}`);
+        const allDriversDeliveries = await base44.entities.Delivery.filter({
+          delivery_date: { $gte: minDate, $lte: maxDate }
+        });
+        
+        // CRITICAL: Dispatch event with full deliveries array to update UI immediately
+        window.dispatchEvent(new CustomEvent('deliveriesImported', {
+          detail: { 
+            source: 'activeRoutesImport',
+            driverId: selectedDriverId,
+            count: overallResults.created + overallResults.updated,
+            deliveries: allDriversDeliveries // Pass full deliveries to update all markers
+          }
+        }));
+      } else {
+        // Fallback: just trigger refresh without deliveries array
+        window.dispatchEvent(new CustomEvent('deliveriesImported', {
+          detail: { 
+            source: 'activeRoutesImport',
+            driverId: selectedDriverId,
+            count: overallResults.created + overallResults.updated
+          }
+        }));
+      }
       
       // Force refresh of delivery stats
       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+      
+      // Force refresh of driver locations to update map markers
+      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+        detail: { appUsers: null }
+      }));
       
       // Trigger full data refresh for Dashboard
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
