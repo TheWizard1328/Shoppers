@@ -2016,15 +2016,16 @@ function Dashboard() {
           hasDriverMarkers = true;
         }
 
-        // 2. SHARED DRIVER LOCATIONS: Include when in "All Drivers" mode OR "Show All" is checked OR when desktop
+        // 2. SHARED DRIVER LOCATIONS: Include when in "All Drivers" mode OR "Show All" is checked OR when desktop OR dispatcher
         console.log(`🗺️ [Phase 1] showAllDriverMarkers: ${showAllDriverMarkers}`);
         console.log(`🗺️ [Phase 1] shouldShowAllMarkersForBounds: ${shouldShowAllMarkersForBounds}`);
         console.log(`🗺️ [Phase 1] isViewingToday: ${isViewingToday}`);
         console.log(`🗺️ [Phase 1] isMobile: ${isMobile}`);
+        console.log(`🗺️ [Phase 1] isDispatcher: ${isDispatcher}`);
         console.log(`🗺️ [Phase 1] allDriverLocations count: ${allDriverLocations?.length || 0}`);
 
-        // CRITICAL: Always include shared locations on desktop OR when showing all markers
-        const shouldIncludeSharedLocations = !isMobile || shouldShowAllMarkersForBounds;
+        // CRITICAL: Always include shared locations for desktop OR "show all" mode OR dispatchers
+        const shouldIncludeSharedLocations = !isMobile || shouldShowAllMarkersForBounds || isDispatcher;
 
         if (isViewingToday && shouldIncludeSharedLocations && allDriverLocations.length > 0 && Array.isArray(allDriverLocations)) {
           let addedCount = 0;
@@ -2034,10 +2035,10 @@ function Dashboard() {
               return;
             }
 
-            // CRITICAL: Skip current user on mobile (blue dot shows instead)
-            const isCurrentUserLocation = isMobile && location.driver_id === currentUser?.id;
+            // CRITICAL: Skip current user on mobile (blue dot shows instead) - but NOT for dispatchers
+            const isCurrentUserLocation = isMobile && !isDispatcher && location.driver_id === currentUser?.id;
             if (isCurrentUserLocation) {
-              console.log('🚫 [Phase 1] Skipping self shared location on mobile:', location.driver_id);
+              console.log('🚫 [Phase 1] Skipping self shared location on mobile (driver):', location.driver_id);
               return;
             }
 
