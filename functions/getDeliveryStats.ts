@@ -508,13 +508,18 @@ Deno.serve(async (req) => {
         console.log('📊 [ALL DRIVERS MODE] Calculating aggregated performance stats');
         
         // Get unique driver IDs from today's deliveries
-        const uniqueDriverIds = [...new Set(todayDeliveries.map(d => d.driver_id).filter(Boolean))];
+        const uniqueDriverIds = [...new Set(todayDeliveries.map(d => d?.driver_id).filter(Boolean))];
         console.log(`   Found ${uniqueDriverIds.length} unique drivers with deliveries today`);
         
+        // CRITICAL: Skip if no drivers with deliveries today
+        if (uniqueDriverIds.length === 0) {
+          console.log('   No drivers with deliveries today - skipping performance stats');
+          // performanceStats already initialized with zeros
+        } else {
         // Fetch all AppUsers for these drivers to get their pay rates
         const allDriverAppUsers = await base44.asServiceRole.entities.AppUser.filter({ 
           user_id: { $in: uniqueDriverIds } 
-        });
+        }).catch(() => []);
         
         let totalPayAllDrivers = 0;
         let totalKmAllDrivers = 0;
