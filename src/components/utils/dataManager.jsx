@@ -286,6 +286,7 @@ export const getDeliveriesForDateRange = async (startDate, endDate, filters = {}
 /**
  * Load deliveries for a specific date (priority loading)
  * Used for loading today's/selected date's data first
+ * CRITICAL: ALWAYS try offline DB first to prevent rate limits
  * 
  * @param {string} dateStr - Date in yyyy-MM-dd format
  * @param {object} filters - Filters to apply (store_id, driver_id, etc.)
@@ -295,7 +296,8 @@ export const getDeliveriesForDateRange = async (startDate, endDate, filters = {}
 export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh = false) => {
   const cacheKey = `Delivery_date_${dateStr}_${JSON.stringify(filters)}`;
   
-  // OFFLINE-FIRST: Try IndexedDB first
+  // OFFLINE-FIRST: Try IndexedDB first ALWAYS (unless forced)
+  // CRITICAL: This prevents rate limits by using local data
   if (!forceRefresh) {
     try {
       let offlineData = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateStr);
@@ -310,6 +312,7 @@ export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh 
       }
       
       if (offlineData && offlineData.length > 0) {
+        console.log(`⚡ [dataManager] Using offline deliveries for ${dateStr}: ${offlineData.length} records`);
         deliveryRangeCache.set(cacheKey, offlineData);
         deliveryRangeCacheTimestamps.set(cacheKey, Date.now());
         return offlineData;
@@ -319,12 +322,13 @@ export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh 
     }
   }
   
-  // Check cache next
+  // Check in-memory cache next (before network)
   if (!forceRefresh) {
     const cachedData = deliveryRangeCache.get(cacheKey);
     const cachedTimestamp = deliveryRangeCacheTimestamps.get(cacheKey);
     
     if (cachedData && cachedTimestamp && (Date.now() - cachedTimestamp < DELIVERY_RANGE_CACHE_DURATION)) {
+      console.log(`⚡ [dataManager] Using cached deliveries for ${dateStr}: ${cachedData.length} records`);
       return cachedData;
     }
   }
@@ -334,6 +338,7 @@ export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh 
     delivery_date: dateStr
   };
   
+  console.log(`🌐 [dataManager] Fetching deliveries from network for ${dateStr}...`);
   
   try {
     await waitForRateLimit();
@@ -345,16 +350,32 @@ export const loadDeliveriesForDate = async (dateStr, filters = {}, forceRefresh 
     deliveryRangeCache.set(cacheKey, deliveries);
     deliveryRangeCacheTimestamps.set(cacheKey, Date.now());
 
-    // BACKGROUND: Save to IndexedDB
+    // BACKGROUND: Save to IndexedDB for future offline use
     offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries).catch(err => {
     });
 
     return deliveries;
   } catch (error) {
-    if (error.message?.includes('WebSocket') || error.message?.includes('closed without opened')) {
-      if (deliveryRangeCache.has(cacheKey)) {
-        return deliveryRangeCache.get(cacheKey);
+    // On ANY error, try to return cached/offline data
+    if (deliveryRangeCache.has(cacheKey)) {
+      console.warn(`⚠️ [dataManager] Network error, using cached data for ${dateStr}`);
+      return deliveryRangeCache.get(cacheKey);
+    }
+    
+    // Try offline DB as last resort
+    try {
+      let offlineData = await offlineDB.getByIndex(offlineDB.STORES.DELIVERIES, 'delivery_date', dateStr);
+      if (offlineData && offlineData.length > 0) {
+        console.warn(`⚠️ [dataManager] Network error, using offline data for ${dateStr}`);
+        return offlineData;
       }
+    } catch (e) {
+      // Ignore offline error
+    }
+    
+    if (error.message?.includes('WebSocket') || error.message?.includes('closed without opened') || 
+        error.response?.status === 429 || error.message?.includes('429')) {
+      console.warn(`⚠️ [dataManager] Rate limit or WebSocket error for ${dateStr}, returning empty`);
       return [];
     }
     
