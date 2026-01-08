@@ -2558,6 +2558,9 @@ export default function Layout({ children, currentPageName }) {
         }).join('\n')}
       `}</style>
 
+      {/* Connection Recovery Banner - auto-shows on connection issues */}
+      <ConnectionRecoveryBanner />
+
       {showCitySelectionPopup && currentUser && cities && cities.length > 0 && (
         <CitySelectionPopup
           cities={cities}
