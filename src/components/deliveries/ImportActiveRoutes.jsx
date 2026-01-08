@@ -777,6 +777,19 @@ export default function ImportActiveRoutes({
             // Set ETA to delivery_time_start
             d.delivery_time_eta = d.delivery_time_start;
             // NOTE: Do NOT set delivery_time_end - only set if patient has time window preference
+            d.delivery_time_end = null;
+            d.time_window_end = null;
+          }
+        }
+        
+        // CRITICAL: Clear delivery_time_end unless patient has time_window_end
+        // Patient's time_window_end was already applied above in the main processing loop
+        // This ensures we don't carry over CSV time_window_end for stops without patient preference
+        if (d.patient_id) {
+          const deliveryPatient = patientsData.find(p => p.id === d.patient_id);
+          if (deliveryPatient && !deliveryPatient.time_window_end) {
+            d.delivery_time_end = null;
+            d.time_window_end = null;
           }
         }
       }
