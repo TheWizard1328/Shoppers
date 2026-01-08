@@ -1035,18 +1035,36 @@ export default function Layout({ children, currentPageName }) {
       window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
 
       // AUTO-RECOVERY: Listen for force refresh after connection recovery
-      const handleForceDataRefresh = async () => {
-        console.log('🔄 [Layout] Force data refresh after connection recovery');
-        invalidate('Delivery');
-        invalidate('Patient');
-        invalidate('AppUser');
-        invalidate('Store');
-        if (triggerFullDataLoadRef.current) {
-          await triggerFullDataLoadRef.current(true);
-        }
-        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-      };
-      window.addEventListener('forceDataRefresh', handleForceDataRefresh);
+                  const handleForceDataRefresh = async () => {
+                    console.log('🔄 [Layout] Force data refresh after connection recovery');
+
+                    // CRITICAL: Invalidate ALL data caches to ensure fresh fetch
+                    invalidate('Delivery');
+                    invalidate('Patient');
+                    invalidate('AppUser');
+                    invalidate('Store');
+                    invalidate('User');
+                    invalidate('City');
+
+                    // CRITICAL: Clear the user cache to force fresh user data fetch
+                    clearUserCache();
+
+                    if (triggerFullDataLoadRef.current) {
+                      await triggerFullDataLoadRef.current(true);
+                    }
+
+                    // Refresh stats after data is loaded
+                    window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+
+                    // CRITICAL: Force dispatch driverLocationsUpdated to update map markers
+                    // This ensures driver dropdown and legend are repopulated
+                    setTimeout(() => {
+                      window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+                        detail: { appUsers }
+                      }));
+                    }, 1000);
+                  };
+                  window.addEventListener('forceDataRefresh', handleForceDataRefresh);
 
       // ========================================
       // REAL-TIME SYNC - WebSocket for instant updates
