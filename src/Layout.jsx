@@ -1034,6 +1034,20 @@ export default function Layout({ children, currentPageName }) {
       };
       window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
 
+      // AUTO-RECOVERY: Listen for force refresh after connection recovery
+      const handleForceDataRefresh = async () => {
+        console.log('🔄 [Layout] Force data refresh after connection recovery');
+        invalidate('Delivery');
+        invalidate('Patient');
+        invalidate('AppUser');
+        invalidate('Store');
+        if (triggerFullDataLoadRef.current) {
+          await triggerFullDataLoadRef.current(true);
+        }
+        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+      };
+      window.addEventListener('forceDataRefresh', handleForceDataRefresh);
+
       // ========================================
       // REAL-TIME SYNC - WebSocket for instant updates
       // ========================================
