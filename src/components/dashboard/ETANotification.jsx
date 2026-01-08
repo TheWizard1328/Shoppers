@@ -10,7 +10,8 @@ import { format } from 'date-fns';
  */
 export default function ETANotification({ 
   deliveries = [], 
-  driverId, 
+  driverId,
+  currentUser,
   onDismiss 
 }) {
   const [notification, setNotification] = useState(null);
@@ -19,8 +20,15 @@ export default function ETANotification({
   // Define finished statuses to exclude from ETA notifications
   const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'returned'];
 
+  // Import userHasRole for role checking
+  const { userHasRole } = require('../utils/userRoles');
+
   useEffect(() => {
     if (!deliveries || deliveries.length === 0) return;
+    
+    // CRITICAL: Only show ETA notifications to drivers, not dispatchers
+    if (!currentUser || !userHasRole(currentUser, 'driver')) return;
+    if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'driver')) return;
 
     // Check for significant ETA changes - ONLY for in-transit deliveries
     deliveries.forEach(delivery => {
@@ -138,8 +146,7 @@ export default function ETANotification({
               </h4>
               
               <p className="text-sm mb-2" style={{ color: 'var(--text-slate-700)' }}>
-                <span className="font-semibold">{deliveryId}</span>
-                {patientName && <span style={{ color: 'var(--text-slate-600)' }}> • {patientName}</span>}
+                {patientName && <span className="font-semibold">{patientName}</span>}
               </p>
 
               <div className="flex items-center gap-4 text-xs">
