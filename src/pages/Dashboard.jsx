@@ -168,31 +168,21 @@ const addMinutesToTime = (timeString, minutes) => {
   return `${String(newHours).padStart(2, '0')}:${String(newMins).padStart(2, '0')}`;
 };
 
-// Helper function to round completion time to nearest 5-minute mark
-// For first delivery: round DOWN to nearest 5 minutes
-// For last delivery: round UP to next 5 minutes
-const roundCompletionTime = (timeISO, isFirst, isLast) => {
+// Helper function to round completion time to NEAREST 5-minute mark
+// Rounds to whichever 5-minute mark is closest (up or down)
+const roundCompletionTime = (timeISO) => {
   if (!timeISO) return timeISO;
 
   try {
     const date = new Date(timeISO);
     const minutes = date.getMinutes();
 
-    if (isFirst) {
-      // Round down to nearest 5 minutes
-      const roundedMinutes = Math.floor(minutes / 5) * 5;
-      date.setMinutes(roundedMinutes);
-      date.setSeconds(0);
-      date.setMilliseconds(0);
-      console.log(`⏱️ [Round Time] First delivery - rounded DOWN: ${minutes} → ${roundedMinutes} minutes`);
-    } else if (isLast) {
-      // Round up to next 5 minutes
-      const roundedMinutes = Math.ceil(minutes / 5) * 5;
-      date.setMinutes(roundedMinutes);
-      date.setSeconds(0);
-      date.setMilliseconds(0);
-      console.log(`⏱️ [Round Time] Last delivery - rounded UP: ${minutes} → ${roundedMinutes} minutes`);
-    }
+    // Round to nearest 5 minutes
+    const roundedMinutes = Math.round(minutes / 5) * 5;
+    date.setMinutes(roundedMinutes);
+    date.setSeconds(0);
+    date.setMilliseconds(0);
+    console.log(`⏱️ [Round Time] Rounded to nearest 5min: ${minutes} → ${roundedMinutes} minutes`);
 
     return date.toISOString();
   } catch (error) {
@@ -5048,18 +5038,18 @@ function Dashboard() {
         
         // First delivery = first patient delivery being completed (all others still incomplete)
         const completedPatientCount = patientDeliveriesOnly.filter((d) => finishedStatuses.includes(d.status)).length;
-        const isFirstDelivery = completedPatientCount === 0 && targetDelivery.patient_id;
+        const isFirstPatientDelivery = completedPatientCount === 0 && targetDelivery.patient_id;
 
         // Last delivery = this is the last incomplete patient delivery
         const incompletePatientCount = patientDeliveriesOnly.filter((d) => !finishedStatuses.includes(d.status)).length;
-        const isLastDelivery = incompletePatientCount === 1 && targetDelivery.patient_id; // This one will be the last after completion
+        const isLastPatientDelivery = incompletePatientCount === 1 && targetDelivery.patient_id; // This one will be the last after completion
 
-        console.log(`⏱️ [TIME ROUNDING] First: ${isFirstDelivery}, Last: ${isLastDelivery}, Completed: ${completedPatientCount}, Incomplete: ${incompletePatientCount}`);
+        console.log(`⏱️ [TIME ROUNDING] Patient Delivery - First: ${isFirstPatientDelivery}, Last: ${isLastPatientDelivery}, Completed: ${completedPatientCount}, Incomplete: ${incompletePatientCount}`);
 
-        // Round the timestamp if first or last PATIENT delivery
-        if (isFirstDelivery || isLastDelivery) {
-          currentTimeISO = roundCompletionTime(currentTimeISO, isFirstDelivery, isLastDelivery);
-          console.log(`⏱️ [TIME ROUNDING] Applied - rounded to: ${currentTimeISO}`);
+        // CRITICAL: Round to nearest 5 minutes if first or last PATIENT delivery
+        if ((isFirstPatientDelivery || isLastPatientDelivery) && targetDelivery.patient_id) {
+          currentTimeISO = roundCompletionTime(currentTimeISO);
+          console.log(`⏱️ [TIME ROUNDING] Applied to ${isFirstPatientDelivery ? 'FIRST' : 'LAST'} patient delivery - rounded to: ${currentTimeISO}`);
         }
 
         updateData.actual_delivery_time = currentTimeISO;
@@ -5133,20 +5123,57 @@ function Dashboard() {
 
       console.log(`🔍 [Route Complete Check] Patient deliveries: ${patientDeliveriesOnly.length}, All finished: ${routeComplete}, New status: ${newStatus}`);
 
-      if (routeComplete && finishedStatuses.includes(newStatus)) {
+      if (routeComplete && finishedStatuses.includes(newStatus) && targetDelivery.patient_id) {
         const summaryKey = `${driverId}_${targetDelivery.delivery_date}`;
         if (!hasShownSummaryRef.current.has(summaryKey)) {
-          console.log('🎉 [STATUS UPDATE] Route complete - showing summary and resetting to Phase 1');
+          console.log('🎉 [STATUS UPDATE] Route complete - updating status, showing summary, and resetting FAB to Phase 1');
+          
+          // CRITICAL: Reset FAB to Phase 1 and activate briefly BEFORE showing summary
+          setMapViewPhase(1);
+          setIsMapViewLocked(true);
+          lastProgrammaticMapMoveRef.current = Date.now();
+          window._lastProgrammaticMapMove = Date.now();
+          setMapViewTrigger((prev) => prev + 1);
+          
+          // Save phase to settings
+          if (currentUser?.id) {
+            saveSetting(currentUser.id, 'fab_map_cycle_phase', 1);
+          }
+          
+          // Auto-unlock after 500ms
+          setTimeout(() => {
+            setIsMapViewLocked(false);
+          }, 500);
+          
+          // CRITICAL: Disable location tracking and set off_duty WHILE summary is showing
+          try {
+            console.log('🔄 [Route Complete] Disabling location tracking and setting off_duty...');
+            
+            // Stop location tracking
+            if (locationTracker.isTracking) {
+              locationTracker.stopTracking();
+            }
+            
+            // Update AppUser to off_duty and disable location tracking (async, don't wait)
+            base44.entities.AppUser.filter({ user_id: currentUser.id }).then(appUsersList => {
+              const appUser = appUsersList?.[0];
+              if (appUser) {
+                base44.entities.AppUser.update(appUser.id, {
+                  driver_status: 'off_duty',
+                  location_tracking_enabled: false
+                });
+                console.log('✅ [Route Complete] Driver set to off_duty with tracking disabled');
+              }
+            });
+          } catch (error) {
+            console.error('❌ [Route Complete] Failed to update driver status:', error);
+          }
+          
+          // Show summary dialog
           const completedDriver = users.find((u) => u && u.id === driverId) || currentUser;
           setSummaryDriver(completedDriver);
           setShowRouteSummary(true);
           hasShownSummaryRef.current.add(summaryKey);
-          
-          // CRITICAL: Reset FAB to Phase 1 when route is complete
-          setMapViewPhase(1);
-          if (currentUser?.id) {
-            saveSetting(currentUser.id, 'fab_map_cycle_phase', 1);
-          }
         }
       }
 
@@ -6859,34 +6886,9 @@ function Dashboard() {
             setShowRouteSummary(false);
             setSummaryDriver(null);
             
-            // CRITICAL: After summary is closed, turn off location tracking and set driver to off_duty
+            // Refresh user to update UI after driver status changed
             if (isDriver && currentUser?.id) {
-              try {
-                console.log('🔄 [Route Complete] Disabling location tracking and setting off_duty...');
-                
-                // Stop location tracking
-                if (locationTracker.isTracking) {
-                  await locationTracker.stopTracking();
-                }
-                
-                // Update AppUser to off_duty and disable location tracking
-                const appUsersList = await base44.entities.AppUser.filter({ user_id: currentUser.id });
-                const appUser = appUsersList?.[0];
-                
-                if (appUser) {
-                  await base44.entities.AppUser.update(appUser.id, {
-                    driver_status: 'off_duty',
-                    location_tracking_enabled: false
-                  });
-                  
-                  console.log('✅ [Route Complete] Driver set to off_duty with tracking disabled');
-                  
-                  // Refresh user to update UI
-                  await refreshUser();
-                }
-              } catch (error) {
-                console.error('❌ [Route Complete] Failed to update driver status:', error);
-              }
+              await refreshUser();
             }
           }} />
         }
