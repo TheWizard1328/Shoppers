@@ -864,6 +864,23 @@ export default function DeliveryMap({
 
   const [otherDriverDeliveries, setOtherDriverDeliveries] = useState([]);
 
+  // CRITICAL: Listen for deliveriesImported event to refresh other drivers' markers
+  useEffect(() => {
+    const handleDeliveriesImported = (event) => {
+      const { deliveries: importedDeliveries } = event.detail || {};
+      
+      // If deliveries array is provided, use it directly to update otherDriverDeliveries
+      if (importedDeliveries && importedDeliveries.length > 0 && showOtherDriverDeliveries && currentUser) {
+        console.log('📥 [DeliveryMap] Updating other drivers markers from import event');
+        const others = importedDeliveries.filter(d => d && d.driver_id && d.driver_id !== currentUser.id);
+        setOtherDriverDeliveries(others);
+      }
+    };
+    
+    window.addEventListener('deliveriesImported', handleDeliveriesImported);
+    return () => window.removeEventListener('deliveriesImported', handleDeliveriesImported);
+  }, [showOtherDriverDeliveries, currentUser?.id]);
+
   useEffect(() => {
     const fetchOtherDrivers = async () => {
       // CRITICAL: Fetch other drivers for any user with driver role viewing their own route
@@ -881,9 +898,12 @@ export default function DeliveryMap({
           delivery_date: selectedDate
         });
         
+        console.log(`📥 [DeliveryMap] Loaded ${allDeliveries.length} deliveries for other drivers`);
         const others = allDeliveries.filter(d => d && d.driver_id && d.driver_id !== currentUser.id);
+        console.log(`📍 [DeliveryMap] Setting ${others.length} other driver deliveries`);
         setOtherDriverDeliveries(others);
       } catch (error) {
+        console.error('❌ [DeliveryMap] Failed to load other drivers:', error);
         setOtherDriverDeliveries([]);
       }
     };
