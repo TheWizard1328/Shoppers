@@ -999,18 +999,21 @@ export default function DeliveryMap({
       // CRITICAL: Track delivery status and isNextDelivery in stable key
       const stableKey = `${delivery.id}:${delivery.status}:${isNextInLine}:${delivery.stop_order}`;
 
-      // CRITICAL: Check if delivery has a pickup by looking at PUID AND checking if pickup exists
-      // For inter-driver transfers: PUID exists but pickup might be in different driver's route
+      // CRITICAL: Check if delivery has a pickup by looking at PUID in ASSIGNED DRIVER'S route only
+      // If PUID exists but no matching pickup in assigned driver's route, marker is yellow
       let hasNoPickup = false;
       if (delivery.patient_id) {
         // If no PUID at all, definitely no pickup
         if (!delivery.puid || delivery.puid.trim() === '') {
           hasNoPickup = true;
         } else {
-          // CRITICAL: Check if a pickup with matching stop_id exists in ALL deliveries
-          // This handles inter-driver transfers where PUID references another driver's pickup
+          // CRITICAL: Check if a pickup with matching stop_id exists in ASSIGNED DRIVER'S route only
+          // This marks inter-driver transfers as yellow (no originating store in driver's route)
           const pickupExists = safeDeliveries.some(d => 
-            d && !d.patient_id && d.stop_id === delivery.puid
+            d && 
+            !d.patient_id && 
+            d.stop_id === delivery.puid &&
+            d.driver_id === delivery.driver_id // CRITICAL: Must be in same driver's route
           );
           hasNoPickup = !pickupExists;
         }
