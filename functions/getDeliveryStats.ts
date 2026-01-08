@@ -666,6 +666,7 @@ Deno.serve(async (req) => {
         performanceStats.extraKmLimit = 0; // Not applicable in "All Drivers" mode
         
         console.log('✅ [ALL DRIVERS MODE] Performance stats calculated:', performanceStats);
+        } // End of uniqueDriverIds.length > 0 check
       }
     } catch (perfError) {
       console.warn('⚠️ [getDeliveryStats] Performance stats error:', perfError.message);
