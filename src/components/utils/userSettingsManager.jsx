@@ -286,8 +286,10 @@ async function loadFromLocalPersistentStore(userId, deviceId) {
 
 /**
  * Loads global settings (synced across all devices) for the user
+ * CRITICAL: Only loads settings explicitly marked as GLOBAL_SETTINGS
+ * Device-specific settings like selected_driver_id and selected_date are NEVER loaded here
  * @param {string} userId - The user's ID
- * @returns {Promise<object>} - Global settings object
+ * @returns {Promise<object>} - Global settings object (only units, notifications, etc.)
  */
 async function loadGlobalSettings(userId) {
   try {
@@ -301,14 +303,14 @@ async function loadGlobalSettings(userId) {
       const latestSettings = allUserSettings[0];
       const globalSettings = {};
       
-      // Extract only global settings
+      // CRITICAL: Extract ONLY global settings - NOT device-specific ones like selected_driver_id, selected_date
       GLOBAL_SETTINGS.forEach(key => {
         if (latestSettings[key] !== undefined) {
           globalSettings[key] = latestSettings[key];
         }
       });
       
-      console.log('🌐 [UserSettings] Loaded global settings from latest device');
+      console.log('🌐 [UserSettings] Loaded global settings:', Object.keys(globalSettings).join(', '));
       return globalSettings;
     }
     
