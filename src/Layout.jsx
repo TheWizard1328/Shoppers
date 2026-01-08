@@ -91,6 +91,7 @@ import { ResizableDivider } from './components/ui/resizable-divider';
                   import { toast } from 'sonner';
 import { performInitialSync, processPendingMutations } from './components/utils/offlineSync';
 import OfflineSyncIndicator from './components/layout/OfflineSyncIndicator';
+import ConnectionRecoveryBanner from './components/layout/ConnectionRecoveryBanner';
 import { subscribeMutations } from './components/utils/entityMutations';
 import { realtimeSync, subscribeToRealtime } from './components/utils/realtimeSync';
 import ConflictManager from './components/dashboard/ConflictManager';
