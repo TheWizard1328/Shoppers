@@ -6217,6 +6217,21 @@ function Dashboard() {
 
                             // Wait for UI to update
                             await new Promise((resolve) => setTimeout(resolve, 300));
+                            
+                            // CRITICAL: Force refresh driver locations to update all markers
+                            console.log('📍 [Show All] Forcing driver location refresh to update markers...');
+                            const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
+                            if (locationUpdates?.hasChanges) {
+                              console.log('✅ [Show All] Driver locations refreshed');
+                              
+                              // Process through poller to update markers
+                              driverLocationPoller.processLocationData(currentUser, allDateDeliveries, drivers, stores, locationUpdates.appUsers, selectedDate);
+                            }
+                            
+                            // Dispatch event to force map to re-render with new markers
+                            window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
+                              detail: { appUsers }
+                            }));
                           } catch (error) {
                             console.error('❌ [Show All] Failed to load deliveries:', error);
                           } finally {
