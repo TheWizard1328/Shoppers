@@ -147,17 +147,23 @@ Deno.serve(async (req) => {
       fetchKeys.push('month');
     }
     
-    // Only fetch entity counts for admins
+    // CRITICAL: Only fetch entity counts if NOT cached - reduces API calls
+    // Entity counts are cached per day and don't need frequent updates
     if (!entityCounts && isAdmin) {
-      fetchPromises.push(base44.asServiceRole.entities.Patient.list());
-      fetchPromises.push(base44.asServiceRole.entities.City.list());
-      fetchPromises.push(base44.asServiceRole.entities.Store.list());
-      fetchPromises.push(base44.asServiceRole.entities.AppUser.list());
-      fetchKeys.push('patients', 'cities', 'stores', 'appUsers');
+      // Batch all admin entity counts in a single try-catch to prevent cascade failures
+      fetchPromises.push(
+        Promise.all([
+          base44.asServiceRole.entities.Patient.list().catch(() => []),
+          base44.asServiceRole.entities.City.list().catch(() => []),
+          base44.asServiceRole.entities.Store.list().catch(() => []),
+          base44.asServiceRole.entities.AppUser.list().catch(() => [])
+        ])
+      );
+      fetchKeys.push('adminEntityCounts');
     } else if (!entityCounts && isDispatcher && !isDriver) {
       // Dispatchers only see patient count for their stores
       if (userStoreIds.length > 0) {
-        fetchPromises.push(base44.asServiceRole.entities.Patient.filter({ store_id: { $in: userStoreIds } }));
+        fetchPromises.push(base44.asServiceRole.entities.Patient.filter({ store_id: { $in: userStoreIds } }).catch(() => []));
       } else {
         fetchPromises.push(Promise.resolve([]));
       }
@@ -186,11 +192,9 @@ Deno.serve(async (req) => {
               rawMonthDeliveries = [];
             }
             statsCache.monthly = { data: rawMonthDeliveries, cacheDate, key: monthlyKey };
-          } else if (key === 'patients') {
-            const allPatients = results[resultIdx++];
-            const allCities = results[resultIdx++];
-            const allStores = results[resultIdx++];
-            const allAppUsers = results[resultIdx++];
+          } else if (key === 'adminEntityCounts') {
+            // CRITICAL: Handle batched admin entity counts
+            const [allPatients, allCities, allStores, allAppUsers] = results[resultIdx++] || [[], [], [], []];
             entityCounts = {
               patients: Array.isArray(allPatients) ? allPatients.length : 0,
               cities: Array.isArray(allCities) ? allCities.length : 0,
