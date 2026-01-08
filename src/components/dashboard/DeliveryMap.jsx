@@ -999,7 +999,23 @@ export default function DeliveryMap({
       // CRITICAL: Track delivery status and isNextDelivery in stable key
       const stableKey = `${delivery.id}:${delivery.status}:${isNextInLine}:${delivery.stop_order}`;
 
-      const hasNoPickup = delivery.patient_id && (!delivery.puid || delivery.puid.trim() === '');
+      // CRITICAL: Check if delivery has a pickup by looking at PUID AND checking if pickup exists
+      // For inter-driver transfers: PUID exists but pickup might be in different driver's route
+      const hasNoPickup = useMemo(() => {
+        if (!delivery.patient_id) return false; // Not a patient delivery
+        
+        // If no PUID at all, definitely no pickup
+        if (!delivery.puid || delivery.puid.trim() === '') return true;
+        
+        // CRITICAL: Check if a pickup with matching stop_id exists in ALL deliveries
+        // This handles inter-driver transfers where PUID references another driver's pickup
+        const pickupExists = safeDeliveries.some(d => 
+          d && !d.patient_id && d.stop_id === delivery.puid
+        );
+        
+        // Return true (yellow marker) only if PUID is missing OR no matching pickup found
+        return !pickupExists;
+      }, [delivery.patient_id, delivery.puid, safeDeliveries]);
 
       // CRITICAL: Determine if this marker belongs to another driver when viewing self (any driver)
       const isDriver = userHasRole(currentUser, 'driver');
