@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -188,7 +188,7 @@ export default function RouteImport({
   const [allDriverUsers, setAllDriverUsers] = useState([]);
 
   // Use a ref to store fresh stores data that won't cause stale closure issues
-  const freshStoresRef = React.useRef([]);
+  const freshStoresRef = useRef([]);
 
   const findStoreByAbbreviation = useCallback((abbr, storesOverride = null) => {
     if (!abbr) return null;
@@ -1015,7 +1015,7 @@ export default function RouteImport({
   }, [stores, allUsers, findStoreByAbbreviation, findDispatcherByStore, setProgressPercent, setProgressMessage, matchDeliveryToExisting, detectChanges, currentUser, userHasRole]);
 
   // Load ALL drivers from ALL cities on mount
-  React.useEffect(() => {
+  useEffect(() => {
     const loadAllDrivers = async () => {
       try {
         const allAppUsers = await base44.entities.AppUser.list();
