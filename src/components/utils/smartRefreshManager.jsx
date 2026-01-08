@@ -1542,6 +1542,9 @@ class SmartRefreshManager {
       // CRITICAL: Record error for exponential backoff
       this.recordError();
       
+      // AUTO-RECOVERY: Track connection errors
+      this.recordConnectionError(error);
+      
       // CRITICAL: Catch ALL errors and return null - never throw
       if (error.response?.status === 429 || error.message?.includes('429')) {
         console.warn('⏰ [SmartRefresh] Rate limit on active deliveries - skipping cycle');
