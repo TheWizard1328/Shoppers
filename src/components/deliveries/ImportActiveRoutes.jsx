@@ -544,7 +544,7 @@ export default function ImportActiveRoutes({
         fridge_item: false,
         oversized: false,
         after_hours_pickup: false,
-        delivery_notes: rawNotes,
+        delivery_notes: rawNotes || null,
         first_delivery: false,
         puid: null,
         travel_dist: travelDist !== null && travelDist !== undefined ? parseFloat(travelDist.toFixed(2)) : null
