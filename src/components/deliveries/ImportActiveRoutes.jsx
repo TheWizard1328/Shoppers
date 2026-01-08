@@ -685,85 +685,21 @@ export default function ImportActiveRoutes({
       const matchReason = matchResult?.reason || 'Unknown';
 
       if (existingDelivery) {
-        // EXISTING DELIVERY: Start with existing data, selectively apply imports
+        // EXISTING DELIVERY MATCHED BY SID: Replace all data from import (except ID)
         const updatedDeliveryData = {
-          ...existingDelivery,
+          ...newDeliveryData,
           id: existingDelivery.id
         };
 
-        // CRITICAL: Update stop_order if imported > 0 AND different from existing
-        if (stopOrder > 0 && stopOrder !== existingDelivery.stop_order) {
-          updatedDeliveryData.stop_order = stopOrder;
-        }
-        // Otherwise keep existing stop_order (already in updatedDeliveryData from spread)
-
-        // CRITICAL: Update tracking_number if imported has a value AND different from existing
-        if (newDeliveryData.tracking_number && newDeliveryData.tracking_number !== existingDelivery.tracking_number) {
-          updatedDeliveryData.tracking_number = newDeliveryData.tracking_number;
-        }
-        // Otherwise keep existing tracking_number
-
-        // CRITICAL: Status logic - ALWAYS update status from import
-        // This ensures drivers can see real-time status updates (pending→in_transit→completed)
-        updatedDeliveryData.status = newDeliveryData.status;
-        
-        // Update time fields based on status
-        if (newDeliveryData.status === 'completed' || newDeliveryData.status === 'failed' || newDeliveryData.status === 'cancelled') {
-          updatedDeliveryData.actual_delivery_time = newDeliveryData.actual_delivery_time;
-        } else if (newDeliveryData.status === 'in_transit' || newDeliveryData.status === 'en_route') {
-          // For active deliveries, update time windows
-          if (newDeliveryData.delivery_time_start) updatedDeliveryData.delivery_time_start = newDeliveryData.delivery_time_start;
-          if (newDeliveryData.delivery_time_end) updatedDeliveryData.delivery_time_end = newDeliveryData.delivery_time_end;
-          if (newDeliveryData.delivery_time_eta) updatedDeliveryData.delivery_time_eta = newDeliveryData.delivery_time_eta;
-        }
-
-        // Apply other non-critical fields from import
-        if (newDeliveryData.stop_id) updatedDeliveryData.stop_id = newDeliveryData.stop_id;
-        if (newDeliveryData.puid) updatedDeliveryData.puid = newDeliveryData.puid;
-        if (newDeliveryData.travel_dist !== null && newDeliveryData.travel_dist !== undefined) {
-          updatedDeliveryData.travel_dist = newDeliveryData.travel_dist;
-        }
-        if (newDeliveryData.ampm_deliveries) updatedDeliveryData.ampm_deliveries = newDeliveryData.ampm_deliveries;
-        // CRITICAL: COD handling for updates
-        // If transitioning to completed AND there's a COD amount, mark as collected
-        // If still incomplete, just update the required amount
-        if (newDeliveryData.cod_total_amount_required > 0) {
-          const wasIncomplete = existingDelivery.status === 'pending' || existingDelivery.status === 'in_transit' || existingDelivery.status === 'en_route';
-          const isNowComplete = newDeliveryData.status === 'completed' || newDeliveryData.status === 'failed' || newDeliveryData.status === 'cancelled';
-          
-          updatedDeliveryData.cod_total_amount_required = newDeliveryData.cod_total_amount_required;
-          
-          if (wasIncomplete && isNowComplete) {
-            // Transitioning to complete - mark COD as collected with payment type from import
-            const paymentType = newDeliveryData.cod_payment_type !== 'No Payment' ? newDeliveryData.cod_payment_type : 'Cash';
-            updatedDeliveryData.cod_payments = [{ type: paymentType, amount: newDeliveryData.cod_total_amount_required }];
-            updatedDeliveryData.cod_payment_type = paymentType;
-            updatedDeliveryData.cod_amount = newDeliveryData.cod_total_amount_required.toString();
-          } else if (!isNowComplete) {
-            // Still incomplete - keep COD as required but not collected
-            updatedDeliveryData.cod_payments = [];
-            updatedDeliveryData.cod_payment_type = 'No Payment';
-            updatedDeliveryData.cod_amount = '';
-          }
-        }
-        if (newDeliveryData.signature_needed) updatedDeliveryData.signature_needed = newDeliveryData.signature_needed;
-        if (newDeliveryData.fridge_item) updatedDeliveryData.fridge_item = newDeliveryData.fridge_item;
-        if (newDeliveryData.oversized) updatedDeliveryData.oversized = newDeliveryData.oversized;
-        if (newDeliveryData.after_hours_pickup) updatedDeliveryData.after_hours_pickup = newDeliveryData.after_hours_pickup;
-        if (newDeliveryData.first_delivery) updatedDeliveryData.first_delivery = newDeliveryData.first_delivery;
-        if (newDeliveryData.time_window_start) updatedDeliveryData.time_window_start = newDeliveryData.time_window_start;
-        if (newDeliveryData.time_window_end) updatedDeliveryData.time_window_end = newDeliveryData.time_window_end;
-
-        // Now detect changes between existing and FINAL updated data
+        // Detect changes between existing and imported data
         const changes = detectChanges(existingDelivery, updatedDeliveryData);
 
-        if (changes.length > 0) {
-          deliveriesToUpdate.push({
-            ...updatedDeliveryData,
-            _changes: changes,
-            _matchReason: matchReason
-          });
-        }
+        // CRITICAL: Always update if SID matched - this ensures all stop info is refreshed
+        deliveriesToUpdate.push({
+          ...updatedDeliveryData,
+          _changes: changes,
+          _matchReason: matchReason
+        });
       } else {
         // NEW DELIVERY: Assign sequential stop order only if imported value is 0 or missing
         if (stopOrder === 0 || !rawStopOrder) {
