@@ -134,8 +134,8 @@ export default function DualStatsMarquee({
           tooltip={tooltipValues.failed} />
       </div>
 
-      {/* Row 2: Performance Stats - 4 columns - Show for both drivers and "All Drivers" mode */}
-      {performanceStats && (
+      {/* Row 2: Performance Stats - 4 columns - Show for drivers only, NOT dispatchers */}
+      {performanceStats && !isDispatcher && (
         <div className="grid grid-cols-4 gap-1">
           <StatBadge
             icon={DollarSign}
