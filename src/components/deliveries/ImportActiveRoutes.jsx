@@ -544,7 +544,7 @@ export default function ImportActiveRoutes({
         fridge_item: false,
         oversized: false,
         after_hours_pickup: false,
-        delivery_notes: rawNotes || null,
+        delivery_notes: null,
         first_delivery: false,
         puid: null,
         travel_dist: travelDist !== null && travelDist !== undefined ? parseFloat(travelDist.toFixed(2)) : null
@@ -686,12 +686,11 @@ export default function ImportActiveRoutes({
 
       if (existingDelivery) {
         // EXISTING DELIVERY MATCHED BY SID: Replace all data from import (except ID)
-        // CRITICAL: Preserve delivery_notes from import CSV (rawNotes column 17)
+        // CRITICAL: Preserve existing delivery_notes - do NOT overwrite with CSV notes
         const updatedDeliveryData = {
           ...newDeliveryData,
           id: existingDelivery.id,
-          // Ensure notes from CSV are included
-          delivery_notes: rawNotes || existingDelivery.delivery_notes || null
+          delivery_notes: existingDelivery.delivery_notes || null
         };
 
         // Detect changes between existing and imported data
