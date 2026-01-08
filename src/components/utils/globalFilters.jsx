@@ -21,7 +21,8 @@ let globalState = {
   listeners: new Set()
 };
 
-// Initialize from localStorage
+// Initialize from localStorage ONLY - never from UserSettings
+// CRITICAL: These values are device-specific and stored only in localStorage
 const initializeGlobalFilters = () => {
   try {
     // Always use today as the default for date
@@ -37,20 +38,25 @@ const initializeGlobalFilters = () => {
       // Use saved date if it's within the last 30 days, otherwise use today
       if (daysDiff >= 0 && daysDiff <= 30) {
         globalState.selectedDate = savedDate;
+        console.log(`📅 [GlobalFilters] Using saved date: ${savedDate}`);
       } else {
         globalState.selectedDate = today;
         localStorage.setItem(STORAGE_KEYS.selectedDate, today);
+        console.log(`📅 [GlobalFilters] Saved date too old, using today: ${today}`);
       }
     } else {
       // No saved date - use today and save it
       globalState.selectedDate = today;
       localStorage.setItem(STORAGE_KEYS.selectedDate, today);
+      console.log(`📅 [GlobalFilters] No saved date, using today: ${today}`);
     }
     
-    // Load other filters with their defaults
+    // Load other filters with their defaults - from localStorage ONLY
     globalState.selectedDriverId = localStorage.getItem(STORAGE_KEYS.selectedDriverId) || 'all';
     globalState.selectedCityId = localStorage.getItem(STORAGE_KEYS.selectedCityId) || 'all';
     globalState.selectedStoreId = localStorage.getItem(STORAGE_KEYS.selectedStoreId) || 'all';
+    
+    console.log(`👤 [GlobalFilters] Initialized driver: ${globalState.selectedDriverId}, city: ${globalState.selectedCityId}`);
     
   } catch (error) {
     // Set defaults if localStorage fails
@@ -59,6 +65,7 @@ const initializeGlobalFilters = () => {
     globalState.selectedDriverId = 'all';
     globalState.selectedCityId = 'all';
     globalState.selectedStoreId = 'all';
+    console.warn('⚠️ [GlobalFilters] localStorage failed, using defaults');
   }
 };
 
