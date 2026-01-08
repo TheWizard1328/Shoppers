@@ -2098,6 +2098,11 @@ export default function StopCard({
                             detail: { triggeredBy: 'complete', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
                           }));
 
+                          // CRITICAL: Collapse the current card immediately
+                          if (onClick) {
+                            onClick(null);
+                          }
+
                           // CRITICAL: Scroll to next delivery card immediately
                           if (incompleteDeliveries.length > 0) {
                             setTimeout(() => {
