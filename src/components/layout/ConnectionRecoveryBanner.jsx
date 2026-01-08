@@ -39,6 +39,11 @@ export default function ConnectionRecoveryBanner() {
     // Listen for connection restored
     const handleConnectionRestored = () => {
       setStatus('restored');
+      
+      // CRITICAL: Trigger full data reload to repopulate drivers/users in dropdowns
+      console.log('🔄 [ConnectionRecoveryBanner] Triggering full data reload after recovery');
+      window.dispatchEvent(new CustomEvent('forceDataRefresh'));
+      
       // Auto-hide after 3 seconds when restored
       setTimeout(() => {
         setIsVisible(false);
