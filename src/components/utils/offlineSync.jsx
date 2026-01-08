@@ -102,7 +102,9 @@ export const getOfflineDataIfFresh = async () => {
  */
 export const loadPriorityData = async (selectedDateStr, filters = {}) => {
   if (syncPaused) return { skipped: true };
+  if (syncInProgress) return { skipped: true, reason: 'sync_in_progress' };
   
+  syncInProgress = true;
   console.log(`📥 [OfflineSync] Loading priority data for ${selectedDateStr}...`);
   notifySyncStatus({ status: 'loading_priority', date: selectedDateStr });
   
@@ -161,10 +163,12 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
     
     notifySyncStatus({ status: 'priority_loaded', deliveries: deliveries.length, patients: patients.length });
     
+    syncInProgress = false;
     return { appUsers, deliveries, patients };
   } catch (error) {
     console.error('❌ [OfflineSync] Priority load failed:', error);
     notifySyncStatus({ status: 'error', error: error.message });
+    syncInProgress = false;
     return { error: error.message };
   }
 };
