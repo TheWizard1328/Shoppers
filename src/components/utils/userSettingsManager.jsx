@@ -235,13 +235,15 @@ const GLOBAL_SETTINGS = [
   'notifications_vibration'
 ];
 
+// CRITICAL: These settings are NEVER synced across devices
+// Each device maintains its own values for these
 const DEVICE_SPECIFIC_SETTINGS = [
   'fab_map_cycle_phase',
   'sidebar_width',
   'right_panel_width',
   'theme_preference',
-  'selected_driver_id',
-  'selected_date',
+  'selected_driver_id',  // CRITICAL: Driver selection is device-specific
+  'selected_date',       // CRITICAL: Date selection is device-specific
   'admin_utilities_year',
   'admin_utilities_month',
   'admin_utilities_driver'
