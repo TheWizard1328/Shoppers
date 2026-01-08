@@ -2,6 +2,8 @@ import React from 'react';
 import { format } from 'date-fns';
 
 // Global filter state manager for consistent filters across all pages
+// CRITICAL: These are stored in localStorage which is device-specific
+// They should NOT be synced across devices via UserSettings
 
 const STORAGE_KEYS = {
   selectedDate: 'app_selectedDate',
