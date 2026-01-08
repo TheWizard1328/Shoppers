@@ -56,6 +56,15 @@ class SmartRefreshManager {
     // Rate limit error callback
     this.rateLimitCallback = null;
     
+    // AUTO-RECOVERY: Track connection/error state for automatic retry
+    this._connectionErrorCount = 0;
+    this._lastSuccessfulRefresh = Date.now();
+    this._autoRecoveryTimer = null;
+    this._isInRecoveryMode = false;
+    this._recoveryAttempts = 0;
+    this._maxRecoveryAttempts = 5;
+    this._recoveryBackoffMs = 10000; // Start with 10 seconds, increase exponentially
+    
     // CRITICAL: Track deliveries that have pending local updates
     // This prevents smart refresh from overwriting them with stale DB data
     this.pendingLocalUpdates = new Map(); // deliveryId -> { expiresAt, driverId, deliveryDate }
