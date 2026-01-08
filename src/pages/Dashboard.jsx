@@ -6422,10 +6422,11 @@ function Dashboard() {
         }
 
 
-        {/* ETA Change Notifications */}
+        {/* ETA Change Notifications - Drivers Only */}
         <ETANotification
           deliveries={filteredDeliveries}
-          driverId={selectedDriverId} />
+          driverId={selectedDriverId}
+          currentUser={currentUser} />
 
 
         <div className="absolute inset-0">
