@@ -686,9 +686,12 @@ export default function ImportActiveRoutes({
 
       if (existingDelivery) {
         // EXISTING DELIVERY MATCHED BY SID: Replace all data from import (except ID)
+        // CRITICAL: Preserve delivery_notes from import CSV (rawNotes column 17)
         const updatedDeliveryData = {
           ...newDeliveryData,
-          id: existingDelivery.id
+          id: existingDelivery.id,
+          // Ensure notes from CSV are included
+          delivery_notes: rawNotes || existingDelivery.delivery_notes || null
         };
 
         // Detect changes between existing and imported data
