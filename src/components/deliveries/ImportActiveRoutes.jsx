@@ -1444,6 +1444,7 @@ export default function ImportActiveRoutes({
   };
 
   const handleErrorStartOver = () => {
+    // CRITICAL: Reset ALL state to initial values to allow fresh import
     setImportError(null);
     setFiles([]);
     setSelectedDriverId('');
@@ -1469,6 +1470,12 @@ export default function ImportActiveRoutes({
       filesCompleted: 0,
       totalFiles: 0
     });
+    
+    // CRITICAL: Reset file input element to allow re-selecting the same file
+    const fileInput = document.getElementById('route-upload');
+    if (fileInput) {
+      fileInput.value = '';
+    }
   };
 
   const handleErrorCancel = () => {
