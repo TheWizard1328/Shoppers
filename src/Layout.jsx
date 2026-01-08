@@ -1350,6 +1350,13 @@ export default function Layout({ children, currentPageName }) {
           }));
         }
 
+        // CRITICAL: Refresh ALL patients to ensure complete data sync
+        const patientUpdates = await smartRefreshManager.refreshTodayPatients(patients, deliveries.filter(d => d && d.delivery_date === format(selectedDate, 'yyyy-MM-dd')));
+        if (patientUpdates?.hasChanges) {
+          setPatients(patientUpdates.patients);
+          if (!updatedEntities.includes('patients')) updatedEntities.push('patients');
+        }
+
         const storesUpdate = await smartRefreshManager.refreshStores(stores);
         if (storesUpdate?.hasChanges) {
           setStores(storesUpdate.stores);

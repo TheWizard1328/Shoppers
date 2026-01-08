@@ -842,25 +842,37 @@ class SmartRefreshManager {
   }
 
   /**
-   * Smart refresh for TODAY'S route patients only (HIGH PRIORITY)
-   * Only refreshes patients that are part of today's deliveries
+   * Smart refresh for ALL active patients (ensuring complete patient data sync)
+   * CRITICAL: Syncs ALL active patients to offline DB, not just those with deliveries
    */
   async refreshTodayPatients(currentPatients, todayDeliveries) {
     try {
-      if (!todayDeliveries || todayDeliveries.length === 0) {
+      // CRITICAL: Check offline DB first to avoid unnecessary API calls
+      const { offlineDB } = await import('./offlineDatabase');
+      const offlinePatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+
+      // If we have offline patient data, use it
+      if (offlinePatients && offlinePatients.length > 0) {
+        const diff = diffEntityArrays(currentPatients, offlinePatients);
+
+        if (diff.toUpdate.length > 0 || diff.toAdd.length > 0 || diff.toRemove.length > 0) {
+          const mergedPatients = mergeEntityChanges(currentPatients, diff);
+
+          return {
+            hasChanges: true,
+            patients: mergedPatients
+          };
+        }
         return null;
       }
-      
-      // Get patient IDs from today's deliveries
-      const todayPatientIds = [...new Set(
-        todayDeliveries
-          .filter(d => d && d.patient_id)
-          .map(d => d.patient_id)
-      )];
-      
-      if (todayPatientIds.length === 0) {
-        return null;
-      }
+
+      // No offline data - fetch ALL patients from API
+      const todayPatientIds = todayDeliveries && todayDeliveries.length > 0 ? 
+        [...new Set(
+          todayDeliveries
+            .filter(d => d && d.patient_id)
+            .map(d => d.patient_id)
+        )] : [];
       
       // CRITICAL: Check if we received a broadcast and need fresh data
       const needsApiFetch = this.shouldFetchFromApi('Patient');
@@ -877,16 +889,14 @@ class SmartRefreshManager {
         return null;
       }
       
-      // Only fetch patients that are on today's routes AND updated recently
-      const queryFilter = {
-        id: { $in: todayPatientIds }
-      };
-      
-      // Only add timestamp filter if we're not responding to a broadcast
-      if (lastTimestamp && !needsApiFetch) {
+      // CRITICAL: Fetch ALL active patients to ensure complete data sync across devices
+      const queryFilter = {};
+
+      // Only add timestamp filter if we're not responding to a broadcast AND have current data
+      if (lastTimestamp && !needsApiFetch && currentPatients.length > 0) {
         queryFilter.updated_date = { $gte: lastTimestamp.toISOString() };
       }
-      
+
       await this.waitForRateLimit();
       const updatedPatients = await base44.entities.Patient.filter(queryFilter);
       
