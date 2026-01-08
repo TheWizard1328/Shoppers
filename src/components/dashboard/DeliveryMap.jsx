@@ -1037,10 +1037,19 @@ export default function DeliveryMap({
         // Dispatcher's own stores - ALWAYS use store colors regardless of driver or PUID
         pinColor = store ? getStoreColor(store) : '#6B7280';
       } else if (hasNoPickup) {
-        pinColor = '#FBBF24';
+        // CRITICAL: Yellow ONLY for active driver's markers OR all drivers mode when pickup is missing
+        // For "Show All" mode with other drivers, use store color even when missing pickup
+        if (isOtherDriver) {
+          pinColor = store ? getStoreColor(store) : '#6B7280';
+        } else {
+          pinColor = '#FBBF24';
+        }
       } else if (isAllDriversMode) {
         // All drivers mode - use driver colors
         pinColor = enrichedDriver && typeof enrichedDriver === 'object' ? getDriverColor(enrichedDriver) : '#607D8B';
+      } else if (isOtherDriver) {
+        // CRITICAL: "Show All" mode for drivers - other drivers use STORE COLORS
+        pinColor = store ? getStoreColor(store) : '#6B7280';
       } else {
         // Single driver mode - use store colors
         pinColor = store ? getStoreColor(store) : '#6B7280';
@@ -1090,7 +1099,9 @@ export default function DeliveryMap({
       const isDriver = userHasRole(currentUser, 'driver');
       const isOtherDriver = isDriver && isDriverViewingSelf && pickup.driver_id !== currentUser?.id;
 
-      // CRITICAL: Pin color for pickups - ALWAYS use store color (never driver color)
+      // CRITICAL: Pin color for pickups
+      // Active driver OR all drivers mode: ALWAYS use store color
+      // "Show All" mode for other drivers: use store color
       const pickupPinColor = getStoreColor(store);
 
       return {
