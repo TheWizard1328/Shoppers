@@ -233,71 +233,25 @@ export default function ImportActiveRoutes({
     }
 
     const importedDeliveryStopId = (importedDelivery.stop_id || '').trim();
-    const importedDeliveryPatientId = (importedDelivery.patient_id || '').trim();
     const importedDeliveryDate = importedDelivery.delivery_date;
-    const importedDriverName = (importedDelivery.driver_name || '').trim().toLowerCase();
-    const importedTrackingNumber = (importedDelivery.tracking_number || '').trim();
     const importedDriverId = importedDelivery.driver_id;
 
     const sameDateDeliveries = existingDeliveries.filter((d) => {
       if (d.delivery_date !== importedDeliveryDate) return false;
-
       if (importedDriverId && d.driver_id) {
         return d.driver_id === importedDriverId;
       }
-
-      const existingDriverName = (d.driver_name || '').trim().toLowerCase();
-      const driverMatch = !existingDriverName || existingDriverName === importedDriverName;
-
-      return driverMatch;
+      return true;
     });
 
-    // Priority 1: Match by Stop ID (SID) - must be unique
+    // ONLY MATCH BY STOP ID (SID)
     if (importedDeliveryStopId) {
-      const sidMatches = sameDateDeliveries.filter((d) => {
+      const sidMatch = sameDateDeliveries.find((d) => {
         const existingSID = (d.stop_id || '').trim();
         return existingSID === importedDeliveryStopId;
       });
-      if (sidMatches.length === 1) {
-        return { match: sidMatches[0], reason: `SID Match (${importedDeliveryStopId})` };
-      }
-    }
-
-    // Priority 2: Match by Tracking Number (TR#) - EXACT MATCH ONLY
-    // Range matching removed as it was causing incorrect matches for pending deliveries
-    if (importedTrackingNumber && importedTrackingNumber !== '') {
-      const trackingNumberMatch = sameDateDeliveries.find((d) => {
-        const existingTR = (d.tracking_number || '').trim();
-        return existingTR === importedTrackingNumber; // Exact match only
-      });
-      
-      if (trackingNumberMatch) {
-        return { match: trackingNumberMatch, reason: `TR# Match (${importedTrackingNumber})` };
-      }
-    }
-
-    // Priority 3: Match by Patient ID (PID) only
-    if (importedDeliveryPatientId) {
-      const patientIdMatch = sameDateDeliveries.find((d) => {
-        const existingPID = (d.patient_id || '').trim();
-        return existingPID === importedDeliveryPatientId;
-      });
-
-      if (patientIdMatch) {
-        return { match: patientIdMatch, reason: `PID Match (${importedDeliveryPatientId})` };
-      }
-    }
-
-    // Priority 4: Match for pickups (abbreviation + AM/PM)
-    if (!importedDeliveryPatientId && importedDelivery.store_id) {
-      const pickupMatch = sameDateDeliveries.find((d) =>
-        d.store_id === importedDelivery.store_id &&
-        (!d.patient_id || d.patient_id === '') &&
-        d.ampm_deliveries === importedDelivery.ampm_deliveries
-      );
-
-      if (pickupMatch) {
-        return { match: pickupMatch, reason: `Pickup Match (Abbr + AM/PM)` };
+      if (sidMatch) {
+        return { match: sidMatch, reason: `SID Match (${importedDeliveryStopId})` };
       }
     }
 
