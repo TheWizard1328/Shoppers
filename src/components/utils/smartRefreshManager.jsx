@@ -933,21 +933,27 @@ class SmartRefreshManager {
       }
       
       // CRITICAL: Merge ALL server AppUsers into current state
-      // BUT respect pending local updates to prevent reverting status changes
+      // ALWAYS take server's location data, but respect local timestamps for other fields
       const updatedAppUsers = currentAppUsers.map(au => {
         const serverVersion = allAppUsers.find(ad => ad.user_id === au.user_id);
         if (serverVersion) {
-          // CRITICAL: Check if server data is newer than local data
-          // If local data is newer (recent status change), keep local version
           const localTime = new Date(au.updated_date || 0).getTime();
           const serverTime = new Date(serverVersion.updated_date || 0).getTime();
           
+          // CRITICAL: ALWAYS take server's location data to prevent marker disappearing
+          const merged = {
+            ...au,
+            current_latitude: serverVersion.current_latitude,
+            current_longitude: serverVersion.current_longitude,
+            location_updated_at: serverVersion.location_updated_at
+          };
+          
+          // For other fields, prefer server if newer
           if (serverTime > localTime) {
-            return { ...au, ...serverVersion };
-          } else {
-            // Local is newer - keep local version (recent status change)
-            return au;
+            return { ...merged, ...serverVersion };
           }
+          
+          return merged;
         }
         return au;
       });
