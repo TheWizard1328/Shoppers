@@ -2779,12 +2779,25 @@ export default function DeliveryForm({
     }, 100);
   }, [delivery, allDeliveries, currentUser, patients, stores, suggestedDate]);
 
+  // CRITICAL: Track initial PUID from delivery to prevent overwrites
+  const initialPuidRef = useRef(null);
+  
   useEffect(() => {
-    // Auto-update PUID when store changes for an existing delivery
-    // CRITICAL: Skip if editing a staged delivery (PUID already set from staged item)
-    if (editingStagedId) return;
+    if (delivery && delivery.puid) {
+      initialPuidRef.current = delivery.puid;
+    }
+  }, [delivery?.id]); // Only set once when delivery loads
+
+  useEffect(() => {
+    // CRITICAL: Never auto-update PUID for existing deliveries with a PUID already set
+    // This prevents the blinking issue where PUID gets recalculated and overwrites the correct value
+    if (delivery && initialPuidRef.current) {
+      console.log('⏸️ [DeliveryForm] Preserving original PUID:', initialPuidRef.current);
+      return; // Skip PUID recalculation entirely for deliveries with existing PUID
+    }
     
-    if (delivery && !isPickupMode && formData.store_id && formData.delivery_date && allDeliveries && stores) {
+    // Auto-update PUID only for NEW deliveries or deliveries that never had a PUID
+    if (delivery && !isPickupMode && formData.store_id && formData.delivery_date && allDeliveries && stores && !initialPuidRef.current) {
       const store = stores.find((s) => s && s.id === formData.store_id);
       if (store) {
         const timeSlot = getStoreAssignedTimeSlot(store, formData.delivery_date, allDeliveries);
@@ -2795,7 +2808,7 @@ export default function DeliveryForm({
         }
       }
     }
-  }, [formData.store_id, delivery, isPickupMode, formData.delivery_date, stores, allDeliveries, editingStagedId]);
+  }, [formData.store_id, delivery, isPickupMode, formData.delivery_date, stores, allDeliveries]);
 
   const confirmAddProjectedToStaged = useCallback(async (projected) => {
     const store = stores.find((s) => s && s.id === projected.store_id);
