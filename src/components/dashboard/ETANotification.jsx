@@ -94,8 +94,7 @@ export default function ETANotification({
         initial={{ opacity: 0, y: -50, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: -50, scale: 0.95 }}
-        className="fixed top-20 left-4 right-4 z-[10000] mx-auto max-w-md"
-        style={{ transform: 'none' }}
+        className="fixed top-20 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-md z-[10000]"
       >
         <div 
           className={`rounded-xl shadow-2xl p-4 border-2 ${
