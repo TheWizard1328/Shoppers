@@ -927,8 +927,8 @@ export default function StopCard({
                   {finalDisplayPhone &&
                 <a
                   href={`tel:${finalDisplayPhone.replace(/\D/g, '')}`}
-                  onClick={(e) => e.stopPropagation()} className="flex items-center justify-center w-11 h-11 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-600 transition-colors">
-                      <Phone className="w-5 h-5" />
+                  onClick={(e) => e.stopPropagation()} className="flex items-center justify-center w-12 h-12 md:w-11 md:h-11 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-600 transition-colors">
+                      <Phone className="w-6 h-6 md:w-5 md:h-5" />
                     </a>
                 }
                   {finalDisplayAddress &&
@@ -944,8 +944,8 @@ export default function StopCard({
                   })()}
                   target="_blank"
                   rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()} className="flex items-center justify-center w-11 h-11 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 transition-colors">
-                      <Navigation className="w-5 h-5" />
+                  onClick={(e) => e.stopPropagation()} className="flex items-center justify-center w-12 h-12 md:w-11 md:h-11 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 transition-colors">
+                      <Navigation className="w-6 h-6 md:w-5 md:h-5" />
                     </a>
                 }
                 </div>
@@ -1768,10 +1768,10 @@ export default function StopCard({
                     {delivery.status === 'failed' && !isPickup &&
                   <Button
                     onClick={handleReturnClick}
-                    size="sm" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow rounded-md px-3 text-xs bg-orange-600 hover:bg-orange-700 !text-white h-8"
+                    size="sm" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow rounded-md px-4 md:px-3 text-sm md:text-xs bg-orange-600 hover:bg-orange-700 !text-white h-10 md:h-8"
 
                     disabled={isPreparingReturn || hasFutureReturn || hasCompletedDelivery}>
-                        {isPreparingReturn ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Undo2 className="w-3 h-3 mr-1 !text-white" />}
+                        {isPreparingReturn ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 animate-spin" /> : <Undo2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                         Return
                       </Button>
                   }
@@ -1849,9 +1849,9 @@ export default function StopCard({
                         }
                       }}
                       size="sm"
-                      className="bg-blue-600 hover:bg-blue-700 h-8 rounded-r-none border-r border-blue-500 !text-white"
+                      className="bg-blue-600 hover:bg-blue-700 h-10 md:h-8 rounded-r-none border-r border-blue-500 !text-white text-sm md:text-xs"
                       disabled={isRetrying || !canRetry || hasFutureRetry || hasCompletedDelivery}>
-                          {isRetrying ? <Loader2 className="w-3 h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-3 h-3 mr-1 !text-white" />}
+                          {isRetrying ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <RotateCcw className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                           <span className="text-white">Retry</span>
                         </Button> :
                     delivery.status !== 'completed' && delivery.status !== 'cancelled' && (
@@ -2092,8 +2092,8 @@ export default function StopCard({
                       }}
                       size="sm"
                       disabled={isCompleting}
-                      className="rounded-md bg-emerald-600 px-3 text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-emerald-700 h-8 border-r border-emerald-500 !text-white">
-                              {isCompleting ? <Loader2 className="w-3 h-3 mr-1 !text-white animate-spin" /> : <CheckCircle className="w-3 h-3 mr-1 !text-white" />}
+                      className="rounded-md bg-emerald-600 px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-emerald-700 h-10 md:h-8 border-r border-emerald-500 !text-white">
+                              {isCompleting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <CheckCircle className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                               <span className="text-white">Complete</span>
                             </Button> :
                     onStartDelivery &&
@@ -2219,8 +2219,8 @@ export default function StopCard({
                         setIsStarting(false);
                       }, 300);
 
-                    }} size="sm" disabled={isStarting} className="bg-blue-600 px-3 text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-8 border-r border-blue-500 !text-white">
-                              {isStarting ? <Loader2 className="w-3 h-3 mr-1 !text-white animate-spin" /> : <Clock className="w-3 h-3 mr-1 !text-white" />}
+                    }} size="sm" disabled={isStarting} className="bg-blue-600 px-4 md:px-3 text-sm md:text-xs font-medium rounded-r-none inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow hover:bg-blue-700 h-10 md:h-8 border-r border-blue-500 !text-white">
+                              {isStarting ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white animate-spin" /> : <Clock className="w-4 h-4 md:w-3 md:h-3 mr-1 !text-white" />}
                               <span className="text-white">Start</span>
                             </Button>)
                     }
@@ -2229,23 +2229,23 @@ export default function StopCard({
                         <DropdownMenuTrigger asChild>
                           <Button
                           variant="ghost"
-                          size="icon" className="bg-transparent text-sm font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground h-8 w-8 border border-slate-300 hover:bg-slate-100 relative z-[10]"
+                          size="icon" className="bg-transparent text-sm font-medium rounded-md inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground h-10 w-10 md:h-8 md:w-8 border border-slate-300 hover:bg-slate-100 relative z-[10]"
 
                           onClick={(e) => e.stopPropagation()}>
-                            <MoreVertical className="w-4 h-4" />
+                            <MoreVertical className="w-5 h-5 md:w-4 md:h-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="p-1 rounded-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 min-w-[8rem] overflow-hidden border-2 shadow-md z-[200]" sideOffset={5} onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
                           {onEditDelivery && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
-                        <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEditDelivery(delivery);}}>
-                              <Edit className="w-4 h-4 mr-2" />
+                        <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEditDelivery(delivery);}} className="text-base md:text-sm py-2.5 md:py-1.5">
+                              <Edit className="w-5 h-5 md:w-4 md:h-4 mr-2" />
                               {isPickup ? 'Edit Pickup' : 'Edit Delivery'}
                             </DropdownMenuItem>
                         }
 
                           {!isPickup && patient && onEditPatient && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
-                        <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEditPatient(patient);}}>
-                              <User className="w-4 h-4 mr-2" />
+                        <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEditPatient(patient);}} className="text-base md:text-sm py-2.5 md:py-1.5">
+                              <User className="w-5 h-5 md:w-4 md:h-4 mr-2" />
                               Edit Patient
                             </DropdownMenuItem>
                         }
@@ -2253,7 +2253,7 @@ export default function StopCard({
                           {isCompleted && onRestart && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) && delivery.delivery_date === format(new Date(), 'yyyy-MM-dd') && !isRouteCompleted &&
                         <>
                               <DropdownMenuSeparator className="bg-slate-200" />
-                              <DropdownMenuItem onClick={async (e) => {
+                              <DropdownMenuItem className="text-base md:text-sm py-2.5 md:py-1.5" onClick={async (e) => {
                             e.stopPropagation();
 
                             // CRITICAL: Deactivate FAB before restart
@@ -2328,7 +2328,7 @@ export default function StopCard({
                               fabControlEvents.reactivateFAB(true);
                             }
                           }}>
-                                <RotateCcw className="w-4 h-4 mr-2" />
+                                <RotateCcw className="w-5 h-5 md:w-4 md:h-4 mr-2" />
                                 Restart Delivery
                               </DropdownMenuItem>
                             </>
@@ -2344,8 +2344,8 @@ export default function StopCard({
                                   setPendingFailureStatus(isPickup ? 'cancelled' : 'failed');
                                   setShowFailureReasonDialog(true);
                                 }}
-                                className="text-red-600">
-                                <XCircle className="w-4 h-4 mr-2" />
+                                className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5">
+                                <XCircle className="w-5 h-5 md:w-4 md:h-4 mr-2" />
                                 {isPickup ? 'Cancel Pickup' : 'Mark as Failed'}
                               </DropdownMenuItem>
                             </>
@@ -2356,9 +2356,9 @@ export default function StopCard({
                           {onDeleteDelivery && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                         <DropdownMenuItem
                           onClick={(e) => {e.stopPropagation();setShowDeleteConfirm(true);}}
-                          className="text-red-600"
+                          className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5"
                           disabled={!userHasRole(currentUser, 'admin') && isRouteCompleted}>
-                              <Trash2 className="w-4 h-4 mr-2" />
+                              <Trash2 className="w-5 h-5 md:w-4 md:h-4 mr-2" />
                               Delete
                             </DropdownMenuItem>
                         }
