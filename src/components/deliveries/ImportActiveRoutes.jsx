@@ -151,7 +151,6 @@ export default function ImportActiveRoutes({
   allDeliveries
 }) {
   const [files, setFiles] = useState([]);
-  const [selectedDriverId, setSelectedDriverId] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [importResult, setImportResult] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
@@ -329,6 +328,29 @@ export default function ImportActiveRoutes({
   const handleFileChange = (e) => {
     const selectedFiles = Array.from(e.target.files);
     setFiles(selectedFiles.length > 0 ? selectedFiles : []);
+  };
+
+  // Extract driver name from filename (format: "Driver Name - Date.csv")
+  const extractDriverFromFilename = (filename) => {
+    const match = filename.match(/^(.+?)\s*-\s*\d{4}/);
+    if (match) {
+      return match[1].trim();
+    }
+    return null;
+  };
+
+  // Find driver user by matching filename driver name
+  const findDriverByFilename = (filename) => {
+    const driverNameFromFile = extractDriverFromFilename(filename);
+    if (!driverNameFromFile) return null;
+
+    const usersToSearch = allDriverUsers.length > 0 ? allDriverUsers : allUsers || [];
+    const lowerName = driverNameFromFile.toLowerCase();
+    
+    return usersToSearch.find(u => {
+      const userName = (u.user_name || u.full_name || '').toLowerCase();
+      return userName === lowerName || userName.includes(lowerName);
+    });
   };
 
   const removeFile = (indexToRemove) => {
@@ -915,10 +937,6 @@ export default function ImportActiveRoutes({
       alert('Please select at least one CSV file');
       return;
     }
-    if (!selectedDriverId) {
-      alert('Please select a driver');
-      return;
-    }
 
     setIsParsing(true);
     setImportResult(null);
@@ -929,9 +947,6 @@ export default function ImportActiveRoutes({
     setPreviewFilterDate('all');
 
     try {
-      const usersToSearch = allDriverUsers.length > 0 ? allDriverUsers : allUsers || [];
-      const selectedUser = usersToSearch.find((u) => u.id === selectedDriverId);
-      if (!selectedUser) throw new Error('Selected driver not found');
 
       setProgressMessage('Analyzing import files for date range...');
       setProgressPercent(5);
@@ -966,12 +981,12 @@ export default function ImportActiveRoutes({
         return;
       }
 
-      setProgressMessage(`Refreshing delivery cache for ${selectedUser.user_name || selectedUser.full_name} (${minDate} to ${maxDate})...`);
+      setProgressMessage(`Refreshing delivery cache (${minDate} to ${maxDate})...`);
       setProgressPercent(25);
 
+      // Fetch deliveries for ALL drivers in the date range (needed for matching)
       const freshDeliveries = await base44.entities.Delivery.filter(
         { 
-          driver_id: selectedUser.id,
           delivery_date: { $gte: minDate, $lte: maxDate }
         },
         '-delivery_date',
@@ -989,8 +1004,15 @@ export default function ImportActiveRoutes({
         const file = files[i];
         setProgressMessage(`Processing file ${i + 1} of ${files.length}: ${file.name}...`);
 
+        // Extract driver from filename
+        const driverFromFile = findDriverByFilename(file.name);
+        if (!driverFromFile) {
+          totalErrors.push(`Could not detect driver from filename: ${file.name}`);
+          continue;
+        }
+
         const text = await file.text();
-        const result = await processCSVData(text, file.name, selectedUser, freshDeliveries, freshPatients, freshStoresAll);
+        const result = await processCSVData(text, file.name, driverFromFile, freshDeliveries, freshPatients, freshStoresAll);
 
         totalToCreate = [...totalToCreate, ...result.deliveriesToCreate];
         totalToUpdate = [...totalToUpdate, ...result.deliveriesToUpdate];
@@ -1023,7 +1045,6 @@ export default function ImportActiveRoutes({
       setImportError({
         message: error.message,
         record: {
-          driver: availableDrivers.find((d) => d.id === selectedDriverId)?.user_name || 'Unknown',
           files: files.map((f) => f.name).join(', ')
         },
         lineNumber: null,
@@ -1046,7 +1067,7 @@ export default function ImportActiveRoutes({
       created: 0,
       updated: 0,
       errors: 0,
-      currentFile: files.length > 0 ? files[0].name : '',
+      currentFile: '',
       filesCompleted: 0,
       totalFiles: files.length
     });
@@ -1296,20 +1317,21 @@ export default function ImportActiveRoutes({
       
       // CRITICAL: Update isNextDelivery flags for all imported dates/drivers
       try {
-        const usersToSearch = allDriverUsers.length > 0 ? allDriverUsers : allUsers || [];
-        const selectedUser = usersToSearch.find((u) => u.id === selectedDriverId);
+        const { minDate, maxDate } = await extractDateRangeFromFiles(files);
         
-        if (selectedUser) {
-          const { minDate, maxDate } = await extractDateRangeFromFiles(files);
+        if (minDate && maxDate) {
+          // Get all deliveries for ALL drivers in the date range (from imported files)
+          const allDriversInRange = new Set();
+          [...previewData.deliveriesToCreate, ...previewData.deliveriesToUpdate].forEach(d => {
+            if (d.driver_id) allDriversInRange.add(d.driver_id);
+          });
           
-          if (minDate && maxDate) {
-            // Get all deliveries for this driver in the date range
+          for (const driverId of allDriversInRange) {
             const allDriverDeliveries = await base44.entities.Delivery.filter({
-              driver_id: selectedUser.id,
+              driver_id: driverId,
               delivery_date: { $gte: minDate, $lte: maxDate }
             });
             
-            // Group by date
             const deliveriesByDate = {};
             allDriverDeliveries.forEach(d => {
               if (!d || !d.delivery_date) return;
@@ -1319,11 +1341,9 @@ export default function ImportActiveRoutes({
               deliveriesByDate[d.delivery_date].push(d);
             });
             
-            // Process each date
             for (const [date, dateDeliveries] of Object.entries(deliveriesByDate)) {
               const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
               
-              // STEP 1: Reset ALL isNextDelivery flags to false
               const resetPromises = dateDeliveries
                 .filter(d => d.isNextDelivery === true)
                 .map(d => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
@@ -1332,7 +1352,6 @@ export default function ImportActiveRoutes({
                 await Promise.all(resetPromises);
               }
               
-              // STEP 2: Find first incomplete stop (en_route or in_transit, NOT pending)
               const incompleteDeliveries = dateDeliveries
                 .filter(d => !finishedStatuses.includes(d.status) && d.status !== 'pending')
                 .sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
@@ -1368,7 +1387,6 @@ export default function ImportActiveRoutes({
         window.dispatchEvent(new CustomEvent('deliveriesImported', {
           detail: { 
             source: 'activeRoutesImport',
-            driverId: selectedDriverId,
             count: overallResults.created + overallResults.updated,
             deliveries: allDriversDeliveries // Pass full deliveries to update all markers
           }
@@ -1378,7 +1396,6 @@ export default function ImportActiveRoutes({
         window.dispatchEvent(new CustomEvent('deliveriesImported', {
           detail: { 
             source: 'activeRoutesImport',
-            driverId: selectedDriverId,
             count: overallResults.created + overallResults.updated
           }
         }));
@@ -1414,7 +1431,6 @@ export default function ImportActiveRoutes({
       setImportError({
         message: error.message,
         record: {
-          driver: availableDrivers.find((d) => d.id === selectedDriverId)?.user_name || 'Unknown',
           files: files.map((f) => f.name).join(', '),
           created: overallResults.created,
           updated: overallResults.updated
@@ -1447,7 +1463,6 @@ export default function ImportActiveRoutes({
     // CRITICAL: Reset ALL state to initial values to allow fresh import
     setImportError(null);
     setFiles([]);
-    setSelectedDriverId('');
     setIsProcessing(false);
     setImportResult(null);
     setShowPreview(false);
@@ -1611,35 +1626,48 @@ export default function ImportActiveRoutes({
                         onChange={handleFileChange}
                         disabled={isParsing || isProcessing || showProgress}
                       />
-                      <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>Select multiple active route files to import.</p>
+                      <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
+                        Driver name will be extracted from filenames (e.g., "John Doe - 2024-01-15.csv")
+                      </p>
                     </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="driver-select">Select Driver *</Label>
-                      <Select value={selectedDriverId} onValueChange={setSelectedDriverId} disabled={isParsing || isProcessing || showProgress}>
-                        <SelectTrigger id="driver-select" className="w-full">
-                          <SelectValue placeholder="Choose a driver..." />
-                        </SelectTrigger>
-                        <SelectContent className="z-[10002]">
-                          {availableDrivers.length > 0 ? (
-                            availableDrivers.map((driver) => (
-                              <SelectItem key={driver.id} value={driver.id}>
-                                {getDriverDisplayName(driver)}
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <SelectItem value="none" disabled>
-                              No drivers available
-                            </SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    {files.length > 0 && (
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Selected Files ({files.length})</Label>
+                        <div className="space-y-1 max-h-60 overflow-y-auto border rounded-lg p-2" style={{ borderColor: 'var(--border-slate-200)' }}>
+                          {files.map((file, index) => {
+                            const driverFromFile = findDriverByFilename(file.name);
+                            return (
+                              <div key={index} className="flex items-center justify-between px-3 py-2 rounded text-sm" style={{ background: 'var(--bg-slate-50)' }}>
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium truncate">{file.name}</div>
+                                  {driverFromFile ? (
+                                    <div className="text-xs text-green-600 font-medium">
+                                      ✓ Driver: {getDriverDisplayName(driverFromFile)}
+                                    </div>
+                                  ) : (
+                                    <div className="text-xs text-red-600 font-medium">
+                                      ⚠ No driver detected
+                                    </div>
+                                  )}
+                                </div>
+                                {!isParsing && !isProcessing && !showProgress && (
+                                  <button onClick={() => removeFile(index)} className="ml-2 hover:text-red-600" style={{ color: 'var(--text-slate-400)' }}>
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="rounded-lg p-4 text-sm" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)', border: '1px solid' }}>
                     <h4 className="font-semibold mb-2">CSV Format (Active Routes)</h4>
                     <ul className="list-disc list-inside space-y-1 text-xs">
+                      <li><strong>Filename:</strong> "Driver Name - YYYY-MM-DD.csv"</li>
                       <li>Row 1: Ignored (header)</li>
                       <li>Row 2+: Date: <code>#YYYY-MM-DD#,Count,...</code></li>
                       <li>Col 1: Store Abbr, Col 2: AM/PM</li>
@@ -1648,28 +1676,9 @@ export default function ImportActiveRoutes({
                       <li>Col 13-14: Ignored, Col 14: SID</li>
                       <li>Col 15: PID, Col 17: Notes</li>
                       <li><strong>Status:</strong> Pending (Col 5 negative), Completed (Order &gt; 0, Col 6 only), En Route (Order = 0, Col 6+7)</li>
-                      <li><strong>Match:</strong> SID → TR# (±20 range) → PID → Abbr+AM/PM</li>
                     </ul>
                   </div>
                 </div>
-
-                {files.length > 0 && (
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Selected Files ({files.length})</Label>
-                    <div className="space-y-1 max-h-32 overflow-y-auto border rounded-lg p-2" style={{ borderColor: 'var(--border-slate-200)' }}>
-                      {files.map((file, index) => (
-                        <div key={index} className="flex items-center justify-between px-3 py-2 rounded text-sm" style={{ background: 'var(--bg-slate-50)' }}>
-                          <span className="truncate flex-1">{file.name}</span>
-                          {!isParsing && !isProcessing && !showProgress && (
-                            <button onClick={() => removeFile(index)} className="ml-2 hover:text-red-600" style={{ color: 'var(--text-slate-400)' }}>
-                              <X className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
                 {previewData.errors.length > 0 && (
                   <div className="space-y-1 mt-4">
@@ -1708,7 +1717,7 @@ export default function ImportActiveRoutes({
                 <div className="flex items-center justify-between gap-4 mb-4">
                   <div className="flex flex-col">
                     <span className="text-sm" style={{ color: 'var(--text-slate-500)' }}>
-                      Importing for: <span className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>{availableDrivers.find((d) => d.id === selectedDriverId)?.user_name || 'Unknown Driver'}</span>
+                      Importing {files.length} file(s) for multiple drivers
                     </span>
                     <h3 className="text-lg font-semibold" style={{ color: 'var(--text-slate-800)' }}>Preview: {filteredPreviewDeliveries.length} Total Deliveries</h3>
                   </div>
@@ -1859,7 +1868,7 @@ export default function ImportActiveRoutes({
             <div className="flex gap-3">
               {!showPreview ? (
                 <>
-                  <Button onClick={handlePreview} disabled={isParsing || isProcessing || files.length === 0 || !selectedDriverId || showProgress}>
+                  <Button onClick={handlePreview} disabled={isParsing || isProcessing || files.length === 0 || showProgress}>
                     {isParsing ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
