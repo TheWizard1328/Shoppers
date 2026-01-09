@@ -330,13 +330,25 @@ export default function ImportActiveRoutes({
     setFiles(selectedFiles.length > 0 ? selectedFiles : []);
   };
 
-  // Extract driver name from filename (format: "Driver Name - Date.csv")
+  // Extract driver name from filename (format: "Robert T Route.csv" or "Driver Name - Date.csv")
   const extractDriverFromFilename = (filename) => {
-    const match = filename.match(/^(.+?)\s*-\s*\d{4}/);
-    if (match) {
-      return match[1].trim();
+    // Remove file extension
+    const nameWithoutExt = filename.replace(/\.(csv|tsv|txt)$/i, '');
+    
+    // Try "Driver Name - Date" format first
+    const dateMatch = nameWithoutExt.match(/^(.+?)\s*-\s*\d{4}/);
+    if (dateMatch) {
+      return dateMatch[1].trim();
     }
-    return null;
+    
+    // Try "Driver Name Route" format (e.g., "Robert T Route")
+    const routeMatch = nameWithoutExt.match(/^(.+?)\s+Route$/i);
+    if (routeMatch) {
+      return routeMatch[1].trim();
+    }
+    
+    // Fallback: use entire filename without extension
+    return nameWithoutExt.trim();
   };
 
   // Find driver user by matching filename driver name
