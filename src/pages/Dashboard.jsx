@@ -3190,6 +3190,10 @@ function Dashboard() {
         smartRefreshManager.clearPendingUpdates();
       }
 
+      // CRITICAL: Delay UI update slightly to allow all data to load first
+      // This prevents flickering when switching drivers
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       if (updateDeliveriesLocally) {
         const otherDeliveries = deliveries.filter((d) =>
         d && d.delivery_date !== dateStr
