@@ -1384,21 +1384,21 @@ export default function ImportActiveRoutes({
         console.error('❌ [ImportActiveRoutes] Failed to update isNextDelivery flags:', flagError);
       }
       
-      // CRITICAL: Reorder stops after import - completed first (by completion time), then incomplete by ETA
-      setProgressMessage('Reordering stops...');
+      // CRITICAL: Reorder stops after import - completed first by actual_delivery_time, then active by ETA
+      setProgressMessage('Reordering stops by completion time and ETA...');
       
       try {
         const { minDate, maxDate } = await extractDateRangeFromFiles(files);
         
         if (minDate && maxDate) {
-          // Get all unique driver IDs from the imported data
-          const allDriversInImport = new Set();
+          // Get all drivers that were imported
+          const allDriversInRange = new Set();
           [...previewData.deliveriesToCreate, ...previewData.deliveriesToUpdate].forEach(d => {
-            if (d.driver_id) allDriversInImport.add(d.driver_id);
+            if (d.driver_id) allDriversInRange.add(d.driver_id);
           });
           
-          for (const driverId of allDriversInImport) {
-            // Fetch all deliveries for this driver in the date range
+          for (const driverId of allDriversInRange) {
+            // Fetch fresh deliveries for this driver/date range
             const driverDeliveries = await base44.entities.Delivery.filter({
               driver_id: driverId,
               delivery_date: { $gte: minDate, $lte: maxDate }
@@ -1414,57 +1414,63 @@ export default function ImportActiveRoutes({
               deliveriesByDate[d.delivery_date].push(d);
             });
             
-            // Reorder each date's deliveries
             for (const [date, dateDeliveries] of Object.entries(deliveriesByDate)) {
               const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
               
-              // Separate completed from incomplete
-              const completedStops = dateDeliveries.filter(d => finishedStatuses.includes(d.status));
-              const incompleteStops = dateDeliveries.filter(d => !finishedStatuses.includes(d.status));
+              // Separate completed and active deliveries
+              const completedDeliveries = dateDeliveries
+                .filter(d => finishedStatuses.includes(d.status))
+                .sort((a, b) => {
+                  // Sort by actual_delivery_time ascending
+                  const timeA = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : 0;
+                  const timeB = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : 0;
+                  return timeA - timeB;
+                });
               
-              // Sort completed by actual_delivery_time (earliest first)
-              completedStops.sort((a, b) => {
-                const timeA = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : 0;
-                const timeB = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : 0;
-                return timeA - timeB;
-              });
+              const activeDeliveries = dateDeliveries
+                .filter(d => !finishedStatuses.includes(d.status) && d.status !== 'pending')
+                .sort((a, b) => {
+                  // Sort by ETA (delivery_time_eta or delivery_time_start) ascending
+                  const etaA = a.delivery_time_eta || a.delivery_time_start || '99:99';
+                  const etaB = b.delivery_time_eta || b.delivery_time_start || '99:99';
+                  return etaA.localeCompare(etaB);
+                });
               
-              // Sort incomplete by ETA then stop_order
-              incompleteStops.sort((a, b) => {
-                // Parse ETA as minutes from midnight
-                const parseETA = (eta) => {
-                  if (!eta) return 9999;
-                  const [hours, minutes] = eta.split(':').map(Number);
-                  return hours * 60 + minutes;
-                };
+              const pendingDeliveries = dateDeliveries
+                .filter(d => d.status === 'pending')
+                .sort((a, b) => {
+                  // Sort pending by delivery_time_start if available
+                  const timeA = a.delivery_time_start || '99:99';
+                  const timeB = b.delivery_time_start || '99:99';
+                  return timeA.localeCompare(timeB);
+                });
+              
+              // Assign sequential stop_order: completed first, then active, then pending
+              const orderedDeliveries = [...completedDeliveries, ...activeDeliveries, ...pendingDeliveries];
+              
+              const updatePromises = [];
+              for (let i = 0; i < orderedDeliveries.length; i++) {
+                const delivery = orderedDeliveries[i];
+                const newStopOrder = i + 1;
                 
-                const etaA = parseETA(a.delivery_time_eta || a.delivery_time_start);
-                const etaB = parseETA(b.delivery_time_eta || b.delivery_time_start);
-                
-                if (etaA !== etaB) return etaA - etaB;
-                return (a.stop_order || 999) - (b.stop_order || 999);
-              });
-              
-              // Combine: completed first, then incomplete
-              const reorderedStops = [...completedStops, ...incompleteStops];
-              
-              // Update stop_order for all deliveries
-              const updatePromises = reorderedStops.map((delivery, index) => {
-                const newStopOrder = index + 1;
+                // Only update if stop_order changed
                 if (delivery.stop_order !== newStopOrder) {
-                  return base44.entities.Delivery.update(delivery.id, { stop_order: newStopOrder });
+                  updatePromises.push(
+                    base44.entities.Delivery.update(delivery.id, { stop_order: newStopOrder })
+                  );
                 }
-                return Promise.resolve();
-              });
+              }
               
-              await Promise.all(updatePromises);
-              console.log(`✅ [ImportActiveRoutes] Reordered ${reorderedStops.length} stops for driver on ${date}`);
+              if (updatePromises.length > 0) {
+                await Promise.all(updatePromises);
+                console.log(`✅ [ImportActiveRoutes] Reordered ${updatePromises.length} stops for ${driverId} on ${date}`);
+              }
             }
           }
         }
       } catch (reorderError) {
         console.error('❌ [ImportActiveRoutes] Failed to reorder stops:', reorderError);
-        // Don't fail the import - reordering is best-effort
+        // Non-fatal - continue with import completion
       }
       
       setProgressMessage('Import complete!');
