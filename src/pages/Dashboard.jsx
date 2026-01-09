@@ -3077,49 +3077,8 @@ function Dashboard() {
       // STEP 5.5: Wait for UI to fully render before triggering map
       await new Promise((resolve) => setTimeout(resolve, 300));
 
-      // STEP 6: Auto-select driver based on role
-      const today = startOfDay(new Date());
-      const selected = startOfDay(date);
-      const isPastDate = selected < today;
-
-      let autoSelectedDriver = null;
-
-      if (userHasRole(currentUser, 'admin')) {
-        const driversWithStops = new Set(priorityDeliveries.map((d) => d.driver_id).filter(Boolean));
-        const adminHasStops = priorityDeliveries.some((d) => d && d.driver_id === currentUser.id);
-
-        if (driversWithStops.size === 1) {
-          autoSelectedDriver = Array.from(driversWithStops)[0];
-        } else if (driversWithStops.size > 1 && (isPastDate || !adminHasStops)) {
-          autoSelectedDriver = 'all';
-        } else {
-          autoSelectedDriver = 'all';
-        }
-      } else if (userHasRole(currentUser, 'dispatcher')) {
-        const dispatcherStoreIds = currentUser.store_ids || [];
-        const storeDeliveries = priorityDeliveries.filter((d) => d && dispatcherStoreIds.includes(d.store_id));
-        const driversWithStops = new Set(storeDeliveries.map((d) => d.driver_id).filter(Boolean));
-
-        if (driversWithStops.size > 1) {
-          autoSelectedDriver = 'all';
-        } else if (driversWithStops.size === 1) {
-          autoSelectedDriver = Array.from(driversWithStops)[0];
-        } else {
-          autoSelectedDriver = 'all';
-        }
-      } else if (userHasRole(currentUser, 'driver')) {
-        autoSelectedDriver = currentUser.id;
-      } else {
-        autoSelectedDriver = 'all';
-      }
-
-      if (autoSelectedDriver && autoSelectedDriver !== selectedDriverId) {
-        setSelectedDriverId(autoSelectedDriver);
-        globalFilters.setSelectedDriverId(autoSelectedDriver);
-        if (currentUser?.id) {
-          saveSetting(currentUser.id, 'selected_driver_id', autoSelectedDriver);
-        }
-      }
+      // STEP 6: REMOVED - Keep selected driver when changing dates
+      // Users manually select their preferred driver view, don't auto-change it
 
       // STEP 7: Trigger map view (non-blocking, delayed for rendering)
       setTimeout(() => {
