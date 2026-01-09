@@ -1979,10 +1979,19 @@ export default function StopCard({
                           console.log('🎯 [COMPLETE] PHASE 1: Updating UI immediately...');
 
                           // Update status to completed with timestamp
+                          // CRITICAL: Use local device time, not UTC
                           const currentTime = new Date();
+                          const year = currentTime.getFullYear();
+                          const month = String(currentTime.getMonth() + 1).padStart(2, '0');
+                          const day = String(currentTime.getDate()).padStart(2, '0');
+                          const hours = String(currentTime.getHours()).padStart(2, '0');
+                          const minutes = String(currentTime.getMinutes()).padStart(2, '0');
+                          const seconds = String(currentTime.getSeconds()).padStart(2, '0');
+                          const localTimeString = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+                          
                           const completionUpdate = {
                             status: 'completed',
-                            actual_delivery_time: currentTime.toISOString(),
+                            actual_delivery_time: localTimeString,
                             isNextDelivery: false,
                             signature_image_url: signatureUrl,
                             proof_photo_urls: photoUrls
