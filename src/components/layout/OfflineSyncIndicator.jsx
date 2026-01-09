@@ -32,7 +32,12 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
     });
 
     return unsubscribe;
-  }, []);
+  }, [isVisible]);
+
+  // Only show to app owners - MUST be after all hooks
+  if (!isVisible) {
+    return null;
+  }
 
   const handleForceSync = async () => {
     try {
