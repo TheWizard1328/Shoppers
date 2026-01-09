@@ -95,6 +95,7 @@ import ConnectionRecoveryBanner from './components/layout/ConnectionRecoveryBann
 import { subscribeMutations } from './components/utils/entityMutations';
 import { realtimeSync, subscribeToRealtime } from './components/utils/realtimeSync';
 import ConflictManager from './components/dashboard/ConflictManager';
+import PWAInstallPrompt from './components/common/PWAInstallPrompt';
 
 // App version will be loaded from AppSettings
 const DEFAULT_APP_VERSION = 'v1.0.0';
@@ -2602,6 +2603,9 @@ export default function Layout({ children, currentPageName }) {
 
       {/* Connection Recovery Banner - auto-shows on connection issues */}
       <ConnectionRecoveryBanner />
+
+      {/* PWA Install Prompt */}
+      <PWAInstallPrompt />
 
       {showCitySelectionPopup && currentUser && cities && cities.length > 0 && (
         <CitySelectionPopup

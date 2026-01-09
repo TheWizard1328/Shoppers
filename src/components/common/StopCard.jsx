@@ -43,6 +43,8 @@ import FailureReasonDialog from "../deliveries/FailureReasonDialog";
 import { updateDeliveryLocal } from '../utils/offlineMutations';
 import { fabControlEvents } from '../utils/fabControlEvents';
 import { invalidate } from '../utils/dataManager';
+import SignatureCapture from './SignatureCapture';
+import PhotoCapture from './PhotoCapture';
 
 // Global statusConfig
 const statusConfig = {
@@ -147,6 +149,10 @@ export default function StopCard({
   const [isHovered, setIsHovered] = useState(false);
   const codAmountInputRefs = useRef([]);
   const { setIsEntityUpdating, forceRefreshDriverDeliveries, refreshData, updateDeliveriesLocally } = useAppData();
+  const [showSignatureCapture, setShowSignatureCapture] = useState(false);
+  const [showPhotoCapture, setShowPhotoCapture] = useState(false);
+  const [capturedSignature, setCapturedSignature] = useState(null);
+  const [capturedPhotos, setCapturedPhotos] = useState([]);
 
   // Detect if this is a stripped delivery (from other store)
   // For dispatchers: strip deliveries that aren't from their assigned stores
@@ -1180,6 +1186,36 @@ export default function StopCard({
             document.body
           )}
 
+          {/* Signature Capture */}
+          {showSignatureCapture && (
+            <SignatureCapture
+              customerName={displayName}
+              onSave={async (signatureBlob) => {
+                setCapturedSignature(signatureBlob);
+                setShowSignatureCapture(false);
+                
+                // Auto-proceed to photo capture or completion
+                const shouldTakePhotos = window.confirm('Signature saved! Would you like to take proof-of-delivery photos?');
+                if (shouldTakePhotos) {
+                  setShowPhotoCapture(true);
+                }
+              }}
+              onCancel={() => setShowSignatureCapture(false)}
+            />
+          )}
+
+          {/* Photo Capture */}
+          {showPhotoCapture && (
+            <PhotoCapture
+              onSave={(photoBlobs) => {
+                setCapturedPhotos(photoBlobs);
+                setShowPhotoCapture(false);
+              }}
+              onCancel={() => setShowPhotoCapture(false)}
+              maxPhotos={3}
+            />
+          )}
+
           {/* Failure Reason Dialog */}
           <FailureReasonDialog
             isOpen={showFailureReasonDialog}
@@ -1974,6 +2010,22 @@ export default function StopCard({
                     <Button
                       onClick={async (e) => {
                         e.stopPropagation();
+                        
+                        // Step 1: Check for signature/photo requirements
+                        if (delivery.signature_needed && !capturedSignature && !delivery.signature_image_url) {
+                          setShowSignatureCapture(true);
+                          return;
+                        }
+                        
+                        // Optional: Prompt for photos if none captured yet
+                        if (capturedPhotos.length === 0 && !delivery.proof_photo_urls) {
+                          const shouldTakePhotos = window.confirm('Would you like to take proof-of-delivery photos?');
+                          if (shouldTakePhotos) {
+                            setShowPhotoCapture(true);
+                            return;
+                          }
+                        }
+                        
                         fabControlEvents.deactivateFAB();
                         setIsCompleting(true);
                         setIsEntityUpdating(true);
@@ -1989,6 +2041,23 @@ export default function StopCard({
                           }
 
                           await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
+                          
+                          // Upload signature if captured
+                          let signatureUrl = delivery.signature_image_url;
+                          if (capturedSignature) {
+                            const uploadResult = await base44.integrations.Core.UploadFile({ file: capturedSignature });
+                            signatureUrl = uploadResult.file_url;
+                          }
+                          
+                          // Upload photos if captured
+                          let photoUrls = delivery.proof_photo_urls || [];
+                          if (capturedPhotos.length > 0) {
+                            const uploadPromises = capturedPhotos.map(blob => 
+                              base44.integrations.Core.UploadFile({ file: blob })
+                            );
+                            const results = await Promise.all(uploadPromises);
+                            photoUrls = [...photoUrls, ...results.map(r => r.file_url)];
+                          }
 
                           // Auto-toggle driver online if offline
                           await ensureDriverOnline();
@@ -2059,7 +2128,9 @@ export default function StopCard({
                           const completionUpdate = {
                             status: 'completed',
                             actual_delivery_time: currentTime.toISOString(),
-                            isNextDelivery: false
+                            isNextDelivery: false,
+                            signature_image_url: signatureUrl,
+                            proof_photo_urls: photoUrls
                           };
 
                           // Update local state immediately
