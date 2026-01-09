@@ -1360,7 +1360,7 @@ export default function ImportActiveRoutes({
       
       // CRITICAL: Update isNextDelivery flags for all imported dates/drivers
       try {
-        const { minDate, maxDate } = await extractDateRangeFromFiles(files);
+        const { minDate, maxDate } = cachedDateRange;
         
         if (minDate && maxDate) {
           // Get all deliveries for ALL drivers in the date range (from imported files)
