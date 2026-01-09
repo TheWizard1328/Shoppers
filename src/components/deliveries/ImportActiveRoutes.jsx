@@ -1384,6 +1384,89 @@ export default function ImportActiveRoutes({
         console.error('❌ [ImportActiveRoutes] Failed to update isNextDelivery flags:', flagError);
       }
       
+      // CRITICAL: Reorder stops after import - completed first (by completion time), then incomplete by ETA
+      setProgressMessage('Reordering stops...');
+      
+      try {
+        const { minDate, maxDate } = await extractDateRangeFromFiles(files);
+        
+        if (minDate && maxDate) {
+          // Get all unique driver IDs from the imported data
+          const allDriversInImport = new Set();
+          [...previewData.deliveriesToCreate, ...previewData.deliveriesToUpdate].forEach(d => {
+            if (d.driver_id) allDriversInImport.add(d.driver_id);
+          });
+          
+          for (const driverId of allDriversInImport) {
+            // Fetch all deliveries for this driver in the date range
+            const driverDeliveries = await base44.entities.Delivery.filter({
+              driver_id: driverId,
+              delivery_date: { $gte: minDate, $lte: maxDate }
+            });
+            
+            // Group by date
+            const deliveriesByDate = {};
+            driverDeliveries.forEach(d => {
+              if (!d || !d.delivery_date) return;
+              if (!deliveriesByDate[d.delivery_date]) {
+                deliveriesByDate[d.delivery_date] = [];
+              }
+              deliveriesByDate[d.delivery_date].push(d);
+            });
+            
+            // Reorder each date's deliveries
+            for (const [date, dateDeliveries] of Object.entries(deliveriesByDate)) {
+              const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+              
+              // Separate completed from incomplete
+              const completedStops = dateDeliveries.filter(d => finishedStatuses.includes(d.status));
+              const incompleteStops = dateDeliveries.filter(d => !finishedStatuses.includes(d.status));
+              
+              // Sort completed by actual_delivery_time (earliest first)
+              completedStops.sort((a, b) => {
+                const timeA = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : 0;
+                const timeB = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : 0;
+                return timeA - timeB;
+              });
+              
+              // Sort incomplete by ETA then stop_order
+              incompleteStops.sort((a, b) => {
+                // Parse ETA as minutes from midnight
+                const parseETA = (eta) => {
+                  if (!eta) return 9999;
+                  const [hours, minutes] = eta.split(':').map(Number);
+                  return hours * 60 + minutes;
+                };
+                
+                const etaA = parseETA(a.delivery_time_eta || a.delivery_time_start);
+                const etaB = parseETA(b.delivery_time_eta || b.delivery_time_start);
+                
+                if (etaA !== etaB) return etaA - etaB;
+                return (a.stop_order || 999) - (b.stop_order || 999);
+              });
+              
+              // Combine: completed first, then incomplete
+              const reorderedStops = [...completedStops, ...incompleteStops];
+              
+              // Update stop_order for all deliveries
+              const updatePromises = reorderedStops.map((delivery, index) => {
+                const newStopOrder = index + 1;
+                if (delivery.stop_order !== newStopOrder) {
+                  return base44.entities.Delivery.update(delivery.id, { stop_order: newStopOrder });
+                }
+                return Promise.resolve();
+              });
+              
+              await Promise.all(updatePromises);
+              console.log(`✅ [ImportActiveRoutes] Reordered ${reorderedStops.length} stops for driver on ${date}`);
+            }
+          }
+        }
+      } catch (reorderError) {
+        console.error('❌ [ImportActiveRoutes] Failed to reorder stops:', reorderError);
+        // Don't fail the import - reordering is best-effort
+      }
+      
       setProgressMessage('Import complete!');
       
       smartRefreshManager.restart();
