@@ -214,10 +214,10 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
                       )}
                     </div>
                     
-                    {syncStatus.entity && syncStatus.status === 'syncing' && (
+                    {isSyncing && (
                       <div className="text-xs space-y-1">
                         <div className="flex justify-between text-blue-600">
-                          <span>Syncing {syncStatus.entity}...</span>
+                          <span>Syncing {syncStatus.entity || '...'} {syncStatus.count ? `(${syncStatus.count})` : ''}</span>
                           <span>{syncStatus.progress || 0}%</span>
                         </div>
                         <div className="w-full rounded-full h-1.5" style={{ background: 'var(--bg-slate-200)' }}>
