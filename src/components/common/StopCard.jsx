@@ -850,169 +850,18 @@ export default function StopCard({
 
             <div className="flex flex-col py-0.5 gap-0.5 items-center">
               <div className="flex items-center gap-1">
-                {showStatusDropdown && !FINISHED_STATUSES.includes(delivery.status) && !isReturnDelivery ?
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button className={`inline-flex items-center gap-1 rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-sm font-bold px-2 py-0.5 cursor-pointer hover:opacity-80 ${
-                    delivery.status === 'en_route' ? 'bg-cyan-100 text-cyan-800' :
-                    statusConfig[delivery.status]?.color || ''}`
-                    }
-                    style={!delivery.status || delivery.status === 'en_route' || statusConfig[delivery.status] ? {} : {
-                      background: 'var(--bg-slate-100)',
-                      color: 'var(--text-slate-800)'
-                    }}
-                    onClick={(e) => e.stopPropagation()}>
-                        {statusConfig[delivery.status]?.label || delivery.status}
-                        <MoreVertical className="w-3 h-3" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="z-[200] text-base p-2 space-y-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                      {nextAvailableStatuses.filter((s) => !['pending', 'Ready For Pickup'].includes(s)).map((status) => {
-                      const isCompleteStatus = status === 'completed';
-                      const isFailedStatus = status === 'failed' || status === 'cancelled';
-
-                      if (isCompleteStatus || isFailedStatus) {
-                        return (
-                          <Button
-                            key={status}
-                            onClick={async (e) => {
-                              e.stopPropagation();
-
-                              // Show failure reason dialog for failed/cancelled
-                              if (isFailedStatus) {
-                                setPendingFailureStatus(status);
-                                setShowFailureReasonDialog(true);
-                                return;
-                              }
-
-                              fabControlEvents.deactivateFAB();
-                              setIsEntityUpdating(true);
-                              smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
-                              await new Promise((resolve) => setTimeout(resolve, 100));
-
-                              try {
-                                // CRITICAL: Verify delivery still exists before updating
-                                const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
-                                if (!deliveryExists || deliveryExists.length === 0) {
-                                  console.warn('⚠️ [STATUS] Delivery no longer exists - aborting');
-                                  throw new Error('This delivery has been deleted. Please refresh the page.');
-                                }
-
-                                await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-
-                                await onStatusUpdate(delivery.id, status, {}, false);
-
-                                // CRITICAL: Trigger immediate map update before optimization
-                                window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                                  detail: { triggeredBy: 'statusChange', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                                }));
-
-                                // CRITICAL: Run recursive route optimization after completion
-                                try {
-                                  const now = new Date();
-                                  const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                                  console.log('🔄 [Completed] Running optimizeRouteRealTime...');
-                                  await base44.functions.invoke('optimizeRouteRealTime', {
-                                    driverId: delivery.driver_id,
-                                    deliveryDate: delivery.delivery_date,
-                                    currentLocalTime: currentLocalTime,
-                                    generatePolyline: false
-                                  });
-                                  console.log('✅ [Completed] Route optimized');
-
-                                  // CRITICAL: Refresh UI to show reordered stops
-                                  invalidate('Delivery');
-                                  await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                                  console.log('✅ [Completed] UI refreshed with new stop order');
-
-                                  // CRITICAL: Trigger map update again after optimization
-                                  window.dispatchEvent(new CustomEvent('routeOptimizationComplete'));
-                                } catch (optimizeError) {
-                                  console.warn('⚠️ [Completed] Route optimizer failed:', optimizeError);
-                                }
-
-                                if (status === 'completed' && userHasRole(currentUser, 'driver')) {
-                                  await notifyDriverCompleted({
-                                    driver: currentUser,
-                                    patientName: isPickup ? `${store?.name || 'Store'} Pickup` : patient?.full_name,
-                                    delivery,
-                                    store,
-                                    appUsers
-                                  });
-                                }
-                              } finally {
-                                setIsEntityUpdating(false);
-                                await new Promise((resolve) => setTimeout(resolve, 100));
-                                fabControlEvents.reactivateFAB(true);
-                              }
-                            }}
-                            className={`w-full justify-center text-center font-semibold ${
-                            isCompleteStatus ? 'bg-emerald-600 hover:bg-emerald-700 text-white' :
-                            isFailedStatus ? 'bg-red-600 hover:bg-red-700 text-white' : ''}`
-                            }
-                            size="sm">
-
-                              {isCompleteStatus ? 'Complete' : isFailedStatus ? isPickup ? 'Cancelled' : 'Failed' : statusConfig[status]?.label || status}
-                            </Button>);
-
-                      }
-
-                      return (
-                        <DropdownMenuItem
-                          key={status}
-                          className="capitalize text-base"
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            setIsEntityUpdating(true);
-                            smartRefreshManager.registerPendingUpdate(delivery.id, delivery.driver_id, delivery.delivery_date);
-                            await new Promise((resolve) => setTimeout(resolve, 100));
-
-                            try {
-                              // CRITICAL: Verify delivery still exists before updating
-                              const deliveryExists = await base44.entities.Delivery.filter({ id: delivery.id });
-                              if (!deliveryExists || deliveryExists.length === 0) {
-                                console.warn('⚠️ [STATUS] Delivery no longer exists - aborting');
-                                throw new Error('This delivery has been deleted. Please refresh the page.');
-                              }
-
-                              await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-
-                              const finishedStatuses = ['completed', 'failed', 'cancelled'];
-                              const skipAutoCenter = !finishedStatuses.includes(status);
-                              await onStatusUpdate(delivery.id, status, {}, skipAutoCenter);
-
-                              // CRITICAL: Trigger immediate map update
-                              window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
-                                detail: { triggeredBy: 'statusChange', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
-                              }));
-
-                              // Next delivery flag handled by route optimizer
-                            } finally {
-                              console.log('▶️ [STATUS MENU] Resuming smart refresh');
-                              setIsEntityUpdating(false);
-                              await new Promise((resolve) => setTimeout(resolve, 100));
-                              console.log('✅ [STATUS MENU] Status change cycle complete');
-                            }
-                          }}>
-
-                            {statusConfig[status]?.label || status}
-                          </DropdownMenuItem>);
-
-                    })}
-                    </DropdownMenuContent>
-                  </DropdownMenu> :
-
                 <Badge
                   variant="secondary" className={`border-transparent inline-flex items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-sm font-bold px-2 py-0.5 ${
                   isReturnDelivery ? 'bg-orange-500 !text-white' :
                   delivery.status === 'failed' ? 'bg-red-500 !text-white' :
                   delivery.status === 'cancelled' ? 'bg-red-500 !text-white' :
-                  'bg-emerald-500 !text-white'}`
+                  delivery.status === 'completed' ? 'bg-emerald-500 !text-white' :
+                  delivery.status === 'en_route' ? 'bg-cyan-100 text-cyan-800' :
+                  statusConfig[delivery.status]?.color || 'bg-slate-100 text-slate-800'}`
                   }>
 
                     {isReturnDelivery ? 'Return' : statusConfig[delivery.status]?.label || delivery.status}
                   </Badge>
-                }
               </div>
 
               {delivery.tracking_number && store?.abbreviation &&
@@ -2375,6 +2224,22 @@ export default function StopCard({
                               <span className="text-white">Start</span>
                             </Button>)
                     }
+
+                      {/* Failed button - next to Complete when delivery is active */}
+                      {delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && isNextDelivery && (
+                        <Button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            setPendingFailureStatus(isPickup ? 'cancelled' : 'failed');
+                            setShowFailureReasonDialog(true);
+                          }}
+                          size="sm"
+                          className="bg-red-600 hover:bg-red-700 h-8 rounded-l-none border-l border-red-500 !text-white px-3 text-xs font-medium"
+                        >
+                          <XCircle className="w-3 h-3 mr-1 !text-white" />
+                          <span className="text-white">{isPickup ? 'Cancel' : 'Failed'}</span>
+                        </Button>
+                      )}
 
                       <DropdownMenu modal={false}>
                         <DropdownMenuTrigger asChild>
