@@ -2225,22 +2225,6 @@ export default function StopCard({
                             </Button>)
                     }
 
-                      {/* Failed button - next to Complete when delivery is active */}
-                      {delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && isNextDelivery && (
-                        <Button
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            setPendingFailureStatus(isPickup ? 'cancelled' : 'failed');
-                            setShowFailureReasonDialog(true);
-                          }}
-                          size="sm"
-                          className="bg-red-600 hover:bg-red-700 h-8 rounded-l-none border-l border-red-500 !text-white px-3 text-xs font-medium"
-                        >
-                          <XCircle className="w-3 h-3 mr-1 !text-white" />
-                          <span className="text-white">{isPickup ? 'Cancel' : 'Failed'}</span>
-                        </Button>
-                      )}
-
                       <DropdownMenu modal={false}>
                         <DropdownMenuTrigger asChild>
                           <Button
@@ -2252,6 +2236,20 @@ export default function StopCard({
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="p-1 rounded-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 min-w-[8rem] overflow-hidden border-2 shadow-md z-[200]" sideOffset={5} onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
+                          {/* Failed/Cancel menu item - for active deliveries */}
+                          {delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && isNextDelivery && onStatusUpdate &&
+                        <DropdownMenuItem 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPendingFailureStatus(isPickup ? 'cancelled' : 'failed');
+                            setShowFailureReasonDialog(true);
+                          }}
+                          className="text-red-600">
+                              <XCircle className="w-4 h-4 mr-2" />
+                              {isPickup ? 'Cancel Pickup' : 'Mark as Failed'}
+                            </DropdownMenuItem>
+                        }
+
                           {onEditDelivery && (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                         <DropdownMenuItem onClick={(e) => {e.stopPropagation();onEditDelivery(delivery);}}>
                               <Edit className="w-4 h-4 mr-2" />
