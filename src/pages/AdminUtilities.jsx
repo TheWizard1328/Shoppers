@@ -332,7 +332,7 @@ const COLUMN_CONFIGS = {
   ],
   userSettings: [
     { id: 'user_name', label: 'User', defaultVisible: true, alwaysVisible: true },
-    { id: 'device_id', label: 'Device ID', defaultVisible: true },
+    { id: 'device_type', label: 'Device Type', defaultVisible: true },
     { id: 'selected_driver', label: 'Selected Driver', defaultVisible: true },
     { id: 'selected_date', label: 'Selected Date', defaultVisible: true },
     { id: 'sidebar_width', label: 'Sidebar Width', defaultVisible: true },
@@ -2061,7 +2061,7 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
     const saved = localStorage.getItem('admin_usersettings_column_widths');
     return saved ? JSON.parse(saved) : {
       user_name: 180,
-      device_id: 200,
+      device_type: 120,
       selected_driver: 150,
       selected_date: 120,
       sidebar_width: 120,
@@ -2275,9 +2275,9 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
                         <span className="font-semibold">User</span>
                       </ResizableColumnHeader>
                     )}
-                    {visibleColumns.includes('device_id') && (
-                      <ResizableColumnHeader width={columnWidths.device_id} onResize={(w) => updateColumnWidth('device_id', w)}>
-                        <span className="font-semibold">Device ID</span>
+                    {visibleColumns.includes('device_type') && (
+                      <ResizableColumnHeader width={columnWidths.device_type} onResize={(w) => updateColumnWidth('device_type', w)}>
+                        <span className="font-semibold">Device Type</span>
                       </ResizableColumnHeader>
                     )}
                     {visibleColumns.includes('selected_driver') && (
@@ -2341,9 +2341,11 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
                        {visibleColumns.includes('user_name') && (
                          <td className="p-3 font-medium" style={{ color: 'var(--text-slate-900)' }}>{getUserName(setting.user_id)}</td>
                        )}
-                       {visibleColumns.includes('device_id') && (
-                         <td className="p-3 font-mono text-xs" style={{ color: 'var(--text-slate-500)' }} title={setting.device_id}>
-                           {setting.device_id ? setting.device_id.substring(0, 16) + '...' : '-'}
+                       {visibleColumns.includes('device_type') && (
+                         <td className="p-3">
+                           <Badge variant={setting.device_type === 'Mobile' ? 'default' : 'secondary'}>
+                             {setting.device_type || 'Unknown'}
+                           </Badge>
                          </td>
                        )}
                        {visibleColumns.includes('selected_driver') && (
