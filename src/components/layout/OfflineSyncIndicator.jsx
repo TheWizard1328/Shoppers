@@ -40,12 +40,8 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
     try {
       setIsSyncing(true);
       
-      // CRITICAL: Clear offline DB completely to force fresh sync of ALL data
-      const { offlineDB } = await import('../utils/offlineDatabase');
-      await offlineDB.clearStore(offlineDB.STORES.PATIENTS);
-      await offlineDB.clearStore(offlineDB.STORES.DELIVERIES);
-      console.log('🗑️ [Force Sync] Cleared offline database');
-      
+      // DON'T clear the offline DB - just force a fresh sync from API
+      // Clearing causes data loss if the sync fails
       await forceSyncAll();
       const updatedStats = await getSyncStats();
       setStats(updatedStats);
