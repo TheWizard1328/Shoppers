@@ -886,7 +886,7 @@ export default function DeliveryMap({
       // CRITICAL: Fetch when showOtherDriverDeliveries is true (checkbox checked)
       // Works for ANY user viewing a specific driver (not just drivers viewing self)
       if (!selectedDate || !showOtherDriverDeliveries || !selectedDriverId || selectedDriverId === 'all') {
-        setOtherDriverDeliveries([]);
+        // CRITICAL: Don't immediately clear - preserve markers during transition
         return;
       }
 
@@ -900,10 +900,15 @@ export default function DeliveryMap({
         // Filter to exclude the currently selected driver's deliveries
         const others = allDeliveries.filter(d => d && d.driver_id && d.driver_id !== selectedDriverId);
         console.log(`📍 [DeliveryMap] Setting ${others.length} other driver deliveries (excluding ${selectedDriverId})`);
-        setOtherDriverDeliveries(others);
+        
+        // CRITICAL: Only update if data actually changed
+        setOtherDriverDeliveries(prev => {
+          const prevKey = prev.map(d => d?.id).sort().join('|');
+          const newKey = others.map(d => d?.id).sort().join('|');
+          return prevKey === newKey ? prev : others;
+        });
       } catch (error) {
         console.error('❌ [DeliveryMap] Failed to load other drivers:', error);
-        setOtherDriverDeliveries([]);
       }
     };
 
