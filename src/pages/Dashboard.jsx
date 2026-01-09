@@ -892,21 +892,9 @@ function Dashboard() {
       return false;
     }
 
-    // DISPATCHER: Disable if only 1 driver has deliveries for dispatcher's stores on selected date
+    // DISPATCHER: Always enable
     if (userHasRole(currentUser, 'dispatcher')) {
-      const dispatcherStoreIds = currentUser.store_ids || [];
-      const dateStr = format(selectedDate, 'yyyy-MM-dd');
-
-      // Get unique driver IDs with deliveries for dispatcher's stores
-      const driversWithStoreDeliveries = new Set(
-        deliveries?.
-        filter((d) => d && d.delivery_date === dateStr && dispatcherStoreIds.includes(d.store_id)).
-        map((d) => d.driver_id).
-        filter(Boolean)
-      );
-
-      // Disable if only 1 driver
-      return driversWithStoreDeliveries.size <= 1;
+      return false;
     }
 
     // For drivers: only enable if another driver shares a store with them on the selected date
