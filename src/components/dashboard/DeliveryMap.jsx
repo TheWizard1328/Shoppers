@@ -1112,9 +1112,9 @@ export default function DeliveryMap({
       // Store pickups ALWAYS use store colors (both modes)
       const pinColor = getStoreColor(store);
 
-      // CRITICAL: Determine if this marker belongs to another driver when viewing self (any driver)
-      const isDriver = userHasRole(currentUser, 'driver');
-      const isOtherDriver = isDriver && isDriverViewingSelf && pickup.driver_id !== currentUser?.id;
+      // CRITICAL: Determine if this marker belongs to another driver
+      // Works for ANY user (admin, driver, dispatcher) viewing a specific driver
+      const isOtherDriver = selectedDriverId && selectedDriverId !== 'all' && pickup.driver_id !== selectedDriverId;
 
       // CRITICAL: Pin color for pickups
       // Active driver OR all drivers mode: ALWAYS use store color
