@@ -600,12 +600,7 @@ function Dashboard() {
       if (!d) return false;
       if (d.delivery_date !== dateStr) return false;
 
-      // CRITICAL: When "Show All" is checked, show ALL drivers' deliveries (ignore selected driver)
-      if (showAllDriverMarkers) {
-        return true;
-      }
-
-      // Only filter by selected driver if not "all" and "Show All" is not checked
+      // Only filter by selected driver if not "all"
       if (selectedDriverId && selectedDriverId !== 'all') {
         if (d.driver_id !== selectedDriverId) return false;
       }
