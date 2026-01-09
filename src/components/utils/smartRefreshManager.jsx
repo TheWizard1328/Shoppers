@@ -1029,14 +1029,61 @@ class SmartRefreshManager {
   /**
    * Smart refresh for ALL active patients (ensuring complete patient data sync)
    * CRITICAL: Syncs ALL active patients to offline DB, not just those with deliveries
+   * CRITICAL: Always checks if deliveries reference patients not in offline DB
    */
   async refreshTodayPatients(currentPatients, todayDeliveries) {
     try {
-      // CRITICAL: Check offline DB first to avoid unnecessary API calls
       const { offlineDB } = await import('./offlineDatabase');
       const offlinePatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+      
+      // CRITICAL: Get ALL patient IDs referenced by today's deliveries
+      const todayPatientIds = todayDeliveries && todayDeliveries.length > 0 ? 
+        [...new Set(
+          todayDeliveries
+            .filter(d => d && d.patient_id)
+            .map(d => d.patient_id)
+        )] : [];
+      
+      // CRITICAL: Check if any delivery references a patient NOT in offline DB
+      // This detects when new patients were imported on another device
+      const offlinePatientIds = new Set((offlinePatients || []).map(p => p?.id).filter(Boolean));
+      const missingPatientIds = todayPatientIds.filter(id => id && !offlinePatientIds.has(id));
+      
+      if (missingPatientIds.length > 0) {
+        console.log(`⚠️ [SmartRefresh] ${missingPatientIds.length} patients missing from offline DB - fetching from API`);
+        
+        // CRITICAL: Fetch ALL patients from API to ensure complete sync
+        await this.waitForRateLimit();
+        const allPatients = await base44.entities.Patient.filter({ status: 'active' }, '-created_date', 5000);
+        
+        if (allPatients && allPatients.length > 0) {
+          // Save ALL patients to offline DB
+          const cleanPatients = allPatients.filter(p => p && p.id && !p.id.startsWith('temp_'));
+          await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, cleanPatients);
+          console.log(`✅ [SmartRefresh] Synced ${cleanPatients.length} patients to offline DB`);
+          
+          // Update sync status
+          await offlineDB.updateSyncStatus('Patient', {
+            recordCount: cleanPatients.length,
+            status: 'synced',
+            lastSync: new Date().toISOString(),
+            lastFullSync: new Date().toISOString()
+          });
+          
+          // Merge with current patients
+          const diff = diffEntityArrays(currentPatients, cleanPatients);
+          if (diff.toUpdate.length > 0 || diff.toAdd.length > 0 || diff.toRemove.length > 0) {
+            const mergedPatients = mergeEntityChanges(currentPatients, diff);
+            return {
+              hasChanges: true,
+              patients: mergedPatients
+            };
+          }
+        }
+        return null;
+      }
 
-      // If we have offline patient data, use it
+      // If we have offline patient data and no missing patients, use it
       if (offlinePatients && offlinePatients.length > 0) {
         const diff = diffEntityArrays(currentPatients, offlinePatients);
 
@@ -1052,13 +1099,6 @@ class SmartRefreshManager {
       }
 
       // No offline data - fetch ALL patients from API
-      const todayPatientIds = todayDeliveries && todayDeliveries.length > 0 ? 
-        [...new Set(
-          todayDeliveries
-            .filter(d => d && d.patient_id)
-            .map(d => d.patient_id)
-        )] : [];
-      
       // CRITICAL: Check if we received a broadcast and need fresh data
       const needsApiFetch = this.shouldFetchFromApi('Patient');
       
