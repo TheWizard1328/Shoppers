@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -847,7 +847,7 @@ export default function ImportActiveRoutes({
   }, [stores, allUsers, findStoreByAbbreviation, findDispatcherByStore, setProgressPercent, setProgressMessage, matchDeliveryToExisting, detectChanges, currentUser, userHasRole]);
 
   // Load ALL drivers from ALL cities on mount
-  React.useEffect(() => {
+  useEffect(() => {
     const loadAllDrivers = async () => {
       try {
         const allAppUsers = await base44.entities.AppUser.list();
