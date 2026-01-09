@@ -3152,17 +3152,12 @@ function Dashboard() {
     lastAppliedTriggerRef.current = nextTrigger;
 
     try {
-      flushSync(() => {
-        setSelectedDriverId(driverId);
-      });
-      globalFilters.setSelectedDriverId(driverId);
       setIsExpanded(false);
+      setIsEntityUpdating(true);
 
       if (currentUser?.id) {
         saveSetting(currentUser.id, 'selected_driver_id', driverId);
       }
-
-      setIsEntityUpdating(true);
 
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
@@ -3190,28 +3185,26 @@ function Dashboard() {
         smartRefreshManager.clearPendingUpdates();
       }
 
-      // CRITICAL: Delay UI update slightly to allow all data to load first
-      // This prevents flickering when switching drivers
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      if (updateDeliveriesLocally) {
-        const otherDeliveries = deliveries.filter((d) =>
-        d && d.delivery_date !== dateStr
-        );
-        const mergedDeliveries = [...otherDeliveries, ...freshDeliveries];
-        flushSync(() => {
+      // CRITICAL: Batch ALL state updates in a single flushSync to prevent multiple renders
+      flushSync(() => {
+        setSelectedDriverId(driverId);
+        globalFilters.setSelectedDriverId(driverId);
+        
+        if (updateDeliveriesLocally) {
+          const otherDeliveries = deliveries.filter((d) => d && d.delivery_date !== dateStr);
+          const mergedDeliveries = [...otherDeliveries, ...freshDeliveries];
           updateDeliveriesLocally(mergedDeliveries, true);
-        });
-      }
+        }
+      });
+
+      // CRITICAL: Wait for React to finish rendering BEFORE dispatching event or triggering map
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: { driverId, deliveryDate: dateStr, triggeredBy: 'driverChange' }
       }));
 
-      // Wait for render to complete
-      await new Promise((resolve) => setTimeout(resolve, 300));
-
-      // CRITICAL: Only trigger map ONCE
+      // CRITICAL: Only trigger map ONCE after all state is updated
       if (mapLockTimeoutRef.current) {
         clearTimeout(mapLockTimeoutRef.current);
         mapLockTimeoutRef.current = null;
