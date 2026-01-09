@@ -45,6 +45,7 @@ import { fabControlEvents } from '../utils/fabControlEvents';
 import { invalidate } from '../utils/dataManager';
 import SignatureCapture from './SignatureCapture';
 import PhotoCapture from './PhotoCapture';
+import HelpTooltip, { HELP_CONTENT } from './HelpTooltip';
 
 // Global statusConfig
 const statusConfig = {
@@ -1408,6 +1409,11 @@ export default function StopCard({
                         <h4 className="text-base md:text-xs font-bold flex items-center gap-2" style={{ color: 'var(--text-slate-700)' }}>
                           <Package className="w-3.5 h-3.5" />
                           Pending Pickup List ({pendingPickups.length})
+                          <HelpTooltip 
+                            title={HELP_CONTENT.pendingPickups.title}
+                            content={HELP_CONTENT.pendingPickups.content}
+                            size="sm"
+                          />
                         </h4>
                         {canAccessAcceptButtons &&
                     <Button
