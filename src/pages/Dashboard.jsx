@@ -3166,9 +3166,23 @@ function Dashboard() {
 
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
-      const freshDeliveries = await base44.entities.Delivery.filter({
-        delivery_date: dateStr
-      });
+      // CRITICAL: Check if Show All is enabled - if so, load ALL drivers' deliveries
+      // Otherwise load only selected driver's deliveries
+      const shouldLoadAllDeliveries = showAllDriverMarkers || driverId === 'all';
+      
+      let freshDeliveries;
+      if (shouldLoadAllDeliveries) {
+        console.log('📥 [Driver Change] Loading ALL drivers deliveries (Show All enabled)');
+        freshDeliveries = await base44.entities.Delivery.filter({
+          delivery_date: dateStr
+        });
+      } else {
+        console.log(`📥 [Driver Change] Loading deliveries for driver: ${driverId}`);
+        freshDeliveries = await base44.entities.Delivery.filter({
+          delivery_date: dateStr,
+          driver_id: driverId === 'all' ? undefined : driverId
+        });
+      }
 
       if (driverId && driverId !== 'all') {
         smartRefreshManager.clearPendingUpdatesForDriver(driverId, dateStr);
