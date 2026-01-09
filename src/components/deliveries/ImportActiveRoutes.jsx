@@ -307,6 +307,19 @@ export default function ImportActiveRoutes({
         return;
       }
 
+      // CRITICAL: Skip COD Amount comparison if both are effectively zero/none
+      if (field.key === 'cod_total_amount_required') {
+        const existingCOD = normalizedExisting || 0;
+        const importedCOD = normalizedImported || 0;
+        // If both are 0/null/undefined, no change
+        if (existingCOD === 0 && importedCOD === 0) return;
+        // Otherwise check if different
+        if (existingCOD !== importedCOD) {
+          changes.push(`${field.label}: ${existingCOD || 'none'} → ${importedCOD || 'none'}`);
+        }
+        return;
+      }
+
       if (field.key === 'actual_delivery_time') {
         const existingTimeStr = normalizedExisting ? format(new Date(normalizedExisting), 'HH:mm') : null;
         const importedTimeStr = normalizedImported ? format(new Date(normalizedImported), 'HH:mm') : null;
@@ -330,25 +343,15 @@ export default function ImportActiveRoutes({
     setFiles(selectedFiles.length > 0 ? selectedFiles : []);
   };
 
-  // Extract driver name from filename (format: "Robert T Route.csv" or "Driver Name - Date.csv")
+  // Extract driver name from filename (format: "Robert T Route.csv")
   const extractDriverFromFilename = (filename) => {
     // Remove file extension
     const nameWithoutExt = filename.replace(/\.(csv|tsv|txt)$/i, '');
     
-    // Try "Driver Name - Date" format first
-    const dateMatch = nameWithoutExt.match(/^(.+?)\s*-\s*\d{4}/);
-    if (dateMatch) {
-      return dateMatch[1].trim();
-    }
+    // Remove "Route" suffix if present (case insensitive)
+    const driverName = nameWithoutExt.replace(/\s+Route$/i, '').trim();
     
-    // Try "Driver Name Route" format (e.g., "Robert T Route")
-    const routeMatch = nameWithoutExt.match(/^(.+?)\s+Route$/i);
-    if (routeMatch) {
-      return routeMatch[1].trim();
-    }
-    
-    // Fallback: use entire filename without extension
-    return nameWithoutExt.trim();
+    return driverName || null;
   };
 
   // Find driver user by matching filename driver name
