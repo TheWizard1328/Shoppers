@@ -526,8 +526,8 @@ function Dashboard() {
         // Priority for admins/dispatchers: Use saved settings or smart defaults
         let driverToSelect = null;
 
-        // CRITICAL: Non-admin drivers ALWAYS see only their own route
-        if (currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) {
+        // CRITICAL: Non-admin drivers ALWAYS see only their own route (ignore saved settings)
+        if (currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')) {
           driverToSelect = currentUser.id;
         }
 
@@ -536,42 +536,33 @@ function Dashboard() {
           const todayStr = format(new Date(), 'yyyy-MM-dd');
           const todayDeliveries = deliveries?.filter((d) => d && d.delivery_date === todayStr) || [];
 
-          if (todayDeliveries.length > 0) {
-            // Group deliveries by store to check for shared stores
-            const storeDriverMap = new Map(); // Map<storeId, Set<driverId>>
-            todayDeliveries.forEach((d) => {
-              if (!d.store_id || !d.driver_id) return;
-              if (!storeDriverMap.has(d.store_id)) {
-                storeDriverMap.set(d.store_id, new Set());
-              }
-              storeDriverMap.get(d.store_id).add(d.driver_id);
-            });
+          if (userHasRole(currentUser, 'dispatcher')) {
+            // DISPATCHERS: Check deliveries for their assigned stores on selected date
+            const dispatcherStoreIds = currentUser.store_ids || [];
+            const dispatcherDeliveries = todayDeliveries.filter((d) => 
+              d && dispatcherStoreIds.includes(d.store_id)
+            );
 
-            // Check if any store has multiple drivers
-            const hasSharedStore = Array.from(storeDriverMap.values()).some((driverSet) => driverSet.size > 1);
+            // Get unique drivers with deliveries for dispatcher's stores
+            const driversWithDeliveries = new Set(
+              dispatcherDeliveries.map((d) => d.driver_id).filter(Boolean)
+            );
 
-            if (userHasRole(currentUser, 'dispatcher')) {
-              // DISPATCHERS: Use "All Drivers" if multiple drivers share the same store
-              if (hasSharedStore) {
-                driverToSelect = 'all';
-              } else {
-                // Single driver per store - select the first driver
-                const allDriverIds = new Set(todayDeliveries.map((d) => d.driver_id).filter(Boolean));
-                if (allDriverIds.size === 1) {
-                  driverToSelect = Array.from(allDriverIds)[0];
-                } else {
-                  driverToSelect = settings.selected_driver_id || 'all';
-                }
-              }
-            } else if (userHasRole(currentUser, 'admin')) {
-              // Admins - use saved or default
-              driverToSelect = settings.selected_driver_id || 'all';
+            if (driversWithDeliveries.size === 1) {
+              // Only 1 driver with deliveries - select that driver
+              driverToSelect = Array.from(driversWithDeliveries)[0];
+            } else if (driversWithDeliveries.size > 1) {
+              // Multiple drivers - use "All Drivers"
+              driverToSelect = 'all';
             } else {
-              // Other roles - use saved or default
+              // No deliveries for dispatcher's stores - use saved or 'all'
               driverToSelect = settings.selected_driver_id || 'all';
             }
+          } else if (userHasRole(currentUser, 'admin')) {
+            // Admins - use saved or default
+            driverToSelect = settings.selected_driver_id || 'all';
           } else {
-            // No deliveries today - use saved setting or 'all'
+            // Other roles - use saved or default
             driverToSelect = settings.selected_driver_id || 'all';
           }
         }
