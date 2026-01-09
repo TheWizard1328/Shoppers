@@ -278,7 +278,12 @@ export default function ImportActiveRoutes({
       { key: 'after_hours_pickup', label: 'After Hrs' },
       { key: 'ampm_deliveries', label: 'AM/PM' },
       { key: 'first_delivery', label: 'First Delivery' },
-      { key: 'travel_dist', label: 'Travel Dist' }
+      { key: 'travel_dist', label: 'Travel Dist' },
+      { key: 'delivery_time_start', label: 'Start Time' },
+      { key: 'delivery_time_end', label: 'End Time' },
+      { key: 'delivery_time_eta', label: 'ETA' },
+      { key: 'driver_id', label: 'Driver' },
+      { key: 'store_id', label: 'Store' }
     ];
 
     fieldsToCompare.forEach((field) => {
@@ -339,6 +344,11 @@ export default function ImportActiveRoutes({
         changes.push(`${field.label}: ${displayExisting} → ${displayImported}`);
       }
     });
+
+    // If no specific field changes detected but this is an update, show that data will be refreshed
+    if (changes.length === 0) {
+      changes.push('Data refresh (SID match)');
+    }
 
     return changes;
   }, []);
