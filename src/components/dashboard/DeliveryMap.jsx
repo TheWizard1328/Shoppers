@@ -883,11 +883,9 @@ export default function DeliveryMap({
 
   useEffect(() => {
     const fetchOtherDrivers = async () => {
-      // CRITICAL: Fetch other drivers for any user with driver role viewing their own route
-      const isDriver = currentUser && userHasRole(currentUser, 'driver');
-      
-      // CRITICAL: Also fetch when showOtherDriverDeliveries is true (checkbox checked)
-      if (!isDriver || !isDriverViewingSelf || !selectedDate || !showOtherDriverDeliveries) {
+      // CRITICAL: Fetch when showOtherDriverDeliveries is true (checkbox checked)
+      // Works for ANY user viewing a specific driver (not just drivers viewing self)
+      if (!selectedDate || !showOtherDriverDeliveries || !selectedDriverId || selectedDriverId === 'all') {
         setOtherDriverDeliveries([]);
         return;
       }
@@ -898,9 +896,10 @@ export default function DeliveryMap({
           delivery_date: selectedDate
         });
         
-        console.log(`📥 [DeliveryMap] Loaded ${allDeliveries.length} deliveries for other drivers`);
-        const others = allDeliveries.filter(d => d && d.driver_id && d.driver_id !== currentUser.id);
-        console.log(`📍 [DeliveryMap] Setting ${others.length} other driver deliveries`);
+        console.log(`📥 [DeliveryMap] Loaded ${allDeliveries.length} deliveries for all drivers`);
+        // Filter to exclude the currently selected driver's deliveries
+        const others = allDeliveries.filter(d => d && d.driver_id && d.driver_id !== selectedDriverId);
+        console.log(`📍 [DeliveryMap] Setting ${others.length} other driver deliveries (excluding ${selectedDriverId})`);
         setOtherDriverDeliveries(others);
       } catch (error) {
         console.error('❌ [DeliveryMap] Failed to load other drivers:', error);
@@ -909,7 +908,7 @@ export default function DeliveryMap({
     };
 
     fetchOtherDrivers();
-  }, [isDriverViewingSelf, selectedDate, currentUser, showOtherDriverDeliveries]);
+  }, [selectedDriverId, selectedDate, showOtherDriverDeliveries]);
 
   const { pickups, patientDeliveries } = useMemo(() => {
     let deliveriesToShow = safeDeliveries;
