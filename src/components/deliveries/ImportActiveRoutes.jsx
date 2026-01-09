@@ -169,6 +169,7 @@ export default function ImportActiveRoutes({
   const [previewFilterDriver, setPreviewFilterDriver] = useState('all');
   const [previewFilterDate, setPreviewFilterDate] = useState('all');
   const [importError, setImportError] = useState(null);
+  const [cachedDateRange, setCachedDateRange] = useState({ minDate: null, maxDate: null });
 
   const [importProgress, setImportProgress] = useState({
     current: 0,
