@@ -3051,11 +3051,24 @@ function Dashboard() {
       // STEP 1: Clear pending updates for clean slate
       smartRefreshManager.clearPendingUpdates();
 
-      // STEP 2: ALWAYS load ALL drivers' deliveries for selected date
-      // This ensures "Show All" checkbox has complete data
-      const priorityDeliveries = await base44.entities.Delivery.filter({
-        delivery_date: dateStr
-      });
+      // STEP 2: CRITICAL - Check if Show All is enabled and load accordingly
+      // If Show All is checked OR selectedDriverId is 'all', load ALL deliveries
+      // Otherwise load only for selected driver to avoid unnecessary API calls
+      const shouldLoadAllDeliveries = showAllDriverMarkers || selectedDriverId === 'all';
+      
+      let priorityDeliveries;
+      if (shouldLoadAllDeliveries) {
+        console.log('📥 [Date Change] Loading ALL drivers deliveries (Show All enabled)');
+        priorityDeliveries = await base44.entities.Delivery.filter({
+          delivery_date: dateStr
+        });
+      } else {
+        console.log(`📥 [Date Change] Loading deliveries for driver: ${selectedDriverId}`);
+        priorityDeliveries = await base44.entities.Delivery.filter({
+          delivery_date: dateStr,
+          driver_id: selectedDriverId
+        });
+      }
 
       // STEP 3: Update UI immediately with priority data using flushSync for instant render
       if (updateDeliveriesLocally) {
