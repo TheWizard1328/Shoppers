@@ -98,7 +98,7 @@ export const getOfflineDataIfFresh = async () => {
 
 /**
  * Load priority data for initial display
- * Order: AppUsers → Deliveries (selected date) → Patients (for those deliveries)
+ * Order: AppUsers → Deliveries (selected date) → ALL Patients (critical for map markers)
  */
 export const loadPriorityData = async (selectedDateStr, filters = {}) => {
   if (syncPaused) return { skipped: true };
@@ -125,26 +125,44 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
     
     await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
     
-    // Step 3: Patients for those deliveries
-    const patientIds = [...new Set(deliveries.map(d => d.patient_id).filter(Boolean))];
+    // Step 3: CRITICAL - Load ALL patients (not just delivery-linked ones)
+    // This ensures map markers work for new users who don't have patient data yet
+    console.log(`   👥 Loading ALL patients for offline access...`);
     let patients = [];
     
-    if (patientIds.length > 0) {
-      // Fetch patients in batches
-      for (let i = 0; i < patientIds.length; i += PATIENT_BATCH_SIZE) {
-        if (syncPaused) break;
-        
-        const batchIds = patientIds.slice(i, i + PATIENT_BATCH_SIZE);
-        const batchPatients = await Patient.filter({ id: { $in: batchIds } });
-        patients.push(...batchPatients);
-        
-        if (i + PATIENT_BATCH_SIZE < patientIds.length) {
-          await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
-        }
+    try {
+      // First try active patients
+      const allPatients = await Patient.filter({ status: 'active' }, '-created_date', 5000);
+      patients = allPatients.filter(p => p && p.id && !p.id.startsWith('temp_'));
+      console.log(`   ✅ Loaded ${patients.length} active patients`);
+      
+      // If no active patients found, try without filter
+      if (patients.length === 0) {
+        const allPatientsNoFilter = await Patient.list('-created_date', 5000);
+        patients = allPatientsNoFilter.filter(p => p && p.id && !p.id.startsWith('temp_'));
+        console.log(`   ✅ Loaded ${patients.length} patients (no filter)`);
       }
       
-      console.log(`   ✅ Loaded ${patients.length} patients for deliveries`);
-      await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patients);
+      if (patients.length > 0) {
+        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patients);
+      }
+    } catch (patientError) {
+      console.warn(`   ⚠️ Patient bulk load failed, falling back to delivery-linked:`, patientError.message);
+      
+      // Fallback: Just load patients for current deliveries
+      const patientIds = [...new Set(deliveries.map(d => d.patient_id).filter(Boolean))];
+      if (patientIds.length > 0) {
+        for (let i = 0; i < patientIds.length; i += PATIENT_BATCH_SIZE) {
+          if (syncPaused) break;
+          const batchIds = patientIds.slice(i, i + PATIENT_BATCH_SIZE);
+          const batchPatients = await Patient.filter({ id: { $in: batchIds } });
+          patients.push(...batchPatients);
+          if (i + PATIENT_BATCH_SIZE < patientIds.length) {
+            await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+          }
+        }
+        await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, patients);
+      }
     }
     
     // Update sync timestamps
@@ -157,7 +175,8 @@ export const loadPriorityData = async (selectedDateStr, filters = {}) => {
       offlineDB.updateSyncStatus('Patient', { 
         recordCount: patients.length, 
         status: 'synced',
-        lastSync: new Date().toISOString()
+        lastSync: new Date().toISOString(),
+        lastFullSync: new Date().toISOString() // Mark as full sync
       })
     ]);
     
