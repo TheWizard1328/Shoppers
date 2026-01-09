@@ -1,6 +1,7 @@
 import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Phone, Bell, BellOff, Mailbox, StickyNote } from "lucide-react";
+import HelpTooltip, { HELP_CONTENT } from "../common/HelpTooltip";
 
 /**
  * SpecialSymbolsBadges - Centralized single badge for all special delivery symbols
@@ -14,13 +15,15 @@ import { Phone, Bell, BellOff, Mailbox, StickyNote } from "lucide-react";
  * @param {boolean} props.isPickup - Whether this is a pickup (if true, badge is hidden)
  * @param {string} props.size - Size variant: 'sm' (default), 'md', 'lg'
  * @param {string} props.className - Additional CSS classes
+ * @param {boolean} props.showHelp - Whether to show the help tooltip icon
  */
 export default function SpecialSymbolsBadges({
   delivery,
   patient,
   isPickup = false,
   size = 'sm',
-  className = ''
+  className = '',
+  showHelp = false
 }) {
   // Don't show badge for pickups
   if (!delivery || isPickup) return null;
@@ -73,23 +76,32 @@ export default function SpecialSymbolsBadges({
   if (!hasAnyContent) return null;
 
   return (
-    <Badge 
-      className={`bg-amber-400 text-slate-900 ${config.badge} ${config.text} font-bold rounded-md inline-flex items-center ${config.gap} shadow-sm border border-amber-500/30 ${className}`}
-    >
-      {/* Special flags: $ N O F S */}
-      {hasCOD && <span className="text-green-800">$</span>}
-      {isFirstDelivery && <span className="text-blue-800">N</span>}
-      {hasOversized && <span className="text-orange-800">O</span>}
-      {hasFridge && <span className="text-cyan-800">F</span>}
-      {hasSignature && <span className="text-purple-800">S</span>}
-      
-      {/* Preference icons - intuitive colors */}
-      {hasCallOnArrival && <Phone className={`${config.icon} text-orange-600`} />}
-      {hasRingBell && <Bell className={`${config.icon} text-green-600`} />}
-      {hasDontRingBell && <BellOff className={`${config.icon} text-red-600`} />}
-      {hasMailboxOk && <Mailbox className={`${config.icon} text-blue-600`} />}
-      {hasDriverNotes && <StickyNote className={`${config.icon} text-violet-600`} />}
-    </Badge>
+    <div className="inline-flex items-center gap-1">
+      <Badge 
+        className={`bg-amber-400 text-slate-900 ${config.badge} ${config.text} font-bold rounded-md inline-flex items-center ${config.gap} shadow-sm border border-amber-500/30 ${className}`}
+      >
+        {/* Special flags: $ N O F S */}
+        {hasCOD && <span className="text-green-800">$</span>}
+        {isFirstDelivery && <span className="text-blue-800">N</span>}
+        {hasOversized && <span className="text-orange-800">O</span>}
+        {hasFridge && <span className="text-cyan-800">F</span>}
+        {hasSignature && <span className="text-purple-800">S</span>}
+        
+        {/* Preference icons - intuitive colors */}
+        {hasCallOnArrival && <Phone className={`${config.icon} text-orange-600`} />}
+        {hasRingBell && <Bell className={`${config.icon} text-green-600`} />}
+        {hasDontRingBell && <BellOff className={`${config.icon} text-red-600`} />}
+        {hasMailboxOk && <Mailbox className={`${config.icon} text-blue-600`} />}
+        {hasDriverNotes && <StickyNote className={`${config.icon} text-violet-600`} />}
+      </Badge>
+      {showHelp && (
+        <HelpTooltip 
+          title={HELP_CONTENT.specialSymbols.title}
+          content={HELP_CONTENT.specialSymbols.content}
+          size="sm"
+        />
+      )}
+    </div>
   );
 }
 
