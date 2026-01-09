@@ -24,14 +24,19 @@ import { driverLocationPoller } from '../utils/driverLocationPoller';
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
 
 // Utility function for retrying operations with exponential backoff
-const retryWithBackoff = async (fn, retries = 5, delayMs = 500, factor = 1.5) => {
+// CRITICAL: Increased delays and retries to handle rate limits better
+const retryWithBackoff = async (fn, retries = 5, delayMs = 2000, factor = 2) => {
   for (let i = 0; i < retries; i++) {
     try {
       return await fn();
     } catch (error) {
+      const isRateLimit = error.message?.includes('429') || error.message?.includes('rate limit') || error.response?.status === 429;
+      
       if (i < retries - 1) {
-        const waitTime = Math.round(delayMs * Math.pow(factor, i));
-        console.warn(`⚠️ Operation failed, retrying in ${waitTime}ms... (Attempt ${i + 1}/${retries})`);
+        // CRITICAL: Much longer delays for rate limits
+        const baseWait = isRateLimit ? 5000 : delayMs;
+        const waitTime = Math.round(baseWait * Math.pow(factor, i));
+        console.warn(`⚠️ Operation failed${isRateLimit ? ' (RATE LIMIT)' : ''}, retrying in ${waitTime}ms... (Attempt ${i + 1}/${retries})`);
         console.warn(`Error: ${error.message}`);
         await delay(waitTime);
       } else {
@@ -1133,7 +1138,8 @@ export default function ImportActiveRoutes({
 
         const cleanedDeliveries = deliveriesToCreateFiltered.map(cleanDeliveryData);
 
-        const BATCH_SIZE = 25;
+        // CRITICAL: Smaller batch size and longer delays to prevent rate limits
+        const BATCH_SIZE = 10;
         const batches = [];
         for (let i = 0; i < cleanedDeliveries.length; i += BATCH_SIZE) {
           batches.push(cleanedDeliveries.slice(i, i + BATCH_SIZE));
@@ -1145,7 +1151,7 @@ export default function ImportActiveRoutes({
           try {
             const createdDeliveries = await retryWithBackoff(async () => {
               return await base44.entities.Delivery.bulkCreate(batch);
-            }, 3, 2000, 2);
+            }, 5, 3000, 2);
 
             await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, createdDeliveries);
 
@@ -1164,8 +1170,9 @@ export default function ImportActiveRoutes({
               current: totalCreated
             }));
 
+            // CRITICAL: Longer delay between batches to prevent rate limits
             if (batchIndex < batches.length - 1) {
-              await delay(1500);
+              await delay(2500);
             }
           } catch (error) {
             console.warn(`⚠️ Batch ${batchIndex + 1} bulkCreate failed:`, error.message);
@@ -1221,7 +1228,7 @@ export default function ImportActiveRoutes({
 
             const updatedDelivery = await retryWithBackoff(async () => {
               return await base44.entities.Delivery.update(id, cleanPayload);
-            }, 3, 1000, 2);
+            }, 5, 2000, 2);
             
             await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, [updatedDelivery]);
 
@@ -1235,7 +1242,8 @@ export default function ImportActiveRoutes({
               updated: prev.updated + 1,
               current: i + 1
             }));
-            await delay(300);
+            // CRITICAL: Longer delay between updates to prevent rate limits
+            await delay(500);
           } catch (error) {
             console.warn(`⚠️ Backend update failed for delivery ID ${deliveryData.id}:`, error.message);
             failedUpdates.push({ data: deliveryData, error: error.message });
@@ -1630,10 +1638,10 @@ export default function ImportActiveRoutes({
                   <p className="font-semibold text-slate-800 mb-3">Record Details:</p>
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     {Object.entries(importError.record).map(([key, value]) => (
-                      <React.Fragment key={key}>
+                      <div key={key} className="contents">
                         <span className="text-slate-600 capitalize">{key.replace(/_/g, ' ')}:</span>
                         <span className="font-medium">{value}</span>
-                      </React.Fragment>
+                      </div>
                     ))}
                   </div>
                 </div>
