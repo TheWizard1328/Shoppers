@@ -1415,7 +1415,7 @@ export default function ImportActiveRoutes({
       setProgressMessage('Reordering stops by completion time and ETA...');
       
       try {
-        const { minDate, maxDate } = await extractDateRangeFromFiles(files);
+        const { minDate, maxDate } = cachedDateRange;
         
         if (minDate && maxDate) {
           // Get all drivers that were imported
