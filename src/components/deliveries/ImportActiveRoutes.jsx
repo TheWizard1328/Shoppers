@@ -800,29 +800,39 @@ export default function ImportActiveRoutes({
     const pickupMap = new Map();
     const pickupTimeMap = new Map(); // Track pickup delivery_time_start for pending deliveries
 
+    // CRITICAL: First pass - map all pickups by store/AM-PM to their stop_ids
     allParsedDeliveries.forEach((d) => {
-      if (!d.patient_id && d.store_id && d.stop_id) {
-        const key = `${d.delivery_date}_${d.driver_id}_${d.store_id}_${d.ampm_deliveries || 'none'}`;
-        if (!pickupMap.has(key)) {
-          pickupMap.set(key, d.stop_id);
-        }
+      if (!d.patient_id && d.store_id && d.stop_id && d.ampm_deliveries) {
+        // Use store_id + AM/PM as key (ensure we match correct pickup)
+        const key = `${d.delivery_date}_${d.driver_id}_${d.store_id}_${d.ampm_deliveries}`;
+        // Store the pickup's stop_id (this will be the PUID for its deliveries)
+        pickupMap.set(key, d.stop_id);
+        
         // Store pickup's delivery_time_start for pending delivery time assignment
-        if (d.delivery_time_start && !pickupTimeMap.has(key)) {
+        if (d.delivery_time_start) {
           pickupTimeMap.set(key, d.delivery_time_start);
         }
+        console.log(`📍 [PUID] Mapped pickup: ${store?.abbreviation || d.store_id} ${d.ampm_deliveries} → SID: ${d.stop_id}`);
       }
     });
 
+    // CRITICAL: Second pass - assign PUIDs to all deliveries based on their store/AM-PM
     allParsedDeliveries.forEach((d) => {
       if (!d.patient_id && d.stop_id) {
+        // Pickups: puid = stop_id (self-referencing)
         d.puid = d.stop_id;
-      } else if (d.patient_id) {
-        const key = `${d.delivery_date}_${d.driver_id}_${d.store_id}_${d.ampm_deliveries || 'none'}`;
+        console.log(`🔗 [PUID] Pickup self-reference: SID=${d.stop_id} → PUID=${d.puid}`);
+      } else if (d.patient_id && d.store_id && d.ampm_deliveries) {
+        // Patient deliveries: find matching pickup by store_id + AM/PM
+        const key = `${d.delivery_date}_${d.driver_id}_${d.store_id}_${d.ampm_deliveries}`;
         const matchingPuid = pickupMap.get(key);
+        
         if (matchingPuid) {
           d.puid = matchingPuid;
+          console.log(`🔗 [PUID] Patient delivery: ${d.patient_name} (${d.store_id} ${d.ampm_deliveries}) → PUID=${matchingPuid}`);
         } else {
           d.puid = null;
+          console.warn(`⚠️ [PUID] No matching pickup found for: ${d.patient_name} (${d.store_id} ${d.ampm_deliveries})`);
         }
         
         // CRITICAL: For pending deliveries, set delivery_time_start from pickup + 5 min (only if not already set)
