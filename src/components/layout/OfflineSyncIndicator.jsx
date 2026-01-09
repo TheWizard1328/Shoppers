@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Database, RefreshCw, CheckCircle, AlertCircle, ChevronUp, ChevronDown } from 'lucide-react';
+import { RefreshCw, CheckCircle, AlertCircle, ChevronUp, ChevronDown, HardDrive } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { subscribeSyncStatus, getSyncStats, forceSyncAll } from '@/components/utils/offlineSync';
 import { motion, AnimatePresence } from 'framer-motion';
