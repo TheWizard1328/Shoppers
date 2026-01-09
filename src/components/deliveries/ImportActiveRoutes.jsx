@@ -530,6 +530,7 @@ export default function ImportActiveRoutes({
       if (originalStopOrder > 0 && deliveryStartTimeStr && !deliveryEndTimeStr) {
         // Completed - has stop order > 0, has start time only
         deliveryStatus = 'completed';
+        // CRITICAL: Save as local time string (YYYY-MM-DDTHH:MM:SS) without timezone
         actualDeliveryTime = `${currentDate}T${deliveryStartTimeStr}:00`;
       } else if (isPendingIndicator && isPickup && deliveryStartTimeStr && deliveryEndTimeStr) {
         // EXCEPTION: Pickups with times should be en_route even if pending indicator is negative
