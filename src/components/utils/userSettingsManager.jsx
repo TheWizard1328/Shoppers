@@ -8,197 +8,27 @@ import { UserSettings } from '@/entities/UserSettings';
 import { offlineManager } from './offlineManager';
 import { getUserAgentInfo } from './deviceUtils';
 
-const DEVICE_ID_KEY = 'rxdeliver_device_id';
-
 // In-memory cache for current session
 let cachedSettings = null;
 let currentUserId = null;
-let cachedDeviceId = null; // In-memory cache to avoid repeated async calls
-
-// CRITICAL: Use a unique database name that won't conflict with other IndexedDB operations
-const DB_NAME = 'rxdeliver_persistent_device_id';
-const STORE_NAME = 'device_store';
-
-function openDeviceDb() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
-
-    request.onupgradeneeded = (event) => {
-      const db = event.target.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME);
-      }
-    };
-
-    request.onsuccess = (event) => {
-      resolve(event.target.result);
-    };
-
-    request.onerror = (event) => {
-      console.error('IndexedDB error:', event.target.errorCode);
-      reject(event.target.error);
-    };
-  });
-}
-
-async function saveDeviceIdToIndexedDB(id) {
-  try {
-    const db = await openDeviceDb();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readwrite');
-      const store = tx.objectStore(STORE_NAME);
-      const request = store.put(id, DEVICE_ID_KEY);
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
-  } catch (error) {
-    console.warn('⚠️ [UserSettings] Failed to save device ID to IndexedDB:', error);
-  }
-}
-
-async function getDeviceIdFromIndexedDB() {
-  try {
-    const db = await openDeviceDb();
-    return new Promise((resolve) => {
-      const tx = db.transaction(STORE_NAME, 'readonly');
-      const store = tx.objectStore(STORE_NAME);
-      const request = store.get(DEVICE_ID_KEY);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => resolve(null);
-    });
-  } catch (error) {
-    console.warn('⚠️ [UserSettings] Failed to get device ID from IndexedDB:', error);
-    return null;
-  }
-}
+let cachedDeviceType = null; // Cache device type (Mobile or Desktop)
 
 /**
- * Generate a deterministic device fingerprint based on browser/hardware characteristics
- * This creates a stable ID across browser tabs, PWAs, and sessions on the same machine
+ * Gets device type identifier - simply "Mobile" or "Desktop"
+ * This ensures only 1 settings record per device type per user
  */
-async function generateDeviceFingerprint() {
-  const components = [];
-  
-  // 1. Screen characteristics (stable across sessions)
-  components.push(screen.width);
-  components.push(screen.height);
-  components.push(screen.colorDepth);
-  components.push(screen.pixelDepth);
-  
-  // 2. Timezone (stable unless user changes timezone)
-  components.push(Intl.DateTimeFormat().resolvedOptions().timeZone);
-  
-  // 3. Language preferences (stable)
-  components.push(navigator.language);
-  components.push(navigator.languages.join(','));
-  
-  // 4. Platform/OS (stable)
-  components.push(navigator.platform);
-  components.push(navigator.userAgent);
-  
-  // 5. Hardware concurrency (CPU cores - stable)
-  components.push(navigator.hardwareConcurrency || 0);
-  
-  // 6. Device memory (stable on same device)
-  components.push(navigator.deviceMemory || 0);
-  
-  // 7. Canvas fingerprint (highly stable, unique per device)
-  try {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    canvas.width = 200;
-    canvas.height = 50;
-    ctx.textBaseline = 'top';
-    ctx.font = '14px Arial';
-    ctx.fillStyle = '#f60';
-    ctx.fillRect(125, 1, 62, 20);
-    ctx.fillStyle = '#069';
-    ctx.fillText('RxDeliver Device ID', 2, 15);
-    ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
-    ctx.fillText('RxDeliver Device ID', 4, 17);
-    const canvasData = canvas.toDataURL();
-    components.push(canvasData.slice(-100)); // Last 100 chars for uniqueness
-  } catch (e) {
-    components.push('canvas-unavailable');
-  }
-  
-  // 8. WebGL fingerprint (stable, unique per GPU)
-  try {
-    const canvas = document.createElement('canvas');
-    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-    if (gl) {
-      const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
-      if (debugInfo) {
-        components.push(gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL));
-        components.push(gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL));
-      }
-    }
-  } catch (e) {
-    components.push('webgl-unavailable');
-  }
-  
-  // Combine all components and hash
-  const fingerprint = components.join('|||');
-  
-  // Generate deterministic hash using SubtleCrypto
-  const encoder = new TextEncoder();
-  const data = encoder.encode(fingerprint);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  
-  return 'device_fp_' + hashHex.slice(0, 32);
-}
-
-/**
- * Gets or generates a unique device ID using deterministic fingerprinting
- * This ensures the same device ID across browser tabs, PWAs, and sessions
- */
-export async function getDeviceId() {
+export function getDeviceType() {
   // Return cached if available
-  if (cachedDeviceId) {
-    return cachedDeviceId;
+  if (cachedDeviceType) {
+    return cachedDeviceType;
   }
 
-  // 1. Generate fingerprint-based device ID (deterministic)
-  const fingerprintId = await generateDeviceFingerprint();
+  const { deviceType } = getUserAgentInfo();
+  const isMobile = deviceType === 'Mobile';
+  cachedDeviceType = isMobile ? 'Mobile' : 'Desktop';
   
-  // 2. Check if we have a stored ID that matches this fingerprint
-  const storedId = await getDeviceIdFromIndexedDB();
-  const localStorageId = localStorage.getItem(DEVICE_ID_KEY);
-  
-  let deviceId;
-  
-  // Priority: Use fingerprint-based ID for consistency across instances
-  // But if we have a stored non-fingerprint ID, migrate it
-  if (storedId && storedId.startsWith('device_fp_')) {
-    deviceId = storedId;
-    console.log('📱 [UserSettings] Using existing fingerprint-based device ID');
-  } else if (localStorageId && localStorageId.startsWith('device_fp_')) {
-    deviceId = localStorageId;
-    console.log('📱 [UserSettings] Using existing fingerprint-based device ID from localStorage');
-  } else if (storedId && !storedId.startsWith('device_fp_')) {
-    // Migrate old random ID to fingerprint-based
-    console.log('🔄 [UserSettings] Migrating old device ID to fingerprint-based ID');
-    deviceId = fingerprintId;
-  } else if (localStorageId && !localStorageId.startsWith('device_fp_')) {
-    // Migrate old random ID to fingerprint-based
-    console.log('🔄 [UserSettings] Migrating old device ID to fingerprint-based ID');
-    deviceId = fingerprintId;
-  } else {
-    // No existing ID - use fingerprint
-    deviceId = fingerprintId;
-    console.log('📱 [UserSettings] Generated new fingerprint-based device ID');
-  }
-  
-  // Save to both storage locations for redundancy
-  localStorage.setItem(DEVICE_ID_KEY, deviceId);
-  await saveDeviceIdToIndexedDB(deviceId);
-  cachedDeviceId = deviceId;
-  
-  console.log('📱 [UserSettings] Device ID (first 16 chars):', deviceId.slice(0, 24));
-  
-  return deviceId;
+  console.log('📱 [UserSettings] Device Type:', cachedDeviceType);
+  return cachedDeviceType;
 }
 
 /**
@@ -261,9 +91,9 @@ function isDeviceSpecificSetting(key) {
 /**
  * Save settings to offlineManager's IndexedDB for robust local persistence
  */
-async function saveToLocalPersistentStore(userId, deviceId, settings) {
+async function saveToLocalPersistentStore(userId, deviceType, settings) {
   try {
-    await offlineManager.cacheUserSettings(userId, deviceId, settings);
+    await offlineManager.cacheUserSettings(userId, deviceType, settings);
     console.log('📦 [UserSettings] Saved to local persistent store (IndexedDB)');
   } catch (error) {
     console.warn('⚠️ [UserSettings] Error saving to local persistent store:', error);
@@ -273,9 +103,9 @@ async function saveToLocalPersistentStore(userId, deviceId, settings) {
 /**
  * Loads settings from offlineManager's IndexedDB (for offline use)
  */
-async function loadFromLocalPersistentStore(userId, deviceId) {
+async function loadFromLocalPersistentStore(userId, deviceType) {
   try {
-    const cached = await offlineManager.getCachedUserSettings(userId, deviceId);
+    const cached = await offlineManager.getCachedUserSettings(userId, deviceType);
     if (cached) {
       console.log('📦 [UserSettings] Loaded from local persistent store (IndexedDB)');
       return cached;
@@ -324,7 +154,7 @@ async function loadGlobalSettings(userId) {
 }
 
 /**
- * Loads user settings from the backend for the current user and device
+ * Loads user settings from the backend for the current user and device type
  * Merges global settings (synced across devices) with device-specific settings
  * Falls back to cached settings when offline
  * @param {string} userId - The user's ID
@@ -336,7 +166,7 @@ export async function loadUserSettings(userId) {
     return { ...DEFAULT_SETTINGS };
   }
 
-  const deviceId = await getDeviceId();
+  const deviceType = getDeviceType();
   
   // Return cached if same user
   if (cachedSettings && currentUserId === userId) {
@@ -348,7 +178,7 @@ export async function loadUserSettings(userId) {
   if (!offlineManager.getOnlineStatus()) {
     console.log('📴 [UserSettings] Offline - loading from local persistent store');
     
-    const indexedSettings = await loadFromLocalPersistentStore(userId, deviceId);
+    const indexedSettings = await loadFromLocalPersistentStore(userId, deviceType);
     if (indexedSettings) {
       cachedSettings = { ...DEFAULT_SETTINGS, ...indexedSettings };
       currentUserId = userId;
@@ -361,118 +191,92 @@ export async function loadUserSettings(userId) {
   }
 
   try {
-    console.log(`🔍 [UserSettings] Loading settings for user: ${userId}, device: ${deviceId}`);
+    console.log(`🔍 [UserSettings] Loading settings for user: ${userId}, device type: ${deviceType}`);
     
     // STEP 1: Load global settings (synced across all devices)
     const globalSettings = await loadGlobalSettings(userId);
     
-    // STEP 2: Load device-specific settings for this device
+    // STEP 2: Load device-specific settings for this device type
     const deviceSettings = await UserSettings.filter({
       user_id: userId,
-      device_id: deviceId
+      device_type: deviceType
     }, '-created_date', 10);
 
     if (deviceSettings && deviceSettings.length > 0) {
-      // CRITICAL: If multiple records exist, delete duplicates and keep the OLDEST one (most likely the original)
+      // CRITICAL: If multiple records exist, delete duplicates and keep the OLDEST one
       if (deviceSettings.length > 1) {
-        console.warn(`⚠️ [UserSettings] Found ${deviceSettings.length} duplicate records, cleaning up...`);
-        // Sort by created_date ascending - keep the oldest
+        console.warn(`⚠️ [UserSettings] Found ${deviceSettings.length} duplicate records for ${deviceType}, cleaning up...`);
         const sorted = [...deviceSettings].sort((a, b) => 
           new Date(a.created_date || a.created || 0) - new Date(b.created_date || b.created || 0)
         );
         const keepRecord = sorted[0];
         
-        for (let i = 0; i < deviceSettings.length; i++) {
-          if (deviceSettings[i].id !== keepRecord.id) {
-            try {
-              await UserSettings.delete(deviceSettings[i].id);
-              console.log(`   Deleted duplicate record: ${deviceSettings[i].id}`);
-            } catch (deleteError) {
-              console.warn('   Failed to delete duplicate:', deleteError.message);
-            }
+        for (let i = 1; i < deviceSettings.length; i++) {
+          try {
+            await UserSettings.delete(deviceSettings[i].id);
+            console.log(`   Deleted duplicate ${deviceType} record: ${deviceSettings[i].id}`);
+          } catch (deleteError) {
+            console.warn('   Failed to delete duplicate:', deleteError.message);
           }
         }
         
-        // Use the oldest record
         deviceSettings[0] = keepRecord;
       }
       
-      // STEP 3: Merge defaults → global settings → device-specific settings
-      // Priority: device-specific > global > defaults
-      // CRITICAL: globalSettings only contains GLOBAL_SETTINGS keys (units, notifications)
-      // Device-specific settings (selected_driver_id, selected_date) come ONLY from this device's record
       cachedSettings = { 
         ...DEFAULT_SETTINGS, 
-        ...globalSettings, // Apply global settings (ONLY units, notifications, etc.)
-        ...deviceSettings[0] // Override with THIS device's settings (includes driver/date selection)
+        ...globalSettings,
+        ...deviceSettings[0]
       };
       currentUserId = userId;
       
-      // Cache for offline use in IndexedDB
-      await saveToLocalPersistentStore(userId, deviceId, cachedSettings);
+      await saveToLocalPersistentStore(userId, deviceType, cachedSettings);
       
-      console.log('✅ [UserSettings] Loaded settings (global + device-specific)');
+      console.log(`✅ [UserSettings] Loaded ${deviceType} settings`);
       return cachedSettings;
     }
 
-    // No settings found for this user/device combo - create a new record
-    // CRITICAL: Double-check again to prevent race condition from concurrent calls
-    console.log('ℹ️ [UserSettings] No settings found, double-checking before creating...');
-    
-    const doubleCheck = await UserSettings.filter({
-      user_id: userId,
-      device_id: deviceId
-    }, '-created_date', 1);
-    
-    if (doubleCheck && doubleCheck.length > 0) {
-      console.log('✅ [UserSettings] Found record in double-check (race condition avoided)');
-      cachedSettings = { ...DEFAULT_SETTINGS, ...doubleCheck[0] };
-      currentUserId = userId;
-      await saveToLocalPersistentStore(userId, deviceId, cachedSettings);
-      return cachedSettings;
-    }
+    // No settings found - create new record for this device type
+    console.log(`ℹ️ [UserSettings] No ${deviceType} settings found, creating...`);
     
     try {
       const now = new Date().toISOString();
-      const { deviceType } = getUserAgentInfo();
       const isMobile = deviceType === 'Mobile';
       
-      // Merge global settings with defaults for new device
       const newSettings = await UserSettings.create({
         user_id: userId,
-        device_id: deviceId,
+        device_type: deviceType,
+        is_mobile: isMobile,
         ...DEFAULT_SETTINGS,
-        ...globalSettings, // Include global settings from other devices
-        theme_preference: isMobile ? 'auto' : 'light', // Device-specific override
+        ...globalSettings,
+        theme_preference: isMobile ? 'auto' : 'light',
         created: now,
         updated: now
       });
       cachedSettings = { ...DEFAULT_SETTINGS, ...globalSettings, ...newSettings };
       currentUserId = userId;
       
-      // Cache for offline use in IndexedDB
-      await saveToLocalPersistentStore(userId, deviceId, cachedSettings);
+      await saveToLocalPersistentStore(userId, deviceType, cachedSettings);
       
-      console.log('✅ [UserSettings] Created new settings record (with global settings)');
+      console.log(`✅ [UserSettings] Created ${deviceType} settings record`);
       return cachedSettings;
     } catch (createError) {
-      // CRITICAL: If creation fails due to conflict, try fetching one more time
       if (createError.message?.includes('duplicate') || createError.message?.includes('conflict')) {
         console.warn('⚠️ [UserSettings] Creation conflict - fetching again');
         const finalCheck = await UserSettings.filter({
           user_id: userId,
-          device_id: deviceId
+          device_type: deviceType
         }, '-created_date', 1);
         
         if (finalCheck && finalCheck.length > 0) {
           cachedSettings = { ...DEFAULT_SETTINGS, ...finalCheck[0] };
           currentUserId = userId;
-          await saveToLocalPersistentStore(userId, deviceId, cachedSettings);
+          await saveToLocalPersistentStore(userId, deviceType, cachedSettings);
           return cachedSettings;
         }
       }
       
-      console.error('❌ [UserSettings] Error creating new settings record:', createError);
+      console.error('❌ [UserSettings] Error creating settings record:', createError);
       cachedSettings = { ...DEFAULT_SETTINGS };
       currentUserId = userId;
       return cachedSettings;
@@ -481,8 +285,7 @@ export async function loadUserSettings(userId) {
   } catch (error) {
     console.error('❌ [UserSettings] Error loading settings:', error);
     
-    // Try to load from local persistent store on error
-    const indexedSettings = await loadFromLocalPersistentStore(userId, deviceId);
+    const indexedSettings = await loadFromLocalPersistentStore(userId, deviceType);
     if (indexedSettings) {
       console.log('📦 [UserSettings] Network error - falling back to cached settings from IndexedDB');
       cachedSettings = { ...DEFAULT_SETTINGS, ...indexedSettings };
@@ -509,12 +312,11 @@ export async function saveSetting(userId, key, value) {
     return cachedSettings || { ...DEFAULT_SETTINGS };
   }
 
-  const deviceId = await getDeviceId();
+  const deviceType = getDeviceType();
   const isGlobal = isGlobalSetting(key);
   
-  console.log(`💾 [UserSettings] Saving ${isGlobal ? 'GLOBAL' : 'device-specific'} setting: ${key}=${value}`);
+  console.log(`💾 [UserSettings] Saving ${isGlobal ? 'GLOBAL' : deviceType} setting: ${key}=${value}`);
   
-  // Update local cache immediately for responsive UI
   if (cachedSettings) {
     cachedSettings[key] = value;
   } else {
@@ -522,18 +324,15 @@ export async function saveSetting(userId, key, value) {
   }
   currentUserId = userId;
   
-  // Save to local persistent store (IndexedDB)
-  await saveToLocalPersistentStore(userId, deviceId, cachedSettings);
+  await saveToLocalPersistentStore(userId, deviceType, cachedSettings);
 
-  // If offline, queue for later sync
   if (!offlineManager.getOnlineStatus()) {
     console.log(`📴 [UserSettings] Offline - queuing setting ${key} for sync`);
     
-    // Queue the update for when we're back online
     await offlineManager.queueAction({
       type: 'updateUserSettings',
       userId,
-      deviceId,
+      deviceType,
       key,
       value,
       data: { [key]: value }
@@ -543,17 +342,13 @@ export async function saveSetting(userId, key, value) {
   }
 
   try {
-    // CRITICAL: For global settings, update ALL device records for this user
-    // For device-specific settings, only update this device's record
     if (isGlobal) {
-      console.log(`🌐 [UserSettings] Updating GLOBAL setting across all devices`);
+      console.log(`🌐 [UserSettings] Updating GLOBAL setting across Mobile + Desktop`);
       
-      // Get all device records for this user
       const allDeviceSettings = await UserSettings.filter({
         user_id: userId
       });
       
-      // Update all devices with the new global setting
       for (const deviceRecord of allDeviceSettings) {
         try {
           await UserSettings.update(deviceRecord.id, {
@@ -561,76 +356,70 @@ export async function saveSetting(userId, key, value) {
             updated: new Date().toISOString()
           });
         } catch (updateError) {
-          console.warn(`   Failed to update device ${deviceRecord.device_id}:`, updateError.message);
+          console.warn(`   Failed to update device type ${deviceRecord.device_type}:`, updateError.message);
         }
       }
       
-      console.log(`✅ [UserSettings] Updated global setting on ${allDeviceSettings.length} devices`);
+      console.log(`✅ [UserSettings] Updated global setting on ${allDeviceSettings.length} device types`);
     }
 
-    // Find existing settings for THIS device
     const existingSettings = await UserSettings.filter({
       user_id: userId,
-      device_id: deviceId
-    });
+      device_type: deviceType
+    }, '-created_date', 10);
 
     let updatedSettings;
 
     if (existingSettings && existingSettings.length > 0) {
-      // CRITICAL: If multiple records exist, delete duplicates and keep the first one
       if (existingSettings.length > 1) {
-        console.warn(`⚠️ [UserSettings] Found ${existingSettings.length} duplicate records during save, cleaning up...`);
+        console.warn(`⚠️ [UserSettings] Found ${existingSettings.length} duplicate ${deviceType} records, cleaning up...`);
         for (let i = 1; i < existingSettings.length; i++) {
           try {
             await UserSettings.delete(existingSettings[i].id);
+            console.log(`   Deleted duplicate ${deviceType} record`);
           } catch (deleteError) {
             console.warn('   Failed to delete duplicate:', deleteError.message);
           }
         }
       }
       
-      // Update existing record with updated timestamp
       updatedSettings = await UserSettings.update(existingSettings[0].id, {
-        ...cachedSettings, // Pass all current cached settings to ensure consistency
+        ...cachedSettings,
         updated: new Date().toISOString()
       });
-      console.log(`✅ [UserSettings] Updated ${isGlobal ? 'global' : 'device-specific'} setting on this device`);
+      console.log(`✅ [UserSettings] Updated ${deviceType} settings`);
     } else {
-      // Create new record with created timestamp
       const now = new Date().toISOString();
-      const { deviceType } = getUserAgentInfo();
       const isMobile = deviceType === 'Mobile';
       
       updatedSettings = await UserSettings.create({
         user_id: userId,
-        device_id: deviceId,
+        device_type: deviceType,
+        is_mobile: isMobile,
         ...DEFAULT_SETTINGS,
         theme_preference: isMobile ? 'auto' : 'light',
         [key]: value,
         created: now,
         updated: now
       });
-      console.log('✅ [UserSettings] Created new settings record');
+      console.log(`✅ [UserSettings] Created ${deviceType} settings record`);
     }
 
-    // Update cache
     cachedSettings = { ...DEFAULT_SETTINGS, ...updatedSettings };
     currentUserId = userId;
     
-    // Update local persistent store (IndexedDB)
-    await saveToLocalPersistentStore(userId, deviceId, cachedSettings);
+    await saveToLocalPersistentStore(userId, deviceType, cachedSettings);
 
     return cachedSettings;
 
   } catch (error) {
     console.error('❌ [UserSettings] Error saving setting:', error);
     
-    // Queue for retry if network error
     if (error.message?.includes('Network') || error.message?.includes('fetch')) {
       await offlineManager.queueAction({
         type: 'updateUserSettings',
         userId,
-        deviceId,
+        deviceType,
         key,
         value,
         data: { [key]: value }
@@ -655,9 +444,8 @@ export async function saveSettings(userId, settings) {
     return cachedSettings || { ...DEFAULT_SETTINGS };
   }
 
-  const deviceId = await getDeviceId();
+  const deviceType = getDeviceType();
   
-  // Separate global and device-specific settings
   const globalUpdates = {};
   const deviceUpdates = {};
   
@@ -669,9 +457,8 @@ export async function saveSettings(userId, settings) {
     }
   });
   
-  console.log(`💾 [UserSettings] Saving ${Object.keys(globalUpdates).length} global + ${Object.keys(deviceUpdates).length} device-specific settings`);
+  console.log(`💾 [UserSettings] Saving ${Object.keys(globalUpdates).length} global + ${Object.keys(deviceUpdates).length} ${deviceType} settings`);
   
-  // Update local cache immediately
   if (cachedSettings) {
     cachedSettings = { ...cachedSettings, ...settings };
   } else {
@@ -679,17 +466,15 @@ export async function saveSettings(userId, settings) {
   }
   currentUserId = userId;
   
-  // Save to local persistent store (IndexedDB)
-  await saveToLocalPersistentStore(userId, deviceId, cachedSettings);
+  await saveToLocalPersistentStore(userId, deviceType, cachedSettings);
 
-  // If offline, queue for later sync
   if (!offlineManager.getOnlineStatus()) {
     console.log(`📴 [UserSettings] Offline - queuing settings for sync`);
     
     await offlineManager.queueAction({
       type: 'updateUserSettings',
       userId,
-      deviceId,
+      deviceType,
       data: settings
     });
     
@@ -697,9 +482,8 @@ export async function saveSettings(userId, settings) {
   }
 
   try {
-    // CRITICAL: Update global settings across ALL devices
     if (Object.keys(globalUpdates).length > 0) {
-      console.log(`🌐 [UserSettings] Updating ${Object.keys(globalUpdates).length} global settings across all devices`);
+      console.log(`🌐 [UserSettings] Updating global settings across Mobile + Desktop`);
       
       const allDeviceSettings = await UserSettings.filter({
         user_id: userId
@@ -712,25 +496,23 @@ export async function saveSettings(userId, settings) {
             updated: new Date().toISOString()
           });
         } catch (updateError) {
-          console.warn(`   Failed to update device ${deviceRecord.device_id}:`, updateError.message);
+          console.warn(`   Failed to update device type ${deviceRecord.device_type}:`, updateError.message);
         }
       }
       
-      console.log(`✅ [UserSettings] Updated global settings on ${allDeviceSettings.length} devices`);
+      console.log(`✅ [UserSettings] Updated global settings on ${allDeviceSettings.length} device types`);
     }
 
-    // Find existing settings for THIS device
     const existingSettings = await UserSettings.filter({
       user_id: userId,
-      device_id: deviceId
-    });
+      device_type: deviceType
+    }, '-created_date', 10);
 
     let updatedSettings;
 
     if (existingSettings && existingSettings.length > 0) {
-      // CRITICAL: If multiple records exist, delete duplicates and keep the first one
       if (existingSettings.length > 1) {
-        console.warn(`⚠️ [UserSettings] Found ${existingSettings.length} duplicate records during bulk save, cleaning up...`);
+        console.warn(`⚠️ [UserSettings] Found ${existingSettings.length} duplicate ${deviceType} records, cleaning up...`);
         for (let i = 1; i < existingSettings.length; i++) {
           try {
             await UserSettings.delete(existingSettings[i].id);
@@ -740,48 +522,43 @@ export async function saveSettings(userId, settings) {
         }
       }
       
-      // Update existing record with all settings (global + device-specific)
       updatedSettings = await UserSettings.update(existingSettings[0].id, {
-        ...cachedSettings, // Pass all current cached settings to ensure consistency
+        ...cachedSettings,
         updated: new Date().toISOString()
       });
-      console.log('✅ [UserSettings] Updated settings on this device');
+      console.log(`✅ [UserSettings] Updated ${deviceType} settings`);
     } else {
-      // Create new record with created timestamp
       const now = new Date().toISOString();
-      const { deviceType } = getUserAgentInfo();
       const isMobile = deviceType === 'Mobile';
       
       updatedSettings = await UserSettings.create({
         user_id: userId,
-        device_id: deviceId,
+        device_type: deviceType,
+        is_mobile: isMobile,
         ...DEFAULT_SETTINGS,
         theme_preference: isMobile ? 'auto' : 'light',
         ...settings,
         created: now,
         updated: now
       });
-      console.log('✅ [UserSettings] Created new settings record');
+      console.log(`✅ [UserSettings] Created ${deviceType} settings record`);
     }
 
-    // Update cache
     cachedSettings = { ...DEFAULT_SETTINGS, ...updatedSettings };
     currentUserId = userId;
     
-    // Update local persistent store (IndexedDB)
-    await saveToLocalPersistentStore(userId, deviceId, cachedSettings);
+    await saveToLocalPersistentStore(userId, deviceType, cachedSettings);
 
     return cachedSettings;
 
   } catch (error) {
     console.error('❌ [UserSettings] Error saving settings:', error);
     
-    // Queue for retry if network error
     if (error.message?.includes('Network') || error.message?.includes('fetch')) {
       await offlineManager.queueAction({
         type: 'updateUserSettings',
         userId,
-        deviceId,
+        deviceType,
         data: settings
       });
     }
