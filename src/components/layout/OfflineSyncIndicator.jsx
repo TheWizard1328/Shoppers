@@ -63,10 +63,10 @@ export default function OfflineSyncIndicator({ embedded = false, inline = false 
   };
 
   const getStatusIcon = () => {
-    if (isSyncing) return <Database className={`w-4 h-4 animate-spin ${getStatusColor()}`} />;
+    if (isSyncing) return <RefreshCw className={`w-4 h-4 animate-spin ${getStatusColor()}`} />;
     if (syncStatus.status === 'error') return <AlertCircle className={`w-4 h-4 ${getStatusColor()}`} />;
     if (syncStatus.status === 'synced' || syncStatus.status === 'complete') return <CheckCircle className={`w-4 h-4 ${getStatusColor()}`} />;
-    return <Database className={`w-4 h-4 ${getStatusColor()}`} />;
+    return <HardDrive className={`w-4 h-4 ${getStatusColor()}`} />;
   };
 
   // Inline mode for stats card (mobile) or upper-left (desktop)
