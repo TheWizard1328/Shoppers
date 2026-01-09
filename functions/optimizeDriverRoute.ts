@@ -228,8 +228,18 @@ Deno.serve(async (req) => {
     }
 
     // Log API usage
+    // CRITICAL: Use local time without timezone offset
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    const localTimestamp = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+    
     await base44.asServiceRole.entities.GoogleAPILog.create({
-      timestamp: new Date().toISOString(),
+      timestamp: localTimestamp,
       api_type: 'Directions',
       purpose: `Dependency-aware route optimization for driver ${driverAppUser.user_name || driverId}`,
       function_name: 'optimizeDriverRoute',

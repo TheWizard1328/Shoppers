@@ -246,8 +246,16 @@ class LocationTracker {
       
       // CRITICAL: Only update location_updated_at if driver is on_duty or on_break
       // This allows other drivers to see their activity status correctly
+      // CRITICAL: Use local time without timezone offset (YYYY-MM-DDTHH:MM:SS)
       if (isOnDutyOrBreak) {
-        updateData.location_updated_at = new Date().toISOString();
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const seconds = String(now.getSeconds()).padStart(2, '0');
+        updateData.location_updated_at = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
       }
 
       // CRITICAL: ALWAYS update coordinates regardless of duty status
@@ -332,7 +340,7 @@ class LocationTracker {
               location_tracking_enabled: false,
               current_latitude: null,
               current_longitude: null,
-              location_updated_at: null
+              location_updated_at: null // null is appropriate here (clearing timestamp)
             });
           }
         } catch (dbError) {
