@@ -537,15 +537,16 @@ function Dashboard() {
           const todayDeliveries = deliveries?.filter((d) => d && d.delivery_date === todayStr) || [];
 
           if (userHasRole(currentUser, 'dispatcher')) {
-            // DISPATCHERS: Check deliveries for their assigned stores on selected date
+            // DISPATCHERS: Check deliveries for their assigned stores on SELECTED date (not just today)
+            const selectedDateStr = settings.selected_date || format(new Date(), 'yyyy-MM-dd');
             const dispatcherStoreIds = currentUser.store_ids || [];
-            const dispatcherDeliveries = todayDeliveries.filter((d) => 
-              d && dispatcherStoreIds.includes(d.store_id)
-            );
+            const dateDeliveries = deliveries?.filter((d) => 
+              d && d.delivery_date === selectedDateStr && dispatcherStoreIds.includes(d.store_id)
+            ) || [];
 
-            // Get unique drivers with deliveries for dispatcher's stores
+            // Get unique drivers with deliveries for dispatcher's stores on selected date
             const driversWithDeliveries = new Set(
-              dispatcherDeliveries.map((d) => d.driver_id).filter(Boolean)
+              dateDeliveries.map((d) => d.driver_id).filter(Boolean)
             );
 
             if (driversWithDeliveries.size === 1) {
