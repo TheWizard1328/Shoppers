@@ -987,14 +987,18 @@ export default function ImportActiveRoutes({
       setProgressMessage('Analyzing import files for date range...');
       setProgressPercent(5);
       
-      const { minDate, maxDate } = await extractDateRangeFromFiles(files);
+      const dateRange = await extractDateRangeFromFiles(files);
       
-      if (!minDate || !maxDate) {
+      if (!dateRange.minDate || !dateRange.maxDate) {
         alert('Could not detect any dates in the import files. Please ensure files contain date metadata lines (e.g., #2024-01-15#,...)');
         setIsParsing(false);
         setShowProgress(false);
         return;
       }
+      
+      // Cache date range for use during import (avoids re-reading files)
+      setCachedDateRange(dateRange);
+      const { minDate, maxDate } = dateRange;
       
       setProgressMessage(`Date range: ${minDate} to ${maxDate}`);
       setProgressPercent(10);
