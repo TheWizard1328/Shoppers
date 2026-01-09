@@ -912,21 +912,19 @@ export default function DeliveryMap({
   }, [isDriverViewingSelf, selectedDate, currentUser, showOtherDriverDeliveries]);
 
   const { pickups, patientDeliveries } = useMemo(() => {
-    // CRITICAL: For any driver viewing their own route, show their markers + mini markers for other drivers
-    const isDriver = currentUser && userHasRole(currentUser, 'driver');
-    
     let deliveriesToShow = safeDeliveries;
     
     // CRITICAL: Include other drivers' deliveries when showOtherDriverDeliveries is true (checkbox checked)
-    // AND for any driver viewing their own route (any date)
-    if (isDriver && isDriverViewingSelf && showOtherDriverDeliveries && otherDriverDeliveries.length > 0) {
+    // Works for ANY user viewing a specific driver (admin, driver, etc.)
+    if (showOtherDriverDeliveries && otherDriverDeliveries.length > 0) {
+      console.log(`📍 [DeliveryMap] Including ${otherDriverDeliveries.length} other driver deliveries`);
       deliveriesToShow = [...safeDeliveries, ...otherDriverDeliveries];
     }
     
     const pickups = deliveriesToShow.filter((d) => d && !d.patient_id && d.store_id);
     const patientDeliveries = deliveriesToShow.filter((d) => d && d.patient_id);
     return { pickups, patientDeliveries };
-  }, [safeDeliveries, isDriverViewingSelf, otherDriverDeliveries, currentUser, showOtherDriverDeliveries]);
+  }, [safeDeliveries, otherDriverDeliveries, showOtherDriverDeliveries]);
 
   // NEW: Fetch Google route polyline for display
   useEffect(() => {
