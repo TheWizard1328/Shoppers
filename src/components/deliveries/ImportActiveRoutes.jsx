@@ -812,7 +812,7 @@ export default function ImportActiveRoutes({
         if (d.delivery_time_start) {
           pickupTimeMap.set(key, d.delivery_time_start);
         }
-        console.log(`📍 [PUID] Mapped pickup: ${store?.abbreviation || d.store_id} ${d.ampm_deliveries} → SID: ${d.stop_id}`);
+        console.log(`📍 [PUID] Mapped pickup: ${d.store_id} ${d.ampm_deliveries} → SID: ${d.stop_id}`);
       }
     });
 
