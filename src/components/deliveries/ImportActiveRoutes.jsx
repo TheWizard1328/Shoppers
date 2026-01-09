@@ -1507,7 +1507,7 @@ export default function ImportActiveRoutes({
       console.log('▶️ [ImportActiveRoutes] Resumed smart refresh and location poller');
 
       // CRITICAL: Load ALL drivers' deliveries for the date range to ensure "Show All" has complete data
-      const { minDate, maxDate } = await extractDateRangeFromFiles(files);
+      const { minDate, maxDate } = cachedDateRange;
       
       if (minDate && maxDate) {
         console.log(`📥 [ImportActiveRoutes] Fetching all drivers' deliveries for ${minDate} to ${maxDate}`);
