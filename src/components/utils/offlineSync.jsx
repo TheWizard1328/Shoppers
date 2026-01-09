@@ -511,14 +511,51 @@ export const forceSyncAll = async () => {
   if (syncInProgress || syncPaused) return { skipped: true };
   
   syncInProgress = true;
-  notifySyncStatus({ status: 'force_syncing' });
+  notifySyncStatus({ status: 'force_syncing', entity: 'Starting...', progress: 0 });
   
   try {
     const selectedDateStr = format(new Date(), 'yyyy-MM-dd');
-    await loadPriorityData(selectedDateStr);
+    
+    // Step 1: Sync deliveries
+    notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 10 });
+    const deliveries = await Delivery.filter({ delivery_date: selectedDateStr });
+    await offlineDB.bulkSave(offlineDB.STORES.DELIVERIES, deliveries);
+    notifySyncStatus({ status: 'syncing', entity: 'Deliveries', progress: 30, count: deliveries.length });
+    
+    await new Promise(r => setTimeout(r, BATCH_COOLDOWN));
+    
+    // Step 2: Sync all patients
+    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 40 });
+    const patients = await Patient.filter({ status: 'active' }, '-created_date', 5000);
+    const cleanPatients = patients.filter(p => p && p.id && !p.id.startsWith('temp_'));
+    
+    notifySyncStatus({ status: 'syncing', entity: 'Patients', progress: 70, count: cleanPatients.length });
+    await offlineDB.bulkSave(offlineDB.STORES.PATIENTS, cleanPatients);
+    
+    // Update sync timestamps
+    await Promise.all([
+      offlineDB.updateSyncStatus('Delivery', { 
+        recordCount: deliveries.length, 
+        status: 'synced',
+        lastSync: new Date().toISOString()
+      }),
+      offlineDB.updateSyncStatus('Patient', { 
+        recordCount: cleanPatients.length, 
+        status: 'synced',
+        lastSync: new Date().toISOString(),
+        lastFullSync: new Date().toISOString()
+      })
+    ]);
+    
+    notifySyncStatus({ status: 'syncing', entity: 'Finalizing', progress: 90 });
+    
+    // Sync historical deliveries in background
     await performBackgroundSync(selectedDateStr);
+    
+    notifySyncStatus({ status: 'complete', progress: 100 });
     return { success: true };
   } catch (error) {
+    notifySyncStatus({ status: 'error', error: error.message });
     return { error: error.message };
   } finally {
     syncInProgress = false;
