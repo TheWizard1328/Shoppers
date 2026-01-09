@@ -406,7 +406,7 @@ export const loadAndCacheDeliveriesForDate = async (dateStr) => {
 
 /**
  * Main entry point for initial sync
- * Checks freshness first, loads from offline if fresh, then refreshes in background
+ * CRITICAL: For new users, always sync ALL patients to populate offline DB
  */
 export const performInitialSync = async (selectedDate = null) => {
   if (syncInProgress || syncPaused) {
@@ -418,10 +418,15 @@ export const performInitialSync = async (selectedDate = null) => {
     ? format(selectedDate, 'yyyy-MM-dd') 
     : format(new Date(), 'yyyy-MM-dd');
   
+  // Check if patient data exists in offline DB (for new user detection)
+  const existingPatients = await offlineDB.getAll(offlineDB.STORES.PATIENTS);
+  const hasPatientData = existingPatients && existingPatients.length > 50; // Threshold for "has data"
+  
   // Check if offline data is fresh
   const freshData = await getOfflineDataIfFresh();
   
-  if (freshData && freshData.deliveryFresh && freshData.patientFresh) {
+  // CRITICAL: Even if delivery data is fresh, if patient data is missing/sparse, reload it
+  if (freshData && freshData.deliveryFresh && freshData.patientFresh && hasPatientData) {
     console.log('⏭️ [OfflineSync] Offline data is fresh (< 10 min), using cached data');
     
     // Schedule background refresh after 30 seconds
@@ -436,7 +441,12 @@ export const performInitialSync = async (selectedDate = null) => {
     };
   }
   
-  // Data not fresh - load priority data first
+  // CRITICAL: If patient data is sparse (new user scenario), force full patient sync
+  if (!hasPatientData) {
+    console.log('🆕 [OfflineSync] New user detected - patient data sparse, forcing full sync');
+  }
+  
+  // Data not fresh OR patient data missing - load priority data first (includes ALL patients)
   const priorityResult = await loadPriorityData(selectedDateStr);
   
   if (priorityResult.error) {
