@@ -2033,8 +2033,11 @@ export default function StopCard({
                             detail: { triggeredBy: 'complete', driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
                           }));
 
-                          // CRITICAL: Collapse the current card immediately
-                          if (onClick) {
+                          // CRITICAL: Collapse the current card immediately by deselecting it
+                          // This ensures if the card was expanded, it will now be condensed
+                          if (onSelectionChange) {
+                            onSelectionChange(delivery.id, false);
+                          } else if (onClick) {
                             onClick(null);
                           }
 
