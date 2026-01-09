@@ -1044,9 +1044,9 @@ export default function DeliveryMap({
         }
       }
 
-      // CRITICAL: Determine if this marker belongs to another driver when viewing self (any driver)
-      const isDriver = userHasRole(currentUser, 'driver');
-      const isOtherDriver = isDriver && isDriverViewingSelf && delivery.driver_id !== currentUser?.id;
+      // CRITICAL: Determine if this marker belongs to another driver
+      // Works for ANY user (admin, driver, dispatcher) viewing a specific driver
+      const isOtherDriver = selectedDriverId && selectedDriverId !== 'all' && delivery.driver_id !== selectedDriverId;
 
       // CRITICAL: Determine pin color based on mode - calculate ONCE, before rendering
       let pinColor;
