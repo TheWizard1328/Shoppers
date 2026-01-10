@@ -381,8 +381,52 @@ export default function AdminMetrics() {
           </CardContent>
         </Card>
 
-        {/* Monthly Deliveries + Driver Breakdown - Row 3 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Monthly Deliveries Chart */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="w-5 h-5" />
+                Monthly Deliveries ({selectedYear})
+              </CardTitle>
+              <CardDescription className="text-xs text-slate-500">
+                Click a month bar to filter Store Breakdown and Driver charts
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart 
+                    data={metricsData.monthlyData}
+                    onClick={(data) => {
+                      if (data && data.activePayload && data.activePayload.length > 0) {
+                        const clickedMonth = data.activePayload[0].payload.monthNum;
+                        setSelectedMonth(prev => prev === clickedMonth ? null : clickedMonth);
+                      }
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="month" tick={{ fill: '#64748b', fontSize: 12 }} />
+                    <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        background: 'white', 
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '8px'
+                      }}
+                    />
+                    <Legend />
+                    <Bar dataKey="billable" fill={COLORS.billable} name="Billable" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="nonBillable" fill={COLORS.nonBillable} name="Non-Billable" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <p className="text-xs text-slate-500 text-center mt-2">
+                Click on a month to filter charts below • Currently viewing: <span className="font-semibold text-emerald-600">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All Year'}</span>
+              </p>
+            </CardContent>
+          </Card>
+
           {/* Driver Performance Chart - Breakdown by Driver */}
           <Card>
             <CardHeader>
@@ -427,53 +471,6 @@ export default function AdminMetrics() {
           {/* Monthly Store Metrics Grid */}
           <MonthlyStoreMetricsGrid metricsData={metricsData} selectedYear={selectedYear} />
         </div>
-
-        {/* App Fees Summary */}
-        {metricsData.storeFeeTotals && (
-          <Card className="border-amber-200 bg-amber-50/30">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-amber-900">
-                <DollarSign className="w-5 h-5" />
-                App Fees Summary ({selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} {selectedYear})
-              </CardTitle>
-              <CardDescription>
-                Stores with "Pays App Fees" enabled - {metricsData.storeFeeTotals?.stores_paying_fees || 0} of {metricsData.storeFeeTotals?.total_stores || 0} stores
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="p-4 bg-white rounded-lg border">
-                  <p className="text-sm text-slate-500">Billable Deliveries</p>
-                  <p className="text-2xl font-bold text-slate-900">
-                    {metricsData.storeFeeTotals?.total_billable_while_paying?.toLocaleString() || 0}
-                  </p>
-                </div>
-                <div className="p-4 bg-white rounded-lg border">
-                  <p className="text-sm text-slate-500">Fee Rate</p>
-                  <p className="text-2xl font-bold text-slate-900">
-                    {formatCurrency(metricsData.storeFeeTotals?.app_fee_rate || 0)}
-                  </p>
-                </div>
-                <div className="p-4 bg-white rounded-lg border">
-                  <p className="text-sm text-slate-500">Stores Paying</p>
-                  <p className="text-2xl font-bold text-slate-900">
-                    {metricsData.storeFeeTotals?.stores_paying_fees || 0}
-                  </p>
-                </div>
-                <div className="p-4 bg-amber-100 rounded-lg border border-amber-300">
-                  <p className="text-sm text-amber-700">{selectedMonth ? 'Month' : 'Total'} Fees Owed</p>
-                  <p className="text-2xl font-bold text-amber-900">
-                    {formatCurrency(
-                      selectedMonth 
-                        ? (metricsData.storeFeeTotals?.monthlyFees?.[selectedMonth - 1] || 0)
-                        : (metricsData.storeFeeTotals?.total_fees_owed || 0)
-                    )}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </div>
     </div>
   );
