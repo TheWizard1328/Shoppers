@@ -884,10 +884,10 @@ export default function StopCard({
             </div>
           </div>
 
-          {/* Hide address/phone section for stripped deliveries */}
-          {!isStrippedDelivery && <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}></div>}
+          {/* Hide address/phone section for stripped deliveries OR finished deliveries that aren't expanded */}
+          {!isStrippedDelivery && (!isFinishedDelivery || isExpanded) && <div className="border-t" style={{ borderColor: 'var(--border-slate-200)' }}></div>}
 
-          {!isStrippedDelivery && <div className="flex flex-col">
+          {!isStrippedDelivery && (!isFinishedDelivery || isExpanded) && <div className="flex flex-col">
             <div className="flex items-start justify-between">
             <div className="flex flex-col justify-center gap-0.5 flex-1 min-w-0 min-h-[50px]">
             {finalDisplayAddress ?
