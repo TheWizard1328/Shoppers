@@ -1324,20 +1324,17 @@ function Dashboard() {
     // Only measure when NO card is expanded (all cards collapsed/condensed)
     if (selectedCardId) return;
 
-    // Measure immediately when conditions are met
-    const measureHeight = () => {
+    // Wait for cards to render, then measure
+    const timer = setTimeout(() => {
       const height = element.offsetHeight;
-      if (height > 0 && height !== stopCardsBaseHeight) {
+      if (height > 0) {
         console.log(`📏 [Stop Cards] Measured condensed height: ${height}px`);
         setStopCardsBaseHeight(height);
       }
-    };
-
-    // Measure after a brief delay to ensure rendering is complete
-    const timer = setTimeout(measureHeight, 150);
+    }, 200);
 
     return () => clearTimeout(timer);
-  }, [selectedCardId, deliveriesWithStopOrder.length, stopCardsBaseHeight]);
+  }, [selectedCardId, deliveriesWithStopOrder.length]);
 
   useEffect(() => {
     const fetchGoogleApiKey = async () => {
