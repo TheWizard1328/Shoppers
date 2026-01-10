@@ -1776,11 +1776,11 @@ export default function ImportActiveRoutes({
                     {files.length > 0 && (
                       <div className="space-y-2">
                         <Label className="text-sm font-medium">Selected Files ({files.length})</Label>
-                        <div className="space-y-1 max-h-60 overflow-y-auto border rounded-lg p-2" style={{ borderColor: 'var(--border-slate-200)' }}>
+                        <div className="space-y-1 max-h-60 overflow-y-auto border rounded-lg p-2" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
                           {files.map((file, index) => {
                             const driverFromFile = findDriverByFilename(file.name);
                             return (
-                              <div key={index} className="flex items-center justify-between px-3 py-2 rounded text-sm" style={{ background: 'var(--bg-slate-50)' }}>
+                              <div key={index} className="flex items-center justify-between px-3 py-2 rounded text-sm" style={{ background: 'var(--bg-slate-100)' }}>
                                 <div className="flex-1 min-w-0">
                                   <div className="font-medium truncate">{file.name}</div>
                                   {driverFromFile ? (
@@ -1879,29 +1879,29 @@ export default function ImportActiveRoutes({
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                  <div className="flex flex-col items-center bg-green-50 border border-green-200 rounded-lg p-3">
-                    <div className="text-xs text-green-700 mb-1">New Deliveries</div>
-                    <div className="text-2xl font-bold text-green-800">{previewStats.creates}</div>
+                  <div className="flex flex-col items-center rounded-lg p-3 border" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-200)' }}>
+                    <div className="text-xs mb-1 text-green-600">New Deliveries</div>
+                    <div className="text-2xl font-bold text-green-600">{previewStats.creates}</div>
                   </div>
 
-                  <div className="flex flex-col items-center bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <div className="text-xs text-blue-700 mb-1">Updates</div>
-                    <div className="text-2xl font-bold text-blue-800">{previewStats.updates}</div>
+                  <div className="flex flex-col items-center rounded-lg p-3 border" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-200)' }}>
+                    <div className="text-xs mb-1 text-blue-600">Updates</div>
+                    <div className="text-2xl font-bold text-blue-600">{previewStats.updates}</div>
                   </div>
 
-                  <div className="flex flex-col items-center bg-emerald-50 border border-emerald-200 rounded-lg p-3">
-                    <div className="text-xs text-emerald-700 mb-1">Completed</div>
-                    <div className="text-2xl font-bold text-emerald-800">{previewStats.completed}</div>
+                  <div className="flex flex-col items-center rounded-lg p-3 border" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-200)' }}>
+                    <div className="text-xs mb-1 text-emerald-600">Completed</div>
+                    <div className="text-2xl font-bold text-emerald-600">{previewStats.completed}</div>
                   </div>
 
-                  <div className="flex flex-col items-center bg-cyan-50 border border-cyan-200 rounded-lg p-3">
-                    <div className="text-xs text-cyan-700 mb-1">En Route</div>
-                    <div className="text-2xl font-bold text-cyan-800">{previewStats.enRoute}</div>
+                  <div className="flex flex-col items-center rounded-lg p-3 border" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-200)' }}>
+                    <div className="text-xs mb-1 text-cyan-600">En Route</div>
+                    <div className="text-2xl font-bold text-cyan-600">{previewStats.enRoute}</div>
                   </div>
 
-                  <div className="flex flex-col items-center bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                    <div className="text-xs text-yellow-700 mb-1">Pending</div>
-                    <div className="text-2xl font-bold text-yellow-800">{previewStats.pending}</div>
+                  <div className="flex flex-col items-center rounded-lg p-3 border" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-200)' }}>
+                    <div className="text-xs mb-1 text-yellow-500">Pending</div>
+                    <div className="text-2xl font-bold text-yellow-500">{previewStats.pending}</div>
                   </div>
                 </div>
               </div>
