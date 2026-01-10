@@ -1327,18 +1327,24 @@ function Dashboard() {
       clearTimeout(measurementTimeoutRef.current);
     }
 
+    // CRITICAL: Measure IMMEDIATELY whenever no card is expanded
+    const measureHeight = () => {
+      if (stopCardsContainerRef.current && !selectedCardId) {
+        const height = stopCardsContainerRef.current.offsetHeight;
+        if (height > 0 && height !== stopCardsBaseHeight) {
+          console.log(`📏 [Stop Cards] Height changed: ${stopCardsBaseHeight}px → ${height}px`);
+          setStopCardsBaseHeight(height);
+        }
+      }
+    };
+
+    // Measure immediately
+    measureHeight();
+
     // Only measure when no card is expanded
     if (!selectedCardId && stopCardsContainerRef.current && deliveriesWithStopOrder.length > 0) {
-      // Wait for render and animations to settle
-      measurementTimeoutRef.current = setTimeout(() => {
-        if (stopCardsContainerRef.current && !selectedCardId) {
-          const height = stopCardsContainerRef.current.offsetHeight;
-          if (height > 0 && height !== stopCardsBaseHeight) {
-            console.log(`📏 [Stop Cards] Height changed: ${stopCardsBaseHeight}px → ${height}px`);
-            setStopCardsBaseHeight(height);
-          }
-        }
-      }, 400);
+      // Wait for render and animations to settle, then measure again
+      measurementTimeoutRef.current = setTimeout(measureHeight, 400);
     }
 
     return () => {
@@ -1351,7 +1357,8 @@ function Dashboard() {
     deliveriesWithStopOrder.length, 
     currentUser?.id,
     // CRITICAL: Re-measure when delivery statuses change (finished cards collapse)
-    deliveriesWithStopOrder.map(d => d?.status).join(',')
+    deliveriesWithStopOrder.map(d => d?.status).join(','),
+    stopCardsBaseHeight
   ]);
 
   useEffect(() => {
