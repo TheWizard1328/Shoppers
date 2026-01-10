@@ -1320,31 +1320,41 @@ function Dashboard() {
     };
   }, [cardWidth, isExpanded, screenWidth, isMapViewLocked, mapViewPhase]);
 
-  // Measure HorizontalStopCards container height ONLY when condensed (no card selected)
-  // CRITICAL: Ignore height changes when cards are expanded
+  // Measure HorizontalStopCards container height - tracks condensed height
+  // CRITICAL: Disconnects observer when card is expanded, reconnects when collapsed
   useEffect(() => {
     const element = stopCardsContainerRef.current;
     if (!element) return;
 
-    // CRITICAL: Only measure when no card is expanded
-    if (selectedCardId) return;
+    let resizeObserver = null;
 
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const height = entry.contentRect.height;
-        if (height > 0 && height !== stopCardsBaseHeight) {
-          console.log(`📏 [Stop Cards ResizeObserver] Condensed height: ${height}px`);
-          setStopCardsBaseHeight(height);
+    // Only observe when no card is expanded
+    if (!selectedCardId) {
+      resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const height = entry.contentRect.height;
+          if (height > 0 && height !== stopCardsBaseHeight) {
+            console.log(`📏 [Stop Cards ResizeObserver] Condensed height: ${height}px`);
+            setStopCardsBaseHeight(height);
+          }
         }
-      }
-    });
+      });
 
-    resizeObserver.observe(element);
+      resizeObserver.observe(element);
+      
+      // CRITICAL: Measure immediately on observer creation
+      const currentHeight = element.offsetHeight;
+      if (currentHeight > 0 && currentHeight !== stopCardsBaseHeight) {
+        setStopCardsBaseHeight(currentHeight);
+      }
+    }
 
     return () => {
-      resizeObserver.disconnect();
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
     };
-  }, [selectedCardId]);
+  }, [selectedCardId, stopCardsBaseHeight]);
 
   useEffect(() => {
     const fetchGoogleApiKey = async () => {
