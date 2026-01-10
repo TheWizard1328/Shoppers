@@ -3,7 +3,7 @@ import OfflineSyncIndicator from '../layout/OfflineSyncIndicator';
 import { isAppOwner } from '../utils/userRoles';
 import { isMobileDevice } from '../utils/deviceUtils';
 
-export default function DashboardOfflineSync({ currentUser, dailyPolylineCount, isExpanded }) {
+export default function DashboardOfflineSync({ currentUser, dailyPolylineCount, isExpanded, stopCardsHeight = 75 }) {
   const isMobile = isMobileDevice();
 
   if (isMobile) {
