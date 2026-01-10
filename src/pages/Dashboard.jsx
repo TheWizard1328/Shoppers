@@ -424,6 +424,11 @@ function Dashboard() {
     condensedHeight + 10 :
     25;
 
+    console.log(`📢 [Padding] bottomPadding: ${bottomPadding} `);
+    console.log(`📢 [Padding] hasVisibleCards: ${hasVisibleCards} `);
+    console.log(`📢 [Padding] condensedHeight: ${condensedHeight} `);
+    console.log(`📢 [Padding] stopCardsBaseHeight: ${stopCardsBaseHeight} `);
+
     return {
       paddingTopLeft: [25, topPadding],
       paddingBottomRight: [25, bottomPadding]
