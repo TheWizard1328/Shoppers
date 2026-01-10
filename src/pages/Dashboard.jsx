@@ -1320,21 +1320,21 @@ function Dashboard() {
     };
   }, [cardWidth, isExpanded, screenWidth, isMapViewLocked, mapViewPhase]);
 
-  // Measure HorizontalStopCards container height when in non-expanded state
-  // CRITICAL: Use ResizeObserver to track height changes in real-time
+  // Measure HorizontalStopCards container height ONLY when condensed (no card selected)
+  // CRITICAL: Ignore height changes when cards are expanded
   useEffect(() => {
     const element = stopCardsContainerRef.current;
     if (!element) return;
 
+    // CRITICAL: Only measure when no card is expanded
+    if (selectedCardId) return;
+
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        // CRITICAL: Only measure when no card is expanded to get condensed height
-        if (!selectedCardId) {
-          const height = entry.contentRect.height;
-          if (height > 0 && height !== stopCardsBaseHeight) {
-            console.log(`📏 [Stop Cards ResizeObserver] Height changed: ${stopCardsBaseHeight}px → ${height}px`);
-            setStopCardsBaseHeight(height);
-          }
+        const height = entry.contentRect.height;
+        if (height > 0 && height !== stopCardsBaseHeight) {
+          console.log(`📏 [Stop Cards ResizeObserver] Condensed height: ${height}px`);
+          setStopCardsBaseHeight(height);
         }
       }
     });
@@ -1344,7 +1344,7 @@ function Dashboard() {
     return () => {
       resizeObserver.disconnect();
     };
-  }, [selectedCardId, stopCardsBaseHeight]);
+  }, [selectedCardId]);
 
   useEffect(() => {
     const fetchGoogleApiKey = async () => {
