@@ -410,8 +410,7 @@ function Dashboard() {
   // Note: paddingTopLeft = [horizontal, vertical from top]
   //       paddingBottomRight = [horizontal, vertical from bottom]
 
-  const getMapPadding = useCallback((cardExpanded = false, hasVisibleCards = false) => {
-    // CRITICAL: ALWAYS use base height (never use live expanded height)
+  const getMapPadding = useCallback(() => {
     const statsCardCurrHeight = statsCardRef.current?.offsetHeight || 75;
     const baseHeight = stopCardsBaseHeight || 0;
 
@@ -419,7 +418,6 @@ function Dashboard() {
     statsCardCurrHeight + 25 :
     25;
 
-    // CRITICAL: Use base height if cards exist, otherwise 25
     const bottomPadding = baseHeight > 0 ? baseHeight + 10 : 25;
 
     return {
@@ -1468,7 +1466,7 @@ function Dashboard() {
               [newLocation.latitude, newLocation.longitude],
               [nextStopCoordinates.lat, nextStopCoordinates.lon]];
 
-              const padding = getMapPadding(false, bounds.length > 0);
+              const padding = getMapPadding();
 
               // CRITICAL: Mark as programmatic move to prevent zoom indicator
               window._lastProgrammaticMapMove = Date.now();
@@ -1553,7 +1551,7 @@ function Dashboard() {
                     lastProximitySnapTimeRef.current = Date.now();
 
                     // Center map on the nearby marker
-                    const padding = getMapPadding(false, deliveriesWithStopOrder.length > 0);
+                    const padding = getMapPadding();
                     setShouldFitBounds({
                       bounds: [[stopLat, stopLon]],
                       options: {
@@ -2203,7 +2201,7 @@ function Dashboard() {
             [closestCity.latitude - latOffset, closestCity.longitude - lonOffset],
             [closestCity.latitude + latOffset, closestCity.longitude + lonOffset]];
 
-            const padding = getMapPadding(false, deliveriesWithStopOrder.length > 0);
+            const padding = getMapPadding();
             setShouldFitBounds({
               bounds,
               options: {
@@ -2219,7 +2217,7 @@ function Dashboard() {
         // CASE 2: Drivers but no stop markers → center on drivers + city center
         else if (!hasStopMarkers && hasDriverMarkers && currentCity?.latitude && currentCity?.longitude) {
           allCoordinates.push([currentCity.latitude, currentCity.longitude]);
-          const padding = getMapPadding(false, deliveriesWithStopOrder.length > 0);
+          const padding = getMapPadding();
           setShouldFitBounds({
             bounds: allCoordinates,
             options: {
@@ -2254,7 +2252,7 @@ function Dashboard() {
           const phase1MaxZoom = Math.max(8.0, Math.min(15, Math.round((baseZoom + screenAdjustment) * 10) / 10)).toFixed(1);
           console.log(`🗺️ [Phase 1] maxZoom: ${phase1MaxZoom}, span: ${spanKm.toFixed(2)}km`);
 
-          const padding = getMapPadding(false, allCoordinates.length > 0);
+          const padding = getMapPadding();
 
           setShouldFitBounds({
             bounds: allCoordinates,
@@ -2309,7 +2307,7 @@ function Dashboard() {
           [driverLocation.latitude, driverLocation.longitude],
           [nextStopCoordinates.lat, nextStopCoordinates.lon]];
 
-          const padding = getMapPadding(false, bounds.length > 0);
+          const padding = getMapPadding();
 
           setShouldFitBounds({
             bounds,
@@ -2323,7 +2321,7 @@ function Dashboard() {
           setMapZoom(null);
         } else {
           // If no next stop, just center on driver with padding
-          const padding = getMapPadding(false, deliveriesWithStopOrder.length > 0);
+          const padding = getMapPadding();
 
           setShouldFitBounds({
             bounds: [[driverLocation.latitude, driverLocation.longitude]],
@@ -2375,7 +2373,7 @@ function Dashboard() {
           return;
         }
 
-        const padding = getMapPadding(false, false);
+        const padding = getMapPadding();
 
         setShouldFitBounds({
           bounds: [[driverLocation.latitude, driverLocation.longitude]],
@@ -2963,7 +2961,7 @@ function Dashboard() {
       }, 300);
 
       // Center map on this delivery using fitBounds for bottom padding
-      const padding = getMapPadding(false, deliveriesWithStopOrder.length > 0);
+      const padding = getMapPadding();
       if (nextDelivery.patient_id) {
         const patient = patients.find((p) => p && p.id === nextDelivery.patient_id);
         if (patient?.latitude && patient?.longitude) {
@@ -3351,8 +3349,7 @@ function Dashboard() {
       mapLockExpiresAtRef.current = null;
       setIsMapViewLocked(false);
 
-      // CRITICAL: Use condensed height for padding (not expanded)
-      const condensedPadding = getMapPadding(false, true);
+      const padding = getMapPadding();
 
       if (delivery.patient_id) {
         // Patient delivery - center on patient marker only (not store)
@@ -3361,7 +3358,7 @@ function Dashboard() {
           setShouldFitBounds({
             bounds: [[patient.latitude, patient.longitude]],
             options: {
-              ...condensedPadding,
+              ...padding,
               maxZoom: 16,
               animate: true
             }
@@ -3369,15 +3366,15 @@ function Dashboard() {
           setMapCenter(null);
           setMapZoom(null);
           setIsMapViewLocked(true);
-        }
-      } else if (delivery.store_id) {
-        // Pickup - center on store marker only
-        const store = stores.find((s) => s.id === delivery.store_id);
-        if (store?.latitude && store?.longitude) {
+          }
+          } else if (delivery.store_id) {
+          // Pickup - center on store marker only
+          const store = stores.find((s) => s.id === delivery.store_id);
+          if (store?.latitude && store?.longitude) {
           setShouldFitBounds({
             bounds: [[store.latitude, store.longitude]],
             options: {
-              ...condensedPadding,
+              ...padding,
               maxZoom: 16,
               animate: true
             }
@@ -6830,7 +6827,7 @@ function Dashboard() {
                 });
 
                 if (allCoordinates.length > 0) {
-                  const padding = getMapPadding(false, deliveriesWithStopOrder.length > 0);
+                  const padding = getMapPadding();
                   setShouldFitBounds({
                     bounds: allCoordinates,
                     options: {
