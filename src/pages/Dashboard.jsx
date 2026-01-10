@@ -1318,6 +1318,7 @@ function Dashboard() {
   }, [cardWidth, isExpanded, screenWidth, isMapViewLocked, mapViewPhase]);
 
   // Measure HorizontalStopCards container height when in non-expanded state
+  // CRITICAL: Also track when deliveries change status (finished -> condensed cards)
   useEffect(() => {
     // Clear any pending measurement
     if (measurementTimeoutRef.current) {
@@ -1330,7 +1331,8 @@ function Dashboard() {
       measurementTimeoutRef.current = setTimeout(() => {
         if (stopCardsContainerRef.current && !selectedCardId) {
           const height = stopCardsContainerRef.current.offsetHeight;
-          if (height > 0) {
+          if (height > 0 && height !== stopCardsBaseHeight) {
+            console.log(`📏 [Stop Cards] Height changed: ${stopCardsBaseHeight}px → ${height}px`);
             setStopCardsBaseHeight(height);
           }
         }
@@ -1342,7 +1344,13 @@ function Dashboard() {
         clearTimeout(measurementTimeoutRef.current);
       }
     };
-  }, [selectedCardId, deliveriesWithStopOrder.length, currentUser?.id]);
+  }, [
+    selectedCardId, 
+    deliveriesWithStopOrder.length, 
+    currentUser?.id,
+    // CRITICAL: Re-measure when delivery statuses change (finished cards collapse)
+    deliveriesWithStopOrder.map(d => d?.status).join(',')
+  ]);
 
   useEffect(() => {
     const fetchGoogleApiKey = async () => {
