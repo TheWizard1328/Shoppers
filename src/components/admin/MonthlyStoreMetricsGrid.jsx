@@ -11,7 +11,7 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
  * 1. Total deliveries per store per month
  * 2. Total payable app fees per store per month
  */
-export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear }) {
+export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onStoreMonthClick, selectedMonth, selectedStoreMonth }) {
   const [viewMode, setViewMode] = useState('deliveries'); // 'deliveries' or 'fees'
   
   if (!metricsData) return null;
@@ -146,16 +146,26 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear }) {
               {MONTH_NAMES.map((monthName, idx) => {
                 const month = idx + 1;
                 const monthTotal = getMonthTotal(month);
+                const isMonthSelected = selectedMonth === month;
                 return (
-                  <tr key={month} className="border-b hover:bg-slate-50">
-                    <td className="p-2 font-medium text-slate-600 sticky left-0 bg-white z-10">{monthName}</td>
+                  <tr key={month} className={`border-b hover:bg-slate-50 ${isMonthSelected ? 'bg-emerald-50' : ''}`}>
+                    <td 
+                      className={`p-2 font-medium sticky left-0 z-10 cursor-pointer ${isMonthSelected ? 'text-emerald-700 bg-emerald-50' : 'text-slate-600 bg-white'}`}
+                      onClick={() => onMonthClick && onMonthClick(month)}
+                      title="Click to filter charts by this month"
+                    >
+                      {monthName}
+                    </td>
                     {stores.map(store => {
                       const value = getValue(store.abbreviation, month);
+                      const isStoreMonthSelected = selectedStoreMonth?.month === month && selectedStoreMonth?.storeId === store.id;
                       return (
                         <td 
                           key={store.abbreviation} 
-                          className="text-center p-2 tabular-nums"
+                          className={`text-center p-2 tabular-nums cursor-pointer hover:bg-slate-100 ${isStoreMonthSelected ? 'bg-blue-100' : ''}`}
                           style={{ color: value > 0 ? getStoreColor(store) : '#94a3b8' }}
+                          onClick={() => value > 0 && onStoreMonthClick && onStoreMonthClick(month, store.id, store.abbreviation)}
+                          title={value > 0 ? `Click to see ${monthName} ${store.name} day-by-day breakdown` : ''}
                         >
                           {formatValue(value)}
                         </td>
