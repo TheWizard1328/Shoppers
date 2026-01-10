@@ -469,11 +469,8 @@ export default function AdminMetrics() {
               </div>
             </CardContent>
           </Card>
-        </div>
-      </div>
-    </div>
-  );
-}
+        {/* Monthly Store Metrics Grid */}
+        <MonthlyStoreMetricsGrid metricsData={metricsData} selectedYear={selectedYear} />
       </div>
     </div>
   );
