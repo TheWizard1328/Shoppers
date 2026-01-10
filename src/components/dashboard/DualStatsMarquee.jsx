@@ -121,7 +121,7 @@ export default function DualStatsMarquee({
         <StatBadge
           icon={CheckCircle}
           value={completedDeliveries}
-          driverCount={isDispatcher ? completedDrivers : isDriver && completedPickups > 0 ? completedPickups : undefined}
+          driverCount={isDispatcher ? completedDrivers : isDriver ? completedPickups : undefined}
           color="green"
           label="Completed"
           tooltip={tooltipValues.completed} />
