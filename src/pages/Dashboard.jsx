@@ -1318,35 +1318,24 @@ function Dashboard() {
     };
   }, [cardWidth, isExpanded, screenWidth, isMapViewLocked, mapViewPhase]);
 
-  // Measure stop cards height - CRITICAL: Only when NOT expanded (condensed/collapsed)
+  // Measure stop cards height - ONE TIME when cards render or delivery list changes
   useEffect(() => {
+    // Only measure when no card is expanded
+    if (selectedCardId) return;
+    
     const element = stopCardsContainerRef.current;
     if (!element) return;
 
-    let observer = null;
-
-    if (!selectedCardId) {
-      // Only observe when no card is expanded
-      observer = new ResizeObserver((entries) => {
-        for (const entry of entries) {
-          const height = entry.contentRect.height;
-          setStopCardsBaseHeight(prevHeight => {
-            if (height > 0 && height !== prevHeight) {
-              console.log(`📏 [Stop Cards] Measured non-expanded height: ${height}px`);
-              return height;
-            }
-            return prevHeight;
-          });
-        }
-      });
-      observer.observe(element);
-    }
-
-    return () => {
-      if (observer) {
-        observer.disconnect();
+    // Small delay to ensure cards have fully rendered
+    const timer = setTimeout(() => {
+      const height = element.offsetHeight;
+      if (height > 0) {
+        console.log(`📏 [Stop Cards] Measured condensed height: ${height}px`);
+        setStopCardsBaseHeight(height);
       }
-    };
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, [selectedCardId, deliveriesWithStopOrder.length]);
 
   useEffect(() => {
@@ -3307,32 +3296,20 @@ function Dashboard() {
       setSelectedCardId(null);
       setHighlightedCardId(null);
 
-      // CRITICAL: Wait for collapse animation to complete, then measure and update everything
+      // Restore previous map state and reactivate FAB
       setTimeout(() => {
-        const container = stopCardsContainerRef.current;
-        if (container) {
-          const actualHeight = container.offsetHeight;
-          if (actualHeight > 0) {
-            console.log(`📏 [Card Collapse] Measured condensed height: ${actualHeight}px`);
-            setStopCardsBaseHeight(actualHeight);
-            
-            // CRITICAL: Restore previous map state AFTER height is updated
-            if (previousMapState) {
-              setShouldFitBounds(previousMapState);
-              setPreviousMapState(null);
-            }
-
-            // Reactivate FAB phase
-            setIsMapViewLocked(true);
-            setMapViewTrigger((prev) => prev + 1);
-
-            // Unlock after brief delay
-            setTimeout(() => {
-              setIsMapViewLocked(false);
-            }, 100);
-          }
+        if (previousMapState) {
+          setShouldFitBounds(previousMapState);
+          setPreviousMapState(null);
         }
-      }, 250); // Wait for collapse animation (200ms) + small buffer
+
+        setIsMapViewLocked(true);
+        setMapViewTrigger((prev) => prev + 1);
+
+        setTimeout(() => {
+          setIsMapViewLocked(false);
+        }, 100);
+      }, 300);
 
       // Scroll to card with isNextDelivery=true
       setTimeout(() => {
