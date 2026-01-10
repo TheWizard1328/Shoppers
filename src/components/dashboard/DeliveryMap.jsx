@@ -1322,10 +1322,25 @@ export default function DeliveryMap({
       });
       
       if (map) {
-        // Center on original cluster location with padding for stop cards
+        // Calculate dynamic bottom padding based on actual stop cards height
+        // Get the stop cards container element
+        const stopCardsContainer = document.getElementById('stop-card-0') || 
+                                    document.querySelector('[id^="stop-card-"]');
+        let dynamicBottomPadding = 80; // Default fallback
+        
+        if (stopCardsContainer) {
+          // Get the actual height of the cards container/parent
+          const cardsParent = stopCardsContainer.parentElement;
+          if (cardsParent) {
+            const actualHeight = cardsParent.getBoundingClientRect().height;
+            dynamicBottomPadding = Math.max(actualHeight + 20, 80); // Add 20px buffer
+          }
+        }
+        
+        // Center on original cluster location with dynamic padding
         const fitOptions = { 
           paddingTopLeft: [80, 80],
-          paddingBottomRight: [80, stopCardsHeight > 0 ? stopCardsHeight : 80],
+          paddingBottomRight: [80, dynamicBottomPadding],
           maxZoom: 14,
           animate: true,
           duration: 0.6
