@@ -8,7 +8,7 @@ import React from 'react';
  * 
  * This is a pure overlay - not part of the map, so it doesn't move when panning.
  */
-export default function MapCrosshair({ stopCardsHeight = 0, statsCardHeight = 0, isMobile = false }) {
+export default function MapCrosshair({ stopCardsHeight = 75, statsCardHeight = 0, isMobile = false }) {
   // Calculate vertical shift to center crosshair in the visible map area
   // On mobile: center between bottom of StatsCard and top of StopCards
   // On desktop: center between top of map edge and top of StopCards
