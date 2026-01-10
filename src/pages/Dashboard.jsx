@@ -1321,7 +1321,7 @@ function Dashboard() {
   }, [cardWidth, isExpanded, screenWidth, isMapViewLocked, mapViewPhase]);
 
   // CRITICAL: Continuously measure HorizontalStopCards height in real-time
-  // FABs and API counter ALWAYS use current ACTUAL height (including expansion)
+  // FABs and API counter ALWAYS use current live height
   useEffect(() => {
     const element = stopCardsContainerRef.current;
     if (!element) return;
@@ -1329,25 +1329,18 @@ function Dashboard() {
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const height = entry.contentRect.height;
-        if (height > 0 && height !== stopCardsBaseHeight) {
-          console.log(`📏 [Stop Cards Height] Updated to ${height}px`);
+        if (height > 0) {
           setStopCardsBaseHeight(height);
         }
       }
     });
 
     resizeObserver.observe(element);
-    
-    // Measure immediately on mount
-    const currentHeight = element.offsetHeight;
-    if (currentHeight > 0) {
-      setStopCardsBaseHeight(currentHeight);
-    }
 
     return () => {
       resizeObserver.disconnect();
     };
-  }, [stopCardsBaseHeight]);
+  }, []);
 
   useEffect(() => {
     const fetchGoogleApiKey = async () => {
@@ -6394,12 +6387,12 @@ function Dashboard() {
       </div>
 
       <div className="flex-1 w-full relative min-h-0 overflow-hidden">
-        {/* Polyline API hits badge - App Owner only - positioned above stop cards */}
+        {/* Polyline API hits badge - App Owner only - positioned above stop cards like FAB but on left */}
         {currentUser && isAppOwner(currentUser) &&
         <div
-          className="absolute left-4 z-[140] transition-all duration-200"
+          className="absolute left-4 z-[140]"
           style={{
-            bottom: `${deliveriesWithStopOrder.length > 0 ? stopCardsBaseHeight + 15 : 25}px`
+            bottom: `${deliveriesWithStopOrder.length > 0 ? (stopCardsBaseHeight || 75) + 15 : 25}px`
           }}>
             <div className="px-2 py-1 text-xs font-medium rounded-lg border" style={{ background: 'transparent', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-600)' }}>
               🛣️ {dailyPolylineCount ?? '...'}
@@ -6735,9 +6728,9 @@ function Dashboard() {
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0, opacity: 0 }}
           transition={{ type: "spring", stiffness: 260, damping: 20 }}
-          className="fixed z-[140] transition-all duration-200"
+          className="fixed z-[140]"
           style={{
-            bottom: `${deliveriesWithStopOrder.length > 0 ? stopCardsBaseHeight + 15 : 25}px`,
+            bottom: `${deliveriesWithStopOrder.length > 0 ? (stopCardsBaseHeight || 75) + 15 : 25}px`,
             right: '64px' // Position to the left of MapViewCycleFAB
           }}>
             <Button
