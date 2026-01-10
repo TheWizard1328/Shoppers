@@ -159,39 +159,22 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
 
     console.log(`🎯 [HorizontalStopCards] selectedCardId changed to: ${targetCardId}`);
 
-    // Function to perform the scroll with a delay to let cards render
+    // Function to perform the scroll with a delay to let cards render/resize
+    // Use longer delay (350ms) to wait for card expand/collapse animations
     scrollTimeoutRef.current = setTimeout(() => {
       requestAnimationFrame(() => {
         const container = containerRef.current;
         const element = document.getElementById(`stop-card-${targetCardId}`);
 
-        // CRITICAL: Verify the target is still the selected card after the delay
-        // This prevents "bouncing" if the selection changes rapidly during re-renders
         if (!container || !element) {
           console.warn(`⚠️ [HorizontalStopCards] Cannot scroll - container: ${!!container}, element: ${!!element}`);
           return;
         }
 
-        // Get the actual bounding rects to account for any padding/margins
-        const containerRect = container.getBoundingClientRect();
-        const elementRect = element.getBoundingClientRect();
-
-        // Calculate how much to scroll to center the element
-        const elementCenterOffset = elementRect.left + elementRect.width / 2;
-        const containerCenterOffset = containerRect.left + containerRect.width / 2;
-        const scrollAdjustment = elementCenterOffset - containerCenterOffset;
-
-        console.log(`📍 [HorizontalStopCards] Scrolling to card ${targetCardId}, adjustment: ${scrollAdjustment.toFixed(0)}px`);
-
-        // Only scroll if adjustment is significant (more than 5px)
-        if (Math.abs(scrollAdjustment) > 5) {
-          container.scrollTo({
-            left: container.scrollLeft + scrollAdjustment,
-            behavior: 'smooth'
-          });
-        }
+        // Use scrollToCenterCard for consistent centering
+        scrollToCenterCard(element);
       });
-    }, 250); // Increased delay to ensure cards are rendered
+    }, 350); // Wait for card animations to complete
 
     // Update ref for tracking
     prevSelectedCardIdRef.current = selectedCardId;
