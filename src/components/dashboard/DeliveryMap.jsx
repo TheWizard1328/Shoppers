@@ -1323,18 +1323,16 @@ export default function DeliveryMap({
       
       if (map) {
         // Calculate dynamic bottom padding based on actual stop cards height
-        // Get the stop cards container element
-        const stopCardsContainer = document.getElementById('stop-card-0') || 
-                                    document.querySelector('[id^="stop-card-"]');
+        // CRITICAL: Get the FULL container height from the horizontal-cards-container
+        const stopCardsFullContainer = document.querySelector('.horizontal-cards-container');
         let dynamicBottomPadding = 80; // Default fallback
         
-        if (stopCardsContainer) {
-          // Get the actual height of the cards container/parent
-          const cardsParent = stopCardsContainer.parentElement;
-          if (cardsParent) {
-            const actualHeight = cardsParent.getBoundingClientRect().height;
-            dynamicBottomPadding = Math.max(actualHeight + 20, 80); // Add 20px buffer
-          }
+        if (stopCardsFullContainer) {
+          const actualHeight = stopCardsFullContainer.getBoundingClientRect().height;
+          dynamicBottomPadding = Math.max(actualHeight + 20, 80); // Add 20px buffer
+          console.log(`🗺️ [Cluster Click] Using actual stop cards height: ${actualHeight}px, padding: ${dynamicBottomPadding}px`);
+        } else {
+          console.log(`⚠️ [Cluster Click] Container not found - using default padding: ${dynamicBottomPadding}px`);
         }
         
         // Center on original cluster location with dynamic padding
