@@ -1763,6 +1763,9 @@ export default function Layout({ children, currentPageName }) {
           });
           activeDrivers = sortUsers(activeDrivers);
           setDrivers(activeDrivers);
+
+          // CRITICAL: Dispatch event to force QuickStats to refresh
+          window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
         }, 500);
       }
       const mergedUsersMap = new Map();
@@ -1908,9 +1911,16 @@ export default function Layout({ children, currentPageName }) {
     let relevantDeliveries = deliveries;
     
     if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
-      // Dispatchers: only count routes for their assigned stores
+      // DISPATCHERS: Count driver-routes where driver has ANY stops in dispatcher's stores
       const dispatcherStoreIds = new Set(currentUser.store_ids || []);
-      relevantDeliveries = relevantDeliveries.filter(d => d && dispatcherStoreIds.has(d.store_id));
+      
+      // Get all drivers who have ANY delivery in dispatcher's stores
+      const driversInStores = new Set(
+        deliveries.filter(d => d && dispatcherStoreIds.has(d.store_id)).map(d => d.driver_id).filter(Boolean)
+      );
+      
+      // Filter to deliveries from those drivers only
+      relevantDeliveries = relevantDeliveries.filter(d => d && driversInStores.has(d.driver_id));
     } else if (userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin')) {
       // Drivers: only count their own routes
       relevantDeliveries = relevantDeliveries.filter(d => d && d.driver_id === currentUser.id);
@@ -1943,13 +1953,21 @@ export default function Layout({ children, currentPageName }) {
   }, [deliveries, currentUser]);
 
   const getPatientStoreData = useCallback(() => {
-    if (!stores.length || !filteredPatients.length) return [];
+    if (!stores.length || !patients.length) return [];
     const sortedStores = [...stores].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+    
+    // CRITICAL: For dispatchers, only count patients from their assigned stores
+    let relevantPatients = patients;
+    if (isDispatcher && currentUser?.store_ids) {
+      const dispatcherStoreIds = new Set(currentUser.store_ids);
+      relevantPatients = patients.filter(p => p && dispatcherStoreIds.has(p.store_id));
+    }
+    
     return sortedStores.map((store) => ({
       ...store,
-      patientCount: filteredPatients.filter((p) => p && p.store_id === store.id).length
+      patientCount: relevantPatients.filter((p) => p && p.store_id === store.id).length
     }));
-  }, [stores, filteredPatients]);
+  }, [stores, patients, isDispatcher, currentUser?.store_ids]);
 
   const getLatestDateWithDeliveries = useCallback((driverId = null) => {
     let relevantDeliveries = filteredDeliveries.filter(delivery => delivery);
