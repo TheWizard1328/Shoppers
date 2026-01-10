@@ -708,8 +708,7 @@ export default function DeliveryMap({
   onMapInteraction = () => {}, // NEW: Callback for any map interaction (zoom, pan, cluster click)
   onDoubleTap = () => {}, // NEW: Callback for double-tap on map
   retractClustersRef, // NEW: Ref to allow parent to retract clusters
-  STOP_CARDS_BASE_HEIGHT = 145, // Fixed non-expanded height for map padding
-  stopCardsHeight = STOP_CARDS_BASE_HEIGHT + 100, // NEW: Height of the horizontal stop cards for fitBounds padding
+  stopCardsHeight = 75, // Height of the stop cards container (passed from Dashboard)
   currentToNextPolyline = null, // NEW: Google Maps polyline from current position to next stop
   statsCardPositioning = '', // NEW: CSS classes for stats card positioning
   isStatsCardExpanded = false, // NEW: Whether stats card is expanded
