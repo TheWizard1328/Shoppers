@@ -6735,7 +6735,7 @@ function Dashboard() {
           transition={{ type: "spring", stiffness: 260, damping: 20 }}
           className="fixed z-[140]"
           style={{
-            bottom: `${deliveriesWithStopOrder.length > 0 ? (stopCardsBaseHeight || 75) + 15 : 25}px`,
+            bottom: `${deliveriesWithStopOrder.length > 0 ? (stopCardsContainerRef.current?.offsetHeight || 75) + 15 : 25}px`,
             right: '64px' // Position to the left of MapViewCycleFAB
           }}>
             <Button
