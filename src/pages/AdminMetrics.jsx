@@ -28,6 +28,7 @@ export default function AdminMetrics() {
   const [isFetching, setIsFetching] = useState(false); // For year changes (doesn't hide content)
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState(null); // null = all year, 1-12 = specific month
+  const [selectedStoreMonth, setSelectedStoreMonth] = useState(null); // { month, storeId, storeAbbr } for day-by-day breakdown
   const [selectedCityId, setSelectedCityId] = useState(null); // Will be set to user's city
   const [cities, setCities] = useState([]);
   const [metricsData, setMetricsData] = useState(null);
@@ -119,23 +120,36 @@ export default function AdminMetrics() {
     fetchMetrics(selectedYear, newCityId, false);
   };
 
-  // Filter data based on selected month (client-side filtering)
+  // Filter data based on selected month and store (client-side filtering)
   const filteredData = useMemo(() => {
     if (!metricsData) return null;
-    if (!selectedMonth) return metricsData; // No month selected, return all year data
-
-    // Filter store data for selected month
-    const monthStoreData = metricsData.storeDataByMonth?.[selectedMonth] || metricsData.storeData;
     
-    // Get month-specific fees
-    const monthFees = metricsData.storeFeeTotals?.monthlyFees?.[selectedMonth - 1] || 0;
+    // Store + Month selected: show day-by-day breakdown for that store
+    if (selectedStoreMonth) {
+      // Day-by-day breakdown data will be fetched from backend
+      return {
+        ...metricsData,
+        storeData: metricsData.storeData, // Keep full store data for legend
+        isDailyBreakdown: true
+      };
+    }
+    
+    // Only month selected: filter all graphs by month
+    if (selectedMonth) {
+      const monthStoreData = metricsData.storeDataByMonth?.[selectedMonth] || metricsData.storeData;
+      const monthFees = metricsData.storeFeeTotals?.monthlyFees?.[selectedMonth - 1] || 0;
 
-    return {
-      ...metricsData,
-      storeData: monthStoreData,
-      displayedFees: monthFees
-    };
-  }, [metricsData, selectedMonth]);
+      return {
+        ...metricsData,
+        storeData: monthStoreData,
+        displayedFees: monthFees,
+        isDailyBreakdown: false
+      };
+    }
+    
+    // Nothing selected: return all year data
+    return metricsData;
+  }, [metricsData, selectedMonth, selectedStoreMonth]);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
@@ -295,15 +309,41 @@ export default function AdminMetrics() {
         </div>
 
         {/* Row 1: Monthly Store App Fees */}
-        <MonthlyStoreMetricsGrid metricsData={metricsData} selectedYear={selectedYear} />
+        <MonthlyStoreMetricsGrid 
+          metricsData={metricsData} 
+          selectedYear={selectedYear}
+          selectedMonth={selectedMonth}
+          selectedStoreMonth={selectedStoreMonth}
+          onMonthClick={(month) => {
+            setSelectedMonth(prev => prev === month ? null : month);
+            setSelectedStoreMonth(null); // Clear store selection when month changes
+          }}
+          onStoreMonthClick={(month, storeId, storeAbbr) => {
+            setSelectedStoreMonth({ month, storeId, storeAbbr });
+            setSelectedMonth(month); // Also set month filter
+          }}
+        />
 
-        {/* Row 2: Store Breakdown */}
+        {/* Row 2: Store Breakdown or Day-by-Day Breakdown */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Store className="w-5 h-5" />
-              Store Breakdown ({selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} {selectedYear})
+              {selectedStoreMonth 
+                ? `${selectedStoreMonth.storeAbbr} - ${MONTH_NAMES[selectedStoreMonth.month - 1]} ${selectedYear} (Day-by-Day)`
+                : `Store Breakdown (${selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} ${selectedYear})`
+              }
             </CardTitle>
+            {selectedStoreMonth && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setSelectedStoreMonth(null)}
+                className="text-xs"
+              >
+                ← Back to Month View
+              </Button>
+            )}
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
@@ -346,23 +386,11 @@ export default function AdminMetrics() {
                 <BarChart3 className="w-5 h-5" />
                 Monthly Deliveries ({selectedYear})
               </CardTitle>
-              <CardDescription className="text-xs text-slate-500">
-                Click a month bar to filter Store Breakdown and Driver charts
-              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart 
-                    data={metricsData.monthlyData}
-                    onClick={(data) => {
-                      if (data && data.activePayload && data.activePayload.length > 0) {
-                        const clickedMonth = data.activePayload[0].payload.monthNum;
-                        setSelectedMonth(prev => prev === clickedMonth ? null : clickedMonth);
-                      }
-                    }}
-                    style={{ cursor: 'pointer' }}
-                  >
+                  <BarChart data={metricsData.monthlyData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="month" tick={{ fill: '#64748b', fontSize: 12 }} />
                     <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
@@ -379,9 +407,6 @@ export default function AdminMetrics() {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-              <p className="text-xs text-slate-500 text-center mt-2">
-                Click on a month to filter charts below • Currently viewing: <span className="font-semibold text-emerald-600">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All Year'}</span>
-              </p>
             </CardContent>
           </Card>
 
