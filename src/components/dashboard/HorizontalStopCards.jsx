@@ -67,10 +67,7 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
     touchStartXRef.current = e.touches[0].clientX;
   }, []);
 
-  const handleTouchMove = React.useCallback((e) => {
-    // MOBILE: Prevent native scroll during swipe - cards stay static until touchend
-    e.preventDefault();
-  }, []);
+
 
   const handleTouchEnd = React.useCallback((e) => {
     const container = containerRef.current;
