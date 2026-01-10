@@ -188,6 +188,39 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
 
   // Track the current centered card index
   const currentCardIndexRef = React.useRef(0);
+  const isScrollingRef = React.useRef(false);
+
+  // Helper function to scroll to a specific card index
+  const scrollToCardIndex = React.useCallback((index) => {
+    const container = containerRef.current;
+    if (!container || isScrollingRef.current) return;
+
+    const cards = Array.from(container.querySelectorAll('[id^="stop-card-"]'));
+    if (cards.length === 0 || index < 0 || index >= cards.length) return;
+
+    const targetCard = cards[index];
+    if (!targetCard) return;
+
+    isScrollingRef.current = true;
+
+    // Calculate exact scroll position to center the card
+    const containerWidth = container.offsetWidth;
+    const cardOffsetLeft = targetCard.offsetLeft;
+    const cardWidth = targetCard.offsetWidth;
+    const scrollTarget = cardOffsetLeft - (containerWidth / 2) + (cardWidth / 2);
+
+    container.scrollTo({
+      left: scrollTarget,
+      behavior: 'smooth'
+    });
+
+    currentCardIndexRef.current = index;
+
+    // Reset scrolling flag after animation completes
+    setTimeout(() => {
+      isScrollingRef.current = false;
+    }, 350);
+  }, []);
 
   // Snap scrolling for mobile - scroll one card at a time
   const handleTouchStart = React.useCallback((e) => {
@@ -195,21 +228,20 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
     const container = containerRef.current;
     if (container) {
       container._touchStartX = e.touches[0].clientX;
-      container._touchStartTime = Date.now();
+      container._initialScrollLeft = container.scrollLeft;
       
       // Find current centered card index on touch start
       const cards = Array.from(container.querySelectorAll('[id^="stop-card-"]'));
       if (cards.length > 0) {
-        const containerRect = container.getBoundingClientRect();
-        const containerCenter = containerRect.left + containerRect.width / 2;
+        const containerWidth = container.offsetWidth;
+        const scrollCenter = container.scrollLeft + containerWidth / 2;
         
         let closestIndex = 0;
         let closestDistance = Infinity;
         
         cards.forEach((card, index) => {
-          const cardRect = card.getBoundingClientRect();
-          const cardCenter = cardRect.left + cardRect.width / 2;
-          const distance = Math.abs(cardCenter - containerCenter);
+          const cardCenter = card.offsetLeft + card.offsetWidth / 2;
+          const distance = Math.abs(cardCenter - scrollCenter);
           if (distance < closestDistance) {
             closestDistance = distance;
             closestIndex = index;
@@ -221,13 +253,21 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
     }
   }, []);
 
+  const handleTouchMove = React.useCallback((e) => {
+    // Prevent default to stop browser's native scroll behavior interfering
+    const container = containerRef.current;
+    if (container && container._touchStartX !== undefined) {
+      // Allow the native scroll but track it
+    }
+  }, []);
+
   const handleTouchEnd = React.useCallback((e) => {
     const container = containerRef.current;
     if (!container || container._touchStartX === undefined) return;
 
     const touchEndX = e.changedTouches[0].clientX;
     const deltaX = container._touchStartX - touchEndX;
-    const swipeThreshold = 30; // Minimum swipe distance
+    const swipeThreshold = 25; // Minimum swipe distance
 
     const cards = Array.from(container.querySelectorAll('[id^="stop-card-"]'));
     if (cards.length === 0) return;
@@ -243,27 +283,13 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
       targetIndex = Math.max(currentCardIndexRef.current - 1, 0);
     }
 
-    // Scroll to target card, centered
-    const targetCard = cards[targetIndex];
-    if (targetCard) {
-      const containerRect = container.getBoundingClientRect();
-      const containerCenter = containerRect.width / 2;
-      const targetRect = targetCard.getBoundingClientRect();
-      const targetCenter = targetRect.left - containerRect.left + targetRect.width / 2;
-      const scrollAdjustment = targetCenter - containerCenter;
-
-      container.scrollTo({
-        left: container.scrollLeft + scrollAdjustment,
-        behavior: 'smooth'
-      });
-      
-      currentCardIndexRef.current = targetIndex;
-    }
+    // Always scroll to ensure proper centering
+    scrollToCardIndex(targetIndex);
 
     // Clean up
     delete container._touchStartX;
-    delete container._touchStartTime;
-  }, []);
+    delete container._initialScrollLeft;
+  }, [scrollToCardIndex]);
 
   return (
     <div
