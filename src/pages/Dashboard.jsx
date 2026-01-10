@@ -411,7 +411,7 @@ function Dashboard() {
   const getMapPadding = useCallback((cardExpanded = false, hasVisibleCards = false) => {
     // Get actual rendered heights from refs
     const statsCardCurrHeight = statsCardRef.current?.offsetHeight || 116;
-    const stopCardsCurrHeight = stopCardsContainerRef.current?.offsetHeight || 150;
+    const stopCardsCurrHeight = stopCardsContainerRef.current?.offsetHeight || 75;
 
     const topPadding = isMobile ?
     statsCardCurrHeight + 25 :
