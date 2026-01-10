@@ -119,6 +119,22 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
 
   }, [scrollToCenterCard]);
 
+  // CRITICAL: Attach touch handlers with { passive: false } to allow preventDefault
+  React.useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const onTouchMove = (e) => {
+      e.preventDefault(); // This ONLY works with passive: false
+    };
+
+    container.addEventListener('touchmove', onTouchMove, { passive: false });
+
+    return () => {
+      container.removeEventListener('touchmove', onTouchMove);
+    };
+  }, []);
+
   React.useEffect(() => {
     // Skip if no selection or container
     if (!selectedCardId || !containerRef.current) {
