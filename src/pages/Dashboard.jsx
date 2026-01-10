@@ -414,21 +414,19 @@ function Dashboard() {
     // Get actual rendered heights from refs
     const statsCardCurrHeight = statsCardRef.current?.offsetHeight || 75;
     
-    // CRITICAL: Use measured height only - no defaults
+    // CRITICAL: Always use base height (condensed/collapsed), NEVER use live height
     const condensedHeight = stopCardsBaseHeight;
 
     const topPadding = isMobile ?
     statsCardCurrHeight + 25 :
     25; // Desktop: Exclude stats card
 
+    // CRITICAL: Use base height when cards are visible, fallback to 25 when no cards
     const bottomPadding = (hasVisibleCards && condensedHeight > 0) ?
     condensedHeight + 10 :
     25;
 
-    console.log(`📢 [Padding] bottomPadding: ${bottomPadding} `);
-    console.log(`📢 [Padding] hasVisibleCards: ${hasVisibleCards} `);
-    console.log(`📢 [Padding] condensedHeight: ${condensedHeight} `);
-    console.log(`📢 [Padding] stopCardsBaseHeight: ${stopCardsBaseHeight} `);
+    console.log(`📢 [Map Padding] Bottom: ${bottomPadding}px (base height: ${condensedHeight}px, visible: ${hasVisibleCards})`);
 
     return {
       paddingTopLeft: [25, topPadding],
@@ -1326,25 +1324,32 @@ function Dashboard() {
     };
   }, [cardWidth, isExpanded, screenWidth, isMapViewLocked, mapViewPhase]);
 
-  // Measure stop cards height - ONLY when cards are condensed/collapsed (NOT expanded)
+  // Measure stop cards height - CRITICAL: Always measure when cards are NOT expanded
   useEffect(() => {
     const element = stopCardsContainerRef.current;
     if (!element) return;
 
-    // Skip if any card is expanded
-    if (selectedCardId) return;
+    // CRITICAL: Only measure when no card is expanded (condensed/collapsed state)
+    if (selectedCardId) {
+      console.log('⏭️ [Stop Cards Measure] Skipping - card is expanded');
+      return;
+    }
 
-    // Measure after cards finish rendering
-    const timer = setTimeout(() => {
-      const height = element.offsetHeight;
-      if (height > 0) {
-        console.log(`📏 [Stop Cards] Setting base height: ${height}px`);
-        setStopCardsBaseHeight(height);
+    // Use ResizeObserver for accurate measurement
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const height = entry.contentRect.height;
+        if (height > 0 && height !== stopCardsBaseHeight) {
+          console.log(`📏 [Stop Cards] Measured non-expanded height: ${height}px`);
+          setStopCardsBaseHeight(height);
+        }
       }
-    }, 200);
+    });
 
-    return () => clearTimeout(timer);
-  }, [selectedCardId, deliveriesWithStopOrder.length]);
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, [selectedCardId, deliveriesWithStopOrder.length, stopCardsBaseHeight]);
 
   useEffect(() => {
     const fetchGoogleApiKey = async () => {
