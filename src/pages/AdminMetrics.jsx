@@ -381,6 +381,8 @@ export default function AdminMetrics() {
           </CardContent>
         </Card>
 
+        {/* Monthly Deliveries + Driver Breakdown - Row 3 */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Monthly Deliveries Chart */}
           <Card>
             <CardHeader>
@@ -467,10 +469,11 @@ export default function AdminMetrics() {
               </div>
             </CardContent>
           </Card>
-
-          {/* Monthly Store Metrics Grid */}
-          <MonthlyStoreMetricsGrid metricsData={metricsData} selectedYear={selectedYear} />
         </div>
+      </div>
+    </div>
+  );
+}
       </div>
     </div>
   );
