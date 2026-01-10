@@ -186,12 +186,12 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
     if (!currentUser) return;
 
     const fetchStats = async (force = false) => {
-      // CRITICAL: Skip if same DATE and fetched within last 60 seconds (unless forced)
-      // Driver changes should NOT trigger new API calls - use cached data
+      // CRITICAL: Allow re-fetch on driver/date changes, but with minimal cache (5 seconds)
       const now = Date.now();
       if (!force && 
           lastFetchRef.current.date === selectedDateStr && 
-          now - lastFetchRef.current.timestamp < 60000) {
+          lastFetchRef.current.driver === selectedDriverId &&
+          now - lastFetchRef.current.timestamp < 5000) {
         return;
       }
 
@@ -253,7 +253,6 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
     window.addEventListener('refreshDeliveryStats', handleDeliveryChange);
     window.addEventListener('deliveriesImported', handleDeliveryChange);
     window.addEventListener('offlineSyncComplete', handleDeliveryChange);
-    // CRITICAL: Removed deliveriesUpdated - too frequent, causes rate limits
 
     return () => {
       clearTimeout(timer);
@@ -261,7 +260,7 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
       window.removeEventListener('deliveriesImported', handleDeliveryChange);
       window.removeEventListener('offlineSyncComplete', handleDeliveryChange);
     };
-  }, [currentUser, selectedDateStr, storeIds]); // CRITICAL: Removed selectedDriverId - don't refetch on driver change
+    }, [currentUser, selectedDateStr, selectedDriverId, storeIds]); // CRITICAL: Re-added selectedDriverId to trigger refresh on driver change
 
   const StatItem = ({ icon: Icon, label, value, colorClass }) =>
       <div className="flex items-center justify-between text-sm">

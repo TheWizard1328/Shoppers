@@ -93,11 +93,12 @@ Deno.serve(async (req) => {
         baseFilter.driver_id = driverId;
       }
     } else if (isDispatcher && !isDriver) {
-      // Dispatchers only see their assigned stores
+      // DISPATCHERS: Only count deliveries where driver has stops in dispatcher's stores
+      // CRITICAL: Filter by stores ONLY (not driver) - we need ALL drivers with stops in our stores
       if (userStoreIds.length > 0) {
         baseFilter.store_id = { $in: userStoreIds };
       }
-      // If specific driver selected, filter by driver
+      // When specific driver selected, filter by that driver
       if (driverId && driverId !== 'all') {
         baseFilter.driver_id = driverId;
       }
@@ -314,10 +315,19 @@ Deno.serve(async (req) => {
     // Returns: All returned for today
     const todayReturns = todayDeliveries.filter(isReturn).length;
     
-    // Active Drivers: Unique drivers with any activity today
-    const todayActiveDrivers = new Set(
-      todayDeliveries.filter(d => d.driver_id).map(d => d.driver_id)
-    ).size;
+    // DISPATCHER: Count unique driver-date routes for dispatcher's stores
+    let todayActiveDrivers = 0;
+    if (isDispatcher && !isDriver) {
+      // Count unique drivers who have ANY delivery (pickup or patient) in dispatcher's stores
+      todayActiveDrivers = new Set(
+        todayDeliveries.filter(d => d?.driver_id).map(d => d.driver_id)
+      ).size;
+    } else {
+      // For admins and drivers, count all active drivers
+      todayActiveDrivers = new Set(
+        todayDeliveries.filter(d => d?.driver_id).map(d => d.driver_id)
+      ).size;
+    }
 
     // Polyline Count: Skip - not critical and causes errors sometimes
     const polylineCount = 0;
