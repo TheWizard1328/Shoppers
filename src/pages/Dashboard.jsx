@@ -411,22 +411,16 @@ function Dashboard() {
   //       paddingBottomRight = [horizontal, vertical from bottom]
 
   const getMapPadding = useCallback((cardExpanded = false, hasVisibleCards = false) => {
-    // Get actual rendered heights from refs
+    // CRITICAL: ALWAYS use base height (never use live expanded height)
     const statsCardCurrHeight = statsCardRef.current?.offsetHeight || 75;
-    
-    // CRITICAL: Always use base height (condensed/collapsed), NEVER use live height
-    const condensedHeight = stopCardsBaseHeight;
+    const baseHeight = stopCardsBaseHeight || 0;
 
     const topPadding = isMobile ?
     statsCardCurrHeight + 25 :
-    25; // Desktop: Exclude stats card
-
-    // CRITICAL: Use base height when cards are visible, fallback to 25 when no cards
-    const bottomPadding = (hasVisibleCards && condensedHeight > 0) ?
-    condensedHeight + 10 :
     25;
 
-    console.log(`📢 [Map Padding] Bottom: ${bottomPadding}px (base height: ${condensedHeight}px, visible: ${hasVisibleCards})`);
+    // CRITICAL: Use base height if cards exist, otherwise 25
+    const bottomPadding = baseHeight > 0 ? baseHeight + 10 : 25;
 
     return {
       paddingTopLeft: [25, topPadding],
@@ -1324,32 +1318,27 @@ function Dashboard() {
     };
   }, [cardWidth, isExpanded, screenWidth, isMapViewLocked, mapViewPhase]);
 
-  // Measure stop cards height - CRITICAL: Always measure when cards are NOT expanded
+  // Measure stop cards height - CRITICAL: Only when NOT expanded (condensed/collapsed)
   useEffect(() => {
     const element = stopCardsContainerRef.current;
     if (!element) return;
 
-    // CRITICAL: Only measure when no card is expanded (condensed/collapsed state)
-    if (selectedCardId) {
-      console.log('⏭️ [Stop Cards Measure] Skipping - card is expanded');
-      return;
-    }
+    // CRITICAL: Only measure when no card is expanded
+    if (selectedCardId) return;
 
-    // Use ResizeObserver for accurate measurement
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const height = entry.contentRect.height;
-        if (height > 0 && height !== stopCardsBaseHeight) {
-          console.log(`📏 [Stop Cards] Measured non-expanded height: ${height}px`);
-          setStopCardsBaseHeight(height);
-        }
+    const measureHeight = () => {
+      const height = element.offsetHeight;
+      if (height > 0 && height !== stopCardsBaseHeight) {
+        console.log(`📏 [Stop Cards] Base height: ${height}px`);
+        setStopCardsBaseHeight(height);
       }
-    });
+    };
 
-    observer.observe(element);
+    // Measure after a delay to ensure cards have finished animating
+    const timer = setTimeout(measureHeight, 300);
 
-    return () => observer.disconnect();
-  }, [selectedCardId, deliveriesWithStopOrder.length, stopCardsBaseHeight]);
+    return () => clearTimeout(timer);
+  }, [selectedCardId, deliveriesWithStopOrder.length]);
 
   useEffect(() => {
     const fetchGoogleApiKey = async () => {
@@ -6448,12 +6437,12 @@ function Dashboard() {
       </div>
 
       <div className="flex-1 w-full relative min-h-0 overflow-hidden">
-        {/* Polyline API hits badge - App Owner only - positioned above stop cards like FAB but on left */}
-        {currentUser && isAppOwner(currentUser) &&
+        {/* Polyline API hits badge - App Owner only - fixed position */}
+        {currentUser && isAppOwner(currentUser) && stopCardsBaseHeight > 0 &&
         <div
           className="absolute left-4 z-[140]"
           style={{
-            bottom: `${stopCardsBaseHeight > 0 ? stopCardsBaseHeight + 15 : 25}px`
+            bottom: `${stopCardsBaseHeight + 15}px`
           }}>
             <div className="px-2 py-1 text-xs font-medium rounded-lg border" style={{ background: 'transparent', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-600)' }}>
               🛣️ {dailyPolylineCount ?? '...'}
@@ -6791,8 +6780,8 @@ function Dashboard() {
           transition={{ type: "spring", stiffness: 260, damping: 20 }}
           className="fixed z-[140]"
           style={{
-            bottom: `${stopCardsBaseHeight > 0 ? stopCardsBaseHeight + 15 : 25}px`,
-            right: '64px' // Position to the left of MapViewCycleFAB
+            bottom: `${stopCardsBaseHeight + 15}px`,
+            right: '64px'
           }}>
             <Button
               onClick={async () => {
