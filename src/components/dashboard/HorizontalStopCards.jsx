@@ -186,13 +186,38 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
     return sortOrderA - sortOrderB;
   });
 
+  // Track the current centered card index
+  const currentCardIndexRef = React.useRef(0);
+
   // Snap scrolling for mobile - scroll one card at a time
   const handleTouchStart = React.useCallback((e) => {
     autoScrollEnabledRef.current = false;
     const container = containerRef.current;
     if (container) {
       container._touchStartX = e.touches[0].clientX;
-      container._scrollStartX = container.scrollLeft;
+      container._touchStartTime = Date.now();
+      
+      // Find current centered card index on touch start
+      const cards = Array.from(container.querySelectorAll('[id^="stop-card-"]'));
+      if (cards.length > 0) {
+        const containerRect = container.getBoundingClientRect();
+        const containerCenter = containerRect.left + containerRect.width / 2;
+        
+        let closestIndex = 0;
+        let closestDistance = Infinity;
+        
+        cards.forEach((card, index) => {
+          const cardRect = card.getBoundingClientRect();
+          const cardCenter = cardRect.left + cardRect.width / 2;
+          const distance = Math.abs(cardCenter - containerCenter);
+          if (distance < closestDistance) {
+            closestDistance = distance;
+            closestIndex = index;
+          }
+        });
+        
+        currentCardIndexRef.current = closestIndex;
+      }
     }
   }, []);
 
@@ -202,60 +227,42 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
 
     const touchEndX = e.changedTouches[0].clientX;
     const deltaX = container._touchStartX - touchEndX;
-    const threshold = 50; // Minimum swipe distance to trigger snap
+    const swipeThreshold = 30; // Minimum swipe distance
 
-    if (Math.abs(deltaX) > threshold) {
-      // Find all card elements
-      const cards = Array.from(container.querySelectorAll('[id^="stop-card-"]'));
-      if (cards.length === 0) return;
+    const cards = Array.from(container.querySelectorAll('[id^="stop-card-"]'));
+    if (cards.length === 0) return;
 
-      // Get current scroll position and container width
+    let targetIndex = currentCardIndexRef.current;
+
+    // Determine direction based on swipe
+    if (deltaX > swipeThreshold) {
+      // Swiped left (finger moved left) - go to NEXT card (right)
+      targetIndex = Math.min(currentCardIndexRef.current + 1, cards.length - 1);
+    } else if (deltaX < -swipeThreshold) {
+      // Swiped right (finger moved right) - go to PREVIOUS card (left)
+      targetIndex = Math.max(currentCardIndexRef.current - 1, 0);
+    }
+
+    // Scroll to target card, centered
+    const targetCard = cards[targetIndex];
+    if (targetCard) {
       const containerRect = container.getBoundingClientRect();
-      const containerCenter = containerRect.left + containerRect.width / 2;
+      const containerCenter = containerRect.width / 2;
+      const targetRect = targetCard.getBoundingClientRect();
+      const targetCenter = targetRect.left - containerRect.left + targetRect.width / 2;
+      const scrollAdjustment = targetCenter - containerCenter;
 
-      // Find the card closest to center
-      let closestCard = null;
-      let closestDistance = Infinity;
-
-      cards.forEach((card) => {
-        const cardRect = card.getBoundingClientRect();
-        const cardCenter = cardRect.left + cardRect.width / 2;
-        const distance = Math.abs(cardCenter - containerCenter);
-        if (distance < closestDistance) {
-          closestDistance = distance;
-          closestCard = card;
-        }
+      container.scrollTo({
+        left: container.scrollLeft + scrollAdjustment,
+        behavior: 'smooth'
       });
-
-      if (closestCard) {
-        const currentIndex = cards.indexOf(closestCard);
-        let targetIndex;
-
-        if (deltaX > 0) {
-          // Swiped left - go to next card
-          targetIndex = Math.min(currentIndex + 1, cards.length - 1);
-        } else {
-          // Swiped right - go to previous card
-          targetIndex = Math.max(currentIndex - 1, 0);
-        }
-
-        const targetCard = cards[targetIndex];
-        if (targetCard) {
-          const targetRect = targetCard.getBoundingClientRect();
-          const targetCenter = targetRect.left + targetRect.width / 2;
-          const scrollAdjustment = targetCenter - containerCenter;
-
-          container.scrollTo({
-            left: container.scrollLeft + scrollAdjustment,
-            behavior: 'smooth'
-          });
-        }
-      }
+      
+      currentCardIndexRef.current = targetIndex;
     }
 
     // Clean up
     delete container._touchStartX;
-    delete container._scrollStartX;
+    delete container._touchStartTime;
   }, []);
 
   return (
