@@ -1321,46 +1321,30 @@ function Dashboard() {
   }, [cardWidth, isExpanded, screenWidth, isMapViewLocked, mapViewPhase]);
 
   // Measure HorizontalStopCards container height when in non-expanded state
-  // CRITICAL: Also track when deliveries change status (finished -> condensed cards)
+  // CRITICAL: Use ResizeObserver to track height changes in real-time
   useEffect(() => {
-    // Clear any pending measurement
-    if (measurementTimeoutRef.current) {
-      clearTimeout(measurementTimeoutRef.current);
-    }
+    const element = stopCardsContainerRef.current;
+    if (!element) return;
 
-    // CRITICAL: Measure IMMEDIATELY whenever no card is expanded
-    const measureHeight = () => {
-      if (stopCardsContainerRef.current && !selectedCardId) {
-        const height = stopCardsContainerRef.current.offsetHeight;
-        if (height > 0 && height !== stopCardsBaseHeight) {
-          console.log(`📏 [Stop Cards] Height changed: ${stopCardsBaseHeight}px → ${height}px`);
-          setStopCardsBaseHeight(height);
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        // CRITICAL: Only measure when no card is expanded to get condensed height
+        if (!selectedCardId) {
+          const height = entry.contentRect.height;
+          if (height > 0 && height !== stopCardsBaseHeight) {
+            console.log(`📏 [Stop Cards ResizeObserver] Height changed: ${stopCardsBaseHeight}px → ${height}px`);
+            setStopCardsBaseHeight(height);
+          }
         }
       }
-    };
+    });
 
-    // Measure immediately
-    measureHeight();
-
-    // Only measure when no card is expanded
-    if (!selectedCardId && stopCardsContainerRef.current && deliveriesWithStopOrder.length > 0) {
-      // Wait for render and animations to settle, then measure again
-      measurementTimeoutRef.current = setTimeout(measureHeight, 400);
-    }
+    resizeObserver.observe(element);
 
     return () => {
-      if (measurementTimeoutRef.current) {
-        clearTimeout(measurementTimeoutRef.current);
-      }
+      resizeObserver.disconnect();
     };
-  }, [
-    selectedCardId, 
-    deliveriesWithStopOrder.length, 
-    currentUser?.id,
-    // CRITICAL: Re-measure when delivery statuses change (finished cards collapse)
-    deliveriesWithStopOrder.map(d => d?.status).join(','),
-    stopCardsBaseHeight
-  ]);
+  }, [selectedCardId, stopCardsBaseHeight]);
 
   useEffect(() => {
     const fetchGoogleApiKey = async () => {
