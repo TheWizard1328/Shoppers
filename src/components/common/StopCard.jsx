@@ -742,6 +742,7 @@ export default function StopCard({
   return (
     <motion.div
       id={`stop-card-${delivery.id}`}
+      data-is-condensed={shouldFade && !isExpanded && !isHovered}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}

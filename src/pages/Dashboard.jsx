@@ -1320,42 +1320,45 @@ function Dashboard() {
     };
   }, [cardWidth, isExpanded, screenWidth, isMapViewLocked, mapViewPhase]);
 
-  // CRITICAL: Measure stop cards height ONLY when in smallest state (collapsed/condensed, NOT expanded)
-  // FABs and API counter use this fixed base height and never move with expansion
+  // CRITICAL: Measure the SMALLEST possible height of stop cards (all condensed)
+  // FABs and API counter use this as minimum height and only increase when cards are collapsed/expanded
   useEffect(() => {
     const element = stopCardsContainerRef.current;
     if (!element) return;
 
-    const resizeObserver = new ResizeObserver((entries) => {
-      // CRITICAL: Only measure height when NO card is expanded
-      if (selectedCardId) {
-        console.log('📏 [Stop Cards] Skipping measurement - card is expanded');
-        return;
-      }
-
-      for (const entry of entries) {
-        const height = entry.contentRect.height;
-        if (height > 0 && height !== stopCardsBaseHeight) {
-          console.log(`📏 [Stop Cards] Base height updated: ${height}px (smallest state)`);
-          setStopCardsBaseHeight(height);
-        }
-      }
-    });
-
-    resizeObserver.observe(element);
-
-    // Measure immediately when no card is selected
-    if (!selectedCardId) {
+    const measureSmallestHeight = () => {
+      // Check if ALL cards are condensed (finished + not hovered + not expanded)
+      const cards = element.querySelectorAll('[data-is-condensed="true"]');
+      const allCards = element.querySelectorAll('[id^="stop-card-"]');
+      
+      const allCondensed = cards.length === allCards.length && allCards.length > 0;
+      
       const currentHeight = element.offsetHeight;
       if (currentHeight > 0) {
-        setStopCardsBaseHeight(currentHeight);
+        if (allCondensed) {
+          // All cards condensed - use this as the BASE minimum
+          if (currentHeight !== stopCardsBaseHeight) {
+            console.log(`📏 [Stop Cards] ALL CONDENSED - Base height: ${currentHeight}px`);
+            setStopCardsBaseHeight(currentHeight);
+          }
+        } else if (currentHeight > stopCardsBaseHeight) {
+          // Some cards collapsed/expanded - use the larger height
+          console.log(`📏 [Stop Cards] MIXED STATE - Height: ${currentHeight}px (> base ${stopCardsBaseHeight}px)`);
+          setStopCardsBaseHeight(currentHeight);
+        }
       }
-    }
+    };
+
+    const resizeObserver = new ResizeObserver(measureSmallestHeight);
+    resizeObserver.observe(element);
+
+    // Measure immediately
+    measureSmallestHeight();
 
     return () => {
       resizeObserver.disconnect();
     };
-  }, [selectedCardId, stopCardsBaseHeight]);
+  }, [stopCardsBaseHeight]);
 
   useEffect(() => {
     const fetchGoogleApiKey = async () => {
