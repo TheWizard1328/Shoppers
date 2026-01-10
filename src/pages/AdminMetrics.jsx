@@ -28,11 +28,13 @@ export default function AdminMetrics() {
   const [isFetching, setIsFetching] = useState(false); // For year changes (doesn't hide content)
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState(null); // null = all year, 1-12 = specific month
+  const [selectedStoreMonth, setSelectedStoreMonth] = useState(null); // { month, storeId, storeAbbr } for day breakdown
   const [selectedCityId, setSelectedCityId] = useState(null); // Will be set to user's city
   const [cities, setCities] = useState([]);
   const [metricsData, setMetricsData] = useState(null);
   const [error, setError] = useState(null);
   const [initialCitySet, setInitialCitySet] = useState(false);
+  const [dayBreakdownData, setDayBreakdownData] = useState(null);
 
   const availableYears = useMemo(() => {
     const currentYear = new Date().getFullYear();
@@ -110,13 +112,48 @@ export default function AdminMetrics() {
   // Handle year change without full refresh
   const handleYearChange = (newYear) => {
     setSelectedYear(newYear);
+    setSelectedMonth(null);
+    setSelectedStoreMonth(null);
+    setDayBreakdownData(null);
     fetchMetrics(newYear, selectedCityId, false); // isInitial = false - keeps content visible
   };
 
   // Handle city change
   const handleCityChange = (newCityId) => {
     setSelectedCityId(newCityId);
+    setSelectedMonth(null);
+    setSelectedStoreMonth(null);
+    setDayBreakdownData(null);
     fetchMetrics(selectedYear, newCityId, false);
+  };
+
+  // Handle month click from grid
+  const handleMonthClick = (month) => {
+    setSelectedMonth(prev => prev === month ? null : month);
+    setSelectedStoreMonth(null); // Clear store-month selection
+    setDayBreakdownData(null);
+  };
+
+  // Handle store-month click for day breakdown
+  const handleStoreMonthClick = async (month, storeId, storeAbbr) => {
+    const newSelection = { month, storeId, storeAbbr };
+    setSelectedStoreMonth(newSelection);
+    setSelectedMonth(month); // Also set the month for filtering other charts
+    
+    // Fetch day-by-day breakdown from backend
+    try {
+      const response = await base44.functions.invoke('getStoreDailyBreakdown', {
+        year: parseInt(selectedYear),
+        month: month,
+        storeId: storeId,
+        cityId: selectedCityId === 'all' ? null : selectedCityId
+      });
+      const data = response?.data || response;
+      setDayBreakdownData(data);
+    } catch (error) {
+      console.error('Failed to fetch day breakdown:', error);
+      setDayBreakdownData(null);
+    }
   };
 
   // Filter data based on selected month (client-side filtering)
@@ -295,25 +332,49 @@ export default function AdminMetrics() {
         </div>
 
         {/* Row 1: Monthly Store App Fees */}
-        <MonthlyStoreMetricsGrid metricsData={metricsData} selectedYear={selectedYear} />
+        <MonthlyStoreMetricsGrid 
+          metricsData={metricsData} 
+          selectedYear={selectedYear}
+          onMonthClick={handleMonthClick}
+          onStoreMonthClick={handleStoreMonthClick}
+          selectedMonth={selectedMonth}
+          selectedStoreMonth={selectedStoreMonth}
+        />
 
         {/* Row 2: Store Breakdown */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Store className="w-5 h-5" />
-              Store Breakdown ({selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} {selectedYear})
+              {selectedStoreMonth 
+                ? `${selectedStoreMonth.storeAbbr} - ${MONTH_NAMES[selectedStoreMonth.month - 1]} ${selectedYear} Daily Breakdown`
+                : `Store Breakdown (${selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} ${selectedYear})`
+              }
             </CardTitle>
+            {selectedStoreMonth && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => {
+                  setSelectedStoreMonth(null);
+                  setDayBreakdownData(null);
+                }}
+                className="text-xs"
+              >
+                Back to Store Totals
+              </Button>
+            )}
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={filteredData?.storeData || metricsData.storeData}>
+                <BarChart data={selectedStoreMonth && dayBreakdownData ? dayBreakdownData : (filteredData?.storeData || metricsData.storeData)}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis 
-                    dataKey="abbreviation" 
+                    dataKey={selectedStoreMonth ? "day" : "abbreviation"}
                     tick={{ fill: '#64748b', fontSize: 11 }}
                     interval={0}
+                    label={selectedStoreMonth ? { value: 'Day of Month', position: 'insideBottom', offset: -5, style: { fill: '#64748b', fontSize: 10 } } : undefined}
                   />
                   <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
                   <Tooltip 
@@ -324,6 +385,9 @@ export default function AdminMetrics() {
                     }}
                     formatter={(value, name) => [value, name]}
                     labelFormatter={(label) => {
+                      if (selectedStoreMonth) {
+                        return `Day ${label}`;
+                      }
                       const store = metricsData.storeData?.find(s => s.abbreviation === label);
                       return store?.name || label;
                     }}
@@ -346,23 +410,11 @@ export default function AdminMetrics() {
                 <BarChart3 className="w-5 h-5" />
                 Monthly Deliveries ({selectedYear})
               </CardTitle>
-              <CardDescription className="text-xs text-slate-500">
-                Click a month bar to filter Store Breakdown and Driver charts
-              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart 
-                    data={metricsData.monthlyData}
-                    onClick={(data) => {
-                      if (data && data.activePayload && data.activePayload.length > 0) {
-                        const clickedMonth = data.activePayload[0].payload.monthNum;
-                        setSelectedMonth(prev => prev === clickedMonth ? null : clickedMonth);
-                      }
-                    }}
-                    style={{ cursor: 'pointer' }}
-                  >
+                  <BarChart data={metricsData.monthlyData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="month" tick={{ fill: '#64748b', fontSize: 12 }} />
                     <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
@@ -379,9 +431,6 @@ export default function AdminMetrics() {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-              <p className="text-xs text-slate-500 text-center mt-2">
-                Click on a month to filter charts below • Currently viewing: <span className="font-semibold text-emerald-600">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All Year'}</span>
-              </p>
             </CardContent>
           </Card>
 
