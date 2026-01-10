@@ -1323,21 +1323,30 @@ function Dashboard() {
     const element = stopCardsContainerRef.current;
     if (!element) return;
 
-    // CRITICAL: Only measure when no card is expanded
-    if (selectedCardId) return;
+    let observer = null;
 
-    const measureHeight = () => {
-      const height = element.offsetHeight;
-      if (height > 0 && height !== stopCardsBaseHeight) {
-        console.log(`📏 [Stop Cards] Base height: ${height}px`);
-        setStopCardsBaseHeight(height);
+    if (!selectedCardId) {
+      // Only observe when no card is expanded
+      observer = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const height = entry.contentRect.height;
+          setStopCardsBaseHeight(prevHeight => {
+            if (height > 0 && height !== prevHeight) {
+              console.log(`📏 [Stop Cards] Measured non-expanded height: ${height}px`);
+              return height;
+            }
+            return prevHeight;
+          });
+        }
+      });
+      observer.observe(element);
+    }
+
+    return () => {
+      if (observer) {
+        observer.disconnect();
       }
     };
-
-    // Measure after a delay to ensure cards have finished animating
-    const timer = setTimeout(measureHeight, 300);
-
-    return () => clearTimeout(timer);
   }, [selectedCardId, deliveriesWithStopOrder.length]);
 
   useEffect(() => {
