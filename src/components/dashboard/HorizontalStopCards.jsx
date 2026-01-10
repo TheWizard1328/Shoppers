@@ -279,7 +279,10 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
             key={card.id} 
             id={`stop-card-${card.id}`} 
             className="flex-shrink-0" 
-            style={{ scrollSnapAlign: 'center', scrollSnapStop: 'always' }}
+            style={{ 
+              scrollSnapAlign: isMobile ? 'center' : 'none',
+              scrollSnapStop: isMobile ? 'always' : 'normal'
+            }}
             data-is-next-delivery={card.isNextDelivery ? "true" : undefined}>
             <StopCard
               delivery={card}
