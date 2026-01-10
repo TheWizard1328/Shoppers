@@ -1318,23 +1318,26 @@ function Dashboard() {
 
   // Measure stop cards height - ONE TIME when cards render or delivery list changes
   useEffect(() => {
-    // Only measure when no card is expanded
-    if (selectedCardId) return;
-    
     const element = stopCardsContainerRef.current;
     if (!element) return;
 
-    // Small delay to ensure cards have fully rendered
-    const timer = setTimeout(() => {
+    // Only measure when NO card is expanded (all cards collapsed/condensed)
+    if (selectedCardId) return;
+
+    // Measure immediately when conditions are met
+    const measureHeight = () => {
       const height = element.offsetHeight;
-      if (height > 0) {
+      if (height > 0 && height !== stopCardsBaseHeight) {
         console.log(`📏 [Stop Cards] Measured condensed height: ${height}px`);
         setStopCardsBaseHeight(height);
       }
-    }, 100);
+    };
+
+    // Measure after a brief delay to ensure rendering is complete
+    const timer = setTimeout(measureHeight, 150);
 
     return () => clearTimeout(timer);
-  }, [selectedCardId, deliveriesWithStopOrder.length]);
+  }, [selectedCardId, deliveriesWithStopOrder.length, stopCardsBaseHeight]);
 
   useEffect(() => {
     const fetchGoogleApiKey = async () => {
