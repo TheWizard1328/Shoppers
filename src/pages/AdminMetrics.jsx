@@ -294,96 +294,94 @@ export default function AdminMetrics() {
           </Card>
         </div>
 
-        {/* Charts Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Monthly Deliveries Chart */}
-          <Card>
+        {/* App Fees Summary - Row 1 */}
+        {metricsData.storeFeeTotals && (
+          <Card className="border-amber-200 bg-amber-50/30">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="w-5 h-5" />
-                Monthly Deliveries ({selectedYear})
+              <CardTitle className="flex items-center gap-2 text-amber-900">
+                <DollarSign className="w-5 h-5" />
+                Monthly Store App Fees ({selectedYear})
               </CardTitle>
-              <CardDescription className="text-xs text-slate-500">
-                Click a month bar to filter Store Breakdown and Driver charts
+              <CardDescription>
+                Stores with "Pays App Fees" enabled - {metricsData.storeFeeTotals?.stores_paying_fees || 0} of {metricsData.storeFeeTotals?.total_stores || 0} stores
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart 
-                    data={metricsData.monthlyData}
-                    onClick={(data) => {
-                      if (data && data.activePayload && data.activePayload.length > 0) {
-                        const clickedMonth = data.activePayload[0].payload.monthNum;
-                        setSelectedMonth(prev => prev === clickedMonth ? null : clickedMonth);
-                      }
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="p-4 bg-white rounded-lg border">
+                  <p className="text-sm text-slate-500">Billable Deliveries</p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {metricsData.storeFeeTotals?.total_billable_while_paying?.toLocaleString() || 0}
+                  </p>
+                </div>
+                <div className="p-4 bg-white rounded-lg border">
+                  <p className="text-sm text-slate-500">Fee Rate</p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {formatCurrency(metricsData.storeFeeTotals?.app_fee_rate || 0)}
+                  </p>
+                </div>
+                <div className="p-4 bg-white rounded-lg border">
+                  <p className="text-sm text-slate-500">Stores Paying</p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {metricsData.storeFeeTotals?.stores_paying_fees || 0}
+                  </p>
+                </div>
+                <div className="p-4 bg-amber-100 rounded-lg border border-amber-300">
+                  <p className="text-sm text-amber-700">{selectedMonth ? 'Month' : 'Total'} Fees Owed</p>
+                  <p className="text-2xl font-bold text-amber-900">
+                    {formatCurrency(
+                      selectedMonth 
+                        ? (metricsData.storeFeeTotals?.monthlyFees?.[selectedMonth - 1] || 0)
+                        : (metricsData.storeFeeTotals?.total_fees_owed || 0)
+                    )}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Store Breakdown - Row 2 */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Store className="w-5 h-5" />
+              Store Breakdown ({selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} {selectedYear})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={filteredData?.storeData || metricsData.storeData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis 
+                    dataKey="abbreviation" 
+                    tick={{ fill: '#64748b', fontSize: 11 }}
+                    interval={0}
+                  />
+                  <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
+                  <Tooltip 
+                    contentStyle={{ 
+                      background: 'white', 
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px'
                     }}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="month" tick={{ fill: '#64748b', fontSize: 12 }} />
-                    <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
-                    <Tooltip 
-                      contentStyle={{ 
-                        background: 'white', 
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '8px'
-                      }}
-                    />
-                    <Legend />
-                    <Bar dataKey="billable" fill={COLORS.billable} name="Billable" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="nonBillable" fill={COLORS.nonBillable} name="Non-Billable" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <p className="text-xs text-slate-500 text-center mt-2">
-                Click on a month to filter charts below • Currently viewing: <span className="font-semibold text-emerald-600">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All Year'}</span>
-              </p>
-            </CardContent>
-          </Card>
+                    formatter={(value, name) => [value, name]}
+                    labelFormatter={(label) => {
+                      const store = metricsData.storeData?.find(s => s.abbreviation === label);
+                      return store?.name || label;
+                    }}
+                  />
+                  <Legend />
+                  <Bar dataKey="completed" fill="#10b981" name="Completed" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="failed" fill="#ef4444" name="Failed" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
 
-          {/* Store Breakdown */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Store className="w-5 h-5" />
-                Store Breakdown ({selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} {selectedYear})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={filteredData?.storeData || metricsData.storeData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis 
-                      dataKey="abbreviation" 
-                      tick={{ fill: '#64748b', fontSize: 11 }}
-                      interval={0}
-                    />
-                    <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
-                    <Tooltip 
-                      contentStyle={{ 
-                        background: 'white', 
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '8px'
-                      }}
-                      formatter={(value, name) => [value, name]}
-                      labelFormatter={(label) => {
-                        const store = metricsData.storeData?.find(s => s.abbreviation === label);
-                        return store?.name || label;
-                      }}
-                    />
-                    <Legend />
-                    <Bar dataKey="completed" fill="#10b981" name="Completed" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="failed" fill="#ef4444" name="Failed" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-          </div>
-
-        {/* Second Row: Driver Breakdown + Monthly Store Grid */}
+        {/* Monthly Deliveries + Driver Breakdown - Row 3 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Driver Performance Chart - Breakdown by Driver */}
           <Card>
