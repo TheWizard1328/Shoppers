@@ -6407,7 +6407,7 @@ function Dashboard() {
         }
 
         {/* Desktop: Offline Sync Indicator */}
-        {!isMobile && <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} stopCardsHeight={stopCardsContainerRef.current?.offsetHeight || 75} />}
+        {!isMobile && <DashboardOfflineSync currentUser={currentUser} dailyPolylineCount={dailyPolylineCount} isExpanded={isExpanded} stopCardsHeight={stopCardsBaseHeight} />}
 
         {/* Real-time ETA Tracker - ONLY for mobile drivers viewing their own route */}
         {realTimeETAEnabled && isMobile && isDriver && selectedDriverId === currentUser?.id && selectedDriverId !== 'all' &&
