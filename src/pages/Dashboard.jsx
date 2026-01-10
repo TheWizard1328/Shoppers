@@ -6724,7 +6724,7 @@ function Dashboard() {
           hasVisibleCards={deliveriesWithStopOrder.length > 0}
           isAIVisible={showAIAssistant && isAIEnabled}
           isLocked={isMapViewLocked}
-          stopCardsHeight={stopCardsBaseHeight || 75} />
+          stopCardsHeight={stopCardsContainerRef.current?.offsetHeight || 75} />
 
         {/* Re-optimize Route FAB - Only for drivers viewing their own route */}
         {isDriver && selectedDriverId === currentUser?.id && selectedDriverId !== 'all' &&
