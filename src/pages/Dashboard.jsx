@@ -411,21 +411,23 @@ function Dashboard() {
   const getMapPadding = useCallback((cardExpanded = false, hasVisibleCards = false) => {
     // Get actual rendered heights from refs
     const statsCardCurrHeight = statsCardRef.current?.offsetHeight || 116;
-    const stopCardsCurrHeight = stopCardsContainerRef.current?.offsetHeight || 75;
+    
+    // CRITICAL: Always use current measured height (condensed or expanded)
+    const currentStopCardsHeight = stopCardsContainerRef.current?.offsetHeight || 75;
 
     const topPadding = isMobile ?
     statsCardCurrHeight + 25 :
     25; // Desktop: Exclude stats card
 
     const bottomPadding = hasVisibleCards ?
-    cardExpanded ? stopCardsCurrHeight + 10 : stopCardsBaseHeight + 10 :
+    currentStopCardsHeight + 10 :
     25;
 
     return {
       paddingTopLeft: [25, topPadding],
       paddingBottomRight: [25, bottomPadding]
     };
-  }, [isMobile, stopCardsBaseHeight]);
+  }, [isMobile]);
 
   // Start driver activity monitor for pure drivers
   useEffect(() => {
