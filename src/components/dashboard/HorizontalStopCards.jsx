@@ -326,7 +326,12 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
         const cardSelectedDeliveries = selectedDeliveryIds[card.id] || [];
 
         return (
-          <div key={card.id} id={`stop-card-${card.id}`} className="flex-shrink-0" data-is-next-delivery={card.isNextDelivery ? "true" : undefined}>
+          <div 
+            key={card.id} 
+            id={`stop-card-${card.id}`} 
+            className="flex-shrink-0" 
+            style={{ scrollSnapAlign: 'center' }}
+            data-is-next-delivery={card.isNextDelivery ? "true" : undefined}>
             <StopCard
               delivery={card}
               store={store}
