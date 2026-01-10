@@ -1320,18 +1320,24 @@ function Dashboard() {
     };
   }, [cardWidth, isExpanded, screenWidth, isMapViewLocked, mapViewPhase]);
 
-  // Measure stop cards height - ONLY when cards are NOT expanded
+  // Measure stop cards height - ONLY when cards are NOT expanded, then set bottom padding
   useEffect(() => {
     const element = stopCardsContainerRef.current;
     if (!element) return;
 
-    // Only measure when no card is expanded
+    // Skip measurement if any card is expanded
     if (selectedCardId) return;
 
-    const currentHeight = element.offsetHeight;
-    if (currentHeight > 0) {
-      setStopCardsBaseHeight(currentHeight);
-    }
+    // Wait for cards to finish rendering, then measure ONCE
+    const timer = setTimeout(() => {
+      const currentHeight = element.offsetHeight;
+      if (currentHeight > 0 && currentHeight !== stopCardsBaseHeight) {
+        console.log(`📏 [Stop Cards] Measured height: ${currentHeight}px - setting bottom padding`);
+        setStopCardsBaseHeight(currentHeight);
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, [selectedCardId, deliveriesWithStopOrder.length]);
 
   useEffect(() => {
