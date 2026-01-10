@@ -1958,6 +1958,7 @@ export default function Layout({ children, currentPageName }) {
     
     // CRITICAL: For dispatchers, only count patients from their assigned stores
     let relevantPatients = patients;
+    const isDispatcher = currentUser ? userHasRole(currentUser, 'dispatcher') : false;
     if (isDispatcher && currentUser?.store_ids) {
       const dispatcherStoreIds = new Set(currentUser.store_ids);
       relevantPatients = patients.filter(p => p && dispatcherStoreIds.has(p.store_id));
@@ -1967,7 +1968,7 @@ export default function Layout({ children, currentPageName }) {
       ...store,
       patientCount: relevantPatients.filter((p) => p && p.store_id === store.id).length
     }));
-  }, [stores, patients, isDispatcher, currentUser?.store_ids]);
+  }, [stores, patients, currentUser]);
 
   const getLatestDateWithDeliveries = useCallback((driverId = null) => {
     let relevantDeliveries = filteredDeliveries.filter(delivery => delivery);
