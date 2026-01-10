@@ -61,60 +61,7 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
     });
   }, []);
 
-  // Snap scrolling for mobile - scroll one card at a time based on swipe zones
-  const handleTouchStart = React.useCallback((e) => {
-    autoScrollEnabledRef.current = false;
-    touchStartXRef.current = e.touches[0].clientX;
-  }, []);
 
-
-
-  const handleTouchEnd = React.useCallback((e) => {
-    const container = containerRef.current;
-    if (!container || touchStartXRef.current === null) return;
-
-    const touchEndX = e.changedTouches[0].clientX;
-    const deltaX = touchStartXRef.current - touchEndX;
-    const swipeThreshold = 30;
-
-    // Clean up touch tracking
-    touchStartXRef.current = null;
-
-    // Find all card elements
-    const cardElements = Array.from(container.querySelectorAll('[id^="stop-card-"]'));
-    if (cardElements.length === 0) return;
-
-    // Find which card is currently closest to center
-    const containerWidth = container.offsetWidth;
-    const scrollCenter = container.scrollLeft + containerWidth / 2;
-
-    let currentCenteredIndex = 0;
-    let closestDistance = Infinity;
-
-    cardElements.forEach((card, index) => {
-      const cardCenter = card.offsetLeft + card.offsetWidth / 2;
-      const distance = Math.abs(cardCenter - scrollCenter);
-      if (distance < closestDistance) {
-        closestDistance = distance;
-        currentCenteredIndex = index;
-      }
-    });
-
-    // Determine target index based on swipe direction
-    let targetIndex = currentCenteredIndex;
-
-    if (deltaX > swipeThreshold) {
-      // Swiped LEFT (finger moved left) = go to NEXT card (index + 1)
-      targetIndex = Math.min(currentCenteredIndex + 1, cardElements.length - 1);
-    } else if (deltaX < -swipeThreshold) {
-      // Swiped RIGHT (finger moved right) = go to PREVIOUS card (index - 1)
-      targetIndex = Math.max(currentCenteredIndex - 1, 0);
-    }
-
-    // Smoothly scroll to center the target card
-    scrollToCenterCard(cardElements[targetIndex]);
-
-  }, [scrollToCenterCard]);
 
   // CRITICAL: Attach touch handlers with { passive: false } to allow preventDefault
   React.useEffect(() => {
