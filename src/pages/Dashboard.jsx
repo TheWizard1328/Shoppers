@@ -400,8 +400,8 @@ function Dashboard() {
   const isAdmin = useMemo(() => currentUser ? userHasRole(currentUser, 'admin') : false, [currentUser]);
 
   // Track dynamically measured heights for map padding
-  // CRITICAL: Initialize to 75px (minimum condensed height) to prevent 0px rendering on initial load
-  const [stopCardsBaseHeight, setStopCardsBaseHeight] = useState(75);
+  // CRITICAL: Start at 0, will be measured once cards render
+  const [stopCardsBaseHeight, setStopCardsBaseHeight] = useState(0);
   const [statsCardBaseHeight, setstatsCardBaseHeight] = useState(0);
   const measurementTimeoutRef = useRef(null);
 
@@ -1320,22 +1320,22 @@ function Dashboard() {
     };
   }, [cardWidth, isExpanded, screenWidth, isMapViewLocked, mapViewPhase]);
 
-  // Measure stop cards height - ONLY when cards are NOT expanded, then set bottom padding
+  // Measure stop cards height - ONLY when cards are condensed/collapsed (NOT expanded)
   useEffect(() => {
     const element = stopCardsContainerRef.current;
     if (!element) return;
 
-    // Skip measurement if any card is expanded
+    // Skip if any card is expanded
     if (selectedCardId) return;
 
-    // Wait for cards to finish rendering, then measure ONCE
+    // Measure after cards finish rendering
     const timer = setTimeout(() => {
-      const currentHeight = element.offsetHeight;
-      if (currentHeight > 0 && currentHeight !== stopCardsBaseHeight) {
-        console.log(`📏 [Stop Cards] Measured height: ${currentHeight}px - setting bottom padding`);
-        setStopCardsBaseHeight(currentHeight);
+      const height = element.offsetHeight;
+      if (height > 0) {
+        console.log(`📏 [Stop Cards] Setting base height: ${height}px`);
+        setStopCardsBaseHeight(height);
       }
-    }, 100);
+    }, 200);
 
     return () => clearTimeout(timer);
   }, [selectedCardId, deliveriesWithStopOrder.length]);
@@ -6390,7 +6390,7 @@ function Dashboard() {
         <div
           className="absolute left-4 z-[140]"
           style={{
-            bottom: `${deliveriesWithStopOrder.length > 0 ? (stopCardsBaseHeight || 75) + 15 : 25}px`
+            bottom: `${stopCardsBaseHeight > 0 ? stopCardsBaseHeight + 15 : 25}px`
           }}>
             <div className="px-2 py-1 text-xs font-medium rounded-lg border" style={{ background: 'transparent', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-600)' }}>
               🛣️ {dailyPolylineCount ?? '...'}
@@ -6709,7 +6709,7 @@ function Dashboard() {
         </DialogContent>
       </Dialog>
 
-      {(isDriver || isDispatcher) && (deliveriesWithStopOrder.length === 0 || stopCardsBaseHeight > 0) &&
+      {(isDriver || isDispatcher) && stopCardsBaseHeight > 0 &&
       <>
         <MapViewCycleFAB
           onClick={handleMapViewCycle}
@@ -6717,7 +6717,7 @@ function Dashboard() {
           hasVisibleCards={deliveriesWithStopOrder.length > 0}
           isAIVisible={showAIAssistant && isAIEnabled}
           isLocked={isMapViewLocked}
-          stopCardsHeight={stopCardsBaseHeight || 75} />
+          stopCardsHeight={stopCardsBaseHeight} />
 
         {/* Re-optimize Route FAB - Only for drivers viewing their own route */}
         {isDriver && selectedDriverId === currentUser?.id && selectedDriverId !== 'all' &&
@@ -6728,7 +6728,7 @@ function Dashboard() {
           transition={{ type: "spring", stiffness: 260, damping: 20 }}
           className="fixed z-[140]"
           style={{
-            bottom: `${deliveriesWithStopOrder.length > 0 ? (stopCardsBaseHeight || 75) + 15 : 25}px`,
+            bottom: `${stopCardsBaseHeight > 0 ? stopCardsBaseHeight + 15 : 25}px`,
             right: '64px' // Position to the left of MapViewCycleFAB
           }}>
             <Button
