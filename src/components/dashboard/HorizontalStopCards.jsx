@@ -304,6 +304,7 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
         e.currentTarget.scrollLeft += e.deltaY;
       }}
       onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onScroll={() => {
         // Disable auto-scroll when user manually scrolls
