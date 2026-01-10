@@ -413,22 +413,22 @@ function Dashboard() {
     // Get actual rendered heights from refs
     const statsCardCurrHeight = statsCardRef.current?.offsetHeight || 116;
     
-    // CRITICAL: Always use current measured height (condensed or expanded)
-    const currentStopCardsHeight = stopCardsContainerRef.current?.offsetHeight || 75;
+    // CRITICAL: Always use BASE condensed height (never live height that changes with expansion)
+    const condensedHeight = stopCardsBaseHeight || 75;
 
     const topPadding = isMobile ?
     statsCardCurrHeight + 25 :
     25; // Desktop: Exclude stats card
 
     const bottomPadding = hasVisibleCards ?
-    currentStopCardsHeight + 10 :
+    condensedHeight + 10 :
     25;
 
     return {
       paddingTopLeft: [25, topPadding],
       paddingBottomRight: [25, bottomPadding]
     };
-  }, [isMobile]);
+  }, [isMobile, stopCardsBaseHeight]);
 
   // Start driver activity monitor for pure drivers
   useEffect(() => {
