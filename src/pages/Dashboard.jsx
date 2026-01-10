@@ -400,7 +400,8 @@ function Dashboard() {
   const isAdmin = useMemo(() => currentUser ? userHasRole(currentUser, 'admin') : false, [currentUser]);
 
   // Track dynamically measured heights for map padding
-  const [stopCardsBaseHeight, setStopCardsBaseHeight] = useState(0);
+  // CRITICAL: Initialize to 75px (minimum condensed height) to prevent 0px rendering on initial load
+  const [stopCardsBaseHeight, setStopCardsBaseHeight] = useState(75);
   const [statsCardBaseHeight, setstatsCardBaseHeight] = useState(0);
   const measurementTimeoutRef = useRef(null);
 
