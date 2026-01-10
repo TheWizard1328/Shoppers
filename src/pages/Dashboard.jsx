@@ -3276,34 +3276,36 @@ function Dashboard() {
     lastUserInteractionRef.current = Date.now();
 
     if (selectedCardId === delivery.id) {
-      // Card is being collapsed - restore previous map state and reactivate FAB phase
-      if (previousMapState) {
-        setShouldFitBounds(previousMapState);
-        setPreviousMapState(null);
-      }
+      // Card is being collapsed
       setSelectedCardId(null);
       setHighlightedCardId(null);
 
-      // CRITICAL: Measure actual condensed height immediately after collapse
+      // CRITICAL: Wait for collapse animation to complete, then measure and update everything
       setTimeout(() => {
         const container = stopCardsContainerRef.current;
         if (container) {
           const actualHeight = container.offsetHeight;
           if (actualHeight > 0) {
-            console.log(`📏 [Card Collapse] Updating to actual condensed height: ${actualHeight}px`);
+            console.log(`📏 [Card Collapse] Measured condensed height: ${actualHeight}px`);
             setStopCardsBaseHeight(actualHeight);
+            
+            // CRITICAL: Restore previous map state AFTER height is updated
+            if (previousMapState) {
+              setShouldFitBounds(previousMapState);
+              setPreviousMapState(null);
+            }
+
+            // Reactivate FAB phase
+            setIsMapViewLocked(true);
+            setMapViewTrigger((prev) => prev + 1);
+
+            // Unlock after brief delay
+            setTimeout(() => {
+              setIsMapViewLocked(false);
+            }, 100);
           }
         }
-      }, 400); // Wait for collapse animation to complete
-
-      // CRITICAL: Reactivate FAB phase to recenter/zoom map, then unlock after 100ms
-      setIsMapViewLocked(true);
-      setMapViewTrigger((prev) => prev + 1);
-
-      // Unlock after brief 100ms delay to allow map to recenter
-      setTimeout(() => {
-        setIsMapViewLocked(false);
-      }, 100);
+      }, 250); // Wait for collapse animation (200ms) + small buffer
 
       // Scroll to card with isNextDelivery=true
       setTimeout(() => {
