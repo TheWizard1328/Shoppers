@@ -3284,6 +3284,18 @@ function Dashboard() {
       setSelectedCardId(null);
       setHighlightedCardId(null);
 
+      // CRITICAL: Measure actual condensed height immediately after collapse
+      setTimeout(() => {
+        const container = stopCardsContainerRef.current;
+        if (container) {
+          const actualHeight = container.offsetHeight;
+          if (actualHeight > 0) {
+            console.log(`📏 [Card Collapse] Updating to actual condensed height: ${actualHeight}px`);
+            setStopCardsBaseHeight(actualHeight);
+          }
+        }
+      }, 400); // Wait for collapse animation to complete
+
       // CRITICAL: Reactivate FAB phase to recenter/zoom map, then unlock after 100ms
       setIsMapViewLocked(true);
       setMapViewTrigger((prev) => prev + 1);
