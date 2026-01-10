@@ -349,8 +349,7 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
       onWheel={(e) => {
         e.currentTarget.scrollLeft += e.deltaY;
       }}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
+
       onScroll={() => {
         // Disable auto-scroll when user manually scrolls
         autoScrollEnabledRef.current = false;
