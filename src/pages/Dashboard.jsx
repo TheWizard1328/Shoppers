@@ -6397,7 +6397,7 @@ function Dashboard() {
         <div
           className="absolute left-4 z-[140]"
           style={{
-            bottom: `${deliveriesWithStopOrder.length > 0 ? (stopCardsContainerRef.current?.offsetHeight || 75) + 15 : 25}px`
+            bottom: `${deliveriesWithStopOrder.length > 0 ? (stopCardsBaseHeight || 75) + 15 : 25}px`
           }}>
             <div className="px-2 py-1 text-xs font-medium rounded-lg border" style={{ background: 'transparent', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-600)' }}>
               🛣️ {dailyPolylineCount ?? '...'}
@@ -6724,7 +6724,7 @@ function Dashboard() {
           hasVisibleCards={deliveriesWithStopOrder.length > 0}
           isAIVisible={showAIAssistant && isAIEnabled}
           isLocked={isMapViewLocked}
-          stopCardsHeight={stopCardsContainerRef.current?.offsetHeight || 75} />
+          stopCardsHeight={stopCardsBaseHeight || 75} />
 
         {/* Re-optimize Route FAB - Only for drivers viewing their own route */}
         {isDriver && selectedDriverId === currentUser?.id && selectedDriverId !== 'all' &&
@@ -6735,7 +6735,7 @@ function Dashboard() {
           transition={{ type: "spring", stiffness: 260, damping: 20 }}
           className="fixed z-[140]"
           style={{
-            bottom: `${deliveriesWithStopOrder.length > 0 ? (stopCardsContainerRef.current?.offsetHeight || 75) + 15 : 25}px`,
+            bottom: `${deliveriesWithStopOrder.length > 0 ? (stopCardsBaseHeight || 75) + 15 : 25}px`,
             right: '64px' // Position to the left of MapViewCycleFAB
           }}>
             <Button

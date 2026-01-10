@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Target, Maximize2, Minimize2 } from 'lucide-react';
 
 export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, stopCardsHeight = 75 }) {
-  // Use measured stop cards height for accurate FAB positioning
+  // CRITICAL: Fixed position - never moves with card expansion
   const bottomPixels = hasVisibleCards ? stopCardsHeight + 15 : 25;
 
   // Get icon based on current phase (always white icon)
