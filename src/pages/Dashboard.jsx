@@ -332,6 +332,7 @@ function Dashboard() {
   const [realTimeETAEnabled, setRealTimeETAEnabled] = useState(true);
   const [isReoptimizing, setIsReoptimizing] = useState(false);
   const [showQuickAdjustments, setShowQuickAdjustments] = useState(false);
+  const cardExpandedAtRef = useRef(null);
   const [showAllDriverMarkers, setShowAllDriverMarkers] = useState(() => {
     const saved = localStorage.getItem('rxdeliver_show_all_driver_markers');
     return saved !== null ? saved === 'true' : false;
@@ -2754,14 +2755,48 @@ function Dashboard() {
     isMapViewLockedRef.current = isMapViewLocked;
   }, [isMapViewLocked]);
 
+  // Auto-collapse card after 2 minutes
+  useEffect(() => {
+    if (!selectedCardId || !cardExpandedAtRef.current) return;
+
+    const expandedAt = cardExpandedAtRef.current;
+    const twoMinutes = 120000;
+    const elapsed = Date.now() - expandedAt;
+    const remaining = twoMinutes - elapsed;
+
+    if (remaining <= 0) {
+      console.log('⏰ [Auto-Collapse] Card has been expanded for 2+ minutes - collapsing');
+      setSelectedCardId(null);
+      cardExpandedAtRef.current = null;
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      console.log('⏰ [Auto-Collapse] 2 minutes elapsed - collapsing card');
+      setSelectedCardId(null);
+      cardExpandedAtRef.current = null;
+    }, remaining);
+
+    return () => clearTimeout(timer);
+  }, [selectedCardId]);
+
   useEffect(() => {
     if (!setOnSmartRefreshComplete) return;
 
     const handleSmartRefreshComplete = () => {
-      // CRITICAL: Smart refresh should NEVER reposition the map
-      // Map only repositions when FAB is clicked (mapViewTrigger changes)
-      // This prevents the map from re-centering during background refreshes
-      console.log('🔄 [Smart Refresh] Complete - skipping map reposition');
+      // CRITICAL: For dispatchers, auto-center to next delivery card after smart refresh
+      if (isDispatcher && !selectedCardId) {
+        setTimeout(() => {
+          const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
+          if (nextCard) {
+            const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
+            if (cardElement) {
+              cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+              console.log('📍 [Smart Refresh - Dispatcher] Auto-centered to next delivery card');
+            }
+          }
+        }, 300);
+      }
     };
 
     setOnSmartRefreshComplete(handleSmartRefreshComplete);
@@ -2769,7 +2804,7 @@ function Dashboard() {
     return () => {
       setOnSmartRefreshComplete(null);
     };
-  }, [setOnSmartRefreshComplete]);
+  }, [setOnSmartRefreshComplete, isDispatcher, selectedCardId, deliveriesWithStopOrder]);
 
   // Auto-center on next stop on initial load
   const hasAutoSelectedRef = useRef(false);
@@ -3308,7 +3343,16 @@ function Dashboard() {
         }
       }, 300);
     } else {
-      // Card is being expanded - save current map state first
+      // Card is being expanded
+      
+      // CRITICAL: For dispatchers clicking on non-assigned stops, collapse any expanded card first
+      if (isDispatcher && currentUser?.store_ids && !currentUser.store_ids.includes(delivery.store_id)) {
+        if (selectedCardId) {
+          setSelectedCardId(null);
+          setHighlightedCardId(null);
+          cardExpandedAtRef.current = null;
+        }
+      }
 
       // Save current shouldFitBounds state (if any) to restore later
       if (shouldFitBounds) {
@@ -3317,6 +3361,7 @@ function Dashboard() {
 
       setSelectedCardId(delivery.id);
       setHighlightedCardId(delivery.id);
+      cardExpandedAtRef.current = Date.now();
 
       // CRITICAL: Clear timers and unlock FAB
       if (mapLockTimeoutRef.current) {
@@ -3326,8 +3371,8 @@ function Dashboard() {
       mapLockExpiresAtRef.current = null;
       setIsMapViewLocked(false);
 
-      // CRITICAL: Use expanded height for padding calculation
-      const expandedPadding = getMapPadding(true, true);
+      // CRITICAL: Use condensed height for padding (not expanded)
+      const condensedPadding = getMapPadding(false, true);
 
       if (delivery.patient_id) {
         // Patient delivery - center on patient marker only (not store)
@@ -3336,7 +3381,7 @@ function Dashboard() {
           setShouldFitBounds({
             bounds: [[patient.latitude, patient.longitude]],
             options: {
-              ...expandedPadding,
+              ...condensedPadding,
               maxZoom: 16,
               animate: true
             }
@@ -3352,7 +3397,7 @@ function Dashboard() {
           setShouldFitBounds({
             bounds: [[store.latitude, store.longitude]],
             options: {
-              ...expandedPadding,
+              ...condensedPadding,
               maxZoom: 16,
               animate: true
             }
@@ -3362,6 +3407,14 @@ function Dashboard() {
           setIsMapViewLocked(true);
         }
       }
+      
+      // Auto-center card in horizontal scroll
+      setTimeout(() => {
+        const cardElement = document.getElementById(`stop-card-${delivery.id}`);
+        if (cardElement) {
+          cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        }
+      }, 100);
     }
   };
 
