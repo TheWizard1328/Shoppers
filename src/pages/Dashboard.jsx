@@ -3168,22 +3168,41 @@ function Dashboard() {
 
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
-      // CRITICAL: Check if Show All is enabled - if so, load ALL drivers' deliveries
-      // Otherwise load only selected driver's deliveries
+      // CRITICAL: Try offline DB FIRST to avoid API rate limits
+      let freshDeliveries = [];
       const shouldLoadAllDeliveries = showAllDriverMarkers || driverId === 'all';
       
-      let freshDeliveries;
-      if (shouldLoadAllDeliveries) {
-        console.log('📥 [Driver Change] Loading ALL drivers deliveries (Show All enabled)');
-        freshDeliveries = await base44.entities.Delivery.filter({
-          delivery_date: dateStr
+      try {
+        const { offlineDB } = await import('../components/utils/offlineDatabase');
+        const offlineDeliveries = await offlineDB.getAllRecords(offlineDB.STORES.DELIVERIES);
+        
+        // Filter offline data by date and driver
+        const filteredOffline = offlineDeliveries.filter(d => {
+          if (!d || d.delivery_date !== dateStr) return false;
+          if (!shouldLoadAllDeliveries && driverId !== 'all' && d.driver_id !== driverId) return false;
+          return true;
         });
-      } else {
-        console.log(`📥 [Driver Change] Loading deliveries for driver: ${driverId}`);
-        freshDeliveries = await base44.entities.Delivery.filter({
-          delivery_date: dateStr,
-          driver_id: driverId === 'all' ? undefined : driverId
-        });
+        
+        if (filteredOffline.length > 0) {
+          console.log(`📦 [Driver Change] Using ${filteredOffline.length} deliveries from offline DB`);
+          freshDeliveries = filteredOffline;
+        } else {
+          throw new Error('No offline data - falling back to API');
+        }
+      } catch (offlineError) {
+        // Offline DB empty or error - fall back to API
+        console.log(`📥 [Driver Change] Offline DB unavailable - fetching from API`);
+        
+        if (shouldLoadAllDeliveries) {
+          freshDeliveries = await base44.entities.Delivery.filter({
+            delivery_date: dateStr
+          });
+        } else {
+          freshDeliveries = await base44.entities.Delivery.filter({
+            delivery_date: dateStr,
+            driver_id: driverId === 'all' ? undefined : driverId
+          });
+        }
       }
 
       if (driverId && driverId !== 'all') {
