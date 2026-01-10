@@ -1,6 +1,7 @@
 import React from "react";
 import StopCard from '../common/StopCard';
 import { format } from 'date-fns';
+import { isMobileDevice } from '../utils/deviceUtils';
 
 export default function HorizontalPickupCards({ // Renamed to HorizontalStopCards internally
   pickupCards = [],
@@ -186,6 +187,12 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
     return sortOrderA - sortOrderB;
   });
 
+  // Check if mobile once
+  const isMobile = isMobileDevice();
+
+  // Track the currently centered card index for mobile swipe navigation
+  const currentCenteredIndexRef = React.useRef(0);
+
   // Helper function to smoothly scroll to center a specific card element
   const scrollToCenterCard = React.useCallback((cardElement) => {
     const container = containerRef.current;
@@ -202,39 +209,24 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
     });
   }, []);
 
-  // Snap scrolling for mobile - scroll one card at a time based on stop_order
+  // Mobile: On touch start, record starting position and find currently centered card
   const handleTouchStart = React.useCallback((e) => {
+    if (!isMobile) return;
+    
     autoScrollEnabledRef.current = false;
     const container = containerRef.current;
-    if (container) {
-      container._touchStartX = e.touches[0].clientX;
-    }
-  }, []);
+    if (!container) return;
 
-  const handleTouchMove = React.useCallback(() => {
-    // Allow native scroll during swipe
-  }, []);
+    container._touchStartX = e.touches[0].clientX;
 
-  const handleTouchEnd = React.useCallback((e) => {
-    const container = containerRef.current;
-    if (!container || container._touchStartX === undefined) return;
-
-    const touchEndX = e.changedTouches[0].clientX;
-    const deltaX = container._touchStartX - touchEndX;
-    const swipeThreshold = 30;
-
-    // Clean up touch tracking
-    delete container._touchStartX;
-
-    // Find all card elements
+    // Find which card is currently centered
     const cardElements = Array.from(container.querySelectorAll('[id^="stop-card-"]'));
     if (cardElements.length === 0) return;
 
-    // Find which card is currently closest to center
     const containerWidth = container.offsetWidth;
     const scrollCenter = container.scrollLeft + containerWidth / 2;
 
-    let currentCenteredIndex = 0;
+    let closestIndex = 0;
     let closestDistance = Infinity;
 
     cardElements.forEach((card, index) => {
@@ -242,25 +234,55 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
       const distance = Math.abs(cardCenter - scrollCenter);
       if (distance < closestDistance) {
         closestDistance = distance;
-        currentCenteredIndex = index;
+        closestIndex = index;
       }
     });
 
-    // Determine target index based on swipe direction
-    let targetIndex = currentCenteredIndex;
+    currentCenteredIndexRef.current = closestIndex;
+  }, [isMobile]);
+
+  // Mobile: Prevent default scrolling - cards stay static during swipe
+  const handleTouchMove = React.useCallback((e) => {
+    if (!isMobile) return;
+    
+    const container = containerRef.current;
+    if (container && container._touchStartX !== undefined) {
+      e.preventDefault();
+    }
+  }, [isMobile]);
+
+  // Mobile: On touch end, determine swipe direction and scroll to next/previous card
+  const handleTouchEnd = React.useCallback((e) => {
+    if (!isMobile) return;
+
+    const container = containerRef.current;
+    if (!container || container._touchStartX === undefined) return;
+
+    const touchEndX = e.changedTouches[0].clientX;
+    const deltaX = container._touchStartX - touchEndX;
+    const swipeThreshold = 30;
+
+    // Clean up
+    delete container._touchStartX;
+
+    const cardElements = Array.from(container.querySelectorAll('[id^="stop-card-"]'));
+    if (cardElements.length === 0) return;
+
+    let targetIndex = currentCenteredIndexRef.current;
 
     if (deltaX > swipeThreshold) {
-      // Swiped LEFT (finger moved left) = go to NEXT card (index + 1)
-      targetIndex = Math.min(currentCenteredIndex + 1, cardElements.length - 1);
+      // Swiped LEFT = go to NEXT card
+      targetIndex = Math.min(currentCenteredIndexRef.current + 1, cardElements.length - 1);
     } else if (deltaX < -swipeThreshold) {
-      // Swiped RIGHT (finger moved right) = go to PREVIOUS card (index - 1)
-      targetIndex = Math.max(currentCenteredIndex - 1, 0);
+      // Swiped RIGHT = go to PREVIOUS card
+      targetIndex = Math.max(currentCenteredIndexRef.current - 1, 0);
     }
 
-    // Smoothly scroll to center the target card
+    // Update the ref and scroll to center the target card
+    currentCenteredIndexRef.current = targetIndex;
     scrollToCenterCard(cardElements[targetIndex]);
 
-  }, [scrollToCenterCard]);
+  }, [isMobile, scrollToCenterCard]);
 
   return (
     <div
