@@ -203,18 +203,20 @@ const HorizontalPickupCards = React.forwardRef((props, ref) => {
     return sortOrderA - sortOrderB;
   });
 
+  const isMobile = isMobileDevice();
+
   return (
     <div
       ref={setRefs} 
       className="flex gap-3 overflow-x-auto items-end min-h-[75px] pointer-events-auto z-[200]"
       style={{
-        scrollbarWidth: 'none',
-        msOverflowStyle: 'none',
+        scrollbarWidth: isMobile ? 'none' : 'thin',
+        msOverflowStyle: isMobile ? 'none' : 'auto',
         WebkitOverflowScrolling: 'touch',
-        scrollSnapType: 'x mandatory',
-        scrollSnapStop: 'always',
-        paddingLeft: 'calc(50% - 140px)',
-        paddingRight: 'calc(50% - 140px)'
+        scrollSnapType: isMobile ? 'x mandatory' : 'none',
+        scrollSnapStop: isMobile ? 'always' : 'normal',
+        paddingLeft: isMobile ? 'calc(50% - 140px)' : '16px',
+        paddingRight: isMobile ? 'calc(50% - 140px)' : '16px'
       }}
       onWheel={(e) => {
         e.currentTarget.scrollLeft += e.deltaY;
