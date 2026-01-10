@@ -272,7 +272,6 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
       style={{
         scrollbarWidth: 'thin',
         scrollbarColor: 'rgba(0,0,0,0.15) transparent',
-        scrollSnapType: 'x mandatory',
         WebkitOverflowScrolling: 'touch'
       }}
       onWheel={(e) => {
