@@ -1320,41 +1320,27 @@ function Dashboard() {
     };
   }, [cardWidth, isExpanded, screenWidth, isMapViewLocked, mapViewPhase]);
 
-  // Measure HorizontalStopCards container height - tracks condensed height
-  // CRITICAL: Disconnects observer when card is expanded, reconnects when collapsed
+  // CRITICAL: Continuously measure HorizontalStopCards height in real-time
+  // FABs and API counter ALWAYS use current live height
   useEffect(() => {
     const element = stopCardsContainerRef.current;
     if (!element) return;
 
-    let resizeObserver = null;
-
-    // Only observe when no card is expanded
-    if (!selectedCardId) {
-      resizeObserver = new ResizeObserver((entries) => {
-        for (const entry of entries) {
-          const height = entry.contentRect.height;
-          if (height > 0 && height !== stopCardsBaseHeight) {
-            console.log(`📏 [Stop Cards ResizeObserver] Condensed height: ${height}px`);
-            setStopCardsBaseHeight(height);
-          }
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const height = entry.contentRect.height;
+        if (height > 0) {
+          setStopCardsBaseHeight(height);
         }
-      });
-
-      resizeObserver.observe(element);
-      
-      // CRITICAL: Measure immediately on observer creation
-      const currentHeight = element.offsetHeight;
-      if (currentHeight > 0 && currentHeight !== stopCardsBaseHeight) {
-        setStopCardsBaseHeight(currentHeight);
       }
-    }
+    });
+
+    resizeObserver.observe(element);
 
     return () => {
-      if (resizeObserver) {
-        resizeObserver.disconnect();
-      }
+      resizeObserver.disconnect();
     };
-  }, [selectedCardId, stopCardsBaseHeight]);
+  }, []);
 
   useEffect(() => {
     const fetchGoogleApiKey = async () => {
