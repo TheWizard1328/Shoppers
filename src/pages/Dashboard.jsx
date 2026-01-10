@@ -1320,45 +1320,26 @@ function Dashboard() {
     };
   }, [cardWidth, isExpanded, screenWidth, isMapViewLocked, mapViewPhase]);
 
-  // CRITICAL: Measure the SMALLEST possible height of stop cards (all condensed)
-  // FABs and API counter use this as minimum height and only increase when cards are collapsed/expanded
+  // Measure stop cards container height continuously - FABs and API counter position based on this
   useEffect(() => {
     const element = stopCardsContainerRef.current;
     if (!element) return;
 
-    const measureSmallestHeight = () => {
-      // Check if ALL cards are condensed (finished + not hovered + not expanded)
-      const cards = element.querySelectorAll('[data-is-condensed="true"]');
-      const allCards = element.querySelectorAll('[id^="stop-card-"]');
-      
-      const allCondensed = cards.length === allCards.length && allCards.length > 0;
-      
-      const currentHeight = element.offsetHeight;
-      if (currentHeight > 0) {
-        if (allCondensed) {
-          // All cards condensed - use this as the BASE minimum
-          if (currentHeight !== stopCardsBaseHeight) {
-            console.log(`📏 [Stop Cards] ALL CONDENSED - Base height: ${currentHeight}px`);
-            setStopCardsBaseHeight(currentHeight);
-          }
-        } else if (currentHeight > stopCardsBaseHeight) {
-          // Some cards collapsed/expanded - use the larger height
-          console.log(`📏 [Stop Cards] MIXED STATE - Height: ${currentHeight}px (> base ${stopCardsBaseHeight}px)`);
-          setStopCardsBaseHeight(currentHeight);
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const height = entry.contentRect.height;
+        if (height > 0) {
+          setStopCardsBaseHeight(height);
         }
       }
-    };
+    });
 
-    const resizeObserver = new ResizeObserver(measureSmallestHeight);
     resizeObserver.observe(element);
-
-    // Measure immediately
-    measureSmallestHeight();
 
     return () => {
       resizeObserver.disconnect();
     };
-  }, [stopCardsBaseHeight]);
+  }, []);
 
   useEffect(() => {
     const fetchGoogleApiKey = async () => {
