@@ -1915,7 +1915,7 @@ export default function ImportActiveRoutes({
                   <div className="flex-shrink-0 border-b" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-200)' }}>
                     <table className="w-full text-sm table-fixed">
                       <thead>
-                        <tr>
+                        <tr style={{ color: 'var(--text-slate-700)' }}>
                           <th className="p-1 text-left w-20">Type</th>
                           <th className="p-1 text-left w-24">Date</th>
                           <th className="p-1 text-left w-12">A/P</th>
@@ -1944,9 +1944,17 @@ export default function ImportActiveRoutes({
                           const patient = delivery.patient_id ? patients.find((p) => p.id === delivery.patient_id) : null;
 
                           return (
-                            <tr key={`${delivery.action}-${idx}`} className={`border-b ${delivery.action === 'create' ? 'bg-green-50 hover:bg-green-100' : 'bg-blue-50 hover:bg-blue-100'}`}>
+                            <tr 
+                              key={`${delivery.action}-${idx}`} 
+                              className="border-b"
+                              style={{ 
+                                background: 'var(--bg-slate-50)', 
+                                borderColor: 'var(--border-slate-200)',
+                                color: 'var(--text-slate-900)'
+                              }}
+                            >
                               <td className="p-1 w-20">
-                                <Badge className={delivery.action === 'create' ? "bg-green-200 text-green-800" : "bg-blue-200 text-blue-800"}>
+                                <Badge className={delivery.action === 'create' ? "bg-green-600 text-white" : "bg-blue-600 text-white"}>
                                   {delivery.action === 'create' ? 'New' : 'Update'}
                                 </Badge>
                               </td>
@@ -1962,13 +1970,13 @@ export default function ImportActiveRoutes({
                               <td className="p-1 font-mono text-xs w-28">
                                 <div className="flex flex-col">
                                   <span>{delivery.tracking_number || '-'}</span>
-                                  {delivery.puid && <span className="text-slate-500 text-[10px]">{delivery.puid}</span>}
+                                  {delivery.puid && <span style={{ color: 'var(--text-slate-500)' }} className="text-[10px]">{delivery.puid}</span>}
                                 </div>
                               </td>
                               <td className="p-1 font-mono text-xs w-22">
                                 <div className="flex flex-col">
                                   {delivery.stop_id && <span className="font-semibold">{delivery.stop_id}</span>}
-                                  {patient?.patient_id && <span className="text-slate-600">{patient.patient_id}</span>}
+                                  {patient?.patient_id && <span style={{ color: 'var(--text-slate-600)' }}>{patient.patient_id}</span>}
                                   {!delivery.stop_id && !patient?.patient_id && <span>N/A</span>}
                                 </div>
                               </td>
@@ -1980,14 +1988,14 @@ export default function ImportActiveRoutes({
                               <td className="p-1 text-xs flex-1">
                                 <div className="space-y-1">
                                   {delivery._matchReason && (
-                                    <div className={`font-semibold ${delivery.action === 'create' ? 'text-red-600' : 'text-green-600'}`}>
+                                    <div className={`font-semibold ${delivery.action === 'create' ? 'text-red-500' : 'text-green-500'}`}>
                                       {delivery._matchReason}
                                     </div>
                                   )}
                                   {delivery.action === 'update' && delivery._changes && delivery._changes.length > 0 && (
                                     <>
                                       {delivery._changes.map((change, changeIdx) => (
-                                        <div key={changeIdx} className="text-orange-700 font-medium">
+                                        <div key={changeIdx} className="text-orange-500 font-medium">
                                           {change}
                                         </div>
                                       ))}
