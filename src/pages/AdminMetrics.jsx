@@ -294,7 +294,50 @@ export default function AdminMetrics() {
           </Card>
         </div>
 
-        {/* Charts Row */}
+        {/* Row 1: Monthly Store App Fees */}
+        <MonthlyStoreMetricsGrid metricsData={metricsData} selectedYear={selectedYear} />
+
+        {/* Row 2: Store Breakdown */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Store className="w-5 h-5" />
+              Store Breakdown ({selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} {selectedYear})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={filteredData?.storeData || metricsData.storeData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis 
+                    dataKey="abbreviation" 
+                    tick={{ fill: '#64748b', fontSize: 11 }}
+                    interval={0}
+                  />
+                  <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
+                  <Tooltip 
+                    contentStyle={{ 
+                      background: 'white', 
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px'
+                    }}
+                    formatter={(value, name) => [value, name]}
+                    labelFormatter={(label) => {
+                      const store = metricsData.storeData?.find(s => s.abbreviation === label);
+                      return store?.name || label;
+                    }}
+                  />
+                  <Legend />
+                  <Bar dataKey="completed" fill="#10b981" name="Completed" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="failed" fill="#ef4444" name="Failed" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Row 3: Monthly Deliveries + Driver Breakdown */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Monthly Deliveries Chart */}
           <Card>
@@ -342,49 +385,6 @@ export default function AdminMetrics() {
             </CardContent>
           </Card>
 
-          {/* Store Breakdown */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Store className="w-5 h-5" />
-                Store Breakdown ({selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} {selectedYear})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={filteredData?.storeData || metricsData.storeData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis 
-                      dataKey="abbreviation" 
-                      tick={{ fill: '#64748b', fontSize: 11 }}
-                      interval={0}
-                    />
-                    <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
-                    <Tooltip 
-                      contentStyle={{ 
-                        background: 'white', 
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '8px'
-                      }}
-                      formatter={(value, name) => [value, name]}
-                      labelFormatter={(label) => {
-                        const store = metricsData.storeData?.find(s => s.abbreviation === label);
-                        return store?.name || label;
-                      }}
-                    />
-                    <Legend />
-                    <Bar dataKey="completed" fill="#10b981" name="Completed" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="failed" fill="#ef4444" name="Failed" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-          </div>
-
-        {/* Second Row: Driver Breakdown + Monthly Store Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Driver Performance Chart - Breakdown by Driver */}
           <Card>
             <CardHeader>
@@ -394,7 +394,7 @@ export default function AdminMetrics() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="h-[350px]">
+              <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart 
                     data={selectedMonth ? metricsData.driverDataByMonth?.[selectedMonth] : metricsData.driverData} 
@@ -425,9 +425,6 @@ export default function AdminMetrics() {
               </div>
             </CardContent>
           </Card>
-
-          {/* Monthly Store Metrics Grid */}
-          <MonthlyStoreMetricsGrid metricsData={metricsData} selectedYear={selectedYear} />
         </div>
 
         {/* App Fees Summary */}
