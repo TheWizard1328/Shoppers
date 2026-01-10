@@ -2,34 +2,35 @@ import React from "react";
 import StopCard from '../common/StopCard';
 import { format } from 'date-fns';
 
-const HorizontalPickupCards = React.forwardRef(({ // Renamed to HorizontalStopCards internally
-  pickupCards = [],
-  onCardClick,
-  selectedCardId,
-  stores = [],
-  drivers = [], // Now receiving full driver objects
-  patients = [],
-  currentUser, // NEW: Add currentUser prop
-  onSelectionChange,
-  selectedDeliveryIds = {},
-  stopOrder = {},
-  showDriverName = false, // Accept new prop
-  getDriverColor, // Accept new prop
-  // NEW: Action handlers
-  onEditDelivery,
-  onEditPatient,
-  onDeleteDelivery,
-  onRestart,
-  onStatusUpdate,
-  onNotesUpdate,
-  onCODUpdate,
-  onCreateReturn, // NEW: Add onCreateReturn prop
-  onStartDelivery, // NEW: Add onStartDelivery prop
-  allDeliveries = [], // NEW: Add allDeliveries prop
-  selectedDate, // NEW: Add selectedDate prop
-  onDriverStatusChange, // NEW: Add onDriverStatusChange prop
-  appUsers = [] // NEW: Add appUsers prop for messaging
-}, ref) {
+const HorizontalPickupCards = React.forwardRef((props, ref) => {
+  const {
+    pickupCards = [],
+    onCardClick,
+    selectedCardId,
+    stores = [],
+    drivers = [], // Now receiving full driver objects
+    patients = [],
+    currentUser, // NEW: Add currentUser prop
+    onSelectionChange,
+    selectedDeliveryIds = {},
+    stopOrder = {},
+    showDriverName = false, // Accept new prop
+    getDriverColor, // Accept new prop
+    // NEW: Action handlers
+    onEditDelivery,
+    onEditPatient,
+    onDeleteDelivery,
+    onRestart,
+    onStatusUpdate,
+    onNotesUpdate,
+    onCODUpdate,
+    onCreateReturn, // NEW: Add onCreateReturn prop
+    onStartDelivery, // NEW: Add onStartDelivery prop
+    allDeliveries = [], // NEW: Add allDeliveries prop
+    selectedDate, // NEW: Add selectedDate prop
+    onDriverStatusChange, // NEW: Add onDriverStatusChange prop
+    appUsers = [] // NEW: Add appUsers prop for messaging
+  } = props;
   // CRITICAL: ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
   const containerRef = React.useRef(null);
   
