@@ -316,6 +316,7 @@ function Dashboard() {
   const hasShownSummaryRef = useRef(new Set()); // Track which driver-date combinations have shown summary
   const [summaryDriver, setSummaryDriver] = useState(null); // Store which driver's summary to show
   const stopCardsContainerRef = useRef(null);
+  const horizontalStopCardsRef = useRef(null); // Direct ref to HorizontalStopCards component
 
   const mapLockTimeoutRef = useRef(null);
   const mapLockExpiresAtRef = useRef(null); // Timestamp when lock should expire
@@ -1318,13 +1319,13 @@ function Dashboard() {
 
   // Measure stop cards height - ONE TIME when cards render or delivery list changes
   useEffect(() => {
-    const element = stopCardsContainerRef.current;
+    const element = horizontalStopCardsRef.current;
     if (!element) return;
 
     // Only measure when NO card is expanded (all cards collapsed/condensed)
     if (selectedCardId) return;
 
-    // Wait for cards to render, then measure
+    // Wait for cards to render, then measure the actual HorizontalStopCards element
     const timer = setTimeout(() => {
       const height = element.offsetHeight;
       if (height > 0) {
@@ -6598,6 +6599,7 @@ function Dashboard() {
             }}>
 
             <HorizontalStopCards
+              ref={horizontalStopCardsRef}
               pickupCards={deliveriesWithStopOrder.
               filter((delivery) => delivery && delivery.status !== 'pending') // Hide pending deliveries from cards
               .map((delivery) => {

@@ -2,7 +2,7 @@ import React from "react";
 import StopCard from '../common/StopCard';
 import { format } from 'date-fns';
 
-export default function HorizontalPickupCards({ // Renamed to HorizontalStopCards internally
+const HorizontalPickupCards = React.forwardRef(({ // Renamed to HorizontalStopCards internally
   pickupCards = [],
   onCardClick,
   selectedCardId,
@@ -29,9 +29,19 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
   selectedDate, // NEW: Add selectedDate prop
   onDriverStatusChange, // NEW: Add onDriverStatusChange prop
   appUsers = [] // NEW: Add appUsers prop for messaging
-}) {
+}, ref) {
   // CRITICAL: ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
   const containerRef = React.useRef(null);
+  
+  // CRITICAL: Combine refs - both the forwarded ref and internal containerRef
+  const setRefs = React.useCallback((node) => {
+    containerRef.current = node;
+    if (typeof ref === 'function') {
+      ref(node);
+    } else if (ref) {
+      ref.current = node;
+    }
+  }, [ref]);
   const scrollTimeoutRef = React.useRef(null);
 
   // Define finished statuses
@@ -269,7 +279,7 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
 
   return (
     <div
-      ref={containerRef} 
+      ref={setRefs} 
       className="flex gap-3 overflow-x-auto overflow-y-visible items-end min-h-[75px] pointer-events-auto z-[200]"
       style={{
         scrollbarWidth: 'thin',
@@ -383,4 +393,8 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
       })}
     </div>);
 
-}
+});
+
+HorizontalPickupCards.displayName = 'HorizontalStopCards';
+
+export default HorizontalPickupCards;
