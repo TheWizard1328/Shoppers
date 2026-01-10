@@ -186,21 +186,93 @@ export default function HorizontalPickupCards({ // Renamed to HorizontalStopCard
     return sortOrderA - sortOrderB;
   });
 
+  // Snap scrolling for mobile - scroll one card at a time
+  const handleTouchStart = React.useCallback((e) => {
+    autoScrollEnabledRef.current = false;
+    const container = containerRef.current;
+    if (container) {
+      container._touchStartX = e.touches[0].clientX;
+      container._scrollStartX = container.scrollLeft;
+    }
+  }, []);
+
+  const handleTouchEnd = React.useCallback((e) => {
+    const container = containerRef.current;
+    if (!container || container._touchStartX === undefined) return;
+
+    const touchEndX = e.changedTouches[0].clientX;
+    const deltaX = container._touchStartX - touchEndX;
+    const threshold = 50; // Minimum swipe distance to trigger snap
+
+    if (Math.abs(deltaX) > threshold) {
+      // Find all card elements
+      const cards = Array.from(container.querySelectorAll('[id^="stop-card-"]'));
+      if (cards.length === 0) return;
+
+      // Get current scroll position and container width
+      const containerRect = container.getBoundingClientRect();
+      const containerCenter = containerRect.left + containerRect.width / 2;
+
+      // Find the card closest to center
+      let closestCard = null;
+      let closestDistance = Infinity;
+
+      cards.forEach((card) => {
+        const cardRect = card.getBoundingClientRect();
+        const cardCenter = cardRect.left + cardRect.width / 2;
+        const distance = Math.abs(cardCenter - containerCenter);
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestCard = card;
+        }
+      });
+
+      if (closestCard) {
+        const currentIndex = cards.indexOf(closestCard);
+        let targetIndex;
+
+        if (deltaX > 0) {
+          // Swiped left - go to next card
+          targetIndex = Math.min(currentIndex + 1, cards.length - 1);
+        } else {
+          // Swiped right - go to previous card
+          targetIndex = Math.max(currentIndex - 1, 0);
+        }
+
+        const targetCard = cards[targetIndex];
+        if (targetCard) {
+          const targetRect = targetCard.getBoundingClientRect();
+          const targetCenter = targetRect.left + targetRect.width / 2;
+          const scrollAdjustment = targetCenter - containerCenter;
+
+          container.scrollTo({
+            left: container.scrollLeft + scrollAdjustment,
+            behavior: 'smooth'
+          });
+        }
+      }
+    }
+
+    // Clean up
+    delete container._touchStartX;
+    delete container._scrollStartX;
+  }, []);
+
   return (
     <div
-      ref={containerRef} className="flex gap-3 overflow-x-auto overflow-y-visible items-end min-h-[75px] pointer-events-auto z-[200]"
-
+      ref={containerRef} 
+      className="flex gap-3 overflow-x-auto overflow-y-visible items-end min-h-[75px] pointer-events-auto z-[200]"
       style={{
         scrollbarWidth: 'thin',
-        scrollbarColor: 'rgba(0,0,0,0.15) transparent'
+        scrollbarColor: 'rgba(0,0,0,0.15) transparent',
+        scrollSnapType: 'x mandatory',
+        WebkitOverflowScrolling: 'touch'
       }}
       onWheel={(e) => {
         e.currentTarget.scrollLeft += e.deltaY;
       }}
-      onTouchStart={() => {
-        // Disable auto-scroll when user starts swiping
-        autoScrollEnabledRef.current = false;
-      }}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
       onScroll={() => {
         // Disable auto-scroll when user manually scrolls
         autoScrollEnabledRef.current = false;
