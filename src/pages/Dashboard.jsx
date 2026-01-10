@@ -413,14 +413,14 @@ function Dashboard() {
     // Get actual rendered heights from refs
     const statsCardCurrHeight = statsCardRef.current?.offsetHeight || 116;
     
-    // CRITICAL: Always use BASE condensed height (never live height that changes with expansion)
-    const condensedHeight = stopCardsBaseHeight || 75;
+    // CRITICAL: Use measured height only - no defaults
+    const condensedHeight = stopCardsBaseHeight;
 
     const topPadding = isMobile ?
     statsCardCurrHeight + 25 :
     25; // Desktop: Exclude stats card
 
-    const bottomPadding = hasVisibleCards ?
+    const bottomPadding = (hasVisibleCards && condensedHeight > 0) ?
     condensedHeight + 10 :
     25;
 
