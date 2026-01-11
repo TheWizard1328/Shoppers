@@ -443,13 +443,25 @@ Deno.serve(async (req) => {
       const month = parseInt(d.delivery_date.split('-')[1]);
       const day = parseInt(d.delivery_date.split('-')[2]);
       
+      // Use allStoresMap to check billable status
+      const store = allStoresMap.get(d.store_id);
+      const isBillableDelivery = isBillable(d) && store && wasPayingFeesOnDate(store, d.delivery_date);
+      
       const dayData = dailyDeliveryData[month]?.find(dd => dd.day === day);
       if (dayData) {
-        if (isBillable(d)) {
+        if (isBillableDelivery) {
           dayData.billable++;
         } else {
           dayData.nonBillable++;
         }
+      }
+    });
+    
+    // Build driver name map for lookups
+    const driverNameMap = {};
+    drivers.forEach(driver => {
+      if (driver?.user_id) {
+        driverNameMap[driver.user_id] = driver.user_name || 'Unknown';
       }
     });
     
@@ -466,7 +478,7 @@ Deno.serve(async (req) => {
       
       if (!driverDataByStore[d.store_id]) return;
       
-      const driverName = driverNameMap[d.driver_id] || 'Unknown';
+      const driverName = driverNameMap[d.driver_id] || d.driver_name || 'Unknown';
       if (!driverDataByStore[d.store_id][d.driver_id]) {
         driverDataByStore[d.store_id][d.driver_id] = {
           name: driverName,
@@ -475,7 +487,11 @@ Deno.serve(async (req) => {
         };
       }
       
-      if (isBillable(d)) {
+      // Use allStoresMap to check billable status
+      const store = allStoresMap.get(d.store_id);
+      const isBillableDelivery = isBillable(d) && store && wasPayingFeesOnDate(store, d.delivery_date);
+      
+      if (isBillableDelivery) {
         driverDataByStore[d.store_id][d.driver_id].billable++;
       } else {
         driverDataByStore[d.store_id][d.driver_id].nonBillable++;
