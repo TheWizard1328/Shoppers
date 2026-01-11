@@ -126,10 +126,12 @@ export default function AdminMetrics() {
     
     // Store + Month selected: show day-by-day breakdown for that store
     if (selectedStoreMonth) {
-      // Day-by-day breakdown data will be fetched from backend
+      // Build day-by-day data for the selected store in selected month
+      const dailyData = metricsData.dailyStoreData?.[selectedStoreMonth.month]?.[selectedStoreMonth.storeId] || [];
+      
       return {
         ...metricsData,
-        storeData: metricsData.storeData, // Keep full store data for legend
+        storeData: dailyData, // Daily breakdown for the store
         isDailyBreakdown: true
       };
     }
