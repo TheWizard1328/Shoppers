@@ -429,7 +429,8 @@ Deno.serve(async (req) => {
     
     // Populate daily data
     yearDeliveries.forEach(d => {
-      if (!d.store_id || !d.patient_id || !d.delivery_date) return;
+      if (!d.store_id || !d.delivery_date) return;
+      if (!shouldCount(d)) return;
       
       const month = parseInt(d.delivery_date.split('-')[1]);
       const day = parseInt(d.delivery_date.split('-')[2]);
@@ -438,7 +439,9 @@ Deno.serve(async (req) => {
       
       const dayData = dailyStoreData[month][d.store_id].find(dd => dd.day === day);
       if (dayData) {
-        if (d.status === 'completed') dayData.completed++;
+        const isAfterHours = !d.patient_id && d.after_hours_pickup;
+        if (isAfterHours) dayData.afterHours = (dayData.afterHours || 0) + 1;
+        else if (d.status === 'completed') dayData.completed++;
         else if (d.status === 'failed') dayData.failed++;
       }
     });
