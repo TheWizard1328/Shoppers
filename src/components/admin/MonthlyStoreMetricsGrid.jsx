@@ -165,13 +165,14 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
                     </td>
                     {stores.map(store => {
                       const value = getValue(store.abbreviation, month);
-                      const isStoreMonthSelected = selectedStoreMonth?.month === month && selectedStoreMonth?.storeId === store.id;
+                      const storeId = getStoreId(store.abbreviation, month);
+                      const isStoreMonthSelected = selectedStoreMonth?.month === month && selectedStoreMonth?.storeId === storeId;
                       return (
                         <td 
                           key={store.abbreviation} 
                           className={`text-center p-2 tabular-nums cursor-pointer hover:bg-blue-100 ${isStoreMonthSelected ? 'bg-blue-200' : ''}`}
                           style={{ color: value > 0 ? getStoreColor(store) : '#94a3b8' }}
-                          onClick={() => value > 0 && onStoreMonthClick?.(month, store.id, store.abbreviation)}
+                          onClick={() => value > 0 && storeId && onStoreMonthClick?.(month, storeId, store.abbreviation)}
                         >
                           {formatValue(value)}
                         </td>
