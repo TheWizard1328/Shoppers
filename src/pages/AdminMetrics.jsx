@@ -108,6 +108,28 @@ export default function AdminMetrics() {
     }
   }, [hasAccess, initialCitySet, selectedCityId]); // Wait for city selection
 
+  // Listen for delivery updates from smart refresh and refresh metrics
+  useEffect(() => {
+    const handleDeliveriesUpdated = () => {
+      // Only refresh if currently viewing this page and viewing current year
+      const currentYear = new Date().getFullYear();
+      if (selectedYear === currentYear.toString() && hasAccess && selectedCityId) {
+        console.log('📊 [AdminMetrics] Deliveries updated - refreshing metrics');
+        fetchMetrics(selectedYear, selectedCityId, false);
+      }
+    };
+
+    window.addEventListener('deliveriesUpdated', handleDeliveriesUpdated);
+    window.addEventListener('deliveriesImported', handleDeliveriesUpdated);
+    window.addEventListener('refreshDeliveryStats', handleDeliveriesUpdated);
+
+    return () => {
+      window.removeEventListener('deliveriesUpdated', handleDeliveriesUpdated);
+      window.removeEventListener('deliveriesImported', handleDeliveriesUpdated);
+      window.removeEventListener('refreshDeliveryStats', handleDeliveriesUpdated);
+    };
+  }, [selectedYear, hasAccess, selectedCityId, fetchMetrics]);
+
   // Handle year change without full refresh
   const handleYearChange = (newYear) => {
     setSelectedYear(newYear);
