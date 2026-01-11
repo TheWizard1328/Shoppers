@@ -551,7 +551,7 @@ Deno.serve(async (req) => {
           abbreviation: store.abbreviation || '',
           color: store.color || '#64748b',
           sortOrder: store.sort_order ?? Infinity,
-          completed: storeMonthDeliveries.length,
+          completed: storeMonthDeliveries.length, // Now includes failed + after-hours
           fees: storeFees
         });
       });
