@@ -383,6 +383,43 @@ Deno.serve(async (req) => {
       storeDataByMonth[m] = Object.values(storeStatsByMonth[m]).sort((a, b) => a.sortOrder - b.sortOrder);
     }
     
+    // Build daily store data for day-by-day breakdown
+    // { monthNum: { storeId: [{ day: 1, completed: X, failed: Y }, ...] } }
+    const dailyStoreData = {};
+    for (let m = 1; m <= 12; m++) {
+      dailyStoreData[m] = {};
+      const daysInMonth = new Date(year, m, 0).getDate();
+      
+      storesForGrid.forEach(store => {
+        if (!store?.id) return;
+        dailyStoreData[m][store.id] = [];
+        
+        for (let d = 1; d <= daysInMonth; d++) {
+          dailyStoreData[m][store.id].push({
+            day: d,
+            completed: 0,
+            failed: 0
+          });
+        }
+      });
+    }
+    
+    // Populate daily data
+    yearDeliveries.forEach(d => {
+      if (!d.store_id || !d.patient_id || !d.delivery_date) return;
+      
+      const month = parseInt(d.delivery_date.split('-')[1]);
+      const day = parseInt(d.delivery_date.split('-')[2]);
+      
+      if (!dailyStoreData[month]?.[d.store_id]) return;
+      
+      const dayData = dailyStoreData[month][d.store_id].find(dd => dd.day === day);
+      if (dayData) {
+        if (d.status === 'completed') dayData.completed++;
+        else if (d.status === 'failed') dayData.failed++;
+      }
+    });
+    
     // Build monthly store data for the grid (deliveries per store per month + fees)
     const monthlyStoreData = {};
     const monthlyStoreFees = {};
