@@ -376,8 +376,23 @@ export default function AdminMetrics() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis 
                     dataKey={selectedStoreMonth ? "day" : "abbreviation"} 
-                    tick={{ fill: '#64748b', fontSize: 11 }}
+                    tick={selectedStoreMonth ? { fill: '#64748b', fontSize: 11 } : (props) => {
+                      const { x, y, payload } = props;
+                      const storeData = (filteredData?.storeData || metricsData.storeData)?.find(s => s.abbreviation === payload.value);
+                      const total = storeData ? (storeData.completed || 0) + (storeData.failed || 0) : 0;
+                      return (
+                        <g transform={`translate(${x},${y})`}>
+                          <text x={0} y={0} dy={12} textAnchor="middle" fill="#64748b" fontSize={11}>
+                            {payload.value}
+                          </text>
+                          <text x={0} y={0} dy={26} textAnchor="middle" fill="#10b981" fontSize={10} fontWeight="600">
+                            {total}
+                          </text>
+                        </g>
+                      );
+                    }}
                     interval={0}
+                    height={50}
                   />
                   <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
                   <Tooltip 
