@@ -421,7 +421,8 @@ Deno.serve(async (req) => {
           dailyStoreData[m][store.id].push({
             day: d,
             completed: 0,
-            failed: 0
+            failed: 0,
+            afterHours: 0
           });
         }
       });
