@@ -153,6 +153,16 @@ Deno.serve(async (req) => {
       return false;
     };
 
+    // Helper: Check if delivery should be counted (completed, failed, or after-hours pickup)
+    const shouldCount = (d) => {
+      if (!d) return false;
+      // Patient deliveries: completed or failed
+      if (d.patient_id && (d.status === 'completed' || d.status === 'failed')) return true;
+      // After hours pickups: completed or cancelled
+      if (!d.patient_id && d.after_hours_pickup && (d.status === 'completed' || d.status === 'cancelled')) return true;
+      return false;
+    };
+
     // Build monthly data
     const monthlyData = [];
     const monthlyStoreFeeTotals = Array(12).fill(0);
