@@ -411,8 +411,9 @@ export default function AdminMetrics() {
                     }}
                   />
                   <Legend />
-                  <Bar dataKey="completed" fill="#10b981" name="Completed" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="failed" fill="#ef4444" name="Failed" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="completed" fill="#10b981" name="Completed" radius={[4, 4, 0, 0]} stackId="a" />
+                  <Bar dataKey="failed" fill="#ef4444" name="Failed" radius={[0, 0, 0, 0]} stackId="a" />
+                  <Bar dataKey="afterHours" fill="#8b5cf6" name="After Hours" radius={[4, 4, 0, 0]} stackId="a" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
