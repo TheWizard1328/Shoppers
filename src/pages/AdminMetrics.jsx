@@ -328,7 +328,7 @@ export default function AdminMetrics() {
 
         {/* Row 2: Store Breakdown or Day-by-Day Breakdown */}
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Store className="w-5 h-5" />
               {selectedStoreMonth 
@@ -353,7 +353,7 @@ export default function AdminMetrics() {
                 <BarChart data={filteredData?.storeData || metricsData.storeData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis 
-                    dataKey="abbreviation" 
+                    dataKey={selectedStoreMonth ? "day" : "abbreviation"} 
                     tick={{ fill: '#64748b', fontSize: 11 }}
                     interval={0}
                   />
@@ -366,6 +366,9 @@ export default function AdminMetrics() {
                     }}
                     formatter={(value, name) => [value, name]}
                     labelFormatter={(label) => {
+                      if (selectedStoreMonth) {
+                        return `Day ${label}`;
+                      }
                       const store = metricsData.storeData?.find(s => s.abbreviation === label);
                       return store?.name || label;
                     }}
