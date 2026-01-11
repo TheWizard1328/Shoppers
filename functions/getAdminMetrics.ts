@@ -529,13 +529,12 @@ Deno.serve(async (req) => {
       storesForGrid.forEach(store => {
         if (!store) return;
         
-        // Count completed deliveries for this store in this month
+        // Count deliveries for this store in this month (completed, failed, after-hours pickups)
         const storeMonthDeliveries = yearDeliveries.filter(d => 
           d?.store_id === store.id && 
-          d?.patient_id && 
           d?.delivery_date >= monthStart && 
           d?.delivery_date <= monthEnd &&
-          d?.status === 'completed'
+          shouldCount(d)
         );
         
         // Calculate fees for billable deliveries where store was paying fees
