@@ -570,9 +570,11 @@ Deno.serve(async (req) => {
       driverNames: topDriverNames,
       storeData,
       storeDataByMonth,
-      dailyStoreData,    // NEW: For day-by-day store breakdown
-      monthlyStoreData,  // NEW: For monthly store deliveries grid
-      monthlyStoreFees,  // NEW: For monthly store fees grid
+      dailyStoreData,      // NEW: For day-by-day store breakdown
+      dailyDeliveryData,   // NEW: For daily breakdown in Monthly Deliveries chart
+      driverDataByStore,   // NEW: For driver breakdown by store
+      monthlyStoreData,    // NEW: For monthly store deliveries grid
+      monthlyStoreFees,    // NEW: For monthly store fees grid
       yearTotals: {
         billable: yearBillable,
         nonBillable: yearNonBillable,
