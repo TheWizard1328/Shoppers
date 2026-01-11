@@ -320,8 +320,8 @@ export default function AdminMetrics() {
             setSelectedMonth(prev => prev === month ? null : month);
             setSelectedStoreMonth(null); // Clear store selection when month changes
           }}
-          onStoreMonthClick={(month, storeId, storeAbbr) => {
-            setSelectedStoreMonth({ month, storeId, storeAbbr });
+          onStoreMonthClick={(month, storeId, storeAbbr, storeName) => {
+            setSelectedStoreMonth({ month, storeId, storeAbbr, storeName });
             setSelectedMonth(month); // Also set month filter
           }}
         />
