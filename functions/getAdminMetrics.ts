@@ -453,6 +453,7 @@ Deno.serve(async (req) => {
         });
         
         monthlyStoreData[m].push({
+          id: store.id, // Include store ID for click handling
           name: store.name || 'Unknown',
           abbreviation: store.abbreviation || '',
           color: store.color || '#64748b',
