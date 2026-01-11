@@ -420,6 +420,74 @@ Deno.serve(async (req) => {
       }
     });
     
+    // Build daily delivery data for Monthly Deliveries chart (all stores combined)
+    // { monthNum: [{ day: 1, billable: X, nonBillable: Y }, ...] }
+    const dailyDeliveryData = {};
+    for (let m = 1; m <= 12; m++) {
+      const daysInMonth = new Date(year, m, 0).getDate();
+      dailyDeliveryData[m] = [];
+      
+      for (let d = 1; d <= daysInMonth; d++) {
+        dailyDeliveryData[m].push({
+          day: d,
+          billable: 0,
+          nonBillable: 0
+        });
+      }
+    }
+    
+    // Populate daily delivery data
+    yearDeliveries.forEach(d => {
+      if (!d.patient_id || !d.delivery_date || d.status !== 'completed') return;
+      
+      const month = parseInt(d.delivery_date.split('-')[1]);
+      const day = parseInt(d.delivery_date.split('-')[2]);
+      
+      const dayData = dailyDeliveryData[month]?.find(dd => dd.day === day);
+      if (dayData) {
+        if (isBillable(d)) {
+          dayData.billable++;
+        } else {
+          dayData.nonBillable++;
+        }
+      }
+    });
+    
+    // Build driver data by store (for store-month selection)
+    // { storeId: [{ name: 'Driver A', billable: X, nonBillable: Y }, ...] }
+    const driverDataByStore = {};
+    storesForGrid.forEach(store => {
+      if (!store?.id) return;
+      driverDataByStore[store.id] = {};
+    });
+    
+    yearDeliveries.forEach(d => {
+      if (!d.driver_id || !d.patient_id || !d.store_id || d.status !== 'completed') return;
+      
+      if (!driverDataByStore[d.store_id]) return;
+      
+      const driverName = driverNameMap[d.driver_id] || 'Unknown';
+      if (!driverDataByStore[d.store_id][d.driver_id]) {
+        driverDataByStore[d.store_id][d.driver_id] = {
+          name: driverName,
+          billable: 0,
+          nonBillable: 0
+        };
+      }
+      
+      if (isBillable(d)) {
+        driverDataByStore[d.store_id][d.driver_id].billable++;
+      } else {
+        driverDataByStore[d.store_id][d.driver_id].nonBillable++;
+      }
+    });
+    
+    // Convert to arrays and sort
+    Object.keys(driverDataByStore).forEach(storeId => {
+      driverDataByStore[storeId] = Object.values(driverDataByStore[storeId])
+        .sort((a, b) => (b.billable + b.nonBillable) - (a.billable + a.nonBillable));
+    });
+    
     // Build monthly store data for the grid (deliveries per store per month + fees)
     const monthlyStoreData = {};
     const monthlyStoreFees = {};
