@@ -332,7 +332,7 @@ export default function AdminMetrics() {
             <CardTitle className="flex items-center gap-2">
               <Store className="w-5 h-5" />
               {selectedStoreMonth 
-                ? `${selectedStoreMonth.storeAbbr} - ${MONTH_NAMES[selectedStoreMonth.month - 1]} ${selectedYear} (Day-by-Day)`
+                ? `${selectedStoreMonth.storeName || selectedStoreMonth.storeAbbr} - ${MONTH_NAMES[selectedStoreMonth.month - 1]} ${selectedYear} (Day-by-Day)`
                 : `Store Breakdown (${selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} ${selectedYear})`
               }
             </CardTitle>
