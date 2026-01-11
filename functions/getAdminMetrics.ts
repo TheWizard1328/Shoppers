@@ -335,7 +335,8 @@ Deno.serve(async (req) => {
         abbreviation: store.abbreviation || '',
         sortOrder: store.sort_order ?? Infinity,
         completed: 0,
-        failed: 0
+        failed: 0,
+        afterHours: 0
       };
       for (let m = 1; m <= 12; m++) {
         storeStatsByMonth[m][store.id] = {
@@ -343,7 +344,8 @@ Deno.serve(async (req) => {
           abbreviation: store.abbreviation || '',
           sortOrder: store.sort_order ?? Infinity,
           completed: 0,
-          failed: 0
+          failed: 0,
+          afterHours: 0
         };
       }
     });
