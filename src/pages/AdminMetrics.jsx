@@ -372,14 +372,18 @@ export default function AdminMetrics() {
           <CardContent>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={filteredData?.storeData || metricsData.storeData}>
+                <BarChart data={(filteredData?.storeData || metricsData.storeData)?.map(item => ({
+                  ...item,
+                  totalCompleted: (item.completed || 0) + (item.afterHours || 0),
+                  totalFailed: (item.failed || 0) + (item.cancelled || 0)
+                }))}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis 
                     dataKey={selectedStoreMonth ? "day" : "abbreviation"} 
                     tick={selectedStoreMonth ? { fill: '#64748b', fontSize: 11 } : (props) => {
                       const { x, y, payload } = props;
                       const storeData = (filteredData?.storeData || metricsData.storeData)?.find(s => s.abbreviation === payload.value);
-                      const total = storeData ? (storeData.completed || 0) + (storeData.failed || 0) + (storeData.afterHours || 0) : 0;
+                      const total = storeData ? (storeData.completed || 0) + (storeData.failed || 0) + (storeData.afterHours || 0) + (storeData.cancelled || 0) : 0;
                       return (
                         <g transform={`translate(${x},${y})`}>
                           <text x={0} y={0} dy={12} textAnchor="middle" fill="#64748b" fontSize={11}>
@@ -411,9 +415,8 @@ export default function AdminMetrics() {
                     }}
                   />
                   <Legend />
-                  <Bar dataKey="completed" fill="#10b981" name="Completed" radius={[4, 4, 0, 0]} stackId="a" />
-                  <Bar dataKey="failed" fill="#ef4444" name="Failed" radius={[0, 0, 0, 0]} stackId="a" />
-                  <Bar dataKey="afterHours" fill="#8b5cf6" name="After Hours" radius={[4, 4, 0, 0]} stackId="a" />
+                  <Bar dataKey="totalCompleted" fill="#10b981" name="Completed" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="totalFailed" fill="#ef4444" name="Failed" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
