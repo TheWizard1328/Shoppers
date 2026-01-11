@@ -8,7 +8,7 @@ import { base44 } from '@/api/base44Client';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { getEffectiveUser } from '@/components/utils/auth';
 import { isAppOwner, userHasRole } from '../components/utils/userRoles';
-import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
+// SmartRefreshIndicator removed - causes context issues on this page
 import MonthlyStoreMetricsGrid from '../components/admin/MonthlyStoreMetricsGrid';
 
 const MONTH_NAMES = [
@@ -228,7 +228,6 @@ export default function AdminMetrics() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <SmartRefreshIndicator inline={true} />
             <h1 className="text-2xl md:text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>
               Admin Metrics
             </h1>
