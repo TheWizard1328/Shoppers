@@ -384,20 +384,27 @@ export default function AdminMetrics() {
 
         {/* Row 3: Monthly Deliveries + Driver Breakdown */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Monthly Deliveries Chart */}
+          {/* Monthly Deliveries Chart - Shows daily breakdown when month selected */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <BarChart3 className="w-5 h-5" />
-                Monthly Deliveries ({selectedYear})
+                {selectedMonth 
+                  ? `Daily Deliveries - ${MONTH_NAMES[selectedMonth - 1]} ${selectedYear}`
+                  : `Monthly Deliveries (${selectedYear})`
+                }
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={metricsData.monthlyData}>
+                  <BarChart data={selectedMonth ? metricsData.dailyDeliveryData?.[selectedMonth] : metricsData.monthlyData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="month" tick={{ fill: '#64748b', fontSize: 12 }} />
+                    <XAxis 
+                      dataKey={selectedMonth ? "day" : "month"} 
+                      tick={{ fill: '#64748b', fontSize: selectedMonth ? 10 : 12 }} 
+                      interval={selectedMonth ? 'preserveStartEnd' : 0}
+                    />
                     <YAxis tick={{ fill: '#64748b', fontSize: 12 }} />
                     <Tooltip 
                       contentStyle={{ 
@@ -405,6 +412,7 @@ export default function AdminMetrics() {
                         border: '1px solid #e2e8f0',
                         borderRadius: '8px'
                       }}
+                      labelFormatter={(label) => selectedMonth ? `Day ${label}` : label}
                     />
                     <Legend />
                     <Bar dataKey="billable" fill={COLORS.billable} name="Billable" radius={[4, 4, 0, 0]} />
@@ -420,14 +428,26 @@ export default function AdminMetrics() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="w-5 h-5" />
-                Driver Breakdown ({selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} {selectedYear})
+                Driver Breakdown 
+                {selectedStoreMonth 
+                  ? ` - ${selectedStoreMonth.storeName || selectedStoreMonth.storeAbbr}`
+                  : selectedMonth 
+                    ? ` (${MONTH_NAMES[selectedMonth - 1]} ${selectedYear})`
+                    : ` (All ${selectedYear})`
+                }
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart 
-                    data={selectedMonth ? metricsData.driverDataByMonth?.[selectedMonth] : metricsData.driverData} 
+                    data={
+                      selectedStoreMonth 
+                        ? metricsData.driverDataByStore?.[selectedStoreMonth.storeId]
+                        : selectedMonth 
+                          ? metricsData.driverDataByMonth?.[selectedMonth] 
+                          : metricsData.driverData
+                    } 
                     barCategoryGap="15%"
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
