@@ -7,7 +7,7 @@ import { BarChart3, DollarSign, Store, Package, RefreshCw, Loader2, TrendingUp, 
 import { base44 } from '@/api/base44Client';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { getEffectiveUser } from '@/components/utils/auth';
-import { isAppOwner } from '../components/utils/userRoles';
+import { isAppOwner, userHasRole } from '../components/utils/userRoles';
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
 import MonthlyStoreMetricsGrid from '../components/admin/MonthlyStoreMetricsGrid';
 
@@ -46,7 +46,7 @@ export default function AdminMetrics() {
       try {
         const user = await getEffectiveUser();
         setCurrentUser(user);
-        setHasAccess(isAppOwner(user));
+        setHasAccess(isAppOwner(user) || userHasRole(user, 'admin'));
         
         // Load cities for filter
         const citiesData = await base44.entities.City.list();
