@@ -379,7 +379,7 @@ export default function AdminMetrics() {
                     tick={selectedStoreMonth ? { fill: '#64748b', fontSize: 11 } : (props) => {
                       const { x, y, payload } = props;
                       const storeData = (filteredData?.storeData || metricsData.storeData)?.find(s => s.abbreviation === payload.value);
-                      const total = storeData ? (storeData.completed || 0) + (storeData.failed || 0) : 0;
+                      const total = storeData ? (storeData.completed || 0) + (storeData.failed || 0) + (storeData.afterHours || 0) : 0;
                       return (
                         <g transform={`translate(${x},${y})`}>
                           <text x={0} y={0} dy={12} textAnchor="middle" fill="#64748b" fontSize={11}>
