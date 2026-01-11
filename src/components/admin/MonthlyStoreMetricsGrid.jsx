@@ -172,7 +172,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
                           key={store.abbreviation} 
                           className={`text-center p-2 tabular-nums cursor-pointer hover:bg-blue-100 ${isStoreMonthSelected ? 'bg-blue-200' : ''}`}
                           style={{ color: value > 0 ? getStoreColor(store) : '#94a3b8' }}
-                          onClick={() => value > 0 && storeId && onStoreMonthClick?.(month, storeId, store.abbreviation)}
+                          onClick={() => value > 0 && storeId && onStoreMonthClick?.(month, storeId, store.abbreviation, store.name)}
                         >
                           {formatValue(value)}
                         </td>
