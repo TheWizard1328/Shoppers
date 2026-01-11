@@ -349,12 +349,19 @@ Deno.serve(async (req) => {
     });
 
     yearDeliveries.forEach(d => {
-      if (!d.store_id || !d.patient_id) return;
+      if (!d.store_id) return;
+      // Include patient deliveries AND after-hours pickups
+      if (!shouldCount(d)) return;
       
       const month = d.delivery_date ? parseInt(d.delivery_date.split('-')[1]) : null;
       
       // Use allStoresMap for lookups
       const store = allStoresMap.get(d.store_id);
+      
+      // Determine category: completed, failed, or afterHours
+      const isAfterHours = !d.patient_id && d.after_hours_pickup;
+      const isCompleted = d.status === 'completed';
+      const isFailed = d.status === 'failed';
       
       // Year total
       if (!storeStats[d.store_id]) {
@@ -363,11 +370,13 @@ Deno.serve(async (req) => {
           abbreviation: store?.abbreviation || '',
           sortOrder: store?.sort_order ?? Infinity,
           completed: 0,
-          failed: 0
+          failed: 0,
+          afterHours: 0
         };
       }
-      if (d.status === 'completed') storeStats[d.store_id].completed++;
-      else if (d.status === 'failed') storeStats[d.store_id].failed++;
+      if (isAfterHours) storeStats[d.store_id].afterHours++;
+      else if (isCompleted) storeStats[d.store_id].completed++;
+      else if (isFailed) storeStats[d.store_id].failed++;
       
       // By month
       if (month && month >= 1 && month <= 12) {
@@ -377,11 +386,13 @@ Deno.serve(async (req) => {
             abbreviation: store?.abbreviation || '',
             sortOrder: store?.sort_order ?? Infinity,
             completed: 0,
-            failed: 0
+            failed: 0,
+            afterHours: 0
           };
         }
-        if (d.status === 'completed') storeStatsByMonth[month][d.store_id].completed++;
-        else if (d.status === 'failed') storeStatsByMonth[month][d.store_id].failed++;
+        if (isAfterHours) storeStatsByMonth[month][d.store_id].afterHours++;
+        else if (isCompleted) storeStatsByMonth[month][d.store_id].completed++;
+        else if (isFailed) storeStatsByMonth[month][d.store_id].failed++;
       }
     });
 
