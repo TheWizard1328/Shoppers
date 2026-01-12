@@ -852,14 +852,22 @@ export default function StopCard({
                   (delivery.patient_id || delivery.after_hours_pickup) && (() => {
                   // For drivers viewing their own deliveries, use their own pay rates
                   // For admins, use the assigned driver's pay rates
-                  // CRITICAL: delivery.driver_id can be either AppUser.id or AppUser.user_id depending on context
-                  let driverAppUser;
-                  if (userHasRole(currentUser, 'admin')) {
-                    // Try matching by user_id first, then by id (AppUser record id)
-                    driverAppUser = appUsers?.find(au => au?.user_id === delivery.driver_id) ||
-                                    appUsers?.find(au => au?.id === delivery.driver_id);
-                  } else {
-                    driverAppUser = appUsers?.find(au => au?.user_id === currentUser?.id);
+                  // CRITICAL: delivery.driver_id IS the user_id (auth user ID), NOT AppUser.id
+                  let driverAppUser = null;
+                  
+                  if (appUsers && appUsers.length > 0) {
+                    if (userHasRole(currentUser, 'admin')) {
+                      // For admin: find AppUser by matching user_id to delivery.driver_id
+                      driverAppUser = appUsers.find(au => au?.user_id === delivery.driver_id);
+                    } else {
+                      // For driver: find their own AppUser record
+                      driverAppUser = appUsers.find(au => au?.user_id === currentUser?.id);
+                    }
+                  }
+                  
+                  // If no appUsers array, try using driver prop if it has pay rates
+                  if (!driverAppUser && driver && driver.pay_rate_per_delivery) {
+                    driverAppUser = driver;
                   }
                   
                   const pay = driverAppUser ? calculateDeliveryPay(delivery, driverAppUser, patient) : 0;
