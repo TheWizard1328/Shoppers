@@ -6765,7 +6765,7 @@ function Dashboard() {
         </DialogContent>
       </Dialog>
 
-      {(isDriver || isDispatcher) && stopCardsBaseHeight > 0 &&
+      {(isDriver || isDispatcher) &&
       <>
         <MapViewCycleFAB
           onClick={handleMapViewCycle}
