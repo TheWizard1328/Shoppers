@@ -3528,16 +3528,16 @@ export default function DeliveryForm({
                       <Input
                       id="paid_km_override"
                       type="text"
-                      value={formData.paid_km_override !== null && formData.paid_km_override !== undefined ? formData.paid_km_override : ''}
+                      value={formData.paid_km_override !== null && formData.paid_km_override !== undefined ? String(formData.paid_km_override) : ''}
                       onChange={(e) => {
                         const val = e.target.value;
                         if (val === '') {
                           setFormData((prev) => ({ ...prev, paid_km_override: null }));
                         } else {
-                          const parsed = parseFloat(val);
+                          // Allow typing decimals and numbers freely
                           setFormData((prev) => ({ 
                             ...prev, 
-                            paid_km_override: isNaN(parsed) ? prev.paid_km_override : parsed
+                            paid_km_override: val
                           }));
                         }
                       }}
