@@ -849,9 +849,23 @@ export default function StopCard({
                       ) : null}
                     </>
                   }
-                  {/* Driver Pay for Finished Stops - Drivers Only */}
-                  {FINISHED_STATUSES.includes(delivery.status) && !isPickup && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher') && (() => {
-                    const driverAppUser = appUsers?.find(au => au?.user_id === currentUser?.id);
+                  {/* Driver Pay for Finished Stops - Drivers and Admins */}
+                  {FINISHED_STATUSES.includes(delivery.status) && !isPickup && (() => {
+                    // Show pay for drivers OR admins viewing any driver's deliveries
+                    const isDriverView = userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'dispatcher');
+                    const isAdminView = userHasRole(currentUser, 'admin');
+                    
+                    if (!isDriverView && !isAdminView) return null;
+                    
+                    // For drivers, use their own pay rates
+                    // For admins, use the assigned driver's pay rates
+                    let driverAppUser;
+                    if (isDriverView) {
+                      driverAppUser = appUsers?.find(au => au?.user_id === currentUser?.id);
+                    } else if (isAdminView) {
+                      driverAppUser = appUsers?.find(au => au?.user_id === delivery.driver_id);
+                    }
+                    
                     if (!driverAppUser) return null;
                     const pay = calculateDeliveryPay(delivery, driverAppUser);
                     if (pay === 0) return null;
