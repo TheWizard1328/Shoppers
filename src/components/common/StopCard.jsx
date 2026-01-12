@@ -850,40 +850,19 @@ export default function StopCard({
                 {FINISHED_STATUSES.includes(delivery.status) && (
                   userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')
                 ) && (() => {
-                  // DEBUG: Log data to diagnose $0.00 issue
-                  console.log('[StopCard Pay] delivery:', delivery.id, 'status:', delivery.status);
-                  console.log('[StopCard Pay] appUsers array length:', appUsers?.length || 0);
-                  console.log('[StopCard Pay] currentUser:', currentUser?.id);
-                  console.log('[StopCard Pay] delivery.driver_id:', delivery.driver_id);
-                  
                   // For drivers viewing their own deliveries, use their own pay rates
                   // For admins, use the assigned driver's pay rates
                   let driverAppUser;
                   if (userHasRole(currentUser, 'admin')) {
                     // Admin: look up the driver assigned to this delivery
                     driverAppUser = appUsers?.find(au => au?.user_id === delivery.driver_id);
-                    console.log('[StopCard Pay - Admin] Looking for driver_id:', delivery.driver_id);
-                    console.log('[StopCard Pay - Admin] Found driverAppUser:', driverAppUser?.id, driverAppUser?.user_name);
                   } else {
                     // Driver: use their own pay rates
                     driverAppUser = appUsers?.find(au => au?.user_id === currentUser?.id);
-                    console.log('[StopCard Pay - Driver] Looking for user_id:', currentUser?.id);
-                    console.log('[StopCard Pay - Driver] Found driverAppUser:', driverAppUser?.id, driverAppUser?.user_name);
                   }
                   
-                  if (driverAppUser) {
-                    console.log('[StopCard Pay] driverAppUser pay_rate_per_delivery:', driverAppUser.pay_rate_per_delivery);
-                    console.log('[StopCard Pay] driverAppUser extra_km_rate:', driverAppUser.extra_km_rate);
-                    console.log('[StopCard Pay] driverAppUser extra_km_limit:', driverAppUser.extra_km_limit);
-                    console.log('[StopCard Pay] driverAppUser oversized_item_rate:', driverAppUser.oversized_item_rate);
-                    console.log('[StopCard Pay] delivery.travel_dist:', delivery.travel_dist);
-                    console.log('[StopCard Pay] delivery.paid_km_override:', delivery.paid_km_override);
-                    console.log('[StopCard Pay] delivery.oversized:', delivery.oversized);
-                  }
-                  
-                  // Always show pay amount for finished stops, even if no driver found (will show $0.00)
-                  const pay = driverAppUser ? calculateDeliveryPay(delivery, driverAppUser) : 0;
-                  console.log('[StopCard Pay] Calculated pay:', pay);
+                  // Always show pay amount for finished stops
+                  const pay = driverAppUser ? calculateDeliveryPay(delivery, driverAppUser, patient) : 0;
                   return (
                     <div className="text-sm font-bold text-emerald-600">
                       {formatPay(pay)}

@@ -7,10 +7,14 @@
  * Calculate pay for a single delivery
  * @param {Object} delivery - The delivery object
  * @param {Object} driver - The driver/AppUser object with pay rates
+ * @param {Object} patient - Optional patient object (for distance_from_store)
  * @returns {number} - Total pay for this delivery in dollars
  */
-export const calculateDeliveryPay = (delivery, driver) => {
+export const calculateDeliveryPay = (delivery, driver, patient = null) => {
   if (!delivery || !driver) return 0;
+
+  // Pickups don't earn pay - only patient deliveries
+  if (!delivery.patient_id) return 0;
 
   let totalPay = 0;
 
@@ -21,7 +25,9 @@ export const calculateDeliveryPay = (delivery, driver) => {
   // Extra KM pay (if distance exceeds limit)
   const extraKmRate = driver.extra_km_rate || 0;
   const extraKmLimit = driver.extra_km_limit || 0;
-  const paidKm = delivery.paid_km_override ?? delivery.travel_dist ?? 0;
+  
+  // Priority: paid_km_override > patient.distance_from_store > travel_dist
+  const paidKm = delivery.paid_km_override ?? patient?.distance_from_store ?? delivery.travel_dist ?? 0;
 
   if (paidKm > extraKmLimit && extraKmRate > 0) {
     const extraKm = paidKm - extraKmLimit;
