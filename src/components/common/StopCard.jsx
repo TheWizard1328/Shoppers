@@ -766,7 +766,7 @@ export default function StopCard({
         opacity: shouldFade ? 0.4 : 1,
         transition: 'opacity 0.2s ease-in-out'
       }}>
-        <CardContent className="px-2 py-1 flex flex-col">
+        <CardContent className="p-6 px-2 py-0 flex flex-col">
           {/* HEADER SECTION - Always Visible */}
           <div className="flex items-start">
             {/* Drag Handle - Only show for non-finished deliveries */}
@@ -778,7 +778,7 @@ export default function StopCard({
             
             <div className="flex flex-col py-0. gap-0.5  items-center">
               <Badge
-                variant="secondary" className={`inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary hover:bg-secondary/80 font-bold text-sm px-2 py-0.5 text-white w-[40px] justify-center ${delivery.ampm_deliveries === 'PM' ? 'rounded-md' : 'rounded-full'}`}
+                variant="secondary" className="bg-secondary text-white mt-1 px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 w-[40px] justify-center"
                 style={{
                   backgroundColor: storeColor || '#10B981',
                   color: 'white'
@@ -807,7 +807,7 @@ export default function StopCard({
               <h3 className="pt-0 text-2xl md:text-xl font-semibold text-center truncate" style={{ color: 'var(--text-slate-900)' }}>
                 {finalDisplayName}
               </h3>
-              <div className="flex flex-col items-center min-h-[52px]">
+              <div className="flex flex-col items-center min-h-[40px]">
                 <div className="text-lg md:text-sm flex items-center justify-center" style={{ color: 'var(--text-slate-600)' }}>
                   {FINISHED_STATUSES.includes(delivery.status) && delivery.actual_delivery_time ?
                   <>
@@ -904,15 +904,15 @@ export default function StopCard({
             <div className="flex flex-col py-0.5 gap-0.5 items-center">
               <div className="flex items-center gap-1">
                 <Badge
-                  variant="secondary" className={`border-transparent inline-flex items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-sm font-bold px-2 py-0.5 ${
-                  isReturnDelivery ? 'bg-orange-500 !text-white' :
-                  delivery.after_hours_pickup && (delivery.status === 'completed' || delivery.status === 'cancelled') ? 'bg-emerald-500 !text-blue-600' :
-                  delivery.status === 'failed' ? 'bg-red-500 !text-white' :
-                  delivery.status === 'cancelled' ? 'bg-red-500 !text-white' :
-                  delivery.status === 'completed' ? 'bg-emerald-500 !text-white' :
-                  delivery.status === 'en_route' ? 'bg-cyan-100 text-cyan-800' :
-                  statusConfig[delivery.status]?.color || 'bg-slate-100 text-slate-800'}`
-                  }>
+                  variant="secondary" className="bg-emerald-500 text-secondary-foreground mt-1 px-2 text-sm font-bold rounded-full hover:bg-secondary/80 border-transparent inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 !text-white">
+
+
+
+
+
+
+
+
 
                     {isReturnDelivery ? 'Return' : statusConfig[delivery.status]?.label || delivery.status}
                   </Badge>
@@ -920,7 +920,7 @@ export default function StopCard({
 
               {delivery.tracking_number && store?.abbreviation &&
               <Badge
-                variant="secondary" className="bg-secondary text-secondary-foreground mt-1 px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80"
+                variant="secondary" className="bg-secondary text-secondary-foreground mt-2 px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80"
                 style={{ backgroundColor: `${storeColor}`, color: `White` }}>
                   {(() => {
                   const storeAbbr = store.abbreviation.slice(0, 2).toUpperCase();
