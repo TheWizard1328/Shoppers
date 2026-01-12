@@ -77,9 +77,9 @@ export default function SpecialSymbolsBadges({
 
   return (
     <div className="inline-flex items-center gap-1">
-      <Badge 
-        className={`bg-amber-400 text-slate-900 ${config.badge} ${config.text} font-bold rounded-md inline-flex items-center ${config.gap} shadow-sm border border-amber-500/30 ${className}`}
-      >
+      <Badge className="bg-amber-400 text-slate-900 mt-2 px-2 py-0.5 text-xs font-bold rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 hover:bg-primary/80 min-h-[22px] inline-flex items-center gap-1 shadow-sm border border-amber-500/30">
+
+
         {/* Special flags: $ N O F S */}
         {hasCOD && <span className="text-green-800">$</span>}
         {isFirstDelivery && <span className="text-blue-800">N</span>}
@@ -94,15 +94,15 @@ export default function SpecialSymbolsBadges({
         {hasMailboxOk && <Mailbox className={`${config.icon} text-blue-600`} />}
         {hasDriverNotes && <StickyNote className={`${config.icon} text-violet-600`} />}
       </Badge>
-      {showHelp && (
-        <HelpTooltip 
-          title={HELP_CONTENT.specialSymbols.title}
-          content={HELP_CONTENT.specialSymbols.content}
-          size="sm"
-        />
-      )}
-    </div>
-  );
+      {showHelp &&
+      <HelpTooltip
+        title={HELP_CONTENT.specialSymbols.title}
+        content={HELP_CONTENT.specialSymbols.content}
+        size="sm" />
+
+      }
+    </div>);
+
 }
 
 /**
