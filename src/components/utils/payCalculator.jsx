@@ -13,8 +13,8 @@
 export const calculateDeliveryPay = (delivery, driver, patient = null) => {
   if (!delivery || !driver) return 0;
 
-  // Pickups don't earn pay - only patient deliveries
-  if (!delivery.patient_id) return 0;
+  // Pickups only earn pay if after_hours_pickup is true
+  if (!delivery.patient_id && !delivery.after_hours_pickup) return 0;
 
   let totalPay = 0;
 
@@ -22,16 +22,18 @@ export const calculateDeliveryPay = (delivery, driver, patient = null) => {
   const baseRate = driver.pay_rate_per_delivery || 0;
   totalPay += baseRate;
 
-  // Extra KM pay (if distance exceeds limit)
-  const extraKmRate = driver.extra_km_rate || 0;
-  const extraKmLimit = driver.extra_km_limit || 0;
-  
-  // Priority: paid_km_override > patient.distance_from_store > travel_dist
-  const paidKm = delivery.paid_km_override ?? patient?.distance_from_store ?? delivery.travel_dist ?? 0;
+  // Extra KM pay (if distance exceeds limit) - only for patient deliveries
+  if (delivery.patient_id) {
+    const extraKmRate = driver.extra_km_rate || 0;
+    const extraKmLimit = driver.extra_km_limit || 0;
+    
+    // Priority: paid_km_override > patient.distance_from_store > travel_dist
+    const paidKm = delivery.paid_km_override ?? patient?.distance_from_store ?? delivery.travel_dist ?? 0;
 
-  if (paidKm > extraKmLimit && extraKmRate > 0) {
-    const extraKm = paidKm - extraKmLimit;
-    totalPay += extraKm * extraKmRate;
+    if (paidKm > extraKmLimit && extraKmRate > 0) {
+      const extraKm = paidKm - extraKmLimit;
+      totalPay += extraKm * extraKmRate;
+    }
   }
 
   // Oversized item bonus
