@@ -233,6 +233,19 @@ export default function AdminMetrics() {
             </h1>
           </div>
           <div className="flex items-center gap-3">
+            {(selectedMonth || selectedStoreMonth) && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => {
+                  setSelectedStoreMonth(null);
+                  setSelectedMonth(null);
+                }}
+                className="text-xs"
+              >
+                Reset View
+              </Button>
+            )}
             <Select value={selectedCityId || ''} onValueChange={handleCityChange}>
               <SelectTrigger className="w-40">
                 <SelectValue placeholder="Select City" />
@@ -332,20 +345,7 @@ export default function AdminMetrics() {
         </div>
 
         {/* Row 1: Monthly Store App Fees */}
-        <div className="relative">
-          {(selectedMonth || selectedStoreMonth) && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => {
-                setSelectedStoreMonth(null);
-                setSelectedMonth(null);
-              }}
-              className="absolute top-4 right-4 z-10 text-xs"
-            >
-              Reset View
-            </Button>
-          )}
+        <div>
           <MonthlyStoreMetricsGrid 
             metricsData={metricsData} 
             selectedYear={selectedYear}
