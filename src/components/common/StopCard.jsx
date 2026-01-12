@@ -849,32 +849,32 @@ export default function StopCard({
                       ) : null}
                     </>
                   }
-                  {/* Driver Pay for Finished Stops - Drivers and Admins */}
-                  {FINISHED_STATUSES.includes(delivery.status) && !isPickup && (
-                    userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')
-                  ) && (() => {
-                    // For drivers viewing their own deliveries, use their own pay rates
-                    // For admins, use the assigned driver's pay rates
-                    let driverAppUser;
-                    if (userHasRole(currentUser, 'admin')) {
-                      // Admin: look up the driver assigned to this delivery
-                      driverAppUser = appUsers?.find(au => au?.user_id === delivery.driver_id);
-                    } else {
-                      // Driver: use their own pay rates
-                      driverAppUser = appUsers?.find(au => au?.user_id === currentUser?.id);
-                    }
-                    
-                    if (!driverAppUser) return null;
-                    
-                    const pay = calculateDeliveryPay(delivery, driverAppUser);
-                    // Show pay even if it's $0.00 so drivers know the calculation is working
-                    return (
-                      <div className="text-sm font-bold text-emerald-600">
-                        {formatPay(pay)}
-                      </div>
-                    );
-                  })()}
                 </div>
+                {/* Driver Pay for Finished Stops - Drivers and Admins (including After Hours pickups) */}
+                {FINISHED_STATUSES.includes(delivery.status) && (
+                  userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')
+                ) && (() => {
+                  // For drivers viewing their own deliveries, use their own pay rates
+                  // For admins, use the assigned driver's pay rates
+                  let driverAppUser;
+                  if (userHasRole(currentUser, 'admin')) {
+                    // Admin: look up the driver assigned to this delivery
+                    driverAppUser = appUsers?.find(au => au?.user_id === delivery.driver_id);
+                  } else {
+                    // Driver: use their own pay rates
+                    driverAppUser = appUsers?.find(au => au?.user_id === currentUser?.id);
+                  }
+                  
+                  if (!driverAppUser) return null;
+                  
+                  const pay = calculateDeliveryPay(delivery, driverAppUser);
+                  // Show pay even if it's $0.00 so drivers know the calculation is working
+                  return (
+                    <div className="text-sm font-bold text-emerald-600">
+                      {formatPay(pay)}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
