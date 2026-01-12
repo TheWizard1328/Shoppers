@@ -847,12 +847,9 @@ export default function StopCard({
                   </div>
                 }
                 {/* Driver Pay for Finished Stops - Drivers and Admins */}
-                {FINISHED_STATUSES.includes(delivery.status) && (
-                  userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')
-                ) && (() => {
-                  // Only show pay for patient deliveries or After Hours pickups
-                  if (!delivery.patient_id && !delivery.after_hours_pickup) return null;
-                  
+                {FINISHED_STATUSES.includes(delivery.status) && 
+                  (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
+                  (delivery.patient_id || delivery.after_hours_pickup) && (() => {
                   // For drivers viewing their own deliveries, use their own pay rates
                   // For admins, use the assigned driver's pay rates
                   let driverAppUser;
