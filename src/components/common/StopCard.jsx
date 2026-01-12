@@ -22,6 +22,7 @@ import { getDriverDisplayName } from '../utils/driverUtils';
 import { userHasRole, shouldShowStoreBadges, isAppOwner } from '../utils/userRoles';
 import { formatPhoneNumber } from '../utils/phoneFormatter';
 import { formatAddressWithUnit, cleanBuzzerFromAddress } from '../utils/addressCleaner';
+import { calculateDeliveryPay, formatPay } from '../utils/payCalculator';
 import { base44 } from "@/api/base44Client";
 import { locationTracker } from "../utils/locationTracker";
 import { useAppData } from "../utils/AppDataContext";
@@ -822,6 +823,18 @@ export default function StopCard({
                       '--:--'
                     )}</span>
                   }
+                  {/* Driver Pay for Finished Stops */}
+                  {FINISHED_STATUSES.includes(delivery.status) && !isPickup && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher') && (() => {
+                    const driverAppUser = appUsers?.find(au => au?.user_id === currentUser?.id);
+                    if (!driverAppUser) return null;
+                    const pay = calculateDeliveryPay(delivery, driverAppUser);
+                    if (pay === 0) return null;
+                    return (
+                      <div className="w-full text-center mt-1">
+                        <span className="text-xs font-semibold text-emerald-600">{formatPay(pay)}</span>
+                      </div>
+                    );
+                  })()}
                   {showDriverName && safeDriver &&
                   <>
                       <span className="px-1 py-0.5 text-xs font-semibold opacity-60 rounded-full inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80" style={{ color: 'var(--text-slate-500)' }}>•</span>
