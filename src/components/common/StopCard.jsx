@@ -768,7 +768,7 @@ export default function StopCard({
       }}>
         <CardContent className="px-2 py-1 flex flex-col">
           {/* HEADER SECTION - Always Visible */}
-          <div className="flex items-start gap-1">
+          <div className="flex items-start">
             {/* Drag Handle - Only show for non-finished deliveries */}
             {showDragHandle && dragHandleProps && !FINISHED_STATUSES.includes(delivery.status) &&
             <div {...dragHandleProps} className="flex items-center justify-center cursor-grab active:cursor-grabbing pt-1 mr-1">
@@ -837,66 +837,66 @@ export default function StopCard({
                 {/* Time Window - Only for non-finished stops */}
                 {!FINISHED_STATUSES.includes(delivery.status) && (delivery.time_window_start || delivery.time_window_end) &&
                 <div className="text-sm md:text-[11px]" style={{ color: 'var(--text-slate-500)' }}>
-                    {delivery.time_window_start && delivery.time_window_end ? (
-                      <>{formatTime12Hour(delivery.time_window_start)} → {formatTime12Hour(delivery.time_window_end)}</>
-                    ) : delivery.time_window_start ? (
-                      <>{formatTime12Hour(delivery.time_window_start)} →</>
-                    ) : delivery.time_window_end ? (
-                      <>← {formatTime12Hour(delivery.time_window_end)}</>
-                    ) : null}
+                    {delivery.time_window_start && delivery.time_window_end ?
+                  <>{formatTime12Hour(delivery.time_window_start)} → {formatTime12Hour(delivery.time_window_end)}</> :
+                  delivery.time_window_start ?
+                  <>{formatTime12Hour(delivery.time_window_start)} →</> :
+                  delivery.time_window_end ?
+                  <>← {formatTime12Hour(delivery.time_window_end)}</> :
+                  null}
                   </div>
                 }
                 {/* Driver Pay for Finished Stops - Drivers and Admins */}
-                {FINISHED_STATUSES.includes(delivery.status) && 
-                  (userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) &&
-                  (delivery.patient_id || delivery.after_hours_pickup) && (() => {
+                {FINISHED_STATUSES.includes(delivery.status) && (
+                userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')) && (
+                delivery.patient_id || delivery.after_hours_pickup) && (() => {
                   // For drivers viewing their own deliveries, use their own pay rates
                   // For admins, use the assigned driver's pay rates
                   // CRITICAL: delivery.driver_id IS the user_id (auth user ID), NOT AppUser.id
                   let driverAppUser = null;
-                  
+
                   if (appUsers && appUsers.length > 0) {
                     if (userHasRole(currentUser, 'admin')) {
                       // For admin: find AppUser by matching user_id to delivery.driver_id
-                      driverAppUser = appUsers.find(au => au?.user_id === delivery.driver_id);
+                      driverAppUser = appUsers.find((au) => au?.user_id === delivery.driver_id);
                     } else {
                       // For driver: find their own AppUser record
-                      driverAppUser = appUsers.find(au => au?.user_id === currentUser?.id);
+                      driverAppUser = appUsers.find((au) => au?.user_id === currentUser?.id);
                     }
                   }
-                  
+
                   // If no appUsers array, try using driver prop if it has pay rates
                   if (!driverAppUser && driver && driver.pay_rate_per_delivery) {
                     driverAppUser = driver;
                   }
-                  
+
                   const pay = driverAppUser ? calculateDeliveryPay(delivery, driverAppUser, patient) : 0;
                   const baseRate = driverAppUser?.pay_rate_per_delivery || 0;
                   const isAfterHours = delivery.after_hours_pickup === true;
                   const hasExtraPay = pay > baseRate && !isAfterHours;
-                  
+
                   // No badge for base pay only
                   if (!isAfterHours && !hasExtraPay) {
                     return (
                       <div className="text-sm font-bold text-emerald-600">
                         {formatPay(pay)}
-                      </div>
-                    );
+                      </div>);
+
                   }
-                  
+
                   // Badge for extra pay or after hours
                   return (
-                    <Badge 
-                      variant="secondary" 
+                    <Badge
+                      variant="secondary"
                       className={`text-sm font-bold px-2 py-0.5 rounded-full ${
-                        isAfterHours 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-gray-200 text-gray-800'
-                      }`}
-                    >
+                      isAfterHours ?
+                      'bg-green-100 text-green-800' :
+                      'bg-gray-200 text-gray-800'}`
+                      }>
+
                       {formatPay(pay)}
-                    </Badge>
-                  );
+                    </Badge>);
+
                 })()}
               </div>
             </div>
@@ -942,7 +942,7 @@ export default function StopCard({
             <div className="flex items-start justify-between">
             <div className="flex flex-col justify-center gap-0.5 flex-1 min-w-0 min-h-[50px]">
             {finalDisplayAddress ?
-            <>
+                <>
               {/* Main address without unit/buzzer */}
               <div className="flex items-start gap-2 text-lg md:text-sm" style={{ color: 'var(--text-slate-700)' }}>
                 <span className="text-2xl md:text-xl font-medium truncate">
@@ -1090,34 +1090,34 @@ export default function StopCard({
           )}
 
           {/* Signature Capture */}
-          {showSignatureCapture && (
-            <SignatureCapture
-              customerName={displayName}
-              onSave={async (signatureBlob) => {
-                setCapturedSignature(signatureBlob);
-                setShowSignatureCapture(false);
-                
-                // Auto-proceed to photo capture or completion
-                const shouldTakePhotos = window.confirm('Signature saved! Would you like to take proof-of-delivery photos?');
-                if (shouldTakePhotos) {
-                  setShowPhotoCapture(true);
-                }
-              }}
-              onCancel={() => setShowSignatureCapture(false)}
-            />
-          )}
+          {showSignatureCapture &&
+          <SignatureCapture
+            customerName={displayName}
+            onSave={async (signatureBlob) => {
+              setCapturedSignature(signatureBlob);
+              setShowSignatureCapture(false);
+
+              // Auto-proceed to photo capture or completion
+              const shouldTakePhotos = window.confirm('Signature saved! Would you like to take proof-of-delivery photos?');
+              if (shouldTakePhotos) {
+                setShowPhotoCapture(true);
+              }
+            }}
+            onCancel={() => setShowSignatureCapture(false)} />
+
+          }
 
           {/* Photo Capture */}
-          {showPhotoCapture && (
-            <PhotoCapture
-              onSave={(photoBlobs) => {
-                setCapturedPhotos(photoBlobs);
-                setShowPhotoCapture(false);
-              }}
-              onCancel={() => setShowPhotoCapture(false)}
-              maxPhotos={3}
-            />
-          )}
+          {showPhotoCapture &&
+          <PhotoCapture
+            onSave={(photoBlobs) => {
+              setCapturedPhotos(photoBlobs);
+              setShowPhotoCapture(false);
+            }}
+            onCancel={() => setShowPhotoCapture(false)}
+            maxPhotos={3} />
+
+          }
 
           {/* Failure Reason Dialog */}
           <FailureReasonDialog
@@ -1462,11 +1462,11 @@ export default function StopCard({
                         <h4 className="text-base md:text-xs font-bold flex items-center gap-2" style={{ color: 'var(--text-slate-700)' }}>
                           <Package className="w-3.5 h-3.5" />
                           Pending Pickup List ({pendingPickups.length})
-                          <HelpTooltip 
-                            title={HELP_CONTENT.pendingPickups.title}
-                            content={HELP_CONTENT.pendingPickups.content}
-                            size="sm"
-                          />
+                          <HelpTooltip
+                        title={HELP_CONTENT.pendingPickups.title}
+                        content={HELP_CONTENT.pendingPickups.content}
+                        size="sm" />
+
                         </h4>
                         {canAccessAcceptButtons &&
                     <Button
@@ -1715,13 +1715,13 @@ export default function StopCard({
 
                                 <span className="text-base md:text-xs font-semibold" style={{ color: 'var(--text-slate-600)' }}>
                                   {(() => {
-                                    const storeAbbr = store?.abbreviation?.slice(0, 2).toUpperCase() || 'XX';
-                                    const trackingNum = parseInt(projectedDelivery.tracking_number) || 0;
-                                    const formattedNum = trackingNum > 99 ?
-                                      trackingNum.toString().padStart(3, '0') :
-                                      trackingNum.toString().padStart(2, '0');
-                                    return `${storeAbbr}${formattedNum}`;
-                                  })()}
+                                const storeAbbr = store?.abbreviation?.slice(0, 2).toUpperCase() || 'XX';
+                                const trackingNum = parseInt(projectedDelivery.tracking_number) || 0;
+                                const formattedNum = trackingNum > 99 ?
+                                trackingNum.toString().padStart(3, '0') :
+                                trackingNum.toString().padStart(2, '0');
+                                return `${storeAbbr}${formattedNum}`;
+                              })()}
                                 </span>
                                 {/* Individual accept button - only for assigned driver, dispatcher, or admin */}
                                 {canAccessAcceptButtons &&
@@ -1918,13 +1918,13 @@ export default function StopCard({
                     <Button
                       onClick={async (e) => {
                         e.stopPropagation();
-                        
+
                         // Step 1: Check for signature/photo requirements
                         if (delivery.signature_needed && !capturedSignature && !delivery.signature_image_url) {
                           setShowSignatureCapture(true);
                           return;
                         }
-                        
+
                         // Optional: Prompt for photos if none captured yet
                         if (capturedPhotos.length === 0 && !delivery.proof_photo_urls) {
                           const shouldTakePhotos = window.confirm('Would you like to take proof-of-delivery photos?');
@@ -1933,7 +1933,7 @@ export default function StopCard({
                             return;
                           }
                         }
-                        
+
                         fabControlEvents.deactivateFAB();
                         setIsCompleting(true);
                         setIsEntityUpdating(true);
@@ -1949,22 +1949,22 @@ export default function StopCard({
                           }
 
                           await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
-                          
+
                           // Upload signature if captured
                           let signatureUrl = delivery.signature_image_url;
                           if (capturedSignature) {
                             const uploadResult = await base44.integrations.Core.UploadFile({ file: capturedSignature });
                             signatureUrl = uploadResult.file_url;
                           }
-                          
+
                           // Upload photos if captured
                           let photoUrls = delivery.proof_photo_urls || [];
                           if (capturedPhotos.length > 0) {
-                            const uploadPromises = capturedPhotos.map(blob => 
-                              base44.integrations.Core.UploadFile({ file: blob })
+                            const uploadPromises = capturedPhotos.map((blob) =>
+                            base44.integrations.Core.UploadFile({ file: blob })
                             );
                             const results = await Promise.all(uploadPromises);
-                            photoUrls = [...photoUrls, ...results.map(r => r.file_url)];
+                            photoUrls = [...photoUrls, ...results.map((r) => r.file_url)];
                           }
 
                           // Auto-toggle driver online if offline
@@ -2041,7 +2041,7 @@ export default function StopCard({
                           const minutes = String(currentTime.getMinutes()).padStart(2, '0');
                           const seconds = String(currentTime.getSeconds()).padStart(2, '0');
                           const localTimeString = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
-                          
+
                           const completionUpdate = {
                             status: 'completed',
                             actual_delivery_time: localTimeString,
@@ -2177,7 +2177,7 @@ export default function StopCard({
 
                       // Step 1: Clear all isNextDelivery flags and set this one to true (LOCAL ONLY)
                       const driverDeliveries = allDeliveries.filter((d) =>
-                        d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+                      d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
                       );
 
                       // Build batch updates for immediate local state change
@@ -2195,7 +2195,7 @@ export default function StopCard({
                       // Update local state IMMEDIATELY for instant UI feedback
                       if (updateDeliveriesLocally) {
                         const otherDeliveries = allDeliveries.filter((d) =>
-                          d && (d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date)
+                        d && (d.driver_id !== delivery.driver_id || d.delivery_date !== delivery.delivery_date)
                         );
                         updateDeliveriesLocally([...otherDeliveries, ...localUpdates], true);
                       }
@@ -2409,13 +2409,13 @@ export default function StopCard({
                           {delivery.status !== 'completed' && delivery.status !== 'cancelled' && delivery.status !== 'failed' && isNextDelivery && onStatusUpdate &&
                         <>
                               <DropdownMenuSeparator style={{ background: 'var(--border-slate-200)' }} />
-                              <DropdownMenuItem 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setPendingFailureStatus(isPickup ? 'cancelled' : 'failed');
-                                  setShowFailureReasonDialog(true);
-                                }}
-                                className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5">
+                              <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPendingFailureStatus(isPickup ? 'cancelled' : 'failed');
+                              setShowFailureReasonDialog(true);
+                            }}
+                            className="text-red-600 text-base md:text-sm py-2.5 md:py-1.5">
                                 <XCircle className="w-5 h-5 md:w-4 md:h-4 mr-2" />
                                 {isPickup ? 'Cancel Pickup' : 'Mark as Failed'}
                               </DropdownMenuItem>
