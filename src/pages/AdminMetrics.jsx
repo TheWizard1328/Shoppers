@@ -332,20 +332,35 @@ export default function AdminMetrics() {
         </div>
 
         {/* Row 1: Monthly Store App Fees */}
-        <MonthlyStoreMetricsGrid 
-          metricsData={metricsData} 
-          selectedYear={selectedYear}
-          selectedMonth={selectedMonth}
-          selectedStoreMonth={selectedStoreMonth}
-          onMonthClick={(month) => {
-            setSelectedMonth(prev => prev === month ? null : month);
-            setSelectedStoreMonth(null); // Clear store selection when month changes
-          }}
-          onStoreMonthClick={(month, storeId, storeAbbr, storeName) => {
-            setSelectedStoreMonth({ month, storeId, storeAbbr, storeName });
-            setSelectedMonth(month); // Also set month filter
-          }}
-        />
+        <div className="relative">
+          {(selectedMonth || selectedStoreMonth) && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => {
+                setSelectedStoreMonth(null);
+                setSelectedMonth(null);
+              }}
+              className="absolute top-4 right-4 z-10 text-xs"
+            >
+              Reset View
+            </Button>
+          )}
+          <MonthlyStoreMetricsGrid 
+            metricsData={metricsData} 
+            selectedYear={selectedYear}
+            selectedMonth={selectedMonth}
+            selectedStoreMonth={selectedStoreMonth}
+            onMonthClick={(month) => {
+              setSelectedMonth(prev => prev === month ? null : month);
+              setSelectedStoreMonth(null); // Clear store selection when month changes
+            }}
+            onStoreMonthClick={(month, storeId, storeAbbr, storeName) => {
+              setSelectedStoreMonth({ month, storeId, storeAbbr, storeName });
+              setSelectedMonth(month); // Also set month filter
+            }}
+          />
+        </div>
 
         {/* Row 2: Store Breakdown or Day-by-Day Breakdown */}
         <Card>
@@ -357,19 +372,7 @@ export default function AdminMetrics() {
                 : `Store Breakdown (${selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} ${selectedYear})`
               }
             </CardTitle>
-            {selectedStoreMonth && (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => {
-                  setSelectedStoreMonth(null);
-                  setSelectedMonth(null);
-                }}
-                className="text-xs"
-              >
-                ← Back to Year View
-              </Button>
-            )}
+
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
