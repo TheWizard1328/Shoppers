@@ -855,15 +855,6 @@ export default function StopCard({
                   // CRITICAL: delivery.driver_id IS the user_id (auth user ID), NOT AppUser.id
                   let driverAppUser = null;
                   
-                  // DEBUG
-                  console.log('[StopCard Pay Debug]', {
-                    deliveryId: delivery.id,
-                    driverId: delivery.driver_id,
-                    appUsersLength: appUsers?.length,
-                    appUserUserIds: appUsers?.slice(0, 5).map(au => au?.user_id),
-                    driverProp: driver ? { id: driver.id, user_id: driver.user_id, pay_rate: driver.pay_rate_per_delivery } : null
-                  });
-                  
                   if (appUsers && appUsers.length > 0) {
                     if (userHasRole(currentUser, 'admin')) {
                       // For admin: find AppUser by matching user_id to delivery.driver_id
@@ -879,16 +870,18 @@ export default function StopCard({
                     driverAppUser = driver;
                   }
                   
-                  console.log('[StopCard Pay Result]', {
-                    foundAppUser: !!driverAppUser,
-                    payRate: driverAppUser?.pay_rate_per_delivery,
-                    extraKmRate: driverAppUser?.extra_km_rate
-                  });
-                  
                   const pay = driverAppUser ? calculateDeliveryPay(delivery, driverAppUser, patient) : 0;
+                  const baseRate = driverAppUser?.pay_rate_per_delivery || 0;
+                  const isAfterHours = delivery.after_hours_pickup === true;
+                  const hasExtraPay = pay > baseRate && !isAfterHours;
+                  
                   return (
-                    <div className="text-sm font-bold text-emerald-600">
+                    <div className={`text-sm font-bold ${isAfterHours ? 'text-amber-600' : hasExtraPay ? 'text-blue-600' : 'text-emerald-600'}`}>
+                      {isAfterHours && <span className="text-amber-500">★ </span>}
+                      {hasExtraPay && <span className="text-blue-500">$ </span>}
                       {formatPay(pay)}
+                      {hasExtraPay && <span className="text-blue-500"> $</span>}
+                      {isAfterHours && <span className="text-amber-500"> ★</span>}
                     </div>
                   );
                 })()}
