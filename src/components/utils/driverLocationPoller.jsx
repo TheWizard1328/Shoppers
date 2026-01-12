@@ -155,12 +155,15 @@ class DriverLocationPoller {
       if (isSelf) {
         if (isMobileDevice) {
           // Mobile: ALWAYS block self marker - blue GPS dot is shown by the map component
+          console.log('🚫 [DriverLocationPoller] Blocking self marker on mobile');
           return false;
         }
         // Desktop: ONLY show if location_tracking_enabled = true (actively sharing)
         if (user.location_tracking_enabled === true) {
+          console.log('✅ [DriverLocationPoller] Showing self marker on desktop (sharing enabled)');
           return true;
         } else {
+          console.log('🚫 [DriverLocationPoller] Hiding self marker on desktop (sharing disabled)');
           return false;
         }
       }
@@ -222,19 +225,30 @@ class DriverLocationPoller {
       // CRITICAL: For non-dispatchers, location_tracking_enabled MUST be true
       // This prevents showing markers when sharing is turned off
       if (user.location_tracking_enabled !== true) {
+        console.log(`🚫 [DriverLocationPoller] ${user.user_name} - tracking disabled (${user.location_tracking_enabled})`);
         return false;
       }
       
       // RULE 2: For other users (admin or driver viewing other drivers)
       // Must be on_duty or on_break AND location_tracking_enabled = true
-      if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') return false;
+      if (user.driver_status !== 'on_duty' && user.driver_status !== 'on_break') {
+        console.log(`🚫 [DriverLocationPoller] ${user.user_name} - not on duty/break (${user.driver_status})`);
+        return false;
+      }
 
       // Admin: show all on_duty/on_break drivers with sharing enabled
-      if (isAdmin) return true;
+      if (isAdmin) {
+        console.log(`✅ [DriverLocationPoller] ${user.user_name} - admin view (${user.driver_status})`);
+        return true;
+      }
 
       // Driver (non-dispatcher): show other drivers in same city with sharing enabled
-      if (isDriver && !isDispatcher) return true;
+      if (isDriver && !isDispatcher) {
+        console.log(`✅ [DriverLocationPoller] ${user.user_name} - driver view (${user.driver_status})`);
+        return true;
+      }
 
+      console.log(`🚫 [DriverLocationPoller] ${user.user_name} - no permission match`);
       return false;
     });
 
