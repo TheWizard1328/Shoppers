@@ -233,19 +233,6 @@ export default function AdminMetrics() {
             </h1>
           </div>
           <div className="flex items-center gap-3">
-            {(selectedMonth || selectedStoreMonth) && (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => {
-                  setSelectedStoreMonth(null);
-                  setSelectedMonth(null);
-                }}
-                className="text-xs"
-              >
-                Reset View
-              </Button>
-            )}
             <Select value={selectedCityId || ''} onValueChange={handleCityChange}>
               <SelectTrigger className="w-40">
                 <SelectValue placeholder="Select City" />
@@ -358,6 +345,10 @@ export default function AdminMetrics() {
             onStoreMonthClick={(month, storeId, storeAbbr, storeName) => {
               setSelectedStoreMonth({ month, storeId, storeAbbr, storeName });
               setSelectedMonth(month); // Also set month filter
+            }}
+            onResetView={() => {
+              setSelectedStoreMonth(null);
+              setSelectedMonth(null);
             }}
           />
         </div>
