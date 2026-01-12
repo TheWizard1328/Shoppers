@@ -478,8 +478,8 @@ export default function ImportActiveRoutes({
       const travelDistStr = values[8]?.replace(/"/g, '').trim(); // Column 9: Travel distance
       const travelDist = travelDistStr && !isNaN(parseFloat(travelDistStr)) ? parseFloat(parseFloat(travelDistStr).toFixed(2)) : null;
       
-      // Column 13: Ignored (original)
-      // Column 14: Ignored (new boolean column)
+      // Column 13: PUID (Pickup ID - links deliveries to their originating pickup)
+      const importedPuid = (values[12] || '').replace(/"/g, '').trim(); // Column 13: PUID (index 12)
       const stopId = (values[13] || '').replace(/"/g, '').trim(); // Column 14: SID (index 13)
       const patientPID = values[14]?.replace(/"/g, '').trim(); // Column 15: PID (index 14)
       const rawNotes = (values[16] || '').replace(/"/g, '').trim(); // Column 17: Notes (index 16)
@@ -595,7 +595,7 @@ export default function ImportActiveRoutes({
         after_hours_pickup: false,
         delivery_notes: null,
         first_delivery: false,
-        puid: null,
+        puid: importedPuid || null, // Use imported PUID from column 13
         travel_dist: travelDist !== null && travelDist !== undefined ? parseFloat(travelDist.toFixed(2)) : null
       };
 
@@ -795,72 +795,68 @@ export default function ImportActiveRoutes({
       }
     }
 
-    // PUID Assignment Pass and Pending Delivery Time Assignment
+    // PUID Update Pass and Pending Delivery Time Assignment
+    // CRITICAL: PUIDs are now imported from column 13 - only update if not already set
     const allParsedDeliveries = [...deliveriesToCreate, ...deliveriesToUpdate];
     const pickupMap = new Map();
     const pickupTimeMap = new Map(); // Track pickup delivery_time_start for pending deliveries
 
-    // CRITICAL: First pass - map all pickups by store/AM-PM to their stop_ids
+    // CRITICAL: First pass - map all pickups by store/AM-PM to their stop_ids (for fallback PUID assignment)
     allParsedDeliveries.forEach((d) => {
       if (!d.patient_id && d.store_id && d.stop_id && d.ampm_deliveries) {
-        // Use store_id + AM/PM as key (ensure we match correct pickup)
         const key = `${d.delivery_date}_${d.driver_id}_${d.store_id}_${d.ampm_deliveries}`;
-        // Store the pickup's stop_id (this will be the PUID for its deliveries)
         pickupMap.set(key, d.stop_id);
         
-        // Store pickup's delivery_time_start for pending delivery time assignment
         if (d.delivery_time_start) {
           pickupTimeMap.set(key, d.delivery_time_start);
         }
-        console.log(`📍 [PUID] Mapped pickup: ${d.store_id} ${d.ampm_deliveries} → SID: ${d.stop_id}`);
       }
     });
 
-    // CRITICAL: Second pass - assign PUIDs to all deliveries based on their store/AM-PM
+    // CRITICAL: Second pass - only assign PUIDs if not already imported from CSV
     allParsedDeliveries.forEach((d) => {
-      if (!d.patient_id && d.stop_id) {
-        // Pickups: puid = stop_id (self-referencing)
+      // If PUID was imported from column 13, keep it
+      if (d.puid) {
+        console.log(`✅ [PUID] Using imported PUID: ${d.puid}`);
+      } else if (!d.patient_id && d.stop_id) {
+        // Pickups without imported PUID: puid = stop_id (self-referencing)
         d.puid = d.stop_id;
         console.log(`🔗 [PUID] Pickup self-reference: SID=${d.stop_id} → PUID=${d.puid}`);
       } else if (d.patient_id && d.store_id && d.ampm_deliveries) {
-        // Patient deliveries: find matching pickup by store_id + AM/PM
+        // Patient deliveries without imported PUID: find matching pickup by store_id + AM/PM
         const key = `${d.delivery_date}_${d.driver_id}_${d.store_id}_${d.ampm_deliveries}`;
         const matchingPuid = pickupMap.get(key);
         
         if (matchingPuid) {
           d.puid = matchingPuid;
-          console.log(`🔗 [PUID] Patient delivery: ${d.patient_name} (${d.store_id} ${d.ampm_deliveries}) → PUID=${matchingPuid}`);
+          console.log(`🔗 [PUID] Patient delivery (fallback): ${d.patient_name} → PUID=${matchingPuid}`);
         } else {
-          d.puid = null;
-          console.warn(`⚠️ [PUID] No matching pickup found for: ${d.patient_name} (${d.store_id} ${d.ampm_deliveries})`);
+          console.warn(`⚠️ [PUID] No matching pickup found for: ${d.patient_name}`);
         }
-        
-        // CRITICAL: For pending deliveries, set delivery_time_start from pickup + 5 min (only if not already set)
-        if (d.status === 'pending' && !d.delivery_time_start) {
-          const pickupTimeStart = pickupTimeMap.get(key);
-          if (pickupTimeStart) {
-            const [hours, minutes] = pickupTimeStart.split(':').map(Number);
-            const totalMinutes = hours * 60 + minutes + 5;
-            const newHours = Math.floor(totalMinutes / 60) % 24;
-            const newMinutes = totalMinutes % 60;
-            d.delivery_time_start = `${String(newHours).padStart(2, '0')}:${String(newMinutes).padStart(2, '0')}`;
-            // Set ETA to delivery_time_start
-            d.delivery_time_eta = d.delivery_time_start;
-            // NOTE: Do NOT set delivery_time_end - only set if patient has time window preference
-            d.delivery_time_end = null;
-            d.time_window_end = null;
-          }
+      }
+      
+      // CRITICAL: For pending deliveries, set delivery_time_start from pickup + 5 min (only if not already set)
+      if (d.patient_id && d.status === 'pending' && !d.delivery_time_start) {
+        const key = `${d.delivery_date}_${d.driver_id}_${d.store_id}_${d.ampm_deliveries}`;
+        const pickupTimeStart = pickupTimeMap.get(key);
+        if (pickupTimeStart) {
+          const [hours, minutes] = pickupTimeStart.split(':').map(Number);
+          const totalMinutes = hours * 60 + minutes + 5;
+          const newHours = Math.floor(totalMinutes / 60) % 24;
+          const newMinutes = totalMinutes % 60;
+          d.delivery_time_start = `${String(newHours).padStart(2, '0')}:${String(newMinutes).padStart(2, '0')}`;
+          d.delivery_time_eta = d.delivery_time_start;
+          d.delivery_time_end = null;
+          d.time_window_end = null;
         }
-        
-        // CRITICAL: Clear delivery_time_end unless patient has time_window_end
-        // Patient's time_window_end was already applied above in the main processing loop
-        // This ensures we don't carry over CSV time_window_end for stops without patient preference
-        if (d.patient_id) {
-          const deliveryPatient = patientsData.find(p => p.id === d.patient_id);
-          if (deliveryPatient && !deliveryPatient.time_window_end) {
-            d.delivery_time_end = null;
-            d.time_window_end = null;
-          }
+      }
+      
+      // CRITICAL: Clear delivery_time_end unless patient has time_window_end
+      if (d.patient_id) {
+        const deliveryPatient = patientsData.find(p => p.id === d.patient_id);
+        if (deliveryPatient && !deliveryPatient.time_window_end) {
+          d.delivery_time_end = null;
+          d.time_window_end = null;
         }
       }
     });
@@ -1809,15 +1805,15 @@ export default function ImportActiveRoutes({
                   <div className="rounded-lg p-4 text-sm" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-700)', border: '1px solid' }}>
                     <h4 className="font-semibold mb-2">CSV Format (Active Routes)</h4>
                     <ul className="list-disc list-inside space-y-1 text-xs">
-                      <li><strong>Filename:</strong> "Driver Name - YYYY-MM-DD.csv"</li>
+                      <li><strong>Filename:</strong> "Driver Name Route.csv"</li>
                       <li>Row 1: Ignored (header)</li>
                       <li>Row 2+: Date: <code>#YYYY-MM-DD#,Count,...</code></li>
-                      <li>Col 1: Store Abbr, Col 2: AM/PM</li>
+                      <li>Col 1: Store Abbr, Col 2: AM/PM (1=AM, 2=PM)</li>
                       <li>Col 3: TR#, Col 4: Stop Order, Col 5: Pending Flag</li>
                       <li>Col 6-7: Start/End Time, Col 9: Travel Dist</li>
-                      <li>Col 13-14: Ignored, Col 14: SID</li>
-                      <li>Col 15: PID, Col 17: Notes</li>
-                      <li><strong>Status:</strong> Pending (Col 5 negative), Completed (Order &gt; 0, Col 6 only), En Route (Order = 0, Col 6+7)</li>
+                      <li>Col 13: PUID, Col 14: SID, Col 15: PID</li>
+                      <li>Col 17: Notes</li>
+                      <li><strong>Status:</strong> Pending (Col 5 negative), Completed (Order &gt; 0 + Col 6 only), En Route (Order = 0 + Col 6+7)</li>
                     </ul>
                   </div>
                 </div>
