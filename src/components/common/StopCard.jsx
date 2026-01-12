@@ -920,7 +920,7 @@ export default function StopCard({
 
               {delivery.tracking_number && store?.abbreviation &&
               <Badge
-                variant="secondary" className="bg-secondary text-secondary-foreground mt-2 px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80"
+                variant="secondary" className="bg-secondary text-secondary-foreground mt-1 px-2 py-0.5 text-sm font-bold rounded-full inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80"
                 style={{ backgroundColor: `${storeColor}`, color: `White` }}>
                   {(() => {
                   const storeAbbr = store.abbreviation.slice(0, 2).toUpperCase();
