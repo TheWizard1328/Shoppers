@@ -653,11 +653,11 @@ export default function RouteImport({
         continue;
       }
 
-      if (values.length < 16) {
-        console.warn(`⚠️ Row ${lineNumber}: Insufficient fields (${values.length} out of 16+ expected), skipping line.`);
+      if (values.length < 17) {
+        console.warn(`⚠️ Row ${lineNumber}: Insufficient fields (${values.length} out of 17+ expected), skipping line.`);
         skippedItems.push({
           lineNumber,
-          reason: `Insufficient fields (${values.length}/16)`,
+          reason: `Insufficient fields (${values.length}/17)`,
           rawData: values.join(', ')
         });
         continue;
@@ -670,9 +670,10 @@ export default function RouteImport({
       const completionTimeStr = values[5]?.replace(/"/g, '').trim();
       const travelDistStr = values[8]?.replace(/"/g, '').trim();
       const travelDist = travelDistStr && !isNaN(parseFloat(travelDistStr)) ? parseFloat(parseFloat(travelDistStr).toFixed(2)) : null;
-      const stopId = (values[12] || '').replace(/"/g, '').trim();
-      const patientPID = values[13]?.replace(/"/g, '').trim();
-      const rawNotes = (values[15] || '').replace(/"/g, '').trim();
+      const importedPuid = (values[12] || '').replace(/"/g, '').trim(); // Column 13: PUID (index 12)
+      const stopId = (values[13] || '').replace(/"/g, '').trim(); // Column 14: SID (index 13)
+      const patientPID = values[14]?.replace(/"/g, '').trim(); // Column 15: PID (index 14)
+      const rawNotes = (values[16] || '').replace(/"/g, '').trim(); // Column 17: Notes (index 16)
 
       let ampmValue = null;
       if (ampmRawValue === '1') {
@@ -745,7 +746,7 @@ export default function RouteImport({
         after_hours_pickup: false,
         delivery_notes: rawNotes,
         first_delivery: false,
-        puid: null,
+        puid: importedPuid || null, // Use imported PUID from column 13
         travel_dist: null // Will be set conditionally below
       };
 
@@ -963,18 +964,14 @@ export default function RouteImport({
       }
     }
 
-    // PUID Assignment Pass: Now that all rows are parsed, assign PUIDs
-    // Matching criteria: Date + Driver + Store (col 1) + AM/PM (col 2)
-    // For pickups: PUID = own stop_id
-    // For patient deliveries: Find pickup with matching Date + Driver + Store + AM/PM
-
-    // Build a map of pickups by date + driver_id + store_id + ampm_deliveries for quick lookup
+    // PUID Update Pass: Now that all rows are parsed, assign PUIDs if not already imported
+    // CRITICAL: PUIDs are now imported from column 13 - only assign if not already set
     const allParsedDeliveries = [...deliveriesToCreate, ...deliveriesToUpdate];
     const pickupMap = new Map();
 
+    // Build a map of pickups for fallback PUID assignment
     allParsedDeliveries.forEach((d) => {
       if (!d.patient_id && d.store_id && d.stop_id) {
-        // This is a pickup - index by date + driver + store + ampm
         const key = `${d.delivery_date}_${d.driver_id}_${d.store_id}_${d.ampm_deliveries || 'none'}`;
         if (!pickupMap.has(key)) {
           pickupMap.set(key, d.stop_id);
@@ -982,19 +979,20 @@ export default function RouteImport({
       }
     });
 
-    // Now assign PUIDs
+    // Assign PUIDs only if not already imported from CSV
     allParsedDeliveries.forEach((d) => {
-      if (!d.patient_id && d.stop_id) {
-        // Pickup: PUID = own stop_id
+      // If PUID was imported from column 13, keep it
+      if (d.puid) {
+        console.log(`✅ [PUID] Using imported PUID: ${d.puid}`);
+      } else if (!d.patient_id && d.stop_id) {
+        // Pickup without imported PUID: PUID = own stop_id
         d.puid = d.stop_id;
       } else if (d.patient_id) {
-        // Patient delivery: find matching pickup by date + driver + store + AM/PM
+        // Patient delivery without imported PUID: find matching pickup
         const key = `${d.delivery_date}_${d.driver_id}_${d.store_id}_${d.ampm_deliveries || 'none'}`;
         const matchingPuid = pickupMap.get(key);
         if (matchingPuid) {
           d.puid = matchingPuid;
-        } else {
-          d.puid = null;
         }
       }
     });
@@ -1922,12 +1920,15 @@ export default function RouteImport({
                 </div>
 
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-                  <h4 className="font-semibold mb-2">CSV Format</h4>
+                  <h4 className="font-semibold mb-2">CSV Format (Past Routes)</h4>
                   <ul className="list-disc list-inside space-y-1">
                     <li>Date metadata: <code className="font-mono">#YYYY-MM-DD#,TotalDeliveries,...</code></li>
-                    <li>Positional data (no headers): <code className="font-mono">Store Abbr (col 1), AM/PM (col 2), TR# (col 3), Stop Order (col 4), ?, Time (col 6), ..., COD Total (col 10), ..., SID (col 13), PID (col 14), ?, Notes (col 16)</code></li>
+                    <li>Col 1: Store Abbr, Col 2: AM/PM (1=AM, 2=PM)</li>
+                    <li>Col 3: TR#, Col 4: Stop Order, Col 6: Time</li>
+                    <li>Col 9: Travel Dist, Col 10: COD Total</li>
+                    <li>Col 13: PUID, Col 14: SID, Col 15: PID</li>
+                    <li>Col 17: Notes</li>
                     <li>Matching by Stop ID (SID) + Date for updates.</li>
-                    <li>PUIDs auto-assigned by matching pickups to patient deliveries.</li>
                   </ul>
                 </div>
               </div>
