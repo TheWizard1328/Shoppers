@@ -875,14 +875,27 @@ export default function StopCard({
                   const isAfterHours = delivery.after_hours_pickup === true;
                   const hasExtraPay = pay > baseRate && !isAfterHours;
                   
+                  // No badge for base pay only
+                  if (!isAfterHours && !hasExtraPay) {
+                    return (
+                      <div className="text-sm font-bold text-emerald-600">
+                        {formatPay(pay)}
+                      </div>
+                    );
+                  }
+                  
+                  // Badge for extra pay or after hours
                   return (
-                    <div className={`text-sm font-bold ${isAfterHours ? 'text-amber-600' : hasExtraPay ? 'text-blue-600' : 'text-emerald-600'}`}>
-                      {isAfterHours && <span className="text-amber-500">★ </span>}
-                      {hasExtraPay && <span className="text-blue-500">$ </span>}
+                    <Badge 
+                      variant="secondary" 
+                      className={`text-sm font-bold px-2 py-0.5 rounded-full ${
+                        isAfterHours 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-gray-200 text-gray-800'
+                      }`}
+                    >
                       {formatPay(pay)}
-                      {hasExtraPay && <span className="text-blue-500"> $</span>}
-                      {isAfterHours && <span className="text-amber-500"> ★</span>}
-                    </div>
+                    </Badge>
                   );
                 })()}
               </div>
