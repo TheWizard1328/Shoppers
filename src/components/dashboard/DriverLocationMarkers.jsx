@@ -16,15 +16,37 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
     // which already handles all permission checks, status checks, and dispatcher logic
     // We just need to do basic validation and track changes for re-rendering
     
+    console.log('📍 [DriverLocationMarkers] Effect triggered', {
+      isMobile,
+      usersCount: users?.length || 0,
+      currentUserId: currentUser?.id,
+      users: users?.map(u => ({
+        id: u?.id,
+        name: u?.user_name || u?.full_name,
+        lat: u?.current_latitude,
+        lng: u?.current_longitude,
+        _isSelf: u?._isSelf,
+        tracking: u?.location_tracking_enabled,
+        status: u?.driver_status
+      }))
+    });
+    
     const validDrivers = (users || []).filter(user => {
       if (!user) return false;
       
       // CRITICAL: Skip current user's shared marker on mobile (blue dot shows instead)
       const driverId = user.id || user.user_id;
-      if (isMobile && driverId === currentUser?.id) return false;
+      if (isMobile && driverId === currentUser?.id) {
+        console.log('🚫 [DriverLocationMarkers] Blocking by driverId match', { driverId, currentUserId: currentUser?.id });
+        return false;
+      }
 
       // Skip if no valid coordinates
       if (!user.current_latitude || !user.current_longitude) {
+        console.log('🚫 [DriverLocationMarkers] Missing coordinates', { 
+          id: user.id, 
+          name: user.user_name 
+        });
         return false;
       }
       
@@ -42,15 +64,22 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         console.log('🚫 [DriverLocationMarkers] Blocking self shared marker (mobile device)', {
           userId,
           currentUserId,
-          userName: user.user_name || user.full_name
+          userName: user.user_name || user.full_name,
+          _isSelf: user._isSelf
         });
         return false;
       }
       
+      console.log('✅ [DriverLocationMarkers] Including driver', {
+        id: user.id,
+        name: user.user_name || user.full_name,
+        isSelf,
+        isMobile
+      });
       return true;
     });
     
-    console.log(`📍 [DriverLocationMarkers] Processing ${validDrivers.length} drivers from poller`);
+    console.log(`📍 [DriverLocationMarkers] Processing ${validDrivers.length} drivers from poller (from ${users?.length || 0} total)`);
     
     // CRITICAL: Check if the set of visible driver IDs has actually changed
     // This prevents flickering caused by array reference changes during smart refresh

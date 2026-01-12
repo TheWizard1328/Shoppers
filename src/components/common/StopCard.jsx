@@ -1152,7 +1152,25 @@ export default function StopCard({
                 `${existingNotes}\n[${status.toUpperCase()}] ${reason}` :
                 `[${status.toUpperCase()}] ${reason}`;
 
-                await onStatusUpdate(delivery.id, status, { delivery_notes: updatedNotes }, false);
+                // CRITICAL: Generate local timestamp with timezone offset
+                const currentTime = new Date();
+                const year = currentTime.getFullYear();
+                const month = String(currentTime.getMonth() + 1).padStart(2, '0');
+                const day = String(currentTime.getDate()).padStart(2, '0');
+                const hours = String(currentTime.getHours()).padStart(2, '0');
+                const minutes = String(currentTime.getMinutes()).padStart(2, '0');
+                const seconds = String(currentTime.getSeconds()).padStart(2, '0');
+                const offsetMinutes = -currentTime.getTimezoneOffset();
+                const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60);
+                const offsetMins = Math.abs(offsetMinutes) % 60;
+                const offsetSign = offsetMinutes >= 0 ? '+' : '-';
+                const offsetString = `${offsetSign}${String(offsetHours).padStart(2, '0')}:${String(offsetMins).padStart(2, '0')}`;
+                const localTimeString = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offsetString}`;
+
+                await onStatusUpdate(delivery.id, status, { 
+                  delivery_notes: updatedNotes,
+                  actual_delivery_time: localTimeString
+                }, false);
 
                 // CRITICAL: Run recursive route optimization after failure
                 try {
@@ -2032,7 +2050,7 @@ export default function StopCard({
                           console.log('🎯 [COMPLETE] PHASE 1: Updating UI immediately...');
 
                           // Update status to completed with timestamp
-                          // CRITICAL: Use local device time, not UTC
+                          // CRITICAL: Use local device time in ISO format without timezone conversion
                           const currentTime = new Date();
                           const year = currentTime.getFullYear();
                           const month = String(currentTime.getMonth() + 1).padStart(2, '0');
@@ -2040,7 +2058,15 @@ export default function StopCard({
                           const hours = String(currentTime.getHours()).padStart(2, '0');
                           const minutes = String(currentTime.getMinutes()).padStart(2, '0');
                           const seconds = String(currentTime.getSeconds()).padStart(2, '0');
-                          const localTimeString = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+                          
+                          // Get timezone offset in minutes and format as ±HH:MM
+                          const offsetMinutes = -currentTime.getTimezoneOffset();
+                          const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60);
+                          const offsetMins = Math.abs(offsetMinutes) % 60;
+                          const offsetSign = offsetMinutes >= 0 ? '+' : '-';
+                          const offsetString = `${offsetSign}${String(offsetHours).padStart(2, '0')}:${String(offsetMins).padStart(2, '0')}`;
+                          
+                          const localTimeString = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offsetString}`;
 
                           const completionUpdate = {
                             status: 'completed',
