@@ -463,9 +463,31 @@ Deno.serve(async (req) => {
       }
     }
     
-    // Populate daily delivery data
+    // Build daily delivery data by store (for store-month selection in Daily Deliveries chart)
+    // { monthNum: { storeId: [{ day: 1, billable: X, nonBillable: Y }, ...] } }
+    const dailyStoreDeliveryData = {};
+    for (let m = 1; m <= 12; m++) {
+      dailyStoreDeliveryData[m] = {};
+      const daysInMonth = new Date(year, m, 0).getDate();
+      
+      storesForGrid.forEach(store => {
+        if (!store?.id) return;
+        dailyStoreDeliveryData[m][store.id] = [];
+        
+        for (let d = 1; d <= daysInMonth; d++) {
+          dailyStoreDeliveryData[m][store.id].push({
+            day: d,
+            billable: 0,
+            nonBillable: 0
+          });
+        }
+      });
+    }
+    
+    // Populate daily delivery data (all stores combined AND per-store)
     yearDeliveries.forEach(d => {
-      if (!d.patient_id || !d.delivery_date || d.status !== 'completed') return;
+      if (!d.delivery_date) return;
+      if (!shouldCount(d)) return;
       
       const month = parseInt(d.delivery_date.split('-')[1]);
       const day = parseInt(d.delivery_date.split('-')[2]);
@@ -474,12 +496,25 @@ Deno.serve(async (req) => {
       const store = allStoresMap.get(d.store_id);
       const isBillableDelivery = isBillable(d) && store && wasPayingFeesOnDate(store, d.delivery_date);
       
+      // Update combined daily data
       const dayData = dailyDeliveryData[month]?.find(dd => dd.day === day);
       if (dayData) {
         if (isBillableDelivery) {
           dayData.billable++;
         } else {
           dayData.nonBillable++;
+        }
+      }
+      
+      // Update per-store daily data
+      if (d.store_id && dailyStoreDeliveryData[month]?.[d.store_id]) {
+        const storeDayData = dailyStoreDeliveryData[month][d.store_id].find(dd => dd.day === day);
+        if (storeDayData) {
+          if (isBillableDelivery) {
+            storeDayData.billable++;
+          } else {
+            storeDayData.nonBillable++;
+          }
         }
       }
     });
