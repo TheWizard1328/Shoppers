@@ -339,8 +339,14 @@ export default function AdminMetrics() {
             selectedMonth={selectedMonth}
             selectedStoreMonth={selectedStoreMonth}
             onMonthClick={(month) => {
-              setSelectedMonth(prev => prev === month ? null : month);
-              setSelectedStoreMonth(null); // Clear store selection when month changes
+              // If clicking same month that's already selected, just toggle month off (keep store cleared)
+              // If clicking different month, set it and clear store selection
+              if (selectedMonth === month && !selectedStoreMonth) {
+                setSelectedMonth(null);
+              } else {
+                setSelectedMonth(month);
+                setSelectedStoreMonth(null);
+              }
             }}
             onStoreMonthClick={(month, storeId, storeAbbr, storeName) => {
               setSelectedStoreMonth({ month, storeId, storeAbbr, storeName });
