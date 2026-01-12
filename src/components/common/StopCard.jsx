@@ -807,7 +807,7 @@ export default function StopCard({
               <h3 className="pt-0 text-2xl md:text-xl font-semibold text-center truncate" style={{ color: 'var(--text-slate-900)' }}>
                 {finalDisplayName}
               </h3>
-              <div className="flex flex-col items-center min-h-[52px] justify-center">
+              <div className="flex flex-col items-center min-h-[45px] justify-center">
                 <div className="text-lg md:text-sm flex items-center justify-center" style={{ color: 'var(--text-slate-600)' }}>
                   {FINISHED_STATUSES.includes(delivery.status) && delivery.actual_delivery_time ?
                   <>
@@ -875,16 +875,13 @@ export default function StopCard({
                   const isAfterHours = delivery.after_hours_pickup === true;
                   const hasExtraPay = pay > baseRate && !isAfterHours;
 
-                  // No badge for base pay only - invisible badge for consistent sizing
+                  // No badge for base pay only
                   if (!isAfterHours && !hasExtraPay) {
                     return (
-                      <Badge
-                        variant="secondary"
-                        className="inline-flex items-center text-xs font-bold px-2 py-0.5 rounded-full bg-transparent text-emerald-600 border-transparent"
-                      >
+                      <div className="text-xm font-bold text-emerald-600">
                         {formatPay(pay)}
-                      </Badge>
-                    );
+                      </div>);
+
                   }
 
                   // Badge for extra pay or after hours
