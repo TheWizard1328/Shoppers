@@ -855,6 +855,15 @@ export default function StopCard({
                   // CRITICAL: delivery.driver_id IS the user_id (auth user ID), NOT AppUser.id
                   let driverAppUser = null;
                   
+                  // DEBUG
+                  console.log('[StopCard Pay Debug]', {
+                    deliveryId: delivery.id,
+                    driverId: delivery.driver_id,
+                    appUsersLength: appUsers?.length,
+                    appUserUserIds: appUsers?.slice(0, 5).map(au => au?.user_id),
+                    driverProp: driver ? { id: driver.id, user_id: driver.user_id, pay_rate: driver.pay_rate_per_delivery } : null
+                  });
+                  
                   if (appUsers && appUsers.length > 0) {
                     if (userHasRole(currentUser, 'admin')) {
                       // For admin: find AppUser by matching user_id to delivery.driver_id
@@ -869,6 +878,12 @@ export default function StopCard({
                   if (!driverAppUser && driver && driver.pay_rate_per_delivery) {
                     driverAppUser = driver;
                   }
+                  
+                  console.log('[StopCard Pay Result]', {
+                    foundAppUser: !!driverAppUser,
+                    payRate: driverAppUser?.pay_rate_per_delivery,
+                    extraKmRate: driverAppUser?.extra_km_rate
+                  });
                   
                   const pay = driverAppUser ? calculateDeliveryPay(delivery, driverAppUser, patient) : 0;
                   return (
