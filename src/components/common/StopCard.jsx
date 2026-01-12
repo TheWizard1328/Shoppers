@@ -22,7 +22,7 @@ import { getDriverDisplayName } from '../utils/driverUtils';
 import { userHasRole, shouldShowStoreBadges, isAppOwner } from '../utils/userRoles';
 import { formatPhoneNumber } from '../utils/phoneFormatter';
 import { formatAddressWithUnit, cleanBuzzerFromAddress } from '../utils/addressCleaner';
-import { calculateDeliveryPay, formatPay } from '../utils/payCalculator.js';
+import { calculateDeliveryPay, formatPay } from '../utils/payCalculator';
 import { base44 } from "@/api/base44Client";
 import { locationTracker } from "../utils/locationTracker";
 import { useAppData } from "../utils/AppDataContext";
