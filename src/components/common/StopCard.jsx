@@ -852,25 +852,15 @@ export default function StopCard({
                   (delivery.patient_id || delivery.after_hours_pickup) && (() => {
                   // For drivers viewing their own deliveries, use their own pay rates
                   // For admins, use the assigned driver's pay rates
+                  // CRITICAL: delivery.driver_id can be either AppUser.id or AppUser.user_id depending on context
                   let driverAppUser;
                   if (userHasRole(currentUser, 'admin')) {
-                    driverAppUser = appUsers?.find(au => au?.user_id === delivery.driver_id);
+                    // Try matching by user_id first, then by id (AppUser record id)
+                    driverAppUser = appUsers?.find(au => au?.user_id === delivery.driver_id) ||
+                                    appUsers?.find(au => au?.id === delivery.driver_id);
                   } else {
                     driverAppUser = appUsers?.find(au => au?.user_id === currentUser?.id);
                   }
-                  
-                  // DEBUG: Log pay calculation inputs
-                  console.log('[StopCard Pay Debug]', {
-                    deliveryId: delivery.id,
-                    driverId: delivery.driver_id,
-                    foundAppUser: !!driverAppUser,
-                    appUserId: driverAppUser?.id,
-                    pay_rate_per_delivery: driverAppUser?.pay_rate_per_delivery,
-                    extra_km_rate: driverAppUser?.extra_km_rate,
-                    extra_km_limit: driverAppUser?.extra_km_limit,
-                    oversized_item_rate: driverAppUser?.oversized_item_rate,
-                    appUsersCount: appUsers?.length
-                  });
                   
                   const pay = driverAppUser ? calculateDeliveryPay(delivery, driverAppUser, patient) : 0;
                   return (
