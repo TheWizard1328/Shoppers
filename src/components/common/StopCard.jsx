@@ -878,7 +878,7 @@ export default function StopCard({
                   // No badge for base pay only
                   if (!isAfterHours && !hasExtraPay) {
                     return (
-                      <div className="text-sm font-bold text-emerald-600">
+                      <div className="text-xm font-bold text-emerald-600">
                         {formatPay(pay)}
                       </div>);
 
@@ -887,12 +887,12 @@ export default function StopCard({
                   // Badge for extra pay or after hours
                   return (
                     <Badge
-                      variant="secondary"
-                      className={`text-sm font-bold px-2 py-0.5 rounded-full ${
-                      isAfterHours ?
-                      'bg-green-100 text-green-800' :
-                      'bg-gray-200 text-gray-800'}`
-                      }>
+                      variant="secondary" className="inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent hover:bg-secondary/80 text-xm font-bold px-2 py-0.5 rounded-full bg-gray-200 text-gray-800">
+
+
+
+
+
 
                       {formatPay(pay)}
                     </Badge>);
