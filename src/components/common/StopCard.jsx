@@ -798,7 +798,7 @@ export default function StopCard({
                 delivery={delivery}
                 patient={patient}
                 isPickup={isPickup}
-                size="md"
+                size="card"
                 className="mt-1" />
 
             </div>
