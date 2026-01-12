@@ -13,77 +13,77 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
  */
 export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onStoreMonthClick, selectedMonth, selectedStoreMonth, onResetView }) {
   const [viewMode, setViewMode] = useState('deliveries'); // 'deliveries' or 'fees'
-  
+
   if (!metricsData) return null;
-  
+
   const monthlyStoreData = metricsData.monthlyStoreData || {};
   const monthlyStoreFees = metricsData.monthlyStoreFees || {};
-  
+
   // Build stores list from monthlyStoreData (all unique stores across all months)
   const storeMap = new Map();
   for (let month = 1; month <= 12; month++) {
     const monthData = monthlyStoreData[month] || [];
-    monthData.forEach(store => {
+    monthData.forEach((store) => {
       if (store.abbreviation && !storeMap.has(store.abbreviation)) {
         storeMap.set(store.abbreviation, store);
       }
     });
   }
   const stores = Array.from(storeMap.values()).sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity));
-  
+
   // Helper to get store ID by abbreviation and month
   const getStoreId = (storeAbbr, month) => {
     const monthData = monthlyStoreData[month] || [];
-    const storeData = monthData.find(s => s.abbreviation === storeAbbr);
+    const storeData = monthData.find((s) => s.abbreviation === storeAbbr);
     return storeData?.id || null;
   };
-  
+
   // Calculate totals and averages per store (yearly)
   const calculateStoreTotals = () => {
     const totals = {};
     const counts = {};
-    
-    stores.forEach(store => {
+
+    stores.forEach((store) => {
       totals[store.abbreviation] = 0;
       counts[store.abbreviation] = 0;
     });
-    
+
     // Sum up all months
     for (let month = 1; month <= 12; month++) {
       const monthData = monthlyStoreData[month] || [];
-      monthData.forEach(storeData => {
+      monthData.forEach((storeData) => {
         if (totals[storeData.abbreviation] !== undefined) {
-          const value = viewMode === 'deliveries' ? storeData.completed : (storeData.fees || 0);
+          const value = viewMode === 'deliveries' ? storeData.completed : storeData.fees || 0;
           totals[storeData.abbreviation] += value;
           if (value > 0) counts[storeData.abbreviation]++;
         }
       });
     }
-    
+
     return { totals, counts };
   };
-  
+
   const { totals, counts } = calculateStoreTotals();
-  
+
   // Get grand total
   const grandTotal = Object.values(totals).reduce((sum, val) => sum + val, 0);
-  
+
   // Calculate monthly totals (row totals)
   const getMonthTotal = (month) => {
     const monthData = monthlyStoreData[month] || [];
     return monthData.reduce((sum, store) => {
-      return sum + (viewMode === 'deliveries' ? store.completed : (store.fees || 0));
+      return sum + (viewMode === 'deliveries' ? store.completed : store.fees || 0);
     }, 0);
   };
-  
+
   // Get value for a specific store and month
   const getValue = (storeAbbr, month) => {
     const monthData = monthlyStoreData[month] || [];
-    const storeData = monthData.find(s => s.abbreviation === storeAbbr);
+    const storeData = monthData.find((s) => s.abbreviation === storeAbbr);
     if (!storeData) return null;
-    return viewMode === 'deliveries' ? storeData.completed : (storeData.fees || 0);
+    return viewMode === 'deliveries' ? storeData.completed : storeData.fees || 0;
   };
-  
+
   // Format value based on view mode
   const formatValue = (value) => {
     if (value === null || value === undefined || value === 0) return '';
@@ -92,7 +92,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
     }
     return value.toLocaleString();
   };
-  
+
   // Get store color for header
   const getStoreColor = (store) => {
     return store.color || '#64748b';
@@ -103,38 +103,38 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
-            {viewMode === 'deliveries' ? (
-              <Table className="w-5 h-5" />
-            ) : (
-              <DollarSign className="w-5 h-5" />
-            )}
+            {viewMode === 'deliveries' ?
+            <Table className="w-5 h-5" /> :
+
+            <DollarSign className="w-5 h-5" />
+            }
             Monthly Store {viewMode === 'deliveries' ? 'Deliveries' : 'App Fees'} ({selectedYear})
           </CardTitle>
-          <div className="flex gap-1">
-            {(selectedMonth || selectedStoreMonth) && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => onResetView?.()}
-                className="text-xs h-7 px-2"
-              >
+          <div className="flex gap-2">
+            {(selectedMonth || selectedStoreMonth) &&
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onResetView?.()}
+              className="text-xs h-7 px-2">
+
                 Reset View
               </Button>
-            )}
+            }
             <Button
               size="sm"
               variant={viewMode === 'deliveries' ? 'default' : 'outline'}
               onClick={() => setViewMode('deliveries')}
-              className="text-xs h-7 px-2"
-            >
+              className="text-xs h-7 px-2">
+
               Deliveries
             </Button>
             <Button
               size="sm"
               variant={viewMode === 'fees' ? 'default' : 'outline'}
               onClick={() => setViewMode('fees')}
-              className="text-xs h-7 px-2"
-            >
+              className="text-xs h-7 px-2">
+
               App Fees
             </Button>
           </div>
@@ -146,16 +146,16 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
             <thead>
               <tr className="border-b bg-slate-50">
                 <th className="text-left p-2 font-medium text-slate-600 sticky left-0 bg-slate-50 z-10">Mon</th>
-                {stores.map(store => (
-                  <th 
-                    key={store.abbreviation} 
-                    className="text-center p-2 font-bold min-w-[50px]"
-                    style={{ color: getStoreColor(store) }}
-                    title={store.name}
-                  >
+                {stores.map((store) =>
+                <th
+                  key={store.abbreviation}
+                  className="text-center p-2 font-bold min-w-[50px]"
+                  style={{ color: getStoreColor(store) }}
+                  title={store.name}>
+
                     {store.abbreviation}
                   </th>
-                ))}
+                )}
                 <th className="text-center p-2 font-bold text-slate-900 border-l-2 border-purple-300 min-w-[60px]">Tot</th>
               </tr>
             </thead>
@@ -166,46 +166,46 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
                 const isMonthSelected = selectedMonth === month;
                 return (
                   <tr key={month} className={`border-b hover:bg-slate-50 ${isMonthSelected ? 'bg-emerald-50' : ''}`}>
-                    <td 
+                    <td
                       className="p-2 font-medium sticky left-0 bg-white z-10 cursor-pointer hover:bg-emerald-100"
                       style={{ color: isMonthSelected ? '#059669' : '#475569', backgroundColor: isMonthSelected ? '#d1fae5' : 'white' }}
-                      onClick={() => onMonthClick?.(month)}
-                    >
+                      onClick={() => onMonthClick?.(month)}>
+
                       {monthName}
                     </td>
-                    {stores.map(store => {
+                    {stores.map((store) => {
                       const value = getValue(store.abbreviation, month);
                       const storeId = getStoreId(store.abbreviation, month);
                       const isStoreMonthSelected = selectedStoreMonth?.month === month && selectedStoreMonth?.storeId === storeId;
                       return (
-                        <td 
-                          key={store.abbreviation} 
+                        <td
+                          key={store.abbreviation}
                           className={`text-center p-2 tabular-nums cursor-pointer hover:bg-blue-100 ${isStoreMonthSelected ? 'bg-blue-200' : ''}`}
                           style={{ color: value > 0 ? getStoreColor(store) : '#94a3b8' }}
-                          onClick={() => value > 0 && storeId && onStoreMonthClick?.(month, storeId, store.abbreviation, store.name)}
-                        >
+                          onClick={() => value > 0 && storeId && onStoreMonthClick?.(month, storeId, store.abbreviation, store.name)}>
+
                           {formatValue(value)}
-                        </td>
-                      );
+                        </td>);
+
                     })}
                     <td className="text-center p-2 font-semibold text-slate-900 border-l-2 border-purple-300 tabular-nums">
                       {formatValue(monthTotal)}
                     </td>
-                  </tr>
-                );
+                  </tr>);
+
               })}
               {/* Totals Row */}
               <tr className="border-t-2 border-slate-300 bg-slate-100 font-semibold">
                 <td className="p-2 text-slate-700 sticky left-0 bg-slate-100 z-10">Tot</td>
-                {stores.map(store => (
-                  <td 
-                    key={store.abbreviation} 
-                    className="text-center p-2 tabular-nums"
-                    style={{ color: getStoreColor(store) }}
-                  >
+                {stores.map((store) =>
+                <td
+                  key={store.abbreviation}
+                  className="text-center p-2 tabular-nums"
+                  style={{ color: getStoreColor(store) }}>
+
                     {formatValue(totals[store.abbreviation])}
                   </td>
-                ))}
+                )}
                 <td className="text-center p-2 font-bold text-slate-900 border-l-2 border-purple-300 tabular-nums">
                   {formatValue(grandTotal)}
                 </td>
@@ -213,47 +213,47 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
               {/* Average Row */}
               <tr className="bg-slate-50">
                 <td className="p-2 text-slate-600 sticky left-0 bg-slate-50 z-10">AVG</td>
-                {stores.map(store => {
-                  const avg = counts[store.abbreviation] > 0 
-                    ? totals[store.abbreviation] / 12 
-                    : 0;
+                {stores.map((store) => {
+                  const avg = counts[store.abbreviation] > 0 ?
+                  totals[store.abbreviation] / 12 :
+                  0;
                   return (
-                    <td 
-                      key={store.abbreviation} 
-                      className="text-center p-2 tabular-nums text-slate-600"
-                    >
+                    <td
+                      key={store.abbreviation}
+                      className="text-center p-2 tabular-nums text-slate-600">
+
                       {avg > 0 ? formatValue(Math.round(avg)) : ''}
-                    </td>
-                  );
+                    </td>);
+
                 })}
                 <td className="text-center p-2 font-semibold text-slate-700 border-l-2 border-purple-300 tabular-nums">
                   {formatValue(Math.round(grandTotal / 12))}
                 </td>
               </tr>
               {/* Percentage Row (only for fees view) */}
-              {viewMode === 'fees' && grandTotal > 0 && (
-                <tr className="bg-slate-50 border-t">
+              {viewMode === 'fees' && grandTotal > 0 &&
+              <tr className="bg-slate-50 border-t">
                   <td className="p-2 text-slate-600 sticky left-0 bg-slate-50 z-10">%</td>
-                  {stores.map(store => {
-                    const pct = grandTotal > 0 
-                      ? (totals[store.abbreviation] / grandTotal) * 100 
-                      : 0;
-                    return (
-                      <td 
-                        key={store.abbreviation} 
-                        className="text-center p-2 tabular-nums text-slate-500"
-                      >
+                  {stores.map((store) => {
+                  const pct = grandTotal > 0 ?
+                  totals[store.abbreviation] / grandTotal * 100 :
+                  0;
+                  return (
+                    <td
+                      key={store.abbreviation}
+                      className="text-center p-2 tabular-nums text-slate-500">
+
                         {pct > 0 ? `${pct.toFixed(0)}%` : ''}
-                      </td>
-                    );
-                  })}
+                      </td>);
+
+                })}
                   <td className="text-center p-2 text-slate-500 border-l-2 border-purple-300">100%</td>
                 </tr>
-              )}
+              }
             </tbody>
           </table>
         </div>
       </CardContent>
-    </Card>
-  );
+    </Card>);
+
 }
