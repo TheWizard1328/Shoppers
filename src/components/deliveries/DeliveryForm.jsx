@@ -3528,7 +3528,7 @@ export default function DeliveryForm({
                       <Input
                       id="paid_km_override"
                       type="text"
-                      value={formData.paid_km_override !== null && formData.paid_km_override !== undefined ? parseFloat(formData.paid_km_override).toFixed(2) : ''}
+                      value={formData.paid_km_override !== null && formData.paid_km_override !== undefined ? formData.paid_km_override : ''}
                       onChange={(e) => {
                         const val = e.target.value;
                         if (val === '') {
@@ -3537,7 +3537,16 @@ export default function DeliveryForm({
                           const parsed = parseFloat(val);
                           setFormData((prev) => ({ 
                             ...prev, 
-                            paid_km_override: isNaN(parsed) ? null : parseFloat(parsed.toFixed(2))
+                            paid_km_override: isNaN(parsed) ? prev.paid_km_override : parsed
+                          }));
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const val = e.target.value;
+                        if (val !== '' && !isNaN(parseFloat(val))) {
+                          setFormData((prev) => ({ 
+                            ...prev, 
+                            paid_km_override: parseFloat(parseFloat(val).toFixed(2))
                           }));
                         }
                       }}
