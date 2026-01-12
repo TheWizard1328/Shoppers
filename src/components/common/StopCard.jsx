@@ -834,26 +834,22 @@ export default function StopCard({
                     </>
                   }
                 </div>
-                <div className="text-sm md:text-[11px] min-h-[14px]" style={{ color: 'var(--text-slate-500)' }}>
-                  {!FINISHED_STATUSES.includes(delivery.status) && (delivery.time_window_start || delivery.time_window_end) &&
-                  <>
-                      {delivery.time_window_start && delivery.time_window_end ? (
-                        // Both start and end time
-                        <>{formatTime12Hour(delivery.time_window_start)} → {formatTime12Hour(delivery.time_window_end)}</>
-                      ) : delivery.time_window_start ? (
-                        // Start time only (after this time)
-                        <>{formatTime12Hour(delivery.time_window_start)} →</>
-                      ) : delivery.time_window_end ? (
-                        // End time only (before this time)
-                        <>← {formatTime12Hour(delivery.time_window_end)}</>
-                      ) : null}
-                    </>
-                  }
-                </div>
+                {/* Time Window - Only for non-finished stops */}
+                {!FINISHED_STATUSES.includes(delivery.status) && (delivery.time_window_start || delivery.time_window_end) &&
+                <div className="text-sm md:text-[11px]" style={{ color: 'var(--text-slate-500)' }}>
+                    {delivery.time_window_start && delivery.time_window_end ? (
+                      <>{formatTime12Hour(delivery.time_window_start)} → {formatTime12Hour(delivery.time_window_end)}</>
+                    ) : delivery.time_window_start ? (
+                      <>{formatTime12Hour(delivery.time_window_start)} →</>
+                    ) : delivery.time_window_end ? (
+                      <>← {formatTime12Hour(delivery.time_window_end)}</>
+                    ) : null}
+                  </div>
+                }
                 {/* Driver Pay for Finished Stops - Drivers and Admins (including After Hours pickups) */}
                 {FINISHED_STATUSES.includes(delivery.status) && (
                   userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')
-                ) && (() => {
+                ) ? (() => {
                   // For drivers viewing their own deliveries, use their own pay rates
                   // For admins, use the assigned driver's pay rates
                   let driverAppUser;
@@ -868,13 +864,12 @@ export default function StopCard({
                   if (!driverAppUser) return null;
                   
                   const pay = calculateDeliveryPay(delivery, driverAppUser);
-                  // Show pay even if it's $0.00 so drivers know the calculation is working
                   return (
                     <div className="text-sm font-bold text-emerald-600">
                       {formatPay(pay)}
                     </div>
                   );
-                })()}
+                })() : null}
               </div>
             </div>
 
