@@ -5,7 +5,7 @@ import { Target, Maximize2, Minimize2 } from 'lucide-react';
 
 export default function MapViewCycleFAB({ onClick, currentPhase, hasVisibleCards = false, isAIVisible = false, isLocked = false, stopCardsHeight = 75 }) {
   // CRITICAL: Fixed position - never moves with card expansion
-  const bottomPixels = hasVisibleCards ? stopCardsHeight + 15 : 25;
+  const bottomPixels = (hasVisibleCards ? stopCardsHeight : 0) + 15;
 
   // Get icon based on current phase (always white icon)
   const getIcon = () => {
