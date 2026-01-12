@@ -862,6 +862,20 @@ export default function StopCard({
                     driverAppUser = appUsers?.find(au => au?.user_id === currentUser?.id);
                   }
                   
+                  // DEBUG: Log pay calculation inputs
+                  console.log('[StopCard Pay Debug]', {
+                    deliveryId: delivery.id,
+                    deliveryDriverId: delivery.driver_id,
+                    isAdmin: userHasRole(currentUser, 'admin'),
+                    currentUserId: currentUser?.id,
+                    appUsersCount: appUsers?.length,
+                    appUsersSample: appUsers?.slice(0, 3)?.map(au => ({ id: au?.id, user_id: au?.user_id, pay_rate: au?.pay_rate_per_delivery })),
+                    foundAppUser: !!driverAppUser,
+                    driverAppUserId: driverAppUser?.id,
+                    driverAppUserUserId: driverAppUser?.user_id,
+                    pay_rate_per_delivery: driverAppUser?.pay_rate_per_delivery
+                  });
+                  
                   const pay = driverAppUser ? calculateDeliveryPay(delivery, driverAppUser, patient) : 0;
                   return (
                     <div className="text-sm font-bold text-emerald-600">
