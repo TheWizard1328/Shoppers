@@ -904,11 +904,11 @@ export default function StopCard({
             <div className="flex flex-col py-0.5 gap-0.5 items-center">
               <div className="flex items-center gap-1">
                 <Badge
-                  variant="secondary" className="bg-emerald-500 text-secondary-foreground mt-1 px-2 text-sm font-bold rounded-full hover:bg-secondary/80 border-transparent inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 !text-white">
-
-
-
-
+                  variant="secondary" className={`text-secondary-foreground mt-1 px-2 text-sm font-bold rounded-full hover:bg-secondary/80 border-transparent inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 !text-white ${
+                    isPickup && delivery.after_hours_pickup && FINISHED_STATUSES.includes(delivery.status) 
+                      ? 'bg-blue-500' 
+                      : 'bg-emerald-500'
+                  }`}>
 
 
 
