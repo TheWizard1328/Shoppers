@@ -77,7 +77,7 @@ export default function SpecialSymbolsBadges({
 
   return (
     <div className="inline-flex items-center gap-1">
-      <Badge className="bg-amber-400 text-slate-900 mt-2 px-2 py-0.5 text-xs font-bold rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 hover:bg-primary/80 min-h-[22px] inline-flex items-center gap-1 shadow-sm border border-amber-500/30">
+      <Badge className="bg-amber-400 text-slate-900 mt-1 px-1.5 py-0 text-[10px] font-bold rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 hover:bg-primary/80 h-4 inline-flex items-center gap-0.5 shadow-sm border border-amber-500/30">
 
 
         {/* Special flags: $ N O F S */}
