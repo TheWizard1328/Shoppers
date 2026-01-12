@@ -47,6 +47,13 @@ export default function SpecialSymbolsBadges({
       icon: 'w-4 h-4',
       gap: 'gap-1',
       text: 'text-sm'
+    },
+    // Card size - matches StopCard badges (stop order, status, tracking number)
+    card: {
+      badge: 'text-sm px-2 py-0.5 min-h-[24px] rounded-full',
+      icon: 'w-3.5 h-3.5',
+      gap: 'gap-0.5',
+      text: 'text-sm font-bold'
     }
   };
 
@@ -75,17 +82,22 @@ export default function SpecialSymbolsBadges({
 
   if (!hasAnyContent) return null;
 
+  // Use different base styles for card size vs others
+  const isCardSize = size === 'card';
+  const badgeBaseClass = isCardSize
+    ? `bg-amber-400 text-slate-900 mt-1 ${config.badge} font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 hover:bg-amber-500/80 inline-flex items-center ${config.gap} shadow-sm border border-amber-500/30`
+    : `bg-amber-400 text-slate-900 mt-1 px-1.5 py-0 text-[10px] font-bold rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 hover:bg-primary/80 h-4 inline-flex items-center gap-0.5 shadow-sm border border-amber-500/30`;
+
   return (
     <div className="inline-flex items-center gap-1">
-      <Badge className="bg-amber-400 text-slate-900 mt-1 px-1.5 py-0 text-[10px] font-bold rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 hover:bg-primary/80 h-4 inline-flex items-center gap-0.5 shadow-sm border border-amber-500/30">
-
+      <Badge className={badgeBaseClass}>
 
         {/* Special flags: $ N O F S */}
-        {hasCOD && <span className="text-green-800">$</span>}
-        {isFirstDelivery && <span className="text-blue-800">N</span>}
-        {hasOversized && <span className="text-orange-800">O</span>}
-        {hasFridge && <span className="text-cyan-800">F</span>}
-        {hasSignature && <span className="text-purple-800">S</span>}
+        {hasCOD && <span className={`text-green-800 ${isCardSize ? config.text : ''}`}>$</span>}
+        {isFirstDelivery && <span className={`text-blue-800 ${isCardSize ? config.text : ''}`}>N</span>}
+        {hasOversized && <span className={`text-orange-800 ${isCardSize ? config.text : ''}`}>O</span>}
+        {hasFridge && <span className={`text-cyan-800 ${isCardSize ? config.text : ''}`}>F</span>}
+        {hasSignature && <span className={`text-purple-800 ${isCardSize ? config.text : ''}`}>S</span>}
         
         {/* Preference icons - intuitive colors */}
         {hasCallOnArrival && <Phone className={`${config.icon} text-orange-600`} />}
