@@ -11,8 +11,13 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
  * 1. Total deliveries per store per month
  * 2. Total payable app fees per store per month
  */
-export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onStoreMonthClick, selectedMonth, selectedStoreMonth, onResetView }) {
+export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onStoreMonthClick, selectedMonth, selectedStoreMonth, onResetView, onViewModeChange }) {
   const [viewMode, setViewMode] = useState('deliveries'); // 'deliveries' or 'fees'
+
+  const handleViewModeChange = (mode) => {
+    setViewMode(mode);
+    onViewModeChange?.(mode);
+  };
 
   if (!metricsData) return null;
 
@@ -124,7 +129,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
             <Button
               size="sm"
               variant={viewMode === 'deliveries' ? 'default' : 'outline'}
-              onClick={() => setViewMode('deliveries')}
+              onClick={() => handleViewModeChange('deliveries')}
               className="text-xs h-7 px-2">
 
               Deliveries
@@ -132,7 +137,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
             <Button
               size="sm"
               variant={viewMode === 'fees' ? 'default' : 'outline'}
-              onClick={() => setViewMode('fees')}
+              onClick={() => handleViewModeChange('fees')}
               className="text-xs h-7 px-2">
 
               App Fees

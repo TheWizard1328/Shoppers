@@ -29,6 +29,7 @@ export default function AdminMetrics() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState(null); // null = all year, 1-12 = specific month
   const [selectedStoreMonth, setSelectedStoreMonth] = useState(null); // { month, storeId, storeAbbr } for day-by-day breakdown
+  const [metricsViewMode, setMetricsViewMode] = useState('deliveries'); // 'deliveries' or 'fees'
   const [selectedCityId, setSelectedCityId] = useState(null); // Will be set to user's city
   const [cities, setCities] = useState([]);
   const [metricsData, setMetricsData] = useState(null);
@@ -356,6 +357,7 @@ export default function AdminMetrics() {
               setSelectedStoreMonth(null);
               setSelectedMonth(null);
             }}
+            onViewModeChange={(mode) => setMetricsViewMode(mode)}
           />
         </div>
 
@@ -366,7 +368,7 @@ export default function AdminMetrics() {
               <Store className="w-5 h-5" />
               {selectedStoreMonth 
                 ? `${selectedStoreMonth.storeName || selectedStoreMonth.storeAbbr} - ${MONTH_NAMES[selectedStoreMonth.month - 1]} ${selectedYear} (Day-by-Day)`
-                : `Store Breakdown (${selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} ${selectedYear})`
+                : `Store ${metricsViewMode === 'fees' ? 'App Fees' : 'Breakdown'} (${selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'All'} ${selectedYear})`
               }
             </CardTitle>
 
@@ -377,7 +379,8 @@ export default function AdminMetrics() {
                 <BarChart data={(filteredData?.storeData || metricsData.storeData)?.map(item => ({
                   ...item,
                   totalCompleted: (item.completed || 0) + (item.afterHours || 0),
-                  totalFailed: (item.failed || 0) + (item.cancelled || 0)
+                  totalFailed: (item.failed || 0) + (item.cancelled || 0),
+                  fees: item.fees || 0
                 }))}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis 
@@ -385,14 +388,16 @@ export default function AdminMetrics() {
                     tick={selectedStoreMonth ? { fill: '#64748b', fontSize: 11 } : (props) => {
                       const { x, y, payload } = props;
                       const storeData = (filteredData?.storeData || metricsData.storeData)?.find(s => s.abbreviation === payload.value);
-                      const total = storeData ? (storeData.completed || 0) + (storeData.failed || 0) + (storeData.afterHours || 0) + (storeData.cancelled || 0) : 0;
+                      const displayValue = metricsViewMode === 'fees' 
+                        ? `$${(storeData?.fees || 0).toFixed(0)}`
+                        : (storeData ? (storeData.completed || 0) + (storeData.failed || 0) + (storeData.afterHours || 0) + (storeData.cancelled || 0) : 0);
                       return (
                         <g transform={`translate(${x},${y})`}>
                           <text x={0} y={0} dy={12} textAnchor="middle" fill="#64748b" fontSize={11}>
                             {payload.value}
                           </text>
-                          <text x={0} y={0} dy={26} textAnchor="middle" fill="#10b981" fontSize={10} fontWeight="600">
-                            {total}
+                          <text x={0} y={0} dy={26} textAnchor="middle" fill={metricsViewMode === 'fees' ? '#f59e0b' : '#10b981'} fontSize={10} fontWeight="600">
+                            {displayValue}
                           </text>
                         </g>
                       );
@@ -407,7 +412,7 @@ export default function AdminMetrics() {
                       border: '1px solid #e2e8f0',
                       borderRadius: '8px'
                     }}
-                    formatter={(value, name) => [value, name]}
+                    formatter={(value, name) => [metricsViewMode === 'fees' ? `$${value.toFixed(2)}` : value, name]}
                     labelFormatter={(label) => {
                       if (selectedStoreMonth) {
                         return `Day ${label}`;
@@ -417,8 +422,14 @@ export default function AdminMetrics() {
                     }}
                   />
                   <Legend />
-                  <Bar dataKey="totalCompleted" fill="#10b981" name="Completed" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="totalFailed" fill="#ef4444" name="Failed" radius={[4, 4, 0, 0]} />
+                  {metricsViewMode === 'fees' ? (
+                    <Bar dataKey="fees" fill="#f59e0b" name="App Fees" radius={[4, 4, 0, 0]} />
+                  ) : (
+                    <>
+                      <Bar dataKey="totalCompleted" fill="#10b981" name="Completed" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="totalFailed" fill="#ef4444" name="Failed" radius={[4, 4, 0, 0]} />
+                    </>
+                  )}
                 </BarChart>
               </ResponsiveContainer>
             </div>
