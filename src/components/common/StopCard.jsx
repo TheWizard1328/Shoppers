@@ -850,25 +850,24 @@ export default function StopCard({
                     </>
                   }
                   {/* Driver Pay for Finished Stops - Drivers and Admins */}
-                  {FINISHED_STATUSES.includes(delivery.status) && !isPickup && (() => {
-                    // Show pay for drivers OR admins viewing any driver's deliveries
-                    const isDriverView = userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'dispatcher');
-                    const isAdminView = userHasRole(currentUser, 'admin');
-                    
-                    if (!isDriverView && !isAdminView) return null;
-                    
-                    // For drivers, use their own pay rates
+                  {FINISHED_STATUSES.includes(delivery.status) && !isPickup && (
+                    userHasRole(currentUser, 'driver') || userHasRole(currentUser, 'admin')
+                  ) && (() => {
+                    // For drivers viewing their own deliveries, use their own pay rates
                     // For admins, use the assigned driver's pay rates
                     let driverAppUser;
-                    if (isDriverView) {
-                      driverAppUser = appUsers?.find(au => au?.user_id === currentUser?.id);
-                    } else if (isAdminView) {
+                    if (userHasRole(currentUser, 'admin')) {
+                      // Admin: look up the driver assigned to this delivery
                       driverAppUser = appUsers?.find(au => au?.user_id === delivery.driver_id);
+                    } else {
+                      // Driver: use their own pay rates
+                      driverAppUser = appUsers?.find(au => au?.user_id === currentUser?.id);
                     }
                     
                     if (!driverAppUser) return null;
+                    
                     const pay = calculateDeliveryPay(delivery, driverAppUser);
-                    if (pay === 0) return null;
+                    // Show pay even if it's $0.00 so drivers know the calculation is working
                     return (
                       <div className="text-sm font-bold text-emerald-600">
                         {formatPay(pay)}
