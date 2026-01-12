@@ -31,8 +31,8 @@ export default function SpecialSymbolsBadges({
   // Size configurations - consistent and accessible
   const sizeConfig = {
     sm: {
-      badge: 'text-[10px] px-1.5 py-0.5 min-h-[18px]',
-      icon: 'w-3 h-3',
+      badge: 'text-[10px] px-1.5 py-0 h-4',
+      icon: 'w-2.5 h-2.5',
       gap: 'gap-0.5',
       text: 'text-[10px]'
     },
