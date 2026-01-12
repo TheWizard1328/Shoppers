@@ -361,10 +361,13 @@ export default function AdminMetrics() {
               <Button 
                 variant="outline" 
                 size="sm" 
-                onClick={() => setSelectedStoreMonth(null)}
+                onClick={() => {
+                  setSelectedStoreMonth(null);
+                  setSelectedMonth(null);
+                }}
                 className="text-xs"
               >
-                ← Back to Month View
+                ← Back to Year View
               </Button>
             )}
           </CardHeader>
