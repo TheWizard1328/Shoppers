@@ -184,8 +184,28 @@ export default function AdminMetrics() {
       };
     }
     
-    // Nothing selected: return all year data
-    return metricsData;
+    // Nothing selected: return all year data with fees merged
+    // Aggregate fees across all months per store for full year view
+    const allMonthsStoreFees = {};
+    for (let m = 1; m <= 12; m++) {
+      const monthData = metricsData.monthlyStoreData?.[m] || [];
+      monthData.forEach(s => {
+        if (!allMonthsStoreFees[s.abbreviation]) {
+          allMonthsStoreFees[s.abbreviation] = 0;
+        }
+        allMonthsStoreFees[s.abbreviation] += s.fees || 0;
+      });
+    }
+    
+    const storeDataWithFees = (metricsData.storeData || []).map(store => ({
+      ...store,
+      fees: allMonthsStoreFees[store.abbreviation] || 0
+    }));
+    
+    return {
+      ...metricsData,
+      storeData: storeDataWithFees
+    };
   }, [metricsData, selectedMonth, selectedStoreMonth]);
 
   const formatCurrency = (amount) => {
