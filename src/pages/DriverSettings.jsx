@@ -264,14 +264,24 @@ export default function DriverSettings() {
       </div>
       
       {/* Edit Driver Form */}
-      {editingDriver &&
-      <DriverEditForm
-        driver={editingDriver}
-        onSave={async (updates) => {
-          await handleSaveDriver(editingDriver.id, updates);
-        }}
-        onCancel={() => setEditingDriver(null)} />
-
+      {editingDriver && (() => {
+        // CRITICAL: Merge driver data with fresh AppUser data for accurate form population
+        const latestAppUser = mergedAppUsers.find((au) => au?.user_id === editingDriver.id);
+        const mergedDriver = {
+          ...editingDriver,
+          ...latestAppUser,
+          id: editingDriver.id, // Keep the user ID
+          user_id: editingDriver.id
+        };
+        return (
+          <DriverEditForm
+            driver={mergedDriver}
+            onSave={async (updates) => {
+              await handleSaveDriver(editingDriver.id, updates);
+            }}
+            onCancel={() => setEditingDriver(null)} />
+        );
+      })()
       }
     </div>);
 
