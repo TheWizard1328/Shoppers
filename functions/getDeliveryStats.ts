@@ -344,20 +344,10 @@ Deno.serve(async (req) => {
       );
       todayActiveDrivers = allDriverIds.size;
       
-      // CRITICAL: Count only on_duty drivers with in_transit/en_route stops
-      // Fetch AppUsers to check driver_status
-      const driverAppUsers = await base44.asServiceRole.entities.AppUser.filter({ 
-        user_id: { $in: Array.from(allDriverIds) } 
-      }).catch(() => []);
-      
-      const onDutyDriverIds = new Set(
-        driverAppUsers.filter(au => au?.driver_status === 'on_duty').map(au => au.user_id)
-      );
-      
-      // Count drivers who are on_duty AND have in_transit/en_route stops
+      // Count drivers who have in_transit/en_route stops (working on active route)
       const inTransitDriverIds = new Set(
         todayDeliveries
-          .filter(d => d?.driver_id && (d.status === 'in_transit' || d.status === 'en_route') && onDutyDriverIds.has(d.driver_id))
+          .filter(d => d?.driver_id && (d.status === 'in_transit' || d.status === 'en_route'))
           .map(d => d.driver_id)
       );
       todayInTransitDrivers = inTransitDriverIds.size;
