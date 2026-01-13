@@ -124,9 +124,16 @@ Deno.serve(async (req) => {
     let entityCounts = null;
     
     // Monthly deliveries - use cache if valid (same day + same filters)
-    if (statsCache.monthly.key === monthlyKey && statsCache.monthly.cacheDate === cacheDate) {
+    // CRITICAL: Also validate that cached data is an array (not corrupted)
+    if (statsCache.monthly.key === monthlyKey && 
+        statsCache.monthly.cacheDate === cacheDate && 
+        Array.isArray(statsCache.monthly.data)) {
       console.log('📊 [getDeliveryStats] Using CACHED monthly stats');
       rawMonthDeliveries = statsCache.monthly.data;
+    } else if (statsCache.monthly.key === monthlyKey && statsCache.monthly.cacheDate === cacheDate) {
+      // Cache exists but data is invalid - invalidate it
+      console.warn('⚠️ [getDeliveryStats] Cache data invalid, refetching');
+      statsCache.monthly = { data: null, cacheDate: '', key: '' };
     }
     
     // Entity counts - use cache if valid (same day)
@@ -141,10 +148,17 @@ Deno.serve(async (req) => {
     
     // Always fetch month deliveries if not cached (needed for today's stats too)
     if (!rawMonthDeliveries) {
-      fetchPromises.push(base44.asServiceRole.entities.Delivery.filter({
-        ...baseFilter,
-        delivery_date: { $gte: startOfMonth, $lte: endOfMonthStr }
-      }));
+      fetchPromises.push(
+        base44.asServiceRole.entities.Delivery.filter({
+          ...baseFilter,
+          delivery_date: { $gte: startOfMonth, $lte: endOfMonthStr }
+        }).catch(err => {
+          // CRITICAL: If fetch fails (e.g., 404 for deleted entity), invalidate cache and return empty
+          console.warn('⚠️ [getDeliveryStats] Month deliveries fetch failed:', err.message);
+          statsCache.monthly = { data: null, cacheDate: '', key: '' };
+          return [];
+        })
+      );
       fetchKeys.push('month');
     }
     
@@ -235,8 +249,12 @@ Deno.serve(async (req) => {
     
     const monthDeliveries = rawMonthDeliveries;
     
-    // Filter today's deliveries from month data
-    const todayDeliveries = monthDeliveries.filter(d => d && d.delivery_date === todayStr);
+    // CRITICAL: Filter out any null/undefined entries and entries with invalid IDs
+    // This handles cases where cached data references deleted entities
+    const validMonthDeliveries = monthDeliveries.filter(d => d && d.id && d.delivery_date);
+    
+    // Filter today's deliveries from valid month data
+    const todayDeliveries = validMonthDeliveries.filter(d => d.delivery_date === todayStr);
     
     console.log('✅ [getDeliveryStats] Stats ready:', {
       today: todayDeliveries.length,
@@ -378,7 +396,7 @@ Deno.serve(async (req) => {
     
     // Completed (Payable): Completed, failed, OR returned deliveries OR after-hours pickups (completed/cancelled)
     // CRITICAL: Failed deliveries are PAID deliveries - they count toward the completed/payable total
-    const monthCompleted = monthDeliveries.filter(d => {
+    const monthCompleted = validMonthDeliveries.filter(d => {
       if (!d) return false;
       // Patient deliveries - completed, failed, or returned all count as payable
       if (d.patient_id) return isCompleted(d) || isFailed(d) || isReturn(d);
@@ -388,12 +406,12 @@ Deno.serve(async (req) => {
     }).length;
     
     // Failed: Only paid deliveries that failed (not returns)
-    const monthFailed = monthDeliveries.filter(d => 
+    const monthFailed = validMonthDeliveries.filter(d => 
       isPaidDelivery(d) && isFailed(d) && !isReturn(d)
     ).length;
     
     // Returns: Only paid deliveries that are returned
-    const monthReturns = monthDeliveries.filter(d => 
+    const monthReturns = validMonthDeliveries.filter(d => 
       isPaidDelivery(d) && isReturn(d)
     ).length;
 
