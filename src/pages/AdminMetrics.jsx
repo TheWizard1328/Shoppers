@@ -161,12 +161,24 @@ export default function AdminMetrics() {
     
     // Only month selected: filter all graphs by month
     if (selectedMonth) {
+      // For fees mode, use monthlyStoreData which has pre-calculated fees per store
+      // For deliveries mode, use storeDataByMonth which has completed/failed counts
       const monthStoreData = metricsData.storeDataByMonth?.[selectedMonth] || metricsData.storeData;
+      const monthStoreDataWithFees = metricsData.monthlyStoreData?.[selectedMonth] || [];
       const monthFees = metricsData.storeFeeTotals?.monthlyFees?.[selectedMonth - 1] || 0;
+
+      // Merge fees from monthlyStoreData into storeData
+      const mergedStoreData = monthStoreData.map(store => {
+        const feeData = monthStoreDataWithFees.find(s => s.abbreviation === store.abbreviation);
+        return {
+          ...store,
+          fees: feeData?.fees || 0
+        };
+      });
 
       return {
         ...metricsData,
-        storeData: monthStoreData,
+        storeData: mergedStoreData,
         displayedFees: monthFees,
         isDailyBreakdown: false
       };
