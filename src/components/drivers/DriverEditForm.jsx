@@ -21,6 +21,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
   const [formData, setFormData] = useState({
     status: driver.status || 'active',
     driver_status: driver.driver_status || 'off_duty',
+    location_tracking_enabled: driver.location_tracking_enabled !== false,
     pay_rate_per_delivery: formatRate(driver.pay_rate_per_delivery),
     extra_km_rate: formatRate(driver.extra_km_rate),
     extra_km_limit: formatRate(driver.extra_km_limit),
@@ -34,7 +35,8 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
       // Prepare update payload
       const updates = {
         status: formData.status,
-        driver_status: formData.driver_status
+        driver_status: formData.driver_status,
+        location_tracking_enabled: formData.location_tracking_enabled
       };
 
       // Check if pay rates changed
@@ -123,6 +125,25 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                   <SelectItem value="off_duty">Off Duty</SelectItem>
                   <SelectItem value="on_duty">On Duty</SelectItem>
                   <SelectItem value="on_break">On Break</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Location Sharing */}
+            <div>
+              <Label htmlFor="location_sharing" className="text-sm font-medium mb-1.5 block">
+                Location Sharing
+              </Label>
+              <Select
+                value={formData.location_tracking_enabled ? 'on' : 'off'}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, location_tracking_enabled: value === 'on' }))}
+              >
+                <SelectTrigger id="location_sharing">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="z-[10002]">
+                  <SelectItem value="on">On</SelectItem>
+                  <SelectItem value="off">Off</SelectItem>
                 </SelectContent>
               </Select>
             </div>
