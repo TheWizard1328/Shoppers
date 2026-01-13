@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { WifiOff, RefreshCw, CheckCircle, AlertTriangle, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,10 @@ export default function ConnectionRecoveryBanner() {
   const [maxAttempts, setMaxAttempts] = useState(5);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [dismissed, setDismissed] = useState(false);
+  
+  // CRITICAL: Track when we entered recovering state to auto-timeout
+  const recoveringStartTime = useRef(null);
+  const recoveryTimeoutRef = useRef(null);
 
   useEffect(() => {
     // Listen for connection errors
@@ -34,11 +38,17 @@ export default function ConnectionRecoveryBanner() {
       setMaxAttempts(max || 5);
       setStatus('recovering');
       setIsVisible(true);
+      
+      // CRITICAL: Track when recovery started
+      if (!recoveringStartTime.current) {
+        recoveringStartTime.current = Date.now();
+      }
     };
 
     // Listen for connection restored
     const handleConnectionRestored = () => {
       setStatus('restored');
+      recoveringStartTime.current = null;
       
       // CRITICAL: Trigger full data reload to repopulate drivers/users in dropdowns
       console.log('🔄 [ConnectionRecoveryBanner] Triggering full data reload after recovery');
@@ -85,6 +95,76 @@ export default function ConnectionRecoveryBanner() {
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
+  
+  // CRITICAL: Auto-recovery check - if we're in "recovering" state but browser is online,
+  // verify connection and auto-hide if actually connected
+  useEffect(() => {
+    if (!isVisible || status !== 'recovering') {
+      // Clear any pending timeout
+      if (recoveryTimeoutRef.current) {
+        clearTimeout(recoveryTimeoutRef.current);
+        recoveryTimeoutRef.current = null;
+      }
+      return;
+    }
+    
+    // CRITICAL: Auto-verify connection after 15 seconds in recovering state
+    // If we're actually online, hide the banner
+    recoveryTimeoutRef.current = setTimeout(async () => {
+      if (!navigator.onLine) {
+        // Still offline, keep showing banner
+        return;
+      }
+      
+      // Try a simple fetch to verify actual connectivity
+      try {
+        const response = await fetch('/api/health', { method: 'HEAD', cache: 'no-store' });
+        // If we get here, connection is working
+        console.log('✅ [ConnectionRecoveryBanner] Connection verified - auto-hiding banner');
+        setStatus('restored');
+        recoveringStartTime.current = null;
+        window.dispatchEvent(new CustomEvent('forceDataRefresh'));
+        setTimeout(() => setIsVisible(false), 2000);
+      } catch (e) {
+        // Still having issues, but check if smartRefreshManager thinks we're OK
+        if (!smartRefreshManager._isInRecoveryMode && smartRefreshManager.consecutiveErrors === 0) {
+          console.log('✅ [ConnectionRecoveryBanner] SmartRefresh reports OK - auto-hiding banner');
+          setStatus('restored');
+          recoveringStartTime.current = null;
+          setTimeout(() => setIsVisible(false), 2000);
+        } else {
+          // Extend timeout and retry
+          console.log('⏳ [ConnectionRecoveryBanner] Still recovering, will check again...');
+        }
+      }
+    }, 15000);
+    
+    return () => {
+      if (recoveryTimeoutRef.current) {
+        clearTimeout(recoveryTimeoutRef.current);
+        recoveryTimeoutRef.current = null;
+      }
+    };
+  }, [isVisible, status]);
+  
+  // CRITICAL: If browser comes back online while in recovering state, fast-track recovery
+  useEffect(() => {
+    if (isOnline && isVisible && status === 'recovering') {
+      // Give smartRefreshManager a moment to detect the connection
+      const fastRecoveryTimeout = setTimeout(async () => {
+        // Check if smartRefreshManager has successfully recovered
+        if (!smartRefreshManager._isInRecoveryMode && smartRefreshManager.consecutiveErrors === 0) {
+          console.log('✅ [ConnectionRecoveryBanner] Fast recovery - connection restored');
+          setStatus('restored');
+          recoveringStartTime.current = null;
+          window.dispatchEvent(new CustomEvent('forceDataRefresh'));
+          setTimeout(() => setIsVisible(false), 2000);
+        }
+      }, 5000);
+      
+      return () => clearTimeout(fastRecoveryTimeout);
+    }
+  }, [isOnline, isVisible, status]);
 
   const handleRetry = () => {
     setStatus('recovering');
