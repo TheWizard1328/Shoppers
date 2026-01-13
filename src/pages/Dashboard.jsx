@@ -2027,10 +2027,11 @@ function Dashboard() {
               return;
             }
 
-            // Dispatcher filtering
+            // Dispatcher filtering - check ALL date deliveries, not just selected driver
             if (isDispatcher && !isAdmin) {
               const dispatcherStoreIds = new Set(currentUser?.store_ids || []);
-              const hasDeliveryInDispatcherStore = deliveriesWithStopOrder.some((delivery) =>
+              const allDateDeliveries = deliveries.filter((d) => d && d.delivery_date === selectedDateStr);
+              const hasDeliveryInDispatcherStore = allDateDeliveries.some((delivery) =>
               delivery &&
               delivery.driver_id === location.driver_id &&
               dispatcherStoreIds.has(delivery.store_id)
@@ -2054,31 +2055,36 @@ function Dashboard() {
         // 3. HOME LOCATIONS: Include when showing all markers
         const isDispatcherNonAdmin = isDispatcher && !isAdmin;
         if (isViewingToday && !isDispatcherNonAdmin && shouldShowAllMarkersForBounds) {
-          // Include ALL drivers' home markers when showing all
+          // Include drivers' home markers when showing all - CRITICAL: Apply same dispatcher filtering
           if (users && Array.isArray(users)) {
             const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-
-            // Add current driver's home
-            if (currentUser?.home_latitude && currentUser?.home_longitude) {
-              const hasActiveStops = deliveriesWithStopOrder.some((d) =>
-              d && !finishedStatuses.includes(d.status) && d.driver_id === currentUser.id
+            
+            // For dispatchers, only include home markers for drivers with stops in dispatcher's stores
+            let driversToIncludeHomes = new Set();
+            
+            if (isDispatcher && !isAdmin) {
+              const dispatcherStoreIds = new Set(currentUser?.store_ids || []);
+              const allDateDeliveries = deliveries.filter((d) => d && d.delivery_date === selectedDateStr);
+              
+              // Get drivers who have deliveries in dispatcher's stores
+              driversToIncludeHomes = new Set(
+                allDateDeliveries
+                  .filter((d) => d && dispatcherStoreIds.has(d.store_id))
+                  .map((d) => d.driver_id)
+                  .filter(Boolean)
               );
-              if (hasActiveStops) {
-                allCoordinates.push([currentUser.home_latitude, currentUser.home_longitude]);
-              }
+            } else {
+              // For admins/drivers, include all drivers with active stops
+              deliveries.forEach((d) => {
+                if (!d || d.delivery_date !== selectedDateStr) return;
+                if (!finishedStatuses.includes(d.status)) {
+                  driversToIncludeHomes.add(d.driver_id);
+                }
+              });
             }
 
-            // Add other drivers' home markers if they have active stops
-            const otherDriversWithStops = new Set();
-            deliveries.forEach((d) => {
-              if (!d || d.delivery_date !== selectedDateStr) return;
-              if (d.driver_id === currentUser?.id) return;
-              if (!finishedStatuses.includes(d.status)) {
-                otherDriversWithStops.add(d.driver_id);
-              }
-            });
-
-            otherDriversWithStops.forEach((driverId) => {
+            // Add home markers for the filtered drivers
+            driversToIncludeHomes.forEach((driverId) => {
               const driver = users.find((u) => u && u.id === driverId);
               if (driver?.home_latitude && driver?.home_longitude) {
                 allCoordinates.push([driver.home_latitude, driver.home_longitude]);
@@ -2105,7 +2111,27 @@ function Dashboard() {
 
         if (shouldShowAllMarkersForBounds) {
           // Show all deliveries for selected date
-          deliveriesToMap = deliveries.filter((d) => d && d.delivery_date === selectedDateStr);
+          let allDateDeliveries = deliveries.filter((d) => d && d.delivery_date === selectedDateStr);
+          
+          // CRITICAL: For dispatchers, ONLY include deliveries from drivers who have stops in dispatcher's stores
+          if (isDispatcher && !isAdmin) {
+            const dispatcherStoreIds = new Set(currentUser?.store_ids || []);
+            
+            // Get drivers who have deliveries in dispatcher's stores
+            const driversWithStoreDeliveries = new Set(
+              allDateDeliveries
+                .filter((d) => d && dispatcherStoreIds.has(d.store_id))
+                .map((d) => d.driver_id)
+                .filter(Boolean)
+            );
+            
+            // Filter to only show deliveries from those drivers (ALL their stops for the date)
+            deliveriesToMap = allDateDeliveries.filter((d) => d && driversWithStoreDeliveries.has(d.driver_id));
+            
+            console.log(`🗺️ [Phase 1 - Dispatcher] Filtered to ${deliveriesToMap.length} deliveries from ${driversWithStoreDeliveries.size} drivers with store stops`);
+          } else {
+            deliveriesToMap = allDateDeliveries;
+          }
         } else {
           // Single driver mode - show only that driver's deliveries
           deliveriesToMap = deliveriesWithStopOrder;
