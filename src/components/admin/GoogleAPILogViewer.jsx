@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Trash2, RefreshCw, MapPin, Navigation, Search, Info, AlertTriangle, TrendingUp, Clock, Filter, X } from 'lucide-react';
-import { format, isWithinInterval, startOfDay, endOfDay, subDays } from 'date-fns';
+import { format, isWithinInterval, startOfDay, endOfDay, subDays, subHours } from 'date-fns';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 
 const apiTypeIcons = {
@@ -128,7 +128,9 @@ export default function GoogleAPILogViewer() {
       let passesDateFilter = true;
       
       if (dateFilter === 'today') {
-        passesDateFilter = format(logDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+        // Last 24 hours from current time
+        const twentyFourHoursAgo = subHours(new Date(), 24);
+        passesDateFilter = logDate >= twentyFourHoursAgo;
       } else if (dateFilter === 'yesterday') {
         passesDateFilter = format(logDate, 'yyyy-MM-dd') === format(subDays(new Date(), 1), 'yyyy-MM-dd');
       } else if (dateFilter === 'week') {
@@ -414,7 +416,7 @@ export default function GoogleAPILogViewer() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="today">Today</SelectItem>
+                    <SelectItem value="today">Last 24 Hours</SelectItem>
                     <SelectItem value="yesterday">Yesterday</SelectItem>
                     <SelectItem value="week">Last 7 Days</SelectItem>
                     <SelectItem value="all">All Time</SelectItem>
@@ -510,7 +512,7 @@ export default function GoogleAPILogViewer() {
           {/* Hourly Call Volume */}
           <div className="bg-white border rounded-lg p-4">
             <h3 className="font-semibold text-slate-900 mb-4">
-              {dateFilter === 'today' ? 'Today\'s Call Volume (00:00-23:59)' :
+              {dateFilter === 'today' ? 'Last 24 Hours Call Volume' :
                dateFilter === 'yesterday' ? 'Yesterday\'s Call Volume (00:00-23:59)' :
                dateFilter === 'week' ? 'Last 7 Days Call Volume (6-hour periods)' :
                'Call Volume by Day'}
