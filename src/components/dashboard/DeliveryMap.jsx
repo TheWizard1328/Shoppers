@@ -2076,10 +2076,12 @@ export default function DeliveryMap({
     const mapInstance = useMapEvents({
       zoomstart: () => {
         // CRITICAL: Check if this is a programmatic zoom (from FAB/auto-center)
-        // Use flag stored on map instance by fitBounds effect
-        const isProgrammatic = mapInstance._isProgrammaticZoom?.current === true;
+        // Check multiple sources to ensure we catch all programmatic zooms
+        const isProgrammaticFromFlag = mapInstance._isProgrammaticZoom?.current === true;
+        const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
+        const isProgrammaticFromTimer = timeSinceProgrammatic < 500;
         
-        if (isProgrammatic) {
+        if (isProgrammaticFromFlag || isProgrammaticFromTimer) {
           console.log('🗺️ [MapController] ZOOM START - PROGRAMMATIC (ignoring)');
           return;
         }
@@ -2129,11 +2131,14 @@ export default function DeliveryMap({
           setCurrentZoom(roundedZoom);
           
           // CRITICAL: Only show zoom overlay on MANUAL zooms (not programmatic)
-          // Use flag stored on map instance by fitBounds effect
-          const isProgrammatic = mapInstance._isProgrammaticZoom?.current === true;
+          // Check multiple sources to ensure we catch all programmatic zooms
+          const isProgrammaticFromFlag = mapInstance._isProgrammaticZoom?.current === true;
+          const timeSinceProgrammatic = Date.now() - (window._lastProgrammaticMapMove || 0);
+          const isProgrammaticFromTimer = timeSinceProgrammatic < 1000;
           
-          if (!isProgrammatic) {
-            // Show zoom overlay for 3 seconds on manual zoom only
+          if (!isProgrammaticFromFlag && !isProgrammaticFromTimer) {
+            // Real user zoom - show overlay for 3 seconds
+            console.log('🗺️ [MapController] ZOOM END - USER INTERACTION (showing overlay)');
             if (zoomOverlayTimeoutRef.current) {
               clearTimeout(zoomOverlayTimeoutRef.current);
             }
