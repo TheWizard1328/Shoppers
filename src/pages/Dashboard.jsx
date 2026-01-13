@@ -5673,49 +5673,8 @@ function Dashboard() {
         console.warn('⚠️ [START] Failed to send notification:', notifyError);
       }
 
-      // Check if route is complete after starting
-      const allDriverDeliveriesForStart = deliveries.filter((d) =>
-      d && d.driver_id === driverId && d.delivery_date === deliveryDate
-      );
-
-      // Helper to detect returns by markers (no status check)
-      const checkIsReturn = (d) => {
-        if (!d || d.patient_id) return false;
-        const patient = patients.find((p) => p && p.id === d.patient_id);
-        const notes = d.delivery_notes || '';
-        const patientName = d.patient_name || '';
-        const patientFullName = patient?.full_name || '';
-        return notes.toLowerCase().includes('(rtn)') ||
-        patientName.toLowerCase().includes('(rtn)') ||
-        patientFullName.toLowerCase().includes('(rtn)') ||
-        /\breturn\b/i.test(notes) ||
-        /\breturn\b/i.test(patientName) ||
-        /\breturn\b/i.test(patientFullName);
-      };
-
-      // CRITICAL: Only count patient deliveries for route completion, NOT pickups
-      const patientDeliveriesForStart = allDriverDeliveriesForStart.filter(d => d && d.patient_id);
-      const routeComplete = patientDeliveriesForStart.length > 0 &&
-        patientDeliveriesForStart.every((d) => finishedStatuses.includes(d.status) || checkIsReturn(d));
-
-      console.log(`🔍 [Route Complete Check - Start] Patient deliveries: ${patientDeliveriesForStart.length}, All finished: ${routeComplete}`);
-
-      if (routeComplete) {
-        const summaryKey = `${driverId}_${deliveryDate}`;
-        if (!hasShownSummaryRef.current.has(summaryKey)) {
-          console.log('🎉 [START] Route complete - showing summary and resetting to Phase 1');
-          const completedDriver = users.find((u) => u && u.id === driverId) || currentUser;
-          setSummaryDriver(completedDriver);
-          setShowRouteSummary(true);
-          hasShownSummaryRef.current.add(summaryKey);
-          
-          // CRITICAL: Reset FAB to Phase 1 when route is complete
-          setMapViewPhase(1);
-          if (currentUser?.id) {
-            saveSetting(currentUser.id, 'fab_map_cycle_phase', 1);
-          }
-        }
-      }
+      // REMOVED: Route complete check from handleStartDelivery
+      // This is now handled ONLY in handleStatusUpdate to ensure consistency
 
     } catch (error) {
       console.log('');
