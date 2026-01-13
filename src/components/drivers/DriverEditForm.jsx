@@ -88,8 +88,8 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* Status Row - 2 columns */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Status Row - 3 columns */}
+          <div className="grid grid-cols-3 gap-3">
             {/* User Status (Active/Inactive) */}
             <div>
               <Label htmlFor="status" className="text-sm font-medium mb-1.5 block">
