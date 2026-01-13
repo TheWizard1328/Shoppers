@@ -3,7 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Truck, Search, Phone, MapPin, User, Circle, RefreshCw, Edit } from 'lucide-react';
+import { Truck, Search, Phone, MapPin, User, Circle, RefreshCw, Edit, Navigation } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
 import { useAppData } from '../components/utils/AppDataContext';
 import { formatPhoneNumber } from '../components/utils/phoneFormatter';
 import { getDriverDisplayName } from '../components/utils/driverUtils';
@@ -188,6 +189,19 @@ export default function DriverSettings() {
                         <Badge className={`text-xs ${dutyStatus.color}`}>
                           {dutyStatus.label}
                         </Badge>
+                        {latestAppUser?.location_updated_at && (
+                          <Badge variant="outline" className="text-xs gap-1" style={{ borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-500)' }}>
+                            <Navigation className="w-3 h-3" />
+                            {(() => {
+                              const updatedAt = new Date(latestAppUser.location_updated_at);
+                              const diffMs = Date.now() - updatedAt.getTime();
+                              const diffMins = Math.floor(diffMs / 60000);
+                              if (diffMins < 1) return 'GPS: <1m';
+                              if (diffMins > 60) return `GPS: >${Math.floor(diffMins / 60)}h`;
+                              return `GPS: ${diffMins}m`;
+                            })()}
+                          </Badge>
+                        )}
                       </div>
                       
                       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm" style={{ color: 'var(--text-slate-600)' }}>
