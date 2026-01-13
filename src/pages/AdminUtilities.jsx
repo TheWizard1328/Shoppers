@@ -2176,10 +2176,10 @@ const UserSettingsTable = ({ appUsers, mergedUsers }) => {
 
   const getUserName = (userId) => {
     if (!userId) return 'Unknown';
-    const user = mergedUsers.find(u => u && u.id === userId);
-    if (user) return user.user_name || user.full_name || 'Unknown';
     const appUser = appUsers.find(au => au && au.user_id === userId);
     if (appUser) return appUser.user_name || 'Unknown';
+    const user = mergedUsers.find(u => u && u.id === userId);
+    if (user) return user.user_name || 'Unknown';
     return userId.substring(0, 8) + '...';
   };
 
