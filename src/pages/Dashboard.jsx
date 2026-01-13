@@ -4772,37 +4772,24 @@ function Dashboard() {
       const driverId = targetDelivery.driver_id;
       const deliveryDate = targetDelivery.delivery_date;
 
-      // Step 1: Delete from offline database
-      console.log('🗑️ [DELETE] Step 1: Deleting from offline DB...');
-      const { offlineDB } = await import('../components/utils/offlineDatabase');
-      await offlineDB.deleteRecord(offlineDB.STORES.DELIVERIES, deliveryId);
-      console.log('  ✅ Removed from offline DB');
-
-      // Step 2: Delete from online entity
-      console.log('🗑️ [DELETE] Step 2: Deleting from online entity...');
-      await base44.entities.Delivery.delete(deliveryId);
-      console.log('  ✅ Removed from online entity');
-
-      // Step 3: Update UI immediately
-      console.log('🗑️ [DELETE] Step 3: Updating UI...');
-      if (updateDeliveriesLocally) {
-        const updatedDeliveries = deliveries.filter((d) => d && d.id !== deliveryId);
-        updateDeliveriesLocally(updatedDeliveries, true);
-      }
+      // CRITICAL: Use deleteDeliveryLocal which handles UI update, offline DB, and backend sync
+      console.log('🗑️ [DELETE] Using deleteDeliveryLocal for complete deletion...');
+      const { deleteDeliveryLocal } = await import('../components/utils/offlineMutations');
+      await deleteDeliveryLocal(deliveryId);
+      console.log('  ✅ Delivery deleted from all locations');
 
       // Clear selection if this card was selected
       if (selectedCardId === deliveryId) {
         setSelectedCardId(null);
       }
-      console.log('  ✅ UI updated');
 
       // Step 4: Recalculate stop orders for remaining deliveries
-      console.log('🔄 [DELETE] Step 4: Recalculating stop orders...');
+      console.log('🔄 [DELETE] Recalculating stop orders...');
       await recalculateStopOrders(driverId, deliveryDate);
       console.log('  ✅ Stop orders recalculated');
 
       // Step 5: Re-optimize route and update ETAs
-      console.log('📡 [DELETE] Step 5: Re-optimizing route and updating ETAs...');
+      console.log('📡 [DELETE] Re-optimizing route and updating ETAs...');
       try {
         const now = new Date();
         const localTimeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -4830,7 +4817,7 @@ function Dashboard() {
       }
 
       // Step 6: Refresh data and update map
-      console.log('🔄 [DELETE] Step 6: Refreshing data and updating map...');
+      console.log('🔄 [DELETE] Refreshing data and updating map...');
       invalidateDeliveriesForDate(deliveryDate);
       await refreshData();
 
