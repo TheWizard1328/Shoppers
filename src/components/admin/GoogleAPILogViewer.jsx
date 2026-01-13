@@ -165,18 +165,17 @@ export default function GoogleAPILogViewer() {
   const hourlyChartData = useMemo(() => {
     const isAllUsers = !userFilter;
     
-    if (dateFilter === 'today' || dateFilter === 'yesterday') {
-      // HOURLY VIEW: 00:00 to 23:00 for single day
-      const targetDate = dateFilter === 'today' ? new Date() : subDays(new Date(), 1);
-      const targetDateStr = format(targetDate, 'yyyy-MM-dd');
-      
+    if (dateFilter === 'today') {
+      // HOURLY VIEW: Last 24 hours from current time
+      const now = new Date();
       const hourlyMap = {};
-      // Initialize all 24 hours
-      for (let i = 0; i < 24; i++) {
-        const hourKey = `${String(i).padStart(2, '0')}:00`;
-        hourlyMap[hourKey] = { hour: hourKey, calls: 0 };
+      
+      // Initialize last 24 hours (starting from 24 hours ago)
+      for (let i = 23; i >= 0; i--) {
+        const hourDate = subHours(now, i);
+        const hourKey = format(hourDate, 'MMM dd HH:00');
+        hourlyMap[hourKey] = { hour: format(hourDate, 'HH:00'), calls: 0, sortOrder: 23 - i };
         
-        // If showing all users, add keys for each user
         if (isAllUsers) {
           uniqueUsers.forEach(user => {
             hourlyMap[hourKey][user] = 0;
@@ -186,8 +185,39 @@ export default function GoogleAPILogViewer() {
       
       // Count calls per hour
       filteredLogs.forEach(log => {
-        const logDate = format(new Date(log.timestamp), 'yyyy-MM-dd');
-        if (logDate !== targetDateStr) return;
+        const logDate = new Date(log.timestamp);
+        const hourKey = format(logDate, 'MMM dd HH:00');
+        if (hourlyMap[hourKey]) {
+          hourlyMap[hourKey].calls++;
+          if (isAllUsers && log.user_name) {
+            hourlyMap[hourKey][log.user_name] = (hourlyMap[hourKey][log.user_name] || 0) + 1;
+          }
+        }
+      });
+      
+      return Object.values(hourlyMap).sort((a, b) => a.sortOrder - b.sortOrder);
+    } else if (dateFilter === 'yesterday') {
+      // HOURLY VIEW: 00:00 to 23:00 for yesterday
+      const targetDate = subDays(new Date(), 1);
+      const targetDateStr = format(targetDate, 'yyyy-MM-dd');
+      
+      const hourlyMap = {};
+      // Initialize all 24 hours
+      for (let i = 0; i < 24; i++) {
+        const hourKey = `${String(i).padStart(2, '0')}:00`;
+        hourlyMap[hourKey] = { hour: hourKey, calls: 0 };
+        
+        if (isAllUsers) {
+          uniqueUsers.forEach(user => {
+            hourlyMap[hourKey][user] = 0;
+          });
+        }
+      }
+      
+      // Count calls per hour
+      filteredLogs.forEach(log => {
+        const logDateStr = format(new Date(log.timestamp), 'yyyy-MM-dd');
+        if (logDateStr !== targetDateStr) return;
         
         const logHour = format(new Date(log.timestamp), 'HH:00');
         if (hourlyMap[logHour]) {
