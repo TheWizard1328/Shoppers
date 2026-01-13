@@ -152,9 +152,19 @@ export default function AdminMetrics() {
       // Build day-by-day data for the selected store in selected month
       const dailyData = metricsData.dailyStoreData?.[selectedStoreMonth.month]?.[selectedStoreMonth.storeId] || [];
       
+      // Get app fee rate and calculate fees per day based on billable deliveries
+      const appFeeRate = metricsData.storeFeeTotals?.app_fee_rate || 0;
+      
+      // Add fees to each day (fees = billable deliveries * rate)
+      // Billable = completed + afterHours for stores paying fees
+      const dailyDataWithFees = dailyData.map(day => ({
+        ...day,
+        fees: ((day.completed || 0) + (day.afterHours || 0)) * appFeeRate
+      }));
+      
       return {
         ...metricsData,
-        storeData: dailyData, // Daily breakdown for the store
+        storeData: dailyDataWithFees, // Daily breakdown for the store with fees
         isDailyBreakdown: true
       };
     }
