@@ -238,13 +238,18 @@ Deno.serve(async (req) => {
     const seconds = String(now.getSeconds()).padStart(2, '0');
     const localTimestamp = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
     
+    // Get current user's AppUser record for user_name
+    const currentUserAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id });
+    const currentUserAppUser = currentUserAppUsers?.[0];
+    const userName = currentUserAppUser?.user_name || 'Unknown';
+    
     await base44.asServiceRole.entities.GoogleAPILog.create({
       timestamp: localTimestamp,
       api_type: 'Directions',
       purpose: `Dependency-aware route optimization for driver ${driverAppUser.user_name || driverId}`,
       function_name: 'optimizeDriverRoute',
       user_id: user.id,
-      user_name: user.full_name,
+      user_name: userName,
       metadata: {
         driver_id: driverId,
         delivery_date: deliveryDate,

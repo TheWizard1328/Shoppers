@@ -23,13 +23,18 @@ Deno.serve(async (req) => {
     }
 
     // Log API call
+    // Get current user's AppUser record for user_name
+    const currentUserAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id });
+    const currentUserAppUser = currentUserAppUsers?.[0];
+    const userName = currentUserAppUser?.user_name || 'Unknown';
+    
     await base44.asServiceRole.entities.GoogleAPILog.create({
       timestamp: new Date().toISOString(),
       api_type: 'Directions',
       purpose: 'Fetching route polyline for map display',
       function_name: 'getGoogleDirections',
       user_id: user.id,
-      user_name: user.full_name,
+      user_name: userName,
       metadata: {
         origin: `${origin.lat},${origin.lon}`,
         destination: `${destination.lat},${destination.lon}`
