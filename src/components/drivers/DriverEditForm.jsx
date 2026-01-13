@@ -39,11 +39,16 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
         location_tracking_enabled: formData.location_tracking_enabled
       };
 
-      // Check if pay rates changed
-      const payRateChanged = formData.pay_rate_per_delivery !== (driver.pay_rate_per_delivery || 0);
-      const kmRateChanged = formData.extra_km_rate !== (driver.extra_km_rate || 0);
-      const kmLimitChanged = formData.extra_km_limit !== (driver.extra_km_limit || 0);
-      const oversizedRateChanged = formData.oversized_item_rate !== (driver.oversized_item_rate || 0);
+      // Check if pay rates changed (compare as numbers)
+      const newPayRate = parseFloat(formData.pay_rate_per_delivery) || 0;
+      const newKmRate = parseFloat(formData.extra_km_rate) || 0;
+      const newKmLimit = parseFloat(formData.extra_km_limit) || 0;
+      const newOversizedRate = parseFloat(formData.oversized_item_rate) || 0;
+      
+      const payRateChanged = newPayRate !== (parseFloat(driver.pay_rate_per_delivery) || 0);
+      const kmRateChanged = newKmRate !== (parseFloat(driver.extra_km_rate) || 0);
+      const kmLimitChanged = newKmLimit !== (parseFloat(driver.extra_km_limit) || 0);
+      const oversizedRateChanged = newOversizedRate !== (parseFloat(driver.oversized_item_rate) || 0);
 
       if (payRateChanged || kmRateChanged || kmLimitChanged || oversizedRateChanged) {
         // Archive the OLD rates to history before updating with new values
@@ -59,12 +64,18 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
           oversized_item_rate: driver.oversized_item_rate || 0
         };
 
-        // Update with NEW values from form
-        updates.pay_rate_per_delivery = formData.pay_rate_per_delivery;
-        updates.extra_km_rate = formData.extra_km_rate;
-        updates.extra_km_limit = formData.extra_km_limit;
-        updates.oversized_item_rate = formData.oversized_item_rate;
+        // Update with NEW values from form (as numbers)
+        updates.pay_rate_per_delivery = newPayRate;
+        updates.extra_km_rate = newKmRate;
+        updates.extra_km_limit = newKmLimit;
+        updates.oversized_item_rate = newOversizedRate;
         updates.pay_rate_history = [...existingHistory, historyEntry];
+      } else {
+        // Always include pay rates in updates to ensure they're saved
+        updates.pay_rate_per_delivery = newPayRate;
+        updates.extra_km_rate = newKmRate;
+        updates.extra_km_limit = newKmLimit;
+        updates.oversized_item_rate = newOversizedRate;
       }
 
       // Call parent onSave which handles the AppUser update
