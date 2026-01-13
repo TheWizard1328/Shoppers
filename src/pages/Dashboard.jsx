@@ -5171,26 +5171,27 @@ function Dashboard() {
             setIsMapViewLocked(false);
           }, 500);
           
-          // CRITICAL: Disable location tracking and set off_duty WHILE summary is showing
+          // CRITICAL: IMMEDIATELY disable location tracking and set off_duty (await to ensure completion)
           try {
-            console.log('🔄 [Route Complete] Disabling location tracking and setting off_duty...');
-            
-            // Stop location tracking
+            console.log('🔄 [Route Complete] Stopping location tracker...');
             if (locationTracker.isTracking) {
               locationTracker.stopTracking();
+              console.log('✅ [Route Complete] Location tracker stopped');
             }
             
-            // Update AppUser to off_duty and disable location tracking (async, don't wait)
-            base44.entities.AppUser.filter({ user_id: currentUser.id }).then(appUsersList => {
-              const appUser = appUsersList?.[0];
-              if (appUser) {
-                base44.entities.AppUser.update(appUser.id, {
-                  driver_status: 'off_duty',
-                  location_tracking_enabled: false
-                });
-                console.log('✅ [Route Complete] Driver set to off_duty with tracking disabled');
-              }
-            });
+            // CRITICAL: Update AppUser IMMEDIATELY (await the promise to ensure it completes)
+            const appUsersList = await base44.entities.AppUser.filter({ user_id: currentUser.id });
+            const appUser = appUsersList?.[0];
+            if (appUser) {
+              console.log(`🔄 [Route Complete] Updating AppUser ${appUser.id} to off_duty with tracking disabled...`);
+              await base44.entities.AppUser.update(appUser.id, {
+                driver_status: 'off_duty',
+                location_tracking_enabled: false
+              });
+              console.log('✅ [Route Complete] AppUser updated: off_duty + tracking disabled');
+            } else {
+              console.error('❌ [Route Complete] AppUser not found for current user');
+            }
           } catch (error) {
             console.error('❌ [Route Complete] Failed to update driver status:', error);
           }
