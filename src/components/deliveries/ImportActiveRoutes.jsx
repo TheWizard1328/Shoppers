@@ -1954,7 +1954,10 @@ export default function ImportActiveRoutes({
                                   {delivery.action === 'create' ? 'New' : 'Update'}
                                 </Badge>
                               </td>
-                              <td className="p-1 w-24 font-medium">{delivery.delivery_date}</td>
+                              <td className="p-1 w-24">
+                                <div className="font-medium">{delivery.delivery_date}</div>
+                                <div className="text-[10px]" style={{ color: 'var(--text-slate-500)' }}>{delivery.driver_name || 'Unknown'}</div>
+                              </td>
                               <td className="p-1 w-12 text-xs font-mono">{delivery.ampm_deliveries || '-'}</td>
                               <td className="p-1 font-mono text-xs w-14">
                                 {delivery.action === 'update' ? (
