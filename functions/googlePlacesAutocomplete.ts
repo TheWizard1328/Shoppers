@@ -61,6 +61,10 @@ Deno.serve(async (req) => {
       console.log('[googlePlacesAutocomplete]    Full requestBody:', JSON.stringify(requestBody, null, 2));
     }
     
+    // Get user's AppUser record for user_name
+    const userAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id });
+    const userAppUser = userAppUsers?.[0];
+    
     // Log API call
     await base44.asServiceRole.entities.GoogleAPILog.create({
       timestamp: new Date().toISOString(),
@@ -68,7 +72,7 @@ Deno.serve(async (req) => {
       purpose: 'Address autocomplete search',
       function_name: 'googlePlacesAutocomplete',
       user_id: user.id,
-      user_name: user.full_name,
+      user_name: userAppUser?.user_name || user.full_name,
       metadata: {
         input: input,
         has_location_bias: !!(latitude && longitude)
@@ -120,7 +124,7 @@ Deno.serve(async (req) => {
               purpose: 'Fetching coordinates for autocomplete distance sorting',
               function_name: 'googlePlacesAutocomplete',
               user_id: user.id,
-              user_name: user.full_name,
+              user_name: userAppUser?.user_name || user.full_name,
               metadata: {
                 place_id: place_id,
                 parent_search: input

@@ -21,6 +21,10 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'API key not configured' }, { status: 500 });
     }
 
+    // Get user's AppUser record for user_name
+    const userAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id });
+    const userAppUser = userAppUsers?.[0];
+    
     // Log API call
     await base44.asServiceRole.entities.GoogleAPILog.create({
       timestamp: new Date().toISOString(),
@@ -28,7 +32,7 @@ Deno.serve(async (req) => {
       purpose: 'Fetching address details for place autocomplete',
       function_name: 'googlePlaceDetails',
       user_id: user.id,
-      user_name: user.full_name,
+      user_name: userAppUser?.user_name || user.full_name,
       metadata: {
         place_id: place_id
       }
