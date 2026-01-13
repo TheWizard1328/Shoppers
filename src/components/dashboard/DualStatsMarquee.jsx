@@ -72,11 +72,12 @@ export default function DualStatsMarquee({
     activeStops: 0,
     failed: 0,
     returns: 0,
-    activeDrivers: 0
+    activeDrivers: 0,
+    inTransitDrivers: 0
   };
   
   const totalDrivers = stats.activeDrivers || 0;
-  const activeDrivers = stats.activeDrivers || 0;
+  const inTransitDrivers = stats.inTransitDrivers || 0;
   const completedDrivers = stats.activeDrivers || 0;
   
   // Build tooltips
@@ -87,7 +88,7 @@ export default function DualStatsMarquee({
         ? `Total Deliveries: ${totalDeliveries}, Total Pickups: ${totalPickups}`
         : `Total Stops: ${totalDeliveries}`,
     activeStops: isDispatcher 
-      ? `In Transit Deliveries: ${inTransitDeliveries} (${activeDrivers} drivers)` 
+      ? `In Transit Deliveries: ${inTransitDeliveries} (${inTransitDrivers} on-duty drivers)` 
       : isDriver && activePickups > 0
         ? `In Transit Deliveries: ${inTransitDeliveries}, En Route Pickups: ${activePickups}`
         : `Active Stops: ${inTransitDeliveries}`,
@@ -113,7 +114,7 @@ export default function DualStatsMarquee({
         <StatBadge
           icon={Truck}
           value={inTransitDeliveries}
-          driverCount={isDispatcher ? activeDrivers : isDriver && activePickups > 0 ? activePickups : undefined}
+          driverCount={isDispatcher ? inTransitDrivers : isDriver && activePickups > 0 ? activePickups : undefined}
           color="purple"
           label="Active"
           tooltip={tooltipValues.activeStops} />

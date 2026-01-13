@@ -317,16 +317,46 @@ Deno.serve(async (req) => {
     
     // DISPATCHER: Count unique driver-date routes for dispatcher's stores
     let todayActiveDrivers = 0;
+    let todayInTransitDrivers = 0;
+    
     if (isDispatcher && !isDriver) {
       // Count unique drivers who have ANY delivery (pickup or patient) in dispatcher's stores
-      todayActiveDrivers = new Set(
+      const allDriverIds = new Set(
         todayDeliveries.filter(d => d?.driver_id).map(d => d.driver_id)
-      ).size;
+      );
+      todayActiveDrivers = allDriverIds.size;
+      
+      // CRITICAL: Count only on_duty drivers with in_transit/en_route stops
+      // Fetch AppUsers to check driver_status
+      const driverAppUsers = await base44.asServiceRole.entities.AppUser.filter({ 
+        user_id: { $in: Array.from(allDriverIds) } 
+      }).catch(() => []);
+      
+      const onDutyDriverIds = new Set(
+        driverAppUsers.filter(au => au?.driver_status === 'on_duty').map(au => au.user_id)
+      );
+      
+      // Count drivers who are on_duty AND have in_transit/en_route stops
+      const inTransitDriverIds = new Set(
+        todayDeliveries
+          .filter(d => d?.driver_id && (d.status === 'in_transit' || d.status === 'en_route') && onDutyDriverIds.has(d.driver_id))
+          .map(d => d.driver_id)
+      );
+      todayInTransitDrivers = inTransitDriverIds.size;
     } else {
       // For admins and drivers, count all active drivers
-      todayActiveDrivers = new Set(
+      const allDriverIds = new Set(
         todayDeliveries.filter(d => d?.driver_id).map(d => d.driver_id)
-      ).size;
+      );
+      todayActiveDrivers = allDriverIds.size;
+      
+      // Count drivers with in_transit/en_route stops for admins (no driver_status check)
+      const inTransitDriverIds = new Set(
+        todayDeliveries
+          .filter(d => d?.driver_id && (d.status === 'in_transit' || d.status === 'en_route'))
+          .map(d => d.driver_id)
+      );
+      todayInTransitDrivers = inTransitDriverIds.size;
     }
 
     // Polyline Count: Skip - not critical and causes errors sometimes
@@ -338,6 +368,7 @@ Deno.serve(async (req) => {
       failed: todayFailedCount,
       returns: todayReturns,
       activeDrivers: todayActiveDrivers,
+      inTransitDrivers: todayInTransitDrivers,
       polylineCount: polylineCount
     };
 
