@@ -270,11 +270,15 @@ const DriverLocationMarkers = ({ users, currentUser, activeDriver, deliveries = 
         const displayName = user.user_name || user.full_name || 'Unknown Driver';
         const firstName = displayName.split(' ')[0];
         
+        // CRITICAL: Use stable key that includes lat/lng to force React to unmount stale markers
+        // This prevents ghost markers and shadows from old positions
+        const stableKey = `${user.id}_${user.current_latitude}_${user.current_longitude}`;
+        
         markersRef.current[user.id] = true;
         
         return (
           <Marker
-            key={user.id}
+            key={stableKey}
             position={position}
             icon={createDriverIcon(user, isActive)}
             zIndexOffset={isActive ? 2000 : 1000}
