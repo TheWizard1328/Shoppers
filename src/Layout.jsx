@@ -168,12 +168,16 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
     const unsubscribe = globalFilters.subscribe(() => {
       const currentDateStr = globalFilters.getSelectedDate();
       const currentDriverId = globalFilters.getSelectedDriverId();
-      
+
       if (currentDateStr !== selectedDateStr) {
         setSelectedDateStr(currentDateStr);
+        // CRITICAL: Force immediate stats refresh on date change
+        lastFetchRef.current = { date: null, driver: null, timestamp: 0 };
       }
       if (currentDriverId !== selectedDriverId) {
         setSelectedDriverIdLocal(currentDriverId);
+        // CRITICAL: Force immediate stats refresh on driver change
+        lastFetchRef.current = { date: null, driver: null, timestamp: 0 };
       }
     });
 

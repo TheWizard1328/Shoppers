@@ -3094,6 +3094,9 @@ function Dashboard() {
       // STEP 5: Resume UI immediately (don't wait for background loads)
       setIsEntityUpdating(false);
 
+      // CRITICAL: Force stats refresh immediately after date change
+      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+
       // STEP 5.5: Wait for UI to fully render before triggering map
       await new Promise((resolve) => setTimeout(resolve, 300));
 
@@ -3229,6 +3232,9 @@ function Dashboard() {
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
         detail: { driverId, deliveryDate: dateStr, triggeredBy: 'driverChange' }
       }));
+
+      // CRITICAL: Force stats refresh immediately after driver change
+      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
       // CRITICAL: Only trigger map ONCE after all state is updated
       if (mapLockTimeoutRef.current) {
