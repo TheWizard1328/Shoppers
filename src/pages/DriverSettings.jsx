@@ -204,21 +204,21 @@ export default function DriverSettings() {
                         })()}
                       </div>
                       
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                      <div className="flex flex-col gap-1 mt-1 text-sm" style={{ color: 'var(--text-slate-600)' }}>
                         {driver.phone &&
-                      <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1">
                             <Phone className="w-3.5 h-3.5" />
                             <a href={`tel:${driver.phone}`} className="hover:opacity-80">
                               {formatPhoneNumber(driver.phone)}
                             </a>
                           </div>
-                      }
+                        }
                         {driver.email &&
-                      <div className="flex items-center gap-1 truncate">
+                          <div className="flex items-center gap-1 truncate">
                             <User className="w-3.5 h-3.5 flex-shrink-0" />
                             <span className="truncate text-xs">{driver.email}</span>
                           </div>
-                      }
+                        }
                       </div>
                       
                       {/* Pay rates display */}
