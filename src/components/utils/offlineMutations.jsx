@@ -99,7 +99,8 @@ export const createPatientLocal = async (patientData) => {
   }
 
   // CRITICAL: Pause smart refresh during mutation
-  await pauseSmartRefresh();
+  const { smartRefreshManager } = await import('./smartRefreshManager');
+  smartRefreshManager.pause();
 
   try {
     console.log('📝 [OfflineMutations] Creating patient locally...');
@@ -133,8 +134,6 @@ export const createPatientLocal = async (patientData) => {
       const backendPatient = await base44.entities.Patient.create(patientData);
       console.log('✅ [Sync] Patient synced to backend immediately:', tempId, '→', backendPatient.id);
       
-      // Broadcast removed
-      
       // CRITICAL: Remove temp record from IndexedDB
       const db = await offlineDB.openDatabase();
       const transaction = db.transaction([offlineDB.STORES.PATIENTS], 'readwrite');
@@ -159,8 +158,8 @@ export const createPatientLocal = async (patientData) => {
       
       console.log('✅ [Sync] Temp patient replaced with backend patient in IndexedDB');
       
-      // Restart smart refresh after sync
-      await restartSmartRefresh();
+      // CRITICAL: Restart smart refresh after sync (not resume)
+      smartRefreshManager.restart();
     } catch (error) {
       console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
       // Queue for backend sync if immediate sync fails
@@ -170,15 +169,16 @@ export const createPatientLocal = async (patientData) => {
         recordId: tempId,
         payload: patientData
       });
-      // Still restart smart refresh even if queued
-      await restartSmartRefresh();
+      // CRITICAL: Restart smart refresh even if queued
+      smartRefreshManager.restart();
     }
     
     return localPatient;
   } catch (error) {
     console.error('❌ [OfflineMutations] Failed to create patient locally:', error);
-    // Resume smart refresh on error
-    await restartSmartRefresh();
+    // CRITICAL: Restart smart refresh on error
+    const { smartRefreshManager } = await import('./smartRefreshManager');
+    smartRefreshManager.restart();
     throw error;
   }
 };
@@ -202,7 +202,8 @@ export const updatePatientLocal = async (patientId, updates) => {
   }
 
   // CRITICAL: Pause smart refresh during mutation
-  await pauseSmartRefresh();
+  const { smartRefreshManager } = await import('./smartRefreshManager');
+  smartRefreshManager.pause();
 
   try {
     console.log('📝 [OfflineMutations] Updating patient locally:', patientId);
@@ -241,10 +242,8 @@ export const updatePatientLocal = async (patientId, updates) => {
       await base44.entities.Patient.update(patientId, updates);
       console.log('✅ [Sync] Patient synced to backend immediately:', patientId);
       
-      // Broadcast removed
-      
-      // Restart smart refresh after sync
-      await restartSmartRefresh();
+      // CRITICAL: Restart smart refresh after sync (not resume)
+      smartRefreshManager.restart();
     } catch (error) {
       console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
       // Queue for backend sync if immediate sync fails
@@ -254,15 +253,16 @@ export const updatePatientLocal = async (patientId, updates) => {
         recordId: patientId,
         payload: updates
       });
-      // Still restart smart refresh even if queued
-      await restartSmartRefresh();
+      // CRITICAL: Restart smart refresh even if queued
+      smartRefreshManager.restart();
     }
     
     return updatedPatient;
   } catch (error) {
     console.error('❌ [OfflineMutations] Failed to update patient locally:', error);
-    // Resume smart refresh on error
-    await restartSmartRefresh();
+    // CRITICAL: Restart smart refresh on error
+    const { smartRefreshManager } = await import('./smartRefreshManager');
+    smartRefreshManager.restart();
     throw error;
   }
 };
@@ -278,7 +278,8 @@ export const deletePatientLocal = async (patientId) => {
   }
 
   // CRITICAL: Pause smart refresh during mutation
-  await pauseSmartRefresh();
+  const { smartRefreshManager } = await import('./smartRefreshManager');
+  smartRefreshManager.pause();
 
   try {
     console.log('📝 [OfflineMutations] Deleting patient locally:', patientId);
@@ -310,10 +311,8 @@ export const deletePatientLocal = async (patientId) => {
       await base44.entities.Patient.delete(patientId);
       console.log('✅ [Sync] Patient deletion synced to backend immediately:', patientId);
       
-      // Broadcast removed
-      
-      // Restart smart refresh after sync
-      await restartSmartRefresh();
+      // CRITICAL: Restart smart refresh after sync (not resume)
+      smartRefreshManager.restart();
     } catch (error) {
       console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
       // Queue for backend sync if immediate sync fails
@@ -322,15 +321,16 @@ export const deletePatientLocal = async (patientId) => {
         entity: 'Patient',
         recordId: patientId
       });
-      // Still restart smart refresh even if queued
-      await restartSmartRefresh();
+      // CRITICAL: Restart smart refresh even if queued
+      smartRefreshManager.restart();
     }
     
     return true;
   } catch (error) {
     console.error('❌ [OfflineMutations] Failed to delete patient locally:', error);
-    // Resume smart refresh on error
-    await restartSmartRefresh();
+    // CRITICAL: Restart smart refresh on error
+    const { smartRefreshManager } = await import('./smartRefreshManager');
+    smartRefreshManager.restart();
     throw error;
   }
 };
@@ -346,7 +346,8 @@ export const createDeliveryLocal = async (deliveryData) => {
   }
 
   // CRITICAL: Pause smart refresh during mutation
-  await pauseSmartRefresh();
+  const { smartRefreshManager } = await import('./smartRefreshManager');
+  smartRefreshManager.pause();
 
   try {
     console.log('📝 [OfflineMutations] Creating delivery locally...');
@@ -380,8 +381,6 @@ export const createDeliveryLocal = async (deliveryData) => {
       const backendDelivery = await base44.entities.Delivery.create(deliveryData);
       console.log('✅ [Sync] Delivery synced to backend immediately:', tempId, '→', backendDelivery.id);
       
-      // Broadcast removed
-      
       // CRITICAL: Remove temp record from IndexedDB
       const db = await offlineDB.openDatabase();
       const transaction = db.transaction([offlineDB.STORES.DELIVERIES], 'readwrite');
@@ -406,8 +405,8 @@ export const createDeliveryLocal = async (deliveryData) => {
       
       console.log('✅ [Sync] Temp delivery replaced with backend delivery in IndexedDB');
       
-      // Restart smart refresh after sync
-      await restartSmartRefresh();
+      // CRITICAL: Restart smart refresh after sync (not resume)
+      smartRefreshManager.restart();
     } catch (error) {
       console.warn('⚠️ [Sync] Immediate sync failed, queuing for later:', error.message);
       // Queue for backend sync if immediate sync fails
@@ -417,15 +416,16 @@ export const createDeliveryLocal = async (deliveryData) => {
         recordId: tempId,
         payload: deliveryData
       });
-      // Still restart smart refresh even if queued
-      await restartSmartRefresh();
+      // CRITICAL: Restart smart refresh even if queued
+      smartRefreshManager.restart();
     }
     
     return localDelivery;
   } catch (error) {
     console.error('❌ [OfflineMutations] Failed to create delivery locally:', error);
-    // Resume smart refresh on error
-    await restartSmartRefresh();
+    // CRITICAL: Restart smart refresh on error
+    const { smartRefreshManager } = await import('./smartRefreshManager');
+    smartRefreshManager.restart();
     throw error;
   }
 };
@@ -446,8 +446,11 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
   }
 
   // CRITICAL: Pause smart refresh during mutation (unless skipped)
+  let smartRefreshManager = null;
   if (!skipSmartRefresh) {
-    await pauseSmartRefresh();
+    const module = await import('./smartRefreshManager');
+    smartRefreshManager = module.smartRefreshManager;
+    smartRefreshManager.pause();
   }
 
   try {
@@ -482,8 +485,8 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
         });
 
         // CRITICAL: Restart smart refresh after sync (unless skipped)
-        if (!skipSmartRefresh) {
-          await restartSmartRefresh();
+        if (!skipSmartRefresh && smartRefreshManager) {
+          smartRefreshManager.restart();
         }
 
         return backendDelivery;
@@ -498,15 +501,15 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
             id: deliveryId,
             data: null 
           });
-          // Resume smart refresh on error
-          if (!skipSmartRefresh) {
-            await restartSmartRefresh();
+          // CRITICAL: Restart smart refresh on error
+          if (!skipSmartRefresh && smartRefreshManager) {
+            smartRefreshManager.restart();
           }
           return null;
         }
-        // Resume smart refresh on error
-        if (!skipSmartRefresh) {
-          await restartSmartRefresh();
+        // CRITICAL: Restart smart refresh on error
+        if (!skipSmartRefresh && smartRefreshManager) {
+          smartRefreshManager.restart();
         }
         throw error;
       }
@@ -551,16 +554,16 @@ export const updateDeliveryLocal = async (deliveryId, updates, options = {}) => 
     }
 
     // CRITICAL: Restart smart refresh after mutation (unless skipped)
-    if (!skipSmartRefresh) {
-      await restartSmartRefresh();
+    if (!skipSmartRefresh && smartRefreshManager) {
+      smartRefreshManager.restart();
     }
     
     return updatedDelivery;
   } catch (error) {
     console.error('❌ [OfflineMutations] Failed to update delivery:', error);
-    // Resume smart refresh on error
-    if (!skipSmartRefresh) {
-      await restartSmartRefresh();
+    // CRITICAL: Restart smart refresh on error
+    if (!skipSmartRefresh && smartRefreshManager) {
+      smartRefreshManager.restart();
     }
     throw error;
   }
@@ -577,7 +580,8 @@ export const deleteDeliveryLocal = async (deliveryId) => {
   }
 
   // CRITICAL: Pause smart refresh during mutation
-  await pauseSmartRefresh();
+  const { smartRefreshManager } = await import('./smartRefreshManager');
+  smartRefreshManager.pause();
 
   try {
     console.log('📝 [OfflineMutations] Deleting delivery locally:', deliveryId);
@@ -618,14 +622,15 @@ export const deleteDeliveryLocal = async (deliveryId) => {
       });
     }
 
-    // Restart smart refresh after sync
-    await restartSmartRefresh();
+    // CRITICAL: Restart smart refresh after sync (not resume)
+    smartRefreshManager.restart();
     
     return true;
   } catch (error) {
     console.error('❌ [OfflineMutations] Failed to delete delivery locally:', error);
-    // Resume smart refresh on error
-    await restartSmartRefresh();
+    // CRITICAL: Restart smart refresh on error
+    const { smartRefreshManager } = await import('./smartRefreshManager');
+    smartRefreshManager.restart();
     throw error;
   }
 };
@@ -641,7 +646,8 @@ export const batchCreateDeliveriesLocal = async (deliveriesData) => {
   }
 
   // CRITICAL: Pause smart refresh during mutation
-  await pauseSmartRefresh();
+  const { smartRefreshManager } = await import('./smartRefreshManager');
+  smartRefreshManager.pause();
 
   try {
     console.log('📝 [OfflineMutations] Batch creating deliveries locally:', deliveriesData.length);
@@ -675,8 +681,6 @@ export const batchCreateDeliveriesLocal = async (deliveriesData) => {
       const backendDeliveries = await base44.entities.Delivery.bulkCreate(deliveriesData);
       console.log(`✅ [Sync] ${localDeliveries.length} deliveries synced to backend immediately`);
       
-      // Broadcast removed
-      
       // CRITICAL: Remove all temp records from IndexedDB
       const db = await offlineDB.openDatabase();
       const transaction = db.transaction([offlineDB.STORES.DELIVERIES], 'readwrite');
@@ -706,8 +710,8 @@ export const batchCreateDeliveriesLocal = async (deliveriesData) => {
       
       console.log('✅ [Sync] All temp deliveries replaced with backend deliveries in IndexedDB');
       
-      // Restart smart refresh after sync
-      await restartSmartRefresh();
+      // CRITICAL: Restart smart refresh after sync (not resume)
+      smartRefreshManager.restart();
     } catch (error) {
       console.warn('⚠️ [Sync] Immediate bulk sync failed, queuing for later:', error.message);
       // Queue all for backend sync if immediate sync fails
@@ -719,15 +723,16 @@ export const batchCreateDeliveriesLocal = async (deliveriesData) => {
           payload: delivery
         });
       }
-      // Still restart smart refresh even if queued
-      await restartSmartRefresh();
+      // CRITICAL: Restart smart refresh even if queued
+      smartRefreshManager.restart();
     }
     
     return localDeliveries;
   } catch (error) {
     console.error('❌ [OfflineMutations] Failed to batch create deliveries locally:', error);
-    // Resume smart refresh on error
-    await restartSmartRefresh();
+    // CRITICAL: Restart smart refresh on error
+    const { smartRefreshManager } = await import('./smartRefreshManager');
+    smartRefreshManager.restart();
     throw error;
   }
 };
