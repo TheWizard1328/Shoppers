@@ -2968,25 +2968,29 @@ export default function Layout({ children, currentPageName }) {
                     <div className="border-t my-2" style={{ borderColor: 'var(--border-slate-200)' }}></div>
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) &&
-                      <Link
-                        to={createPageUrl('Patients')}
-                        onClick={() => setSidebarOpen(false)}
-                        className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
-                          currentPageName === 'Patients' ?
-                            'shadow-sm' :
-                            'hover:opacity-80'}`
-                        }
-                        style={currentPageName === 'Patients' ? {
-                          background: 'var(--bg-slate-100)',
-                          color: 'var(--text-slate-900)'
-                        } : {
-                          color: 'var(--text-slate-600)'
-                        }}>
-                        <Users className="w-5 h-5" />
-                        <span className="font-semibold">Patients</span>
-                        <Badge variant="secondary" className="ml-auto justify-center w-[45px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{entityCounts.patients}</Badge>
-                        </Link>
-                        }
+                        <Link
+                          to={createPageUrl('Patients')}
+                          onClick={() => setSidebarOpen(false)}
+                          className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                            currentPageName === 'Patients' ?
+                              'shadow-sm' :
+                              'hover:opacity-80'}`
+                          }
+                          style={currentPageName === 'Patients' ? {
+                            background: 'var(--bg-slate-100)',
+                            color: 'var(--text-slate-900)'
+                          } : {
+                            color: 'var(--text-slate-600)'
+                          }}>
+                          <Users className="w-5 h-5" />
+                          <span className="font-semibold">Patients</span>
+                          <Badge variant="secondary" className="ml-auto justify-center w-[45px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>
+                            {userHasRole(currentUser, 'admin') 
+                              ? entityCounts.patients 
+                              : patients.filter(p => p && currentUser?.store_ids?.includes(p.store_id)).length}
+                          </Badge>
+                          </Link>
+                          }
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                       <Link
