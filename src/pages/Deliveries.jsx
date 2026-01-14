@@ -3438,16 +3438,6 @@ export default function DeliveriesPage() {
               <Card className="backdrop-blur-sm hidden lg:block flex-shrink-0 m-4 mb-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                 <CardContent className="p-6">
                   <div className="flex items-center gap-3">
-                    <div className="relative flex-grow" style={{ minWidth: '200px', maxWidth: '400px' }}>
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
-                      <Input
-                      placeholder="Search drivers..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 w-full"
-                      style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }} />
-                    </div>
-
                     {userHasRole(currentUser, 'admin') && cities && cities.length > 0 &&
                   <Select value={selectedCityId} onValueChange={(value) => {
                     setSelectedCityId(value);
