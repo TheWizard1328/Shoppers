@@ -972,7 +972,7 @@ export default function DeliveryMetrics() {
               </SelectContent>
             </Select>
 
-            <Button onClick={loadData} variant="outline">
+            <Button onClick={loadData} variant="outline" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
               Refresh Data
             </Button>
           </div>
