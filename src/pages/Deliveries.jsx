@@ -2719,8 +2719,14 @@ export default function DeliveriesPage() {
     if (userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher')) {
       driversToShow = driversWithDeliveries;
       console.log(`👑 Admin/Dispatcher - showing ${driversToShow.length} drivers`);
+    } else if (userHasRole(currentUser, 'driver')) {
+      // Drivers can only see their own card
+      driversToShow = driversWithDeliveries.filter((d) => 
+        d.id === currentUser.id || d.appUserId === currentUser.id
+      );
+      console.log(`🚗 Driver - showing own card only: ${driversToShow.length} drivers`);
     } else {
-      console.log(`❌ User is not admin or dispatcher, no driver overview`);
+      console.log(`❌ User has no valid role for driver overview`);
       return [];
     }
 
