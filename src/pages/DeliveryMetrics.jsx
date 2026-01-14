@@ -1004,16 +1004,16 @@ export default function DeliveryMetrics() {
 
         {/* Charts */}
         <Tabs defaultValue="daily" className="space-y-4">
-          <TabsList>
+          <TabsList style={{ background: 'var(--bg-slate-100)' }}>
             <TabsTrigger value="daily">Daily Trends</TabsTrigger>
             <TabsTrigger value="drivers">By Driver</TabsTrigger>
             <TabsTrigger value="status">Status Breakdown</TabsTrigger>
           </TabsList>
 
           <TabsContent value="daily" className="space-y-4">
-            <Card>
+            <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
               <CardHeader>
-                <CardTitle>Daily Delivery Performance {isWeeklyRangeForChart && showComparison ? "(Current vs. Previous Week)" : ""}</CardTitle>
+                <CardTitle style={{ color: 'var(--text-slate-900)' }}>Daily Delivery Performance {isWeeklyRangeForChart && showComparison ? "(Current vs. Previous Week)" : ""}</CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
