@@ -83,6 +83,7 @@ import { useAppData } from '../components/utils/AppDataContext';
 import { smartRefreshManager } from '../components/utils/smartRefreshManager';
 import { updateDeliveryLocal, deleteDeliveryLocal, createDeliveryLocal, batchDeleteDeliveriesLocal } from '../components/utils/entityMutations';
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
+import StopDetailsPanel from '../components/deliveries/StopDetailsPanel';
 
 const addMinutesToTime = (timeString, minutesToAdd) => {
   if (!timeString) return null;
