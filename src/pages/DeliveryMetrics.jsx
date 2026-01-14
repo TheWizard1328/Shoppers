@@ -73,16 +73,16 @@ const MetricCard = ({ title, value, subtitle, icon: Icon, trend, previousValue, 
   }
 
   return (
-    <Card>
+    <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <CardTitle className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>{title}</CardTitle>
         <div className={`p-2 rounded-full ${colorClasses[color]}`}>
           <Icon className="h-4 w-4" />
         </div>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-        {subtitle && <p className="text-xs text-slate-500 mt-1">{subtitle}</p>}
+        <div className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>{value}</div>
+        {subtitle && <p className="text-xs mt-1" style={{ color: 'var(--text-slate-500)' }}>{subtitle}</p>}
         {percentChange !== null &&
         <div className={`flex items-center mt-2 text-xs ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
             {isPositive ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
@@ -90,7 +90,7 @@ const MetricCard = ({ title, value, subtitle, icon: Icon, trend, previousValue, 
           </div>
         }
         {previousValue !== null && previousValue !== undefined && percentChange === null &&
-        <p className="text-xs text-slate-400 mt-1">Previous: {previousValue}</p>
+        <p className="text-xs mt-1" style={{ color: 'var(--text-slate-400)' }}>Previous: {previousValue}</p>
         }
       </CardContent>
     </Card>);
