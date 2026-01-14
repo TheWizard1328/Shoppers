@@ -474,6 +474,8 @@ export default function ImportActiveRoutes({
       const pendingIndicator = parseInt(values[4]?.trim()) || 0; // Column 5: Negative = pending
       const deliveryStartTimeStr = values[5]?.replace(/"/g, '').trim(); // Column 6: Start time
       const deliveryEndTimeStr = values[6]?.replace(/"/g, '').trim(); // Column 7: End time
+      const travelDistStr = values[8]?.replace(/"/g, '').trim(); // Column 9: Travel distance
+      const travelDist = travelDistStr && !isNaN(parseFloat(travelDistStr)) ? parseFloat(parseFloat(travelDistStr).toFixed(2)) : null;
       // Column 13: PUID (Pickup ID - links deliveries to their originating pickup)
       const importedPuid = (values[12] || '').replace(/"/g, '').trim(); // Column 13: PUID (index 12)
       const stopId = (values[13] || '').replace(/"/g, '').trim(); // Column 14: SID (index 13)
@@ -736,6 +738,17 @@ export default function ImportActiveRoutes({
           id: existingDelivery.id,
           delivery_notes: existingDelivery.delivery_notes || null
         };
+
+        // CRITICAL: Import travel_dist only if existing is 0 AND stop is finished
+        const finishedStatuses = ['completed', 'failed', 'cancelled'];
+        if (finishedStatuses.includes(existingDelivery.status) && 
+            (existingDelivery.travel_dist === 0 || existingDelivery.travel_dist === null) && 
+            travelDist !== null) {
+          updatedDeliveryData.travel_dist = travelDist;
+        } else {
+          // Preserve existing travel_dist
+          updatedDeliveryData.travel_dist = existingDelivery.travel_dist;
+        }
 
         // Detect changes between existing and imported data
         const changes = detectChanges(existingDelivery, updatedDeliveryData);

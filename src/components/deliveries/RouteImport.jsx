@@ -910,7 +910,7 @@ export default function RouteImport({
       const existingDelivery = matchResult?.match || null;
       const matchReason = matchResult?.reason || 'Unknown';
 
-      // CRITICAL: For updates, preserve existing travel_dist (no longer imported)
+      // CRITICAL: Import travel_dist ONLY if existing is 0
       if (existingDelivery) {
         const changes = detectChanges(existingDelivery, newDeliveryData);
 
@@ -920,6 +920,17 @@ export default function RouteImport({
             ...newDeliveryData,
             id: existingDelivery.id
           };
+
+          // CRITICAL: Import travel_dist only if existing is 0 AND stop is finished
+          const finishedStatuses = ['completed', 'failed', 'cancelled'];
+          if (finishedStatuses.includes(existingDelivery.status) && 
+              (existingDelivery.travel_dist === 0 || existingDelivery.travel_dist === null) && 
+              travelDist !== null) {
+            updatedDeliveryData.travel_dist = travelDist;
+          } else {
+            // Preserve existing travel_dist
+            updatedDeliveryData.travel_dist = existingDelivery.travel_dist;
+          }
 
           deliveriesToUpdate.push({
             ...updatedDeliveryData,
