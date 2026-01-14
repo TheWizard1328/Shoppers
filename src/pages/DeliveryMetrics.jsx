@@ -1048,12 +1048,12 @@ export default function DeliveryMetrics() {
 
             {/* Render separate chart for previous period if not a weekly range and comparison is enabled */}
             {showComparison && !isWeeklyRangeForChart && metrics.prevDailyData.length > 0 &&
-            <Card>
+            <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                 <CardHeader>
-                  <CardTitle>
+                  <CardTitle style={{ color: 'var(--text-slate-900)' }}>
                     Daily Delivery Performance - Previous Period
                     {prevStartDate && prevEndDate && (
-                      <span className="text-sm font-normal text-slate-500 ml-2">
+                      <span className="text-sm font-normal ml-2" style={{ color: 'var(--text-slate-500)' }}>
                         ({format(prevStartDate, 'MMM d, yyyy')} - {format(prevEndDate, 'MMM d, yyyy')})
                       </span>
                     )}
