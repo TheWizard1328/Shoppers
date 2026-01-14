@@ -3163,9 +3163,15 @@ export default function DeliveriesPage() {
   handleEditPatient,
   filteredAndSortedDeliveries,
   isMobile,
-  loadData,
-  windowWidth]
+  loadData]
   );
+  
+  // Track window width for responsive layout
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   
   // Determine if we should show the split view (cards + details panel)
   // Show split view on desktop OR on wider mobile screens (>= 640px width)
