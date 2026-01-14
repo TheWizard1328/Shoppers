@@ -624,7 +624,7 @@ export default function DeliveriesPage() {
     checkAccess();
   }, [checkAccess]);
 
-  // Auto-select driver for driver-only users
+  // Auto-select driver for driver-only users OR dispatchers with single driver
   useEffect(() => {
     if (!currentUser || !hasAccess) return;
     
@@ -635,7 +635,16 @@ export default function DeliveriesPage() {
         setDriverFilter(currentUser.id);
       }
     }
-  }, [currentUser, hasAccess, driverFilter]);
+    
+    // Dispatchers with only 1 driver: auto-select that driver
+    if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
+      if (uniqueDriversForDispatcher && uniqueDriversForDispatcher.count === 1 && driverFilter === 'all') {
+        const singleDriverId = uniqueDriversForDispatcher.driverIds[0];
+        console.log('👔 [Deliveries] Dispatcher has only 1 driver, auto-selecting:', singleDriverId);
+        setDriverFilter(singleDriverId);
+      }
+    }
+  }, [currentUser, hasAccess, driverFilter, uniqueDriversForDispatcher]);
 
   useEffect(() => {
     if (!hasAccess || initialLoadDone.current) {
