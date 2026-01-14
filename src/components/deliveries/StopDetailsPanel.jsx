@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { formatPhoneNumber } from "../utils/phoneFormatter";
+import SpecialSymbolsBadges from "../utils/SpecialSymbolsBadges";
 
 const statusConfig = {
   pending: { color: 'bg-yellow-100 text-yellow-800 border-yellow-300', label: 'Pending', icon: Clock },
@@ -154,15 +155,7 @@ export default function StopDetailsPanel({
               </>
             ) : patient ? (
               <>
-                <div>
-                  <p className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>
-                    {patient.full_name || delivery.patient_name || 'Unknown Patient'}
-                  </p>
-                  {patient.unit_number && (
-                    <Badge variant="secondary" className="mt-1">Unit {patient.unit_number}</Badge>
-                  )}
-                </div>
-                
+                {/* Address first */}
                 {patient.address && (
                   <div className="flex items-start gap-2">
                     <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: 'var(--text-slate-400)' }} />
@@ -177,10 +170,23 @@ export default function StopDetailsPanel({
                   </div>
                 )}
 
+                {/* Name with unit number and special symbols */}
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>
+                      {patient.full_name || delivery.patient_name || 'Unknown Patient'}
+                    </p>
+                    {patient.unit_number && (
+                      <Badge variant="secondary" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>Unit {patient.unit_number}</Badge>
+                    )}
+                    <SpecialSymbolsBadges delivery={delivery} patient={patient} isPickup={false} size="md" />
+                  </div>
+                </div>
+
                 {patient.phone && (
                   <div className="flex items-center gap-2">
                     <Phone className="w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
-                    <a href={`tel:${patient.phone}`} className="text-sm text-blue-600 hover:underline">
+                    <a href={`tel:${patient.phone}`} className="text-sm hover:underline" style={{ color: 'var(--text-slate-700)' }}>
                       {formatPhoneNumber(patient.phone)}
                     </a>
                   </div>
@@ -189,26 +195,49 @@ export default function StopDetailsPanel({
                 {patient.phone_secondary && (
                   <div className="flex items-center gap-2">
                     <Phone className="w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
-                    <a href={`tel:${patient.phone_secondary}`} className="text-sm text-blue-600 hover:underline">
+                    <a href={`tel:${patient.phone_secondary}`} className="text-sm hover:underline" style={{ color: 'var(--text-slate-700)' }}>
                       {formatPhoneNumber(patient.phone_secondary)} (Alt)
                     </a>
+                  </div>
+                )}
+
+                {/* COD Information */}
+                {(delivery.cod_total_amount_required > 0 || (delivery.cod_payments && delivery.cod_payments.length > 0)) && (
+                  <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-100)' }}>
+                    <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
+                      <DollarSign className="w-3 h-3" /> COD Payment
+                    </p>
+                    {delivery.cod_total_amount_required > 0 && (
+                      <p className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>
+                        Required: ${delivery.cod_total_amount_required.toFixed(2)}
+                      </p>
+                    )}
+                    {delivery.cod_payments && delivery.cod_payments.length > 0 && (
+                      <div className="mt-1 space-y-1">
+                        {delivery.cod_payments.map((payment, idx) => (
+                          <p key={idx} className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                            {payment.type}: ${payment.amount.toFixed(2)}
+                          </p>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {/* Patient Preferences */}
                 <div className="flex flex-wrap gap-2 pt-2">
                   {patient.mailbox_ok && (
-                    <Badge variant="outline" className="text-xs">
+                    <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
                       <Mail className="w-3 h-3 mr-1" /> Mailbox OK
                     </Badge>
                   )}
                   {patient.call_upon_arrival && (
-                    <Badge variant="outline" className="text-xs">
+                    <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
                       <Phone className="w-3 h-3 mr-1" /> Call on Arrival
                     </Badge>
                   )}
                   {patient.ring_bell && !patient.dont_ring_bell && (
-                    <Badge variant="outline" className="text-xs">
+                    <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
                       <Bell className="w-3 h-3 mr-1" /> Ring Bell
                     </Badge>
                   )}
@@ -218,16 +247,29 @@ export default function StopDetailsPanel({
                     </Badge>
                   )}
                   {patient.back_door && (
-                    <Badge variant="outline" className="text-xs">
+                    <Badge variant="outline" className="text-xs" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
                       <Home className="w-3 h-3 mr-1" /> Back Door
                     </Badge>
                   )}
                 </div>
 
+                {/* Patient Notes - only show if notes exist */}
                 {patient.notes && (
                   <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-100)' }}>
-                    <p className="text-xs font-medium mb-1" style={{ color: 'var(--text-slate-500)' }}>Patient Notes:</p>
+                    <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
+                      <StickyNote className="w-3 h-3" /> Patient Notes
+                    </p>
                     <p className="text-sm" style={{ color: 'var(--text-slate-700)' }}>{patient.notes}</p>
+                  </div>
+                )}
+
+                {/* Driver Notes - only show if notes exist */}
+                {delivery.delivery_notes && (
+                  <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-100)' }}>
+                    <p className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
+                      <StickyNote className="w-3 h-3" /> Driver Notes
+                    </p>
+                    <p className="text-sm" style={{ color: 'var(--text-slate-700)' }}>{delivery.delivery_notes}</p>
                   </div>
                 )}
               </>
