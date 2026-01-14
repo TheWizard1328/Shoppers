@@ -277,9 +277,9 @@ export default function DeliveryMetrics() {
       let allDrivers = [];
 
       if (isAdmin) {
-        // Admin can see all drivers
+        // Admin can see all drivers - use getData which uses caching
         try {
-          const usersData = await User.list();
+          const usersData = await getData('User');
           console.log('👥 [DeliveryMetrics] Fetched users:', usersData?.length);
           const allAuthUsers = (usersData || []).filter((u) => u.role === 'admin' || u.role === 'user');
           allDrivers = allAuthUsers.map((authUser) => {
@@ -300,7 +300,7 @@ export default function DeliveryMetrics() {
           });
           console.log('👥 [DeliveryMetrics] Filtered drivers:', allDrivers.length, allDrivers.map(d => d.user_name || d.full_name));
         } catch (userListError) {
-          console.error('❌ [DeliveryMetrics] Error fetching User.list():', userListError);
+          console.error('❌ [DeliveryMetrics] Error fetching users:', userListError);
           // Fallback: Build drivers from AppUser data
           allDrivers = (appUsersData || [])
             .filter(au => au.app_roles?.includes('driver') || au.app_roles?.includes('admin'))
