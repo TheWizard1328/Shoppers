@@ -2123,14 +2123,23 @@ export default function DeliveriesPage() {
     );
 
     const totalStops = driverDeliveriesForSelectedDate.length;
-    const completed = driverDeliveriesForSelectedDate.filter((d) => d.status === 'completed').length;
-
-    const returned = driverDeliveriesForSelectedDate.filter((d) => {
+    
+    // Helper to check if delivery is a return (by notes or address)
+    const isReturnDelivery = (d) => {
       const patient = (effectivePatients || []).find((p) => p.id === d.patient_id);
       const notesReturn = (d.delivery_notes || '').toLowerCase().includes('return');
       const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
       return notesReturn || addressReturn;
-    }).length;
+    };
+    
+    // Completed should NOT include failed, returned, or cancelled statuses
+    const completed = driverDeliveriesForSelectedDate.filter((d) => 
+      d.status === 'completed' && 
+      !['failed', 'returned', 'cancelled'].includes(d.status) &&
+      !isReturnDelivery(d)
+    ).length;
+
+    const returned = driverDeliveriesForSelectedDate.filter((d) => isReturnDelivery(d)).length;
 
     const failed = driverDeliveriesForSelectedDate.filter((d) => d.status === 'failed').length;
 
