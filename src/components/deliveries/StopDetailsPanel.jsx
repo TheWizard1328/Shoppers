@@ -23,8 +23,11 @@ import {
   BellOff,
   Mail,
   Home,
-  ArrowLeft
+  ArrowLeft,
+  Image,
+  FileSignature
 } from "lucide-react";
+import { format } from "date-fns";
 import { formatPhoneNumber } from "../utils/phoneFormatter";
 
 const statusConfig = {
