@@ -341,8 +341,16 @@ export default function DeliveryMetrics() {
         }
       }
 
-      console.log('👥 [DeliveryMetrics] Final drivers list:', allDrivers.length, allDrivers.map(d => ({ id: d.id, name: d.user_name || d.full_name })));
-      setDrivers(sortUsers(allDrivers));
+      console.log('👥 [DeliveryMetrics] Final drivers list:', allDrivers.length, allDrivers.map(d => ({ id: d.id, user_id: d.user_id, name: d.user_name || d.full_name })));
+      
+      // Ensure all drivers have a valid id
+      const driversWithIds = allDrivers.filter(d => d.id || d.user_id).map(d => ({
+        ...d,
+        id: d.id || d.user_id
+      }));
+      console.log('👥 [DeliveryMetrics] Drivers with valid IDs:', driversWithIds.length);
+      
+      setDrivers(sortUsers(driversWithIds));
       setDeliveries(deliveriesData || []);
 
       console.log(`✅ [DeliveryMetrics] Stored ${deliveriesData?.length || 0} total deliveries in state`);
