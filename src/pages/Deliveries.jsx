@@ -3034,6 +3034,7 @@ export default function DeliveriesPage() {
         {/* Stop Cards Column - Single column on desktop, full width on narrow mobile */}
         <div className={`${showSplitView ? 'w-[400px] flex-shrink-0' : 'w-full'} h-full overflow-hidden`}>
           <DragDropContext onDragEnd={handleDragEnd}>
+            <Droppable droppableId="deliveries">
               {(provided) =>
               <div
                 {...provided.droppableProps}
