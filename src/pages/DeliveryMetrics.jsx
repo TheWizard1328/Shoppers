@@ -1176,7 +1176,7 @@ export default function DeliveryMetrics() {
 
           <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>Failed/Returned Deliveries</CardTitle>
+              <CardTitle className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>Failed Returned</CardTitle>
               <XCircle className="h-4 w-4 text-red-500" />
             </CardHeader>
             <CardContent>
@@ -1190,7 +1190,7 @@ export default function DeliveryMetrics() {
 
           <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>Avg Distance Per Stop</CardTitle>
+              <CardTitle className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>Avg Distance</CardTitle>
               <Truck className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
