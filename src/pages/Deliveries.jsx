@@ -3149,7 +3149,8 @@ export default function DeliveriesPage() {
   selectedDate,
   selectedDeliveryId,
   handleEditPatient,
-  filteredAndSortedDeliveries]
+  filteredAndSortedDeliveries,
+  isMobile]
   );
 
   function LogoImage({ className }) {
