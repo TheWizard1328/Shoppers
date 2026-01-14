@@ -197,25 +197,16 @@ export default function DeliveriesPage() {
 
       setCurrentUser(user);
 
-      if (userHasRole(user, 'admin') || userHasRole(user, 'dispatcher')) {
-        console.log("✅ [Deliveries] Admin/Dispatcher access granted");
+      // Allow access for admin, dispatcher, and driver roles
+      if (userHasRole(user, 'admin') || userHasRole(user, 'dispatcher') || userHasRole(user, 'driver')) {
+        console.log("✅ [Deliveries] Access granted for role:", user.app_roles);
         setHasAccess(true);
         return true;
       }
 
-      const isDriverOnly = userHasRole(user, 'driver') &&
-      !userHasRole(user, 'admin') &&
-      !userHasRole(user, 'dispatcher');
-
-      if (isDriverOnly) {
-        console.log("❌ [Deliveries] Driver-only user, denying access");
-        setHasAccess(false);
-        return false;
-      }
-
-      console.log("✅ [Deliveries] Access granted");
-      setHasAccess(true);
-      return true;
+      console.log("❌ [Deliveries] No valid role found");
+      setHasAccess(false);
+      return false;
 
     } catch (error) {
       console.error("❌ [Deliveries] Error checking access:", error);
