@@ -281,30 +281,53 @@ export default function DeliveryMetrics() {
       setPatients(patientsData || []);
       setStores(storesData || []);
 
-      const isAdmin = currentUser?.role === 'admin';
+      // Check if user is admin via platform role OR app_roles
+      const currentAppUser = (appUsersData || []).find((au) => au.user_id === currentUser.id);
+      const isAdmin = currentUser?.role === 'admin' || currentAppUser?.app_roles?.includes('admin');
+      console.log('👤 [DeliveryMetrics] Current user:', currentUser?.full_name, 'isAdmin:', isAdmin, 'platform role:', currentUser?.role, 'app_roles:', currentAppUser?.app_roles);
+      
       let allDrivers = [];
 
       if (isAdmin) {
-        const usersData = await User.list();
-        const allAuthUsers = (usersData || []).filter((u) => u.role === 'admin' || u.role === 'user');
-        allDrivers = allAuthUsers.map((authUser) => {
-          const appUser = (appUsersData || []).find((au) => au.user_id === authUser.id);
-          if (appUser) {
-            return {
-              ...authUser,
-              ...appUser,
-              user_name: appUser.user_name || authUser.full_name,
-              app_role: appUser.app_roles?.[0] || 'driver',
-              display_name: appUser.user_name || authUser.full_name
-            };
-          }
-          return authUser;
-        }).filter((u) => {
-          const appRole = u.app_role || u.app_roles?.[0];
-          return appRole === 'driver' || appRole === 'admin';
-        });
+        // Admin can see all drivers
+        try {
+          const usersData = await User.list();
+          console.log('👥 [DeliveryMetrics] Fetched users:', usersData?.length);
+          const allAuthUsers = (usersData || []).filter((u) => u.role === 'admin' || u.role === 'user');
+          allDrivers = allAuthUsers.map((authUser) => {
+            const appUser = (appUsersData || []).find((au) => au.user_id === authUser.id);
+            if (appUser) {
+              return {
+                ...authUser,
+                ...appUser,
+                user_name: appUser.user_name || authUser.full_name,
+                app_role: appUser.app_roles?.[0] || 'driver',
+                display_name: appUser.user_name || authUser.full_name
+              };
+            }
+            return authUser;
+          }).filter((u) => {
+            const appRole = u.app_role || u.app_roles?.[0];
+            return appRole === 'driver' || appRole === 'admin';
+          });
+          console.log('👥 [DeliveryMetrics] Filtered drivers:', allDrivers.length, allDrivers.map(d => d.user_name || d.full_name));
+        } catch (userListError) {
+          console.error('❌ [DeliveryMetrics] Error fetching User.list():', userListError);
+          // Fallback: Build drivers from AppUser data
+          allDrivers = (appUsersData || [])
+            .filter(au => au.app_roles?.includes('driver') || au.app_roles?.includes('admin'))
+            .map(au => ({
+              id: au.user_id,
+              user_id: au.user_id,
+              user_name: au.user_name,
+              display_name: au.user_name,
+              app_role: au.app_roles?.[0] || 'driver',
+              app_roles: au.app_roles
+            }));
+          console.log('👥 [DeliveryMetrics] Fallback drivers from AppUser:', allDrivers.length);
+        }
       } else {
-        const currentAppUser = (appUsersData || []).find((au) => au.user_id === currentUser.id);
+        // Non-admin: only show themselves
         if (currentAppUser) {
           allDrivers = [{
             ...currentUser,
@@ -318,6 +341,7 @@ export default function DeliveryMetrics() {
         }
       }
 
+      console.log('👥 [DeliveryMetrics] Final drivers list:', allDrivers.length, allDrivers.map(d => ({ id: d.id, name: d.user_name || d.full_name })));
       setDrivers(sortUsers(allDrivers));
       setDeliveries(deliveriesData || []);
 
