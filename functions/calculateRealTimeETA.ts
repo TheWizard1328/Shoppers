@@ -178,13 +178,17 @@ Deno.serve(async (req) => {
     // ONE API call for the entire route
     try {
       // Log API call
+      // Get user's AppUser record for user_name
+      const userAppUsers = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id });
+      const userAppUser = userAppUsers?.[0];
+      
       await base44.asServiceRole.entities.GoogleAPILog.create({
         timestamp: new Date().toISOString(),
         api_type: 'Directions',
         purpose: `Calculating real-time ETAs for driver ${driverAppUser.user_name || driverId}`,
         function_name: 'calculateRealTimeETA',
         user_id: user.id,
-        user_name: user.full_name,
+        user_name: userAppUser?.user_name || user.full_name,
         metadata: {
           driver_id: driverId,
           delivery_date: deliveryDate,
