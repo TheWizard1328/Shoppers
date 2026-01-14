@@ -170,6 +170,7 @@ export default function DeliveriesPage() {
   const isMobile = useMemo(() => isMobileDevice(), []);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [selectedDeliveryId, setSelectedDeliveryId] = useState(null);
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
   const [showRouteMap, setShowRouteMap] = useState(false);
 
@@ -3163,19 +3164,11 @@ export default function DeliveriesPage() {
   filteredAndSortedDeliveries,
   isMobile,
   loadData,
-  showSplitView]
+  windowWidth]
   );
   
   // Determine if we should show the split view (cards + details panel)
   // Show split view on desktop OR on wider mobile screens (>= 640px width)
-  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
-  
-  useEffect(() => {
-    const handleResize = () => setWindowWidth(window.innerWidth);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-  
   const showSplitView = !isMobile || windowWidth >= 640;
 
   function LogoImage({ className }) {
