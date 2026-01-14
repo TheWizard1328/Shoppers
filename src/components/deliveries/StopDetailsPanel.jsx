@@ -78,17 +78,45 @@ export default function StopDetailsPanel({
   return (
     <div className="h-full flex flex-col overflow-hidden" style={{ background: 'var(--bg-slate-50)' }}>
       {/* Header */}
-      <div className="flex-shrink-0 p-4 border-b flex items-center justify-between" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={onClose} className="lg:hidden">
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <h2 className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>Stop Details</h2>
+      <div className="flex-shrink-0 p-4 border-b" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={onClose} className="lg:hidden">
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <h2 className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>Stop Details</h2>
+          </div>
         </div>
-        <Badge className={`${status.color} border`}>
-          <StatusIcon className="w-3 h-3 mr-1" />
-          {status.label}
-        </Badge>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge className={`${status.color} border`}>
+            <StatusIcon className="w-3 h-3 mr-1" />
+            {status.label}
+          </Badge>
+          {delivery.stop_order && (
+            <Badge variant="outline">
+              Stop #{delivery.stop_order}
+            </Badge>
+          )}
+          {store?.abbreviation && (
+            <Badge 
+              variant="outline" 
+              style={{ borderColor: store.color || 'var(--border-slate-300)', color: store.color || 'var(--text-slate-600)' }}
+            >
+              {store.abbreviation}
+            </Badge>
+          )}
+          {delivery.actual_delivery_time && (
+            <Badge variant="secondary" className="font-mono">
+              <Clock className="w-3 h-3 mr-1" />
+              {format(new Date(delivery.actual_delivery_time), 'h:mm a')}
+            </Badge>
+          )}
+          {delivery.tracking_number && (
+            <Badge variant="secondary" className="font-mono">
+              TR# {delivery.tracking_number}
+            </Badge>
+          )}
+        </div>
       </div>
 
       {/* Scrollable Content */}
