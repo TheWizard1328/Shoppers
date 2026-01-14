@@ -1148,44 +1148,44 @@ export default function DeliveryMetrics() {
 
         {/* Additional Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
+          <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Distance</CardTitle>
-              <MapPin className="h-4 w-4 text-slate-500" />
+              <CardTitle className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>Total Distance</CardTitle>
+              <MapPin className="h-4 w-4" style={{ color: 'var(--text-slate-500)' }} />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{metrics.totalDistance} km</div>
-              <p className="text-xs text-slate-500 mt-1">Across all routes</p>
+              <div className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>{metrics.totalDistance} km</div>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-slate-500)' }}>Across all routes</p>
               {showComparison &&
-              <p className="text-xs text-slate-400 mt-1">Previous: {metrics.prevTotalDistance} km</p>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-slate-400)' }}>Previous: {metrics.prevTotalDistance} km</p>
               }
             </CardContent>
           </Card>
 
-          <Card>
+          <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Failed/Returned Deliveries</CardTitle>
+              <CardTitle className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>Failed/Returned Deliveries</CardTitle>
               <XCircle className="h-4 w-4 text-red-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{metrics.failedDeliveries}/{metrics.returnedDeliveries}</div>
-              <p className="text-xs text-slate-500 mt-1">Total failed and returned</p>
+              <div className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>{metrics.failedDeliveries}/{metrics.returnedDeliveries}</div>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-slate-500)' }}>Total failed and returned</p>
               {showComparison &&
-              <p className="text-xs text-slate-400 mt-1">Previous: {metrics.prevFailedDeliveries}/{metrics.prevReturnedDeliveries}</p>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-slate-400)' }}>Previous: {metrics.prevFailedDeliveries}/{metrics.prevReturnedDeliveries}</p>
               }
             </CardContent>
           </Card>
 
-          <Card>
+          <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Avg Distance Per Stop</CardTitle>
+              <CardTitle className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>Avg Distance Per Stop</CardTitle>
               <Truck className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{metrics.avgDistance} km</div>
-              <p className="text-xs text-slate-500 mt-1">Between deliveries</p>
+              <div className="text-2xl font-bold" style={{ color: 'var(--text-slate-900)' }}>{metrics.avgDistance} km</div>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-slate-500)' }}>Between deliveries</p>
               {showComparison &&
-              <p className="text-xs text-slate-400 mt-1">Previous: {metrics.prevAvgDistance} km</p>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-slate-400)' }}>Previous: {metrics.prevAvgDistance} km</p>
               }
             </CardContent>
           </Card>
