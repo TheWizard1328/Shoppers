@@ -3740,7 +3740,7 @@ export default function DeliveriesPage() {
               }
                   <CardContent className="px-3 py-1">
                     <div className="flex flex-col lg:flex-row items-start lg:items-center gap-3 lg:gap-4 w-full">
-                      <div className="flex items-center gap-4 w-full lg:w-auto">
+                      <div className="flex items-center gap-4 w-full lg:flex-1">
                         <div className="flex-shrink-0 w-16 h-16 rounded-full flex items-center justify-center" style={{ background: 'var(--bg-slate-100)' }}>
                           <span className="text-3xl font-bold" style={{ color: 'var(--text-slate-600)' }}>
                             {getDriverDisplayName(activeDriver).charAt(0)}
@@ -3757,7 +3757,7 @@ export default function DeliveriesPage() {
                         </div>
                       </div>
                       {driverOverviewStats &&
-                      <div className="flex gap-3 flex-shrink-0 items-center w-full lg:w-auto justify-start lg:justify-end">
+                      <div className="flex gap-3 flex-shrink-0 items-center w-full lg:w-auto">
                           <StatBox
                             value={driverOverviewStats.totalStops}
                             label="Total Stops"
