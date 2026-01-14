@@ -218,8 +218,9 @@ export default function StopCard({
   // Use isSelected prop to control expansion (parent controls state)
   // CRITICAL: Stripped deliveries cannot be expanded
   // CRITICAL: Finished deliveries start collapsed but CAN be expanded when selected
+  // CRITICAL: If compact mode is enabled (desktop), never expand the card (details shown in panel)
   const isFinishedDelivery = FINISHED_STATUSES.includes(delivery?.status);
-  const isExpanded = isSelected && !isStrippedDelivery;
+  const isExpanded = compact ? false : (isSelected && !isStrippedDelivery);
 
   // Sync state with delivery prop changes
   useEffect(() => {
