@@ -99,20 +99,21 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         // Tracking is running - clear any errors
         setHasError(false);
         consecutiveErrorsRef.current = 0;
-      } else if (!localUser?.location_tracking_enabled) {
+      } else if (!isLocationSharingEnabled) {
         // Sharing is disabled - clear error
         setHasError(false);
         consecutiveErrorsRef.current = 0;
       }
 
-      // Update UI with timing info
-      if (status.lastUpdate > 0) {
+      // CRITICAL: Only show timing info if location sharing is ENABLED
+      if (isLocationSharingEnabled && status.lastUpdate > 0) {
         setLastUpdateTime(new Date(status.lastUpdate));
 
         const timeSinceLastUpdate = Date.now() - status.lastUpdate;
         const timeUntilNextUpdate = Math.max(0, 30000 - timeSinceLastUpdate);
         setNextUpdateIn(Math.ceil(timeUntilNextUpdate / 1000));
       } else {
+        // Sharing is OFF - clear timing info
         setLastUpdateTime(null);
         setNextUpdateIn(null);
       }
@@ -122,7 +123,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
     const interval = setInterval(updateStatus, 1000);
 
     return () => clearInterval(interval);
-  }, [isMobile, isDriver, isAdmin, localUser]);
+  }, [isMobile, isDriver, isAdmin, isLocationSharingEnabled]);
 
   // Check GPS capabilities
   useEffect(() => {
@@ -322,6 +323,8 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
 
   const getStatusText = () => {
     if (hasError) return 'Error';
+    // CRITICAL: If sharing is OFF, show "Off" not timing info
+    if (!isLocationSharingEnabled) return 'Off';
     if (trackingStatus?.isTracking) {
       const timeSinceUpdate = Date.now() - trackingStatus.lastUpdate;
       if (timeSinceUpdate < 60000) {
