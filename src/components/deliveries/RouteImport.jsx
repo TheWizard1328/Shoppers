@@ -530,8 +530,7 @@ export default function RouteImport({
     { key: 'oversized', label: 'Oversized' },
     { key: 'after_hours_pickup', label: 'After Hrs' },
     { key: 'ampm_deliveries', label: 'AM/PM' },
-    { key: 'first_delivery', label: 'First Delivery' },
-    { key: 'travel_dist', label: 'Travel Dist' }];
+    { key: 'first_delivery', label: 'First Delivery' }];
     // NOTE: PUID is intentionally excluded from change detection
     // When re-importing, we don't want to flag PUID differences as changes
     // because PUID is auto-assigned during import and may vary between imports
@@ -746,14 +745,8 @@ export default function RouteImport({
         after_hours_pickup: false,
         delivery_notes: rawNotes,
         first_delivery: false,
-        puid: importedPuid || null, // Use imported PUID from column 13
-        travel_dist: null // Will be set conditionally below
+        puid: importedPuid || null // Use imported PUID from column 13
       };
-
-      // Only set travel_dist if parsed value exists (don't overwrite existing non-zero values during updates)
-      if (travelDist !== null && travelDist !== undefined) {
-        newDeliveryData.travel_dist = parseFloat(travelDist.toFixed(2));
-      }
 
       const assignedAMPM = ampmValue || determineDeliveryAMPM(newDeliveryData, allDeliveriesData);
       newDeliveryData.ampm_deliveries = assignedAMPM;
@@ -917,22 +910,8 @@ export default function RouteImport({
       const existingDelivery = matchResult?.match || null;
       const matchReason = matchResult?.reason || 'Unknown';
 
-      // CRITICAL: For updates, compare travel_dist values and update if different
+      // CRITICAL: For updates, preserve existing travel_dist (no longer imported)
       if (existingDelivery) {
-        const existingTravelDist = existingDelivery.travel_dist;
-        const importedTravelDist = travelDist !== null && travelDist !== undefined ? parseFloat(travelDist.toFixed(2)) : null;
-        
-        // CRITICAL: Always use imported travel_dist if it's a valid number
-        // This ensures CSV col 9 (travel distance) is compared and updated
-        if (importedTravelDist !== null) {
-          newDeliveryData.travel_dist = importedTravelDist;
-        } else if (existingTravelDist !== null && existingTravelDist !== undefined) {
-          // Keep existing if import has no value
-          newDeliveryData.travel_dist = parseFloat(existingTravelDist.toFixed(2));
-        } else {
-          newDeliveryData.travel_dist = null;
-        }
-        
         const changes = detectChanges(existingDelivery, newDeliveryData);
 
         if (changes.length > 0) {
@@ -949,9 +928,6 @@ export default function RouteImport({
           });
         }
       } else {
-        // For new deliveries: set travel_dist from import with 2 decimal precision
-        newDeliveryData.travel_dist = travelDist !== null && travelDist !== undefined ? parseFloat(travelDist.toFixed(2)) : null;
-        
         const newDeliveryId = generateDeliveryId(Array.from(existingDeliveryIds));
         existingDeliveryIds.add(newDeliveryId);
 

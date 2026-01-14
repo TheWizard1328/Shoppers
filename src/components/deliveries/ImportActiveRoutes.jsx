@@ -279,7 +279,6 @@ export default function ImportActiveRoutes({
       { key: 'after_hours_pickup', label: 'After Hrs' },
       { key: 'ampm_deliveries', label: 'AM/PM' },
       { key: 'first_delivery', label: 'First Delivery' },
-      { key: 'travel_dist', label: 'Travel Dist' },
       { key: 'delivery_time_start', label: 'Start Time' },
       { key: 'delivery_time_end', label: 'End Time' },
       { key: 'delivery_time_eta', label: 'ETA' },
@@ -475,9 +474,6 @@ export default function ImportActiveRoutes({
       const pendingIndicator = parseInt(values[4]?.trim()) || 0; // Column 5: Negative = pending
       const deliveryStartTimeStr = values[5]?.replace(/"/g, '').trim(); // Column 6: Start time
       const deliveryEndTimeStr = values[6]?.replace(/"/g, '').trim(); // Column 7: End time
-      const travelDistStr = values[8]?.replace(/"/g, '').trim(); // Column 9: Travel distance
-      const travelDist = travelDistStr && !isNaN(parseFloat(travelDistStr)) ? parseFloat(parseFloat(travelDistStr).toFixed(2)) : null;
-      
       // Column 13: PUID (Pickup ID - links deliveries to their originating pickup)
       const importedPuid = (values[12] || '').replace(/"/g, '').trim(); // Column 13: PUID (index 12)
       const stopId = (values[13] || '').replace(/"/g, '').trim(); // Column 14: SID (index 13)
@@ -595,8 +591,7 @@ export default function ImportActiveRoutes({
         after_hours_pickup: false,
         delivery_notes: null,
         first_delivery: false,
-        puid: importedPuid || null, // Use imported PUID from column 13
-        travel_dist: travelDist !== null && travelDist !== undefined ? parseFloat(travelDist.toFixed(2)) : null
+        puid: importedPuid || null // Use imported PUID from column 13
       };
 
       // Handle failure detection from notes (for completed stops)

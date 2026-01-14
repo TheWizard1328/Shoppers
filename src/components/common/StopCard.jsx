@@ -2201,12 +2201,11 @@ export default function StopCard({
                       // ═══════════ PHASE 1: IMMEDIATE UI UPDATE ═══════════
                       console.log('🎯 [START] PHASE 1: Immediate UI update...');
 
-                      // Step 1: Clear all isNextDelivery flags and set this one to true (LOCAL ONLY)
+                      // Build batch updates for immediate local state change
                       const driverDeliveries = allDeliveries.filter((d) =>
                       d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
                       );
 
-                      // Build batch updates for immediate local state change
                       const localUpdates = [];
                       for (const d of driverDeliveries) {
                         if (d.id !== delivery.id && d.isNextDelivery) {
@@ -2240,22 +2239,22 @@ export default function StopCard({
                           console.log('🔄 [START] PHASE 2: Background tasks starting...');
                           setIsEntityUpdating(true);
 
-                          // Step 2: Persist isNextDelivery changes to offline/online DB
-                          for (const d of driverDeliveries) {
-                            if (d.id !== delivery.id && d.isNextDelivery) {
-                              await updateDeliveryLocal(d.id, { isNextDelivery: false }, { skipSmartRefresh: true });
-                            }
-                          }
-                          await updateDeliveryLocal(delivery.id, { isNextDelivery: true }, { skipSmartRefresh: true });
+                          // CRITICAL: Call handleStartDelivery backend function to handle travel_dist transfer
+                          await base44.functions.invoke('handleStartDelivery', {
+                            deliveryId: delivery.id,
+                            driverId: delivery.driver_id,
+                            deliveryDate: delivery.delivery_date
+                          });
+                          console.log('✅ [START] handleStartDelivery completed - travel_dist transferred');
 
-                          // Step 3: Set delivery_time_start to current time
+                          // Set delivery_time_start to current time
                           const now = new Date();
                           const currentLocalTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
                           await updateDeliveryLocal(delivery.id, {
                             delivery_time_start: currentLocalTime
                           }, { skipSmartRefresh: true });
 
-                          // Step 4: Run Route Optimizer in background
+                          // Run Route Optimizer in background
                           try {
                             let startLat, startLng;
                             if (delivery.puid) {
@@ -2288,10 +2287,10 @@ export default function StopCard({
                             console.warn('⚠️ [START] Route optimizer failed:', optimizeError);
                           }
 
-                          // Step 5: Ensure driver is online
+                          // Ensure driver is online
                           await ensureDriverOnline();
 
-                          // Step 6: Send notification (fire and forget)
+                          // Send notification (fire and forget)
                           if (userHasRole(currentUser, 'driver')) {
                             notifyDriverStarted({
                               driver: currentUser,
