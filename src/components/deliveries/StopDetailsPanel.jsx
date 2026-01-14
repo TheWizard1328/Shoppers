@@ -90,23 +90,23 @@ export default function StopDetailsPanel({
               <Badge 
                 variant="outline" 
                 className="rounded-full"
-                style={{ borderColor: store.color || 'var(--border-slate-300)', color: store.color || 'var(--text-slate-600)' }}
+                style={{ borderColor: store.color || 'var(--border-slate-300)', color: store.color || 'var(--text-slate-600)', background: 'var(--bg-white)' }}
               >
                 {store.abbreviation}
               </Badge>
             )}
             {delivery.stop_order && (
-              <Badge variant="outline" className="rounded-full">
+              <Badge variant="outline" className="rounded-full" style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderColor: 'var(--border-slate-300)' }}>
                 Stop# {String(delivery.stop_order).padStart(2, '0')}
               </Badge>
             )}
             {delivery.tracking_number && (
-              <Badge variant="secondary" className="font-mono rounded-full">
+              <Badge variant="secondary" className="font-mono rounded-full" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
                 TR# {String(delivery.tracking_number).padStart(2, '0')}
               </Badge>
             )}
             {delivery.actual_delivery_time && (
-              <Badge variant="secondary" className="font-mono rounded-full">
+              <Badge variant="secondary" className="font-mono rounded-full" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>
                 <Clock className="w-3 h-3 mr-1" />
                 {format(new Date(delivery.actual_delivery_time), 'h:mm a')}
               </Badge>
