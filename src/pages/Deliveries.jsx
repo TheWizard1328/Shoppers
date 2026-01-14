@@ -3025,12 +3025,15 @@ export default function DeliveriesPage() {
       (effectiveDrivers || []).find((d) => d.user_name === selectedDelivery.driver_name)
     ) : null;
 
+    // Determine if we should show the split view (cards + details panel)
+    // Show split view on desktop OR on wider mobile screens (>= 640px width)
+    const showSplitView = !isMobile || window.innerWidth >= 640;
+
     return (
       <div className="flex h-full gap-4">
-        {/* Stop Cards Column - Single column on desktop, full width on mobile */}
-        <div className={`${isMobile ? 'w-full' : 'w-[400px] flex-shrink-0'} h-full overflow-hidden`}>
+        {/* Stop Cards Column - Single column on desktop, full width on narrow mobile */}
+        <div className={`${showSplitView ? 'w-[400px] flex-shrink-0' : 'w-full'} h-full overflow-hidden`}>
           <DragDropContext onDragEnd={handleDragEnd}>
-            <Droppable droppableId="deliveries">
               {(provided) =>
               <div
                 {...provided.droppableProps}
@@ -3121,8 +3124,8 @@ export default function DeliveriesPage() {
           </DragDropContext>
         </div>
 
-        {/* Details Panel - Only on desktop */}
-        {!isMobile && (
+        {/* Details Panel - Show on desktop and wider mobile screens */}
+        {showSplitView && (
           <div className="flex-1 h-full overflow-hidden rounded-lg border" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
             <StopDetailsPanel
               delivery={selectedDelivery}
