@@ -136,11 +136,6 @@ export default function StopDetailsPanel({
                   <p className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>
                     {store?.name || 'Store Pickup'}
                   </p>
-                  {store?.abbreviation && (
-                    <Badge variant="outline" className="mt-1" style={{ borderColor: store?.color || 'var(--border-slate-300)', color: store?.color || 'var(--text-slate-600)' }}>
-                      {store.abbreviation}
-                    </Badge>
-                  )}
                 </div>
                 {store?.address && (
                   <div className="flex items-start gap-2">
