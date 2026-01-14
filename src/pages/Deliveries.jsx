@@ -594,6 +594,19 @@ export default function DeliveriesPage() {
     checkAccess();
   }, [checkAccess]);
 
+  // Auto-select driver for driver-only users
+  useEffect(() => {
+    if (!currentUser || !hasAccess) return;
+    
+    // Driver-only users: auto-select themselves
+    if (userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')) {
+      if (driverFilter === 'all') {
+        console.log('🚗 [Deliveries] Driver user detected, auto-selecting self:', currentUser.id);
+        setDriverFilter(currentUser.id);
+      }
+    }
+  }, [currentUser, hasAccess, driverFilter]);
+
   useEffect(() => {
     if (!hasAccess || initialLoadDone.current) {
       console.log(`⏩ [Deliveries] Skipping initial loadData (hasAccess: ${hasAccess}, initialLoadDone: ${initialLoadDone.current})`);
