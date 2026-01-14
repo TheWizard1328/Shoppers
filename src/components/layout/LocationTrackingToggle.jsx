@@ -215,12 +215,26 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         // CRITICAL: Update UI state FIRST (optimistic update)
         setIsLocationSharingEnabled(true);
         
+        // CRITICAL: Tell locationTracker to start updating BEFORE database update
+        locationTracker.setDriverStatus('on_duty');
+        
+        // CRITICAL: Start tracking if not already running
+        if (!locationTracker.isTracking) {
+          try {
+            await locationTracker.startTracking({
+              ...localUser,
+              appUserId: appUserId,
+              location_tracking_enabled: true
+            });
+            console.log('✅ [LocationSharing] Location tracking started');
+          } catch (trackError) {
+            console.warn('⚠️ [LocationSharing] Could not start tracking:', trackError.message);
+          }
+        }
+        
         await base44.entities.AppUser.update(appUserId, {
           location_tracking_enabled: true
         });
-
-        // CRITICAL: Tell locationTracker to start updating location_updated_at
-        locationTracker.setDriverStatus('on_duty');
 
         // CRITICAL: Update localUser immediately so UI reflects new state
         const updatedUser = {
@@ -239,14 +253,14 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         // CRITICAL: Update UI state FIRST (optimistic update)
         setIsLocationSharingEnabled(false);
         
+        // CRITICAL: Tell locationTracker to stop updating location_updated_at
+        // but continue tracking coordinates
+        locationTracker.setDriverStatus('off_duty');
+        
         await base44.entities.AppUser.update(appUserId, {
           location_tracking_enabled: false,
           location_updated_at: null
         });
-        
-        // CRITICAL: Tell locationTracker to stop updating location_updated_at
-        // but continue tracking coordinates
-        locationTracker.setDriverStatus('off_duty');
 
         // CRITICAL: Update localUser immediately so UI reflects new state
         const updatedUser = {

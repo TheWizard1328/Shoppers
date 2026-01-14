@@ -169,16 +169,7 @@ class LocationTracker {
   async updateLocationInDatabase(latitude, longitude, accuracy) {
     const now = Date.now();
     
-    // CRITICAL: Only update when location_tracking_enabled is true
-    // Check the actual AppUser entity field to respect user's toggle choice
-    if (!this.currentUser?.location_tracking_enabled) {
-      console.log('⏸️ [LocationTracker] Skipping update - location sharing disabled by user');
-      // Still update lastPosition for distance calculations
-      this.lastPosition = { latitude, longitude, accuracy };
-      return;
-    }
-    
-    // CRITICAL: Check if driver is on duty
+    // CRITICAL: Check if driver is on duty - this is the primary control
     // Only update when on_duty (not on_break or off_duty)
     const isOnDuty = this.driverStatus === 'on_duty';
     
