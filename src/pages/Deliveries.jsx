@@ -176,7 +176,20 @@ export default function DeliveriesPage() {
   const [isDriverOnline, setIsDriverOnline] = useState(false);
   const isMounted = useRef(false);
 
-  const isDriverOverviewMode = driverFilter === 'all';
+  // Determine if we should show Driver Overview mode
+  // - Drivers always bypass (go directly to their route)
+  // - Dispatchers bypass if only 1 driver has deliveries for their stores
+  // - Admins see Driver Overview when filter is 'all'
+  const isDriverOverviewMode = useMemo(() => {
+    if (driverFilter !== 'all') return false;
+    
+    // Drivers always bypass Driver Overview
+    if (userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')) {
+      return false;
+    }
+    
+    return true;
+  }, [driverFilter, currentUser]);
   const [refreshKey, setRefreshKey] = React.useState(0);
 
   const lastLoadTime = useRef(0);
