@@ -3823,23 +3823,25 @@ export default function DeliveriesPage() {
       </div>
 
       {/* Mobile popup panel for stop details when screen is too narrow */}
-      {isMobile && !showSplitView && selectedDeliveryId && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[100] flex items-end justify-center bg-black/50 backdrop-blur-sm"
-          onClick={() => setSelectedDeliveryId(null)}
-        >
+      <AnimatePresence>
+        {isMobile && !showSplitView && selectedDeliveryId && (
           <motion.div
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="w-full max-h-[85vh] overflow-hidden rounded-t-2xl"
-            style={{ background: 'var(--bg-white)' }}
-            onClick={(e) => e.stopPropagation()}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[100] flex items-end justify-center bg-black/50 backdrop-blur-sm"
+            onClick={() => setSelectedDeliveryId(null)}
           >
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              className="w-full max-h-[85vh] overflow-hidden rounded-t-2xl"
+              style={{ background: 'var(--bg-white)' }}
+              onClick={(e) => e.stopPropagation()}
+            >
             <StopDetailsPanel
               delivery={filteredAndSortedDeliveries.find(d => d.id === selectedDeliveryId)}
               patient={(effectivePatients || []).find((p) => p && p.id === filteredAndSortedDeliveries.find(d => d.id === selectedDeliveryId)?.patient_id)}
@@ -3854,7 +3856,8 @@ export default function DeliveriesPage() {
             />
           </motion.div>
         </motion.div>
-      )}
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {showDeliveryForm &&
