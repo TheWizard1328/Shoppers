@@ -890,26 +890,26 @@ export default function DeliveryMetrics() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
         <div className="text-center">
           <div className="animate-spin w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-slate-600">Loading metrics...</p>
+          <p style={{ color: 'var(--text-slate-600)' }}>Loading metrics...</p>
         </div>
       </div>);
 
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6">
+    <div className="min-h-screen p-6" style={{ background: 'var(--bg-slate-50)' }}>
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex items-center gap-3">
             <SmartRefreshIndicator inline={true} />
-            <h1 className="text-3xl font-bold text-slate-900">Route Metrics</h1>
-            <p className="text-slate-600 mt-1">
+            <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Route Metrics</h1>
+            <p className="mt-1" style={{ color: 'var(--text-slate-600)' }}>
               {format(startDate, 'MMM d, yyyy')} - {format(endDate, 'MMM d, yyyy')}
               {showComparison && prevStartDate && prevEndDate &&
-              <span className="text-xs ml-2 text-slate-500">
+              <span className="text-xs ml-2" style={{ color: 'var(--text-slate-500)' }}>
                   (vs {format(prevStartDate, 'MMM d')} - {format(prevEndDate, 'MMM d')})
                 </span>
               }
