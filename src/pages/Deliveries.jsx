@@ -3006,96 +3006,131 @@ export default function DeliveriesPage() {
 
     }
 
+    // Find the selected delivery for the details panel
+    const selectedDelivery = selectedDeliveryId ? deliveriesToRender.find(d => d.id === selectedDeliveryId) : null;
+    const selectedPatient = selectedDelivery ? (effectivePatients || []).find((p) => p && p.id === selectedDelivery.patient_id) : null;
+    const selectedStore = selectedDelivery ? (stores || []).find((s) => s && s.id === selectedDelivery.store_id) : null;
+    const selectedDriver = selectedDelivery ? (
+      (effectiveDrivers || []).find((d) => d.id === selectedDelivery.driver_id || d.appUserId === selectedDelivery.driver_id) ||
+      (effectiveDrivers || []).find((d) => d.full_name === selectedDelivery.driver_name) ||
+      (effectiveDrivers || []).find((d) => d.user_name === selectedDelivery.driver_name)
+    ) : null;
+
     return (
-      <DragDropContext onDragEnd={handleDragEnd}>
-        <Droppable droppableId="deliveries">
-          {(provided) =>
-          <div
-            {...provided.droppableProps}
-            ref={provided.innerRef} className="mx-3 py-2 pyoverflow-y-auto gap-x-6 gap-y-2 grid overflow-y-auto auto-rows-max"
-
-            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(325px, 325px))', maxHeight: 'calc(100vh - 280px)' }}>
-
-              {deliveriesToRender.map((delivery, index) =>
-            <Draggable
-              key={delivery.id}
-              draggableId={delivery.id}
-              index={index}
-              isDragDisabled={false}>
-
-                  {(provided, snapshot) =>
+      <div className="flex h-full gap-4">
+        {/* Stop Cards Column - Single column on desktop, full width on mobile */}
+        <div className={`${isMobile ? 'w-full' : 'w-[360px] flex-shrink-0'} h-full overflow-hidden`}>
+          <DragDropContext onDragEnd={handleDragEnd}>
+            <Droppable droppableId="deliveries">
+              {(provided) =>
               <div
+                {...provided.droppableProps}
                 ref={provided.innerRef}
-                {...provided.draggableProps}
-                style={{
-                  ...provided.draggableProps.style,
-                  opacity: snapshot.isDragging ? 0.8 : 1
-                }}>
+                className="px-3 py-2 space-y-2 overflow-y-auto h-full"
+                style={{ maxHeight: 'calc(100vh - 280px)' }}>
 
-                      <StopCard
-                  delivery={delivery}
-                  patient={(effectivePatients || []).find((p) => p && p.id === delivery.patient_id)}
-                  store={(stores || []).find((s) => s && s.id === delivery.store_id)}
-                  driver={
-                  (effectiveDrivers || []).find((d) => d.id === delivery.driver_id || d.appUserId === delivery.driver_id) ||
-                  (effectiveDrivers || []).find((d) => d.full_name === delivery.driver_name) ||
-                  (effectiveDrivers || []).find((d) => d.user_name === delivery.driver_name)
+                  {deliveriesToRender.map((delivery, index) =>
+                <Draggable
+                  key={delivery.id}
+                  draggableId={delivery.id}
+                  index={index}
+                  isDragDisabled={false}>
+
+                      {(provided, snapshot) =>
+                  <div
+                    ref={provided.innerRef}
+                    {...provided.draggableProps}
+                    style={{
+                      ...provided.draggableProps.style,
+                      opacity: snapshot.isDragging ? 0.8 : 1
+                    }}>
+
+                          <StopCard
+                      delivery={delivery}
+                      patient={(effectivePatients || []).find((p) => p && p.id === delivery.patient_id)}
+                      store={(stores || []).find((s) => s && s.id === delivery.store_id)}
+                      driver={
+                      (effectiveDrivers || []).find((d) => d.id === delivery.driver_id || d.appUserId === delivery.driver_id) ||
+                      (effectiveDrivers || []).find((d) => d.full_name === delivery.driver_name) ||
+                      (effectiveDrivers || []).find((d) => d.user_name === delivery.driver_name)
+                      }
+                      currentUser={currentUser}
+                      stopOrder={delivery.stopOrder || delivery.stop_order || index + 1}
+                      isSelected={selectedDeliveryId === delivery.id}
+                      onClick={() => setSelectedDeliveryId(selectedDeliveryId === delivery.id ? null : delivery.id)}
+                      onStatusUpdate={handleStatusUpdate}
+                      onNotesUpdate={handleNotesUpdate}
+                      onEditDelivery={handleEditDelivery}
+                      onDeleteDelivery={handleDeleteDelivery}
+                      showDriverName={false}
+                      onRestart={handleRestartDelivery}
+                      allDeliveries={effectiveDeliveries || []}
+                      selectedDate={selectedDate}
+                      onEditPatient={handleEditPatient}
+                      onCODUpdate={handleCODUpdate}
+                      onStartDelivery={handleStatusUpdate}
+                      onCreateReturn={async ({ originalDelivery, returnPatient, store }) => {
+                        try {
+                          const currentDate = format(new Date(), 'yyyy-MM-dd');
+                          await createDeliveryLocal({
+                            patient_id: returnPatient.id,
+                            store_id: originalDelivery.store_id,
+                            driver_id: originalDelivery.driver_id,
+                            driver_name: originalDelivery.driver_name,
+                            delivery_date: currentDate,
+                            delivery_time_start: originalDelivery.delivery_time_start,
+                            delivery_time_end: originalDelivery.delivery_time_end,
+                            status: 'in_transit',
+                            delivery_notes: `PATIENT RETURN From: ${originalDelivery.delivery_date}`,
+                            patient_name: returnPatient.full_name,
+                            patient_phone: returnPatient.phone || store?.phone || '',
+                            store_phone: store?.phone || ''
+                          });
+                          await invalidate('Delivery');
+                          await loadData(true);
+                        } catch (error) {
+                          console.error('Error creating return:', error);
+                          throw error;
+                        }
+                      }}
+                      patients={effectivePatients || []}
+                      drivers={effectiveDrivers || []}
+                      stores={stores || []}
+                      appUsers={contextUsers || []}
+                      dragHandleProps={provided.dragHandleProps}
+                      showDragHandle={true}
+                      compact={!isMobile} />
+
+                        </div>
                   }
-                  currentUser={currentUser}
-                  stopOrder={delivery.stopOrder || delivery.stop_order || index + 1}
-                  isSelected={selectedDeliveryId === delivery.id}
-                  onClick={() => setSelectedDeliveryId(selectedDeliveryId === delivery.id ? null : delivery.id)}
-                  onStatusUpdate={handleStatusUpdate}
-                  onNotesUpdate={handleNotesUpdate}
-                  onEditDelivery={handleEditDelivery}
-                  onDeleteDelivery={handleDeleteDelivery}
-                  showDriverName={false}
-                  onRestart={handleRestartDelivery}
-                  allDeliveries={effectiveDeliveries || []}
-                  selectedDate={selectedDate}
-                  onEditPatient={handleEditPatient}
-                  onCODUpdate={handleCODUpdate}
-                  onStartDelivery={handleStatusUpdate}
-                  onCreateReturn={async ({ originalDelivery, returnPatient, store }) => {
-                    try {
-                      const currentDate = format(new Date(), 'yyyy-MM-dd');
-                      await createDeliveryLocal({
-                        patient_id: returnPatient.id,
-                        store_id: originalDelivery.store_id,
-                        driver_id: originalDelivery.driver_id,
-                        driver_name: originalDelivery.driver_name,
-                        delivery_date: currentDate,
-                        delivery_time_start: originalDelivery.delivery_time_start,
-                        delivery_time_end: originalDelivery.delivery_time_end,
-                        status: 'in_transit',
-                        delivery_notes: `PATIENT RETURN From: ${originalDelivery.delivery_date}`,
-                        patient_name: returnPatient.full_name,
-                        patient_phone: returnPatient.phone || store?.phone || '',
-                        store_phone: store?.phone || ''
-                      });
-                      await invalidate('Delivery');
-                      await loadData(true);
-                    } catch (error) {
-                      console.error('Error creating return:', error);
-                      throw error;
-                    }
-                  }}
-                  patients={effectivePatients || []}
-                  drivers={effectiveDrivers || []}
-                  stores={stores || []}
-                  appUsers={contextUsers || []}
-                  dragHandleProps={provided.dragHandleProps}
-                  showDragHandle={true} />
-
-                    </div>
+                    </Draggable>
+                )}
+                  {provided.placeholder}
+                </div>
               }
-                </Draggable>
-            )}
-              {provided.placeholder}
-            </div>
-          }
-        </Droppable>
-      </DragDropContext>);
+            </Droppable>
+          </DragDropContext>
+        </div>
+
+        {/* Details Panel - Only on desktop */}
+        {!isMobile && (
+          <div className="flex-1 h-full overflow-hidden rounded-lg border" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+            <StopDetailsPanel
+              delivery={selectedDelivery}
+              patient={selectedPatient}
+              store={selectedStore}
+              driver={selectedDriver}
+              currentUser={currentUser}
+              onClose={() => setSelectedDeliveryId(null)}
+              onStatusUpdate={handleStatusUpdate}
+              onEditDelivery={handleEditDelivery}
+              onDeleteDelivery={handleDeleteDelivery}
+              onRestart={handleRestartDelivery}
+            />
+          </div>
+        )}
+      </div>
+    );
 
   }, [
   effectivePatients,
