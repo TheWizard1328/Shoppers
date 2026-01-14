@@ -22,14 +22,17 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
   const consecutiveErrorsRef = useRef(0);
   // CRITICAL: Track toggle state independently to prevent reversion during data refresh
   // Use a key in sessionStorage to persist user's choice across component remounts
-  const getStoredChoice = () => {
-    const stored = sessionStorage.getItem('locationSharingEnabled');
-    if (stored !== null) {
-      return stored === 'true';
+  const [isLocationSharingEnabled, setIsLocationSharingEnabled] = useState(() => {
+    try {
+      const stored = sessionStorage.getItem('locationSharingEnabled');
+      if (stored !== null) {
+        return stored === 'true';
+      }
+    } catch (e) {
+      // sessionStorage not available
     }
     return user?.location_tracking_enabled || false;
-  };
-  const [isLocationSharingEnabled, setIsLocationSharingEnabled] = useState(getStoredChoice);
+  });
   const isTogglingRef = useRef(false); // Track toggle operation state in ref
 
   // CRITICAL: Check device/role conditions ONCE on mount with stable values
