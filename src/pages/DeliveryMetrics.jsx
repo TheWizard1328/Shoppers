@@ -1108,9 +1108,9 @@ export default function DeliveryMetrics() {
           </TabsContent>
 
           <TabsContent value="status" className="space-y-4">
-            <Card>
+            <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
               <CardHeader>
-                <CardTitle>Delivery Status Distribution</CardTitle>
+                <CardTitle style={{ color: 'var(--text-slate-900)' }}>Delivery Status Distribution</CardTitle>
               </CardHeader>
               <CardContent className="flex justify-center">
                 <ResponsiveContainer width="100%" height={300}>
