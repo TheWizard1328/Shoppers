@@ -3362,10 +3362,11 @@ export default function DeliveriesPage() {
         {!isDriverOverviewMode && !activeDriver && isMobile &&
         <button
           onClick={() => setIsMobileMenuOpen((v) => !v)}
-          className="absolute -left-3 top-24 z-30 bg-white hover:bg-slate-100 text-slate-700 font-semibold py-2 px-1 rounded-r-lg shadow-lg border-y border-r border-slate-200 transition-transform hover:scale-105 flex flex-col items-center gap-2">
+          className="absolute left-0 top-24 z-30 font-semibold py-3 px-2 rounded-r-xl shadow-lg transition-transform hover:scale-105 flex flex-col items-center gap-2"
+          style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderTop: '1px solid var(--border-slate-200)', borderRight: '1px solid var(--border-slate-200)', borderBottom: '1px solid var(--border-slate-200)' }}>
 
-            <LogoImage className="w-6 h-6 object-contain" />
-            <ChevronRight className="w-5 h-5" />
+            <LogoImage className="w-7 h-7 object-contain" />
+            <ChevronRight className="w-6 h-6" />
           </button>
         }
 
@@ -3727,11 +3728,11 @@ export default function DeliveriesPage() {
             <Card className="mb-6 shadow-sm relative" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                   <button
                 onClick={() => setIsMobileMenuOpen((v) => !v)}
-                className="absolute -left-3 top-1/2 -translate-y-1/2 z-30 font-semibold py-2 px-1 rounded-r-lg shadow-lg transition-transform hover:scale-105 flex flex-col items-center gap-2 lg:hidden"
+                className="absolute left-0 top-1/2 -translate-y-1/2 z-30 font-semibold py-3 px-2 rounded-r-xl shadow-lg transition-transform hover:scale-105 flex flex-col items-center gap-2 lg:hidden"
                 style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderTop: '1px solid var(--border-slate-200)', borderRight: '1px solid var(--border-slate-200)', borderBottom: '1px solid var(--border-slate-200)' }}>
 
-                    <LogoImage className="w-6 h-6 object-contain" />
-                    <ChevronRight className="w-5 h-5" />
+                    <LogoImage className="w-7 h-7 object-contain" />
+                    <ChevronRight className="w-6 h-6" />
                   </button>
 
                   {isDriverOnline &&
@@ -3754,6 +3755,23 @@ export default function DeliveriesPage() {
                             <p className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>{selectedDate ? format(selectedDate, 'MMM d, yyyy') : ''}</p>
                           </div>
                         </div>
+                        {/* Driver dropdown on mobile */}
+                        {isMobile && effectiveDrivers?.length > 1 && (
+                          <div className="flex-shrink-0">
+                            <Select value={driverFilter} onValueChange={handleDriverChange}>
+                              <SelectTrigger className="w-[120px] h-9 text-xs" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                                <SelectValue placeholder="Driver" />
+                              </SelectTrigger>
+                              <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                                {sortUsers(effectiveDrivers || []).map((driver) =>
+                                  <SelectItem key={driver.id} value={driver.id} style={{ color: 'var(--text-slate-900)' }}>
+                                    {getDriverDisplayName(driver)}
+                                  </SelectItem>
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                       </div>
                       {driverOverviewStats &&
                       <div className="flex gap-3 flex-shrink-0 items-center w-full lg:w-auto">
