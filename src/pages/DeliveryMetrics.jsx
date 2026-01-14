@@ -987,12 +987,16 @@ export default function DeliveryMetrics() {
                 <SelectValue placeholder="All Drivers" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Drivers</SelectItem>
-                {drivers.map((driver) =>
-                <SelectItem key={driver.id} value={driver.id}>
-                    {getDriverDisplayName(driver)}
-                  </SelectItem>
-                )}
+                <SelectItem value="all">All Drivers ({drivers.length})</SelectItem>
+                {drivers.map((driver) => {
+                  const driverId = driver.id || driver.user_id;
+                  const driverName = getDriverDisplayName(driver) || driver.full_name || driver.user_name || 'Unknown';
+                  return (
+                    <SelectItem key={driverId} value={driverId}>
+                      {driverName}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
 
