@@ -51,16 +51,24 @@ export default function DateListPanel({
       const dateStr = format(date, 'yyyy-MM-dd');
       const dateDeliveries = deliveries.filter((d) => d.delivery_date === dateStr);
 
-      const completed = dateDeliveries.filter((d) => d.status === 'completed').length;
       const failed = dateDeliveries.filter((d) => d.status === 'failed').length;
 
-      // Calculate returned deliveries
-      const returned = dateDeliveries.filter((d) => {
+      // Calculate returned deliveries (by notes or address)
+      const isReturnDelivery = (d) => {
         const patient = patientMap.get(d.patient_id);
         const notesReturn = (d.delivery_notes || '').toLowerCase().includes('return');
         const addressReturn = patient && (patient.address || '').toLowerCase().includes('rtn');
         return notesReturn || addressReturn;
-      }).length;
+      };
+      
+      const returned = dateDeliveries.filter((d) => isReturnDelivery(d)).length;
+      
+      // Completed should NOT include failed, returned, or cancelled statuses
+      const completed = dateDeliveries.filter((d) => 
+        d.status === 'completed' && 
+        !['failed', 'returned', 'cancelled'].includes(d.status) &&
+        !isReturnDelivery(d)
+      ).length;
 
       const total = dateDeliveries.length;
 
