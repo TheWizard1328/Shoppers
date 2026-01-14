@@ -325,9 +325,9 @@ export default function StopDetailsPanel({
         </Card>
       </div>
 
-      {/* Action Buttons */}
-      {canEdit && (
-        <div className="flex-shrink-0 p-4 border-t space-y-2" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+      {/* Action Buttons - Only Complete/Failed for non-admins */}
+      {canEdit && !currentUser?.app_roles?.includes('admin') && (
+        <div className="flex-shrink-0 p-4 border-t" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           {!isCompleted && (
             <div className="flex gap-2">
               <Button 
@@ -347,38 +347,6 @@ export default function StopDetailsPanel({
               </Button>
             </div>
           )}
-          
-          <div className="flex gap-2">
-            {isCompleted && onRestart && (
-              <Button 
-                onClick={() => onRestart(delivery.id)}
-                variant="outline"
-                className="flex-1"
-              >
-                <RotateCcw className="w-4 h-4 mr-2" />
-                Retry
-              </Button>
-            )}
-            <Button 
-              onClick={() => onEditDelivery(delivery)}
-              variant="outline"
-              className="flex-1"
-            >
-              <Pencil className="w-4 h-4 mr-2" />
-              Edit
-            </Button>
-            <Button 
-              onClick={() => {
-                if (confirm('Are you sure you want to delete this delivery?')) {
-                  onDeleteDelivery(delivery.id);
-                }
-              }}
-              variant="outline"
-              className="text-red-600 hover:bg-red-50"
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
-          </div>
         </div>
       )}
     </div>
