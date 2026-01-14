@@ -3279,11 +3279,11 @@ export default function DeliveriesPage() {
                 className="pl-10 w-full bg-slate-100 border-slate-300" />
               </div>
               <Select value={driverFilter} onValueChange={handleDriverChange}>
-                <SelectTrigger className="w-48 bg-white border-slate-300">
+                <SelectTrigger className="w-[115px] bg-white border-slate-300">
                   <SelectValue placeholder="Select driver" />
                 </SelectTrigger>
                 <SelectContent>
-                  {sortUsers(effectiveDrivers || []).map((driver) =>
+                  {sortUsers((effectiveDrivers || []).filter(d => userHasRole(d, 'driver'))).map((driver) =>
                 <SelectItem key={driver.id} value={driver.id}>
                       {getDriverDisplayName(driver)}
                     </SelectItem>
@@ -3292,7 +3292,7 @@ export default function DeliveriesPage() {
               </Select>
 
               <Select value={statusFilter} onValueChange={handleStatusChange}>
-                <SelectTrigger className="w-36 bg-white border-slate-300">
+                <SelectTrigger className="w-36 bg-white border-slate-300 text-slate-900 font-medium">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -3757,11 +3757,11 @@ export default function DeliveriesPage() {
                         {isMobile && effectiveDrivers?.length > 1 && (
                           <div className="flex-shrink-0">
                             <Select value={driverFilter} onValueChange={handleDriverChange}>
-                              <SelectTrigger className="w-[120px] h-9 text-xs" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+                              <SelectTrigger className="w-[72px] h-9 text-xs" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                                 <SelectValue placeholder="Driver" />
                               </SelectTrigger>
                               <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                                {sortUsers(effectiveDrivers || []).map((driver) =>
+                                {sortUsers((effectiveDrivers || []).filter(d => userHasRole(d, 'driver'))).map((driver) =>
                                   <SelectItem key={driver.id} value={driver.id} style={{ color: 'var(--text-slate-900)' }}>
                                     {getDriverDisplayName(driver)}
                                   </SelectItem>
