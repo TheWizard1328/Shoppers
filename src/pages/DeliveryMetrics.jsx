@@ -250,34 +250,21 @@ export default function DeliveryMetrics() {
       const yearToFetch = forceYear || selectedYear;
       console.log('🔄 [DeliveryMetrics] Fetching data for year:', yearToFetch);
       
-      // Fetch deliveries for the entire year in monthly chunks to avoid API limits
+      // Use dataManager to fetch deliveries - leverages caching and offline DB
       const yearStart = `${yearToFetch}-01-01`;
       const yearEnd = `${yearToFetch}-12-31`;
       
-      // Fetch month by month like getAdminMetrics does
-      const allDeliveries = [];
-      for (let month = 0; month < 12; month++) {
-        const monthStart = `${yearToFetch}-${String(month + 1).padStart(2, '0')}-01`;
-        const lastDay = new Date(yearToFetch, month + 1, 0).getDate();
-        const monthEnd = `${yearToFetch}-${String(month + 1).padStart(2, '0')}-${lastDay}`;
-        
-        const monthDeliveries = await base44.entities.Delivery.filter({
-          delivery_date: { $gte: monthStart, $lte: monthEnd }
-        }, '-delivery_date', 5000);
-        
-        allDeliveries.push(...monthDeliveries);
-        console.log(`📅 [DeliveryMetrics] Month ${month + 1}: ${monthDeliveries.length} deliveries`);
-      }
-      
-      const deliveriesData = allDeliveries;
+      // Use getDeliveriesForDateRange which handles caching and rate limiting
+      const deliveriesData = await getDeliveriesForDateRange(yearStart, yearEnd);
       
       console.log(`✅ [DeliveryMetrics] Fetched ${deliveriesData.length} deliveries for ${yearToFetch}`);
 
+      // Use getData for other entities - also uses caching
       const [patientsData, storesData, appUsersData] = await Promise.all([
-        Patient.filter({}),
-        Store.filter({}),
-        AppUser.filter({})]
-      );
+        getData('Patient'),
+        getData('Store'),
+        getData('AppUser')
+      ]);
 
       setPatients(patientsData || []);
       setStores(storesData || []);
