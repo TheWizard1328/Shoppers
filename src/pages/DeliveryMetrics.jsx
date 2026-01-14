@@ -1079,9 +1079,9 @@ export default function DeliveryMetrics() {
           </TabsContent>
 
           <TabsContent value="drivers" className="space-y-4">
-            <Card>
+            <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
               <CardHeader>
-                <CardTitle>Performance by Driver</CardTitle>
+                <CardTitle style={{ color: 'var(--text-slate-900)' }}>Performance by Driver</CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
