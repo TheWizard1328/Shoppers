@@ -23,30 +23,35 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
   // CRITICAL: Track toggle state independently to prevent reversion during data refresh
   const [isLocationSharingEnabled, setIsLocationSharingEnabled] = useState(user?.location_tracking_enabled || false);
   const isTogglingRef = useRef(false); // Track toggle operation state in ref
+  const hasInitializedRef = useRef(false); // Track if we've done initial sync
+  const userChoiceRef = useRef(user?.location_tracking_enabled || false); // Store user's explicit choice
 
   // CRITICAL: Check device/role conditions ONCE on mount with stable values
   const isMobile = useMemo(() => checkIsMobileDevice(), []);
   const isDriver = useMemo(() => user ? userHasRole(user, 'driver') : false, [user]);
   const isAdmin = useMemo(() => user ? userHasRole(user, 'admin') : false, [user]);
 
-  // Always sync localUser with user prop
+  // Always sync localUser with user prop - but NEVER override user's toggle choice
   useEffect(() => {
     if (user) {
       console.log('🔄 [LocationSharing] Syncing localUser with user prop:', {
         location_tracking_enabled: user.location_tracking_enabled,
         driver_status: user.driver_status,
-        current_latitude: user.current_latitude,
-        current_longitude: user.current_longitude,
-        isTogglingRef: isTogglingRef.current
+        hasInitialized: hasInitializedRef.current,
+        userChoice: userChoiceRef.current
       });
       setLocalUser(user);
       
-      // CRITICAL: Block state updates during toggle operation (use ref to prevent stale closure)
-      if (!isTogglingRef.current) {
-        setIsLocationSharingEnabled(user.location_tracking_enabled || false);
-      } else {
-        console.log('⏸️ [LocationSharing] Blocked state update - toggle in progress');
+      // CRITICAL: Only sync on FIRST mount, never after user has interacted
+      if (!hasInitializedRef.current) {
+        hasInitializedRef.current = true;
+        const initialValue = user.location_tracking_enabled || false;
+        setIsLocationSharingEnabled(initialValue);
+        userChoiceRef.current = initialValue;
+        console.log('🔄 [LocationSharing] Initial sync complete:', initialValue);
       }
+      // After initialization, NEVER update isLocationSharingEnabled from props
+      // The user's explicit toggle choice (userChoiceRef) takes precedence
     }
   }, [user, user?.driver_status, user?.location_tracking_enabled]);
 
@@ -56,6 +61,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
       console.log('📍 [LocationSharing] Received locationSharingDisabled event - updating UI');
       setLocalUser(prev => prev ? { ...prev, location_tracking_enabled: false } : prev);
       setIsLocationSharingEnabled(false);
+      userChoiceRef.current = false; // Update stored choice
     };
 
     window.addEventListener('locationSharingDisabled', handleSharingDisabled);
@@ -214,6 +220,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         setPermissionStatus('Enabling location sharing...');
         // CRITICAL: Update UI state FIRST (optimistic update)
         setIsLocationSharingEnabled(true);
+        userChoiceRef.current = true; // Store user's explicit choice
         
         // CRITICAL: Tell locationTracker to start updating BEFORE database update
         locationTracker.setDriverStatus('on_duty');
@@ -252,6 +259,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         setPermissionStatus('Disabling location sharing...');
         // CRITICAL: Update UI state FIRST (optimistic update)
         setIsLocationSharingEnabled(false);
+        userChoiceRef.current = false; // Store user's explicit choice
         
         // CRITICAL: Tell locationTracker to stop updating location_updated_at
         // but continue tracking coordinates
@@ -281,6 +289,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
 
       // CRITICAL: Revert optimistic update on error
       setIsLocationSharingEnabled(!checked);
+      userChoiceRef.current = !checked; // Revert stored choice too
       
       // Refresh user state to sync with backend
       setTimeout(() => setPermissionStatus(''), 4000);
