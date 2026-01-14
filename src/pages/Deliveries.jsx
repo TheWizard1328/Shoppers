@@ -3365,7 +3365,7 @@ export default function DeliveriesPage() {
           className="absolute left-0 top-24 z-30 font-semibold py-3 px-2 rounded-r-xl shadow-lg transition-transform hover:scale-105 flex flex-col items-center gap-2"
           style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderTop: '1px solid var(--border-slate-200)', borderRight: '1px solid var(--border-slate-200)', borderBottom: '1px solid var(--border-slate-200)' }}>
 
-            <LogoImage className="w-7 h-7 object-contain" />
+            <CalendarIcon className="w-6 h-6" />
             <ChevronRight className="w-6 h-6" />
           </button>
         }
@@ -3731,7 +3731,7 @@ export default function DeliveriesPage() {
                 className="absolute left-0 top-1/2 -translate-y-1/2 z-30 font-semibold py-3 px-2 rounded-r-xl shadow-lg transition-transform hover:scale-105 flex flex-col items-center gap-2 lg:hidden"
                 style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderTop: '1px solid var(--border-slate-200)', borderRight: '1px solid var(--border-slate-200)', borderBottom: '1px solid var(--border-slate-200)' }}>
 
-                    <LogoImage className="w-7 h-7 object-contain" />
+                    <CalendarIcon className="w-6 h-6" />
                     <ChevronRight className="w-6 h-6" />
                   </button>
 
