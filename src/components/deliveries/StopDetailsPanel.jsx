@@ -234,6 +234,32 @@ export default function StopDetailsPanel({
             ) : (
               <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>Patient information not available</p>
             )}
+            
+            {/* Admin Action Buttons - Bottom Right */}
+            {currentUser?.app_roles?.includes('admin') && (
+              <div className="absolute bottom-4 right-4 flex gap-2">
+                <Button 
+                  onClick={() => onEditDelivery(delivery)}
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                >
+                  <Pencil className="w-4 h-4" style={{ color: 'var(--text-slate-500)' }} />
+                </Button>
+                <Button 
+                  onClick={() => {
+                    if (confirm('Are you sure you want to delete this delivery?')) {
+                      onDeleteDelivery(delivery.id);
+                    }
+                  }}
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 hover:bg-red-50"
+                >
+                  <Trash2 className="w-4 h-4 text-red-600" />
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
