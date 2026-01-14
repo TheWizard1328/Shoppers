@@ -3019,7 +3019,7 @@ export default function DeliveriesPage() {
     return (
       <div className="flex h-full gap-4">
         {/* Stop Cards Column - Single column on desktop, full width on mobile */}
-        <div className={`${isMobile ? 'w-full' : 'w-[360px] flex-shrink-0'} h-full overflow-hidden`}>
+        <div className={`${isMobile ? 'w-full' : 'w-[400px] flex-shrink-0'} h-full overflow-hidden`}>
           <DragDropContext onDragEnd={handleDragEnd}>
             <Droppable droppableId="deliveries">
               {(provided) =>
