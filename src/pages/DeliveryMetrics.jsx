@@ -903,17 +903,29 @@ export default function DeliveryMetrics() {
     <div className="min-h-screen p-6" style={{ background: 'var(--bg-slate-50)' }}>
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div className="flex items-center gap-3">
-            <SmartRefreshIndicator inline={true} />
-            <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Route Metrics</h1>
-            <p className="mt-1" style={{ color: 'var(--text-slate-600)' }}>
-              {format(startDate, 'MMM d, yyyy')} - {format(endDate, 'MMM d, yyyy')}
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-3">
+              <SmartRefreshIndicator inline={true} />
+              <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Route Metrics</h1>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <p style={{ color: 'var(--text-slate-600)' }}>
+                {(() => {
+                  const startYear = startDate.getFullYear();
+                  const endYear = endDate.getFullYear();
+                  const spansCrossYear = startYear !== endYear;
+                  if (spansCrossYear) {
+                    return `${format(startDate, 'MMM d, yyyy')} - ${format(endDate, 'MMM d, yyyy')}`;
+                  }
+                  return `${format(startDate, 'MMM d')} - ${format(endDate, 'MMM d')}, ${endYear}`;
+                })()}
+              </p>
               {showComparison && prevStartDate && prevEndDate &&
-              <span className="text-xs ml-2" style={{ color: 'var(--text-slate-500)' }}>
+                <span className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
                   (vs {format(prevStartDate, 'MMM d')} - {format(prevEndDate, 'MMM d')})
                 </span>
               }
-            </p>
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-3">
