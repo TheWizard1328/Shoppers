@@ -3026,7 +3026,7 @@ export default function DeliveriesPage() {
               <div
                 {...provided.droppableProps}
                 ref={provided.innerRef}
-                className="px-3 py-2 space-y-2 overflow-y-auto h-full"
+                className="px-3 py-2 space-y-2 overflow-y-auto h-full flex flex-col items-center"
                 style={{ maxHeight: 'calc(100vh - 280px)' }}>
 
                   {deliveriesToRender.map((delivery, index) =>
