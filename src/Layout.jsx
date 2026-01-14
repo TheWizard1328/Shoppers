@@ -2993,46 +2993,25 @@ export default function Layout({ children, currentPageName }) {
                           }
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
-                      <Link
-                        to={getRouteNavigationUrl('Deliveries')}
-                        onClick={() => setSidebarOpen(false)}
-                        className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
-                          currentPageName === 'Deliveries' ?
-                            'shadow-sm' :
-                            'hover:opacity-80'}`
-                        }
-                        style={currentPageName === 'Deliveries' ? {
-                          background: 'var(--bg-slate-100)',
-                          color: 'var(--text-slate-900)'
-                        } : {
-                          color: 'var(--text-slate-600)'
-                        }}>
-                        <Package className="w-5 h-5" />
-                        <span className="font-semibold">Routes</span>
-                        <Badge variant="secondary" className="ml-auto justify-center w-[45px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{totalRoutesCount}</Badge>
-                        </Link>
-                        }
-
-                    {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
-                      <Link
-                        to={getRouteNavigationUrl('Deliveries')}
-                        onClick={() => setSidebarOpen(false)}
-                        className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
-                          currentPageName === 'Deliveries' ?
-                            'shadow-sm' :
-                            'hover:opacity-80'}`
-                        }
-                        style={currentPageName === 'Deliveries' ? {
-                          background: 'var(--bg-slate-100)',
-                          color: 'var(--text-slate-900)'
-                        } : {
-                          color: 'var(--text-slate-600)'
-                        }}>
-                        <Package className="w-5 h-5" />
-                        <span className="font-semibold">Routes</span>
-                        <Badge variant="secondary" className="ml-auto justify-center w-[45px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{totalRoutesCount}</Badge>
-                        </Link>
-                        }
+                        <Link
+                          to={getRouteNavigationUrl('Deliveries')}
+                          onClick={() => setSidebarOpen(false)}
+                          className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                            currentPageName === 'Deliveries' ?
+                              'shadow-sm' :
+                              'hover:opacity-80'}`
+                          }
+                          style={currentPageName === 'Deliveries' ? {
+                            background: 'var(--bg-slate-100)',
+                            color: 'var(--text-slate-900)'
+                          } : {
+                            color: 'var(--text-slate-600)'
+                          }}>
+                          <Package className="w-5 h-5" />
+                          <span className="font-semibold">Routes</span>
+                          <Badge variant="secondary" className="ml-auto justify-center w-[45px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{totalRoutesCount}</Badge>
+                          </Link>
+                          }
 
                     {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'driver')) &&
                         <Link
