@@ -242,123 +242,62 @@ export default function StopDetailsPanel({
           </CardContent>
         </Card>
 
-        {/* Delivery Info Card */}
+        {/* Images & Signatures Card */}
         <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text-slate-700)' }}>
-              <Package className="w-4 h-4" />
-              Delivery Information
+              <Image className="w-4 h-4" />
+              Proof of Delivery
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {/* Store Info */}
-            {store && !isPickup && (
-              <div className="flex items-center gap-2">
-                <Building2 className="w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
-                <span className="text-sm" style={{ color: 'var(--text-slate-600)' }}>{store.name}</span>
-                {store.abbreviation && (
-                  <Badge 
-                    variant="outline" 
-                    className="text-xs"
-                    style={{ borderColor: store.color || 'var(--border-slate-300)', color: store.color || 'var(--text-slate-600)' }}
-                  >
-                    {store.abbreviation}
-                  </Badge>
-                )}
-              </div>
-            )}
-
-            {/* Time Window */}
-            {(delivery.delivery_time_start || delivery.delivery_time_eta) && (
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
-                <span className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
-                  {delivery.delivery_time_eta && (
-                    <span className="font-medium text-blue-600">ETA: {delivery.delivery_time_eta}</span>
-                  )}
-                  {delivery.delivery_time_eta && delivery.delivery_time_start && ' • '}
-                  {delivery.delivery_time_start && (
-                    <span>Window: {delivery.delivery_time_start}{delivery.delivery_time_end ? ` - ${delivery.delivery_time_end}` : ''}</span>
-                  )}
-                </span>
-              </div>
-            )}
-
-            {/* Tracking & Prescription */}
-            <div className="flex flex-wrap gap-2">
-              {delivery.tracking_number && (
-                <Badge variant="secondary" className="font-mono">
-                  TR# {delivery.tracking_number}
-                </Badge>
-              )}
-              {delivery.prescription_number && (
-                <Badge variant="outline">
-                  RX# {delivery.prescription_number}
-                </Badge>
-              )}
-              {delivery.stop_order && (
-                <Badge variant="outline">
-                  Stop #{delivery.stop_order}
-                </Badge>
-              )}
-            </div>
-
-            {/* Delivery Flags */}
-            <div className="flex flex-wrap gap-2 pt-2">
-              {delivery.fridge_item && (
-                <Badge className="bg-blue-100 text-blue-800 border-blue-300">
-                  <Thermometer className="w-3 h-3 mr-1" /> Fridge Item
-                </Badge>
-              )}
-              {delivery.oversized && (
-                <Badge className="bg-purple-100 text-purple-800 border-purple-300">
-                  <Package className="w-3 h-3 mr-1" /> Oversized
-                </Badge>
-              )}
-              {delivery.signature_needed && (
-                <Badge className="bg-amber-100 text-amber-800 border-amber-300">
-                  <Pencil className="w-3 h-3 mr-1" /> Signature Required
-                </Badge>
-              )}
-              {delivery.cod_total_amount_required > 0 && (
-                <Badge className="bg-green-100 text-green-800 border-green-300">
-                  <DollarSign className="w-3 h-3 mr-1" /> COD: ${delivery.cod_total_amount_required}
-                </Badge>
-              )}
-              {delivery.first_delivery && (
-                <Badge className="bg-pink-100 text-pink-800 border-pink-300">
-                  First Delivery
-                </Badge>
-              )}
-            </div>
-
-            {/* Delivery Notes */}
-            {delivery.delivery_notes && (
-              <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-100)' }}>
-                <div className="flex items-start gap-2">
-                  <StickyNote className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: 'var(--text-slate-400)' }} />
-                  <div>
-                    <p className="text-xs font-medium mb-1" style={{ color: 'var(--text-slate-500)' }}>Delivery Notes:</p>
-                    <p className="text-sm" style={{ color: 'var(--text-slate-700)' }}>{delivery.delivery_notes}</p>
-                  </div>
+          <CardContent className="space-y-4">
+            {/* Signature */}
+            {delivery.signature_image_url ? (
+              <div>
+                <p className="text-xs font-medium mb-2 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
+                  <FileSignature className="w-3 h-3" /> Signature
+                </p>
+                <div className="border rounded-lg overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
+                  <img 
+                    src={delivery.signature_image_url} 
+                    alt="Customer Signature" 
+                    className="w-full h-auto max-h-32 object-contain bg-white"
+                  />
                 </div>
               </div>
-            )}
-
-            {/* Delivery Instructions */}
-            {delivery.delivery_instructions && (
-              <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-100)' }}>
-                <p className="text-xs font-medium mb-1" style={{ color: 'var(--text-slate-500)' }}>Instructions:</p>
-                <p className="text-sm" style={{ color: 'var(--text-slate-700)' }}>{delivery.delivery_instructions}</p>
+            ) : delivery.signature_needed ? (
+              <div className="text-center py-4 border rounded-lg" style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
+                <FileSignature className="w-8 h-8 mx-auto mb-2 opacity-30" style={{ color: 'var(--text-slate-400)' }} />
+                <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>Signature required but not captured yet</p>
               </div>
-            )}
+            ) : null}
 
-            {/* Actual Delivery Time */}
-            {delivery.actual_delivery_time && (
-              <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-100)' }}>
-                <p className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
-                  Completed at: {new Date(delivery.actual_delivery_time).toLocaleString()}
+            {/* Proof Photos */}
+            {delivery.proof_photo_urls && delivery.proof_photo_urls.length > 0 ? (
+              <div>
+                <p className="text-xs font-medium mb-2 flex items-center gap-1" style={{ color: 'var(--text-slate-500)' }}>
+                  <Image className="w-3 h-3" /> Proof Photos ({delivery.proof_photo_urls.length})
                 </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {delivery.proof_photo_urls.map((url, index) => (
+                    <div key={index} className="border rounded-lg overflow-hidden" style={{ borderColor: 'var(--border-slate-200)' }}>
+                      <img 
+                        src={url} 
+                        alt={`Proof photo ${index + 1}`} 
+                        className="w-full h-24 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                        onClick={() => window.open(url, '_blank')}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {/* Empty state if no images or signatures */}
+            {!delivery.signature_image_url && !delivery.signature_needed && (!delivery.proof_photo_urls || delivery.proof_photo_urls.length === 0) && (
+              <div className="text-center py-6" style={{ color: 'var(--text-slate-400)' }}>
+                <Image className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">No proof of delivery images</p>
               </div>
             )}
           </CardContent>
