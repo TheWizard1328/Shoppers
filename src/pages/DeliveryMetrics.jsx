@@ -1048,24 +1048,28 @@ export default function DeliveryMetrics() {
                         
                         return (
                           <div className="flex flex-col sm:flex-row justify-center gap-2 sm:gap-6 mt-2 text-xs">
-                            <div className="flex flex-wrap justify-center gap-x-3 gap-y-1">
-                              <span className="font-semibold text-slate-600 mr-1">Current:</span>
-                              {currentItems.map((item, index) => (
-                                <span key={index} className="flex items-center gap-1">
-                                  <span className="w-3 h-0.5 rounded" style={{ backgroundColor: item.color }}></span>
-                                  <span style={{ color: 'var(--text-slate-600)' }}>{item.value}</span>
-                                </span>
-                              ))}
-                            </div>
-                            {prevItems.length > 0 && (
+                            <div className="flex flex-col items-center gap-1">
+                              <span className="font-semibold text-slate-600">Current:</span>
                               <div className="flex flex-wrap justify-center gap-x-3 gap-y-1">
-                                <span className="font-semibold text-slate-400 mr-1">Previous:</span>
-                                {prevItems.map((item, index) => (
+                                {currentItems.map((item, index) => (
                                   <span key={index} className="flex items-center gap-1">
-                                    <span className="w-3 h-0.5 rounded opacity-60" style={{ backgroundColor: item.color, backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 2px, var(--bg-white) 2px, var(--bg-white) 4px)' }}></span>
-                                    <span style={{ color: 'var(--text-slate-400)' }}>{item.value.replace('Prev ', '')}</span>
+                                    <span className="w-3 h-0.5 rounded" style={{ backgroundColor: item.color }}></span>
+                                    <span style={{ color: 'var(--text-slate-600)' }}>{item.value}</span>
                                   </span>
                                 ))}
+                              </div>
+                            </div>
+                            {prevItems.length > 0 && (
+                              <div className="flex flex-col items-center gap-1">
+                                <span className="font-semibold text-slate-400">Previous:</span>
+                                <div className="flex flex-wrap justify-center gap-x-3 gap-y-1">
+                                  {prevItems.map((item, index) => (
+                                    <span key={index} className="flex items-center gap-1">
+                                      <span className="w-3 h-0.5 rounded opacity-60" style={{ backgroundColor: item.color, backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 2px, var(--bg-white) 2px, var(--bg-white) 4px)' }}></span>
+                                      <span style={{ color: 'var(--text-slate-400)' }}>{item.value.replace('Prev ', '')}</span>
+                                    </span>
+                                  ))}
+                                </div>
                               </div>
                             )}
                           </div>
