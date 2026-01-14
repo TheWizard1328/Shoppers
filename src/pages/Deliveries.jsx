@@ -3025,10 +3025,6 @@ export default function DeliveriesPage() {
       (effectiveDrivers || []).find((d) => d.user_name === selectedDelivery.driver_name)
     ) : null;
 
-    // Determine if we should show the split view (cards + details panel)
-    // Show split view on desktop OR on wider mobile screens (>= 640px width)
-    const showSplitView = !isMobile || window.innerWidth >= 640;
-
     return (
       <>
         <div className="flex h-full gap-4">
@@ -3070,7 +3066,7 @@ export default function DeliveriesPage() {
                         }
                         currentUser={currentUser}
                         stopOrder={delivery.stopOrder || delivery.stop_order || index + 1}
-                        isSelected={showSplitView && selectedDeliveryId === delivery.id}
+                        isSelected={selectedDeliveryId === delivery.id}
                         onClick={() => setSelectedDeliveryId(selectedDeliveryId === delivery.id ? null : delivery.id)}
                         onStatusUpdate={handleStatusUpdate}
                         onNotesUpdate={handleNotesUpdate}
@@ -3113,7 +3109,7 @@ export default function DeliveriesPage() {
                         appUsers={contextUsers || []}
                         dragHandleProps={provided.dragHandleProps}
                         showDragHandle={true}
-                        compact={showSplitView} />
+                        compact={true} />
 
                           </div>
                     }
@@ -3166,7 +3162,8 @@ export default function DeliveriesPage() {
   handleEditPatient,
   filteredAndSortedDeliveries,
   isMobile,
-  loadData]
+  loadData,
+  showSplitView]
   );
   
   // Determine if we should show the split view (cards + details panel)
