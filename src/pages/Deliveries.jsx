@@ -3362,10 +3362,10 @@ export default function DeliveriesPage() {
         {!isDriverOverviewMode && !activeDriver && isMobile &&
         <button
           onClick={() => setIsMobileMenuOpen((v) => !v)}
-          className="absolute left-0 top-24 z-30 font-semibold py-4 px-2 rounded-r-xl shadow-lg transition-transform hover:scale-105 flex items-center justify-center"
+          className="absolute left-0 top-24 z-30 font-semibold py-3 px-1.5 rounded-r-lg shadow-lg transition-transform hover:scale-105 flex items-center justify-center"
           style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderTop: '1px solid var(--border-slate-200)', borderRight: '1px solid var(--border-slate-200)', borderBottom: '1px solid var(--border-slate-200)' }}>
 
-            <CalendarIcon className="w-6 h-6" />
+            <CalendarIcon className="w-5 h-5" />
           </button>
         }
 
@@ -3727,10 +3727,10 @@ export default function DeliveriesPage() {
             <Card className="mb-6 shadow-sm relative" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                   <button
                 onClick={() => setIsMobileMenuOpen((v) => !v)}
-                className="absolute left-0 top-1/2 -translate-y-1/2 z-30 font-semibold py-4 px-2 rounded-r-xl shadow-lg transition-transform hover:scale-105 flex items-center justify-center lg:hidden"
+                className="absolute left-0 top-1/2 -translate-y-1/2 z-30 font-semibold py-3 px-1.5 rounded-r-lg shadow-lg transition-transform hover:scale-105 flex items-center justify-center lg:hidden"
                 style={{ background: 'var(--bg-white)', color: 'var(--text-slate-700)', borderTop: '1px solid var(--border-slate-200)', borderRight: '1px solid var(--border-slate-200)', borderBottom: '1px solid var(--border-slate-200)' }}>
 
-                    <CalendarIcon className="w-6 h-6" />
+                    <CalendarIcon className="w-5 h-5" />
                   </button>
 
                   {isDriverOnline &&
