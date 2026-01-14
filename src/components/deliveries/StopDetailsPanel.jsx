@@ -128,6 +128,7 @@ export default function StopDetailsPanel({
             <CardTitle className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text-slate-700)' }}>
               <User className="w-4 h-4" />
               {isPickup ? 'Store Pickup' : 'Patient Information'}
+              {!isPickup && <SpecialSymbolsBadges delivery={delivery} patient={patient} isPickup={false} size="sm" />}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -155,12 +156,17 @@ export default function StopDetailsPanel({
               </>
             ) : patient ? (
               <>
-                {/* Address first */}
+                {/* Address with unit number */}
                 {patient.address && (
                   <div className="flex items-start gap-2">
                     <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: 'var(--text-slate-400)' }} />
                     <div>
-                      <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>{patient.address}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>{patient.address}</p>
+                        {patient.unit_number && (
+                          <Badge variant="secondary" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>Unit {patient.unit_number}</Badge>
+                        )}
+                      </div>
                       {patient.distance_from_store && (
                         <p className="text-xs mt-0.5" style={{ color: 'var(--text-slate-400)' }}>
                           {patient.distance_from_store.toFixed(1)} km from store
@@ -170,17 +176,11 @@ export default function StopDetailsPanel({
                   </div>
                 )}
 
-                {/* Name with unit number and special symbols */}
+                {/* Patient Name */}
                 <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>
-                      {patient.full_name || delivery.patient_name || 'Unknown Patient'}
-                    </p>
-                    {patient.unit_number && (
-                      <Badge variant="secondary" style={{ background: 'var(--bg-slate-100)', color: 'var(--text-slate-700)' }}>Unit {patient.unit_number}</Badge>
-                    )}
-                    <SpecialSymbolsBadges delivery={delivery} patient={patient} isPickup={false} size="md" />
-                  </div>
+                  <p className="text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>
+                    {patient.full_name || delivery.patient_name || 'Unknown Patient'}
+                  </p>
                 </div>
 
                 {patient.phone && (
