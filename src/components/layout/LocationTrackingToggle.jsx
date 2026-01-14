@@ -20,6 +20,8 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
   const [gpsCapabilities, setGpsCapabilities] = useState(null);
   const autoStartedRef = useRef(false);
   const consecutiveErrorsRef = useRef(0);
+  // CRITICAL: Track toggle state independently to prevent reversion during data refresh
+  const [isLocationSharingEnabled, setIsLocationSharingEnabled] = useState(user?.location_tracking_enabled || false);
 
   // CRITICAL: Check device/role conditions ONCE on mount with stable values
   const isMobile = useMemo(() => checkIsMobileDevice(), []);
@@ -36,14 +38,21 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         current_longitude: user.current_longitude
       });
       setLocalUser(user);
+      
+      // CRITICAL: Only update isLocationSharingEnabled if NOT currently toggling
+      // This prevents state reversion during toggle operation
+      if (!isToggling) {
+        setIsLocationSharingEnabled(user.location_tracking_enabled || false);
+      }
     }
-  }, [user, user?.driver_status, user?.location_tracking_enabled]);
+  }, [user, user?.driver_status, user?.location_tracking_enabled, isToggling]);
 
   // Listen for location sharing disabled event from DriverStatusToggle
   useEffect(() => {
     const handleSharingDisabled = async () => {
       console.log('📍 [LocationSharing] Received locationSharingDisabled event - updating UI');
       setLocalUser(prev => prev ? { ...prev, location_tracking_enabled: false } : prev);
+      setIsLocationSharingEnabled(false);
     };
 
     window.addEventListener('locationSharingDisabled', handleSharingDisabled);
@@ -195,6 +204,9 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
       if (checked) {
         // Enable sharing
         setPermissionStatus('Enabling location sharing...');
+        // CRITICAL: Update UI state FIRST (optimistic update)
+        setIsLocationSharingEnabled(true);
+        
         await base44.entities.AppUser.update(appUserId, {
           location_tracking_enabled: true
         });
@@ -211,6 +223,9 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
       } else {
         // Disable sharing (but keep tracking)
         setPermissionStatus('Disabling location sharing...');
+        // CRITICAL: Update UI state FIRST (optimistic update)
+        setIsLocationSharingEnabled(false);
+        
         await base44.entities.AppUser.update(appUserId, {
           location_tracking_enabled: false
         });
@@ -226,17 +241,22 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         console.log('✅ [LocationSharing] Sharing disabled (tracking continues)');
       }
 
-      // Refresh user state in background
-      await refreshUserState();
-      setTimeout(() => setPermissionStatus(''), 3000);
+      // Refresh user state in background (don't await - let it happen async)
+      refreshUserState().finally(() => {
+        setTimeout(() => setPermissionStatus(''), 3000);
+      });
 
     } catch (error) {
       console.error('❌ [LocationSharing] Failed to toggle:', error);
       setPermissionStatus(`Error: ${error.message}`);
 
-      // Revert optimistic update on error
-      await refreshUserState();
-      setTimeout(() => setPermissionStatus(''), 4000);
+      // CRITICAL: Revert optimistic update on error
+      setIsLocationSharingEnabled(!checked);
+      
+      // Refresh user state to sync with backend
+      refreshUserState().finally(() => {
+        setTimeout(() => setPermissionStatus(''), 4000);
+      });
     } finally {
       setIsToggling(false);
     }
@@ -306,7 +326,8 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
     return null;
   }
 
-  const isSharingEnabled = localUser.location_tracking_enabled;
+  // CRITICAL: Use independent state to prevent reversion during data refresh
+  const isSharingEnabled = isLocationSharingEnabled;
 
   return (
     <div className="bg-transparent p-2 rounded-lg flex items-center gap-2 backdrop-blur-sm border border-white/40">
