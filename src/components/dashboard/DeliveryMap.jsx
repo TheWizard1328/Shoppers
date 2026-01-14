@@ -14,6 +14,7 @@ import { createRoot } from 'react-dom/client';
 import { getStoredRouteCoordinates } from '../utils/routePolylineManager';
 import { isMobileDevice } from '../utils/deviceUtils';
 import MapCrosshair from './MapCrosshair';
+import { base44 } from '@/api/base44Client';
 
 // Fix for default icon issue with Webpack
 delete L.Icon.Default.prototype._getIconUrl;
@@ -1296,6 +1297,15 @@ export default function DeliveryMap({
     if (marker.duplicateCount > 1) {
       if (onMapInteraction) onMapInteraction();
       
+      // Track cluster click
+      base44.analytics.track({
+        eventName: 'map_cluster_clicked',
+        properties: { 
+          cluster_size: marker.duplicateCount,
+          action: fannedLocationKey === locationKey ? 'retract' : 'expand'
+        }
+      });
+      
       if (fannedLocationKey === locationKey) {
         // Already fanned - clicking again should retract
         setFannedLocationKey(null);
@@ -1364,6 +1374,15 @@ export default function DeliveryMap({
     
     // Retract any expanded cluster and call onMarkerClick for non-clustered markers
     setFannedLocationKey(null);
+    
+    // Track marker click
+    base44.analytics.track({
+      eventName: 'map_marker_clicked',
+      properties: { 
+        marker_type: markerType,
+        status: marker.status
+      }
+    });
     
     // CRITICAL: For pending deliveries, select the assigned pickup instead
     if (marker.status === 'pending' && marker.puid) {
@@ -2086,8 +2105,12 @@ export default function DeliveryMap({
           return;
         }
         
-        // Real user zoom - notify parent
+        // Real user zoom - notify parent and track
         console.log('🗺️ [MapController] ZOOM START - USER INTERACTION');
+        base44.analytics.track({
+          eventName: 'map_zoom_started',
+          properties: { zoom_level: mapInstance.getZoom() }
+        });
         if (onMapInteraction) {
           onMapInteraction(true); // Pass true for user interaction
         }
@@ -2112,6 +2135,10 @@ export default function DeliveryMap({
           
           if (!isProgrammaticDrag) {
             console.log('🗺️ [MapController] DRAG END - USER INTERACTION');
+            base44.analytics.track({
+              eventName: 'map_panned',
+              properties: { zoom_level: mapInstance.getZoom() }
+            });
             if (onMapInteraction) {
               onMapInteraction(true); // Pass true for user interaction
             }
@@ -2184,6 +2211,10 @@ export default function DeliveryMap({
         const timeSinceLastTap = now - lastTapRef.current;
         
         if (timeSinceLastTap < 300) {
+          base44.analytics.track({
+            eventName: 'map_double_tapped',
+            properties: { zoom_level: mapInstance.getZoom() }
+          });
           if (onDoubleTap) onDoubleTap();
         }
         
