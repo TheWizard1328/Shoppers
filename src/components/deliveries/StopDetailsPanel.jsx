@@ -112,7 +112,7 @@ export default function StopDetailsPanel({
                 {format(new Date(delivery.actual_delivery_time), 'h:mm a')}
               </Badge>
             )}
-            <Badge className={`${status.color} border rounded-full`}>
+            <Badge className={`border rounded-full ${status.color}`}>
               <StatusIcon className="w-3 h-3 mr-1" />
               {status.label}
             </Badge>
