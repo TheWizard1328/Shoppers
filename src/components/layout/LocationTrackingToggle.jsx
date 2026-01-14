@@ -22,6 +22,7 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
   const consecutiveErrorsRef = useRef(0);
   // CRITICAL: Track toggle state independently to prevent reversion during data refresh
   const [isLocationSharingEnabled, setIsLocationSharingEnabled] = useState(user?.location_tracking_enabled || false);
+  const isTogglingRef = useRef(false); // Track toggle operation state in ref
 
   // CRITICAL: Check device/role conditions ONCE on mount with stable values
   const isMobile = useMemo(() => checkIsMobileDevice(), []);
@@ -35,17 +36,19 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
         location_tracking_enabled: user.location_tracking_enabled,
         driver_status: user.driver_status,
         current_latitude: user.current_latitude,
-        current_longitude: user.current_longitude
+        current_longitude: user.current_longitude,
+        isTogglingRef: isTogglingRef.current
       });
       setLocalUser(user);
       
-      // CRITICAL: Only update isLocationSharingEnabled if NOT currently toggling
-      // This prevents state reversion during toggle operation
-      if (!isToggling) {
+      // CRITICAL: Block state updates during toggle operation (use ref to prevent stale closure)
+      if (!isTogglingRef.current) {
         setIsLocationSharingEnabled(user.location_tracking_enabled || false);
+      } else {
+        console.log('⏸️ [LocationSharing] Blocked state update - toggle in progress');
       }
     }
-  }, [user, user?.driver_status, user?.location_tracking_enabled, isToggling]);
+  }, [user, user?.driver_status, user?.location_tracking_enabled]);
 
   // Listen for location sharing disabled event from DriverStatusToggle
   useEffect(() => {
@@ -178,11 +181,15 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
   };
 
   const handleToggle = async (checked) => {
-    if (isToggling) return;
+    if (isToggling || isTogglingRef.current) {
+      console.log('⏸️ [LocationSharing] Toggle already in progress');
+      return;
+    }
 
     console.log('🎯 [LocationSharing] Sharing toggle clicked:', checked);
 
     setIsToggling(true);
+    isTogglingRef.current = true; // Set ref immediately
     setPermissionStatus('');
     consecutiveErrorsRef.current = 0;
     setHasError(false);
@@ -211,6 +218,9 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
           location_tracking_enabled: true
         });
 
+        // CRITICAL: Tell locationTracker to start updating location_updated_at
+        locationTracker.setDriverStatus('on_duty');
+
         // CRITICAL: Update localUser immediately so UI reflects new state
         const updatedUser = {
           ...localUser,
@@ -220,15 +230,22 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
 
         setPermissionStatus('Location sharing enabled!');
         console.log('✅ [LocationSharing] Sharing enabled');
+        
+        setTimeout(() => setPermissionStatus(''), 3000);
       } else {
-        // Disable sharing (but keep tracking)
+        // Disable sharing (but keep tracking coordinates)
         setPermissionStatus('Disabling location sharing...');
         // CRITICAL: Update UI state FIRST (optimistic update)
         setIsLocationSharingEnabled(false);
         
         await base44.entities.AppUser.update(appUserId, {
-          location_tracking_enabled: false
+          location_tracking_enabled: false,
+          location_updated_at: null
         });
+        
+        // CRITICAL: Tell locationTracker to stop updating location_updated_at
+        // but continue tracking coordinates
+        locationTracker.setDriverStatus('off_duty');
 
         // CRITICAL: Update localUser immediately so UI reflects new state
         const updatedUser = {
@@ -239,12 +256,9 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
 
         setPermissionStatus('Location sharing disabled');
         console.log('✅ [LocationSharing] Sharing disabled (tracking continues)');
-      }
-
-      // Refresh user state in background (don't await - let it happen async)
-      refreshUserState().finally(() => {
+        
         setTimeout(() => setPermissionStatus(''), 3000);
-      });
+      }
 
     } catch (error) {
       console.error('❌ [LocationSharing] Failed to toggle:', error);
@@ -254,11 +268,13 @@ export default function LocationTrackingToggle({ user, onUserUpdate, onLocationS
       setIsLocationSharingEnabled(!checked);
       
       // Refresh user state to sync with backend
-      refreshUserState().finally(() => {
-        setTimeout(() => setPermissionStatus(''), 4000);
-      });
+      setTimeout(() => setPermissionStatus(''), 4000);
     } finally {
       setIsToggling(false);
+      // CRITICAL: Clear ref after a delay to ensure backend update has propagated
+      setTimeout(() => {
+        isTogglingRef.current = false;
+      }, 2000);
     }
   };
 
