@@ -176,6 +176,29 @@ export default function DeliveriesPage() {
   const [isDriverOnline, setIsDriverOnline] = useState(false);
   const isMounted = useRef(false);
 
+  // Count unique drivers with deliveries for dispatchers
+  const uniqueDriversForDispatcher = useMemo(() => {
+    if (!currentUser || !userHasRole(currentUser, 'dispatcher') || userHasRole(currentUser, 'admin')) {
+      return null; // Not applicable
+    }
+    
+    const dispatcherStoreIds = new Set(currentUser.store_ids || []);
+    if (dispatcherStoreIds.size === 0) return null;
+    
+    const deliveriesToCheck = allDeliveries?.length > 0 ? allDeliveries : contextDeliveries;
+    if (!deliveriesToCheck || deliveriesToCheck.length === 0) return null;
+    
+    // Find unique driver IDs with deliveries for dispatcher's stores
+    const driverIds = new Set();
+    deliveriesToCheck.forEach((d) => {
+      if (d && d.store_id && dispatcherStoreIds.has(d.store_id) && d.driver_id) {
+        driverIds.add(d.driver_id);
+      }
+    });
+    
+    return { count: driverIds.size, driverIds: Array.from(driverIds) };
+  }, [currentUser, allDeliveries, contextDeliveries]);
+
   // Determine if we should show Driver Overview mode
   // - Drivers always bypass (go directly to their route)
   // - Dispatchers bypass if only 1 driver has deliveries for their stores
@@ -188,8 +211,15 @@ export default function DeliveriesPage() {
       return false;
     }
     
+    // Dispatchers bypass if only 1 driver has deliveries for their stores
+    if (userHasRole(currentUser, 'dispatcher') && !userHasRole(currentUser, 'admin')) {
+      if (uniqueDriversForDispatcher && uniqueDriversForDispatcher.count === 1) {
+        return false;
+      }
+    }
+    
     return true;
-  }, [driverFilter, currentUser]);
+  }, [driverFilter, currentUser, uniqueDriversForDispatcher]);
   const [refreshKey, setRefreshKey] = React.useState(0);
 
   const lastLoadTime = useRef(0);
