@@ -265,7 +265,8 @@ const QuickStats = ({ currentUser, storeIds = [] }) => {
       window.removeEventListener('deliveriesImported', handleDeliveryChange);
       window.removeEventListener('offlineSyncComplete', handleDeliveryChange);
     };
-    }, [currentUser, selectedDateStr, selectedDriverId, storeIds]); // CRITICAL: Re-added selectedDriverId to trigger refresh on driver change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentUser, selectedDateStr, selectedDriverId]); // Removed storeIds to reduce re-fetches
 
   const StatItem = ({ icon: Icon, label, value, colorClass }) =>
       <div className="flex items-center justify-between text-sm">
@@ -714,6 +715,8 @@ export default function Layout({ children, currentPageName }) {
           return;
         }
 
+      // STAGGERED INITIALIZATION: Load settings with delays to prevent rate limits
+      // Step 1: Load user settings first (most important for UI)
       try {
         const settings = await loadUserSettings(fetchedUser.id);
 
@@ -738,6 +741,9 @@ export default function Layout({ children, currentPageName }) {
         setUserSettingsLoaded(true);
       }
 
+      // Step 2: Delay app-wide settings load to stagger API calls
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       // Load app-wide settings (smart refresh toggle and version)
       try {
         const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
@@ -753,7 +759,7 @@ export default function Layout({ children, currentPageName }) {
             const version = settings[0].setting_value.appVersion;
             setAppVersion(`v${version.major}.${version.minor}.${version.build}`);
           }
-          
+
           // Load admin import toggle state
           setAdminImportEnabled(settings[0].setting_value.adminImportEnabled === true);
         } else {
@@ -788,6 +794,9 @@ export default function Layout({ children, currentPageName }) {
 
         setCurrentUser(fetchedUser);
         setHasAccess(true);
+
+        // Step 3: Delay cities load to further stagger API calls
+        await new Promise(resolve => setTimeout(resolve, 300));
 
         const citiesData = await City.list();
 
@@ -1209,36 +1218,36 @@ export default function Layout({ children, currentPageName }) {
       }, [currentUser]);
 
     // Fetch unread message count - only when messaging panel is closed
-  // When panel is open, ConversationsList handles the count
-  // OPTIMIZED: Reduced frequency significantly to prevent rate limits
-  useEffect(() => {
-    if (!currentUser?.id || showMessaging) return;
+    // When panel is open, ConversationsList handles the count
+    // OPTIMIZED: Significantly delayed and reduced frequency to prevent rate limits
+    useEffect(() => {
+      if (!currentUser?.id || showMessaging) return;
 
-    const fetchUnreadCount = async () => {
-      try {
-        // Only fetch count, limit to 50 to reduce load
-        const unreadMessages = await base44.entities.Message.filter({
-          receiver_id: currentUser.id,
-          read: false
-        }, '-created_date', 50);
-        setUnreadMessageCount(unreadMessages.length);
-      } catch (error) {
-        // Silently handle rate limits - don't spam console
-        if (!error.message?.includes('429') && !error.message?.includes('Rate limit')) {
-          console.error('Error fetching unread messages:', error);
+      const fetchUnreadCount = async () => {
+        try {
+          // Only fetch count, limit to 50 to reduce load
+          const unreadMessages = await base44.entities.Message.filter({
+            receiver_id: currentUser.id,
+            read: false
+          }, '-created_date', 50);
+          setUnreadMessageCount(unreadMessages.length);
+        } catch (error) {
+          // Silently handle rate limits - don't spam console
+          if (!error.message?.includes('429') && !error.message?.includes('Rate limit')) {
+            console.error('Error fetching unread messages:', error);
+          }
         }
-      }
-    };
+      };
 
-    // Delay initial fetch to avoid competing with init load
-    const initialTimer = setTimeout(fetchUnreadCount, 5000);
-    // Poll every 30 minutes when panel is closed
-    const interval = setInterval(fetchUnreadCount, 1800000);
-    return () => {
-      clearTimeout(initialTimer);
-      clearInterval(interval);
-    };
-  }, [currentUser?.id, showMessaging]);
+      // Delay initial fetch significantly to avoid competing with init load (15 seconds)
+      const initialTimer = setTimeout(fetchUnreadCount, 15000);
+      // Poll every 30 minutes when panel is closed
+      const interval = setInterval(fetchUnreadCount, 1800000);
+      return () => {
+        clearTimeout(initialTimer);
+        clearInterval(interval);
+      };
+    }, [currentUser?.id, showMessaging]);
 
   useEffect(() => {
     const handleKeyDown = (event) => {

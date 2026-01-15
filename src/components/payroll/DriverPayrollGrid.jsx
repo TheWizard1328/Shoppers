@@ -28,7 +28,7 @@ export default function DriverPayrollGrid({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { smartRefreshActivity } = useAppData();
 
-  // Track smart refresh activity
+  // Track smart refresh activity - pulse animation when actively refreshing
   useEffect(() => {
     if (smartRefreshActivity?.active) {
       setIsRefreshing(true);
@@ -171,9 +171,7 @@ export default function DriverPayrollGrid({
             <CardTitle className="flex items-center gap-2 text-base" style={{ color: 'var(--text-slate-900)' }}>
               <Table className="w-5 h-5" />
               {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
-              {isRefreshing && (
-                <RefreshCw className="w-4 h-4 animate-spin text-emerald-500" />
-              )}
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-300'}`} />
             </CardTitle>
             
             {/* Section 2: View Mode Toggle */}
@@ -245,9 +243,7 @@ export default function DriverPayrollGrid({
             <CardTitle className="flex items-center gap-2 text-base" style={{ color: 'var(--text-slate-900)' }}>
               <Table className="w-5 h-5" />
               {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
-              {isRefreshing && (
-                <RefreshCw className="w-4 h-4 animate-spin text-emerald-500" />
-              )}
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-300'}`} />
             </CardTitle>
             
             {/* Row 2: View Mode Toggle */}
