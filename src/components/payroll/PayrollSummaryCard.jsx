@@ -186,39 +186,39 @@ export default function PayrollSummaryCard({
                 </div>
               </div>
               {/* Pay Rates Row */}
-              <div className="grid grid-cols-4 gap-0.5 text-xs mb-1.5">
-                <div className="flex items-center gap-0.5">
-                  <span className="text-slate-500">Rate:</span>
+              <div className="flex gap-4 text-xs mb-1.5">
+                <div className="flex items-center gap-1 w-24">
+                  <span className="text-slate-500 w-8">Rate:</span>
                   <span className="bg-slate-200 text-slate-700 px-1 py-0.5 rounded text-[11px]">{formatCurrency(data.payRate)}</span>
                 </div>
-                <div className="flex items-center gap-0.5">
-                  <span className="text-slate-500">KM:</span>
+                <div className="flex items-center gap-1 w-28">
+                  <span className="text-slate-500 w-6">KM:</span>
                   <span className="bg-slate-200 text-slate-700 px-1 py-0.5 rounded text-[11px]">{formatCurrency(data.extraKmRate, 3)}/km</span>
                 </div>
-                <div className="flex items-center gap-0.5">
-                  <span className="text-slate-500">OS:</span>
+                <div className="flex items-center gap-1 w-20">
+                  <span className="text-slate-500 w-6">OS:</span>
                   <span className="bg-slate-200 text-slate-700 px-1 py-0.5 rounded text-[11px]">{formatCurrency(data.oversizedRate)}</span>
                 </div>
-                <div className="flex items-center gap-0.5">
+                <div className="flex items-center gap-1">
                   <span className="text-slate-500">Failed:</span>
                   <span className="bg-red-100 text-red-700 px-1 py-0.5 rounded text-[11px]">{data.failedCount}</span>
                 </div>
               </div>
               {/* Totals Row */}
-              <div className="grid grid-cols-4 gap-0.5 text-xs">
-                <div className="flex items-center gap-0.5">
-                  <span className="text-slate-500">Del:</span>
+              <div className="flex gap-4 text-xs">
+                <div className="flex items-center gap-1 w-24">
+                  <span className="text-slate-500 w-8">Del:</span>
                   <span className="bg-slate-200 text-slate-700 px-1 py-0.5 rounded text-[11px]">{data.totalDeliveries} = {formatCurrency(data.totalBasePay)}</span>
                 </div>
-                <div className="flex items-center gap-0.5">
-                  <span className="text-slate-500">KM:</span>
+                <div className="flex items-center gap-1 w-28">
+                  <span className="text-slate-500 w-6">KM:</span>
                   <span className="bg-slate-200 text-slate-700 px-1 py-0.5 rounded text-[11px]">{data.totalExtraKm.toFixed(2)} = {formatCurrency(data.totalExtraKmPay)}</span>
                 </div>
-                <div className="flex items-center gap-0.5">
-                  <span className="text-slate-500">OS:</span>
+                <div className="flex items-center gap-1 w-20">
+                  <span className="text-slate-500 w-6">OS:</span>
                   <span className="bg-slate-200 text-slate-700 px-1 py-0.5 rounded text-[11px]">{data.oversizedCount} = {formatCurrency(data.totalOversizedPay)}</span>
                 </div>
-                <div className="flex items-center gap-0.5">
+                <div className="flex items-center gap-1">
                   <span className="text-slate-500">Returns:</span>
                   <span className="bg-orange-100 text-orange-700 px-1 py-0.5 rounded text-[11px]">{data.returnsCount}</span>
                 </div>
