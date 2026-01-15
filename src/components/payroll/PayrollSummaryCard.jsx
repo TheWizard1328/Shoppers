@@ -186,7 +186,7 @@ export default function PayrollSummaryCard({
                 </div>
               </div>
               {/* Pay Rates Row */}
-              <div className="grid grid-cols-4 gap-1 text-xs mb-1.5">
+              <div className="grid grid-cols-4 text-xs mb-1.5">
                 <div className="flex items-center">
                   <span className="text-slate-500 w-8">Rate:</span>
                   <span className="bg-slate-200 text-slate-700 px-1 py-0.5 rounded text-[11px]">{formatCurrency(data.payRate)}</span>
@@ -205,7 +205,7 @@ export default function PayrollSummaryCard({
                 </div>
               </div>
               {/* Totals Row */}
-              <div className="grid grid-cols-4 gap-1 text-xs">
+              <div className="grid grid-cols-4 text-xs">
                 <div className="flex items-center">
                   <span className="text-slate-500 w-8">Del:</span>
                   <span className="bg-slate-200 text-slate-700 px-1 py-0.5 rounded text-[11px]">{data.totalDeliveries} = {formatCurrency(data.totalBasePay)}</span>
