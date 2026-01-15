@@ -2883,7 +2883,7 @@ function Dashboard() {
     return () => {
       window.removeEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);
     };
-  }, [isDispatcher, mapViewPhase, deliveriesWithStopOrder]);
+  }, [isDispatcher, mapViewPhase, deliveriesWithStopOrder, selectedCardId]);
 
   // Auto-center on next stop on initial load
   const hasAutoSelectedRef = useRef(false);
