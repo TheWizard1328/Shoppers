@@ -87,6 +87,7 @@ export default function PayrollSummaryCard({
         oversizedRate,
         totalDeliveries: deliveryCount,
         totalBasePay: basePay,
+        totalExtraKm: totalExtraKm,
         totalExtraKmPay: extraKmPay,
         totalOversizedPay: oversizedPay,
         grandTotal: totalPay
