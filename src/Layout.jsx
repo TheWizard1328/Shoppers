@@ -715,8 +715,8 @@ export default function Layout({ children, currentPageName }) {
           return;
         }
 
-      // STAGGERED INITIALIZATION: Load settings with delays to prevent rate limits
-      // Step 1: Load user settings first (most important for UI)
+      // OPTIMIZED INITIALIZATION: Load from cache first, then background sync
+      // Step 1: Load user settings from local cache (no API call)
       try {
         const settings = await loadUserSettings(fetchedUser.id);
 
@@ -732,44 +732,31 @@ export default function Layout({ children, currentPageName }) {
           setThemePreference('light');
         }
 
-        // CRITICAL: Do NOT apply selected_driver_id or selected_date from UserSettings
-        // These are managed by globalFilters which uses localStorage (device-specific)
-        // UserSettings was incorrectly syncing these across devices causing the glitch
-
         setUserSettingsLoaded(true);
       } catch (settingsError) {
         setUserSettingsLoaded(true);
       }
 
-      // Step 2: Delay app-wide settings load to stagger API calls
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Initialize smart refresh with defaults (don't wait for API)
+      smartRefreshManager._enabled = true;
+      smartRefreshManager._initialized = true;
 
-      // Load app-wide settings (smart refresh toggle and version)
-      try {
-        const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
-
-        if (settings && settings.length > 0 && settings[0].setting_value) {
-          // Initialize smart refresh
-          const smartRefreshEnabled = settings[0].setting_value.smartRefreshEnabled !== false;
-          smartRefreshManager._enabled = smartRefreshEnabled;
-          smartRefreshManager._initialized = true;
-
-          // Load app version
-          if (settings[0].setting_value.appVersion) {
-            const version = settings[0].setting_value.appVersion;
-            setAppVersion(`v${version.major}.${version.minor}.${version.build}`);
+      // Load app-wide settings in background (non-blocking)
+      setTimeout(async () => {
+        try {
+          const settings = await base44.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+          if (settings && settings.length > 0 && settings[0].setting_value) {
+            smartRefreshManager._enabled = settings[0].setting_value.smartRefreshEnabled !== false;
+            if (settings[0].setting_value.appVersion) {
+              const version = settings[0].setting_value.appVersion;
+              setAppVersion(`v${version.major}.${version.minor}.${version.build}`);
+            }
+            setAdminImportEnabled(settings[0].setting_value.adminImportEnabled === true);
           }
-
-          // Load admin import toggle state
-          setAdminImportEnabled(settings[0].setting_value.adminImportEnabled === true);
-        } else {
-          smartRefreshManager._enabled = true;
-          smartRefreshManager._initialized = true;
+        } catch (e) {
+          // Silent fail - use defaults
         }
-      } catch (appSettingsError) {
-        smartRefreshManager._enabled = true;
-        smartRefreshManager._initialized = true;
-      }
+      }, 3000); // Load app settings 3 seconds after init
 
         const isDispatcher = userHasRole(fetchedUser, 'dispatcher');
         const isInactive = fetchedUser.status === 'inactive';
@@ -795,14 +782,14 @@ export default function Layout({ children, currentPageName }) {
         setCurrentUser(fetchedUser);
         setHasAccess(true);
 
-        // Step 3: Delay cities load to further stagger API calls
-        await new Promise(resolve => setTimeout(resolve, 300));
-
+        // Load cities (critical for app function)
         const citiesData = await City.list();
 
         citiesData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
         setCities(citiesData || []);
 
+        // Small delay before stores to prevent burst
+        await new Promise(resolve => setTimeout(resolve, 200));
         const storesData = await getData('Store');
         let initialCityId = null;
 
@@ -1218,31 +1205,26 @@ export default function Layout({ children, currentPageName }) {
       }, [currentUser]);
 
     // Fetch unread message count - only when messaging panel is closed
-    // When panel is open, ConversationsList handles the count
-    // OPTIMIZED: Significantly delayed and reduced frequency to prevent rate limits
+    // OPTIMIZED: Delayed significantly to prevent rate limits on startup
     useEffect(() => {
       if (!currentUser?.id || showMessaging) return;
 
       const fetchUnreadCount = async () => {
         try {
-          // Only fetch count, limit to 50 to reduce load
           const unreadMessages = await base44.entities.Message.filter({
             receiver_id: currentUser.id,
             read: false
           }, '-created_date', 50);
           setUnreadMessageCount(unreadMessages.length);
         } catch (error) {
-          // Silently handle rate limits - don't spam console
-          if (!error.message?.includes('429') && !error.message?.includes('Rate limit')) {
-            console.error('Error fetching unread messages:', error);
-          }
+          // Silent fail on rate limits
         }
       };
 
-      // Delay initial fetch significantly to avoid competing with init load (15 seconds)
-      const initialTimer = setTimeout(fetchUnreadCount, 15000);
-      // Poll every 30 minutes when panel is closed
-      const interval = setInterval(fetchUnreadCount, 1800000);
+      // Delay initial fetch to 30 seconds after app load
+      const initialTimer = setTimeout(fetchUnreadCount, 30000);
+      // Poll every 5 minutes when panel is closed
+      const interval = setInterval(fetchUnreadCount, 300000);
       return () => {
         clearTimeout(initialTimer);
         clearInterval(interval);
@@ -2052,17 +2034,13 @@ export default function Layout({ children, currentPageName }) {
 
     const fetchStats = async () => {
       try {
-        // CRITICAL: Filter storeIds based on user role
         let filteredStoreIds = [];
 
         if (userHasRole(currentUser, 'admin')) {
-          // Admins see all stores in selected city
           filteredStoreIds = stores.map(s => s?.id).filter(Boolean);
         } else if (userHasRole(currentUser, 'dispatcher')) {
-          // Dispatchers see only their assigned stores
           filteredStoreIds = (currentUser.store_ids || []).filter(Boolean);
         } else if (userHasRole(currentUser, 'driver')) {
-          // Drivers see stores where they have deliveries
           const driverStoreIds = new Set(
             deliveries
               .filter(d => d && d.driver_id === currentUser.id)
@@ -2092,14 +2070,16 @@ export default function Layout({ children, currentPageName }) {
       } catch (error) {}
     };
 
-    const timer = setTimeout(fetchStats, 2000);
+    // Delay stats fetch to 5 seconds after data loaded
+    const timer = setTimeout(fetchStats, 5000);
+    // Poll every 5 minutes
     const interval = setInterval(fetchStats, 300000);
 
     return () => {
       clearTimeout(timer);
       clearInterval(interval);
     };
-  }, [currentUser, dataLoaded, stores, deliveries]);
+  }, [currentUser, dataLoaded]);
 
   const statsCardPositioning = useMemo(() => {
     const ratio = screenWidth / cardWidth;
