@@ -5087,10 +5087,16 @@ function Dashboard() {
       if (['completed', 'failed', 'cancelled'].includes(newStatus)) {
         updateData.isNextDelivery = false;
         
+        // CRITICAL: Re-fetch latest deliveries to ensure we have the most up-to-date data
+        const latestDeliveries = await base44.entities.Delivery.filter({
+          driver_id: driverId,
+          delivery_date: deliveryDate
+        });
+        
         // Calculate travel distance from previous completed stop
         const finishedStatuses = ['completed', 'failed', 'cancelled'];
-        const completedStops = deliveriesWithStopOrder
-          .filter((d) => d && d.driver_id === driverId && d.delivery_date === deliveryDate && finishedStatuses.includes(d.status))
+        const completedStops = latestDeliveries
+          .filter((d) => d && finishedStatuses.includes(d.status))
           .sort((a, b) => {
             if (!a.actual_delivery_time || !b.actual_delivery_time) return 0;
             return new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time);
@@ -5099,7 +5105,7 @@ function Dashboard() {
         if (completedStops.length === 0) {
           // First completed stop - distance is 0
           updateData.travel_dist = 0;
-          console.log('📏 [Crow Flies] First completed stop - travel_dist = 0 km');
+          console.log('📏 [Travel Dist] First completed stop - travel_dist = 0 km');
         } else {
           // Calculate distance from last completed stop
           const lastStop = completedStops[completedStops.length - 1];
@@ -5130,10 +5136,10 @@ function Dashboard() {
           if (lastLat && lastLon && currentLat && currentLon) {
             const distance = calculateDistance(lastLat, lastLon, currentLat, currentLon);
             updateData.travel_dist = Math.round(distance * 100) / 100; // Round to 2 decimals
-            console.log(`📏 [Crow Flies] Distance from last stop: ${updateData.travel_dist} km`);
+            console.log(`📏 [Travel Dist] Distance from last stop: ${updateData.travel_dist} km (${lastStop.patient_name || lastStop.delivery_notes} -> ${targetDelivery.patient_name || targetDelivery.delivery_notes})`);
           } else {
             updateData.travel_dist = 0;
-            console.log('📏 [Crow Flies] Missing coordinates - travel_dist = 0 km');
+            console.log('📏 [Travel Dist] Missing coordinates - travel_dist = 0 km');
           }
         }
       }

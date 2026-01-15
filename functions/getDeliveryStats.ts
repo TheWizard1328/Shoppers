@@ -474,8 +474,12 @@ Deno.serve(async (req) => {
           finishedDeliveries.forEach(delivery => {
             if (delivery?.travel_dist && typeof delivery.travel_dist === 'number') {
               totalKm += delivery.travel_dist;
+              console.log(`📏 [Stats] ${delivery.patient_name || delivery.delivery_notes}: ${delivery.travel_dist} km`);
+            } else {
+              console.log(`⚠️ [Stats] ${delivery.patient_name || delivery.delivery_notes}: NO travel_dist`);
             }
           });
+          console.log(`📏 [Stats TOTAL] Total Km: ${totalKm} km from ${finishedDeliveries.length} deliveries`);
 
           // Extra Km: sum up distances using paid_km_override if available, otherwise patient distance_from_store
           let totalExtraKm = 0;
@@ -618,8 +622,10 @@ Deno.serve(async (req) => {
           finishedDeliveries.forEach(delivery => {
             if (delivery?.travel_dist && typeof delivery.travel_dist === 'number') {
               driverTotalKm += delivery.travel_dist;
+              console.log(`📏 [All Drivers - ${driverUserId}] ${delivery.patient_name || delivery.delivery_notes}: ${delivery.travel_dist} km`);
             }
           });
+          console.log(`📏 [All Drivers - ${driverUserId}] Total Km: ${driverTotalKm} km from ${finishedDeliveries.length} deliveries`);
           
           // Extra Km for this driver
           let driverTotalExtraKm = 0;
