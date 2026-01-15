@@ -83,43 +83,63 @@ export default function DriverPayrollGrid({
     return extraKm > 0 ? extraKm : 0;
   };
 
-  // Build a map of dateKey -> store -> count
-  const dataMap = {};
-  periodDays.forEach(day => {
-    const dateKey = format(day, 'yyyy-MM-dd');
-    dataMap[dateKey] = {};
-    sortedStores.forEach(store => {
-      dataMap[dateKey][store.id] = 0;
+  // Build a map of dateKey -> store -> count (deliveries) and extraKm
+  const { dataMap, extraKmMap } = useMemo(() => {
+    const deliveryMap = {};
+    const kmMap = {};
+    
+    periodDays.forEach(day => {
+      const dateKey = format(day, 'yyyy-MM-dd');
+      deliveryMap[dateKey] = {};
+      kmMap[dateKey] = {};
+      sortedStores.forEach(store => {
+        deliveryMap[dateKey][store.id] = 0;
+        kmMap[dateKey][store.id] = 0;
+      });
     });
-  });
 
-  filteredDeliveries.forEach(d => {
-    const dateKey = d.delivery_date;
-    const storeId = d.store_id;
-    if (dataMap[dateKey] && dataMap[dateKey][storeId] !== undefined) {
-      dataMap[dateKey][storeId]++;
-    }
-  });
+    filteredDeliveries.forEach(d => {
+      const dateKey = d.delivery_date;
+      const storeId = d.store_id;
+      if (deliveryMap[dateKey] && deliveryMap[dateKey][storeId] !== undefined) {
+        deliveryMap[dateKey][storeId]++;
+        kmMap[dateKey][storeId] += calculateExtraKm(d);
+      }
+    });
+
+    return { dataMap: deliveryMap, extraKmMap: kmMap };
+  }, [filteredDeliveries, periodDays, sortedStores, patients, appUsers]);
 
   // Calculate store totals (column totals)
-  const storeTotals = {};
-  sortedStores.forEach(store => {
-    storeTotals[store.id] = 0;
-  });
-  periodDays.forEach(day => {
-    const dateKey = format(day, 'yyyy-MM-dd');
+  const { storeTotals, storeKmTotals } = useMemo(() => {
+    const totals = {};
+    const kmTotals = {};
     sortedStores.forEach(store => {
-      storeTotals[store.id] += dataMap[dateKey]?.[store.id] || 0;
+      totals[store.id] = 0;
+      kmTotals[store.id] = 0;
     });
-  });
+    periodDays.forEach(day => {
+      const dateKey = format(day, 'yyyy-MM-dd');
+      sortedStores.forEach(store => {
+        totals[store.id] += dataMap[dateKey]?.[store.id] || 0;
+        kmTotals[store.id] += extraKmMap[dateKey]?.[store.id] || 0;
+      });
+    });
+    return { storeTotals: totals, storeKmTotals: kmTotals };
+  }, [dataMap, extraKmMap, periodDays, sortedStores]);
 
   // Calculate day totals (row totals)
   const getDayTotal = (dateKey) => {
+    if (viewMode === 'extraKm') {
+      return sortedStores.reduce((sum, store) => sum + (extraKmMap[dateKey]?.[store.id] || 0), 0);
+    }
     return sortedStores.reduce((sum, store) => sum + (dataMap[dateKey]?.[store.id] || 0), 0);
   };
 
   // Grand total
-  const grandTotal = Object.values(storeTotals).reduce((sum, val) => sum + val, 0);
+  const grandTotal = viewMode === 'extraKm' 
+    ? Object.values(storeKmTotals).reduce((sum, val) => sum + val, 0)
+    : Object.values(storeTotals).reduce((sum, val) => sum + val, 0);
 
   // Get store color
   const getStoreColor = (store) => store.color || '#64748b';
