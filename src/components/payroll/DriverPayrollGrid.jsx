@@ -148,18 +148,18 @@ export default function DriverPayrollGrid({
   const periodDateRange = `${format(currentPeriod.start, 'MMM d')} - ${format(currentPeriod.end, 'MMM d, yyyy')}`;
 
   return (
-    <Card>
+    <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
       <CardHeader className="pb-3">
         <div className="flex flex-col gap-3">
           {/* Pay Period Type Selector */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <CardTitle className="flex items-center gap-2 text-base">
+              <CardTitle className="flex items-center gap-2 text-base" style={{ color: 'var(--text-slate-900)' }}>
                 <Table className="w-5 h-5" />
                 {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
               </CardTitle>
               {/* View Mode Toggle */}
-              <div className="flex gap-1 bg-slate-100 rounded-lg p-0.5">
+              <div className="flex gap-1 rounded-lg p-0.5" style={{ background: 'var(--bg-slate-100)' }}>
                 <Button
                   size="sm"
                   variant={viewMode === 'deliveries' ? 'default' : 'ghost'}
@@ -186,6 +186,7 @@ export default function DriverPayrollGrid({
                 variant={payPeriod === 'weekly' ? 'default' : 'outline'}
                 onClick={() => onPayPeriodChange('weekly')}
                 className="text-xs h-7 px-2"
+                style={payPeriod !== 'weekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}
               >
                 Weekly
               </Button>
@@ -194,6 +195,7 @@ export default function DriverPayrollGrid({
                 variant={payPeriod === 'biweekly' ? 'default' : 'outline'}
                 onClick={() => onPayPeriodChange('biweekly')}
                 className="text-xs h-7 px-2"
+                style={payPeriod !== 'biweekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}
               >
                 Bi-Weekly
               </Button>
@@ -202,6 +204,7 @@ export default function DriverPayrollGrid({
                 variant={payPeriod === 'semimonthly' ? 'default' : 'outline'}
                 onClick={() => onPayPeriodChange('semimonthly')}
                 className="text-xs h-7 px-2"
+                style={payPeriod !== 'semimonthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}
               >
                 Semi-Monthly
               </Button>
@@ -210,6 +213,7 @@ export default function DriverPayrollGrid({
                 variant={payPeriod === 'monthly' ? 'default' : 'outline'}
                 onClick={() => onPayPeriodChange('monthly')}
                 className="text-xs h-7 px-2"
+                style={payPeriod !== 'monthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}
               >
                 Monthly
               </Button>
@@ -228,8 +232,8 @@ export default function DriverPayrollGrid({
               <ChevronLeft className="w-5 h-5" />
             </Button>
             <div className="text-center min-w-[200px]">
-              <div className="font-semibold text-slate-900">{currentPeriod.label}</div>
-              <div className="text-xs text-slate-500">{periodDateRange}</div>
+              <div className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{currentPeriod.label}</div>
+              <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>{periodDateRange}</div>
             </div>
             <Button
               size="sm"
@@ -247,8 +251,8 @@ export default function DriverPayrollGrid({
         <div className="overflow-x-auto">
           <table className="w-full text-[11px]">
             <thead>
-              <tr className="border-b bg-slate-50">
-                <th className="text-left px-2 py-1 font-medium text-slate-600 sticky left-0 bg-slate-50 z-10">Day</th>
+              <tr style={{ borderBottom: '1px solid var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
+                <th className="text-left px-2 py-1 font-medium sticky left-0 z-10" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)' }}>Day</th>
                 {sortedStores.map((store) => (
                   <th
                     key={store.id}
@@ -259,7 +263,7 @@ export default function DriverPayrollGrid({
                     {store.abbreviation || store.name?.substring(0, 2)}
                   </th>
                 ))}
-                <th className="text-center px-2 py-1 font-bold text-slate-900 border-l-2 border-purple-300 min-w-[50px]">Tot</th>
+                <th className="text-center px-2 py-1 font-bold border-l-2 border-purple-300 min-w-[50px]" style={{ color: 'var(--text-slate-900)' }}>Tot</th>
               </tr>
             </thead>
             <tbody>
@@ -274,13 +278,13 @@ export default function DriverPayrollGrid({
                 return (
                   <tr 
                     key={dateKey} 
-                    className={`border-b hover:bg-slate-50 ${isWeekend ? 'bg-slate-50' : ''}`}
+                    style={{ borderBottom: '1px solid var(--border-slate-200)', background: isWeekend ? 'var(--bg-slate-50)' : 'transparent' }}
                   >
                     <td
-                      className={`px-2 py-0.5 font-medium sticky left-0 z-10 ${isWeekend ? 'bg-slate-50' : 'bg-white'}`}
-                      style={{ color: '#475569' }}
+                      className="px-2 py-0.5 font-medium sticky left-0 z-10"
+                      style={{ color: 'var(--text-slate-600)', background: isWeekend ? 'var(--bg-slate-50)' : 'var(--bg-white)' }}
                     >
-                      {monthShort} {dayNum} <span className="text-slate-400 text-[9px]">{dayOfWeek}</span>
+                      {monthShort} {dayNum} <span className="text-[9px]" style={{ color: 'var(--text-slate-400)' }}>{dayOfWeek}</span>
                     </td>
                     {sortedStores.map((store) => {
                       const value = viewMode === 'extraKm' 
@@ -293,13 +297,13 @@ export default function DriverPayrollGrid({
                         <td
                           key={store.id}
                           className="text-center px-2 py-0.5 tabular-nums"
-                          style={{ color: value > 0 ? getStoreColor(store) : '#94a3b8' }}
+                          style={{ color: value > 0 ? getStoreColor(store) : 'var(--text-slate-400)' }}
                         >
                           {displayValue}
                         </td>
                       );
                     })}
-                    <td className="text-center px-2 py-0.5 font-semibold text-slate-900 border-l-2 border-purple-300 tabular-nums">
+                    <td className="text-center px-2 py-0.5 font-semibold border-l-2 border-purple-300 tabular-nums" style={{ color: 'var(--text-slate-900)' }}>
                       {viewMode === 'extraKm' 
                         ? (dayTotal > 0 ? dayTotal.toFixed(2) : '')
                         : (dayTotal > 0 ? dayTotal : '')}
@@ -308,8 +312,8 @@ export default function DriverPayrollGrid({
                 );
               })}
               {/* Totals Row */}
-              <tr className="border-t-2 border-slate-300 bg-slate-100 font-semibold">
-                <td className="px-2 py-1 text-slate-700 sticky left-0 bg-slate-100 z-10">Tot</td>
+              <tr className="font-semibold" style={{ borderTop: '2px solid var(--border-slate-300)', background: 'var(--bg-slate-100)' }}>
+                <td className="px-2 py-1 sticky left-0 z-10" style={{ color: 'var(--text-slate-700)', background: 'var(--bg-slate-100)' }}>Tot</td>
                 {sortedStores.map((store) => {
                   const value = viewMode === 'extraKm' ? storeKmTotals[store.id] : storeTotals[store.id];
                   const displayValue = viewMode === 'extraKm' 
@@ -325,7 +329,7 @@ export default function DriverPayrollGrid({
                     </td>
                   );
                 })}
-                <td className="text-center px-2 py-1 font-bold text-slate-900 border-l-2 border-purple-300 tabular-nums">
+                <td className="text-center px-2 py-1 font-bold border-l-2 border-purple-300 tabular-nums" style={{ color: 'var(--text-slate-900)' }}>
                   {viewMode === 'extraKm' ? grandTotal.toFixed(2) : grandTotal}
                 </td>
               </tr>
