@@ -43,7 +43,8 @@ import {
   UserCog,
   Stethoscope,
   MoreVertical,
-  MessageCircle
+  MessageCircle,
+  DollarSign
 } from "lucide-react";
 import {
   Popover,
