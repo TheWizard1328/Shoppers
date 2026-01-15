@@ -7,11 +7,29 @@ import { DollarSign, Download, Calculator } from 'lucide-react';
  * Payroll Summary Card
  * Calculates and displays payroll totals based on pay period and driver rates
  */
+// GST/HST rates by province (Canada)
+const PROVINCE_TAX_RATES = {
+  'AB': 0.05,  // Alberta - GST only
+  'BC': 0.05,  // BC - GST only (PST separate)
+  'SK': 0.05,  // Saskatchewan - GST only
+  'MB': 0.05,  // Manitoba - GST only
+  'ON': 0.13,  // Ontario - HST
+  'QC': 0.05,  // Quebec - GST only (QST separate)
+  'NB': 0.15,  // New Brunswick - HST
+  'NS': 0.15,  // Nova Scotia - HST
+  'PE': 0.15,  // PEI - HST
+  'NL': 0.15,  // Newfoundland - HST
+  'YT': 0.05,  // Yukon - GST only
+  'NT': 0.05,  // Northwest Territories - GST only
+  'NU': 0.05,  // Nunavut - GST only
+};
+
 export default function PayrollSummaryCard({
   deliveries,
   drivers,
   appUsers,
   patients,
+  cities,
   selectedYear,
   selectedDriverId,
   payPeriod,
@@ -83,6 +101,48 @@ export default function PayrollSummaryCard({
 
       const totalPay = basePay + extraKmPay + oversizedPay;
 
+      // Calculate GST/HST if enabled for driver
+      const gstHstEnabled = appUser?.gst_hst_enabled || false;
+      let taxAmount = 0;
+      let taxRate = 0;
+      let provinceCode = null;
+
+      if (gstHstEnabled && cities) {
+        // Get driver's city to determine province
+        const driverCityId = appUser?.city_id;
+        const driverCity = driverCityId ? cities.find(c => c && c.id === driverCityId) : null;
+        
+        if (driverCity?.province_state) {
+          // Extract province code (handle full names and abbreviations)
+          const province = driverCity.province_state.toUpperCase();
+          // Check if it's already a 2-letter code
+          if (province.length === 2 && PROVINCE_TAX_RATES[province]) {
+            provinceCode = province;
+          } else {
+            // Map full names to codes
+            const provinceMap = {
+              'ALBERTA': 'AB', 'BRITISH COLUMBIA': 'BC', 'SASKATCHEWAN': 'SK',
+              'MANITOBA': 'MB', 'ONTARIO': 'ON', 'QUEBEC': 'QC',
+              'NEW BRUNSWICK': 'NB', 'NOVA SCOTIA': 'NS', 'PRINCE EDWARD ISLAND': 'PE',
+              'NEWFOUNDLAND': 'NL', 'NEWFOUNDLAND AND LABRADOR': 'NL',
+              'YUKON': 'YT', 'NORTHWEST TERRITORIES': 'NT', 'NUNAVUT': 'NU'
+            };
+            provinceCode = provinceMap[province] || null;
+          }
+          
+          if (provinceCode && PROVINCE_TAX_RATES[provinceCode]) {
+            taxRate = PROVINCE_TAX_RATES[provinceCode];
+            taxAmount = totalPay * taxRate;
+          }
+        }
+      }
+
+      // Deductions (placeholder - can be expanded based on appUser.deductions field if added)
+      const deductions = appUser?.deductions || 0;
+
+      // Gross = Net + Tax - Deductions
+      const grossPay = totalPay + taxAmount - deductions;
+
       return {
         driver,
         payRate,
@@ -97,10 +157,17 @@ export default function PayrollSummaryCard({
         totalOversizedPay: oversizedPay,
         failedCount: failedCount,
         returnsCount: returnsCount,
-        grandTotal: totalPay
+        grandTotal: totalPay,
+        // New fields
+        gstHstEnabled,
+        taxRate,
+        taxAmount,
+        provinceCode,
+        deductions,
+        grossPay
       };
     });
-  }, [deliveries, drivers, appUsers, patients, selectedYear, selectedDriverId, currentPeriod]);
+  }, [deliveries, drivers, appUsers, patients, cities, selectedYear, selectedDriverId, currentPeriod]);
 
   // Export to CSV
   const handleExport = () => {
@@ -146,8 +213,11 @@ export default function PayrollSummaryCard({
     }).format(amount);
   };
 
-  // Grand total across all displayed drivers
+  // Grand totals across all displayed drivers
   const grandTotalAllDrivers = payrollData.reduce((sum, d) => sum + d.grandTotal, 0);
+  const grandTotalTax = payrollData.reduce((sum, d) => sum + d.taxAmount, 0);
+  const grandTotalDeductions = payrollData.reduce((sum, d) => sum + d.deductions, 0);
+  const grandTotalGross = payrollData.reduce((sum, d) => sum + d.grossPay, 0);
 
   if (payrollData.length === 0) {
     return (
@@ -175,14 +245,49 @@ export default function PayrollSummaryCard({
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {payrollData.filter((data) => data.grandTotal > 0).map((data, idx) =>
+          {payrollData.filter((data) => data.grandTotal > 0).map((data, idx) => {
+          const hasTaxOrDeductions = data.taxAmount > 0 || data.deductions > 0;
+          
+          return (
           <div key={data.driver.id} className="p-3 rounded-lg" style={{ background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                   {data.driver.user_name || data.driver.full_name}
                 </h3>
-                <div className="text-2xl font-bold text-emerald-600">
-                  {formatCurrency(data.grandTotal)}
+                <div className="flex flex-col items-end gap-0.5">
+                  {hasTaxOrDeductions ? (
+                    <>
+                      {/* Net (formerly grandTotal) */}
+                      <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                        <span className="text-xs mr-1">Net:</span>
+                        <span className="font-semibold">{formatCurrency(data.grandTotal)}</span>
+                      </div>
+                      {/* Tax if applicable */}
+                      {data.taxAmount > 0 && (
+                        <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                          <span className="text-xs mr-1">Tax ({data.provinceCode} {(data.taxRate * 100).toFixed(0)}%):</span>
+                          <span className="font-semibold">{formatCurrency(data.taxAmount)}</span>
+                        </div>
+                      )}
+                      {/* Deductions if applicable */}
+                      {data.deductions > 0 && (
+                        <div className="text-sm text-red-600">
+                          <span className="text-xs mr-1">Deductions:</span>
+                          <span className="font-semibold">-{formatCurrency(data.deductions)}</span>
+                        </div>
+                      )}
+                      {/* Gross (final payable) */}
+                      <div className="text-2xl font-bold text-emerald-600 mt-1">
+                        <span className="text-xs font-normal mr-1" style={{ color: 'var(--text-slate-500)' }}>Gross:</span>
+                        {formatCurrency(data.grossPay)}
+                      </div>
+                    </>
+                  ) : (
+                    /* No tax or deductions - just show Gross */
+                    <div className="text-2xl font-bold text-emerald-600">
+                      {formatCurrency(data.grossPay)}
+                    </div>
+                  )}
                 </div>
               </div>
               {/* Desktop: 4-Column Layout */}
@@ -266,17 +371,47 @@ export default function PayrollSummaryCard({
                 </div>
               </div>
             </div>
-          )}
+          );
+        })}
           
           {/* Grand Total for All Drivers */}
-          {payrollData.length > 1 &&
-          <div className="pt-4 flex items-center justify-between" style={{ borderTop: '2px solid var(--border-slate-300)' }}>
-              <div className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Total Payroll (All Drivers)</div>
-              <div className="text-2xl font-bold text-emerald-700">
-                {formatCurrency(grandTotalAllDrivers)}
+          {payrollData.length > 1 && (
+          <div className="pt-4" style={{ borderTop: '2px solid var(--border-slate-300)' }}>
+              <div className="flex items-center justify-between">
+                <div className="font-semibold" style={{ color: 'var(--text-slate-700)' }}>Total Payroll (All Drivers)</div>
+                <div className="flex flex-col items-end gap-0.5">
+                  {(grandTotalTax > 0 || grandTotalDeductions > 0) ? (
+                    <>
+                      <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                        <span className="text-xs mr-1">Net:</span>
+                        <span className="font-semibold">{formatCurrency(grandTotalAllDrivers)}</span>
+                      </div>
+                      {grandTotalTax > 0 && (
+                        <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                          <span className="text-xs mr-1">Tax:</span>
+                          <span className="font-semibold">{formatCurrency(grandTotalTax)}</span>
+                        </div>
+                      )}
+                      {grandTotalDeductions > 0 && (
+                        <div className="text-sm text-red-600">
+                          <span className="text-xs mr-1">Deductions:</span>
+                          <span className="font-semibold">-{formatCurrency(grandTotalDeductions)}</span>
+                        </div>
+                      )}
+                      <div className="text-2xl font-bold text-emerald-700 mt-1">
+                        <span className="text-xs font-normal mr-1" style={{ color: 'var(--text-slate-500)' }}>Gross:</span>
+                        {formatCurrency(grandTotalGross)}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-2xl font-bold text-emerald-700">
+                      {formatCurrency(grandTotalGross)}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          }
+          )}
         </div>
       </CardContent>
     </Card>);
