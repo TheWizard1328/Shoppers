@@ -5758,6 +5758,13 @@ function Dashboard() {
         detail: { driverId: driverId, deliveryDate: deliveryDate, triggeredBy: 'startDeliveryFinalRefresh' }
       }));
 
+      // CRITICAL: Force smart refresh to update its cache with the delivery we just started
+      console.log('🔄 [START] Forcing smart refresh to update cache with new isNextDelivery...');
+      smartRefreshManager.registerPendingDeliveryUpdate(newNextDeliveryId, {
+        isNextDelivery: true,
+        status: newStatus
+      });
+      
       console.log('═══════════════════════════════════════════════════');
       console.log('✅ [START] ========== START DELIVERY COMPLETE ==========');
       console.log('═══════════════════════════════════════════════════');
@@ -5834,14 +5841,25 @@ function Dashboard() {
 
       alert(`Failed to start delivery: ${error.message}`);
     } finally {
-      // CRITICAL: Resume smart refresh FIRST before any other operations
+      // CRITICAL: Resume smart refresh AFTER longer delay to ensure database writes complete
+      console.log('⏳ [START] Waiting 2 seconds before resuming smart refresh...');
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      
       console.log('▶️ [START] Resuming smart refresh, offline sync, and mutations');
       setIsEntityUpdating(false);
-      
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      
       resumeOfflineMutations();
       resumeOfflineSync();
+      
+      // Force immediate smart refresh with fresh data
+      console.log('🔄 [START] Triggering immediate smart refresh with fresh data...');
+      smartRefreshManager.lastRefreshTimes = {
+        driverLocation: 0,
+        activeDeliveries: 0,
+        todayDeliveries: 0,
+        appUsers: 0,
+        patients: 0,
+        stores: 0
+      };
     }
   };
 
