@@ -25,7 +25,8 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
     pay_rate_per_delivery: formatRate(driver.pay_rate_per_delivery),
     extra_km_rate: formatRate(driver.extra_km_rate),
     extra_km_limit: formatRate(driver.extra_km_limit),
-    oversized_item_rate: formatRate(driver.oversized_item_rate)
+    oversized_item_rate: formatRate(driver.oversized_item_rate),
+    pay_cycle_type: driver.pay_cycle_type || 'monthly'
   });
   const [isSaving, setIsSaving] = useState(false);
 
@@ -36,7 +37,8 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
       const updates = {
         status: formData.status,
         driver_status: formData.driver_status,
-        location_tracking_enabled: formData.location_tracking_enabled
+        location_tracking_enabled: formData.location_tracking_enabled,
+        pay_cycle_type: formData.pay_cycle_type
       };
 
       // Check if pay rates changed (compare as numbers)
@@ -158,6 +160,27 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          {/* Pay Cycle Type */}
+          <div>
+            <Label htmlFor="pay_cycle_type" className="text-sm font-medium mb-1.5 block">
+              Pay Cycle
+            </Label>
+            <Select
+              value={formData.pay_cycle_type}
+              onValueChange={(value) => setFormData(prev => ({ ...prev, pay_cycle_type: value }))}
+            >
+              <SelectTrigger id="pay_cycle_type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="z-[10002]">
+                <SelectItem value="weekly">Weekly</SelectItem>
+                <SelectItem value="biweekly">Bi-Weekly</SelectItem>
+                <SelectItem value="semimonthly">Semi-Monthly</SelectItem>
+                <SelectItem value="monthly">Monthly</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Pay Rates - 2 Column Grid */}
