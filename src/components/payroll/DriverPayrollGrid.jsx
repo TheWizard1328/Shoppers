@@ -313,7 +313,7 @@ export default function DriverPayrollGrid({
                 {sortedStores.map((store) => {
                   const value = viewMode === 'extraKm' ? storeKmTotals[store.id] : storeTotals[store.id];
                   const displayValue = viewMode === 'extraKm' 
-                    ? (value > 0 ? value.toFixed(1) : '')
+                    ? (value > 0 ? value.toFixed(2) : '')
                     : (value > 0 ? value : '');
                   return (
                     <td
@@ -326,7 +326,7 @@ export default function DriverPayrollGrid({
                   );
                 })}
                 <td className="text-center px-2 py-1 font-bold text-slate-900 border-l-2 border-purple-300 tabular-nums">
-                  {viewMode === 'extraKm' ? grandTotal.toFixed(1) : grandTotal}
+                  {viewMode === 'extraKm' ? grandTotal.toFixed(2) : grandTotal}
                 </td>
               </tr>
             </tbody>
