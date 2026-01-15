@@ -47,7 +47,9 @@ export default function DualStatsMarquee({
   localStats, // Stats calculated locally in Dashboard (for pickup counts)
   isDispatcher,
   isDriver,
-  performanceStats // { totalPay, totalKm, totalExtraKm, totalTimeOnDuty }
+  performanceStats, // { totalPay, totalKm, totalExtraKm, totalTimeOnDuty }
+  liveDistance = 0, // Live travel_dist from current next delivery
+  liveTimeOnDuty = '00:00' // Live time on duty
 }) {
   // CRITICAL: For DRIVERS - basic numbers are deliveries, superscripts are pickups
   // For DISPATCHERS - basic numbers are deliveries, superscripts are unique driver counts
@@ -148,10 +150,10 @@ export default function DualStatsMarquee({
 
           <StatBadge
             icon={Route}
-            value={`${performanceStats?.totalKm?.toFixed(2) || '0.00'}k`}
+            value={`${((performanceStats?.totalKm || 0) + liveDistance).toFixed(2)}k`}
             color="blue"
             label="Km"
-            tooltip={`Total Distance: ${performanceStats?.totalKm?.toFixed(2) || '0.00'} km`}
+            tooltip={`Total Distance: ${((performanceStats?.totalKm || 0) + liveDistance).toFixed(2)} km (${performanceStats?.totalKm?.toFixed(2) || '0.00'} finalized + ${liveDistance.toFixed(2)} in progress)`}
             small />
 
           <StatBadge
@@ -164,10 +166,10 @@ export default function DualStatsMarquee({
 
           <StatBadge
             icon={Clock}
-            value={performanceStats?.totalTimeOnDuty || '00:00'}
+            value={liveTimeOnDuty || performanceStats?.totalTimeOnDuty || '00:00'}
             color="purple"
             label="Duty"
-            tooltip={`Total Time on Duty: ${performanceStats?.totalTimeOnDuty || '00:00'}`}
+            tooltip={`Time on Duty: ${liveTimeOnDuty || performanceStats?.totalTimeOnDuty || '00:00'} (first stop to now, minus breaks)`}
             small />
         </div>
       )}

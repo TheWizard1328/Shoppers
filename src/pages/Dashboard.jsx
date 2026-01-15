@@ -342,6 +342,8 @@ function Dashboard() {
   const [showSmartPrioritization, setShowSmartPrioritization] = useState(false);
   const [performanceStats, setPerformanceStats] = useState(null);
   const [deliveryStats, setDeliveryStats] = useState(null);
+  const [liveDistance, setLiveDistance] = useState(0); // Live accumulated distance from liveDistanceTracker
+  const [liveTimeOnDuty, setLiveTimeOnDuty] = useState('00:00'); // Live time on duty
 
   // Listen for performance stats AND delivery stats updates from Layout (QuickStats)
   useEffect(() => {
@@ -365,6 +367,9 @@ function Dashboard() {
           updateDeliveriesLocally([{ ...updatedDelivery, travel_dist }], false);
         }
       }
+      
+      // CRITICAL: Store live distance to display on stats card
+      setLiveDistance(travel_dist);
     };
     
     // CRITICAL: Listen for time on duty updates
@@ -372,13 +377,8 @@ function Dashboard() {
       const { totalMinutes, formattedTime } = event.detail;
       console.log(`⏱️ [Dashboard] Time on duty: ${formattedTime}`);
       
-      // Update performance stats with live time on duty
-      if (performanceStats) {
-        setPerformanceStats({
-          ...performanceStats,
-          totalTimeOnDuty: formattedTime
-        });
-      }
+      // CRITICAL: Store live time on duty to display on stats card
+      setLiveTimeOnDuty(formattedTime);
     };
 
     window.addEventListener('performanceStatsUpdated', handlePerformanceStatsUpdate);
@@ -6351,7 +6351,9 @@ function Dashboard() {
                 localStats={stats}
                 isDispatcher={isDispatcher}
                 isDriver={isDriver}
-                performanceStats={performanceStats} />
+                performanceStats={performanceStats}
+                liveDistance={liveDistance}
+                liveTimeOnDuty={liveTimeOnDuty} />
 
 
               <Button
