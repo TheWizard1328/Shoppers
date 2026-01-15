@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DollarSign } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { DollarSign, ChevronLeft, ChevronRight } from "lucide-react";
 import { useAppData } from '../components/utils/AppDataContext';
 import { sortUsers, sortStores } from '../components/utils/sorting';
 import { useUser } from '../components/utils/UserContext';
@@ -8,16 +9,145 @@ import { getDriverDisplayName } from '../components/utils/driverUtils';
 import DriverPayrollGrid from '../components/payroll/DriverPayrollGrid';
 import PayrollSummaryCard from '../components/payroll/PayrollSummaryCard';
 
+// Helper: Get first Monday of a given year
+const getFirstMondayOfYear = (year) => {
+  const jan1 = new Date(year, 0, 1);
+  const dayOfWeek = jan1.getDay();
+  const daysUntilMonday = dayOfWeek === 0 ? 1 : (dayOfWeek === 1 ? 0 : 8 - dayOfWeek);
+  return new Date(year, 0, 1 + daysUntilMonday);
+};
+
+// Helper: Calculate all pay periods for a given year and pay period type
+const calculateAllPeriods = (year, payPeriodType) => {
+  const periods = [];
+  
+  switch (payPeriodType) {
+    case 'weekly': {
+      const firstMonday = getFirstMondayOfYear(year);
+      // Add prior year period if Jan 1 is before first Monday
+      const jan1 = new Date(year, 0, 1);
+      if (jan1 < firstMonday) {
+        periods.push({
+          year,
+          start: jan1,
+          end: new Date(firstMonday.getTime() - 86400000), // day before first Monday
+          label: `Prior Year Period`,
+          isPriorYear: true
+        });
+      }
+      // Generate weekly periods
+      let weekStart = new Date(firstMonday);
+      let weekNum = 1;
+      const yearEnd = new Date(year, 11, 31);
+      while (weekStart <= yearEnd) {
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+        periods.push({
+          year,
+          start: new Date(weekStart),
+          end: weekEnd > yearEnd ? yearEnd : weekEnd,
+          label: `Week ${weekNum}`,
+          weekNum
+        });
+        weekNum++;
+        weekStart.setDate(weekStart.getDate() + 7);
+      }
+      break;
+    }
+    case 'biweekly': {
+      const firstMonday = getFirstMondayOfYear(year);
+      const jan1 = new Date(year, 0, 1);
+      if (jan1 < firstMonday) {
+        periods.push({
+          year,
+          start: jan1,
+          end: new Date(firstMonday.getTime() - 86400000),
+          label: `Prior Year Period`,
+          isPriorYear: true
+        });
+      }
+      let biweekStart = new Date(firstMonday);
+      let periodNum = 1;
+      const yearEnd = new Date(year, 11, 31);
+      while (biweekStart <= yearEnd) {
+        const biweekEnd = new Date(biweekStart);
+        biweekEnd.setDate(biweekStart.getDate() + 13);
+        periods.push({
+          year,
+          start: new Date(biweekStart),
+          end: biweekEnd > yearEnd ? yearEnd : biweekEnd,
+          label: `Period ${periodNum}`,
+          periodNum
+        });
+        periodNum++;
+        biweekStart.setDate(biweekStart.getDate() + 14);
+      }
+      break;
+    }
+    case 'semimonthly': {
+      for (let month = 0; month < 12; month++) {
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        periods.push({
+          year,
+          start: new Date(year, month, 1),
+          end: new Date(year, month, 15),
+          label: `${new Date(year, month, 1).toLocaleString('default', { month: 'short' })} 1-15`,
+          month: month + 1,
+          half: 1
+        });
+        periods.push({
+          year,
+          start: new Date(year, month, 16),
+          end: new Date(year, month, daysInMonth),
+          label: `${new Date(year, month, 1).toLocaleString('default', { month: 'short' })} 16-${daysInMonth}`,
+          month: month + 1,
+          half: 2
+        });
+      }
+      break;
+    }
+    case 'monthly':
+    default: {
+      for (let month = 0; month < 12; month++) {
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        periods.push({
+          year,
+          start: new Date(year, month, 1),
+          end: new Date(year, month, daysInMonth),
+          label: new Date(year, month, 1).toLocaleString('default', { month: 'long' }),
+          month: month + 1
+        });
+      }
+      break;
+    }
+  }
+  return periods;
+};
+
+// Helper: Find current period index based on today's date
+const findCurrentPeriodIndex = (periods, today) => {
+  for (let i = 0; i < periods.length; i++) {
+    if (today >= periods[i].start && today <= periods[i].end) {
+      return i;
+    }
+  }
+  // If not found, return closest past period
+  for (let i = periods.length - 1; i >= 0; i--) {
+    if (today > periods[i].end) return i;
+  }
+  return 0;
+};
+
 export default function DriverPayroll() {
   const { currentUser } = useUser();
   const { deliveries, stores, cities, drivers, appUsers } = useAppData();
   
   const currentDate = new Date();
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1);
   const [selectedCityId, setSelectedCityId] = useState('all');
   const [selectedDriverId, setSelectedDriverId] = useState('all');
-  const [payPeriod, setPayPeriod] = useState('monthly');
+  const [payPeriod, setPayPeriod] = useState('biweekly');
+  const [selectedPeriodIndex, setSelectedPeriodIndex] = useState(0);
 
   // Get available years (current year and 2 years back)
   const years = useMemo(() => {
@@ -25,21 +155,38 @@ export default function DriverPayroll() {
     return [currentYear, currentYear - 1, currentYear - 2];
   }, []);
 
-  // Month options
-  const months = [
-    { value: 1, label: 'January' },
-    { value: 2, label: 'February' },
-    { value: 3, label: 'March' },
-    { value: 4, label: 'April' },
-    { value: 5, label: 'May' },
-    { value: 6, label: 'June' },
-    { value: 7, label: 'July' },
-    { value: 8, label: 'August' },
-    { value: 9, label: 'September' },
-    { value: 10, label: 'October' },
-    { value: 11, label: 'November' },
-    { value: 12, label: 'December' }
-  ];
+  // Calculate all periods for selected year and pay period type
+  const allPeriods = useMemo(() => {
+    return calculateAllPeriods(selectedYear, payPeriod);
+  }, [selectedYear, payPeriod]);
+
+  // Current selected period
+  const currentPeriod = allPeriods[selectedPeriodIndex] || allPeriods[0];
+
+  // Auto-select current period when pay period type or year changes
+  useEffect(() => {
+    const today = new Date();
+    if (selectedYear === today.getFullYear()) {
+      const idx = findCurrentPeriodIndex(allPeriods, today);
+      setSelectedPeriodIndex(idx);
+    } else {
+      // If viewing past year, default to last period
+      setSelectedPeriodIndex(allPeriods.length - 1);
+    }
+  }, [payPeriod, selectedYear, allPeriods.length]);
+
+  // Navigation handlers
+  const goToPrevPeriod = () => {
+    if (selectedPeriodIndex > 0) {
+      setSelectedPeriodIndex(selectedPeriodIndex - 1);
+    }
+  };
+
+  const goToNextPeriod = () => {
+    if (selectedPeriodIndex < allPeriods.length - 1) {
+      setSelectedPeriodIndex(selectedPeriodIndex + 1);
+    }
+  };
 
   // Sort cities
   const sortedCities = useMemo(() => {
@@ -113,20 +260,6 @@ export default function DriverPayroll() {
               </SelectContent>
             </Select>
 
-            {/* Month Filter */}
-            <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(Number(v))}>
-              <SelectTrigger className="w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-                {months.map(month => (
-                  <SelectItem key={month.value} value={String(month.value)} style={{ color: 'var(--text-slate-900)' }}>
-                    {month.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
             {/* Driver Filter */}
             <Select value={selectedDriverId} onValueChange={setSelectedDriverId}>
               <SelectTrigger className="w-[160px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
@@ -149,10 +282,14 @@ export default function DriverPayroll() {
           deliveries={cityFilteredDeliveries}
           stores={filteredStores}
           selectedYear={selectedYear}
-          selectedMonth={selectedMonth}
           selectedDriverId={selectedDriverId}
           payPeriod={payPeriod}
           onPayPeriodChange={setPayPeriod}
+          currentPeriod={currentPeriod}
+          allPeriods={allPeriods}
+          selectedPeriodIndex={selectedPeriodIndex}
+          onPrevPeriod={goToPrevPeriod}
+          onNextPeriod={goToNextPeriod}
         />
 
         {/* Payroll Summary */}
@@ -161,9 +298,9 @@ export default function DriverPayroll() {
           drivers={sortedDrivers}
           appUsers={appUsers}
           selectedYear={selectedYear}
-          selectedMonth={selectedMonth}
           selectedDriverId={selectedDriverId}
           payPeriod={payPeriod}
+          currentPeriod={currentPeriod}
         />
       </div>
     </div>
