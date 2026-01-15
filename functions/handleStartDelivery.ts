@@ -55,6 +55,10 @@ Deno.serve(async (req) => {
       isNextDelivery: true,
       travel_dist: distanceToTransfer
     });
+    
+    // CRITICAL: Notify frontend to reset live distance tracker's accumulated counter
+    // The distance has been transferred, so the tracker should reset to 0
+    console.log(`🔄 [handleStartDelivery] Notifying frontend - distance transferred: ${distanceToTransfer} km`);
 
     // Step 4: Update driver's current location (mark start point for new leg)
     if (currentLat && currentLng) {

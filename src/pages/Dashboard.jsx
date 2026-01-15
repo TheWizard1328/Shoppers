@@ -31,6 +31,7 @@ import RouteOptimizationSettings, { getRouteOptimizationSettings } from "@/compo
 import { sortUsers } from "@/components/utils/sorting";
 import { AnimatePresence, motion } from "framer-motion";
 import { locationTracker } from "@/components/utils/locationTracker";
+import { liveDistanceTracker } from "@/components/utils/liveDistanceTracker";
 import LocationTrackingToggle from "@/components/layout/LocationTrackingToggle";
 import { globalFilters } from "@/components/utils/globalFilters";
 import { getDriverNameForComparison } from '@/components/utils/driverUtils';
@@ -351,14 +352,46 @@ function Dashboard() {
     const handleDeliveryStatsUpdate = (event) => {
       setDeliveryStats(event.detail);
     };
+    
+    // CRITICAL: Listen for live travel_dist updates
+    const handleTravelDistUpdate = (event) => {
+      const { deliveryId, travel_dist } = event.detail;
+      console.log(`📏 [Dashboard] Live travel_dist update: ${travel_dist.toFixed(3)} km for delivery ${deliveryId}`);
+      
+      // Update local deliveries state
+      if (updateDeliveriesLocally) {
+        const updatedDelivery = deliveries.find(d => d?.id === deliveryId);
+        if (updatedDelivery) {
+          updateDeliveriesLocally([{ ...updatedDelivery, travel_dist }], false);
+        }
+      }
+    };
+    
+    // CRITICAL: Listen for time on duty updates
+    const handleTimeOnDutyUpdate = (event) => {
+      const { totalMinutes, formattedTime } = event.detail;
+      console.log(`⏱️ [Dashboard] Time on duty: ${formattedTime}`);
+      
+      // Update performance stats with live time on duty
+      if (performanceStats) {
+        setPerformanceStats({
+          ...performanceStats,
+          totalTimeOnDuty: formattedTime
+        });
+      }
+    };
 
     window.addEventListener('performanceStatsUpdated', handlePerformanceStatsUpdate);
     window.addEventListener('deliveryStatsUpdated', handleDeliveryStatsUpdate);
+    window.addEventListener('travelDistUpdated', handleTravelDistUpdate);
+    window.addEventListener('timeOnDutyUpdated', handleTimeOnDutyUpdate);
     return () => {
       window.removeEventListener('performanceStatsUpdated', handlePerformanceStatsUpdate);
       window.removeEventListener('deliveryStatsUpdated', handleDeliveryStatsUpdate);
+      window.removeEventListener('travelDistUpdated', handleTravelDistUpdate);
+      window.removeEventListener('timeOnDutyUpdated', handleTimeOnDutyUpdate);
     };
-  }, []);
+  }, [deliveries, updateDeliveriesLocally, performanceStats]);
 
   // Track previous map state for restoring when card is collapsed
   const [previousMapState, setPreviousMapState] = useState(null);
@@ -481,6 +514,12 @@ function Dashboard() {
               appUserId: appUser.id
             });
             console.log('✅ [Dashboard] Location tracking started successfully');
+            
+            // CRITICAL: Also start live distance tracker
+            if (!liveDistanceTracker.isTracking) {
+              liveDistanceTracker.start(currentUser);
+              console.log('✅ [Dashboard] Live distance tracker started');
+            }
           }
         } catch (error) {
           console.warn('⚠️ [Dashboard] Failed to auto-start tracking:', error.message);
@@ -489,6 +528,13 @@ function Dashboard() {
     };
 
     initTracking();
+    
+    // Cleanup when unmounting or driver changes
+    return () => {
+      if (liveDistanceTracker.isTracking) {
+        liveDistanceTracker.stop();
+      }
+    };
   }, [currentUser?.id, isMobile, isDriver]);
 
   // Load user settings on mount - PHASE 1: Load backend values FIRST

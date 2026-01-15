@@ -1,6 +1,7 @@
 import { base44 } from '@/api/base44Client';
 import { isMobileDevice as checkIsMobileDevice } from './deviceUtils';
 import { getRouteOptimizationSettings } from '../dashboard/RouteOptimizationSettings';
+import { liveDistanceTracker } from './liveDistanceTracker';
 
 // Lazy load broadcastMutation to avoid circular dependency issues
 const broadcastMutation = async (entity, action, id, data) => {
@@ -62,6 +63,11 @@ class LocationTracker {
     this.driverStatus = status;
     
     console.log(`📍 [LocationTracker] Driver status changed: ${previousStatus} → ${status}`);
+    
+    // CRITICAL: Update liveDistanceTracker's driver status too
+    if (liveDistanceTracker.isTracking) {
+      liveDistanceTracker.updateDriverStatus(status);
+    }
     
     // CRITICAL: Do NOT stop tracking when going off_duty/on_break
     // We still want to update coordinates so driver can see their marker on desktop
@@ -294,6 +300,12 @@ class LocationTracker {
         this.currentUser.current_longitude = longitude;
         if (isOnDuty) {
           this.currentUser.location_updated_at = updateData.location_updated_at;
+        }
+        
+        // CRITICAL: Update liveDistanceTracker's currentUser reference too
+        if (liveDistanceTracker.isTracking && liveDistanceTracker.currentUser) {
+          liveDistanceTracker.currentUser.current_latitude = latitude;
+          liveDistanceTracker.currentUser.current_longitude = longitude;
         }
       }
 
