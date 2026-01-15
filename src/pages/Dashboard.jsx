@@ -357,8 +357,8 @@ function Dashboard() {
     
     // CRITICAL: Listen for live travel_dist updates
     const handleTravelDistUpdate = (event) => {
-      const { deliveryId, travel_dist } = event.detail;
-      console.log(`📏 [Dashboard] Live travel_dist update: ${travel_dist.toFixed(3)} km for delivery ${deliveryId}`);
+      const { deliveryId, travel_dist, totalAccumulatedDistance, completedDistance, inProgressDistance } = event.detail;
+      console.log(`📏 [Dashboard] Live total distance: ${totalAccumulatedDistance.toFixed(3)} km (${completedDistance.toFixed(3)} completed + ${inProgressDistance.toFixed(3)} in-progress)`);
       
       // Update local deliveries state
       if (updateDeliveriesLocally) {
@@ -368,8 +368,8 @@ function Dashboard() {
         }
       }
       
-      // CRITICAL: Store live distance to display on stats card
-      setLiveDistance(travel_dist);
+      // CRITICAL: Store total accumulated distance to display on stats card
+      setLiveDistance(totalAccumulatedDistance);
     };
     
     // CRITICAL: Listen for time on duty updates

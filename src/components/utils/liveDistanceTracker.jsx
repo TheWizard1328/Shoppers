@@ -260,12 +260,36 @@ class LiveDistanceTracker {
         travel_dist: Math.round(newTravelDist * 1000) / 1000 // Round to 3 decimals
       });
 
-      // STEP 7: Dispatch event to update UI
+      // STEP 7: Calculate total accumulated distance (all completed + current in-progress)
+      // Get all completed deliveries for today
+      const allTodayDeliveries = await base44.entities.Delivery.filter({
+        driver_id: this.currentUser.id,
+        delivery_date: todayStr
+      });
+      
+      const finishedStatuses = ['completed', 'failed', 'cancelled'];
+      const completedDeliveries = allTodayDeliveries.filter(d => 
+        d && finishedStatuses.includes(d.status)
+      );
+      
+      // Sum up travel_dist from all completed deliveries
+      const completedDistance = completedDeliveries.reduce((sum, d) => 
+        sum + (d.travel_dist || 0), 0
+      );
+      
+      const totalDistance = completedDistance + newTravelDist;
+      
+      console.log(`📊 [LiveDistanceTracker] Total distance: ${completedDistance.toFixed(3)} km (completed) + ${newTravelDist.toFixed(3)} km (in-progress) = ${totalDistance.toFixed(3)} km`);
+
+      // STEP 8: Dispatch event to update UI with total accumulated distance
       window.dispatchEvent(new CustomEvent('travelDistUpdated', {
         detail: {
           deliveryId: nextDelivery.id,
           travel_dist: newTravelDist,
-          distanceMoved: distanceMoved
+          distanceMoved: distanceMoved,
+          totalAccumulatedDistance: totalDistance, // Total: completed + in-progress
+          completedDistance: completedDistance,
+          inProgressDistance: newTravelDist
         }
       }));
 

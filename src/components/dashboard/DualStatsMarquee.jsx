@@ -150,10 +150,10 @@ export default function DualStatsMarquee({
 
           <StatBadge
             icon={Route}
-            value={`${((performanceStats?.totalKm || 0) + liveDistance).toFixed(2)}k`}
+            value={`${liveDistance > 0 ? liveDistance.toFixed(2) : (performanceStats?.totalKm?.toFixed(2) || '0.00')}k`}
             color="blue"
             label="Km"
-            tooltip={`Total Distance: ${((performanceStats?.totalKm || 0) + liveDistance).toFixed(2)} km (${performanceStats?.totalKm?.toFixed(2) || '0.00'} finalized + ${liveDistance.toFixed(2)} in progress)`}
+            tooltip={liveDistance > 0 ? `Total Distance (Live): ${liveDistance.toFixed(2)} km` : `Total Distance: ${performanceStats?.totalKm?.toFixed(2) || '0.00'} km`}
             small />
 
           <StatBadge
