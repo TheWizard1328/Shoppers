@@ -171,9 +171,9 @@ export default function DriverPayroll() {
         setPayPeriod('monthly');
       }
     } else {
-      // Admins default to Monthly view with All Drivers
+      // Admins default to Semi-Monthly view with All Drivers
       setSelectedDriverId('all');
-      setPayPeriod('monthly');
+      setPayPeriod('semimonthly');
     }
     setHasInitialized(true);
   }, [currentUser, appUsers, isDriver, hasInitialized]);
