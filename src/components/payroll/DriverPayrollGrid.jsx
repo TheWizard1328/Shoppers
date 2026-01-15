@@ -1,57 +1,73 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Table } from 'lucide-react';
+import { Table, ChevronLeft, ChevronRight } from 'lucide-react';
+import { format } from 'date-fns';
 
 /**
  * Driver Payroll Grid
- * Shows deliveries per store per day of month for selected driver(s)
+ * Shows deliveries per store per day for selected pay period
  */
 export default function DriverPayrollGrid({ 
   deliveries, 
   stores, 
   selectedYear, 
-  selectedMonth,
   selectedDriverId,
   payPeriod,
-  onPayPeriodChange
+  onPayPeriodChange,
+  currentPeriod,
+  allPeriods,
+  selectedPeriodIndex,
+  onPrevPeriod,
+  onNextPeriod
 }) {
 
-  if (!deliveries || !stores) return null;
+  if (!deliveries || !stores || !currentPeriod) return null;
 
-  // Get days in the selected month
-  const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
-  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  // Generate days array from the current period's start to end date
+  const getDaysInPeriod = () => {
+    const days = [];
+    const start = new Date(currentPeriod.start);
+    const end = new Date(currentPeriod.end);
+    let current = new Date(start);
+    
+    while (current <= end) {
+      days.push(new Date(current));
+      current.setDate(current.getDate() + 1);
+    }
+    return days;
+  };
+  
+  const periodDays = getDaysInPeriod();
 
   // Sort stores by sort_order
   const sortedStores = [...stores].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
 
-  // Filter deliveries by year, month, and driver
+  // Filter deliveries for current period and driver
   const filteredDeliveries = deliveries.filter(d => {
     if (!d || !d.delivery_date) return false;
     const date = new Date(d.delivery_date + 'T00:00:00');
-    if (date.getFullYear() !== selectedYear) return false;
-    if (date.getMonth() + 1 !== selectedMonth) return false;
+    if (date < currentPeriod.start || date > currentPeriod.end) return false;
     if (d.status !== 'completed') return false;
     if (selectedDriverId && selectedDriverId !== 'all' && d.driver_id !== selectedDriverId) return false;
     return true;
   });
 
-  // Build a map of day -> store -> count
+  // Build a map of dateKey -> store -> count
   const dataMap = {};
-  days.forEach(day => {
-    dataMap[day] = {};
+  periodDays.forEach(day => {
+    const dateKey = format(day, 'yyyy-MM-dd');
+    dataMap[dateKey] = {};
     sortedStores.forEach(store => {
-      dataMap[day][store.id] = 0;
+      dataMap[dateKey][store.id] = 0;
     });
   });
 
   filteredDeliveries.forEach(d => {
-    const date = new Date(d.delivery_date + 'T00:00:00');
-    const day = date.getDate();
+    const dateKey = d.delivery_date;
     const storeId = d.store_id;
-    if (dataMap[day] && dataMap[day][storeId] !== undefined) {
-      dataMap[day][storeId]++;
+    if (dataMap[dateKey] && dataMap[dateKey][storeId] !== undefined) {
+      dataMap[dateKey][storeId]++;
     }
   });
 
@@ -60,15 +76,16 @@ export default function DriverPayrollGrid({
   sortedStores.forEach(store => {
     storeTotals[store.id] = 0;
   });
-  days.forEach(day => {
+  periodDays.forEach(day => {
+    const dateKey = format(day, 'yyyy-MM-dd');
     sortedStores.forEach(store => {
-      storeTotals[store.id] += dataMap[day][store.id] || 0;
+      storeTotals[store.id] += dataMap[dateKey]?.[store.id] || 0;
     });
   });
 
   // Calculate day totals (row totals)
-  const getDayTotal = (day) => {
-    return sortedStores.reduce((sum, store) => sum + (dataMap[day][store.id] || 0), 0);
+  const getDayTotal = (dateKey) => {
+    return sortedStores.reduce((sum, store) => sum + (dataMap[dateKey]?.[store.id] || 0), 0);
   };
 
   // Grand total
@@ -77,50 +94,78 @@ export default function DriverPayrollGrid({
   // Get store color
   const getStoreColor = (store) => store.color || '#64748b';
 
-  // Month name for header
-  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                      'July', 'August', 'September', 'October', 'November', 'December'];
+  // Format period date range for header
+  const periodDateRange = `${format(currentPeriod.start, 'MMM d')} - ${format(currentPeriod.end, 'MMM d, yyyy')}`;
 
   return (
     <Card>
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Table className="w-5 h-5" />
-            Daily Deliveries by Store - {monthNames[selectedMonth - 1]} {selectedYear}
-          </CardTitle>
-          <div className="flex gap-1">
+        <div className="flex flex-col gap-3">
+          {/* Pay Period Type Selector */}
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Table className="w-5 h-5" />
+              Deliveries by Store
+            </CardTitle>
+            <div className="flex gap-1">
+              <Button
+                size="sm"
+                variant={payPeriod === 'weekly' ? 'default' : 'outline'}
+                onClick={() => onPayPeriodChange('weekly')}
+                className="text-xs h-7 px-2"
+              >
+                Weekly
+              </Button>
+              <Button
+                size="sm"
+                variant={payPeriod === 'biweekly' ? 'default' : 'outline'}
+                onClick={() => onPayPeriodChange('biweekly')}
+                className="text-xs h-7 px-2"
+              >
+                Bi-Weekly
+              </Button>
+              <Button
+                size="sm"
+                variant={payPeriod === 'semimonthly' ? 'default' : 'outline'}
+                onClick={() => onPayPeriodChange('semimonthly')}
+                className="text-xs h-7 px-2"
+              >
+                Semi-Monthly
+              </Button>
+              <Button
+                size="sm"
+                variant={payPeriod === 'monthly' ? 'default' : 'outline'}
+                onClick={() => onPayPeriodChange('monthly')}
+                className="text-xs h-7 px-2"
+              >
+                Monthly
+              </Button>
+            </div>
+          </div>
+          
+          {/* Period Navigation */}
+          <div className="flex items-center justify-center gap-3">
             <Button
               size="sm"
-              variant={payPeriod === 'weekly' ? 'default' : 'outline'}
-              onClick={() => onPayPeriodChange('weekly')}
-              className="text-xs h-7 px-2"
+              variant="ghost"
+              onClick={onPrevPeriod}
+              disabled={selectedPeriodIndex === 0}
+              className="h-8 w-8 p-0"
             >
-              Weekly
+              <ChevronLeft className="w-5 h-5" />
             </Button>
+            <div className="text-center min-w-[200px]">
+              <div className="font-semibold text-slate-900">{currentPeriod.label}</div>
+              <div className="text-xs text-slate-500">{periodDateRange}</div>
+            </div>
             <Button
               size="sm"
-              variant={payPeriod === 'biweekly' ? 'default' : 'outline'}
-              onClick={() => onPayPeriodChange('biweekly')}
-              className="text-xs h-7 px-2"
+              variant="ghost"
+              onClick={onNextPeriod}
+              disabled={selectedPeriodIndex === allPeriods.length - 1}
+              className="h-8 w-8 p-0"
             >
-              Bi-Weekly
-            </Button>
-            <Button
-              size="sm"
-              variant={payPeriod === 'semimonthly' ? 'default' : 'outline'}
-              onClick={() => onPayPeriodChange('semimonthly')}
-              className="text-xs h-7 px-2"
-            >
-              Semi-Monthly
-            </Button>
-            <Button
-              size="sm"
-              variant={payPeriod === 'monthly' ? 'default' : 'outline'}
-              onClick={() => onPayPeriodChange('monthly')}
-              className="text-xs h-7 px-2"
-            >
-              Monthly
+              <ChevronRight className="w-5 h-5" />
             </Button>
           </div>
         </div>
@@ -145,25 +190,27 @@ export default function DriverPayrollGrid({
               </tr>
             </thead>
             <tbody>
-              {days.map((day) => {
-                const dayTotal = getDayTotal(day);
-                const dateObj = new Date(selectedYear, selectedMonth - 1, day);
+              {periodDays.map((dateObj) => {
+                const dateKey = format(dateObj, 'yyyy-MM-dd');
+                const dayTotal = getDayTotal(dateKey);
+                const dayNum = dateObj.getDate();
                 const dayOfWeek = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+                const monthShort = dateObj.toLocaleDateString('en-US', { month: 'short' });
                 const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
                 
                 return (
                   <tr 
-                    key={day} 
+                    key={dateKey} 
                     className={`border-b hover:bg-slate-50 ${isWeekend ? 'bg-slate-50' : ''}`}
                   >
                     <td
                       className={`px-2 py-0.5 font-medium sticky left-0 z-10 ${isWeekend ? 'bg-slate-50' : 'bg-white'}`}
                       style={{ color: '#475569' }}
                     >
-                      {day} <span className="text-slate-400 text-[9px]">{dayOfWeek}</span>
+                      {monthShort} {dayNum} <span className="text-slate-400 text-[9px]">{dayOfWeek}</span>
                     </td>
                     {sortedStores.map((store) => {
-                      const value = dataMap[day][store.id] || 0;
+                      const value = dataMap[dateKey]?.[store.id] || 0;
                       return (
                         <td
                           key={store.id}
