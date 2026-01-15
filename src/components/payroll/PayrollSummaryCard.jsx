@@ -186,33 +186,41 @@ export default function PayrollSummaryCard({
                 </div>
               </div>
               {/* Pay Rates Row */}
-              <div className="grid grid-cols-3 gap-2 text-xs mb-1.5">
+              <div className="grid grid-cols-4 gap-1 text-xs mb-1.5">
                 <div className="flex items-center gap-1">
-                  <span className="text-slate-500">Pay Rate:</span>
-                  <span className="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">{formatCurrency(data.payRate)}</span>
+                  <span className="text-slate-500">Rate:</span>
+                  <span className="bg-slate-200 text-slate-700 px-1 py-0.5 rounded text-[11px]">{formatCurrency(data.payRate)}</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className="text-slate-500">Extra KM:</span>
-                  <span className="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">{formatCurrency(data.extraKmRate, 3)}/km</span>
+                  <span className="text-slate-500">KM:</span>
+                  <span className="bg-slate-200 text-slate-700 px-1 py-0.5 rounded text-[11px]">{formatCurrency(data.extraKmRate, 3)}/km</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className="text-slate-500">Oversized:</span>
-                  <span className="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">{formatCurrency(data.oversizedRate)}</span>
+                  <span className="text-slate-500">OS:</span>
+                  <span className="bg-slate-200 text-slate-700 px-1 py-0.5 rounded text-[11px]">{formatCurrency(data.oversizedRate)}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-500">Failed:</span>
+                  <span className="bg-red-100 text-red-700 px-1 py-0.5 rounded text-[11px]">{data.failedCount}</span>
                 </div>
               </div>
               {/* Totals Row */}
-              <div className="grid grid-cols-3 gap-2 text-xs">
+              <div className="grid grid-cols-4 gap-1 text-xs">
                 <div className="flex items-center gap-1">
-                  <span className="text-slate-500">Deliveries:</span>
-                  <span className="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">{data.totalDeliveries} = {formatCurrency(data.totalBasePay)}</span>
+                  <span className="text-slate-500">Del:</span>
+                  <span className="bg-slate-200 text-slate-700 px-1 py-0.5 rounded text-[11px]">{data.totalDeliveries} = {formatCurrency(data.totalBasePay)}</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className="text-slate-500">Extra KM:</span>
-                  <span className="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">{data.totalExtraKm.toFixed(2)} km = {formatCurrency(data.totalExtraKmPay)}</span>
+                  <span className="text-slate-500">KM:</span>
+                  <span className="bg-slate-200 text-slate-700 px-1 py-0.5 rounded text-[11px]">{data.totalExtraKm.toFixed(2)} = {formatCurrency(data.totalExtraKmPay)}</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className="text-slate-500">Oversized:</span>
-                  <span className="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">{data.oversizedCount} = {formatCurrency(data.totalOversizedPay)}</span>
+                  <span className="text-slate-500">OS:</span>
+                  <span className="bg-slate-200 text-slate-700 px-1 py-0.5 rounded text-[11px]">{data.oversizedCount} = {formatCurrency(data.totalOversizedPay)}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-500">Returns:</span>
+                  <span className="bg-orange-100 text-orange-700 px-1 py-0.5 rounded text-[11px]">{data.returnsCount}</span>
                 </div>
               </div>
             </div>
