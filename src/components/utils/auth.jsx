@@ -63,12 +63,12 @@ export const getEffectiveUser = async () => {
         return await inflightUserRequest;
     }
 
-    let retryCount = 0;
-    const maxRetries = 2;
-    const baseDelay = 2000;
-
     // Create the in-flight promise
-    inflightUserRequest = (async () => {
+    const fetchUser = async () => {
+        let retryCount = 0;
+        const maxRetries = 2;
+        const baseDelay = 2000;
+
         while (retryCount < maxRetries) {
             try {
                 // Check if we're online before attempting
@@ -238,7 +238,9 @@ export const getEffectiveUser = async () => {
         }
     
         return userCache.data || null;
-    })();
+    };
+
+    inflightUserRequest = fetchUser();
 
     try {
         const result = await inflightUserRequest;
