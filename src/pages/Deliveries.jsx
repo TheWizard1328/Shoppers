@@ -178,10 +178,16 @@ export default function DeliveriesPage() {
   const [activeDriver, setActiveDriver] = useState(null);
   const [isDriverOnline, setIsDriverOnline] = useState(false);
   const isMounted = useRef(false);
-  const [viewMode, setViewMode] = useState(() => {
+  const [viewMode, setViewModeState] = useState(() => {
     const saved = localStorage.getItem('rxdeliver_routes_view_mode');
     return saved || 'cards';
   });
+  
+  // Wrap setViewMode to immediately persist and prevent re-renders
+  const setViewMode = useCallback((mode) => {
+    localStorage.setItem('rxdeliver_routes_view_mode', mode);
+    setViewModeState(mode);
+  }, []);
 
   // Count unique drivers with deliveries for dispatchers
   const uniqueDriversForDispatcher = useMemo(() => {
@@ -750,9 +756,7 @@ export default function DeliveriesPage() {
     globalFilters.setSelectedDriverId(driverFilter);
   }, [driverFilter]);
 
-  useEffect(() => {
-    localStorage.setItem('rxdeliver_routes_view_mode', viewMode);
-  }, [viewMode]);
+  // Removed - now handled directly in setViewMode callback
 
 
   const updateUrl = useCallback((newFilters) => {
