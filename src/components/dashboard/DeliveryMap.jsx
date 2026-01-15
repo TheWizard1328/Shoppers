@@ -3351,7 +3351,7 @@ export default function DeliveryMap({
         {/* Driver Location Markers - Green for on_duty, Orange for on_break, with driver initial */}
         {/* Orange outer ring indicates stale location (>5 minutes old) */}
         {/* Blue outer ring for drivers on break viewing their own location from other devices */}
-        {driverLocationMarkers.map((location) => {
+        {driverLocationMarkers.map((location, locationIndex) => {
           // CRITICAL: Validate coordinates before rendering marker
           if (!location.latitude || !location.longitude ||
               typeof location.latitude !== 'number' || typeof location.longitude !== 'number' ||
@@ -3364,9 +3364,12 @@ export default function DeliveryMap({
           const statusColor = location.driver_status === 'on_duty' ? 'text-emerald-600' : 'text-orange-600';
           const isOnBreakSelf = location.isOnBreak === true;
           
+          // CRITICAL: Use unique key with index to prevent duplicate key errors
+          const uniqueKey = `driver-location-${location.id || location.user_id}-${locationIndex}`;
+          
           return (
             <Marker
-              key={`driver-location-${location.id || location.user_id}`}
+              key={uniqueKey}
               position={[location.latitude, location.longitude]}
               icon={createDriverIcon(location.driver_status, location.driverInitial, location.isStaleLocation, isOnBreakSelf)}
               zIndexOffset={3000}
