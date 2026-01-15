@@ -93,7 +93,7 @@ export default function PayrollSummaryCard({
         grandTotal: totalPay
       };
     });
-  }, [deliveries, drivers, appUsers, selectedYear, selectedDriverId, currentPeriod]);
+  }, [deliveries, drivers, appUsers, patients, selectedYear, selectedDriverId, currentPeriod]);
 
   // Export to CSV
   const handleExport = () => {
