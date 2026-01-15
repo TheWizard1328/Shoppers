@@ -48,7 +48,7 @@ export default function DriverPayrollGrid({
 
   // Filter deliveries for current period and driver
   // Exclude pickups (no patient_id) UNLESS it's an after_hours_pickup
-  const filteredDeliveries = deliveries.filter(d => {
+  const filteredDeliveries = useMemo(() => deliveries.filter(d => {
     if (!d || !d.delivery_date) return false;
     const date = new Date(d.delivery_date + 'T00:00:00');
     if (date < currentPeriod.start || date > currentPeriod.end) return false;
@@ -59,7 +59,29 @@ export default function DriverPayrollGrid({
     // Exclude pickups (no patient_id) unless it's an after_hours_pickup
     if (!d.patient_id && !d.after_hours_pickup) return false;
     return true;
-  });
+  }), [deliveries, currentPeriod, selectedDriverId]);
+
+  // Get extra km limit for a driver
+  const getDriverExtraKmLimit = (driverId) => {
+    const driverAppUser = appUsers?.find(au => au.user_id === driverId);
+    return driverAppUser?.extra_km_limit || 0;
+  };
+
+  // Calculate extra km for a delivery
+  const calculateExtraKm = (delivery) => {
+    if (!delivery) return 0;
+    
+    // Use paid_km_override if set, otherwise get distance_from_store from patient
+    let distance = delivery.paid_km_override;
+    if (distance === undefined || distance === null) {
+      const patient = patients?.find(p => p.id === delivery.patient_id);
+      distance = patient?.distance_from_store || 0;
+    }
+    
+    const extraKmLimit = getDriverExtraKmLimit(delivery.driver_id);
+    const extraKm = distance - extraKmLimit;
+    return extraKm > 0 ? extraKm : 0;
+  };
 
   // Build a map of dateKey -> store -> count
   const dataMap = {};
