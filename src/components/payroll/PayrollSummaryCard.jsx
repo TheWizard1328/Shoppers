@@ -95,6 +95,8 @@ export default function PayrollSummaryCard({
         totalExtraKmPay: extraKmPay,
         oversizedCount: oversizedCount,
         totalOversizedPay: oversizedPay,
+        failedCount: failedCount,
+        returnsCount: returnsCount,
         grandTotal: totalPay
       };
     });
