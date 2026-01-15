@@ -105,26 +105,83 @@ class LiveDistanceTracker {
   /**
    * Update driver status (for duty time tracking)
    */
-  updateDriverStatus(newStatus) {
+  async updateDriverStatus(newStatus) {
     const previousStatus = this.currentUser?.driver_status;
     
     if (!this.currentUser) return;
     
     this.currentUser.driver_status = newStatus;
 
-    // Handle duty time tracking state changes
-    if (newStatus === 'on_duty' && previousStatus !== 'on_duty') {
-      // Started duty - start timer
-      this.dutyStartTime = Date.now();
-      console.log('⏱️ [LiveDistanceTracker] Duty timer started');
-    } else if (newStatus !== 'on_duty' && previousStatus === 'on_duty') {
-      // Stopped duty - calculate and store total time
-      if (this.dutyStartTime) {
-        const elapsedMs = Date.now() - this.dutyStartTime;
-        this.totalTimeOnDuty += Math.floor(elapsedMs / 60000); // Convert to minutes
-        this.dutyStartTime = null;
-        console.log(`⏱️ [LiveDistanceTracker] Duty timer stopped - Total: ${this.totalTimeOnDuty} minutes`);
+    try {
+      // Get AppUser record
+      const appUsers = await base44.entities.AppUser.filter({ user_id: this.currentUser.id });
+      const appUser = appUsers?.[0];
+      
+      if (!appUser) {
+        console.error('❌ [LiveDistanceTracker] AppUser not found');
+        return;
       }
+
+      // Handle duty time tracking state changes
+      if (newStatus === 'on_duty' && previousStatus !== 'on_duty') {
+        // Started duty - start timer (no break time to add yet)
+        this.dutyStartTime = Date.now();
+        console.log('⏱️ [LiveDistanceTracker] Duty timer started');
+        
+      } else if (newStatus === 'on_break' && previousStatus === 'on_duty') {
+        // Going on break - save break start time to AppUser
+        const now = new Date().toISOString();
+        await base44.entities.AppUser.update(appUser.id, {
+          break_start_time: now
+        });
+        console.log('⏸️ [LiveDistanceTracker] Break started - timestamp saved');
+        
+      } else if (newStatus === 'on_duty' && previousStatus === 'on_break') {
+        // Returning from break - calculate break duration and add to total
+        if (appUser.break_start_time) {
+          const breakStart = new Date(appUser.break_start_time).getTime();
+          const breakEnd = Date.now();
+          const breakDurationMs = breakEnd - breakStart;
+          const breakDurationMinutes = Math.floor(breakDurationMs / 60000);
+          
+          const newTotalBreakTime = (appUser.total_break_time_minutes || 0) + breakDurationMinutes;
+          
+          await base44.entities.AppUser.update(appUser.id, {
+            total_break_time_minutes: newTotalBreakTime,
+            break_start_time: null
+          });
+          
+          console.log(`⏱️ [LiveDistanceTracker] Break ended - Duration: ${breakDurationMinutes} minutes, Total break time: ${newTotalBreakTime} minutes`);
+        }
+        
+      } else if (newStatus === 'off_duty') {
+        // Going off duty - finalize any active break and reset counters for next day
+        if (previousStatus === 'on_break' && appUser.break_start_time) {
+          const breakStart = new Date(appUser.break_start_time).getTime();
+          const breakEnd = Date.now();
+          const breakDurationMs = breakEnd - breakStart;
+          const breakDurationMinutes = Math.floor(breakDurationMs / 60000);
+          
+          const newTotalBreakTime = (appUser.total_break_time_minutes || 0) + breakDurationMinutes;
+          
+          await base44.entities.AppUser.update(appUser.id, {
+            total_break_time_minutes: newTotalBreakTime,
+            break_start_time: null
+          });
+          
+          console.log(`⏱️ [LiveDistanceTracker] Off duty - Finalized break: ${breakDurationMinutes} minutes, Total: ${newTotalBreakTime} minutes`);
+        }
+        
+        // Stop duty timer
+        if (this.dutyStartTime) {
+          const elapsedMs = Date.now() - this.dutyStartTime;
+          this.totalTimeOnDuty += Math.floor(elapsedMs / 60000);
+          this.dutyStartTime = null;
+        }
+      }
+      
+    } catch (error) {
+      console.error('❌ [LiveDistanceTracker] Error updating driver status:', error);
     }
   }
 
@@ -212,19 +269,8 @@ class LiveDistanceTracker {
         }
       }));
 
-      // STEP 8: Update time on duty (if currently on_duty)
-      if (this.dutyStartTime) {
-        const elapsedMs = Date.now() - this.dutyStartTime;
-        const currentTotalMinutes = Math.floor(elapsedMs / 60000);
-        
-        // Dispatch event to update UI with current time on duty
-        window.dispatchEvent(new CustomEvent('timeOnDutyUpdated', {
-          detail: {
-            totalMinutes: currentTotalMinutes,
-            formattedTime: this.formatDutyTime(currentTotalMinutes)
-          }
-        }));
-      }
+      // STEP 8: Calculate and dispatch time on duty (first stop to now, minus breaks)
+      await this.updateTimeOnDuty();
 
     } catch (error) {
       console.error('❌ [LiveDistanceTracker] Update error:', error);
@@ -253,25 +299,88 @@ class LiveDistanceTracker {
   }
 
   /**
+   * Calculate time on duty based on first stop completion to now
+   * Subtracts total break time
+   */
+  async updateTimeOnDuty() {
+    try {
+      if (!this.currentUser || this.currentUser.driver_status !== 'on_duty') {
+        return;
+      }
+
+      // Get today's deliveries for this driver
+      const todayStr = new Date().toISOString().split('T')[0];
+      const todayDeliveries = await base44.entities.Delivery.filter({
+        driver_id: this.currentUser.id,
+        delivery_date: todayStr
+      });
+
+      // Find first completed stop (earliest actual_delivery_time)
+      const finishedStatuses = ['completed', 'failed', 'cancelled'];
+      const completedStops = todayDeliveries
+        .filter(d => d && finishedStatuses.includes(d.status) && d.actual_delivery_time)
+        .sort((a, b) => new Date(a.actual_delivery_time) - new Date(b.actual_delivery_time));
+
+      if (completedStops.length === 0) {
+        // No completed stops yet - time on duty is 0
+        window.dispatchEvent(new CustomEvent('timeOnDutyUpdated', {
+          detail: {
+            totalMinutes: 0,
+            formattedTime: '00:00'
+          }
+        }));
+        return;
+      }
+
+      // Calculate time from first stop to now
+      const firstStopTime = new Date(completedStops[0].actual_delivery_time);
+      const now = Date.now();
+      const totalElapsedMs = now - firstStopTime.getTime();
+      const totalElapsedMinutes = Math.floor(totalElapsedMs / 60000);
+
+      // Get total break time from AppUser
+      const appUsers = await base44.entities.AppUser.filter({ user_id: this.currentUser.id });
+      const appUser = appUsers?.[0];
+      const totalBreakMinutes = appUser?.total_break_time_minutes || 0;
+
+      // CRITICAL: If currently on break, add current break session time
+      let activeBreakMinutes = 0;
+      if (this.currentUser.driver_status === 'on_break' && appUser?.break_start_time) {
+        const breakStart = new Date(appUser.break_start_time).getTime();
+        const currentBreakMs = now - breakStart;
+        activeBreakMinutes = Math.floor(currentBreakMs / 60000);
+      }
+
+      // Time on duty = (first stop to now) - (total break time) - (active break time)
+      const timeOnDutyMinutes = Math.max(0, totalElapsedMinutes - totalBreakMinutes - activeBreakMinutes);
+
+      console.log(`⏱️ [LiveDistanceTracker] Time calculation:
+        First stop: ${firstStopTime.toLocaleTimeString()}
+        Elapsed: ${totalElapsedMinutes} min
+        Total breaks: ${totalBreakMinutes} min
+        Active break: ${activeBreakMinutes} min
+        Time on duty: ${timeOnDutyMinutes} min`);
+
+      // Dispatch event to update UI
+      window.dispatchEvent(new CustomEvent('timeOnDutyUpdated', {
+        detail: {
+          totalMinutes: timeOnDutyMinutes,
+          formattedTime: this.formatDutyTime(timeOnDutyMinutes)
+        }
+      }));
+
+    } catch (error) {
+      console.error('❌ [LiveDistanceTracker] Time calculation error:', error);
+    }
+  }
+
+  /**
    * Format duty time as HH:MM
    */
   formatDutyTime(totalMinutes) {
     const hours = Math.floor(totalMinutes / 60);
     const minutes = totalMinutes % 60;
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-  }
-
-  /**
-   * Get current time on duty
-   */
-  getTimeOnDuty() {
-    if (!this.dutyStartTime) {
-      return this.formatDutyTime(this.totalTimeOnDuty);
-    }
-
-    const elapsedMs = Date.now() - this.dutyStartTime;
-    const currentTotalMinutes = this.totalTimeOnDuty + Math.floor(elapsedMs / 60000);
-    return this.formatDutyTime(currentTotalMinutes);
   }
 }
 
