@@ -165,8 +165,8 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
             </div>
           </div>
 
-          {/* Pay Cycle & Pay Rate - Row 1 */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Pay Cycle, Pay Rate & Tax - Row 1 */}
+          <div className="grid grid-cols-3 gap-3">
             {/* Pay Cycle Type */}
             <div>
               <Label htmlFor="pay_cycle_type" className="text-sm font-medium mb-1.5 block">
@@ -190,21 +190,9 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
 
             {/* Pay Rate per Delivery */}
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <Label htmlFor="pay_rate" className="text-sm font-medium">
-                  Per Delivery ($)
-                </Label>
-                <div className="flex items-center gap-1.5">
-                  <Checkbox
-                    id="gst_hst"
-                    checked={formData.gst_hst_enabled}
-                    onCheckedChange={(checked) => setFormData(prev => ({ ...prev, gst_hst_enabled: checked }))}
-                  />
-                  <Label htmlFor="gst_hst" className="text-xs font-medium cursor-pointer">
-                    GST/HST
-                  </Label>
-                </div>
-              </div>
+              <Label htmlFor="pay_rate" className="text-sm font-medium mb-1.5 block">
+                Per Delivery ($)
+              </Label>
               <Input
                 id="pay_rate"
                 type="text"
@@ -213,6 +201,23 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                 onChange={(e) => setFormData(prev => ({ ...prev, pay_rate_per_delivery: e.target.value }))}
                 placeholder="0.00"
               />
+            </div>
+
+            {/* GST/HST Tax */}
+            <div>
+              <Label className="text-sm font-medium mb-1.5 block">
+                Tax
+              </Label>
+              <div className="flex items-center gap-2 h-9 px-3 border rounded-md bg-background">
+                <Checkbox
+                  id="gst_hst"
+                  checked={formData.gst_hst_enabled}
+                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, gst_hst_enabled: checked }))}
+                />
+                <Label htmlFor="gst_hst" className="text-sm font-medium cursor-pointer">
+                  GST/HST
+                </Label>
+              </div>
             </div>
           </div>
 
