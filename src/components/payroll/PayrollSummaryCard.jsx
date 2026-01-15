@@ -208,19 +208,19 @@ export default function PayrollSummaryCard({
               <div className="flex gap-14 text-xs">
                 <div className="flex items-center gap-1.5 w-24">
                   <span className="text-slate-500 w-8">Del:</span>
-                  <span className="bg-slate-200 text-slate-700 px-1 py-0.5 rounded text-[11px]">{data.totalDeliveries} = {formatCurrency(data.totalBasePay)}</span>
+                  <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[11px] whitespace-nowrap">{data.totalDeliveries} = {formatCurrency(data.totalBasePay)}</span>
                 </div>
                 <div className="flex items-center gap-1 w-28">
                   <span className="text-slate-500 w-6">KM:</span>
-                  <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[11px]">{data.totalExtraKm.toFixed(2)} = {formatCurrency(data.totalExtraKmPay)}</span>
+                  <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[11px] whitespace-nowrap">{data.totalExtraKm.toFixed(2)} = {formatCurrency(data.totalExtraKmPay)}</span>
                 </div>
                 <div className="flex items-center gap-1 w-20">
                   <span className="text-slate-500 w-6">OS:</span>
-                  <span className="bg-slate-200 text-slate-700 px-1 py-0.5 rounded text-[11px]">{data.oversizedCount} = {formatCurrency(data.totalOversizedPay)}</span>
+                  <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[11px] whitespace-nowrap">{data.oversizedCount} = {formatCurrency(data.totalOversizedPay)}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="text-slate-500">Returns:</span>
-                  <span className="bg-orange-100 text-orange-700 px-1 py-0.5 rounded text-[11px]">{data.returnsCount}</span>
+                  <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[11px] whitespace-nowrap">{data.returnsCount}</span>
                 </div>
               </div>
             </div>
