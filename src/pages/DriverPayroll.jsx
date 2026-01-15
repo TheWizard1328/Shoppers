@@ -299,7 +299,7 @@ export default function DriverPayroll() {
           <div className="flex flex-wrap items-center gap-2">
             {/* City Filter */}
             <Select value={selectedCityId} onValueChange={setSelectedCityId} disabled={isDriver}>
-              <SelectTrigger className="w-[110px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+              <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                 <SelectValue placeholder="City" />
               </SelectTrigger>
               <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
@@ -314,7 +314,7 @@ export default function DriverPayroll() {
 
             {/* Year Filter */}
             <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
-              <SelectTrigger className="w-[110px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+              <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
@@ -328,7 +328,7 @@ export default function DriverPayroll() {
 
             {/* Driver Filter */}
             <Select value={selectedDriverId} onValueChange={setSelectedDriverId} disabled={isDriver}>
-              <SelectTrigger className="w-[110px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
+              <SelectTrigger className="w-[105px] md:w-[130px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                 <SelectValue placeholder="Driver" />
               </SelectTrigger>
               <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
