@@ -27,6 +27,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
     extra_km_rate: formatRate(driver.extra_km_rate),
     extra_km_limit: formatRate(driver.extra_km_limit),
     oversized_item_rate: formatRate(driver.oversized_item_rate),
+    gst_hst_enabled: driver.gst_hst_enabled || false,
     pay_cycle_type: driver.pay_cycle_type || 'monthly'
   });
   const [isSaving, setIsSaving] = useState(false);
@@ -39,6 +40,7 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
         status: formData.status,
         driver_status: formData.driver_status,
         location_tracking_enabled: formData.location_tracking_enabled,
+        gst_hst_enabled: formData.gst_hst_enabled,
         pay_cycle_type: formData.pay_cycle_type
       };
 
@@ -188,9 +190,21 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
 
             {/* Pay Rate per Delivery */}
             <div>
-              <Label htmlFor="pay_rate" className="text-sm font-medium mb-1.5 block">
-                Per Delivery ($)
-              </Label>
+              <div className="flex items-center justify-between mb-1.5">
+                <Label htmlFor="pay_rate" className="text-sm font-medium">
+                  Per Delivery ($)
+                </Label>
+                <div className="flex items-center gap-1.5">
+                  <Checkbox
+                    id="gst_hst"
+                    checked={formData.gst_hst_enabled}
+                    onCheckedChange={(checked) => setFormData(prev => ({ ...prev, gst_hst_enabled: checked }))}
+                  />
+                  <Label htmlFor="gst_hst" className="text-xs font-medium cursor-pointer">
+                    GST/HST
+                  </Label>
+                </div>
+              </div>
               <Input
                 id="pay_rate"
                 type="text"
