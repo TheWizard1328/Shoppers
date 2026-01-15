@@ -3809,9 +3809,7 @@ export default function DeliveriesPage() {
                 </Card>
             }
 
-              <AnimatePresence mode="wait">
-                {renderDeliveries(filteredAndSortedDeliveries)}
-              </AnimatePresence>
+              {renderDeliveries(filteredAndSortedDeliveries)}
             </>
           }
         </div>
