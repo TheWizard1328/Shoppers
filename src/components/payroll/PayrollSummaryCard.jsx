@@ -185,42 +185,43 @@ export default function PayrollSummaryCard({
                   {formatCurrency(data.grandTotal)}
                 </div>
               </div>
-              {/* Pay Rates Row */}
-              <div className="flex text-xs mb-1.5">
-                <div className="flex items-center w-36">
+              {/* 2-Column, 4-Row Layout for Mobile Optimization */}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                {/* Row 1: Rate & Deliveries */}
+                <div className="flex items-center">
                   <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Rate:</span>
-                  <span className="px-2 py-0.5 rounded text-[11px] text-center" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.payRate)}</span>
+                  <span className="px-2 py-0.5 rounded text-[11px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.payRate)}</span>
                 </div>
-                <div className="flex items-center w-36">
+                <div className="flex items-center">
+                  <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Del:</span>
+                  <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.totalDeliveries} = {formatCurrency(data.totalBasePay)}</span>
+                </div>
+                {/* Row 2: KM Rate & KM Total */}
+                <div className="flex items-center">
+                  <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>
+                  <span className="px-2 py-0.5 rounded text-[11px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.extraKmRate, 3)}/km</span>
+                </div>
+                <div className="flex items-center">
                   <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>
-                  <span className="px-2 py-0.5 rounded text-[11px] text-center" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.extraKmRate, 3)}/km</span>
+                  <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.totalExtraKm.toFixed(2)} = {formatCurrency(data.totalExtraKmPay)}</span>
                 </div>
-                <div className="flex items-center w-36">
+                {/* Row 3: OS Rate & OS Total */}
+                <div className="flex items-center">
+                  <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>OS:</span>
+                  <span className="px-2 py-0.5 rounded text-[11px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.oversizedRate)}</span>
+                </div>
+                <div className="flex items-center">
                   <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>OS:</span>
-                  <span className="px-2 py-0.5 rounded text-[11px] text-center" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{formatCurrency(data.oversizedRate)}</span>
+                  <span className="px-2 py-0.5 rounded text-[11px] whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.oversizedCount} = {formatCurrency(data.totalOversizedPay)}</span>
                 </div>
-                <div className="flex items-center w-36">
-                  <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Failed:</span>
-                  <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[11px] text-center">{data.failedCount}</span>
+                {/* Row 4: Failed & Returns */}
+                <div className="flex items-center">
+                  <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Failed:</span>
+                  <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[11px]">{data.failedCount}</span>
                 </div>
-              </div>
-              {/* Totals Row */}
-              <div className="flex text-xs">
-                <div className="flex items-center w-36">
-                  <span className="w-10 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Del:</span>
-                  <span className="px-2 py-0.5 rounded text-[11px] text-center whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.totalDeliveries} = {formatCurrency(data.totalBasePay)}</span>
-                </div>
-                <div className="flex items-center w-36">
-                  <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>KM:</span>
-                  <span className="px-2 py-0.5 rounded text-[11px] text-center whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.totalExtraKm.toFixed(2)} = {formatCurrency(data.totalExtraKmPay)}</span>
-                </div>
-                <div className="flex items-center w-36">
-                  <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>OS:</span>
-                  <span className="px-2 py-0.5 rounded text-[11px] text-center whitespace-nowrap" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>{data.oversizedCount} = {formatCurrency(data.totalOversizedPay)}</span>
-                </div>
-                <div className="flex items-center w-36">
-                  <span className="w-12 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Returns:</span>
-                  <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[11px] text-center whitespace-nowrap">{data.returnsCount}</span>
+                <div className="flex items-center">
+                  <span className="w-8 text-right pr-1" style={{ color: 'var(--text-slate-500)' }}>Ret:</span>
+                  <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[11px]">{data.returnsCount}</span>
                 </div>
               </div>
             </div>
