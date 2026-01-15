@@ -35,9 +35,12 @@ export default function PayrollSummaryCard({
       const oversizedRate = appUser?.oversized_item_rate || 0;
       
       // Filter deliveries for this driver in the current period
+      // Exclude pickups (no patient_id) UNLESS it's an after_hours_pickup
       const periodDeliveries = deliveries.filter(d => {
         if (!d || !d.delivery_date || d.status !== 'completed') return false;
         if (d.driver_id !== driver.id) return false;
+        // Exclude pickups (no patient_id) unless it's an after_hours_pickup
+        if (!d.patient_id && !d.after_hours_pickup) return false;
         
         const date = new Date(d.delivery_date + 'T00:00:00');
         return date >= currentPeriod.start && date <= currentPeriod.end;
