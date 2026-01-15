@@ -3147,10 +3147,6 @@ export default function DeliveriesPage() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-  
-  // Determine if we should show the split view (cards + details panel)
-  // Show split view on desktop OR on wider mobile screens (>= 640px width)
-  const showSplitView = !isMobile || windowWidth >= 640;
 
   function LogoImage({ className }) {
     const [idx, setIdx] = React.useState(0);
