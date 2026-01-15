@@ -250,11 +250,11 @@ export default function PayrollSummaryCard({
           
           return (
           <div key={data.driver.id} className="p-3 rounded-lg" style={{ background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-start justify-between mb-2">
                 <h3 className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                   {data.driver.user_name || data.driver.full_name}
                 </h3>
-                <div className="flex flex-col items-end gap-0.5">
+              </div>
                   {hasTaxOrDeductions ? (
                     <>
                       {/* Net (formerly grandTotal) */}
