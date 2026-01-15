@@ -252,18 +252,18 @@ export default function DriverPayrollGrid({
           <table className="w-full text-[11px]">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
-                <th className="text-left px-1 py-1 font-medium sticky left-0 z-10" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)' }}>Day</th>
+                <th className="text-left px-1 md:px-2 py-1 font-medium sticky left-0 z-10" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)' }}>Day</th>
                 {sortedStores.map((store) => (
                   <th
                     key={store.id}
-                    className="text-center px-1 py-1 font-bold min-w-[28px]"
+                    className="text-center px-1 md:px-2 py-1 font-bold min-w-[28px] md:min-w-[40px]"
                     style={{ color: getStoreColor(store) }}
                     title={store.name}
                   >
                     {store.abbreviation || store.name?.substring(0, 2)}
                   </th>
                 ))}
-                <th className="text-center px-1 py-1 font-bold border-l-2 border-purple-300 min-w-[36px]" style={{ color: 'var(--text-slate-900)' }}>Tot</th>
+                <th className="text-center px-1 md:px-2 py-1 font-bold border-l-2 border-purple-300 min-w-[36px] md:min-w-[50px]" style={{ color: 'var(--text-slate-900)' }}>Tot</th>
               </tr>
             </thead>
             <tbody>
@@ -281,56 +281,65 @@ export default function DriverPayrollGrid({
                     style={{ borderBottom: '1px solid var(--border-slate-200)', background: isWeekend ? 'var(--bg-slate-100)' : 'transparent' }}
                   >
                     <td
-                      className="px-1 py-0.5 font-medium sticky left-0 z-10"
+                      className="px-1 md:px-2 py-0.5 font-medium sticky left-0 z-10"
                       style={{ color: 'var(--text-slate-600)', background: isWeekend ? 'var(--bg-slate-100)' : 'var(--bg-white)' }}
                     >
-                      {dayNum}
+                      <span className="md:hidden">{dayNum}</span>
+                      <span className="hidden md:inline">{monthShort} {dayNum} <span className="text-[9px]" style={{ color: 'var(--text-slate-400)' }}>{dayOfWeek}</span></span>
                     </td>
                     {sortedStores.map((store) => {
                       const value = viewMode === 'extraKm' 
                         ? (extraKmMap[dateKey]?.[store.id] || 0)
                         : (dataMap[dateKey]?.[store.id] || 0);
-                      const displayValue = viewMode === 'extraKm' 
+                      const displayValueMobile = viewMode === 'extraKm' 
                         ? (value > 0 ? value.toFixed(1) : '')
+                        : (value > 0 ? value : '');
+                      const displayValueDesktop = viewMode === 'extraKm' 
+                        ? (value > 0 ? value.toFixed(2) : '')
                         : (value > 0 ? value : '');
                       return (
                         <td
                           key={store.id}
-                          className="text-center px-1 py-0.5 tabular-nums"
+                          className="text-center px-1 md:px-2 py-0.5 tabular-nums"
                           style={{ color: value > 0 ? getStoreColor(store) : 'var(--text-slate-400)' }}
                         >
-                          {displayValue}
+                          <span className="md:hidden">{displayValueMobile}</span>
+                          <span className="hidden md:inline">{displayValueDesktop}</span>
                         </td>
                       );
                     })}
-                    <td className="text-center px-1 py-0.5 font-semibold border-l-2 border-purple-300 tabular-nums" style={{ color: 'var(--text-slate-900)' }}>
-                      {viewMode === 'extraKm' 
-                        ? (dayTotal > 0 ? dayTotal.toFixed(1) : '')
-                        : (dayTotal > 0 ? dayTotal : '')}
+                    <td className="text-center px-1 md:px-2 py-0.5 font-semibold border-l-2 border-purple-300 tabular-nums" style={{ color: 'var(--text-slate-900)' }}>
+                      <span className="md:hidden">{viewMode === 'extraKm' ? (dayTotal > 0 ? dayTotal.toFixed(1) : '') : (dayTotal > 0 ? dayTotal : '')}</span>
+                      <span className="hidden md:inline">{viewMode === 'extraKm' ? (dayTotal > 0 ? dayTotal.toFixed(2) : '') : (dayTotal > 0 ? dayTotal : '')}</span>
                     </td>
                   </tr>
                 );
               })}
               {/* Totals Row */}
               <tr className="font-semibold" style={{ borderTop: '2px solid var(--border-slate-300)', background: 'var(--bg-slate-100)' }}>
-                <td className="px-1 py-1 sticky left-0 z-10" style={{ color: 'var(--text-slate-700)', background: 'var(--bg-slate-100)' }}>Tot</td>
+                <td className="px-1 md:px-2 py-1 sticky left-0 z-10" style={{ color: 'var(--text-slate-700)', background: 'var(--bg-slate-100)' }}>Tot</td>
                 {sortedStores.map((store) => {
                   const value = viewMode === 'extraKm' ? storeKmTotals[store.id] : storeTotals[store.id];
-                  const displayValue = viewMode === 'extraKm' 
+                  const displayValueMobile = viewMode === 'extraKm' 
                     ? (value > 0 ? value.toFixed(1) : '')
+                    : (value > 0 ? value : '');
+                  const displayValueDesktop = viewMode === 'extraKm' 
+                    ? (value > 0 ? value.toFixed(2) : '')
                     : (value > 0 ? value : '');
                   return (
                     <td
                       key={store.id}
-                      className="text-center px-1 py-1 tabular-nums"
+                      className="text-center px-1 md:px-2 py-1 tabular-nums"
                       style={{ color: getStoreColor(store) }}
                     >
-                      {displayValue}
+                      <span className="md:hidden">{displayValueMobile}</span>
+                      <span className="hidden md:inline">{displayValueDesktop}</span>
                     </td>
                   );
                 })}
-                <td className="text-center px-1 py-1 font-bold border-l-2 border-purple-300 tabular-nums" style={{ color: 'var(--text-slate-900)' }}>
-                  {viewMode === 'extraKm' ? grandTotal.toFixed(1) : grandTotal}
+                <td className="text-center px-1 md:px-2 py-1 font-bold border-l-2 border-purple-300 tabular-nums" style={{ color: 'var(--text-slate-900)' }}>
+                  <span className="md:hidden">{viewMode === 'extraKm' ? grandTotal.toFixed(1) : grandTotal}</span>
+                  <span className="hidden md:inline">{viewMode === 'extraKm' ? grandTotal.toFixed(2) : grandTotal}</span>
                 </td>
               </tr>
             </tbody>
