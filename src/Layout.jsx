@@ -2136,6 +2136,12 @@ export default function Layout({ children, currentPageName }) {
 
     if (realUser && (isAppOwner(realUser) || userHasRole(realUser, 'admin'))) {
         items.push({
+          title: "Driver Payroll",
+          pageName: 'DriverPayroll',
+          url: createPageUrl("DriverPayroll"),
+          icon: FileText
+        });
+        items.push({
           title: "Admin Metrics",
           pageName: 'AdminMetrics',
           url: createPageUrl("AdminMetrics"),
