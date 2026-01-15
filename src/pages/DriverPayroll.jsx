@@ -183,8 +183,8 @@ export default function DriverPayroll() {
     if (!hasInitialized) return;
 
     if (selectedDriverId === 'all') {
-      // Default to monthly when "All Drivers" is selected
-      setPayPeriod('monthly');
+      // Default to semi-monthly when "All Drivers" is selected
+      setPayPeriod('semimonthly');
     } else {
       // Load the selected driver's pay cycle type
       const driverAppUser = appUsers?.find(au => au.user_id === selectedDriverId);
