@@ -5834,12 +5834,14 @@ function Dashboard() {
 
       alert(`Failed to start delivery: ${error.message}`);
     } finally {
-      // CRITICAL: Resume offline database operations after optimization
+      // CRITICAL: Resume smart refresh FIRST before any other operations
+      console.log('▶️ [START] Resuming smart refresh, offline sync, and mutations');
+      setIsEntityUpdating(false);
+      
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      
       resumeOfflineMutations();
       resumeOfflineSync();
-
-      setIsEntityUpdating(false);
-      await new Promise((resolve) => setTimeout(resolve, 100));
     }
   };
 
