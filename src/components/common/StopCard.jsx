@@ -2296,6 +2296,24 @@ export default function StopCard({
                             invalidate('Delivery');
                             await forceRefreshDriverDeliveries(delivery.driver_id, delivery.delivery_date);
 
+                            // Wait for UI to fully update with new stop orders
+                            await new Promise(resolve => setTimeout(resolve, 500));
+
+                            // CRITICAL: Find and scroll to the card with isNextDelivery=true AFTER optimization
+                            const freshDeliveries = await base44.entities.Delivery.filter({
+                              driver_id: delivery.driver_id,
+                              delivery_date: delivery.delivery_date
+                            });
+
+                            const nextDelivery = freshDeliveries.find(d => d && d.isNextDelivery === true);
+                            if (nextDelivery) {
+                              const cardElement = document.getElementById(`stop-card-${nextDelivery.id}`);
+                              if (cardElement) {
+                                cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                                console.log('📍 [START] Scrolled to optimized next delivery card');
+                              }
+                            }
+
                             // Trigger final map update
                             window.dispatchEvent(new CustomEvent('routeOptimizationComplete'));
                           } catch (optimizeError) {
