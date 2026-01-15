@@ -298,7 +298,7 @@ export default function DriverPayroll() {
           {/* Filters */}
           <div className="flex flex-wrap items-center gap-3">
             {/* City Filter */}
-            <Select value={selectedCityId} onValueChange={setSelectedCityId}>
+            <Select value={selectedCityId} onValueChange={setSelectedCityId} disabled={isDriver}>
               <SelectTrigger className="w-[140px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                 <SelectValue placeholder="City" />
               </SelectTrigger>
@@ -327,7 +327,7 @@ export default function DriverPayroll() {
             </Select>
 
             {/* Driver Filter */}
-            <Select value={selectedDriverId} onValueChange={setSelectedDriverId}>
+            <Select value={selectedDriverId} onValueChange={setSelectedDriverId} disabled={isDriver}>
               <SelectTrigger className="w-[160px]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}>
                 <SelectValue placeholder="Driver" />
               </SelectTrigger>
