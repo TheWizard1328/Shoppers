@@ -4933,6 +4933,9 @@ function Dashboard() {
       setIsMapViewLocked(false);
     }
 
+    // CRITICAL: Pause theme transitions during status updates to prevent UI glitches
+    document.documentElement.style.setProperty('--theme-transition-duration', '0s');
+
     setIsEntityUpdating(true);
 
     // Wait 100ms to ensure smart refresh has paused before proceeding
@@ -5372,6 +5375,11 @@ function Dashboard() {
       setIsEntityUpdating(false);
 
       await new Promise((resolve) => setTimeout(resolve, 100));
+      
+      // CRITICAL: Re-enable theme transitions after status update completes
+      setTimeout(() => {
+        document.documentElement.style.setProperty('--theme-transition-duration', '0.3s');
+      }, 500);
     }
   };
 

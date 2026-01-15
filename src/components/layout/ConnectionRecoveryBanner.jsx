@@ -46,18 +46,57 @@ export default function ConnectionRecoveryBanner() {
     };
 
     // Listen for connection restored
-    const handleConnectionRestored = () => {
+    const handleConnectionRestored = async () => {
       setStatus('restored');
       recoveringStartTime.current = null;
       
-      // CRITICAL: Trigger full data reload to repopulate drivers/users in dropdowns
-      console.log('🔄 [ConnectionRecoveryBanner] Triggering full data reload after recovery');
-      window.dispatchEvent(new CustomEvent('forceDataRefresh'));
+      // CRITICAL: Trigger full data reload with validation to ensure complete data
+      console.log('🔄 [ConnectionRecoveryBanner] Starting validated data recovery...');
       
-      // Auto-hide after 3 seconds when restored
-      setTimeout(() => {
-        setIsVisible(false);
-      }, 3000);
+      try {
+        // STEP 1: Import all required utilities
+        const { getData, invalidate } = await import('../utils/dataManager');
+        const { clearUserCache } = await import('../utils/auth');
+        const { base44 } = await import('@/api/base44Client');
+        
+        // STEP 2: Validate we can actually reach the backend
+        try {
+          await base44.entities.City.list();
+          console.log('✅ [Recovery] Backend connection verified');
+        } catch (healthError) {
+          console.error('❌ [Recovery] Backend still unreachable:', healthError);
+          throw new Error('Backend connection not ready');
+        }
+        
+        // STEP 3: Clear ALL caches to force fresh fetch
+        console.log('🧹 [Recovery] Clearing all caches...');
+        clearUserCache();
+        invalidate('Delivery');
+        invalidate('Patient');
+        invalidate('AppUser');
+        invalidate('Store');
+        invalidate('User');
+        invalidate('City');
+        
+        // STEP 4: Wait a moment for invalidation to settle
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // STEP 5: Trigger full data reload
+        console.log('📥 [Recovery] Triggering validated data refresh...');
+        window.dispatchEvent(new CustomEvent('forceDataRefresh'));
+        
+        // STEP 6: Force refresh stats immediately
+        window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
+        
+        // Auto-hide after 3 seconds when restored
+        setTimeout(() => {
+          setIsVisible(false);
+        }, 3000);
+      } catch (error) {
+        console.error('❌ [Recovery] Data recovery failed:', error);
+        // Stay visible with error state
+        setStatus('error');
+      }
     };
 
     // Listen for browser online/offline events

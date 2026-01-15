@@ -630,25 +630,31 @@ export default function Layout({ children, currentPageName }) {
             const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
 
             // Apply theme class to HTML element (mobile only - desktop always light)
+            // CRITICAL: Debounced theme application to prevent blocking UI updates during critical operations
             useEffect(() => {
-              if (!isMobile) {
-                // Force light mode on desktop
-                document.documentElement.classList.remove('auto-theme', 'dark-theme');
-                document.documentElement.classList.add('light-theme');
-                return;
-              }
+              // CRITICAL: Delay theme changes to avoid interfering with form submissions or status updates
+              const themeUpdateTimer = setTimeout(() => {
+                if (!isMobile) {
+                  // Force light mode on desktop
+                  document.documentElement.classList.remove('auto-theme', 'dark-theme');
+                  document.documentElement.classList.add('light-theme');
+                  return;
+                }
 
-              // Mobile theme switching
-              if (themePreference === 'dark') {
-                document.documentElement.classList.remove('auto-theme', 'light-theme');
-                document.documentElement.classList.add('dark-theme');
-              } else if (themePreference === 'light') {
-                document.documentElement.classList.remove('auto-theme', 'dark-theme');
-                document.documentElement.classList.add('light-theme');
-              } else {
-                document.documentElement.classList.remove('light-theme', 'dark-theme');
-                document.documentElement.classList.add('auto-theme');
-              }
+                // Mobile theme switching
+                if (themePreference === 'dark') {
+                  document.documentElement.classList.remove('auto-theme', 'light-theme');
+                  document.documentElement.classList.add('dark-theme');
+                } else if (themePreference === 'light') {
+                  document.documentElement.classList.remove('auto-theme', 'dark-theme');
+                  document.documentElement.classList.add('light-theme');
+                } else {
+                  document.documentElement.classList.remove('light-theme', 'dark-theme');
+                  document.documentElement.classList.add('auto-theme');
+                }
+              }, 300); // 300ms delay to avoid blocking critical operations
+
+              return () => clearTimeout(themeUpdateTimer);
             }, [themePreference, isMobile]);
 
             const handleThemeChange = async (newTheme) => {
@@ -1049,7 +1055,7 @@ export default function Layout({ children, currentPageName }) {
 
       // AUTO-RECOVERY: Listen for force refresh after connection recovery
                   const handleForceDataRefresh = async () => {
-                    console.log('🔄 [Layout] Force data refresh after connection recovery');
+                    console.log('🔄 [Layout] Force data refresh after connection recovery - COMPREHENSIVE MODE');
 
                     // CRITICAL: Invalidate ALL data caches to ensure fresh fetch
                     invalidate('Delivery');
@@ -1061,21 +1067,53 @@ export default function Layout({ children, currentPageName }) {
 
                     // CRITICAL: Clear the user cache to force fresh user data fetch
                     clearUserCache();
+                    clearSettingsCache();
 
+                    // CRITICAL: Force immediate data reload with validation
                     if (triggerFullDataLoadRef.current) {
+                      console.log('📥 [Recovery] Starting full data reload...');
+                      await triggerFullDataLoadRef.current(true);
+                      console.log('✅ [Recovery] Full data reload complete');
+                    }
+
+                    // Wait for data to settle
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+
+                    // CRITICAL: Validate we have complete data BEFORE updating UI
+                    const hasValidData = 
+                      users.length > 0 && 
+                      drivers.length > 0 && 
+                      stores.length > 0 && 
+                      cities.length > 0 &&
+                      appUsers.length > 0;
+
+                    if (!hasValidData) {
+                      console.warn('⚠️ [Recovery] Data incomplete after reload - retrying...');
+                      // Retry once
+                      await new Promise(resolve => setTimeout(resolve, 2000));
                       await triggerFullDataLoadRef.current(true);
                     }
 
                     // Refresh stats after data is loaded
                     window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
 
-                    // CRITICAL: Force dispatch driverLocationsUpdated to update map markers
-                    // This ensures driver dropdown and legend are repopulated
-                    setTimeout(() => {
+                    // CRITICAL: Force refresh ALL UI elements
+                    console.log('🎨 [Recovery] Refreshing all UI elements...');
+
+                    // Force dispatch driverLocationsUpdated to update map markers
+                    setTimeout(async () => {
+                      // Refresh driver locations to ensure colors are correct
+                      const locationUpdates = await smartRefreshManager.refreshDriverLocations(appUsers, true);
+                      if (locationUpdates?.hasChanges) {
+                        setAppUsers(locationUpdates.appUsers);
+                      }
+
                       window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-                        detail: { appUsers }
+                        detail: { appUsers: locationUpdates?.appUsers || appUsers }
                       }));
-                    }, 1000);
+
+                      console.log('✅ [Recovery] UI refresh complete');
+                    }, 1500);
                   };
                   window.addEventListener('forceDataRefresh', handleForceDataRefresh);
 
