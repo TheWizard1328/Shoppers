@@ -44,12 +44,15 @@ export default function DriverPayrollGrid({
   const sortedStores = [...stores].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
 
   // Filter deliveries for current period and driver
+  // Exclude pickups (no patient_id) UNLESS it's an after_hours_pickup
   const filteredDeliveries = deliveries.filter(d => {
     if (!d || !d.delivery_date) return false;
     const date = new Date(d.delivery_date + 'T00:00:00');
     if (date < currentPeriod.start || date > currentPeriod.end) return false;
     if (d.status !== 'completed') return false;
     if (selectedDriverId && selectedDriverId !== 'all' && d.driver_id !== selectedDriverId) return false;
+    // Exclude pickups (no patient_id) unless it's an after_hours_pickup
+    if (!d.patient_id && !d.after_hours_pickup) return false;
     return true;
   });
 
