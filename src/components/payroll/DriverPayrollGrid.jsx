@@ -310,17 +310,23 @@ export default function DriverPayrollGrid({
               {/* Totals Row */}
               <tr className="border-t-2 border-slate-300 bg-slate-100 font-semibold">
                 <td className="px-2 py-1 text-slate-700 sticky left-0 bg-slate-100 z-10">Tot</td>
-                {sortedStores.map((store) => (
-                  <td
-                    key={store.id}
-                    className="text-center px-2 py-1 tabular-nums"
-                    style={{ color: getStoreColor(store) }}
-                  >
-                    {storeTotals[store.id] > 0 ? storeTotals[store.id] : ''}
-                  </td>
-                ))}
+                {sortedStores.map((store) => {
+                  const value = viewMode === 'extraKm' ? storeKmTotals[store.id] : storeTotals[store.id];
+                  const displayValue = viewMode === 'extraKm' 
+                    ? (value > 0 ? value.toFixed(1) : '')
+                    : (value > 0 ? value : '');
+                  return (
+                    <td
+                      key={store.id}
+                      className="text-center px-2 py-1 tabular-nums"
+                      style={{ color: getStoreColor(store) }}
+                    >
+                      {displayValue}
+                    </td>
+                  );
+                })}
                 <td className="text-center px-2 py-1 font-bold text-slate-900 border-l-2 border-purple-300 tabular-nums">
-                  {grandTotal}
+                  {viewMode === 'extraKm' ? grandTotal.toFixed(1) : grandTotal}
                 </td>
               </tr>
             </tbody>
