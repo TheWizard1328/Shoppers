@@ -197,7 +197,7 @@ export default function PayrollSummaryCard({
               <div className="grid grid-cols-3 gap-2 text-xs">
                 <div className="flex items-center gap-1">
                   <span className="text-slate-500">Deliveries:</span>
-                  <span className="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">{data.totalDeliveries}</span>
+                  <span className="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">{data.totalDeliveries} = {formatCurrency(data.totalBasePay)}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="text-slate-500">Extra KM:</span>
@@ -205,7 +205,7 @@ export default function PayrollSummaryCard({
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="text-slate-500">Oversized:</span>
-                  <span className="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">{formatCurrency(data.totalOversizedPay)}</span>
+                  <span className="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">{data.oversizedCount} = {formatCurrency(data.totalOversizedPay)}</span>
                 </div>
               </div>
             </div>
