@@ -74,7 +74,7 @@ export default function DriverPayrollGrid({
   const periodDays = getDaysInPeriod();
 
   // Sort stores by sort_order
-  const sortedStores = [...stores].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+  const allSortedStores = [...stores].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
 
   // Filter deliveries for current period and driver
   // Exclude pickups (no patient_id) UNLESS it's an after_hours_pickup
