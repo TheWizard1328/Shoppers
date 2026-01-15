@@ -5735,12 +5735,23 @@ function Dashboard() {
       // STEP 7: Route optimization removed - now only runs on 5-minute timer when driver moves 100m+
       console.log('⏭️ [START] Skipping route optimization (handled by timer)');
 
-      // STEP 9: Final UI refresh and database sync
-      console.log('🔄 [START] Step 9: Final UI refresh and database sync...');
+      // STEP 9: Final UI refresh WITHOUT calling refreshData (which triggers smart refresh)
+      console.log('🔄 [START] Step 9: Final UI refresh...');
       invalidateDeliveriesForDate(deliveryDate);
-      await forceRefreshDriverDeliveries(driverId, deliveryDate);
-      await refreshData();
-      console.log('   ✅ UI and database synced');
+      
+      // CRITICAL: Manually update UI state without triggering full refresh
+      const finalRefreshedDeliveries = await base44.entities.Delivery.filter({
+        driver_id: driverId,
+        delivery_date: deliveryDate
+      });
+      
+      // Update context immediately
+      if (updateDeliveriesLocally) {
+        const otherDeliveries = deliveries.filter((d) => d && d.delivery_date !== deliveryDate);
+        const mergedDeliveries = [...otherDeliveries, ...finalRefreshedDeliveries];
+        updateDeliveriesLocally(mergedDeliveries, true);
+      }
+      console.log('   ✅ UI manually updated with refreshed deliveries');
 
       // CRITICAL: Force map to re-render route lines after data refresh
       window.dispatchEvent(new CustomEvent('deliveriesUpdated', {
