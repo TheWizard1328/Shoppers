@@ -187,7 +187,7 @@ export default function PayrollSummaryCard({
               </div>
               {/* Pay Rates Row */}
               <div className="flex text-xs mb-1.5">
-                <div className="flex items-center w-32">
+                <div className="flex items-center w-36">
                   <span className="text-slate-500 w-10 text-right pr-1">Rate:</span>
                   <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[11px] text-center">{formatCurrency(data.payRate)}</span>
                 </div>
@@ -195,11 +195,11 @@ export default function PayrollSummaryCard({
                   <span className="text-slate-500 w-8 text-right pr-1">KM:</span>
                   <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[11px] text-center">{formatCurrency(data.extraKmRate, 3)}/km</span>
                 </div>
-                <div className="flex items-center w-24">
+                <div className="flex items-center w-36">
                   <span className="text-slate-500 w-8 text-right pr-1">OS:</span>
                   <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[11px] text-center">{formatCurrency(data.oversizedRate)}</span>
                 </div>
-                <div className="flex items-center w-24">
+                <div className="flex items-center w-36">
                   <span className="text-slate-500 w-12 text-right pr-1">Failed:</span>
                   <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[11px] text-center">{data.failedCount}</span>
                 </div>
