@@ -434,6 +434,10 @@ Deno.serve(async (req) => {
 
     try {
       // CRITICAL: Calculate for both single driver AND "All Drivers" mode
+      // Get unique driver IDs from today's deliveries FIRST
+      const uniqueDriverIds = [...new Set(todayDeliveries.map(d => d?.driver_id).filter(Boolean))];
+      console.log(`📊 [Performance Stats] Found ${uniqueDriverIds.length} drivers with deliveries today (mode: ${driverId === 'all' ? 'ALL' : 'SINGLE'})`);
+      
       if (driverId && driverId !== 'all') {
         // SINGLE DRIVER MODE - use that driver's pay rates
         const driverAppUser = await base44.asServiceRole.entities.AppUser.filter({ user_id: driverId });
@@ -562,19 +566,9 @@ Deno.serve(async (req) => {
             performanceStats.totalTimeOnDuty = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
           }
         }
-      } else {
+      } else if (uniqueDriverIds.length > 0) {
         // ALL DRIVERS MODE - aggregate stats across all drivers
         console.log('📊 [ALL DRIVERS MODE] Calculating aggregated performance stats');
-        
-        // Get unique driver IDs from today's deliveries
-        const uniqueDriverIds = [...new Set(todayDeliveries.map(d => d?.driver_id).filter(Boolean))];
-        console.log(`   Found ${uniqueDriverIds.length} unique drivers with deliveries today`);
-        
-        // CRITICAL: Skip if no drivers with deliveries today
-        if (uniqueDriverIds.length === 0) {
-          console.log('   No drivers with deliveries today - skipping performance stats');
-          // performanceStats already initialized with zeros
-        } else {
         // Fetch all AppUsers for these drivers to get their pay rates
         const allDriverAppUsers = await base44.asServiceRole.entities.AppUser.filter({ 
           user_id: { $in: uniqueDriverIds } 
@@ -725,7 +719,9 @@ Deno.serve(async (req) => {
         performanceStats.extraKmLimit = 0; // Not applicable in "All Drivers" mode
         
         console.log('✅ [ALL DRIVERS MODE] Performance stats calculated:', performanceStats);
-        } // End of uniqueDriverIds.length > 0 check
+      } else {
+        // No drivers with deliveries - leave as zeros
+        console.log('⏭️ [Performance Stats] No drivers with deliveries today');
       }
     } catch (perfError) {
       console.warn('⚠️ [getDeliveryStats] Performance stats error:', perfError.message);
