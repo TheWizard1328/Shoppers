@@ -145,25 +145,43 @@ export default function PayrollSummaryCard({
       <CardContent>
         <div className="space-y-4">
           {payrollData.filter(data => data.grandTotal > 0).map((data, idx) => (
-            <div key={data.driver.id} className={`flex items-center justify-between p-3 rounded-lg ${idx % 2 === 0 ? 'bg-slate-50' : ''}`}>
-              <div>
+            <div key={data.driver.id} className={`p-3 rounded-lg ${idx % 2 === 0 ? 'bg-slate-50' : ''}`}>
+              <div className="flex items-center justify-between mb-2">
                 <h3 className="font-semibold text-slate-900">
                   {data.driver.user_name || data.driver.full_name}
                 </h3>
-                <div className="text-xs text-slate-500 space-x-3">
-                  <span>Rate: {formatCurrency(data.payRate)}/delivery</span>
-                  {data.extraKmRate > 0 && <span>• Extra KM: {formatCurrency(data.extraKmRate)}/km</span>}
-                  {data.oversizedRate > 0 && <span>• Oversized: {formatCurrency(data.oversizedRate)}</span>}
-                </div>
-                <div className="text-xs text-slate-500 mt-1">
-                  {data.totalDeliveries} deliveries
-                  {data.totalExtraKmPay > 0 && ` • Extra KM: ${formatCurrency(data.totalExtraKmPay)}`}
-                  {data.totalOversizedPay > 0 && ` • Oversized: ${formatCurrency(data.totalOversizedPay)}`}
-                </div>
-              </div>
-              <div className="text-right">
                 <div className="text-2xl font-bold text-emerald-600">
                   {formatCurrency(data.grandTotal)}
+                </div>
+              </div>
+              {/* Pay Rates Row */}
+              <div className="grid grid-cols-3 gap-2 text-xs mb-1.5">
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-500">Pay Rate:</span>
+                  <span className="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">{formatCurrency(data.payRate)}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-500">Extra KM:</span>
+                  <span className="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">{formatCurrency(data.extraKmRate)}/km</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-500">Oversized:</span>
+                  <span className="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">{formatCurrency(data.oversizedRate)}</span>
+                </div>
+              </div>
+              {/* Totals Row */}
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-500">Deliveries:</span>
+                  <span className="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">{data.totalDeliveries}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-500">Extra KM:</span>
+                  <span className="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">{formatCurrency(data.totalExtraKmPay)}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-500">Oversized:</span>
+                  <span className="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">{formatCurrency(data.totalOversizedPay)}</span>
                 </div>
               </div>
             </div>
