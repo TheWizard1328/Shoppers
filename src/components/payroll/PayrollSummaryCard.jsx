@@ -335,6 +335,44 @@ export default function PayrollSummaryCard({
                   <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[11px]">{data.returnsCount}</span>
                 </div>
               </div>
+              {/* Gross/Tax/Deductions - Bottom Right */}
+              <div className="flex justify-end mt-2">
+                <div className="flex flex-col items-end gap-0.5">
+                  {hasTaxOrDeductions ? (
+                    <>
+                      {/* Net (formerly grandTotal) */}
+                      <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                        <span className="text-xs mr-1">Net:</span>
+                        <span className="font-semibold">{formatCurrency(data.grandTotal)}</span>
+                      </div>
+                      {/* Tax if applicable */}
+                      {data.taxAmount > 0 && (
+                        <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
+                          <span className="text-xs mr-1">Tax ({data.provinceCode} {(data.taxRate * 100).toFixed(0)}%):</span>
+                          <span className="font-semibold">{formatCurrency(data.taxAmount)}</span>
+                        </div>
+                      )}
+                      {/* Deductions if applicable */}
+                      {data.deductions > 0 && (
+                        <div className="text-sm text-red-600">
+                          <span className="text-xs mr-1">Deductions:</span>
+                          <span className="font-semibold">-{formatCurrency(data.deductions)}</span>
+                        </div>
+                      )}
+                      {/* Gross (final payable) */}
+                      <div className="text-2xl font-bold text-emerald-600 mt-1">
+                        <span className="text-xs font-normal mr-1" style={{ color: 'var(--text-slate-500)' }}>Gross:</span>
+                        {formatCurrency(data.grossPay)}
+                      </div>
+                    </>
+                  ) : (
+                    /* No tax or deductions - just show Gross */
+                    <div className="text-2xl font-bold text-emerald-600">
+                      {formatCurrency(data.grossPay)}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           );
         })}
