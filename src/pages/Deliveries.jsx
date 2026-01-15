@@ -84,6 +84,7 @@ import { smartRefreshManager } from '../components/utils/smartRefreshManager';
 import { updateDeliveryLocal, deleteDeliveryLocal, createDeliveryLocal, batchDeleteDeliveriesLocal } from '../components/utils/entityMutations';
 import SmartRefreshIndicator from '../components/layout/SmartRefreshIndicator';
 import StopDetailsPanel from '../components/deliveries/StopDetailsPanel';
+import DeliveryListView from '../components/dashboard/DeliveryListView';
 
 const addMinutesToTime = (timeString, minutesToAdd) => {
   if (!timeString) return null;
@@ -177,6 +178,10 @@ export default function DeliveriesPage() {
   const [activeDriver, setActiveDriver] = useState(null);
   const [isDriverOnline, setIsDriverOnline] = useState(false);
   const isMounted = useRef(false);
+  const [viewMode, setViewMode] = useState(() => {
+    const saved = localStorage.getItem('rxdeliver_routes_view_mode');
+    return saved || 'cards';
+  });
 
   // Count unique drivers with deliveries for dispatchers
   const uniqueDriversForDispatcher = useMemo(() => {
@@ -744,6 +749,10 @@ export default function DeliveriesPage() {
   useEffect(() => {
     globalFilters.setSelectedDriverId(driverFilter);
   }, [driverFilter]);
+
+  useEffect(() => {
+    localStorage.setItem('rxdeliver_routes_view_mode', viewMode);
+  }, [viewMode]);
 
 
   const updateUrl = useCallback((newFilters) => {
@@ -3028,119 +3037,165 @@ export default function DeliveriesPage() {
 
     return (
       <>
-        <div className="flex h-full gap-4">
-          {/* Stop Cards Column - Single column on desktop, full width on narrow mobile */}
-          <div className={`${showSplitView ? 'w-[400px] flex-shrink-0' : 'w-full'} h-full overflow-hidden`}>
-            <DragDropContext onDragEnd={handleDragEnd}>
-              <Droppable droppableId="deliveries">
-                {(provided) =>
-                <div
-                  {...provided.droppableProps}
-                  ref={provided.innerRef}
-                  className="px-3 py-2 space-y-2 overflow-y-auto h-full flex flex-col items-center"
-                  style={{ maxHeight: 'calc(100vh - 280px)' }}>
+        {viewMode === 'cards' ? (
+          <div className="flex h-full gap-4">
+            {/* Stop Cards Column - Single column on desktop, full width on narrow mobile */}
+            <div className={`${showSplitView ? 'w-[400px] flex-shrink-0' : 'w-full'} h-full overflow-hidden`}>
+              <DragDropContext onDragEnd={handleDragEnd}>
+                <Droppable droppableId="deliveries">
+                  {(provided) =>
+                  <div
+                    {...provided.droppableProps}
+                    ref={provided.innerRef}
+                    className="px-3 py-2 space-y-2 overflow-y-auto h-full flex flex-col items-center"
+                    style={{ maxHeight: 'calc(100vh - 280px)' }}>
 
-                    {deliveriesToRender.map((delivery, index) =>
-                  <Draggable
-                    key={delivery.id}
-                    draggableId={delivery.id}
-                    index={index}
-                    isDragDisabled={false}>
+                      {deliveriesToRender.map((delivery, index) =>
+                    <Draggable
+                      key={delivery.id}
+                      draggableId={delivery.id}
+                      index={index}
+                      isDragDisabled={false}>
 
-                        {(provided, snapshot) =>
-                    <div
-                      ref={provided.innerRef}
-                      {...provided.draggableProps}
-                      style={{
-                        ...provided.draggableProps.style,
-                        opacity: snapshot.isDragging ? 0.8 : 1
-                      }}>
+                          {(provided, snapshot) =>
+                      <div
+                        ref={provided.innerRef}
+                        {...provided.draggableProps}
+                        style={{
+                          ...provided.draggableProps.style,
+                          opacity: snapshot.isDragging ? 0.8 : 1
+                        }}>
 
-                            <StopCard
-                        delivery={delivery}
-                        patient={(effectivePatients || []).find((p) => p && p.id === delivery.patient_id)}
-                        store={(stores || []).find((s) => s && s.id === delivery.store_id)}
-                        driver={
-                        (effectiveDrivers || []).find((d) => d.id === delivery.driver_id || d.appUserId === delivery.driver_id) ||
-                        (effectiveDrivers || []).find((d) => d.full_name === delivery.driver_name) ||
-                        (effectiveDrivers || []).find((d) => d.user_name === delivery.driver_name)
-                        }
-                        currentUser={currentUser}
-                        stopOrder={delivery.stopOrder || delivery.stop_order || index + 1}
-                        isSelected={selectedDeliveryId === delivery.id}
-                        onClick={() => setSelectedDeliveryId(selectedDeliveryId === delivery.id ? null : delivery.id)}
-                        onStatusUpdate={handleStatusUpdate}
-                        onNotesUpdate={handleNotesUpdate}
-                        onEditDelivery={handleEditDelivery}
-                        onDeleteDelivery={handleDeleteDelivery}
-                        showDriverName={false}
-                        onRestart={handleRestartDelivery}
-                        allDeliveries={effectiveDeliveries || []}
-                        selectedDate={selectedDate}
-                        onEditPatient={handleEditPatient}
-                        onCODUpdate={handleCODUpdate}
-                        onStartDelivery={handleStatusUpdate}
-                        onCreateReturn={async ({ originalDelivery, returnPatient, store }) => {
-                          try {
-                            const currentDate = format(new Date(), 'yyyy-MM-dd');
-                            await createDeliveryLocal({
-                              patient_id: returnPatient.id,
-                              store_id: originalDelivery.store_id,
-                              driver_id: originalDelivery.driver_id,
-                              driver_name: originalDelivery.driver_name,
-                              delivery_date: currentDate,
-                              delivery_time_start: originalDelivery.delivery_time_start,
-                              delivery_time_end: originalDelivery.delivery_time_end,
-                              status: 'in_transit',
-                              delivery_notes: `PATIENT RETURN From: ${originalDelivery.delivery_date}`,
-                              patient_name: returnPatient.full_name,
-                              patient_phone: returnPatient.phone || store?.phone || '',
-                              store_phone: store?.phone || ''
-                            });
-                            await invalidate('Delivery');
-                            await loadData(true);
-                          } catch (error) {
-                            console.error('Error creating return:', error);
-                            throw error;
+                              <StopCard
+                          delivery={delivery}
+                          patient={(effectivePatients || []).find((p) => p && p.id === delivery.patient_id)}
+                          store={(stores || []).find((s) => s && s.id === delivery.store_id)}
+                          driver={
+                          (effectiveDrivers || []).find((d) => d.id === delivery.driver_id || d.appUserId === delivery.driver_id) ||
+                          (effectiveDrivers || []).find((d) => d.full_name === delivery.driver_name) ||
+                          (effectiveDrivers || []).find((d) => d.user_name === delivery.driver_name)
                           }
-                        }}
-                        patients={effectivePatients || []}
-                        drivers={effectiveDrivers || []}
-                        stores={stores || []}
-                        appUsers={contextUsers || []}
-                        dragHandleProps={provided.dragHandleProps}
-                        showDragHandle={true}
-                        compact={true} />
+                          currentUser={currentUser}
+                          stopOrder={delivery.stopOrder || delivery.stop_order || index + 1}
+                          isSelected={selectedDeliveryId === delivery.id}
+                          onClick={() => setSelectedDeliveryId(selectedDeliveryId === delivery.id ? null : delivery.id)}
+                          onStatusUpdate={handleStatusUpdate}
+                          onNotesUpdate={handleNotesUpdate}
+                          onEditDelivery={handleEditDelivery}
+                          onDeleteDelivery={handleDeleteDelivery}
+                          showDriverName={false}
+                          onRestart={handleRestartDelivery}
+                          allDeliveries={effectiveDeliveries || []}
+                          selectedDate={selectedDate}
+                          onEditPatient={handleEditPatient}
+                          onCODUpdate={handleCODUpdate}
+                          onStartDelivery={handleStatusUpdate}
+                          onCreateReturn={async ({ originalDelivery, returnPatient, store }) => {
+                            try {
+                              const currentDate = format(new Date(), 'yyyy-MM-dd');
+                              await createDeliveryLocal({
+                                patient_id: returnPatient.id,
+                                store_id: originalDelivery.store_id,
+                                driver_id: originalDelivery.driver_id,
+                                driver_name: originalDelivery.driver_name,
+                                delivery_date: currentDate,
+                                delivery_time_start: originalDelivery.delivery_time_start,
+                                delivery_time_end: originalDelivery.delivery_time_end,
+                                status: 'in_transit',
+                                delivery_notes: `PATIENT RETURN From: ${originalDelivery.delivery_date}`,
+                                patient_name: returnPatient.full_name,
+                                patient_phone: returnPatient.phone || store?.phone || '',
+                                store_phone: store?.phone || ''
+                              });
+                              await invalidate('Delivery');
+                              await loadData(true);
+                            } catch (error) {
+                              console.error('Error creating return:', error);
+                              throw error;
+                            }
+                          }}
+                          patients={effectivePatients || []}
+                          drivers={effectiveDrivers || []}
+                          stores={stores || []}
+                          appUsers={contextUsers || []}
+                          dragHandleProps={provided.dragHandleProps}
+                          showDragHandle={true}
+                          compact={true} />
 
-                          </div>
-                    }
-                      </Draggable>
-                  )}
-                    {provided.placeholder}
-                  </div>
-                }
-              </Droppable>
-            </DragDropContext>
-          </div>
-
-          {/* Details Panel - Show on desktop and wider mobile screens */}
-          {showSplitView && (
-            <div className="flex-1 h-full overflow-hidden rounded-lg border" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
-              <StopDetailsPanel
-                delivery={selectedDelivery}
-                patient={selectedPatient}
-                store={selectedStore}
-                driver={selectedDriver}
-                currentUser={currentUser}
-                onClose={() => setSelectedDeliveryId(null)}
-                onStatusUpdate={handleStatusUpdate}
-                onEditDelivery={handleEditDelivery}
-                onDeleteDelivery={handleDeleteDelivery}
-                onRestart={handleRestartDelivery}
-              />
+                            </div>
+                      }
+                        </Draggable>
+                    )}
+                      {provided.placeholder}
+                    </div>
+                  }
+                </Droppable>
+              </DragDropContext>
             </div>
-          )}
-        </div>
+
+            {/* Details Panel - Show on desktop and wider mobile screens */}
+            {showSplitView && (
+              <div className="flex-1 h-full overflow-hidden rounded-lg border" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                <StopDetailsPanel
+                  delivery={selectedDelivery}
+                  patient={selectedPatient}
+                  store={selectedStore}
+                  driver={selectedDriver}
+                  currentUser={currentUser}
+                  onClose={() => setSelectedDeliveryId(null)}
+                  onStatusUpdate={handleStatusUpdate}
+                  onEditDelivery={handleEditDelivery}
+                  onDeleteDelivery={handleDeleteDelivery}
+                  onRestart={handleRestartDelivery}
+                />
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="h-full overflow-hidden px-4">
+            <DeliveryListView
+              deliveries={deliveriesToRender}
+              patients={effectivePatients || []}
+              stores={stores || []}
+              drivers={effectiveDrivers || []}
+              currentUser={currentUser}
+              onEditDelivery={handleEditDelivery}
+              onEditPatient={handleEditPatient}
+              onDeleteDelivery={handleDeleteDelivery}
+              onRestart={handleRestartDelivery}
+              onStatusUpdate={handleStatusUpdate}
+              onNotesUpdate={handleNotesUpdate}
+              onCODUpdate={handleCODUpdate}
+              onCreateReturn={async ({ originalDelivery, returnPatient, store }) => {
+                try {
+                  const currentDate = format(new Date(), 'yyyy-MM-dd');
+                  await createDeliveryLocal({
+                    patient_id: returnPatient.id,
+                    store_id: originalDelivery.store_id,
+                    driver_id: originalDelivery.driver_id,
+                    driver_name: originalDelivery.driver_name,
+                    delivery_date: currentDate,
+                    delivery_time_start: originalDelivery.delivery_time_start,
+                    delivery_time_end: originalDelivery.delivery_time_end,
+                    status: 'in_transit',
+                    delivery_notes: `PATIENT RETURN From: ${originalDelivery.delivery_date}`,
+                    patient_name: returnPatient.full_name,
+                    patient_phone: returnPatient.phone || store?.phone || '',
+                    store_phone: store?.phone || ''
+                  });
+                  await invalidate('Delivery');
+                  await loadData(true);
+                } catch (error) {
+                  console.error('Error creating return:', error);
+                  throw error;
+                }
+              }}
+              onStartDelivery={handleStatusUpdate}
+              allDeliveries={effectiveDeliveries || []}
+              selectedDate={selectedDate}
+            />
+          </div>
+        )}
       </>
     );
 
@@ -3293,6 +3348,33 @@ export default function DeliveriesPage() {
                 onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-10 w-full bg-slate-100 border-slate-300" />
               </div>
+
+              {/* View Mode Toggle */}
+              <div className="flex items-center gap-1 rounded-lg border p-0.5" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-300)' }}>
+                <button
+                  onClick={() => setViewMode('cards')}
+                  className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                    viewMode === 'cards' 
+                      ? 'bg-white shadow-sm text-slate-900' 
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="Card view"
+                >
+                  Cards
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                    viewMode === 'list' 
+                      ? 'bg-white shadow-sm text-slate-900' 
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="List view"
+                >
+                  List
+                </button>
+              </div>
+
               <Select value={driverFilter} onValueChange={handleDriverChange}>
                 <SelectTrigger className="w-[115px] bg-white border-slate-300">
                   <SelectValue placeholder="Select driver" />
