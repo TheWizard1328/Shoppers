@@ -249,46 +249,11 @@ export default function PayrollSummaryCard({
           const hasTaxOrDeductions = data.taxAmount > 0 || data.deductions > 0;
           
           return (
-          <div key={data.driver.id} className="p-3 rounded-lg" style={{ background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
+          <div key={data.driver.id} className="p-3 rounded-lg flex flex-col" style={{ background: idx % 2 === 0 ? 'var(--bg-slate-50)' : 'transparent' }}>
               <div className="flex items-start justify-between mb-2">
                 <h3 className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>
                   {data.driver.user_name || data.driver.full_name}
                 </h3>
-              </div>
-                  {hasTaxOrDeductions ? (
-                    <>
-                      {/* Net (formerly grandTotal) */}
-                      <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
-                        <span className="text-xs mr-1">Net:</span>
-                        <span className="font-semibold">{formatCurrency(data.grandTotal)}</span>
-                      </div>
-                      {/* Tax if applicable */}
-                      {data.taxAmount > 0 && (
-                        <div className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
-                          <span className="text-xs mr-1">Tax ({data.provinceCode} {(data.taxRate * 100).toFixed(0)}%):</span>
-                          <span className="font-semibold">{formatCurrency(data.taxAmount)}</span>
-                        </div>
-                      )}
-                      {/* Deductions if applicable */}
-                      {data.deductions > 0 && (
-                        <div className="text-sm text-red-600">
-                          <span className="text-xs mr-1">Deductions:</span>
-                          <span className="font-semibold">-{formatCurrency(data.deductions)}</span>
-                        </div>
-                      )}
-                      {/* Gross (final payable) */}
-                      <div className="text-2xl font-bold text-emerald-600 mt-1">
-                        <span className="text-xs font-normal mr-1" style={{ color: 'var(--text-slate-500)' }}>Gross:</span>
-                        {formatCurrency(data.grossPay)}
-                      </div>
-                    </>
-                  ) : (
-                    /* No tax or deductions - just show Gross */
-                    <div className="text-2xl font-bold text-emerald-600">
-                      {formatCurrency(data.grossPay)}
-                    </div>
-                  )}
-                </div>
               </div>
               {/* Desktop: 4-Column Layout */}
               <div className="hidden md:block">
