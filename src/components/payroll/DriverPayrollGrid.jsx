@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Table, ChevronLeft, ChevronRight, Package, Ruler, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAppData } from '@/components/utils/AppDataContext';
+import { smartRefreshManager } from '@/components/utils/smartRefreshManager';
 
 /**
  * Driver Payroll Grid
@@ -38,6 +39,21 @@ export default function DriverPayrollGrid({
       return () => clearTimeout(timer);
     }
   }, [smartRefreshActivity?.active]);
+
+  // Manual refresh handler
+  const handleManualRefresh = () => {
+    if (isRefreshing) return;
+    // Reset smart refresh timers to force immediate refresh
+    smartRefreshManager.lastRefreshTimes = {
+      driverLocation: 0,
+      activeDeliveries: 0,
+      todayDeliveries: 0,
+      appUsers: 0,
+      patients: 0,
+      stores: 0
+    };
+    setIsRefreshing(true);
+  };
 
   if (!deliveries || !stores || !currentPeriod) return null;
 
@@ -171,7 +187,14 @@ export default function DriverPayrollGrid({
             <CardTitle className="flex items-center gap-2 text-base" style={{ color: 'var(--text-slate-900)' }}>
               <Table className="w-5 h-5" />
               {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
-              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-300'}`} />
+              <button
+                onClick={handleManualRefresh}
+                disabled={isRefreshing}
+                className="p-1 rounded-md hover:bg-slate-100 transition-colors disabled:opacity-50"
+                title="Refresh data"
+              >
+                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 hover:text-slate-600'}`} />
+              </button>
             </CardTitle>
             
             {/* Section 2: View Mode Toggle */}
@@ -243,7 +266,14 @@ export default function DriverPayrollGrid({
             <CardTitle className="flex items-center gap-2 text-base" style={{ color: 'var(--text-slate-900)' }}>
               <Table className="w-5 h-5" />
               {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
-              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-300'}`} />
+              <button
+                onClick={handleManualRefresh}
+                disabled={isRefreshing}
+                className="p-1 rounded-md hover:bg-slate-100 transition-colors disabled:opacity-50"
+                title="Refresh data"
+              >
+                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-500' : 'text-slate-400 hover:text-slate-600'}`} />
+              </button>
             </CardTitle>
             
             {/* Row 2: View Mode Toggle */}
