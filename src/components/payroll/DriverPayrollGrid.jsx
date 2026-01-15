@@ -81,10 +81,46 @@ export default function DriverPayrollGrid({
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Table className="w-5 h-5" />
-          Daily Deliveries by Store - {monthNames[selectedMonth - 1]} {selectedYear}
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Table className="w-5 h-5" />
+            Daily Deliveries by Store - {monthNames[selectedMonth - 1]} {selectedYear}
+          </CardTitle>
+          <div className="flex gap-1">
+            <Button
+              size="sm"
+              variant={payPeriod === 'weekly' ? 'default' : 'outline'}
+              onClick={() => setPayPeriod('weekly')}
+              className="text-xs h-7 px-2"
+            >
+              Weekly
+            </Button>
+            <Button
+              size="sm"
+              variant={payPeriod === 'biweekly' ? 'default' : 'outline'}
+              onClick={() => setPayPeriod('biweekly')}
+              className="text-xs h-7 px-2"
+            >
+              Bi-Weekly
+            </Button>
+            <Button
+              size="sm"
+              variant={payPeriod === 'semimonthly' ? 'default' : 'outline'}
+              onClick={() => setPayPeriod('semimonthly')}
+              className="text-xs h-7 px-2"
+            >
+              Semi-Monthly
+            </Button>
+            <Button
+              size="sm"
+              variant={payPeriod === 'monthly' ? 'default' : 'outline'}
+              onClick={() => setPayPeriod('monthly')}
+              className="text-xs h-7 px-2"
+            >
+              Monthly
+            </Button>
+          </div>
+        </div>
       </CardHeader>
       <CardContent className="p-0">
         <div className="overflow-x-auto">
