@@ -201,7 +201,7 @@ export default function PayrollSummaryCard({
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="text-slate-500">Extra KM:</span>
-                  <span className="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">{formatCurrency(data.totalExtraKmPay)}</span>
+                  <span className="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">{data.totalExtraKm.toFixed(2)} km = {formatCurrency(data.totalExtraKmPay)}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="text-slate-500">Oversized:</span>
