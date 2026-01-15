@@ -5662,7 +5662,7 @@ function Dashboard() {
       }
       console.log(`   ✅ Updated stop_order for ${sortedIncomplete.length} incomplete stops`);
 
-      // STEP 4: Update UI immediately (before optimization)
+      // STEP 4: Update UI immediately (DON'T call recalculateStopOrders - it will override our isNextDelivery)
       console.log('🖥️ [START] Step 4: Updating UI immediately...');
       invalidateDeliveriesForDate(deliveryDate);
       const refreshedDeliveries = await base44.entities.Delivery.filter({
@@ -5676,6 +5676,7 @@ function Dashboard() {
 
       console.log(`   🎯 Original clicked ID: ${originalClickedId}`);
       console.log(`   ✨ NEW next delivery ID: ${newNextDeliveryId}`);
+      console.log(`   ⚠️ SKIPPING recalculateStopOrders to preserve isNextDelivery flag`);
 
       // Update context immediately
       if (updateDeliveriesLocally) {
