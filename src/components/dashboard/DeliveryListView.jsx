@@ -285,4 +285,4 @@ const DeliveryListView = ({
   );
 };
 
-export default DeliveryListView;
+export default memo(DeliveryListView);
