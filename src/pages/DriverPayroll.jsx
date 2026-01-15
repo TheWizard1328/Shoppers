@@ -142,7 +142,7 @@ const findCurrentPeriodIndex = (periods, today) => {
 
 export default function DriverPayroll() {
   const { currentUser } = useUser();
-  const { deliveries, stores, cities, drivers, appUsers } = useAppData();
+  const { deliveries, stores, cities, drivers, appUsers, patients } = useAppData();
   
   const currentDate = new Date();
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
