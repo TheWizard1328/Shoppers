@@ -77,6 +77,7 @@ import QuickRouteAdjustments from '../components/dashboard/QuickRouteAdjustments
 import { driverActivityMonitor } from '@/components/utils/driverActivityMonitor';
 import SmartPrioritizationPanel from '../components/dashboard/SmartPrioritizationPanel';
 import DualStatsMarquee from '../components/dashboard/DualStatsMarquee';
+import DeliveryListView from '../components/dashboard/DeliveryListView';
 
 // FIXED: StatBadge - simple component without hooks to avoid violations
 const StatBadge = ({ icon: Icon, value, color, label, tooltip, driverCount }) => {
@@ -341,6 +342,10 @@ function Dashboard() {
   const [showSmartPrioritization, setShowSmartPrioritization] = useState(false);
   const [performanceStats, setPerformanceStats] = useState(null);
   const [deliveryStats, setDeliveryStats] = useState(null);
+  const [viewMode, setViewMode] = useState(() => {
+    const saved = localStorage.getItem('rxdeliver_dashboard_view_mode');
+    return saved || 'cards';
+  });
 
   // Listen for performance stats AND delivery stats updates from Layout (QuickStats)
   useEffect(() => {
@@ -1105,6 +1110,10 @@ function Dashboard() {
   useEffect(() => {
     localStorage.setItem('rxdeliver_show_routes', String(showRoutes));
   }, [showRoutes]);
+
+  useEffect(() => {
+    localStorage.setItem('rxdeliver_dashboard_view_mode', viewMode);
+  }, [viewMode]);
 
   useEffect(() => {
     const unsubscribe = globalFilters.subscribe((newFilters) => {
@@ -5983,6 +5992,32 @@ function Dashboard() {
             <div className="mt-1 mb-2 flex items-center justify-between">
               <div className="pr-1 flex items-center gap-2">
                 <h2 className="pl-2 text-lg font-bold" style={{ color: 'var(--text-slate-900)' }}>Dashboard</h2>
+                
+                {/* View Mode Toggle */}
+                <div className="flex items-center gap-1 rounded-lg border p-0.5" style={{ background: 'var(--bg-slate-100)', borderColor: 'var(--border-slate-300)' }}>
+                  <button
+                    onClick={() => setViewMode('cards')}
+                    className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                      viewMode === 'cards' 
+                        ? 'bg-white shadow-sm text-slate-900' 
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="Card view"
+                  >
+                    Cards
+                  </button>
+                  <button
+                    onClick={() => setViewMode('list')}
+                    className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                      viewMode === 'list' 
+                        ? 'bg-white shadow-sm text-slate-900' 
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="List view"
+                  >
+                    List
+                  </button>
+                </div>
                 {currentUser &&
                 <div className="flex items-center gap-1.5">
                   <SmartRefreshIndicator
@@ -6586,168 +6621,194 @@ function Dashboard() {
             }} />
         </div>
 
-        <div
-          ref={stopCardsContainerRef}
-          className="horizontal-cards-container absolute bottom-0 left-0 right-0 z-[150] px-4 pb-1 pointer-events-none flex flex-col justify-end min-h-[145px] max-h-[80vh]"
-          onClick={() => {
-            if (retractClustersRef.current) {
-              retractClustersRef.current();
-            }
-          }}>
-          
-          {/* Optimization Message Banner - Above Stop Cards */}
-          <AnimatePresence>
-            {optimizationMessage &&
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-              className="flex justify-center mb-2 pointer-events-auto">
-              <div className="rounded-lg shadow-2xl border-2 border-emerald-500 p-3 flex items-center gap-3 max-w-[90vw]" style={{ background: 'var(--bg-white)' }}>
-                {isOptimizing &&
-                <div className="animate-spin w-4 h-4 border-3 border-emerald-500 border-t-transparent rounded-full flex-shrink-0"></div>
-                }
-                <p className="font-medium flex-1 text-sm" style={{ color: 'var(--text-slate-900)' }}>{optimizationMessage}</p>
-                {!isOptimizing &&
-                <button
-                  onClick={() => setOptimizationMessage(null)}
-                  className="text-slate-400 hover:text-slate-600 flex-shrink-0">
-                    <X className="w-3.5 h-3.5" style={{ color: 'var(--text-slate-400)' }} />
-                  </button>
-                }
-              </div>
-            </motion.div>
-            }
-          </AnimatePresence>
-          
+        {viewMode === 'cards' ? (
           <div
-            className="overflow-x-auto overflow-y-visible scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent pointer-events-auto"
-            style={isMobile ? { scrollSnapType: 'x mandatory' } : {}}
-            onWheel={(e) => {
-              e.currentTarget.scrollLeft += e.deltaY;
-            }}
-            onTouchStart={() => {
-              // Disable proximity snap when user starts scrolling cards
-              lastUserInteractionRef.current = Date.now();
-            }}
-            onScroll={(e) => {
-              if (!isMobile) return;
-
-              // Debounce the scroll snap
-              const container = e.currentTarget;
-              if (container._scrollTimeout) {
-                clearTimeout(container._scrollTimeout);
+            ref={stopCardsContainerRef}
+            className="horizontal-cards-container absolute bottom-0 left-0 right-0 z-[150] px-4 pb-1 pointer-events-none flex flex-col justify-end min-h-[145px] max-h-[80vh]"
+            onClick={() => {
+              if (retractClustersRef.current) {
+                retractClustersRef.current();
               }
-
-              container._scrollTimeout = setTimeout(() => {
-                const containerRect = container.getBoundingClientRect();
-                const containerCenter = containerRect.left + containerRect.width / 2;
-
-                // Find the card closest to center
-                const cards = container.querySelectorAll('[id^="stop-card-"]');
-                let closestCard = null;
-                let closestDistance = Infinity;
-
-                cards.forEach((card) => {
-                  const cardRect = card.getBoundingClientRect();
-                  const cardCenter = cardRect.left + cardRect.width / 2;
-                  const distance = Math.abs(cardCenter - containerCenter);
-
-                  if (distance < closestDistance) {
-                    closestDistance = closestDistance;
-                    closestCard = card;
-                  }
-                });
-
-                // Only snap if card is more than 30px off center
-                if (closestCard && closestDistance > 30) {
-                  closestCard.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                }
-              }, 150);
             }}>
-
-            <HorizontalStopCards
-              ref={horizontalStopCardsRef}
-              pickupCards={deliveriesWithStopOrder.
-              filter((delivery) => delivery && delivery.status !== 'pending') // Hide pending deliveries from cards
-              .map((delivery) => {
-                if (!delivery) return delivery;
-
-                // For pickups with status 'en_route', attach pending deliveries
-                if (!delivery.patient_id && delivery.status === 'en_route' && delivery.stop_id) {
-                  // CRITICAL: Match by stop_id (not puid) - pending deliveries have puid that matches pickup's stop_id
-                  const pendingDeliveriesForPickup = deliveriesWithStopOrder.filter((d) =>
-                  d &&
-                  d.puid === delivery.stop_id &&
-                  d.status === 'pending' &&
-                  d.patient_id // Only patient deliveries, not other pickups
-                  );
-
-                  if (pendingDeliveriesForPickup.length > 0) {
-                    return {
-                      ...delivery,
-                      projected_deliveries: pendingDeliveriesForPickup
-                    };
+            
+            {/* Optimization Message Banner - Above Stop Cards */}
+            <AnimatePresence>
+              {optimizationMessage &&
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                className="flex justify-center mb-2 pointer-events-auto">
+                <div className="rounded-lg shadow-2xl border-2 border-emerald-500 p-3 flex items-center gap-3 max-w-[90vw]" style={{ background: 'var(--bg-white)' }}>
+                  {isOptimizing &&
+                  <div className="animate-spin w-4 h-4 border-3 border-emerald-500 border-t-transparent rounded-full flex-shrink-0"></div>
                   }
+                  <p className="font-medium flex-1 text-sm" style={{ color: 'var(--text-slate-900)' }}>{optimizationMessage}</p>
+                  {!isOptimizing &&
+                  <button
+                    onClick={() => setOptimizationMessage(null)}
+                    className="text-slate-400 hover:text-slate-600 flex-shrink-0">
+                      <X className="w-3.5 h-3.5" style={{ color: 'var(--text-slate-400)' }} />
+                    </button>
+                  }
+                </div>
+              </motion.div>
+              }
+            </AnimatePresence>
+            
+            <div
+              className="overflow-x-auto overflow-y-visible scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent pointer-events-auto"
+              style={isMobile ? { scrollSnapType: 'x mandatory' } : {}}
+              onWheel={(e) => {
+                e.currentTarget.scrollLeft += e.deltaY;
+              }}
+              onTouchStart={() => {
+                // Disable proximity snap when user starts scrolling cards
+                lastUserInteractionRef.current = Date.now();
+              }}
+              onScroll={(e) => {
+                if (!isMobile) return;
+
+                // Debounce the scroll snap
+                const container = e.currentTarget;
+                if (container._scrollTimeout) {
+                  clearTimeout(container._scrollTimeout);
                 }
 
-                // CRITICAL: For dispatchers, mark deliveries from other stores as stripped
-                // This shows them as simplified cards so dispatchers can see the full driver route
-                if (isDispatcher && currentUser.store_ids && currentUser.store_ids.length > 0) {
-                  if (!currentUser.store_ids.includes(delivery.store_id)) {
-                    return {
-                      ...delivery,
-                      _isStripped: true
-                    };
+                container._scrollTimeout = setTimeout(() => {
+                  const containerRect = container.getBoundingClientRect();
+                  const containerCenter = containerRect.left + containerRect.width / 2;
+
+                  // Find the card closest to center
+                  const cards = container.querySelectorAll('[id^="stop-card-"]');
+                  let closestCard = null;
+                  let closestDistance = Infinity;
+
+                  cards.forEach((card) => {
+                    const cardRect = card.getBoundingClientRect();
+                    const cardCenter = cardRect.left + cardRect.width / 2;
+                    const distance = Math.abs(cardCenter - containerCenter);
+
+                    if (distance < closestDistance) {
+                      closestDistance = closestDistance;
+                      closestCard = card;
+                    }
+                  });
+
+                  // Only snap if card is more than 30px off center
+                  if (closestCard && closestDistance > 30) {
+                    closestCard.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
                   }
-                }
+                }, 150);
+              }}>
 
-                // CRITICAL: For drivers, mark all deliveries as stripped when route is complete
-                if (isDriver && !isDispatcher && !isAdmin) {
-                  const finishedStatuses = ['completed', 'failed', 'cancelled'];
-                  const allDriverDeliveries = deliveriesWithStopOrder.filter((d) =>
-                  d && d.driver_id === currentUser.id
-                  );
+              <HorizontalStopCards
+                ref={horizontalStopCardsRef}
+                pickupCards={deliveriesWithStopOrder.
+                filter((delivery) => delivery && delivery.status !== 'pending') // Hide pending deliveries from cards
+                .map((delivery) => {
+                  if (!delivery) return delivery;
 
-                  // Helper to detect returns by markers
-                  const checkIsReturn = (d) => {
-                    if (!d || d.patient_id) return false;
-                    const patient = patients.find((p) => p && p.id === d.patient_id);
-                    const notes = d.delivery_notes || '';
-                    const patientName = d.patient_name || '';
-                    const patientFullName = patient?.full_name || '';
-                    return notes.toLowerCase().includes('(rtn)') ||
-                    patientName.toLowerCase().includes('(rtn)') ||
-                    patientFullName.toLowerCase().includes('(rtn)') ||
-                    /\breturn\b/i.test(notes) ||
-                    /\breturn\b/i.test(patientName) ||
-                    /\breturn\b/i.test(patientFullName);
-                  };
+                  // For pickups with status 'en_route', attach pending deliveries
+                  if (!delivery.patient_id && delivery.status === 'en_route' && delivery.stop_id) {
+                    // CRITICAL: Match by stop_id (not puid) - pending deliveries have puid that matches pickup's stop_id
+                    const pendingDeliveriesForPickup = deliveriesWithStopOrder.filter((d) =>
+                    d &&
+                    d.puid === delivery.stop_id &&
+                    d.status === 'pending' &&
+                    d.patient_id // Only patient deliveries, not other pickups
+                    );
 
-                  const routeComplete = allDriverDeliveries.length > 0 &&
-                  allDriverDeliveries.every((d) => finishedStatuses.includes(d.status) || checkIsReturn(d));
-
-                  if (routeComplete) {
-                    return {
-                      ...delivery,
-                      _isStripped: true
-                    };
+                    if (pendingDeliveriesForPickup.length > 0) {
+                      return {
+                        ...delivery,
+                        projected_deliveries: pendingDeliveriesForPickup
+                      };
+                    }
                   }
-                }
 
-                return delivery;
-              })}
-              onCardClick={handleCardClick}
-              selectedCardId={selectedCardId}
+                  // CRITICAL: For dispatchers, mark deliveries from other stores as stripped
+                  // This shows them as simplified cards so dispatchers can see the full driver route
+                  if (isDispatcher && currentUser.store_ids && currentUser.store_ids.length > 0) {
+                    if (!currentUser.store_ids.includes(delivery.store_id)) {
+                      return {
+                        ...delivery,
+                        _isStripped: true
+                      };
+                    }
+                  }
+
+                  // CRITICAL: For drivers, mark all deliveries as stripped when route is complete
+                  if (isDriver && !isDispatcher && !isAdmin) {
+                    const finishedStatuses = ['completed', 'failed', 'cancelled'];
+                    const allDriverDeliveries = deliveriesWithStopOrder.filter((d) =>
+                    d && d.driver_id === currentUser.id
+                    );
+
+                    // Helper to detect returns by markers
+                    const checkIsReturn = (d) => {
+                      if (!d || d.patient_id) return false;
+                      const patient = patients.find((p) => p && p.id === d.patient_id);
+                      const notes = d.delivery_notes || '';
+                      const patientName = d.patient_name || '';
+                      const patientFullName = patient?.full_name || '';
+                      return notes.toLowerCase().includes('(rtn)') ||
+                      patientName.toLowerCase().includes('(rtn)') ||
+                      patientFullName.toLowerCase().includes('(rtn)') ||
+                      /\breturn\b/i.test(notes) ||
+                      /\breturn\b/i.test(patientName) ||
+                      /\breturn\b/i.test(patientFullName);
+                    };
+
+                    const routeComplete = allDriverDeliveries.length > 0 &&
+                    allDriverDeliveries.every((d) => finishedStatuses.includes(d.status) || checkIsReturn(d));
+
+                    if (routeComplete) {
+                      return {
+                        ...delivery,
+                        _isStripped: true
+                      };
+                    }
+                  }
+
+                  return delivery;
+                })}
+                onCardClick={handleCardClick}
+                selectedCardId={selectedCardId}
+                stores={stores}
+                drivers={drivers}
+                patients={patients}
+                currentUser={currentUser}
+                onSelectionChange={() => flushSync(() => {})}
+                selectedDeliveryIds={{}}
+                stopOrder={{}}
+                showDriverName={isAllDriversMode}
+                getDriverColor={getDriverColor}
+                onEditDelivery={handleEditDelivery}
+                onEditPatient={handleEditPatient}
+                onDeleteDelivery={handleDeleteDelivery}
+                onRestart={handleRestartDelivery}
+                onStatusUpdate={handleStatusUpdate}
+                onNotesUpdate={handleNotesUpdate}
+                onCODUpdate={handleCODUpdate}
+                onCreateReturn={handleCreateReturn}
+                onStartDelivery={handleStartDelivery}
+                allDeliveries={deliveries}
+                selectedDate={selectedDate}
+                onDriverStatusChange={async (newStatus) => {
+                  await refreshUser();
+                }} />
+
+            </div>
+          </div>
+        ) : (
+          <div className="absolute bottom-0 left-0 right-0 top-0 z-[150] pointer-events-auto" style={{ paddingTop: isMobile ? '100px' : '20px' }}>
+            <DeliveryListView
+              deliveries={deliveriesWithStopOrder.filter((delivery) => delivery && delivery.status !== 'pending')}
+              patients={patients}
               stores={stores}
               drivers={drivers}
-              patients={patients}
               currentUser={currentUser}
-              onSelectionChange={() => flushSync(() => {})}
-              selectedDeliveryIds={{}}
-              stopOrder={{}}
-              showDriverName={isAllDriversMode}
-              getDriverColor={getDriverColor}
               onEditDelivery={handleEditDelivery}
               onEditPatient={handleEditPatient}
               onDeleteDelivery={handleDeleteDelivery}
@@ -6761,10 +6822,10 @@ function Dashboard() {
               selectedDate={selectedDate}
               onDriverStatusChange={async (newStatus) => {
                 await refreshUser();
-              }} />
-
+              }}
+            />
           </div>
-        </div>
+        )}
       </div>
 
       <AnimatePresence>
