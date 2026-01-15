@@ -278,11 +278,11 @@ export default function DriverPayrollGrid({
                 return (
                   <tr 
                     key={dateKey} 
-                    style={{ borderBottom: '1px solid var(--border-slate-200)', background: isWeekend ? 'var(--bg-slate-50)' : 'transparent' }}
+                    style={{ borderBottom: '1px solid var(--border-slate-200)', background: isWeekend ? 'var(--bg-slate-100)' : 'transparent' }}
                   >
                     <td
                       className="px-2 py-0.5 font-medium sticky left-0 z-10"
-                      style={{ color: 'var(--text-slate-600)', background: isWeekend ? 'var(--bg-slate-50)' : 'var(--bg-white)' }}
+                      style={{ color: 'var(--text-slate-600)', background: isWeekend ? 'var(--bg-slate-1000)' : 'var(--bg-white)' }}
                     >
                       {dayNum} {/* {monthShort}  <span className="text-[9px]" style={{ color: 'var(--text-slate-400)' }}>{dayOfWeek}</span> */}
                     </td>
