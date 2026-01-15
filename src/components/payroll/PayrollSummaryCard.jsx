@@ -144,7 +144,7 @@ export default function PayrollSummaryCard({
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {payrollData.map((data, idx) => (
+          {payrollData.filter(data => data.grandTotal > 0).map((data, idx) => (
             <div key={data.driver.id} className={`flex items-center justify-between p-3 rounded-lg ${idx % 2 === 0 ? 'bg-slate-50' : ''}`}>
               <div>
                 <h3 className="font-semibold text-slate-900">
