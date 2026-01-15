@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Table, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Table, ChevronLeft, ChevronRight, Package, Ruler } from 'lucide-react';
 import { format } from 'date-fns';
 
 /**
@@ -11,6 +11,8 @@ import { format } from 'date-fns';
 export default function DriverPayrollGrid({ 
   deliveries, 
   stores, 
+  patients,
+  appUsers,
   selectedYear, 
   selectedDriverId,
   payPeriod,
@@ -21,6 +23,7 @@ export default function DriverPayrollGrid({
   onPrevPeriod,
   onNextPeriod
 }) {
+  const [viewMode, setViewMode] = useState('deliveries'); // 'deliveries' or 'extraKm'
 
   if (!deliveries || !stores || !currentPeriod) return null;
 
