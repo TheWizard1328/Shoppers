@@ -5623,9 +5623,24 @@ function Dashboard() {
       });
       console.log(`   ✅ isNextDelivery flag set, status updated, and stop_order set to ${nextStopOrderStep2}`);
 
-      // STEP 3: Recalculate and update stop orders for ALL incomplete stops
-      console.log('📊 [START] Step 3: Recalculating stop orders for all incomplete stops...');
-      const incompleteStops = allDriverDeliveries.filter((d) => !finishedStatusesStep2.includes(d.status));
+      // STEP 3: Re-fetch deliveries to ensure we have the latest data with updated isNextDelivery flag
+      console.log('📊 [START] Step 3: Re-fetching deliveries to verify isNextDelivery persisted...');
+      const refreshedDeliveriesAfterFlag = await base44.entities.Delivery.filter({
+        driver_id: driverId,
+        delivery_date: deliveryDate
+      });
+      
+      // Verify the flag is still set
+      const verifyNext = refreshedDeliveriesAfterFlag.find(d => d.id === deliveryId);
+      if (!verifyNext?.isNextDelivery) {
+        console.error('❌ [START] isNextDelivery flag was lost! Re-applying...');
+        await base44.entities.Delivery.update(deliveryId, { isNextDelivery: true });
+      } else {
+        console.log(`   ✅ Verified isNextDelivery=true on ${deliveryId}`);
+      }
+      
+      // Recalculate stop orders for all incomplete stops
+      const incompleteStops = refreshedDeliveriesAfterFlag.filter((d) => !finishedStatusesStep2.includes(d.status));
       
       // Sort incomplete stops: isNextDelivery first, then by ETA
       const sortedIncomplete = incompleteStops.sort((a, b) => {
