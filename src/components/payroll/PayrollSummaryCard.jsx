@@ -77,6 +77,10 @@ export default function PayrollSummaryCard({
       const oversizedCount = periodDeliveries.filter(d => d.oversized).length;
       const oversizedPay = oversizedCount * oversizedRate;
       
+      // Count failed and returns (cancelled with after_hours_pickup excluded from returns)
+      const failedCount = periodDeliveries.filter(d => d.status === 'failed').length;
+      const returnsCount = periodDeliveries.filter(d => d.status === 'cancelled' && !d.after_hours_pickup).length;
+      
       const totalPay = basePay + extraKmPay + oversizedPay;
       
       return {
