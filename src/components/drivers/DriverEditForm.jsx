@@ -162,29 +162,29 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
             </div>
           </div>
 
-          {/* Pay Cycle Type */}
-          <div>
-            <Label htmlFor="pay_cycle_type" className="text-sm font-medium mb-1.5 block">
-              Pay Cycle
-            </Label>
-            <Select
-              value={formData.pay_cycle_type}
-              onValueChange={(value) => setFormData(prev => ({ ...prev, pay_cycle_type: value }))}
-            >
-              <SelectTrigger id="pay_cycle_type">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="z-[10002]">
-                <SelectItem value="weekly">Weekly</SelectItem>
-                <SelectItem value="biweekly">Bi-Weekly</SelectItem>
-                <SelectItem value="semimonthly">Semi-Monthly</SelectItem>
-                <SelectItem value="monthly">Monthly</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Pay Rates - 2 Column Grid */}
+          {/* Pay Cycle & Pay Rate - Row 1 */}
           <div className="grid grid-cols-2 gap-3">
+            {/* Pay Cycle Type */}
+            <div>
+              <Label htmlFor="pay_cycle_type" className="text-sm font-medium mb-1.5 block">
+                Pay Cycle
+              </Label>
+              <Select
+                value={formData.pay_cycle_type}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, pay_cycle_type: value }))}
+              >
+                <SelectTrigger id="pay_cycle_type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="z-[10002]">
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="biweekly">Bi-Weekly</SelectItem>
+                  <SelectItem value="semimonthly">Semi-Monthly</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Pay Rate per Delivery */}
             <div>
               <Label htmlFor="pay_rate" className="text-sm font-medium mb-1.5 block">
@@ -199,11 +199,14 @@ export default function DriverEditForm({ driver, onSave, onCancel }) {
                 placeholder="0.00"
               />
             </div>
+          </div>
 
+          {/* Oversized, Extra KM & KM Limit - Row 2 */}
+          <div className="grid grid-cols-3 gap-3">
             {/* Oversized Item Rate */}
             <div>
               <Label htmlFor="oversized_rate" className="text-sm font-medium mb-1.5 block">
-                Oversized Item ($)
+                Oversized ($)
               </Label>
               <Input
                 id="oversized_rate"
