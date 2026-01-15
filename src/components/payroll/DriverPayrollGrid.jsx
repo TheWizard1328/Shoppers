@@ -113,18 +113,21 @@ export default function DriverPayrollGrid({
     return extraKm > 0 ? extraKm : 0;
   };
 
-  // Build a map of dateKey -> store -> count (deliveries) and extraKm
-  const { dataMap, extraKmMap } = useMemo(() => {
+  // Build a map of dateKey -> store -> count (deliveries), extraKm, and oversized count
+  const { dataMap, extraKmMap, oversizedMap } = useMemo(() => {
     const deliveryMap = {};
     const kmMap = {};
+    const oversizedCountMap = {};
     
     periodDays.forEach(day => {
       const dateKey = format(day, 'yyyy-MM-dd');
       deliveryMap[dateKey] = {};
       kmMap[dateKey] = {};
+      oversizedCountMap[dateKey] = {};
       sortedStores.forEach(store => {
         deliveryMap[dateKey][store.id] = 0;
         kmMap[dateKey][store.id] = 0;
+        oversizedCountMap[dateKey][store.id] = 0;
       });
     });
 
@@ -134,10 +137,13 @@ export default function DriverPayrollGrid({
       if (deliveryMap[dateKey] && deliveryMap[dateKey][storeId] !== undefined) {
         deliveryMap[dateKey][storeId]++;
         kmMap[dateKey][storeId] += calculateExtraKm(d);
+        if (d.oversized) {
+          oversizedCountMap[dateKey][storeId]++;
+        }
       }
     });
 
-    return { dataMap: deliveryMap, extraKmMap: kmMap };
+    return { dataMap: deliveryMap, extraKmMap: kmMap, oversizedMap: oversizedCountMap };
   }, [filteredDeliveries, periodDays, sortedStores, patients, appUsers]);
 
   // Calculate store totals (column totals)
@@ -410,20 +416,24 @@ export default function DriverPayrollGrid({
                       const value = viewMode === 'extraKm' 
                         ? (extraKmMap[dateKey]?.[store.id] || 0)
                         : (dataMap[dateKey]?.[store.id] || 0);
+                      const oversizedCount = oversizedMap[dateKey]?.[store.id] || 0;
                       const displayValueMobile = viewMode === 'extraKm' 
                         ? (value > 0 ? value.toFixed(1) : '')
                         : (value > 0 ? value : '');
                       const displayValueDesktop = viewMode === 'extraKm' 
                         ? (value > 0 ? value.toFixed(2) : '')
                         : (value > 0 ? value : '');
+                      const plusSigns = viewMode === 'deliveries' && oversizedCount > 0 
+                        ? '+'.repeat(oversizedCount) 
+                        : '';
                       return (
                         <td
                           key={store.id}
                           className="text-center px-1 md:px-2 py-0.5 tabular-nums"
                           style={{ color: value > 0 ? getStoreColor(store) : 'var(--text-slate-400)' }}
                         >
-                          <span className="md:hidden">{displayValueMobile}</span>
-                          <span className="hidden md:inline">{displayValueDesktop}</span>
+                          <span className="md:hidden">{displayValueMobile}{plusSigns}</span>
+                          <span className="hidden md:inline">{displayValueDesktop}{plusSigns}</span>
                         </td>
                       );
                     })}
