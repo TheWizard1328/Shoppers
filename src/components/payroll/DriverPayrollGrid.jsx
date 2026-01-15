@@ -127,21 +127,21 @@ export default function DriverPayrollGrid({
       </CardHeader>
       <CardContent className="p-0">
         <div className="overflow-x-auto">
-          <table className="w-full text-xs">
+          <table className="w-full text-[11px]">
             <thead>
               <tr className="border-b bg-slate-50">
-                <th className="text-left p-2 font-medium text-slate-600 sticky left-0 bg-slate-50 z-10">Day</th>
+                <th className="text-left px-2 py-1 font-medium text-slate-600 sticky left-0 bg-slate-50 z-10">Day</th>
                 {sortedStores.map((store) => (
                   <th
                     key={store.id}
-                    className="text-center p-2 font-bold min-w-[50px]"
+                    className="text-center px-2 py-1 font-bold min-w-[40px]"
                     style={{ color: getStoreColor(store) }}
                     title={store.name}
                   >
                     {store.abbreviation || store.name?.substring(0, 2)}
                   </th>
                 ))}
-                <th className="text-center p-2 font-bold text-slate-900 border-l-2 border-purple-300 min-w-[60px]">Tot</th>
+                <th className="text-center px-2 py-1 font-bold text-slate-900 border-l-2 border-purple-300 min-w-[50px]">Tot</th>
               </tr>
             </thead>
             <tbody>
@@ -157,24 +157,24 @@ export default function DriverPayrollGrid({
                     className={`border-b hover:bg-slate-50 ${isWeekend ? 'bg-slate-50' : ''}`}
                   >
                     <td
-                      className={`p-2 font-medium sticky left-0 z-10 ${isWeekend ? 'bg-slate-50' : 'bg-white'}`}
+                      className={`px-2 py-0.5 font-medium sticky left-0 z-10 ${isWeekend ? 'bg-slate-50' : 'bg-white'}`}
                       style={{ color: '#475569' }}
                     >
-                      {day} <span className="text-slate-400 text-[10px]">{dayOfWeek}</span>
+                      {day} <span className="text-slate-400 text-[9px]">{dayOfWeek}</span>
                     </td>
                     {sortedStores.map((store) => {
                       const value = dataMap[day][store.id] || 0;
                       return (
                         <td
                           key={store.id}
-                          className="text-center p-2 tabular-nums"
+                          className="text-center px-2 py-0.5 tabular-nums"
                           style={{ color: value > 0 ? getStoreColor(store) : '#94a3b8' }}
                         >
                           {value > 0 ? value : ''}
                         </td>
                       );
                     })}
-                    <td className="text-center p-2 font-semibold text-slate-900 border-l-2 border-purple-300 tabular-nums">
+                    <td className="text-center px-2 py-0.5 font-semibold text-slate-900 border-l-2 border-purple-300 tabular-nums">
                       {dayTotal > 0 ? dayTotal : ''}
                     </td>
                   </tr>
@@ -182,17 +182,17 @@ export default function DriverPayrollGrid({
               })}
               {/* Totals Row */}
               <tr className="border-t-2 border-slate-300 bg-slate-100 font-semibold">
-                <td className="p-2 text-slate-700 sticky left-0 bg-slate-100 z-10">Tot</td>
+                <td className="px-2 py-1 text-slate-700 sticky left-0 bg-slate-100 z-10">Tot</td>
                 {sortedStores.map((store) => (
                   <td
                     key={store.id}
-                    className="text-center p-2 tabular-nums"
+                    className="text-center px-2 py-1 tabular-nums"
                     style={{ color: getStoreColor(store) }}
                   >
                     {storeTotals[store.id] > 0 ? storeTotals[store.id] : ''}
                   </td>
                 ))}
-                <td className="text-center p-2 font-bold text-slate-900 border-l-2 border-purple-300 tabular-nums">
+                <td className="text-center px-2 py-1 font-bold text-slate-900 border-l-2 border-purple-300 tabular-nums">
                   {grandTotal}
                 </td>
               </tr>
