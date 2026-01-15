@@ -67,7 +67,7 @@ import DeliveryDetails from "../components/deliveries/DeliveryDetails";
 import PatientForm from "../components/patients/PatientForm";
 import DateListPanel from "../components/deliveries/DateListPanel";
 import { getData, invalidate } from '../components/utils/dataManager';
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+
 import { getDriverDisplayName, getDriverNameForStorage, findDriverByName } from '../components/utils/driverUtils';
 import { useAutoRefresh } from '../components/utils/useAutoRefresh';
 import { sortUsers } from '../components/utils/sorting';
@@ -2591,67 +2591,7 @@ export default function DeliveriesPage() {
     }
   }, [effectiveDrivers, effectiveDeliveries, updateUrl]);
 
-  const handleDragEnd = useCallback(async (result) => {
-    if (!result.destination) return;
 
-    console.log('🎯 [Drag] Starting reorder...', { from: result.source.index, to: result.destination.index });
-
-    if (setIsEntityUpdating) {
-      setIsEntityUpdating(true);
-      console.log('⏸️ [Drag] Paused smart refresh');
-    }
-
-    const reorderedDeliveries = Array.from(filteredAndSortedDeliveries);
-    const [reorderedItem] = reorderedDeliveries.splice(result.source.index, 1);
-    reorderedDeliveries.splice(result.destination.index, 0, reorderedItem);
-
-    try {
-      await Promise.all(reorderedDeliveries.map((delivery, index) =>
-      updateDeliveryLocal(delivery.id, { stop_order: index + 1 })
-      ));
-      console.log('✅ [Drag] Database updated');
-
-      if (activeDriver && selectedDate) {
-        await base44.functions.invoke('optimizeDriverRoute', {
-          driverId: activeDriver.id,
-          deliveryDate: format(selectedDate, 'yyyy-MM-dd'),
-          skipReordering: true
-        });
-        console.log('✅ [Drag] ETAs recalculated');
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 800));
-
-      const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      const freshDeliveries = await Delivery.filter({
-        delivery_date: dateStr,
-        driver_id: activeDriver.id
-      }, '-stop_order');
-
-      console.log(`✅ [Drag] Fetched ${freshDeliveries.length} fresh deliveries with ETAs`);
-
-      setAllDeliveries((prev) => {
-        const others = prev.filter((d) => d.delivery_date !== dateStr || d.driver_id !== activeDriver.id);
-        return [...others, ...freshDeliveries];
-      });
-
-      if (updateDeliveriesLocally) {
-        updateDeliveriesLocally(freshDeliveries);
-        console.log('✅ [Drag] Context updated');
-      }
-
-    } catch (error) {
-      console.error("❌ [Drag] Error:", error);
-      alert("Failed to reorder. Please try again.");
-    } finally {
-      setTimeout(() => {
-        if (setIsEntityUpdating) {
-          setIsEntityUpdating(false);
-          console.log('▶️ [Drag] Resumed smart refresh');
-        }
-      }, 3000);
-    }
-  }, [filteredAndSortedDeliveries, activeDriver, selectedDate, setIsEntityUpdating, updateDeliveriesLocally]);
 
   const driverCards = useMemo(() => {
     if (!isDriverOverviewMode) {
@@ -3045,96 +2985,66 @@ export default function DeliveriesPage() {
           <div className="flex h-full gap-4">
             {/* Stop Cards Column - Single column on desktop, full width on narrow mobile */}
             <div className={`${showSplitView ? 'w-[400px] flex-shrink-0' : 'w-full'} h-full overflow-hidden`}>
-              <DragDropContext onDragEnd={handleDragEnd}>
-                <Droppable droppableId="deliveries">
-                  {(provided) =>
-                  <div
-                    {...provided.droppableProps}
-                    ref={provided.innerRef}
-                    className="px-3 py-2 space-y-2 overflow-y-auto h-full flex flex-col items-center"
-                    style={{ maxHeight: 'calc(100vh - 280px)' }}>
-
-                      {deliveriesToRender.map((delivery, index) =>
-                    <Draggable
-                      key={delivery.id}
-                      draggableId={delivery.id}
-                      index={index}
-                      isDragDisabled={false}>
-
-                          {(provided, snapshot) =>
-                      <div
-                        ref={provided.innerRef}
-                        {...provided.draggableProps}
-                        style={{
-                          ...provided.draggableProps.style,
-                          opacity: snapshot.isDragging ? 0.8 : 1
-                        }}>
-
-                              <StopCard
-                          delivery={delivery}
-                          patient={(effectivePatients || []).find((p) => p && p.id === delivery.patient_id)}
-                          store={(stores || []).find((s) => s && s.id === delivery.store_id)}
-                          driver={
-                          (effectiveDrivers || []).find((d) => d.id === delivery.driver_id || d.appUserId === delivery.driver_id) ||
-                          (effectiveDrivers || []).find((d) => d.full_name === delivery.driver_name) ||
-                          (effectiveDrivers || []).find((d) => d.user_name === delivery.driver_name)
-                          }
-                          currentUser={currentUser}
-                          stopOrder={delivery.stopOrder || delivery.stop_order || index + 1}
-                          isSelected={selectedDeliveryId === delivery.id}
-                          onClick={() => setSelectedDeliveryId(selectedDeliveryId === delivery.id ? null : delivery.id)}
-                          onStatusUpdate={handleStatusUpdate}
-                          onNotesUpdate={handleNotesUpdate}
-                          onEditDelivery={handleEditDelivery}
-                          onDeleteDelivery={handleDeleteDelivery}
-                          showDriverName={false}
-                          onRestart={handleRestartDelivery}
-                          allDeliveries={effectiveDeliveries || []}
-                          selectedDate={selectedDate}
-                          onEditPatient={handleEditPatient}
-                          onCODUpdate={handleCODUpdate}
-                          onStartDelivery={handleStatusUpdate}
-                          onCreateReturn={async ({ originalDelivery, returnPatient, store }) => {
-                            try {
-                              const currentDate = format(new Date(), 'yyyy-MM-dd');
-                              await createDeliveryLocal({
-                                patient_id: returnPatient.id,
-                                store_id: originalDelivery.store_id,
-                                driver_id: originalDelivery.driver_id,
-                                driver_name: originalDelivery.driver_name,
-                                delivery_date: currentDate,
-                                delivery_time_start: originalDelivery.delivery_time_start,
-                                delivery_time_end: originalDelivery.delivery_time_end,
-                                status: 'in_transit',
-                                delivery_notes: `PATIENT RETURN From: ${originalDelivery.delivery_date}`,
-                                patient_name: returnPatient.full_name,
-                                patient_phone: returnPatient.phone || store?.phone || '',
-                                store_phone: store?.phone || ''
-                              });
-                              await invalidate('Delivery');
-                              await loadData(true);
-                            } catch (error) {
-                              console.error('Error creating return:', error);
-                              throw error;
-                            }
-                          }}
-                          patients={effectivePatients || []}
-                          drivers={effectiveDrivers || []}
-                          stores={stores || []}
-                          appUsers={contextUsers || []}
-                          dragHandleProps={provided.dragHandleProps}
-                          showDragHandle={true}
-                          compact={true} />
-
-                            </div>
+              <div className="px-3 py-2 space-y-2 overflow-y-auto h-full flex flex-col items-center" style={{ maxHeight: 'calc(100vh - 280px)' }}>
+                {deliveriesToRender.map((delivery, index) => (
+                  <StopCard
+                    key={delivery.id}
+                    delivery={delivery}
+                    patient={(effectivePatients || []).find((p) => p && p.id === delivery.patient_id)}
+                    store={(stores || []).find((s) => s && s.id === delivery.store_id)}
+                    driver={
+                      (effectiveDrivers || []).find((d) => d.id === delivery.driver_id || d.appUserId === delivery.driver_id) ||
+                      (effectiveDrivers || []).find((d) => d.full_name === delivery.driver_name) ||
+                      (effectiveDrivers || []).find((d) => d.user_name === delivery.driver_name)
+                    }
+                    currentUser={currentUser}
+                    stopOrder={delivery.stopOrder || delivery.stop_order || index + 1}
+                    isSelected={selectedDeliveryId === delivery.id}
+                    onClick={() => setSelectedDeliveryId(selectedDeliveryId === delivery.id ? null : delivery.id)}
+                    onStatusUpdate={handleStatusUpdate}
+                    onNotesUpdate={handleNotesUpdate}
+                    onEditDelivery={handleEditDelivery}
+                    onDeleteDelivery={handleDeleteDelivery}
+                    showDriverName={false}
+                    onRestart={handleRestartDelivery}
+                    allDeliveries={effectiveDeliveries || []}
+                    selectedDate={selectedDate}
+                    onEditPatient={handleEditPatient}
+                    onCODUpdate={handleCODUpdate}
+                    onStartDelivery={handleStatusUpdate}
+                    onCreateReturn={async ({ originalDelivery, returnPatient, store }) => {
+                      try {
+                        const currentDate = format(new Date(), 'yyyy-MM-dd');
+                        await createDeliveryLocal({
+                          patient_id: returnPatient.id,
+                          store_id: originalDelivery.store_id,
+                          driver_id: originalDelivery.driver_id,
+                          driver_name: originalDelivery.driver_name,
+                          delivery_date: currentDate,
+                          delivery_time_start: originalDelivery.delivery_time_start,
+                          delivery_time_end: originalDelivery.delivery_time_end,
+                          status: 'in_transit',
+                          delivery_notes: `PATIENT RETURN From: ${originalDelivery.delivery_date}`,
+                          patient_name: returnPatient.full_name,
+                          patient_phone: returnPatient.phone || store?.phone || '',
+                          store_phone: store?.phone || ''
+                        });
+                        await invalidate('Delivery');
+                        await loadData(true);
+                      } catch (error) {
+                        console.error('Error creating return:', error);
+                        throw error;
                       }
-                        </Draggable>
-                    )}
-                      {provided.placeholder}
-                    </div>
-                  }
-                </Droppable>
-              </DragDropContext>
+                    }}
+                    patients={effectivePatients || []}
+                    drivers={effectiveDrivers || []}
+                    stores={stores || []}
+                    appUsers={contextUsers || []}
+                    showDragHandle={false}
+                    compact={true}
+                  />
+                ))}
+              </div>
             </div>
 
             {/* Details Panel - Show on desktop and wider mobile screens */}
