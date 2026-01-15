@@ -114,17 +114,18 @@ export default function DriverPayrollGrid({
   };
 
   // Build a map of dateKey -> store -> count (deliveries), extraKm, and oversized count
-  const { dataMap, extraKmMap, oversizedMap } = useMemo(() => {
+  const { dataMap, extraKmMap, oversizedMap, storesWithData } = useMemo(() => {
     const deliveryMap = {};
     const kmMap = {};
     const oversizedCountMap = {};
+    const storeHasData = {};
     
     periodDays.forEach(day => {
       const dateKey = format(day, 'yyyy-MM-dd');
       deliveryMap[dateKey] = {};
       kmMap[dateKey] = {};
       oversizedCountMap[dateKey] = {};
-      sortedStores.forEach(store => {
+      allSortedStores.forEach(store => {
         deliveryMap[dateKey][store.id] = 0;
         kmMap[dateKey][store.id] = 0;
         oversizedCountMap[dateKey][store.id] = 0;
@@ -137,14 +138,21 @@ export default function DriverPayrollGrid({
       if (deliveryMap[dateKey] && deliveryMap[dateKey][storeId] !== undefined) {
         deliveryMap[dateKey][storeId]++;
         kmMap[dateKey][storeId] += calculateExtraKm(d);
+        storeHasData[storeId] = true;
         if (d.oversized) {
           oversizedCountMap[dateKey][storeId]++;
         }
       }
     });
 
-    return { dataMap: deliveryMap, extraKmMap: kmMap, oversizedMap: oversizedCountMap };
-  }, [filteredDeliveries, periodDays, sortedStores, patients, appUsers]);
+    // Filter to only stores that have data in this period
+    const storesWithDataList = allSortedStores.filter(store => storeHasData[store.id]);
+
+    return { dataMap: deliveryMap, extraKmMap: kmMap, oversizedMap: oversizedCountMap, storesWithData: storesWithDataList };
+  }, [filteredDeliveries, periodDays, allSortedStores, patients, appUsers]);
+
+  // Use stores with data for display (hide empty columns)
+  const sortedStores = storesWithData.length > 0 ? storesWithData : allSortedStores;
 
   // Calculate store totals (column totals)
   const { storeTotals, storeKmTotals } = useMemo(() => {
