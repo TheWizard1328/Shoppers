@@ -35,17 +35,33 @@ export default function PayrollSummaryCard({
     switch (payPeriod) {
       case 'weekly': {
         // 7-day cycles starting from first Monday of the year
+        // Days before first Monday belong to last period of prior year
         const firstMonday = getFirstMondayOfYear(selectedYear);
         
-        // Find the week that contains the first day of this month
-        const daysSinceFirstMonday = Math.floor((monthStart - firstMonday) / (1000 * 60 * 60 * 24));
-        const weeksOffset = Math.floor(daysSinceFirstMonday / 7);
-        let weekStart = new Date(firstMonday);
-        weekStart.setDate(firstMonday.getDate() + (weeksOffset * 7));
+        // Check if month starts before first Monday (only possible in January)
+        if (selectedMonth === 1 && monthStart < firstMonday) {
+          // Days 1 to (firstMonday - 1) belong to prior year's last period
+          const priorYearDays = firstMonday.getDate() - 1;
+          if (priorYearDays > 0) {
+            ranges.push({ 
+              start: 1, 
+              end: priorYearDays, 
+              label: `Prior Year Period (1-${priorYearDays})` 
+            });
+          }
+        }
         
-        // If weekStart is after month start, go back one week
-        if (weekStart > monthStart) {
-          weekStart.setDate(weekStart.getDate() - 7);
+        // Find the week that contains the first day of this month (or first Monday if January)
+        let weekStart = new Date(firstMonday);
+        if (selectedMonth > 1 || monthStart >= firstMonday) {
+          const daysSinceFirstMonday = Math.floor((monthStart - firstMonday) / (1000 * 60 * 60 * 24));
+          const weeksOffset = Math.floor(daysSinceFirstMonday / 7);
+          weekStart.setDate(firstMonday.getDate() + (weeksOffset * 7));
+          
+          // If weekStart is after month start, go back one week
+          if (weekStart > monthStart) {
+            weekStart.setDate(weekStart.getDate() - 7);
+          }
         }
         
         let weekNum = 1;
@@ -57,14 +73,24 @@ export default function PayrollSummaryCard({
           const rangeStart = weekStart < monthStart ? 1 : weekStart.getDate();
           const rangeEnd = weekEnd > monthEnd ? daysInMonth : weekEnd.getDate();
           
+          // Skip if this range was already covered by prior year period
+          if (selectedMonth === 1 && rangeStart < firstMonday.getDate() && rangeEnd < firstMonday.getDate()) {
+            weekStart.setDate(weekStart.getDate() + 7);
+            continue;
+          }
+          
+          // Adjust start if it overlaps with prior year period
+          const adjustedStart = selectedMonth === 1 && rangeStart < firstMonday.getDate() 
+            ? firstMonday.getDate() 
+            : rangeStart;
+          
           // Only add if range is within this month
-          if (rangeStart <= daysInMonth && rangeEnd >= 1) {
-            const startMonth = weekStart.getMonth() + 1;
-            const endMonth = weekEnd.getMonth() + 1;
-            const label = startMonth === selectedMonth && endMonth === selectedMonth
-              ? `Week ${weekNum} (${rangeStart}-${rangeEnd})`
-              : `Week ${weekNum} (${rangeStart}-${rangeEnd})`;
-            ranges.push({ start: rangeStart, end: rangeEnd, label });
+          if (adjustedStart <= daysInMonth && rangeEnd >= 1 && adjustedStart <= rangeEnd) {
+            ranges.push({ 
+              start: adjustedStart, 
+              end: rangeEnd, 
+              label: `Week ${weekNum} (${adjustedStart}-${rangeEnd})` 
+            });
             weekNum++;
           }
           
@@ -75,17 +101,33 @@ export default function PayrollSummaryCard({
         
       case 'biweekly': {
         // 2-week cycles starting from first Monday of the year
+        // Days before first Monday belong to last period of prior year
         const firstMonday = getFirstMondayOfYear(selectedYear);
         
-        // Find the bi-week that contains the first day of this month
-        const daysSinceFirstMonday = Math.floor((monthStart - firstMonday) / (1000 * 60 * 60 * 24));
-        const biweeksOffset = Math.floor(daysSinceFirstMonday / 14);
-        let biweekStart = new Date(firstMonday);
-        biweekStart.setDate(firstMonday.getDate() + (biweeksOffset * 14));
+        // Check if month starts before first Monday (only possible in January)
+        if (selectedMonth === 1 && monthStart < firstMonday) {
+          // Days 1 to (firstMonday - 1) belong to prior year's last period
+          const priorYearDays = firstMonday.getDate() - 1;
+          if (priorYearDays > 0) {
+            ranges.push({ 
+              start: 1, 
+              end: priorYearDays, 
+              label: `Prior Year Period (1-${priorYearDays})` 
+            });
+          }
+        }
         
-        // If biweekStart is after month start, go back one bi-week
-        if (biweekStart > monthStart) {
-          biweekStart.setDate(biweekStart.getDate() - 14);
+        // Find the bi-week that contains the first day of this month (or first Monday if January)
+        let biweekStart = new Date(firstMonday);
+        if (selectedMonth > 1 || monthStart >= firstMonday) {
+          const daysSinceFirstMonday = Math.floor((monthStart - firstMonday) / (1000 * 60 * 60 * 24));
+          const biweeksOffset = Math.floor(daysSinceFirstMonday / 14);
+          biweekStart.setDate(firstMonday.getDate() + (biweeksOffset * 14));
+          
+          // If biweekStart is after month start, go back one bi-week
+          if (biweekStart > monthStart) {
+            biweekStart.setDate(biweekStart.getDate() - 14);
+          }
         }
         
         let periodNum = 1;
@@ -97,12 +139,23 @@ export default function PayrollSummaryCard({
           const rangeStart = biweekStart < monthStart ? 1 : biweekStart.getDate();
           const rangeEnd = biweekEnd > monthEnd ? daysInMonth : biweekEnd.getDate();
           
+          // Skip if this range was already covered by prior year period
+          if (selectedMonth === 1 && rangeStart < firstMonday.getDate() && rangeEnd < firstMonday.getDate()) {
+            biweekStart.setDate(biweekStart.getDate() + 14);
+            continue;
+          }
+          
+          // Adjust start if it overlaps with prior year period
+          const adjustedStart = selectedMonth === 1 && rangeStart < firstMonday.getDate() 
+            ? firstMonday.getDate() 
+            : rangeStart;
+          
           // Only add if range is within this month
-          if (rangeStart <= daysInMonth && rangeEnd >= 1) {
+          if (adjustedStart <= daysInMonth && rangeEnd >= 1 && adjustedStart <= rangeEnd) {
             ranges.push({ 
-              start: rangeStart, 
+              start: adjustedStart, 
               end: rangeEnd, 
-              label: `Period ${periodNum} (${rangeStart}-${rangeEnd})` 
+              label: `Period ${periodNum} (${adjustedStart}-${rangeEnd})` 
             });
             periodNum++;
           }
