@@ -615,11 +615,7 @@ export default function Layout({ children, currentPageName }) {
   const [screenWidth, setScreenWidth] = useState(window.innerWidth);
   const [cardWidth, setCardWidth] = useState(300);
 
-  const [pullDistance, setPullDistance] = useState(0);
-  const [isPulling, setIsPulling] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [touchStartY, setTouchStartY] = useState(0);
-  const pullThreshold = 80;
+
 
   const refreshIntervalRef = useRef(null);
   const wakeLockRef = useRef(null);
@@ -1574,57 +1570,7 @@ export default function Layout({ children, currentPageName }) {
     return () => window.removeEventListener('resize', handleResize);
   }, [sidebarOpen]);
 
-  const handleTouchStart = (e) => {
-    if (!isMobile || isRefreshing) return;
 
-    const mainContent = document.querySelector('main');
-    if (mainContent && mainContent.scrollTop === 0) {
-      setTouchStartY(e.touches[0].clientY);
-      setIsPulling(true);
-    }
-  };
-
-  const handleTouchMove = (e) => {
-    if (!isPulling || !isMobile || isRefreshing) return;
-
-    const touchY = e.touches[0].clientY;
-    const distance = touchY - touchStartY;
-
-    if (distance > 0) {
-      e.preventDefault();
-
-      const resistance = 0.5;
-      const resistedDistance = Math.min(distance * resistance, pullThreshold * 1.5);
-      setPullDistance(resistedDistance);
-    }
-  };
-
-  const handleTouchEnd = async () => {
-    if (!isPulling || !isMobile) return;
-
-    const shouldRefresh = pullDistance >= pullThreshold;
-
-    setIsPulling(false);
-
-    if (shouldRefresh) {
-      setIsRefreshing(true);
-      smartRefreshManager.lastRefreshTimes = {
-        driverLocation: 0,
-        activeDeliveries: 0,
-        todayDeliveries: 0,
-        appUsers: 0,
-        patients: 0,
-        stores: 0
-      };
-
-      setTimeout(() => {
-        setPullDistance(0);
-        setIsRefreshing(false);
-      }, 1000);
-    } else {
-      setPullDistance(0);
-    }
-  };
 
   const updatePolylineOnRefresh = async (driverId, dateStr) => {
     if (!driverId || driverId === 'all') return;
@@ -3287,32 +3233,7 @@ export default function Layout({ children, currentPageName }) {
 
                 <header
                   className="mobile-header border-b px-4 py-3 sticky top-0"
-                  style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}
-                  onTouchStart={handleTouchStart}
-                  onTouchMove={handleTouchMove}
-                  onTouchEnd={handleTouchEnd}>
-
-                  {(isPulling || isRefreshing) && pullDistance > 0 &&
-                    <div
-                      className="fixed left-0 right-0 flex justify-center items-center pointer-events-none"
-                      style={{
-                        top: `${Math.min(pullDistance + 10, pullThreshold + 30)}px`,
-                        opacity: Math.min(pullDistance / pullThreshold, 1),
-                        zIndex: 10000
-                      }}>
-
-                      <div className="bg-white rounded-full p-3 shadow-2xl border-2 border-emerald-500">
-                        <RefreshCw
-                          className={`w-6 h-6 text-emerald-600 ${
-                            isRefreshing ? 'animate-spin' : ''}`
-                          }
-                          style={{
-                            transform: !isRefreshing ? `rotate(${pullDistance * 3}deg)` : 'none'
-                          }} />
-
-                      </div>
-                    </div>
-                  }
+                  style={{ borderColor: 'var(--border-slate-200)', background: 'var(--bg-white)' }}>
 
                   <div className="flex items-center justify-between gap-2">
                     <button
