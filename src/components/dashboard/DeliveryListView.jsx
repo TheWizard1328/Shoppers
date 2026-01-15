@@ -186,7 +186,7 @@ const DeliveryListView = ({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="fixed inset-0 bg-black/50 z-[200]"
+              className="absolute inset-0 bg-black/50 z-[200]"
               onClick={() => setSelectedDeliveryId(null)}
             />
             
@@ -196,7 +196,7 @@ const DeliveryListView = ({
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className="fixed bottom-0 left-0 right-0 z-[201] max-h-[85vh] overflow-hidden rounded-t-2xl"
+              className="absolute bottom-0 left-0 right-0 z-[201] max-h-[85vh] overflow-hidden rounded-t-2xl"
               style={{ background: 'var(--bg-white)' }}
               onClick={(e) => e.stopPropagation()}
             >
