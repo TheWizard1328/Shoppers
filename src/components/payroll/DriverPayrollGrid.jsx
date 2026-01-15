@@ -301,7 +301,7 @@ export default function DriverPayrollGrid({
                     })}
                     <td className="text-center px-2 py-0.5 font-semibold text-slate-900 border-l-2 border-purple-300 tabular-nums">
                       {viewMode === 'extraKm' 
-                        ? (dayTotal > 0 ? dayTotal.toFixed(1) : '')
+                        ? (dayTotal > 0 ? dayTotal.toFixed(2) : '')
                         : (dayTotal > 0 ? dayTotal : '')}
                     </td>
                   </tr>
