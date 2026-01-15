@@ -756,7 +756,7 @@ export default function Layout({ children, currentPageName }) {
         } catch (e) {
           // Silent fail - use defaults
         }
-      }, 3000); // Load app settings 3 seconds after init
+      }, 10000); // Load app settings 10 seconds after init
 
         const isDispatcher = userHasRole(fetchedUser, 'dispatcher');
         const isInactive = fetchedUser.status === 'inactive';
@@ -783,14 +783,14 @@ export default function Layout({ children, currentPageName }) {
         setHasAccess(true);
 
         // Load cities (critical for app function)
-        const citiesData = await City.list();
+          const citiesData = await City.list();
 
-        citiesData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
-        setCities(citiesData || []);
+          citiesData.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+          setCities(citiesData || []);
 
-        // Small delay before stores to prevent burst
-        await new Promise(resolve => setTimeout(resolve, 200));
-        const storesData = await getData('Store');
+          // Longer delay before stores to prevent rate limits
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          const storesData = await getData('Store');
         let initialCityId = null;
 
         if (fetchedUser.city_id) {
@@ -1221,10 +1221,10 @@ export default function Layout({ children, currentPageName }) {
         }
       };
 
-      // Delay initial fetch to 30 seconds after app load
-      const initialTimer = setTimeout(fetchUnreadCount, 30000);
-      // Poll every 5 minutes when panel is closed
-      const interval = setInterval(fetchUnreadCount, 300000);
+      // Delay initial fetch to 60 seconds after app load
+      const initialTimer = setTimeout(fetchUnreadCount, 60000);
+      // Poll every 10 minutes when panel is closed
+      const interval = setInterval(fetchUnreadCount, 600000);
       return () => {
         clearTimeout(initialTimer);
         clearInterval(interval);
@@ -1360,6 +1360,7 @@ export default function Layout({ children, currentPageName }) {
 
     // CRITICAL: Delay unified refresh startup significantly to avoid rate limits on initial load
     const startupTimer = setTimeout(() => {
+    console.log('🔄 [Layout] Starting unified refresh system...');
     const performUnifiedRefresh = async () => {
       if (!smartRefreshManager._enabled) return;
 
@@ -1479,9 +1480,9 @@ export default function Layout({ children, currentPageName }) {
       // Start first refresh after initial load settles
       performUnifiedRefresh();
 
-      // Then refresh every 20 seconds to prevent rate limits
-      refreshIntervalRef.current = setInterval(performUnifiedRefresh, 20000);
-      }, 5000); // Wait 5 seconds before starting to let initial load complete
+      // Then refresh every 30 seconds to prevent rate limits
+      refreshIntervalRef.current = setInterval(performUnifiedRefresh, 30000);
+      }, 15000); // Wait 15 seconds before starting to let initial load complete
 
     return () => {
       clearTimeout(startupTimer);
