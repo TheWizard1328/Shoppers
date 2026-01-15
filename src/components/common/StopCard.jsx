@@ -2241,13 +2241,38 @@ export default function StopCard({
                           console.log('🔄 [START] PHASE 2: Background tasks starting...');
                           setIsEntityUpdating(true);
 
-                          // CRITICAL: Call handleStartDelivery backend function to handle travel_dist transfer
-                          await base44.functions.invoke('handleStartDelivery', {
-                            deliveryId: delivery.id,
-                            driverId: delivery.driver_id,
-                            deliveryDate: delivery.delivery_date
+                          // Wait for smart refresh to fully pause
+                          await new Promise((resolve) => setTimeout(resolve, 300));
+
+                          // CRITICAL: Update database directly instead of calling backend (avoids rate limits)
+                          console.log('💾 [START] Writing isNextDelivery to database...');
+
+                          // Step 1: Clear ALL isNextDelivery flags for driver/date
+                          const allDriverDeliveriesForDate = await base44.entities.Delivery.filter({
+                            driver_id: delivery.driver_id,
+                            delivery_date: delivery.delivery_date
                           });
-                          console.log('✅ [START] handleStartDelivery completed - travel_dist transferred');
+
+                          const resetPromises = allDriverDeliveriesForDate
+                            .filter((d) => d.isNextDelivery && d.id !== delivery.id)
+                            .map((d) => base44.entities.Delivery.update(d.id, { isNextDelivery: false }));
+
+                          if (resetPromises.length > 0) {
+                            await Promise.all(resetPromises);
+                            console.log(`  ✅ Cleared ${resetPromises.length} old isNextDelivery flags`);
+                          }
+
+                          // Step 2: Set this delivery as isNextDelivery with status update
+                          const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
+                          const completedStops = allDriverDeliveriesForDate.filter((d) => finishedStatuses.includes(d.status));
+                          const nextStopOrder = completedStops.length + 1;
+
+                          await base44.entities.Delivery.update(delivery.id, {
+                            isNextDelivery: true,
+                            status: isPickup ? 'en_route' : 'in_transit',
+                            stop_order: nextStopOrder
+                          });
+                          console.log(`  ✅ Set isNextDelivery=true on ${delivery.id} with stop_order ${nextStopOrder}`);
 
                           // Set delivery_time_start to current time
                           const now = new Date();
