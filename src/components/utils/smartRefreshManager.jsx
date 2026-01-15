@@ -539,9 +539,17 @@ class SmartRefreshManager {
 
   /**
    * Notify all subscribers with updated data
+   * CRITICAL: For dispatchers, auto-center to next delivery card and reactivate FAB
    */
   notifySubscribers(updates) {
     this.refreshCallbacks.forEach(callback => callback(updates));
+    
+    // CRITICAL: Notify dispatchers with UI updates
+    if (typeof window !== 'undefined' && updates) {
+      window.dispatchEvent(new CustomEvent('smartRefreshComplete', {
+        detail: { updates }
+      }));
+    }
   }
 
   /**

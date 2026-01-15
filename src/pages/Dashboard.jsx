@@ -2819,6 +2819,72 @@ function Dashboard() {
     };
   }, [setOnSmartRefreshComplete, isDispatcher, selectedCardId, deliveriesWithStopOrder]);
 
+  // CRITICAL: Listen for smartRefreshComplete event to reactivate FAB for dispatchers
+  useEffect(() => {
+    if (!isDispatcher) return;
+
+    const handleSmartRefreshCompleteEvent = (event) => {
+      const { updates } = event.detail || {};
+      
+      // CRITICAL: Only reactivate if there were actual delivery or driver changes
+      if (!updates || (!updates.deliveries && !updates.appUsers)) {
+        return;
+      }
+      
+      console.log('🔄 [Smart Refresh - Dispatcher] Data updated - reactivating FAB');
+      
+      // Auto-center to next delivery card
+      setTimeout(() => {
+        const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
+        if (nextCard) {
+          const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
+          if (cardElement) {
+            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            console.log('📍 [Smart Refresh - Dispatcher] Auto-centered to next delivery card');
+          }
+        }
+      }, 300);
+      
+      // CRITICAL: Reactivate FAB if on Phase 1 or 3 for 500ms
+      if (mapViewPhase === 1 || mapViewPhase === 3) {
+        console.log(`🔵 [Smart Refresh - Dispatcher] Reactivating FAB Phase ${mapViewPhase} for 500ms`);
+        
+        // Clear any existing timers
+        if (mapLockTimeoutRef.current) {
+          clearTimeout(mapLockTimeoutRef.current);
+          mapLockTimeoutRef.current = null;
+        }
+        mapLockExpiresAtRef.current = null;
+        
+        // Lock and trigger map view
+        setIsMapViewLocked(true);
+        lastProgrammaticMapMoveRef.current = Date.now();
+        window._lastProgrammaticMapMove = Date.now();
+        setMapViewTrigger((prev) => prev + 1);
+        
+        // Auto-unlock after 500ms
+        const lockDuration = 500;
+        const expiresAt = Date.now() + lockDuration;
+        mapLockExpiresAtRef.current = expiresAt;
+        
+        mapLockTimeoutRef.current = setTimeout(() => {
+          if (mapLockExpiresAtRef.current === expiresAt) {
+            setIsMapViewLocked(false);
+            mapLockExpiresAtRef.current = null;
+            mapLockTimeoutRef.current = null;
+            console.log(`⏰ [Smart Refresh - Dispatcher] FAB auto-unlocked after 500ms`);
+          }
+        }, lockDuration);
+      }
+    };
+
+    window.addEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);
+    
+    return () => {
+      window.removeEventListener('smartRefreshComplete', handleSmartRefreshCompleteEvent);
+    };
+  }, [isDispatcher, mapViewPhase, deliveriesWithStopOrder]);
+
   // Auto-center on next stop on initial load
   const hasAutoSelectedRef = useRef(false);
 
