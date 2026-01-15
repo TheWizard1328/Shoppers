@@ -92,23 +92,26 @@ const DeliveryListView = ({
   };
 
   const selectedDelivery = selectedDeliveryId ? deliveries.find(d => d?.id === selectedDeliveryId) : null;
+  const selectedPatient = selectedDelivery?.patient_id ? patients.find(p => p?.id === selectedDelivery.patient_id) : null;
+  const selectedStore = selectedDelivery ? stores.find(s => s?.id === selectedDelivery.store_id) : null;
 
   return (
-    <div className="h-full flex flex-col" style={{ background: 'var(--bg-white)' }}>
-      {/* Table Header */}
-      <div className="flex-shrink-0 border-b sticky top-0 z-10" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
-        <div className="grid grid-cols-[80px_100px_120px_130px_1fr_140px] gap-3 px-4 py-3 text-sm font-semibold" style={{ color: 'var(--text-slate-700)' }}>
-          <div>Stop #</div>
-          <div>TR#</div>
-          <div>Status</div>
-          <div>Time</div>
-          <div>Patient/Pickup</div>
-          <div className="text-right">COD</div>
+    <>
+      <div className="h-full flex flex-col" style={{ background: 'var(--bg-white)' }}>
+        {/* Table Header */}
+        <div className="flex-shrink-0 border-b sticky top-0 z-10" style={{ background: 'var(--bg-slate-50)', borderColor: 'var(--border-slate-200)' }}>
+          <div className="grid grid-cols-[80px_100px_120px_130px_1fr_140px] gap-3 px-4 py-3 text-sm font-semibold" style={{ color: 'var(--text-slate-700)' }}>
+            <div>Stop #</div>
+            <div>TR#</div>
+            <div>Status</div>
+            <div>Time</div>
+            <div>Patient/Pickup</div>
+            <div className="text-right">COD</div>
+          </div>
         </div>
-      </div>
 
-      {/* Scrollable List */}
-      <div className="flex-1 overflow-y-auto">
+        {/* Scrollable List */}
+        <div className="flex-1 overflow-y-auto">
         {deliveries.length === 0 ? (
           <div className="flex items-center justify-center h-32 text-slate-500">
             No deliveries found
@@ -125,14 +128,14 @@ const DeliveryListView = ({
               const isNextDelivery = delivery.isNextDelivery === true;
 
               return (
-                <React.Fragment key={delivery.id}>
-                  <div
-                    onClick={() => setSelectedDeliveryId(isSelected ? null : delivery.id)}
-                    className={`grid grid-cols-[80px_100px_120px_130px_1fr_140px] gap-3 px-4 py-3 border-b cursor-pointer transition-colors ${
-                      isNextDelivery ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-slate-50'
-                    } ${isSelected ? 'bg-slate-100' : ''}`}
-                    style={{ borderColor: 'var(--border-slate-200)' }}
-                  >
+                <div
+                  key={delivery.id}
+                  onClick={() => setSelectedDeliveryId(isSelected ? null : delivery.id)}
+                  className={`grid grid-cols-[80px_100px_120px_130px_1fr_140px] gap-3 px-4 py-3 border-b cursor-pointer transition-colors ${
+                    isNextDelivery ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-slate-50'
+                  } ${isSelected ? 'bg-slate-100' : ''}`}
+                  style={{ borderColor: 'var(--border-slate-200)' }}
+                >
                     <div className="flex items-center">
                       <span className={`font-mono text-sm ${isNextDelivery ? 'font-bold text-blue-700' : 'text-slate-700'}`}>
                         #{delivery.display_stop_order || delivery.stop_order || '—'}
@@ -166,51 +169,66 @@ const DeliveryListView = ({
                       {getCODDisplay(delivery)}
                     </div>
                   </div>
-
-                  {/* Expanded Details Panel */}
-                  <AnimatePresence>
-                    {isSelected && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="overflow-hidden border-b-2"
-                        style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-slate-50)' }}
-                      >
-                        <div className="p-4">
-                          <StopDetailsPanel
-                            delivery={delivery}
-                            patient={patient}
-                            store={store}
-                            currentUser={currentUser}
-                            onEdit={onEditDelivery}
-                            onEditPatient={onEditPatient}
-                            onDelete={onDeleteDelivery}
-                            onRestart={onRestart}
-                            onStatusUpdate={onStatusUpdate}
-                            onNotesUpdate={onNotesUpdate}
-                            onCODUpdate={onCODUpdate}
-                            onCreateReturn={onCreateReturn}
-                            onStartDelivery={onStartDelivery}
-                            allDeliveries={allDeliveries}
-                            selectedDate={selectedDate}
-                            patients={patients}
-                            stores={stores}
-                            drivers={drivers}
-                            onDriverStatusChange={onDriverStatusChange}
-                          />
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </React.Fragment>
               );
             })}
           </>
         )}
+        </div>
       </div>
-    </div>
+
+      {/* Slide-up Details Panel Overlay */}
+      <AnimatePresence>
+        {selectedDeliveryId && selectedDelivery && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 bg-black/50 z-[200]"
+              onClick={() => setSelectedDeliveryId(null)}
+            />
+            
+            {/* Slide-up Panel */}
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              className="fixed bottom-0 left-0 right-0 z-[201] max-h-[85vh] overflow-hidden rounded-t-2xl"
+              style={{ background: 'var(--bg-white)' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="overflow-y-auto max-h-[85vh]">
+                <StopDetailsPanel
+                  delivery={selectedDelivery}
+                  patient={selectedPatient}
+                  store={selectedStore}
+                  currentUser={currentUser}
+                  onEdit={onEditDelivery}
+                  onEditPatient={onEditPatient}
+                  onDelete={onDeleteDelivery}
+                  onRestart={onRestart}
+                  onStatusUpdate={onStatusUpdate}
+                  onNotesUpdate={onNotesUpdate}
+                  onCODUpdate={onCODUpdate}
+                  onCreateReturn={onCreateReturn}
+                  onStartDelivery={onStartDelivery}
+                  allDeliveries={allDeliveries}
+                  selectedDate={selectedDate}
+                  patients={patients}
+                  stores={stores}
+                  drivers={drivers}
+                  onDriverStatusChange={onDriverStatusChange}
+                  onClose={() => setSelectedDeliveryId(null)}
+                />
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </>
   );
 };
 
