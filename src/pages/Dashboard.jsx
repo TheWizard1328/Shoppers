@@ -5612,19 +5612,20 @@ function Dashboard() {
       console.log('🎯 [START] Step 2: Setting isNextDelivery=true on selected delivery...');
       
       // CRITICAL: Calculate stop_order FIRST - this delivery becomes the next after completed stops
-      const completedStops = allDriverDeliveries.filter((d) => finishedStatuses.includes(d.status));
-      const nextStopOrder = completedStops.length + 1;
+      const finishedStatusesStep2 = ['completed', 'failed', 'cancelled', 'returned'];
+      const completedStopsStep2 = allDriverDeliveries.filter((d) => finishedStatusesStep2.includes(d.status));
+      const nextStopOrderStep2 = completedStopsStep2.length + 1;
       
       await base44.entities.Delivery.update(deliveryId, {
         isNextDelivery: true,
         status: newStatus,
-        stop_order: nextStopOrder
+        stop_order: nextStopOrderStep2
       });
-      console.log(`   ✅ isNextDelivery flag set, status updated, and stop_order set to ${nextStopOrder}`);
+      console.log(`   ✅ isNextDelivery flag set, status updated, and stop_order set to ${nextStopOrderStep2}`);
 
       // STEP 3: Recalculate and update stop orders for ALL incomplete stops
       console.log('📊 [START] Step 3: Recalculating stop orders for all incomplete stops...');
-      const incompleteStops = allDriverDeliveries.filter((d) => !finishedStatuses.includes(d.status));
+      const incompleteStops = allDriverDeliveries.filter((d) => !finishedStatusesStep2.includes(d.status));
       
       // Sort incomplete stops: isNextDelivery first, then by ETA
       const sortedIncomplete = incompleteStops.sort((a, b) => {
@@ -5637,7 +5638,7 @@ function Dashboard() {
       });
       
       // Update stop orders for all incomplete stops
-      const startOrder = completedStops.length + 1;
+      const startOrder = completedStopsStep2.length + 1;
       for (let i = 0; i < sortedIncomplete.length; i++) {
         const stop = sortedIncomplete[i];
         await base44.entities.Delivery.update(stop.id, {
