@@ -3124,7 +3124,6 @@ export default function DeliveriesPage() {
   handleNotesUpdate,
   handleRestartDelivery,
   handleReturn,
-
   currentUser,
   canCreateDeliveries,
   selectedDate,
@@ -3132,7 +3131,10 @@ export default function DeliveriesPage() {
   handleEditPatient,
   filteredAndSortedDeliveries,
   isMobile,
-  loadData]
+  loadData,
+  viewMode,
+  showSplitView,
+  handleCODUpdate]
   );
   
   // Track window width for responsive layout
