@@ -4,11 +4,10 @@ import { createMergedUser } from './driverUtils';
 import { getCached } from './dataManager';
 
 // Global cache for user data to prevent repeated API calls
-// EXTENDED TTLs to prevent session issues during idle periods
 let userCache = {
   data: null,
   timestamp: 0,
-  ttl: 600000, // 10 minutes cache (increased from 2 min) to prevent stale session issues
+  ttl: 600000, // 10 minutes cache
   lastFailureTime: 0,
   backoffTime: 0
 };
@@ -17,8 +16,11 @@ let userCache = {
 let appUserListCache = {
   data: null,
   timestamp: 0,
-  ttl: 900000 // 15 minutes cache for AppUser list (increased from 5 min)
+  ttl: 900000 // 15 minutes cache for AppUser list
 };
+
+// CRITICAL: Track in-flight requests to prevent duplicate API calls
+let inflightUserRequest = null;
 
 /**
  * Creates a promise that rejects after a specified timeout
@@ -52,27 +54,31 @@ export const getEffectiveUser = async () => {
 
     // Return cached data if still valid
     if (userCache.data && (now - userCache.timestamp) < userCache.ttl) {
-        const age = Math.round((now - userCache.timestamp) / 1000);
         return userCache.data;
     }
 
-    // REMOVED: Stale data tolerance - no longer returning old data past TTL
-    // Force fresh fetch when cache is expired
+    // CRITICAL: If a request is already in-flight, wait for it instead of making duplicate call
+    if (inflightUserRequest) {
+        console.log('⏳ [auth.js] Waiting for in-flight user request to complete...');
+        return await inflightUserRequest;
+    }
 
     let retryCount = 0;
     const maxRetries = 2;
     const baseDelay = 2000;
 
-    while (retryCount < maxRetries) {
-        try {
-            // Check if we're online before attempting
-            if (!navigator.onLine) {
-                console.warn('⚠️ [auth.js] Device is offline, returning cached user data if available');
-                return userCache.data;
-            }
+    // Create the in-flight promise
+    inflightUserRequest = (async () => {
+        while (retryCount < maxRetries) {
+            try {
+                // Check if we're online before attempting
+                if (!navigator.onLine) {
+                    console.warn('⚠️ [auth.js] Device is offline, returning cached user data if available');
+                    return userCache.data;
+                }
 
-            // Get the authenticated user (from User entity - auth data only)
-            const authUser = await withTimeout(User.me(), 10000);
+                // Get the authenticated user (from User entity - auth data only)
+                const authUser = await withTimeout(User.me(), 10000);
             
             if (!authUser) {
                 console.warn('⚠️ [auth.js] No user data received (not logged in - Base44 will handle redirect)');
@@ -230,9 +236,16 @@ export const getEffectiveUser = async () => {
             
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
-    }
     
-    return userCache.data || null;
+        return userCache.data || null;
+    })();
+
+    try {
+        const result = await inflightUserRequest;
+        return result;
+    } finally {
+        inflightUserRequest = null;
+    }
 };
 
 // Helper function to check if user data is available
@@ -264,6 +277,7 @@ export const clearUserCache = () => {
         timestamp: 0,
         ttl: 900000 // 15 minutes
     };
+    inflightUserRequest = null;
     sessionStorage.removeItem('impersonationId');
 };
 
