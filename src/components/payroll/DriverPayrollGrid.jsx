@@ -153,10 +153,33 @@ export default function DriverPayrollGrid({
         <div className="flex flex-col gap-3">
           {/* Pay Period Type Selector */}
           <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Table className="w-5 h-5" />
-              Deliveries by Store
-            </CardTitle>
+            <div className="flex items-center gap-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Table className="w-5 h-5" />
+                {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
+              </CardTitle>
+              {/* View Mode Toggle */}
+              <div className="flex gap-1 bg-slate-100 rounded-lg p-0.5">
+                <Button
+                  size="sm"
+                  variant={viewMode === 'deliveries' ? 'default' : 'ghost'}
+                  onClick={() => setViewMode('deliveries')}
+                  className="text-xs h-6 px-2 gap-1"
+                >
+                  <Package className="w-3 h-3" />
+                  Deliveries
+                </Button>
+                <Button
+                  size="sm"
+                  variant={viewMode === 'extraKm' ? 'default' : 'ghost'}
+                  onClick={() => setViewMode('extraKm')}
+                  className="text-xs h-6 px-2 gap-1"
+                >
+                  <Ruler className="w-3 h-3" />
+                  Extra KM
+                </Button>
+              </div>
+            </div>
             <div className="flex gap-1">
               <Button
                 size="sm"
