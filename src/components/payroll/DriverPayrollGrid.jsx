@@ -12,9 +12,10 @@ export default function DriverPayrollGrid({
   stores, 
   selectedYear, 
   selectedMonth,
-  selectedDriverId 
+  selectedDriverId,
+  payPeriod,
+  onPayPeriodChange
 }) {
-  const [payPeriod, setPayPeriod] = useState('monthly');
 
   if (!deliveries || !stores) return null;
 
@@ -92,7 +93,7 @@ export default function DriverPayrollGrid({
             <Button
               size="sm"
               variant={payPeriod === 'weekly' ? 'default' : 'outline'}
-              onClick={() => setPayPeriod('weekly')}
+              onClick={() => onPayPeriodChange('weekly')}
               className="text-xs h-7 px-2"
             >
               Weekly
@@ -100,7 +101,7 @@ export default function DriverPayrollGrid({
             <Button
               size="sm"
               variant={payPeriod === 'biweekly' ? 'default' : 'outline'}
-              onClick={() => setPayPeriod('biweekly')}
+              onClick={() => onPayPeriodChange('biweekly')}
               className="text-xs h-7 px-2"
             >
               Bi-Weekly
@@ -108,7 +109,7 @@ export default function DriverPayrollGrid({
             <Button
               size="sm"
               variant={payPeriod === 'semimonthly' ? 'default' : 'outline'}
-              onClick={() => setPayPeriod('semimonthly')}
+              onClick={() => onPayPeriodChange('semimonthly')}
               className="text-xs h-7 px-2"
             >
               Semi-Monthly
@@ -116,7 +117,7 @@ export default function DriverPayrollGrid({
             <Button
               size="sm"
               variant={payPeriod === 'monthly' ? 'default' : 'outline'}
-              onClick={() => setPayPeriod('monthly')}
+              onClick={() => onPayPeriodChange('monthly')}
               className="text-xs h-7 px-2"
             >
               Monthly

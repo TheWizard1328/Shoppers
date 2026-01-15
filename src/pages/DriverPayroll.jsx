@@ -1,22 +1,23 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DollarSign } from "lucide-react";
 import { useAppData } from '../components/utils/AppDataContext';
 import { sortUsers, sortStores } from '../components/utils/sorting';
-import { userHasRole } from '../components/utils/userRoles';
 import { useUser } from '../components/utils/UserContext';
 import { getDriverDisplayName } from '../components/utils/driverUtils';
 import DriverPayrollGrid from '../components/payroll/DriverPayrollGrid';
+import PayrollSummaryCard from '../components/payroll/PayrollSummaryCard';
 
 export default function DriverPayroll() {
   const { currentUser } = useUser();
-  const { deliveries, stores, cities, drivers } = useAppData();
+  const { deliveries, stores, cities, drivers, appUsers } = useAppData();
   
   const currentDate = new Date();
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1);
   const [selectedCityId, setSelectedCityId] = useState('all');
   const [selectedDriverId, setSelectedDriverId] = useState('all');
+  const [payPeriod, setPayPeriod] = useState('monthly');
 
   // Get available years (current year and 2 years back)
   const years = useMemo(() => {
@@ -150,6 +151,19 @@ export default function DriverPayroll() {
           selectedYear={selectedYear}
           selectedMonth={selectedMonth}
           selectedDriverId={selectedDriverId}
+          payPeriod={payPeriod}
+          onPayPeriodChange={setPayPeriod}
+        />
+
+        {/* Payroll Summary */}
+        <PayrollSummaryCard
+          deliveries={cityFilteredDeliveries}
+          drivers={sortedDrivers}
+          appUsers={appUsers}
+          selectedYear={selectedYear}
+          selectedMonth={selectedMonth}
+          selectedDriverId={selectedDriverId}
+          payPeriod={payPeriod}
         />
       </div>
     </div>
