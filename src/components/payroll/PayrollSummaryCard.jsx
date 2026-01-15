@@ -186,41 +186,41 @@ export default function PayrollSummaryCard({
                 </div>
               </div>
               {/* Pay Rates Row */}
-              <div className="flex gap-14 text-xs mb-1.5">
-                <div className="flex items-center gap-1 w-24">
-                  <span className="text-slate-500 w-8">Rate:</span>
-                  <span className="bg-slate-200 text-slate-700 px-1 py-0.5 rounded text-[11px]">{formatCurrency(data.payRate)}</span>
+              <div className="flex text-xs mb-1.5">
+                <div className="flex items-center w-32">
+                  <span className="text-slate-500 w-10 text-right pr-1">Rate:</span>
+                  <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[11px] text-center">{formatCurrency(data.payRate)}</span>
                 </div>
-                <div className="flex items-center gap-1 w-28">
-                  <span className="text-slate-500 w-6">KM:</span>
-                  <span className="bg-slate-200 text-slate-700 px-1 py-0.5 rounded text-[11px]">{formatCurrency(data.extraKmRate, 3)}/km</span>
+                <div className="flex items-center w-36">
+                  <span className="text-slate-500 w-8 text-right pr-1">KM:</span>
+                  <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[11px] text-center">{formatCurrency(data.extraKmRate, 3)}/km</span>
                 </div>
-                <div className="flex items-center gap-1 w-20">
-                  <span className="text-slate-500 w-6">OS:</span>
-                  <span className="bg-slate-200 text-slate-700 px-1 py-0.5 rounded text-[11px]">{formatCurrency(data.oversizedRate)}</span>
+                <div className="flex items-center w-24">
+                  <span className="text-slate-500 w-8 text-right pr-1">OS:</span>
+                  <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[11px] text-center">{formatCurrency(data.oversizedRate)}</span>
                 </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-slate-500">Failed:</span>
-                  <span className="bg-red-100 text-red-700 px-1 py-0.5 rounded text-[11px]">{data.failedCount}</span>
+                <div className="flex items-center w-24">
+                  <span className="text-slate-500 w-12 text-right pr-1">Failed:</span>
+                  <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[11px] text-center">{data.failedCount}</span>
                 </div>
               </div>
               {/* Totals Row */}
-              <div className="flex gap-14 text-xs">
-                <div className="flex items-center gap-1.5 w-24">
-                  <span className="text-slate-500 w-8">Del:</span>
-                  <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[11px] whitespace-nowrap">{data.totalDeliveries} = {formatCurrency(data.totalBasePay)}</span>
+              <div className="flex text-xs">
+                <div className="flex items-center w-32">
+                  <span className="text-slate-500 w-10 text-right pr-1">Del:</span>
+                  <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[11px] text-center whitespace-nowrap">{data.totalDeliveries} = {formatCurrency(data.totalBasePay)}</span>
                 </div>
-                <div className="flex items-center gap-1 w-28">
-                  <span className="text-slate-500 w-6">KM:</span>
-                  <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[11px] whitespace-nowrap">{data.totalExtraKm.toFixed(2)} = {formatCurrency(data.totalExtraKmPay)}</span>
+                <div className="flex items-center w-36">
+                  <span className="text-slate-500 w-8 text-right pr-1">KM:</span>
+                  <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[11px] text-center whitespace-nowrap">{data.totalExtraKm.toFixed(2)} = {formatCurrency(data.totalExtraKmPay)}</span>
                 </div>
-                <div className="flex items-center gap-1 w-20">
-                  <span className="text-slate-500 w-6">OS:</span>
-                  <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[11px] whitespace-nowrap">{data.oversizedCount} = {formatCurrency(data.totalOversizedPay)}</span>
+                <div className="flex items-center w-24">
+                  <span className="text-slate-500 w-8 text-right pr-1">OS:</span>
+                  <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[11px] text-center whitespace-nowrap">{data.oversizedCount} = {formatCurrency(data.totalOversizedPay)}</span>
                 </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-slate-500">Returns:</span>
-                  <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[11px] whitespace-nowrap">{data.returnsCount}</span>
+                <div className="flex items-center w-24">
+                  <span className="text-slate-500 w-12 text-right pr-1">Returns:</span>
+                  <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[11px] text-center whitespace-nowrap">{data.returnsCount}</span>
                 </div>
               </div>
             </div>
