@@ -5622,16 +5622,29 @@ function Dashboard() {
       });
       console.log(`   ✅ isNextDelivery flag set, status updated, and stop_order set to ${nextStopOrder}`);
 
-      // STEP 3: Calculate stop_order - this delivery becomes the next after completed stops
-      console.log('📊 [START] Step 3: Calculating stop_order...');
-      const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
-      const completedStops = allDriverDeliveries.filter((d) => finishedStatuses.includes(d.status));
-      const nextStopOrder = completedStops.length + 1;
-
-      await base44.entities.Delivery.update(deliveryId, {
-        stop_order: nextStopOrder
+      // STEP 3: Recalculate and update stop orders for ALL incomplete stops
+      console.log('📊 [START] Step 3: Recalculating stop orders for all incomplete stops...');
+      const incompleteStops = allDriverDeliveries.filter((d) => !finishedStatuses.includes(d.status));
+      
+      // Sort incomplete stops: isNextDelivery first, then by ETA
+      const sortedIncomplete = incompleteStops.sort((a, b) => {
+        if (a.isNextDelivery && !b.isNextDelivery) return -1;
+        if (!a.isNextDelivery && b.isNextDelivery) return 1;
+        
+        const etaA = a.delivery_time_eta || a.delivery_time_start || '99:99';
+        const etaB = b.delivery_time_eta || b.delivery_time_start || '99:99';
+        return etaA.localeCompare(etaB);
       });
-      console.log(`   ✅ Assigned stop_order=${nextStopOrder} (after ${completedStops.length} completed stops)`);
+      
+      // Update stop orders for all incomplete stops
+      const startOrder = completedStops.length + 1;
+      for (let i = 0; i < sortedIncomplete.length; i++) {
+        const stop = sortedIncomplete[i];
+        await base44.entities.Delivery.update(stop.id, {
+          stop_order: startOrder + i
+        });
+      }
+      console.log(`   ✅ Updated stop_order for ${sortedIncomplete.length} incomplete stops`);
 
       // STEP 4: Update UI immediately (before optimization)
       console.log('🖥️ [START] Step 4: Updating UI immediately...');
