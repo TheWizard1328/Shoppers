@@ -287,7 +287,7 @@ export default function DriverPayrollGrid({
                         ? (extraKmMap[dateKey]?.[store.id] || 0)
                         : (dataMap[dateKey]?.[store.id] || 0);
                       const displayValue = viewMode === 'extraKm' 
-                        ? (value > 0 ? value.toFixed(1) : '')
+                        ? (value > 0 ? value.toFixed(2) : '')
                         : (value > 0 ? value : '');
                       return (
                         <td
