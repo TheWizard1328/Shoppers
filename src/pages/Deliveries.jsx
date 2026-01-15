@@ -3124,7 +3124,7 @@ export default function DeliveriesPage() {
   handleNotesUpdate,
   handleRestartDelivery,
   handleReturn,
-  handleDragEnd,
+
   currentUser,
   canCreateDeliveries,
   selectedDate,
