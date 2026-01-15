@@ -2135,13 +2135,7 @@ export default function Layout({ children, currentPageName }) {
       }];
 
     if (realUser && (isAppOwner(realUser) || userHasRole(realUser, 'admin'))) {
-        items.push({
-          title: "Driver Payroll",
-          pageName: 'DriverPayroll',
-          url: createPageUrl("DriverPayroll"),
-          icon: FileText
-        });
-        items.push({
+          items.push({
           title: "Admin Metrics",
           pageName: 'AdminMetrics',
           url: createPageUrl("AdminMetrics"),
@@ -3054,6 +3048,26 @@ export default function Layout({ children, currentPageName }) {
                           <Package className="w-5 h-5" />
                           <span className="font-semibold">Routes</span>
                           <Badge variant="secondary" className="ml-auto justify-center w-[45px] rounded-[10px]" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-600)' }}>{totalRoutesCount}</Badge>
+                          </Link>
+                          }
+
+                    {(userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'driver')) &&
+                        <Link
+                          to={createPageUrl('DriverPayroll')}
+                          onClick={() => setSidebarOpen(false)}
+                          className={`px-4 py-1 rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                            currentPageName === 'DriverPayroll' ?
+                              'shadow-sm' :
+                              'hover:opacity-80'}`
+                          }
+                          style={currentPageName === 'DriverPayroll' ? {
+                            background: 'var(--bg-slate-100)',
+                            color: 'var(--text-slate-900)'
+                          } : {
+                            color: 'var(--text-slate-600)'
+                          }}>
+                          <DollarSign className="w-5 h-5" />
+                          <span className="font-semibold">Driver Payroll</span>
                           </Link>
                           }
 
