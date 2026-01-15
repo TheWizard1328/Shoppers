@@ -206,7 +206,7 @@ export default function PayrollSummaryCard({
               </div>
               {/* Totals Row */}
               <div className="flex text-xs">
-                <div className="flex items-center w-32">
+                <div className="flex items-center w-36">
                   <span className="text-slate-500 w-10 text-right pr-1">Del:</span>
                   <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[11px] text-center whitespace-nowrap">{data.totalDeliveries} = {formatCurrency(data.totalBasePay)}</span>
                 </div>
@@ -214,11 +214,11 @@ export default function PayrollSummaryCard({
                   <span className="text-slate-500 w-8 text-right pr-1">KM:</span>
                   <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[11px] text-center whitespace-nowrap">{data.totalExtraKm.toFixed(2)} = {formatCurrency(data.totalExtraKmPay)}</span>
                 </div>
-                <div className="flex items-center w-24">
+                <div className="flex items-center w-36">
                   <span className="text-slate-500 w-8 text-right pr-1">OS:</span>
                   <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[11px] text-center whitespace-nowrap">{data.oversizedCount} = {formatCurrency(data.totalOversizedPay)}</span>
                 </div>
-                <div className="flex items-center w-24">
+                <div className="flex items-center w-36">
                   <span className="text-slate-500 w-12 text-right pr-1">Returns:</span>
                   <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[11px] text-center whitespace-nowrap">{data.returnsCount}</span>
                 </div>
