@@ -347,6 +347,8 @@ export default function DriverPayroll() {
         <DriverPayrollGrid
           deliveries={cityFilteredDeliveries}
           stores={filteredStores}
+          patients={patients}
+          appUsers={appUsers}
           selectedYear={selectedYear}
           selectedDriverId={selectedDriverId}
           payPeriod={payPeriod}
