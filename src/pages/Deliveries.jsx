@@ -2898,10 +2898,6 @@ export default function DeliveriesPage() {
     return userHasRole(currentUser, 'admin') || userHasRole(currentUser, 'dispatcher');
   }, [currentUser]);
 
-  // Determine if we should show the split view (cards + details panel)
-  // Show split view on desktop OR on wider mobile screens (>= 640px width)
-  const showSplitView = !isMobile || windowWidth >= 640;
-
   // Helper function to get driver status badge class
   const getDriverStatusBadgeClass = useCallback((driverId, fallbackStatus) => {
     const freshAppUser = freshAppUsers.find((au) => au?.user_id === driverId);
