@@ -206,7 +206,7 @@ export default function PayrollSummaryCard({
               </div>
               {/* Totals Row */}
               <div className="flex gap-14 text-xs">
-                <div className="flex items-center gap-1 w-24">
+                <div className="flex items-center gap-1.5 w-24">
                   <span className="text-slate-500 w-8">Del:</span>
                   <span className="bg-slate-200 text-slate-700 px-1 py-0.5 rounded text-[11px]">{data.totalDeliveries} = {formatCurrency(data.totalBasePay)}</span>
                 </div>
