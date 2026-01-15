@@ -1,9 +1,69 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback, memo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { CheckCircle, Clock, Package, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import StopDetailsPanel from '../deliveries/StopDetailsPanel';
+
+// Memoized row component to prevent re-renders
+const DeliveryRow = memo(({ 
+  delivery, 
+  patient, 
+  store, 
+  isSelected, 
+  onSelect,
+  getStatusBadge,
+  getTimeDisplay,
+  getCODDisplay
+}) => {
+  const isPickup = !delivery.patient_id;
+  const isNextDelivery = delivery.isNextDelivery === true;
+
+  return (
+    <div
+      onClick={() => onSelect(delivery.id)}
+      className={`grid grid-cols-[80px_100px_120px_130px_1fr_140px] gap-3 px-4 py-3 border-b cursor-pointer transition-colors ${
+        isNextDelivery ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-slate-50'
+      } ${isSelected ? 'bg-slate-100' : ''}`}
+      style={{ borderColor: 'var(--border-slate-200)' }}
+    >
+      <div className="flex items-center">
+        <span className={`font-mono text-sm ${isNextDelivery ? 'font-bold text-blue-700' : 'text-slate-700'}`}>
+          #{delivery.display_stop_order || delivery.stop_order || '—'}
+        </span>
+      </div>
+
+      <div className="flex items-center">
+        <span className="font-mono text-sm text-slate-600">{delivery.tracking_number || '—'}</span>
+      </div>
+
+      <div className="flex items-center">
+        {getStatusBadge(delivery.status)}
+      </div>
+
+      <div className="flex items-center">
+        {getTimeDisplay(delivery)}
+      </div>
+
+      <div className="flex items-center min-w-0">
+        <div className="flex flex-col min-w-0">
+          <span className={`font-medium truncate ${isPickup ? 'text-blue-600' : 'text-slate-900'}`}>
+            {delivery.patient_name || (store?.name ? `${store.name} Pickup` : 'Store Pickup')}
+          </span>
+          {patient?.address && (
+            <span className="text-xs text-slate-500 truncate">{patient.address}</span>
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-center justify-end">
+        {getCODDisplay(delivery)}
+      </div>
+    </div>
+  );
+});
+
+DeliveryRow.displayName = 'DeliveryRow';
 
 const DeliveryListView = ({
   deliveries,
@@ -26,7 +86,21 @@ const DeliveryListView = ({
 }) => {
   const [selectedDeliveryId, setSelectedDeliveryId] = useState(null);
 
-  const getStatusBadge = (status) => {
+  // Memoize patient lookup map for O(1) access
+  const patientMap = useMemo(() => {
+    const map = new Map();
+    patients.forEach(p => { if (p?.id) map.set(p.id, p); });
+    return map;
+  }, [patients]);
+
+  // Memoize store lookup map for O(1) access
+  const storeMap = useMemo(() => {
+    const map = new Map();
+    stores.forEach(s => { if (s?.id) map.set(s.id, s); });
+    return map;
+  }, [stores]);
+
+  const getStatusBadge = useCallback((status) => {
     const statusConfig = {
       'completed': { color: 'bg-green-100 text-green-800', label: 'Completed' },
       'in_transit': { color: 'bg-blue-100 text-blue-800', label: 'In Transit' },
@@ -37,9 +111,9 @@ const DeliveryListView = ({
     };
     const config = statusConfig[status] || { color: 'bg-slate-100 text-slate-800', label: status };
     return <Badge className={config.color}>{config.label}</Badge>;
-  };
+  }, []);
 
-  const getCODDisplay = (delivery) => {
+  const getCODDisplay = useCallback((delivery) => {
     if (!delivery.cod_total_amount_required || delivery.cod_total_amount_required === 0) {
       return <span className="text-slate-400">—</span>;
     }
@@ -64,9 +138,9 @@ const DeliveryListView = ({
         <span className="text-xs text-amber-600">Required</span>
       </div>
     );
-  };
+  }, []);
 
-  const getTimeDisplay = (delivery) => {
+  const getTimeDisplay = useCallback((delivery) => {
     const finishedStatuses = ['completed', 'failed', 'cancelled'];
     
     if (finishedStatuses.includes(delivery.status) && delivery.actual_delivery_time) {
@@ -89,11 +163,23 @@ const DeliveryListView = ({
     }
 
     return <span className="text-slate-400">—</span>;
-  };
+  }, []);
 
-  const selectedDelivery = selectedDeliveryId ? deliveries.find(d => d?.id === selectedDeliveryId) : null;
-  const selectedPatient = selectedDelivery?.patient_id ? patients.find(p => p?.id === selectedDelivery.patient_id) : null;
-  const selectedStore = selectedDelivery ? stores.find(s => s?.id === selectedDelivery.store_id) : null;
+  const handleSelect = useCallback((deliveryId) => {
+    setSelectedDeliveryId(prev => prev === deliveryId ? null : deliveryId);
+  }, []);
+
+  const selectedDelivery = useMemo(() => 
+    selectedDeliveryId ? deliveries.find(d => d?.id === selectedDeliveryId) : null
+  , [selectedDeliveryId, deliveries]);
+  
+  const selectedPatient = useMemo(() => 
+    selectedDelivery?.patient_id ? patientMap.get(selectedDelivery.patient_id) : null
+  , [selectedDelivery?.patient_id, patientMap]);
+  
+  const selectedStore = useMemo(() => 
+    selectedDelivery ? storeMap.get(selectedDelivery.store_id) : null
+  , [selectedDelivery?.store_id, storeMap]);
 
   return (
     <>
@@ -121,54 +207,21 @@ const DeliveryListView = ({
             {deliveries.map((delivery) => {
               if (!delivery) return null;
 
-              const patient = delivery.patient_id ? patients.find(p => p?.id === delivery.patient_id) : null;
-              const store = stores.find(s => s?.id === delivery.store_id);
-              const isPickup = !delivery.patient_id;
-              const isSelected = selectedDeliveryId === delivery.id;
-              const isNextDelivery = delivery.isNextDelivery === true;
+              const patient = delivery.patient_id ? patientMap.get(delivery.patient_id) : null;
+              const store = storeMap.get(delivery.store_id);
 
               return (
-                <div
+                <DeliveryRow
                   key={delivery.id}
-                  onClick={() => setSelectedDeliveryId(isSelected ? null : delivery.id)}
-                  className={`grid grid-cols-[80px_100px_120px_130px_1fr_140px] gap-3 px-4 py-3 border-b cursor-pointer transition-colors ${
-                    isNextDelivery ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-slate-50'
-                  } ${isSelected ? 'bg-slate-100' : ''}`}
-                  style={{ borderColor: 'var(--border-slate-200)' }}
-                >
-                    <div className="flex items-center">
-                      <span className={`font-mono text-sm ${isNextDelivery ? 'font-bold text-blue-700' : 'text-slate-700'}`}>
-                        #{delivery.display_stop_order || delivery.stop_order || '—'}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center">
-                      <span className="font-mono text-sm text-slate-600">{delivery.tracking_number || '—'}</span>
-                    </div>
-
-                    <div className="flex items-center">
-                      {getStatusBadge(delivery.status)}
-                    </div>
-
-                    <div className="flex items-center">
-                      {getTimeDisplay(delivery)}
-                    </div>
-
-                    <div className="flex items-center min-w-0">
-                      <div className="flex flex-col min-w-0">
-                        <span className={`font-medium truncate ${isPickup ? 'text-blue-600' : 'text-slate-900'}`}>
-                          {delivery.patient_name || (store?.name ? `${store.name} Pickup` : 'Store Pickup')}
-                        </span>
-                        {patient?.address && (
-                          <span className="text-xs text-slate-500 truncate">{patient.address}</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-end">
-                      {getCODDisplay(delivery)}
-                    </div>
-                  </div>
+                  delivery={delivery}
+                  patient={patient}
+                  store={store}
+                  isSelected={selectedDeliveryId === delivery.id}
+                  onSelect={handleSelect}
+                  getStatusBadge={getStatusBadge}
+                  getTimeDisplay={getTimeDisplay}
+                  getCODDisplay={getCODDisplay}
+                />
               );
             })}
           </>
