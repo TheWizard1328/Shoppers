@@ -235,6 +235,7 @@ export const getEffectiveUser = async () => {
             }
             
             await new Promise(resolve => setTimeout(resolve, 1000));
+          }
         }
     
         return userCache.data || null;
