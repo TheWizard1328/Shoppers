@@ -2137,12 +2137,12 @@ export default function Layout({ children, currentPageName }) {
 
     if (realUser && (isAppOwner(realUser) || userHasRole(realUser, 'admin'))) {
           items.push({
-          title: "Admin Metrics",
-          pageName: 'AdminMetrics',
-          url: createPageUrl("AdminMetrics"),
-          icon: BarChart3
-        });
-      }
+            title: "Admin Metrics",
+            pageName: 'AdminMetrics',
+            url: createPageUrl("AdminMetrics"),
+            icon: BarChart3
+          });
+        }
 
     if (realUser && canAccessImports(realUser, adminImportEnabled)) {
       items.push({
