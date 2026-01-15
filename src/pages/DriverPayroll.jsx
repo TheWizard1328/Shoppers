@@ -8,6 +8,7 @@ import { useUser } from '../components/utils/UserContext';
 import { getDriverDisplayName } from '../components/utils/driverUtils';
 import DriverPayrollGrid from '../components/payroll/DriverPayrollGrid';
 import PayrollSummaryCard from '../components/payroll/PayrollSummaryCard';
+import { base44 } from '@/api/base44Client';
 
 // Helper: Get first Monday of a given year
 const getFirstMondayOfYear = (year) => {
@@ -145,8 +146,28 @@ export default function DriverPayroll() {
   const currentDate = new Date();
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
   const [selectedCityId, setSelectedCityId] = useState('all');
-  const [selectedDriverId, setSelectedDriverId] = useState('all');
-  const [payPeriod, setPayPeriod] = useState('biweekly');
+  
+  // Determine if current user is a driver (not admin)
+  const isDriverOnly = currentUser && 
+    currentUser.app_roles?.includes('driver') && 
+    !currentUser.app_roles?.includes('admin');
+  
+  // Get current user's AppUser data for their pay cycle preference
+  const currentUserAppUser = appUsers?.find(au => au?.user_id === currentUser?.id);
+  const currentUserPayCycle = currentUserAppUser?.pay_cycle_type || 'monthly';
+  
+  // Default driver selection: drivers see their own data, admins see all
+  const [selectedDriverId, setSelectedDriverId] = useState(() => {
+    if (isDriverOnly) return currentUser?.id || 'all';
+    return 'all';
+  });
+  
+  // Default pay period: drivers use their saved preference, admins use monthly
+  const [payPeriod, setPayPeriod] = useState(() => {
+    if (isDriverOnly) return currentUserPayCycle;
+    return 'monthly';
+  });
+  
   const [selectedPeriodIndex, setSelectedPeriodIndex] = useState(0);
 
   // Get available years (current year and 2 years back)
@@ -185,6 +206,39 @@ export default function DriverPayroll() {
   const goToNextPeriod = () => {
     if (selectedPeriodIndex < allPeriods.length - 1) {
       setSelectedPeriodIndex(selectedPeriodIndex + 1);
+    }
+  };
+
+  // When driver selection changes, auto-select their pay cycle type
+  useEffect(() => {
+    if (selectedDriverId === 'all') {
+      // Default to monthly for "All Drivers"
+      setPayPeriod('monthly');
+    } else {
+      // Find the selected driver's AppUser and use their pay_cycle_type
+      const driverAppUser = appUsers?.find(au => au?.user_id === selectedDriverId);
+      if (driverAppUser?.pay_cycle_type) {
+        setPayPeriod(driverAppUser.pay_cycle_type);
+      }
+    }
+  }, [selectedDriverId, appUsers]);
+
+  // Handle pay period change - save to driver's AppUser if a specific driver is selected
+  const handlePayPeriodChange = async (newPayPeriod) => {
+    setPayPeriod(newPayPeriod);
+    
+    // Only save if a specific driver is selected (not "all")
+    if (selectedDriverId && selectedDriverId !== 'all') {
+      const driverAppUser = appUsers?.find(au => au?.user_id === selectedDriverId);
+      if (driverAppUser) {
+        try {
+          await base44.entities.AppUser.update(driverAppUser.id, {
+            pay_cycle_type: newPayPeriod
+          });
+        } catch (error) {
+          console.error('Failed to save pay cycle type:', error);
+        }
+      }
     }
   };
 
@@ -284,7 +338,7 @@ export default function DriverPayroll() {
           selectedYear={selectedYear}
           selectedDriverId={selectedDriverId}
           payPeriod={payPeriod}
-          onPayPeriodChange={setPayPeriod}
+          onPayPeriodChange={handlePayPeriodChange}
           currentPeriod={currentPeriod}
           allPeriods={allPeriods}
           selectedPeriodIndex={selectedPeriodIndex}
