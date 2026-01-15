@@ -6,12 +6,12 @@ import Dashboard from './pages/Dashboard';
 import Deliveries from './pages/Deliveries';
 import DeliveryMetrics from './pages/DeliveryMetrics';
 import DiagnosticsPage from './pages/DiagnosticsPage';
+import DriverPayroll from './pages/DriverPayroll';
 import DriverSettings from './pages/DriverSettings';
 import Home from './pages/Home';
 import Patients from './pages/Patients';
 import Stores from './pages/Stores';
 import Users from './pages/Users';
-import DriverPayroll from './pages/DriverPayroll';
 import __Layout from './Layout.jsx';
 
 
@@ -24,12 +24,12 @@ export const PAGES = {
     "Deliveries": Deliveries,
     "DeliveryMetrics": DeliveryMetrics,
     "DiagnosticsPage": DiagnosticsPage,
+    "DriverPayroll": DriverPayroll,
     "DriverSettings": DriverSettings,
     "Home": Home,
     "Patients": Patients,
     "Stores": Stores,
     "Users": Users,
-    "DriverPayroll": DriverPayroll,
 }
 
 export const pagesConfig = {
