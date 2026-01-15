@@ -363,6 +363,7 @@ export default function DriverPayroll() {
           deliveries={cityFilteredDeliveries}
           drivers={sortedDrivers}
           appUsers={appUsers}
+          patients={patients}
           selectedYear={selectedYear}
           selectedDriverId={selectedDriverId}
           payPeriod={payPeriod}
