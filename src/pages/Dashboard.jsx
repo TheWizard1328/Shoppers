@@ -5608,13 +5608,19 @@ function Dashboard() {
         console.log(`   ✅ Cleared ${resetPromises.length} isNextDelivery flags`);
       }
 
-      // STEP 2: Set isNextDelivery=true on the selected delivery
+      // STEP 2: Set isNextDelivery=true on the selected delivery and update status
       console.log('🎯 [START] Step 2: Setting isNextDelivery=true on selected delivery...');
+      
+      // CRITICAL: Calculate stop_order FIRST - this delivery becomes the next after completed stops
+      const completedStops = allDriverDeliveries.filter((d) => finishedStatuses.includes(d.status));
+      const nextStopOrder = completedStops.length + 1;
+      
       await base44.entities.Delivery.update(deliveryId, {
         isNextDelivery: true,
-        status: newStatus
+        status: newStatus,
+        stop_order: nextStopOrder
       });
-      console.log('   ✅ isNextDelivery flag set and status updated');
+      console.log(`   ✅ isNextDelivery flag set, status updated, and stop_order set to ${nextStopOrder}`);
 
       // STEP 3: Calculate stop_order - this delivery becomes the next after completed stops
       console.log('📊 [START] Step 3: Calculating stop_order...');
