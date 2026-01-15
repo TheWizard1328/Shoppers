@@ -3152,7 +3152,7 @@ export default function DeliveriesPage() {
             )}
           </div>
         ) : (
-          <div className="h-full overflow-hidden px-4">
+          <div className="h-full overflow-hidden px-4 relative">
             <DeliveryListView
               deliveries={deliveriesToRender}
               patients={effectivePatients || []}
