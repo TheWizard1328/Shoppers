@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Table, ChevronLeft, ChevronRight, Package, Ruler } from 'lucide-react';
+import { Table, ChevronLeft, ChevronRight, Package, Ruler, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
+import { useAppData } from '@/components/utils/AppDataContext';
 
 /**
  * Driver Payroll Grid
@@ -24,6 +25,19 @@ export default function DriverPayrollGrid({
   onNextPeriod
 }) {
   const [viewMode, setViewMode] = useState('deliveries'); // 'deliveries' or 'extraKm'
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const { smartRefreshActivity } = useAppData();
+
+  // Track smart refresh activity
+  useEffect(() => {
+    if (smartRefreshActivity?.active) {
+      setIsRefreshing(true);
+    } else {
+      // Keep spinner visible briefly after refresh completes
+      const timer = setTimeout(() => setIsRefreshing(false), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [smartRefreshActivity?.active]);
 
   if (!deliveries || !stores || !currentPeriod) return null;
 
@@ -150,36 +164,41 @@ export default function DriverPayrollGrid({
   return (
     <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
       <CardHeader className="pb-3">
-        <div className="flex flex-col gap-3">
-          {/* Pay Period Type Selector */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <CardTitle className="flex items-center gap-2 text-base" style={{ color: 'var(--text-slate-900)' }}>
-                <Table className="w-5 h-5" />
-                {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
-              </CardTitle>
-              {/* View Mode Toggle */}
-              <div className="flex gap-1 rounded-lg p-0.5" style={{ background: 'var(--bg-slate-100)' }}>
-                <Button
-                  size="sm"
-                  variant={viewMode === 'deliveries' ? 'default' : 'ghost'}
-                  onClick={() => setViewMode('deliveries')}
-                  className="text-xs h-6 px-2 gap-1"
-                >
-                  <Package className="w-3 h-3" />
-                  Deliveries
-                </Button>
-                <Button
-                  size="sm"
-                  variant={viewMode === 'extraKm' ? 'default' : 'ghost'}
-                  onClick={() => setViewMode('extraKm')}
-                  className="text-xs h-6 px-2 gap-1"
-                >
-                  <Ruler className="w-3 h-3" />
-                  Extra KM
-                </Button>
-              </div>
+        <div className="flex flex-col gap-2">
+          {/* Desktop: Single row layout */}
+          <div className="hidden md:flex items-center justify-between">
+            {/* Section 1: Title with refresh spinner */}
+            <CardTitle className="flex items-center gap-2 text-base" style={{ color: 'var(--text-slate-900)' }}>
+              <Table className="w-5 h-5" />
+              {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
+              {isRefreshing && (
+                <RefreshCw className="w-4 h-4 animate-spin text-emerald-500" />
+              )}
+            </CardTitle>
+            
+            {/* Section 2: View Mode Toggle */}
+            <div className="flex gap-1 rounded-lg p-0.5" style={{ background: 'var(--bg-slate-100)' }}>
+              <Button
+                size="sm"
+                variant={viewMode === 'deliveries' ? 'default' : 'ghost'}
+                onClick={() => setViewMode('deliveries')}
+                className="text-xs h-6 px-2 gap-1"
+              >
+                <Package className="w-3 h-3" />
+                Deliveries
+              </Button>
+              <Button
+                size="sm"
+                variant={viewMode === 'extraKm' ? 'default' : 'ghost'}
+                onClick={() => setViewMode('extraKm')}
+                className="text-xs h-6 px-2 gap-1"
+              >
+                <Ruler className="w-3 h-3" />
+                Extra KM
+              </Button>
             </div>
+            
+            {/* Section 3: Pay Period Type Buttons */}
             <div className="flex gap-1">
               <Button
                 size="sm"
@@ -207,6 +226,80 @@ export default function DriverPayrollGrid({
                 style={payPeriod !== 'semimonthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}
               >
                 Semi-Monthly
+              </Button>
+              <Button
+                size="sm"
+                variant={payPeriod === 'monthly' ? 'default' : 'outline'}
+                onClick={() => onPayPeriodChange('monthly')}
+                className="text-xs h-7 px-2"
+                style={payPeriod !== 'monthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}
+              >
+                Monthly
+              </Button>
+            </div>
+          </div>
+          
+          {/* Mobile: 3 rows layout */}
+          <div className="md:hidden flex flex-col gap-2">
+            {/* Row 1: Title with refresh spinner */}
+            <CardTitle className="flex items-center gap-2 text-base" style={{ color: 'var(--text-slate-900)' }}>
+              <Table className="w-5 h-5" />
+              {viewMode === 'deliveries' ? 'Deliveries' : 'Extra KM'} by Store
+              {isRefreshing && (
+                <RefreshCw className="w-4 h-4 animate-spin text-emerald-500" />
+              )}
+            </CardTitle>
+            
+            {/* Row 2: View Mode Toggle */}
+            <div className="flex gap-1 rounded-lg p-0.5 self-start" style={{ background: 'var(--bg-slate-100)' }}>
+              <Button
+                size="sm"
+                variant={viewMode === 'deliveries' ? 'default' : 'ghost'}
+                onClick={() => setViewMode('deliveries')}
+                className="text-xs h-6 px-2 gap-1"
+              >
+                <Package className="w-3 h-3" />
+                Deliveries
+              </Button>
+              <Button
+                size="sm"
+                variant={viewMode === 'extraKm' ? 'default' : 'ghost'}
+                onClick={() => setViewMode('extraKm')}
+                className="text-xs h-6 px-2 gap-1"
+              >
+                <Ruler className="w-3 h-3" />
+                Extra KM
+              </Button>
+            </div>
+            
+            {/* Row 3: Pay Period Type Buttons */}
+            <div className="flex gap-1 flex-wrap">
+              <Button
+                size="sm"
+                variant={payPeriod === 'weekly' ? 'default' : 'outline'}
+                onClick={() => onPayPeriodChange('weekly')}
+                className="text-xs h-7 px-2"
+                style={payPeriod !== 'weekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}
+              >
+                Weekly
+              </Button>
+              <Button
+                size="sm"
+                variant={payPeriod === 'biweekly' ? 'default' : 'outline'}
+                onClick={() => onPayPeriodChange('biweekly')}
+                className="text-xs h-7 px-2"
+                style={payPeriod !== 'biweekly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}
+              >
+                Bi-Wkly
+              </Button>
+              <Button
+                size="sm"
+                variant={payPeriod === 'semimonthly' ? 'default' : 'outline'}
+                onClick={() => onPayPeriodChange('semimonthly')}
+                className="text-xs h-7 px-2"
+                style={payPeriod !== 'semimonthly' ? { background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' } : {}}
+              >
+                Semi-Mo
               </Button>
               <Button
                 size="sm"
