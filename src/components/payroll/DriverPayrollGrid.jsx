@@ -283,19 +283,26 @@ export default function DriverPayrollGrid({
                       {monthShort} {dayNum} <span className="text-slate-400 text-[9px]">{dayOfWeek}</span>
                     </td>
                     {sortedStores.map((store) => {
-                      const value = dataMap[dateKey]?.[store.id] || 0;
+                      const value = viewMode === 'extraKm' 
+                        ? (extraKmMap[dateKey]?.[store.id] || 0)
+                        : (dataMap[dateKey]?.[store.id] || 0);
+                      const displayValue = viewMode === 'extraKm' 
+                        ? (value > 0 ? value.toFixed(1) : '')
+                        : (value > 0 ? value : '');
                       return (
                         <td
                           key={store.id}
                           className="text-center px-2 py-0.5 tabular-nums"
                           style={{ color: value > 0 ? getStoreColor(store) : '#94a3b8' }}
                         >
-                          {value > 0 ? value : ''}
+                          {displayValue}
                         </td>
                       );
                     })}
                     <td className="text-center px-2 py-0.5 font-semibold text-slate-900 border-l-2 border-purple-300 tabular-nums">
-                      {dayTotal > 0 ? dayTotal : ''}
+                      {viewMode === 'extraKm' 
+                        ? (dayTotal > 0 ? dayTotal.toFixed(1) : '')
+                        : (dayTotal > 0 ? dayTotal : '')}
                     </td>
                   </tr>
                 );
