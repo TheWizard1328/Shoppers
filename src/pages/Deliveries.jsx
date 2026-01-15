@@ -3133,8 +3133,8 @@ export default function DeliveriesPage() {
   isMobile,
   loadData,
   viewMode,
-  showSplitView,
-  handleCODUpdate]
+  handleCODUpdate,
+  windowWidth]
   );
   
   // Track window width for responsive layout
