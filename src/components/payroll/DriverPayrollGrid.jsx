@@ -14,6 +14,8 @@ export default function DriverPayrollGrid({
   selectedMonth,
   selectedDriverId 
 }) {
+  const [payPeriod, setPayPeriod] = useState('monthly');
+
   if (!deliveries || !stores) return null;
 
   // Get days in the selected month
