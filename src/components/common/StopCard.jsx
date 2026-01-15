@@ -2281,25 +2281,13 @@ export default function StopCard({
                             delivery_time_start: currentLocalTime
                           }, { skipSmartRefresh: true });
 
-                          // Run Route Optimizer in background
+                          // CRITICAL: Route optimization re-enabled for Start button
                           try {
-                            let startLat, startLng;
-                            if (delivery.puid) {
-                              const storeForLoc = stores.find((s) => s.id === delivery.store_id);
-                              startLat = storeForLoc?.latitude;
-                              startLng = storeForLoc?.longitude;
-                            } else {
-                              const patientForLoc = patients.find((p) => p.id === delivery.patient_id);
-                              startLat = patientForLoc?.latitude;
-                              startLng = patientForLoc?.longitude;
-                            }
-
                             console.log('🔄 [START] Running optimizeRouteRealTime...');
                             await base44.functions.invoke('optimizeRouteRealTime', {
                               driverId: delivery.driver_id,
                               deliveryDate: delivery.delivery_date,
                               currentLocalTime: currentLocalTime,
-                              startLocation: startLat && startLng ? { lat: startLat, lng: startLng } : null,
                               generatePolyline: false
                             });
                             console.log('✅ [START] Route optimized');
