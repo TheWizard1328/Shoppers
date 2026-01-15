@@ -11,6 +11,7 @@ import Home from './pages/Home';
 import Patients from './pages/Patients';
 import Stores from './pages/Stores';
 import Users from './pages/Users';
+import DriverPayroll from './pages/DriverPayroll';
 import __Layout from './Layout.jsx';
 
 
@@ -28,6 +29,7 @@ export const PAGES = {
     "Patients": Patients,
     "Stores": Stores,
     "Users": Users,
+    "DriverPayroll": DriverPayroll,
 }
 
 export const pagesConfig = {
