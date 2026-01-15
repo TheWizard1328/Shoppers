@@ -140,7 +140,7 @@ export default function DualStatsMarquee({
         <div className="grid grid-cols-4 gap-1">
           <StatBadge
             icon={DollarSign}
-            value={performanceStats?.totalPay !== undefined ? `$${performanceStats.totalPay.toFixed(2)}` : '...'}
+            value={`$${performanceStats?.totalPay?.toFixed(2) || '0.00'}`}
             color="green"
             label="Pay"
             tooltip={`Total Pay: $${performanceStats?.totalPay?.toFixed(2) || '0.00'}`}
@@ -148,7 +148,7 @@ export default function DualStatsMarquee({
 
           <StatBadge
             icon={Route}
-            value={performanceStats?.totalKm !== undefined ? `${performanceStats.totalKm.toFixed(2)}k` : '...'}
+            value={`${performanceStats?.totalKm?.toFixed(2) || '0.00'}k`}
             color="blue"
             label="Km"
             tooltip={`Total Distance: ${performanceStats?.totalKm?.toFixed(2) || '0.00'} km`}
@@ -156,7 +156,7 @@ export default function DualStatsMarquee({
 
           <StatBadge
             icon={TrendingUp}
-            value={performanceStats?.totalExtraKm !== undefined ? `${performanceStats.totalExtraKm.toFixed(2)}k` : '...'}
+            value={`${performanceStats?.totalExtraKm?.toFixed(2) || '0.00'}k`}
             color="amber"
             label="Extra"
             tooltip={`Extra Km (beyond ${performanceStats?.extraKmLimit || 0} km limit): ${performanceStats?.totalExtraKm?.toFixed(2) || '0.00'} km`}
@@ -164,7 +164,7 @@ export default function DualStatsMarquee({
 
           <StatBadge
             icon={Clock}
-            value={performanceStats?.totalTimeOnDuty || '...'}
+            value={performanceStats?.totalTimeOnDuty || '00:00'}
             color="purple"
             label="Duty"
             tooltip={`Total Time on Duty: ${performanceStats?.totalTimeOnDuty || '00:00'}`}
