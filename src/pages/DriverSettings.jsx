@@ -222,8 +222,11 @@ export default function DriverSettings() {
                       </div>
                       
                       {/* Pay rates display */}
-                      {(driver.pay_rate_per_delivery > 0 || driver.extra_km_rate > 0 || driver.extra_km_limit > 0 || driver.oversized_item_rate > 0) &&
+                      {(latestAppUser?.pay_cycle_type || driver.pay_rate_per_delivery > 0 || driver.extra_km_rate > 0 || driver.extra_km_limit > 0 || driver.oversized_item_rate > 0) &&
                     <div className="flex gap-1.5 mt-1.5 text-xs flex-wrap" style={{ color: 'var(--text-slate-500)' }}>
+                          {latestAppUser?.pay_cycle_type &&
+                      <span className="capitalize">{latestAppUser.pay_cycle_type === 'biweekly' ? 'Bi-Weekly' : latestAppUser.pay_cycle_type === 'semimonthly' ? 'Semi-Monthly' : latestAppUser.pay_cycle_type}</span>
+                      }
                           {driver.pay_rate_per_delivery > 0 &&
                       <span>${Number(driver.pay_rate_per_delivery).toFixed(2)}/delivery</span>
                       }
