@@ -547,9 +547,16 @@ Deno.serve(async (req) => {
             return null;
           };
           
-          // CRITICAL: Calculate time on duty from stops (first to last) minus breaks
+          // CRITICAL: Time on Duty calculation with 2-rule fallback system
           const breakTimeMinutes = appUser?.total_break_time_minutes || 0;
           
+          // RULE 1: Try to calculate from actual on_duty/off_duty toggle times
+          // TODO: This requires storing duty start/end times in AppUser - not yet implemented
+          // For now, use 0 as placeholder for Rule 1
+          let dutyFromToggles = 0;
+          
+          // RULE 2: Calculate from first finished stop to last finished stop, minus breaks
+          let dutyFromStops = 0;
           const finishedWithTimes = todayDeliveries
             .filter(d => d.actual_delivery_time)
             .map(d => ({ ...d, localMinutes: extractLocalTimeMinutes(d.actual_delivery_time) }))
@@ -562,17 +569,22 @@ Deno.serve(async (req) => {
             
             // Calculate raw duration and deduct breaks
             const rawDurationMinutes = lastMinutes - firstMinutes;
-            const totalDutyMinutes = Math.max(0, rawDurationMinutes - breakTimeMinutes);
+            dutyFromStops = Math.max(0, rawDurationMinutes - breakTimeMinutes);
             
-            console.log(`⏱️ [TIME DEBUG] First stop: ${finishedWithTimes[0].actual_delivery_time} -> ${Math.floor(firstMinutes/60)}:${String(firstMinutes%60).padStart(2,'0')}`);
-            console.log(`⏱️ [TIME DEBUG] Last stop: ${finishedWithTimes[finishedWithTimes.length - 1].actual_delivery_time} -> ${Math.floor(lastMinutes/60)}:${String(lastMinutes%60).padStart(2,'0')}`);
-            console.log(`⏱️ [TIME DEBUG] Raw: ${rawDurationMinutes}min, Breaks: ${breakTimeMinutes}min, Duty: ${totalDutyMinutes}min`);
-            
-            // CRITICAL: Even if totalDutyMinutes is 0, set it (don't leave as default)
-            const hours = Math.floor(totalDutyMinutes / 60);
-            const minutes = totalDutyMinutes % 60;
-            performanceStats.totalTimeOnDuty = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+            console.log(`⏱️ [TIME CALC] First: ${finishedWithTimes[0].actual_delivery_time} (${Math.floor(firstMinutes/60)}:${String(firstMinutes%60).padStart(2,'0')})`);
+            console.log(`⏱️ [TIME CALC] Last: ${finishedWithTimes[finishedWithTimes.length - 1].actual_delivery_time} (${Math.floor(lastMinutes/60)}:${String(lastMinutes%60).padStart(2,'0')})`);
+            console.log(`⏱️ [TIME CALC] Raw: ${rawDurationMinutes}min, Breaks: ${breakTimeMinutes}min`);
+            console.log(`⏱️ [TIME CALC] Rule 1 (toggles): ${dutyFromToggles}min, Rule 2 (stops): ${dutyFromStops}min`);
           }
+          
+          // Use the LARGER of the two values
+          const totalDutyMinutes = Math.max(dutyFromToggles, dutyFromStops);
+          console.log(`⏱️ [TIME FINAL] Using: ${totalDutyMinutes}min (${totalDutyMinutes > 0 ? 'Rule ' + (dutyFromToggles > dutyFromStops ? '1' : '2') : 'none'})`);
+          
+          const hours = Math.floor(totalDutyMinutes / 60);
+          const minutes = totalDutyMinutes % 60;
+          performanceStats.totalTimeOnDuty = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+          console.log(`✅ [TIME RESULT] ${performanceStats.totalTimeOnDuty}`);
         }
       } else if (uniqueDriverIds.length > 0) {
         // ALL DRIVERS MODE - aggregate stats across all drivers
@@ -685,9 +697,13 @@ Deno.serve(async (req) => {
           totalKmAllDrivers += driverTotalKm;
           totalExtraKmAllDrivers += driverTotalExtraKm;
           
-          // CRITICAL: Calculate time on duty for this driver (stop times with break deductions)
+          // CRITICAL: Calculate time on duty for this driver using 2-rule system
           const breakTimeMinutes = driverAppUser.total_break_time_minutes || 0;
           
+          // Rule 1: Actual duty toggles (not yet implemented - placeholder)
+          let dutyFromToggles = 0;
+          
+          // Rule 2: First to last stop minus breaks
           const extractLocalTimeMinutesForAllDrivers = (timeStr) => {
             if (!timeStr) return null;
             const match = timeStr.match(/T(\d{2}):(\d{2})/);
@@ -703,26 +719,27 @@ Deno.serve(async (req) => {
             .filter(d => d.localMinutes !== null)
             .sort((a, b) => a.localMinutes - b.localMinutes);
           
+          let dutyFromStops = 0;
           if (finishedDeliveriesForTime.length > 0) {
             const driverFirstMinutes = finishedDeliveriesForTime[0].localMinutes;
             const driverLastMinutes = finishedDeliveriesForTime[finishedDeliveriesForTime.length - 1].localMinutes;
             
-            // Calculate raw duration and deduct breaks
             const rawDurationMinutes = driverLastMinutes - driverFirstMinutes;
-            const driverDutyMinutes = Math.max(0, rawDurationMinutes - breakTimeMinutes);
+            dutyFromStops = Math.max(0, rawDurationMinutes - breakTimeMinutes);
             
-            totalDutyMinutesAllDrivers += driverDutyMinutes;
-            
-            console.log(`⏱️ [All Drivers - ${driverUserId}] Raw: ${rawDurationMinutes}min, Breaks: ${breakTimeMinutes}min, Duty: ${driverDutyMinutes}min`);
+            console.log(`⏱️ [All Drivers - ${driverUserId}] Raw: ${rawDurationMinutes}min, Breaks: ${breakTimeMinutes}min, From Stops: ${dutyFromStops}min`);
           }
+          
+          // Use the larger of the two values
+          const driverDutyMinutes = Math.max(dutyFromToggles, dutyFromStops);
+          totalDutyMinutesAllDrivers += driverDutyMinutes;
         }
         
         // Calculate aggregated time on duty
-        if (totalDutyMinutesAllDrivers > 0) {
-          const hours = Math.floor(totalDutyMinutesAllDrivers / 60);
-          const minutes = totalDutyMinutesAllDrivers % 60;
-          performanceStats.totalTimeOnDuty = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-        }
+        const hours = Math.floor(totalDutyMinutesAllDrivers / 60);
+        const minutes = totalDutyMinutesAllDrivers % 60;
+        performanceStats.totalTimeOnDuty = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+        console.log(`✅ [All Drivers Total Time] ${performanceStats.totalTimeOnDuty} (${totalDutyMinutesAllDrivers}min total)`);
         
         performanceStats.totalPay = totalPayAllDrivers;
         performanceStats.totalKm = totalKmAllDrivers;
