@@ -381,7 +381,7 @@ export default function DriverPayrollGrid({
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" style={{ background: 'var(--bg-grid)' }}>
           <table className="w-full text-[11px]">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
