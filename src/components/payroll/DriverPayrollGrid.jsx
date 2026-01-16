@@ -113,30 +113,12 @@ export default function DriverPayrollGrid({
     return extraKm > 0 ? extraKm : 0;
   };
 
-  // Calculate which stores have ANY deliveries in the period (for ALL drivers, ignoring driver filter)
-  // This is used to hide empty store columns on mobile
-  const storesWithAnyData = useMemo(() => {
-    const storeHasAnyData = {};
-    
-    // Filter deliveries for period only (ignore driver filter)
-    deliveries.forEach(d => {
-      if (!d || !d.delivery_date) return;
-      const date = new Date(d.delivery_date + 'T00:00:00');
-      if (date < currentPeriod.start || date > currentPeriod.end) return;
-      const validStatus = d.status === 'completed' || d.status === 'failed' || (d.status === 'cancelled' && d.after_hours_pickup);
-      if (!validStatus) return;
-      if (!d.patient_id && !d.after_hours_pickup) return;
-      storeHasAnyData[d.store_id] = true;
-    });
-    
-    return allSortedStores.filter(store => storeHasAnyData[store.id]);
-  }, [deliveries, currentPeriod, allSortedStores]);
-
   // Build a map of dateKey -> store -> count (deliveries), extraKm, and oversized count
-  const { dataMap, extraKmMap, oversizedMap } = useMemo(() => {
+  const { dataMap, extraKmMap, oversizedMap, storesWithData } = useMemo(() => {
     const deliveryMap = {};
     const kmMap = {};
     const oversizedCountMap = {};
+    const storeHasData = {};
     
     periodDays.forEach(day => {
       const dateKey = format(day, 'yyyy-MM-dd');
@@ -156,29 +138,21 @@ export default function DriverPayrollGrid({
       if (deliveryMap[dateKey] && deliveryMap[dateKey][storeId] !== undefined) {
         deliveryMap[dateKey][storeId]++;
         kmMap[dateKey][storeId] += calculateExtraKm(d);
+        storeHasData[storeId] = true;
         if (d.oversized) {
           oversizedCountMap[dateKey][storeId]++;
         }
       }
     });
 
-    return { dataMap: deliveryMap, extraKmMap: kmMap, oversizedMap: oversizedCountMap };
+    // Filter to only stores that have data in this period
+    const storesWithDataList = allSortedStores.filter(store => storeHasData[store.id]);
+
+    return { dataMap: deliveryMap, extraKmMap: kmMap, oversizedMap: oversizedCountMap, storesWithData: storesWithDataList };
   }, [filteredDeliveries, periodDays, allSortedStores, patients, appUsers]);
 
-  // Check if mobile (window width < 768px)
-  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768);
-  
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  // On mobile: hide store columns that have 0 deliveries for ALL drivers in period
-  // On desktop: show all store columns
-  const sortedStores = isMobile 
-    ? (storesWithAnyData.length > 0 ? storesWithAnyData : allSortedStores)
-    : allSortedStores;
+  // Use stores with data for display (hide empty columns)
+  const sortedStores = storesWithData.length > 0 ? storesWithData : allSortedStores;
 
   // Calculate store totals (column totals)
   const { storeTotals, storeKmTotals } = useMemo(() => {
@@ -408,7 +382,7 @@ export default function DriverPayrollGrid({
       </CardHeader>
       <CardContent className="p-0">
         <div className="overflow-x-auto">
-          <table className="text-[11px]" style={{ minWidth: 'max-content' }}>
+          <table className="w-full text-[11px]">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
                 <th className="text-left px-1 md:px-2 py-1 font-medium sticky left-0 z-10" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)' }}>Day</th>
