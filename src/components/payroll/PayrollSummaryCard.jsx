@@ -148,7 +148,7 @@ export default function PayrollSummaryCard({
       const grossPay = totalPay + taxAmount - deductions;
 
       return {
-        driver,
+        driver: { ...driver, id: driverId }, // Ensure consistent id
         payRate,
         extraKmRate,
         extraKmLimit,
