@@ -231,7 +231,15 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
                           key={store.abbreviation}
                           className={`text-center p-2 tabular-nums cursor-pointer hover:bg-blue-100 ${isStoreMonthSelected ? 'bg-blue-200' : ''}`}
                           style={{ color: (value !== null && value !== undefined && value > 0) ? getStoreColor(store) : '#94a3b8' }}
-                          onClick={() => value !== null && value !== undefined && storeId && onStoreMonthClick?.(month, storeId, store.abbreviation, store.name)}>
+                          onClick={() => {
+                            if (value !== null && value !== undefined) {
+                              // Get the actual storeId from the store object, not from getStoreId
+                              const actualStoreId = store.storeId || storeId;
+                              if (actualStoreId) {
+                                onStoreMonthClick?.(month, actualStoreId, store.abbreviation, store.name);
+                              }
+                            }
+                          }}>
 
                           {formatValue(value, storeId, month)}
                         </td>);
