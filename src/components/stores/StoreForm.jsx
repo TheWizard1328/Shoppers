@@ -12,7 +12,9 @@ import { motion } from 'framer-motion';
 import { useAppData } from '../utils/AppDataContext';
 
 export default function StoreForm({ store, cities = [], drivers = [], allUsers = [], onSave, onCancel }) {
-  const { setIsFormOverlayOpen } = useAppData();
+  // Safely get context - may not be available if rendered outside AppDataProvider
+  const appDataContext = useAppData();
+  const setIsFormOverlayOpen = appDataContext?.setIsFormOverlayOpen;
   
   // Helper to find driver ID based on name, for backward compatibility during initialization
   const findDriverIdFromName = (driverName, allDrivers) => {
@@ -179,10 +181,12 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
   const sortedCities = [...cities].sort((a, b) => a.name.localeCompare(b.name));
 
   useEffect(() => {
-    setIsFormOverlayOpen(true);
-    return () => {
-      setIsFormOverlayOpen(false);
-    };
+    if (setIsFormOverlayOpen) {
+      setIsFormOverlayOpen(true);
+      return () => {
+        setIsFormOverlayOpen(false);
+      };
+    }
   }, [setIsFormOverlayOpen]);
 
 
