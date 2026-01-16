@@ -739,13 +739,20 @@ export default function ImportActiveRoutes({
 
       if (existingDelivery) {
         // EXISTING DELIVERY MATCHED BY SID: Replace all data from import (except ID and notes)
-        // CRITICAL: Always use imported stop_order, status, and other fields - this is the source of truth
+        // CRITICAL: For completed stops, use imported stop_order
+        // For active stops (in_transit/en_route) with stop_order=0, preserve existing stop_order
+        let effectiveStopOrder = stopOrder;
+        if (stopOrder === 0 && (deliveryStatus === 'in_transit' || deliveryStatus === 'en_route')) {
+          // Active stop - preserve existing stop_order if available
+          effectiveStopOrder = existingDelivery.stop_order || 0;
+        }
+        
         const updatedDeliveryData = {
           ...newDeliveryData,
           id: existingDelivery.id,
           delivery_notes: existingDelivery.delivery_notes || null,
-          // CRITICAL: Always use imported stop_order (even if 0 - means incomplete)
-          stop_order: stopOrder,
+          // CRITICAL: Use effective stop_order (preserves existing for active stops)
+          stop_order: effectiveStopOrder,
           // CRITICAL: Always use imported status
           status: deliveryStatus,
           // CRITICAL: Always use imported actual_delivery_time
