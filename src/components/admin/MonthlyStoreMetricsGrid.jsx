@@ -58,7 +58,9 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
           let value;
           if (metricsViewMode === 'deliveries') {
             const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[storeData.storeId]?.[month];
-            value = showEnvelopeAdjustedTotals && envelopeInfo ? envelopeInfo.adjustedDeliveries : storeData.completed;
+            // Include completed + failed + afterHours + cancelled for total billable deliveries
+            const totalDeliveries = (storeData.completed || 0) + (storeData.failed || 0) + (storeData.afterHours || 0) + (storeData.cancelled || 0);
+            value = showEnvelopeAdjustedTotals && envelopeInfo ? envelopeInfo.adjustedDeliveries : totalDeliveries;
           } else {
             value = storeData.fees || 0;
           }
@@ -83,7 +85,9 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
       let value;
       if (metricsViewMode === 'deliveries') {
         const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[store.storeId]?.[month];
-        value = showEnvelopeAdjustedTotals && envelopeInfo ? envelopeInfo.adjustedDeliveries : store.completed;
+        // Include completed + failed + afterHours + cancelled for total billable deliveries
+        const totalDeliveries = (store.completed || 0) + (store.failed || 0) + (store.afterHours || 0) + (store.cancelled || 0);
+        value = showEnvelopeAdjustedTotals && envelopeInfo ? envelopeInfo.adjustedDeliveries : totalDeliveries;
       } else {
         value = store.fees || 0;
       }
@@ -100,7 +104,9 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
     let value;
     if (metricsViewMode === 'deliveries') {
       const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[storeData.storeId]?.[month];
-      value = showEnvelopeAdjustedTotals && envelopeInfo ? envelopeInfo.adjustedDeliveries : storeData.completed;
+      // Include completed + failed + afterHours + cancelled for total billable deliveries
+      const totalDeliveries = (storeData.completed || 0) + (storeData.failed || 0) + (storeData.afterHours || 0) + (storeData.cancelled || 0);
+      value = showEnvelopeAdjustedTotals && envelopeInfo ? envelopeInfo.adjustedDeliveries : totalDeliveries;
     } else {
       value = storeData.fees || 0;
     }
