@@ -1428,8 +1428,10 @@ export default function ImportActiveRoutes({
         console.error('❌ [ImportActiveRoutes] Failed to update isNextDelivery flags:', flagError);
       }
       
-      // CRITICAL: Reorder stops after import - completed first by actual_delivery_time, then active by ETA
-      setProgressMessage('Reordering stops by completion time and ETA...');
+      // CRITICAL: Reorder stops after import using IMPORTED stop_order values
+      // Completed stops (stop_order > 0) come first, sorted by stop_order
+      // Then active stops (in_transit/en_route), then pending stops
+      setProgressMessage('Sorting stops by imported stop order...');
       
       try {
         const { minDate, maxDate } = cachedDateRange;
@@ -1461,40 +1463,42 @@ export default function ImportActiveRoutes({
             for (const [date, dateDeliveries] of Object.entries(deliveriesByDate)) {
               const finishedStatuses = ['completed', 'failed', 'cancelled', 'returned'];
               
-              // Separate completed and active deliveries
-              const completedDeliveries = dateDeliveries
-                .filter(d => finishedStatuses.includes(d.status))
-                .sort((a, b) => {
-                  // Sort by actual_delivery_time ascending
-                  const timeA = a.actual_delivery_time ? new Date(a.actual_delivery_time).getTime() : 0;
-                  const timeB = b.actual_delivery_time ? new Date(b.actual_delivery_time).getTime() : 0;
-                  return timeA - timeB;
-                });
+              // CRITICAL: Sort ALL deliveries by their imported stop_order
+              // Completed stops have stop_order > 0 from import
+              // Active/pending stops may have stop_order = 0 (to be assigned)
+              const sortedDeliveries = [...dateDeliveries].sort((a, b) => {
+                const aFinished = finishedStatuses.includes(a.status);
+                const bFinished = finishedStatuses.includes(b.status);
+                
+                // Finished stops come first
+                if (aFinished && !bFinished) return -1;
+                if (!aFinished && bFinished) return 1;
+                
+                // Among finished stops, sort by stop_order (completion order)
+                if (aFinished && bFinished) {
+                  return (a.stop_order || 999) - (b.stop_order || 999);
+                }
+                
+                // Among active/pending stops, sort by stop_order if > 0, else by ETA
+                const aOrder = a.stop_order || 0;
+                const bOrder = b.stop_order || 0;
+                
+                if (aOrder > 0 && bOrder > 0) {
+                  return aOrder - bOrder;
+                }
+                if (aOrder > 0) return -1;
+                if (bOrder > 0) return 1;
+                
+                // Both have stop_order = 0, sort by ETA
+                const etaA = a.delivery_time_eta || a.delivery_time_start || '99:99';
+                const etaB = b.delivery_time_eta || b.delivery_time_start || '99:99';
+                return etaA.localeCompare(etaB);
+              });
               
-              const activeDeliveries = dateDeliveries
-                .filter(d => !finishedStatuses.includes(d.status) && d.status !== 'pending')
-                .sort((a, b) => {
-                  // Sort by ETA (delivery_time_eta or delivery_time_start) ascending
-                  const etaA = a.delivery_time_eta || a.delivery_time_start || '99:99';
-                  const etaB = b.delivery_time_eta || b.delivery_time_start || '99:99';
-                  return etaA.localeCompare(etaB);
-                });
-              
-              const pendingDeliveries = dateDeliveries
-                .filter(d => d.status === 'pending')
-                .sort((a, b) => {
-                  // Sort pending by delivery_time_start if available
-                  const timeA = a.delivery_time_start || '99:99';
-                  const timeB = b.delivery_time_start || '99:99';
-                  return timeA.localeCompare(timeB);
-                });
-              
-              // Assign sequential stop_order: completed first, then active, then pending
-              const orderedDeliveries = [...completedDeliveries, ...activeDeliveries, ...pendingDeliveries];
-              
+              // Assign sequential stop_order starting from 1
               const updatePromises = [];
-              for (let i = 0; i < orderedDeliveries.length; i++) {
-                const delivery = orderedDeliveries[i];
+              for (let i = 0; i < sortedDeliveries.length; i++) {
+                const delivery = sortedDeliveries[i];
                 const newStopOrder = i + 1;
                 
                 // Only update if stop_order changed
@@ -1510,6 +1514,8 @@ export default function ImportActiveRoutes({
                 console.log(`✅ [ImportActiveRoutes] Reordered ${updatePromises.length} stops for ${driverId} on ${date}`);
               }
             }
+            
+            await delay(500); // Delay between drivers to avoid rate limits
           }
         }
       } catch (reorderError) {
