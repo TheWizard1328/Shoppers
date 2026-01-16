@@ -436,7 +436,10 @@ export default function AdminMetrics() {
           <CardContent>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={(filteredData?.storeData || metricsData.storeData)?.map(item => ({
+                <BarChart data={(filteredData?.storeData || metricsData.storeData)
+                  ?.slice()
+                  .sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity))
+                  .map(item => ({
                   ...item,
                   totalCompleted: (item.completed || 0) + (item.afterHours || 0),
                   totalFailed: (item.failed || 0) + (item.cancelled || 0),
@@ -560,11 +563,12 @@ export default function AdminMetrics() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart 
                     data={
-                      selectedStoreMonth 
+                      (selectedStoreMonth 
                         ? metricsData.driverDataByStore?.[selectedStoreMonth.storeId]
                         : selectedMonth 
                           ? metricsData.driverDataByMonth?.[selectedMonth] 
                           : metricsData.driverData
+                      )?.slice().sort((a, b) => (b.billable || 0) - (a.billable || 0))
                     } 
                     barCategoryGap="15%"
                   >
