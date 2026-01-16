@@ -385,7 +385,7 @@ export default function DriverPayrollGrid({
           <table className="w-full text-[11px]">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-slate-200)', background: 'var(--bg-slate-50)' }}>
-                <th className="text-left px-1 md:px-2 py-1 font-medium sticky left-0 z-10" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)' }}>Day</th>
+                <th className="text-center px-1 md:px-2 py-1 font-medium sticky left-0 z-10 border-r-2 border-slate-300" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)' }}>Day</th>
                 {sortedStores.map((store) => (
                   <th
                     key={store.id}
@@ -414,11 +414,10 @@ export default function DriverPayrollGrid({
                     style={{ borderBottom: '1px solid var(--border-slate-200)', background: isWeekend ? 'var(--bg-slate-100)' : 'transparent' }}
                   >
                     <td
-                      className="px-1 md:px-2 py-0.5 font-medium sticky left-0 z-10"
+                      className="text-center px-1 md:px-2 py-0.5 font-medium sticky left-0 z-10 border-r-2 border-slate-300"
                       style={{ color: 'var(--text-slate-600)', background: isWeekend ? 'var(--bg-slate-100)' : 'var(--bg-white)' }}
                     >
-                      <span className="md:hidden">{dayNum}</span>
-                      <span className="hidden md:inline">{dayNum}</span>
+                      {dayNum}
                     </td>
                     {sortedStores.map((store) => {
                       const value = viewMode === 'extraKm' 
@@ -454,7 +453,7 @@ export default function DriverPayrollGrid({
               })}
               {/* Totals Row */}
               <tr className="font-semibold" style={{ borderTop: '2px solid var(--border-slate-300)', background: 'var(--bg-slate-100)' }}>
-                <td className="px-1 md:px-2 py-1 sticky left-0 z-10" style={{ color: 'var(--text-slate-700)', background: 'var(--bg-slate-100)' }}>Tot</td>
+                <td className="text-center px-1 md:px-2 py-1 sticky left-0 z-10 border-r-2 border-slate-300" style={{ color: 'var(--text-slate-700)', background: 'var(--bg-slate-100)' }}>Tot</td>
                 {sortedStores.map((store) => {
                   const value = viewMode === 'extraKm' ? storeKmTotals[store.id] : storeTotals[store.id];
                   const displayValueMobile = viewMode === 'extraKm' 
