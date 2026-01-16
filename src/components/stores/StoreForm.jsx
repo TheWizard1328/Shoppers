@@ -488,17 +488,17 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                   value={formData.weekday_am_driver_id || 'null'}
                   onValueChange={(value) => handleDriverSelect(value, "weekday_am")}>
 
-                                        <SelectTrigger className="h-9">
+                                        <SelectTrigger className="h-9" style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
                                             <SelectValue placeholder="Select driver...">
                                                 {formData.weekday_am_driver_id ?
                       sortedDrivers.find((d) => d.id === formData.weekday_am_driver_id)?.user_name || sortedDrivers.find((d) => d.id === formData.weekday_am_driver_id)?.full_name :
                       "Select driver..."}
                                             </SelectValue>
                                         </SelectTrigger>
-                                        <SelectContent className="z-[10001]" position="popper" sideOffset={4}>
-                                            <SelectItem value="null">No Driver</SelectItem>
+                                        <SelectContent className="z-[10001]" position="popper" sideOffset={4} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                                            <SelectItem value="null" style={{ color: 'var(--text-slate-900)' }}>No Driver</SelectItem>
                                             {sortedDrivers.map((driver) =>
-                    <SelectItem key={driver.id} value={driver.id}>
+                    <SelectItem key={driver.id} value={driver.id} style={{ color: 'var(--text-slate-900)' }}>
                                                     {driver.user_name || driver.full_name}
                                                 </SelectItem>
                     )}
@@ -511,14 +511,16 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                     value={formData.weekday_am_start || ''}
                     onChange={(e) => setFormData({ ...formData, weekday_am_start: e.target.value })}
                     className="h-9 text-xs"
-                    placeholder="Start" />
+                    placeholder="Start"
+                    style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }} />
 
                                         <Input
                     type="time"
                     value={formData.weekday_am_end || ''}
                     onChange={(e) => setFormData({ ...formData, weekday_am_end: e.target.value })}
                     className="h-9 text-xs"
-                    placeholder="End" />
+                    placeholder="End"
+                    style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }} />
 
                                     </div>
                                 </>
