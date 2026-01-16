@@ -731,43 +731,39 @@ export default function ImportActiveRoutes({
       const matchReason = matchResult?.reason || 'Unknown';
 
       if (existingDelivery) {
-        // EXISTING DELIVERY MATCHED BY SID: Replace all data from import (except ID)
-        // CRITICAL: Preserve existing delivery_notes - do NOT overwrite with CSV notes
+        // EXISTING DELIVERY MATCHED BY SID: Replace all data from import (except ID and notes)
+        // CRITICAL: Always use imported stop_order, status, and other fields - this is the source of truth
         const updatedDeliveryData = {
           ...newDeliveryData,
           id: existingDelivery.id,
-          delivery_notes: existingDelivery.delivery_notes || null
+          delivery_notes: existingDelivery.delivery_notes || null,
+          // CRITICAL: Always use imported stop_order (even if 0 - means incomplete)
+          stop_order: stopOrder,
+          // CRITICAL: Always use imported status
+          status: deliveryStatus,
+          // CRITICAL: Always use imported actual_delivery_time
+          actual_delivery_time: actualDeliveryTime
         };
 
-        // CRITICAL: Import travel_dist only if existing is 0 AND stop is finished
+        // CRITICAL: Import travel_dist if provided and stop is finished
         const finishedStatuses = ['completed', 'failed', 'cancelled'];
-        if (finishedStatuses.includes(existingDelivery.status) && 
-            (existingDelivery.travel_dist === 0 || existingDelivery.travel_dist === null) && 
-            travelDist !== null) {
+        if (finishedStatuses.includes(deliveryStatus) && travelDist !== null) {
           updatedDeliveryData.travel_dist = travelDist;
-        } else {
-          // Preserve existing travel_dist
+        } else if (existingDelivery.travel_dist) {
+          // Preserve existing travel_dist for incomplete stops
           updatedDeliveryData.travel_dist = existingDelivery.travel_dist;
         }
 
         // Detect changes between existing and imported data
         const changes = detectChanges(existingDelivery, updatedDeliveryData);
 
-        // CRITICAL: Only add to updates if there are actual changes
-        if (changes.length > 0) {
-          deliveriesToUpdate.push({
-            ...updatedDeliveryData,
-            _changes: changes,
-            _matchReason: matchReason
-          });
-        } else {
-          // No changes - skip this delivery (don't create or update)
-          skippedItems.push({
-            lineNumber,
-            reason: `No changes detected (SID: ${stopId})`,
-            rawData: `${storeAbbr}, ${patientPID || 'Pickup'}, Status: ${deliveryStatus}`
-          });
-        }
+        // CRITICAL: Always add to updates for SID matches - import is source of truth
+        // Even if no visible changes, the import data should be applied
+        deliveriesToUpdate.push({
+          ...updatedDeliveryData,
+          _changes: changes.length > 0 ? changes : ['Re-import (data refresh)'],
+          _matchReason: matchReason
+        });
       } else {
         // NEW DELIVERY: Assign sequential stop order only if imported value is 0 or missing
         if (stopOrder === 0 || !rawStopOrder) {
