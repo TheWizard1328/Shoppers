@@ -312,7 +312,7 @@ export default function DriverPayroll() {
   if (isLoadingPayroll) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
-        <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+        <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full"></div>
         <span className="ml-3 text-lg text-slate-600">Loading payroll data...</span>
       </div>
     );
