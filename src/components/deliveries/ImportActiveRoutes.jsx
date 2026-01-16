@@ -1009,8 +1009,18 @@ export default function ImportActiveRoutes({
       // Cache date range for use during import (avoids re-reading files)
       setCachedDateRange(dateRange);
       const { minDate, maxDate } = dateRange;
+
+      // Extract unique driver IDs from file names to limit delivery fetch
+      const uniqueDriverIds = new Set();
+      for (const file of files) {
+        const driverFromFile = findDriverByFilename(file.name);
+        if (driverFromFile?.id) {
+          uniqueDriverIds.add(driverFromFile.id);
+        }
+      }
+      const driverIdsArray = Array.from(uniqueDriverIds);
       
-      setProgressMessage(`Date range: ${minDate} to ${maxDate}`);
+      setProgressMessage(`Date range: ${minDate} to ${maxDate}, Drivers: ${driverIdsArray.length}`);
       setProgressPercent(10);
 
       setProgressMessage('Loading store data from cache...');
