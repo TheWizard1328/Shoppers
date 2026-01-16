@@ -103,6 +103,34 @@ class LiveDistanceTracker {
   }
 
   /**
+   * Get or create DriverDailyActivity record for today
+   */
+  async getOrCreateDailyActivity(driverId) {
+    const todayStr = new Date().toISOString().split('T')[0];
+    
+    // Try to find existing record
+    const existingRecords = await base44.entities.DriverDailyActivity.filter({
+      driver_id: driverId,
+      activity_date: todayStr
+    });
+    
+    if (existingRecords && existingRecords.length > 0) {
+      return existingRecords[0];
+    }
+    
+    // Create new record for today
+    const newRecord = await base44.entities.DriverDailyActivity.create({
+      driver_id: driverId,
+      activity_date: todayStr,
+      total_break_time_minutes: 0,
+      break_start_time: null
+    });
+    
+    console.log('📅 [LiveDistanceTracker] Created new DriverDailyActivity for', todayStr);
+    return newRecord;
+  }
+
+  /**
    * Update driver status (for duty time tracking)
    */
   async updateDriverStatus(newStatus) {
@@ -113,12 +141,11 @@ class LiveDistanceTracker {
     this.currentUser.driver_status = newStatus;
 
     try {
-      // Get AppUser record
-      const appUsers = await base44.entities.AppUser.filter({ user_id: this.currentUser.id });
-      const appUser = appUsers?.[0];
+      // Get or create DriverDailyActivity for today
+      const dailyActivity = await this.getOrCreateDailyActivity(this.currentUser.id);
       
-      if (!appUser) {
-        console.error('❌ [LiveDistanceTracker] AppUser not found');
+      if (!dailyActivity) {
+        console.error('❌ [LiveDistanceTracker] Could not get/create DriverDailyActivity');
         return;
       }
 
@@ -129,24 +156,24 @@ class LiveDistanceTracker {
         console.log('⏱️ [LiveDistanceTracker] Duty timer started');
         
       } else if (newStatus === 'on_break' && previousStatus === 'on_duty') {
-        // Going on break - save break start time to AppUser
+        // Going on break - save break start time to DriverDailyActivity
         const now = new Date().toISOString();
-        await base44.entities.AppUser.update(appUser.id, {
+        await base44.entities.DriverDailyActivity.update(dailyActivity.id, {
           break_start_time: now
         });
-        console.log('⏸️ [LiveDistanceTracker] Break started - timestamp saved');
+        console.log('⏸️ [LiveDistanceTracker] Break started - timestamp saved to DriverDailyActivity');
         
       } else if (newStatus === 'on_duty' && previousStatus === 'on_break') {
         // Returning from break - calculate break duration and add to total
-        if (appUser.break_start_time) {
-          const breakStart = new Date(appUser.break_start_time).getTime();
+        if (dailyActivity.break_start_time) {
+          const breakStart = new Date(dailyActivity.break_start_time).getTime();
           const breakEnd = Date.now();
           const breakDurationMs = breakEnd - breakStart;
           const breakDurationMinutes = Math.floor(breakDurationMs / 60000);
           
-          const newTotalBreakTime = (appUser.total_break_time_minutes || 0) + breakDurationMinutes;
+          const newTotalBreakTime = (dailyActivity.total_break_time_minutes || 0) + breakDurationMinutes;
           
-          await base44.entities.AppUser.update(appUser.id, {
+          await base44.entities.DriverDailyActivity.update(dailyActivity.id, {
             total_break_time_minutes: newTotalBreakTime,
             break_start_time: null
           });
@@ -155,16 +182,16 @@ class LiveDistanceTracker {
         }
         
       } else if (newStatus === 'off_duty') {
-        // Going off duty - finalize any active break and reset counters for next day
-        if (previousStatus === 'on_break' && appUser.break_start_time) {
-          const breakStart = new Date(appUser.break_start_time).getTime();
+        // Going off duty - finalize any active break (but don't reset - keep for historical stats)
+        if (previousStatus === 'on_break' && dailyActivity.break_start_time) {
+          const breakStart = new Date(dailyActivity.break_start_time).getTime();
           const breakEnd = Date.now();
           const breakDurationMs = breakEnd - breakStart;
           const breakDurationMinutes = Math.floor(breakDurationMs / 60000);
           
-          const newTotalBreakTime = (appUser.total_break_time_minutes || 0) + breakDurationMinutes;
+          const newTotalBreakTime = (dailyActivity.total_break_time_minutes || 0) + breakDurationMinutes;
           
-          await base44.entities.AppUser.update(appUser.id, {
+          await base44.entities.DriverDailyActivity.update(dailyActivity.id, {
             total_break_time_minutes: newTotalBreakTime,
             break_start_time: null
           });
@@ -324,7 +351,7 @@ class LiveDistanceTracker {
 
   /**
    * Calculate time on duty based on first stop completion to now
-   * Subtracts total break time
+   * Subtracts total break time from DriverDailyActivity
    */
   async updateTimeOnDuty() {
     try {
@@ -362,15 +389,18 @@ class LiveDistanceTracker {
       const totalElapsedMs = now - firstStopTime.getTime();
       const totalElapsedMinutes = Math.floor(totalElapsedMs / 60000);
 
-      // Get total break time from AppUser
-      const appUsers = await base44.entities.AppUser.filter({ user_id: this.currentUser.id });
-      const appUser = appUsers?.[0];
-      const totalBreakMinutes = appUser?.total_break_time_minutes || 0;
+      // Get total break time from DriverDailyActivity
+      const dailyActivities = await base44.entities.DriverDailyActivity.filter({
+        driver_id: this.currentUser.id,
+        activity_date: todayStr
+      });
+      const dailyActivity = dailyActivities?.[0];
+      const totalBreakMinutes = dailyActivity?.total_break_time_minutes || 0;
 
       // CRITICAL: If currently on break, add current break session time
       let activeBreakMinutes = 0;
-      if (this.currentUser.driver_status === 'on_break' && appUser?.break_start_time) {
-        const breakStart = new Date(appUser.break_start_time).getTime();
+      if (this.currentUser.driver_status === 'on_break' && dailyActivity?.break_start_time) {
+        const breakStart = new Date(dailyActivity.break_start_time).getTime();
         const currentBreakMs = now - breakStart;
         activeBreakMinutes = Math.floor(currentBreakMs / 60000);
       }
