@@ -1041,17 +1041,20 @@ export default function ImportActiveRoutes({
         return;
       }
 
-      setProgressMessage(`Refreshing delivery cache (${minDate} to ${maxDate})...`);
+      setProgressMessage(`Refreshing delivery cache for ${driverIdsArray.length} driver(s) (${minDate} to ${maxDate})...`);
       setProgressPercent(25);
 
-      // Fetch deliveries for ALL drivers in the date range (needed for matching)
-      const freshDeliveries = await base44.entities.Delivery.filter(
-        { 
-          delivery_date: { $gte: minDate, $lte: maxDate }
-        },
-        '-delivery_date',
-        10000
-      );
+      // Fetch deliveries ONLY for the drivers found in the import files
+      const freshDeliveries = driverIdsArray.length > 0 
+        ? await base44.entities.Delivery.filter(
+            { 
+              delivery_date: { $gte: minDate, $lte: maxDate },
+              driver_id: { $in: driverIdsArray }
+            },
+            '-delivery_date',
+            5000
+          )
+        : [];
       
       setProgressPercent(35);
 
