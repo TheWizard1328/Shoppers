@@ -4279,7 +4279,11 @@ export default function DeliveryForm({
                   size="sm"
                   onClick={(e) => {
                     e.preventDefault();
+                    // CRITICAL: Trigger immediate stats refresh BEFORE save completes
+                    window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
                     handleSubmit(e).then(() => {
+                      // Trigger again after save to ensure latest data
+                      window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
                       if (closeOnSave) {
                         onCancel();
                       }
