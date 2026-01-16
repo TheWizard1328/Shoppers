@@ -151,8 +151,19 @@ export default function DriverPayrollGrid({
     return { dataMap: deliveryMap, extraKmMap: kmMap, oversizedMap: oversizedCountMap, storesWithData: storesWithDataList };
   }, [filteredDeliveries, periodDays, allSortedStores, patients, appUsers]);
 
-  // Use stores with data for display (hide empty columns)
-  const sortedStores = storesWithData.length > 0 ? storesWithData : allSortedStores;
+  // Check if mobile (window width < 768px)
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768);
+  
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Use stores with data for display on mobile (hide empty columns), show all on desktop
+  const sortedStores = isMobile 
+    ? (storesWithData.length > 0 ? storesWithData : allSortedStores)
+    : allSortedStores;
 
   // Calculate store totals (column totals)
   const { storeTotals, storeKmTotals } = useMemo(() => {
