@@ -753,45 +753,16 @@ export default function DeliveryMap({
   const safeDriverLocations = Array.isArray(driverLocations) ? driverLocations : [];
   const safeUsers = Array.isArray(realtimeAppUsers) ? realtimeAppUsers : [];
 
-  // CRITICAL: Process driverLocations prop into realtimeAppUsers on mount and updates
+  // CRITICAL: ALWAYS use users prop directly (contains fresh AppUser data from context)
+  // Don't merge with driverLocations to prevent bouncing between offline and online data
   useEffect(() => {
-    if (safeDriverLocations && safeDriverLocations.length > 0) {
-      // Merge driverLocations data into users array (prefer driverLocations for location data)
-      const mergedUsers = (users || []).map(user => {
-        if (!user) return user;
-        const locationData = safeDriverLocations.find(loc => 
-          (loc.driver_id || loc.user_id || loc.id) === user.id
-        );
-        
-        if (locationData) {
-          return {
-            ...user,
-            current_latitude: locationData.latitude || locationData.current_latitude || user.current_latitude,
-            current_longitude: locationData.longitude || locationData.current_longitude || user.current_longitude,
-            location_updated_at: locationData.location_updated_at || user.location_updated_at,
-            driver_status: locationData.driver_status || user.driver_status,
-            location_tracking_enabled: locationData.location_tracking_enabled ?? user.location_tracking_enabled,
-            _isOnBreak: locationData._isOnBreak || false
-          };
-        }
-        
-        return user;
-      });
-      
-      // CRITICAL: Only update state if data actually changed
-      setRealtimeAppUsers(prev => {
-        const prevKey = prev.map(u => `${u?.id}:${u?.current_latitude}:${u?.current_longitude}`).join('|');
-        const newKey = mergedUsers.map(u => `${u?.id}:${u?.current_latitude}:${u?.current_longitude}`).join('|');
-        return prevKey === newKey ? prev : mergedUsers;
-      });
-    } else {
-      setRealtimeAppUsers(prev => {
-        const prevKey = prev.map(u => `${u?.id}:${u?.current_latitude}:${u?.current_longitude}`).join('|');
-        const newKey = users.map(u => `${u?.id}:${u?.current_latitude}:${u?.current_longitude}`).join('|');
-        return prevKey === newKey ? prev : users;
-      });
-    }
-  }, [users, safeDriverLocations]);
+    // Simply use users array directly - it already has the latest AppUser location data
+    setRealtimeAppUsers(prev => {
+      const prevKey = prev.map(u => `${u?.id}:${u?.current_latitude?.toFixed(5)}:${u?.current_longitude?.toFixed(5)}:${u?.location_updated_at}`).join('|');
+      const newKey = users.map(u => `${u?.id}:${u?.current_latitude?.toFixed(5)}:${u?.current_longitude?.toFixed(5)}:${u?.location_updated_at}`).join('|');
+      return prevKey === newKey ? prev : users;
+    });
+  }, [users]);
 
   // State to force re-render of driverRoutes when deliveries update
   const [routeRenderKey, setRouteRenderKey] = useState(0);
@@ -799,12 +770,21 @@ export default function DeliveryMap({
   // Listen for real-time driver location updates from SmartRefreshManager
   useEffect(() => {
     const handleDriverLocationUpdate = (event) => {
-      const { appUsers } = event.detail;
+      const { appUsers, singleUpdate } = event.detail;
+      
+      // CRITICAL: Handle single driver updates (from status toggle, etc.)
+      if (singleUpdate) {
+        setRealtimeAppUsers(prev => prev.map(u => 
+          u?.id === singleUpdate.user_id ? { ...u, ...singleUpdate } : u
+        ));
+        return;
+      }
+      
+      // CRITICAL: Handle bulk updates (from smart refresh)
       if (appUsers && appUsers.length > 0) {
-        // CRITICAL: Only update if data actually changed
         setRealtimeAppUsers(prev => {
-          const prevKey = prev.map(u => `${u?.id}:${u?.current_latitude}:${u?.current_longitude}`).join('|');
-          const newKey = appUsers.map(u => `${u?.id}:${u?.current_latitude}:${u?.current_longitude}`).join('|');
+          const prevKey = prev.map(u => `${u?.id}:${u?.current_latitude?.toFixed(5)}:${u?.current_longitude?.toFixed(5)}:${u?.location_updated_at}`).join('|');
+          const newKey = appUsers.map(u => `${u?.id}:${u?.current_latitude?.toFixed(5)}:${u?.current_longitude?.toFixed(5)}:${u?.location_updated_at}`).join('|');
           return prevKey === newKey ? prev : appUsers;
         });
       }
