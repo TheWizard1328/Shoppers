@@ -445,18 +445,27 @@ export default function AdminMetrics() {
                   })
                   .sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity))
                   .map(item => {
-                    // Get envelope data for this store (year total or specific month)
-                    const envelopeData = selectedMonth 
-                      ? metricsData.envelopeMetrics?.byStoreAndMonth?.[item.storeId]?.[selectedMonth]
-                      : metricsData.envelopeMetrics?.byStore?.[item.storeId];
-                    const envelopeValue = showEnvelopeAdjustedTotals ? (envelopeData?.totalEnvelopeValue || 0) : 0;
+                    // Get envelope data for this store - aggregate across all months if no specific month selected
+                    let envelopeValue = 0;
+                    if (showEnvelopeAdjustedTotals && metricsData.envelopeMetrics?.byStoreAndMonth?.[item.storeId]) {
+                      if (selectedMonth) {
+                        // Specific month selected
+                        envelopeValue = metricsData.envelopeMetrics.byStoreAndMonth[item.storeId][selectedMonth]?.totalEnvelopeValue || 0;
+                      } else {
+                        // All year - sum across all months for this store
+                        const storeMonthData = metricsData.envelopeMetrics.byStoreAndMonth[item.storeId];
+                        for (const month in storeMonthData) {
+                          envelopeValue += storeMonthData[month]?.totalEnvelopeValue || 0;
+                        }
+                      }
+                    }
                     const baseCompleted = (item.completed || 0) + (item.afterHours || 0);
                     
                     return {
                       ...item,
                       // Base completed excludes envelope additions
                       totalCompleted: baseCompleted,
-                      // Envelope count shown as separate segment only when toggle is on
+                      // Envelope count shown as separate segment only when toggle is on and store has envelope data
                       envelopeCount: envelopeValue,
                       totalFailed: (item.failed || 0) + (item.cancelled || 0),
                       fees: item.fees || 0
