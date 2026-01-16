@@ -17,6 +17,9 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
 
   const monthlyStoreData = metricsData.monthlyStoreData || {};
   const monthlyStoreFees = metricsData.monthlyStoreFees || {};
+  
+  // Default metricsViewMode if not provided
+  const viewMode = metricsViewMode || 'deliveries';
 
   // Build stores list from monthlyStoreData (all unique stores across all months)
   const storeMap = new Map();
