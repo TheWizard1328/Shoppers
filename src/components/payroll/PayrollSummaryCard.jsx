@@ -41,13 +41,16 @@ export default function PayrollSummaryCard({
     if (!deliveries || !drivers || !appUsers || !currentPeriod) return [];
 
     // Get drivers to calculate for
+    // Note: drivers come from payrollData.drivers which are AppUser records (user_id field)
     const driversToCalc = selectedDriverId === 'all' ?
     drivers.filter((d) => d && d.status === 'active') :
-    drivers.filter((d) => d && d.id === selectedDriverId);
+    drivers.filter((d) => d && (d.id === selectedDriverId || d.user_id === selectedDriverId));
 
     return driversToCalc.map((driver) => {
       // Get AppUser data for pay rates
-      const appUser = appUsers.find((au) => au && au.user_id === driver.id);
+      // driver IS the AppUser record, but also check by user_id for consistency
+      const driverId = driver.user_id || driver.id;
+      const appUser = appUsers.find((au) => au && (au.user_id === driverId || au.id === driver.id)) || driver;
       const payRate = appUser?.pay_rate_per_delivery || 0;
       const extraKmRate = appUser?.extra_km_rate || 0;
       const extraKmLimit = appUser?.extra_km_limit || 0;
