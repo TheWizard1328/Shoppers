@@ -418,7 +418,7 @@ export default function DriverPayrollGrid({
                       style={{ color: 'var(--text-slate-600)', background: isWeekend ? 'var(--bg-slate-100)' : 'var(--bg-white)' }}
                     >
                       <span className="md:hidden">{dayNum}</span>
-                      <span className="hidden md:inline">{monthShort} {dayNum} <span className="text-[9px]" style={{ color: 'var(--text-slate-400)' }}>{dayOfWeek}</span></span>
+                      <span className="hidden md:inline">{dayNum}</span>
                     </td>
                     {sortedStores.map((store) => {
                       const value = viewMode === 'extraKm' 
