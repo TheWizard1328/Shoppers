@@ -223,7 +223,10 @@ export default function PayrollSummaryCard({
     return (
       <Card className="mt-4" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
         <CardContent className="p-6 text-center" style={{ color: 'var(--text-slate-500)' }}>
-          No payroll data available. Select a driver or ensure drivers have pay rates configured.
+          No payroll data available for this period. 
+          {drivers?.length === 0 && ' No drivers found.'}
+          {drivers?.length > 0 && appUsers?.length === 0 && ' No driver pay rates configured.'}
+          {drivers?.length > 0 && appUsers?.length > 0 && deliveries?.length === 0 && ' No deliveries in selected period.'}
         </CardContent>
       </Card>);
 
