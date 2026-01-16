@@ -438,6 +438,11 @@ export default function AdminMetrics() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={(filteredData?.storeData || metricsData.storeData)
                   ?.slice()
+                  .filter(item => {
+                    // Only show stores with data (same logic as Monthly Store grid)
+                    const total = (item.completed || 0) + (item.failed || 0) + (item.afterHours || 0) + (item.cancelled || 0);
+                    return total > 0 || (item.fees || 0) > 0;
+                  })
                   .sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity))
                   .map(item => ({
                   ...item,
