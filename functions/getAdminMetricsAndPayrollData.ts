@@ -1,0 +1,413 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+
+// In-memory cache for expensive stats
+const statsCache = {
+  adminMetrics: { data: null, cacheDate: '', key: '' },
+  payrollData: { data: null, cacheDate: '', key: '' }
+};
+
+const REFRESH_HOUR_UTC = 11; // 4 AM Mountain (UTC-7) = 11:00 UTC
+
+const getCacheDateKey = () => {
+  const now = new Date();
+  const utcHour = now.getUTCHours();
+  if (utcHour < REFRESH_HOUR_UTC) {
+    const yesterday = new Date(now);
+    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+    return yesterday.toISOString().split('T')[0];
+  }
+  return now.toISOString().split('T')[0];
+};
+
+Deno.serve(async (req) => {
+  try {
+    const base44 = createClientFromRequest(req);
+
+    let user;
+    try {
+      user = await base44.auth.me();
+    } catch (authError) {
+      console.error('Auth error:', authError.message);
+      return Response.json({ error: 'Authentication failed: ' + authError.message }, { status: 401 });
+    }
+    
+    if (!user || user.role !== 'admin') {
+      return Response.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
+    }
+
+    let body = {};
+    try {
+      const text = await req.text();
+      if (text) {
+        body = JSON.parse(text);
+      }
+    } catch (parseError) {
+      console.warn('Failed to parse request body:', parseError);
+    }
+
+    const { 
+      adminMetricsYear, adminMetricsCityId,
+      payrollYear, payrollCityId, payrollDriverId
+    } = body;
+
+    const cacheDate = getCacheDateKey();
+
+    const fetchAdminMetrics = async (year, cityId) => {
+      const metricsKey = `admin_${year}_${cityId}`;
+      if (statsCache.adminMetrics.key === metricsKey && statsCache.adminMetrics.cacheDate === cacheDate) {
+        console.log('[getAdminMetricsAndPayrollData] Using CACHED AdminMetrics');
+        return statsCache.adminMetrics.data;
+      }
+
+      let storeFilter = {};
+      if (cityId && cityId !== 'all') {
+        const cityStores = await base44.asServiceRole.entities.Store.filter({ city_id: cityId });
+        storeFilter = { store_id: { $in: cityStores.map(s => s.id) } };
+      }
+
+      const deliveries = await base44.asServiceRole.entities.Delivery.filter({
+        delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` },
+        ...storeFilter
+      });
+
+      const stores = await base44.asServiceRole.entities.Store.list();
+      const appUsers = await base44.asServiceRole.entities.AppUser.list();
+      const patients = await base44.asServiceRole.entities.Patient.list();
+      const appSettings = await base44.asServiceRole.entities.AppSettings.filter({ setting_key: 'refresh_intervals' });
+      const appFeeRate = appSettings[0]?.setting_value?.app_fee_rate || 0;
+
+      const metrics = processAdminMetrics(deliveries, stores, appUsers, patients, year, appFeeRate);
+      
+      // Add envelope metrics - checks delivery_notes (driver notes)
+      const envelopeMetrics = calculateEnvelopeMetrics(deliveries, year);
+      metrics.envelopeMetrics = envelopeMetrics;
+
+      statsCache.adminMetrics = { data: metrics, cacheDate, key: metricsKey };
+      return metrics;
+    };
+
+    const fetchPayrollData = async (year, cityId, driverId) => {
+      const payrollKey = `payroll_${year}_${cityId}_${driverId}`;
+      if (statsCache.payrollData.key === payrollKey && statsCache.payrollData.cacheDate === cacheDate) {
+        console.log('[getAdminMetricsAndPayrollData] Using CACHED PayrollData');
+        return statsCache.payrollData.data;
+      }
+
+      let storeFilter = {};
+      if (cityId && cityId !== 'all') {
+        const cityStores = await base44.asServiceRole.entities.Store.filter({ city_id: cityId });
+        storeFilter = { store_id: { $in: cityStores.map(s => s.id) } };
+      }
+
+      const payrollDeliveries = await base44.asServiceRole.entities.Delivery.filter({
+        delivery_date: { $gte: `${year}-01-01`, $lte: `${year}-12-31` },
+        ...storeFilter,
+        ...(driverId && driverId !== 'all' ? { driver_id: driverId } : {})
+      });
+
+      const payrollPatients = await base44.asServiceRole.entities.Patient.list();
+      const payrollAppUsers = await base44.asServiceRole.entities.AppUser.list();
+      const payrollDrivers = payrollAppUsers.filter(au => au.app_roles && au.app_roles.includes('driver'));
+      const payrollStores = await base44.asServiceRole.entities.Store.list();
+      const payrollCities = await base44.asServiceRole.entities.City.list();
+
+      const payrollData = {
+        deliveries: payrollDeliveries,
+        patients: payrollPatients,
+        appUsers: payrollAppUsers,
+        drivers: payrollDrivers,
+        stores: payrollStores,
+        cities: payrollCities
+      };
+
+      statsCache.payrollData = { data: payrollData, cacheDate, key: payrollKey };
+      return payrollData;
+    };
+
+    const [adminMetrics, payrollData] = await Promise.all([
+      adminMetricsYear ? fetchAdminMetrics(adminMetricsYear, adminMetricsCityId) : Promise.resolve(null),
+      payrollYear ? fetchPayrollData(payrollYear, payrollCityId, payrollDriverId) : Promise.resolve(null)
+    ]);
+    
+    return Response.json({
+      adminMetrics,
+      payrollData
+    });
+
+  } catch (error) {
+    console.error('CRITICAL ERROR in getAdminMetricsAndPayrollData:', error);
+    return Response.json({ error: error.message || 'Unknown error occurred' }, { status: 500 });
+  }
+});
+
+
+// Helper to process Admin Metrics data
+function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFeeRate) {
+  const metrics = {
+    monthlyData: Array(12).fill(null).map((_, i) => ({ month: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][i], billable: 0, nonBillable: 0, total: 0 })),
+    yearTotals: { billable: 0, nonBillable: 0, activeDrivers: 0 },
+    storeDataByMonth: {},
+    driverDataByMonth: {},
+    driverDataByStore: {},
+    storeData: [],
+    driverData: [],
+    dailyDeliveryData: {},
+    dailyStoreData: {},
+    monthlyStoreData: {},
+    storeFeeTotals: {
+      total_fees_owed: 0,
+      app_fee_rate: appFeeRate,
+      stores_paying_fees: 0,
+      total_stores: stores.length,
+      total_billable_while_paying: 0,
+      monthlyFees: Array(12).fill(0)
+    },
+    entityCounts: {
+      patients: patients.length,
+      cities: (new Set(stores.map(s => s.city_id))).size,
+      stores: stores.length,
+      users: appUsers.length
+    }
+  };
+
+  const storeMap = new Map(stores.map(s => [s.id, s]));
+  const appUserMap = new Map(appUsers.map(au => [au.user_id, au]));
+
+  const relevantDeliveries = deliveries.filter(d => d && d.delivery_date);
+
+  stores.forEach(s => {
+    metrics.storeData.push({ abbreviation: s.abbreviation, name: s.name, storeId: s.id, completed: 0, failed: 0, afterHours: 0, cancelled: 0, fees: 0, color: s.color, sortOrder: s.sort_order });
+  });
+  appUsers.filter(au => au.app_roles && au.app_roles.includes('driver')).forEach(driver => {
+    metrics.driverData.push({ name: driver.user_name || driver.full_name, driverId: driver.user_id, billable: 0, nonBillable: 0 });
+  });
+
+  const isReturn = (d) => {
+    if (!d) return false;
+    const notes = (d.delivery_notes || '');
+    const patientName = (d.patient_name || '');
+    if (notes.toLowerCase().includes('(rtn)') || patientName.toLowerCase().includes('(rtn)')) return true;
+    const returnRegex = /\breturn\b/i;
+    return returnRegex.test(notes) || returnRegex.test(patientName);
+  };
+  const isFailed = (d) => {
+    if (!d) return false;
+    if (isReturn(d)) return false;
+    if (d.status === 'failed') return true;
+    if (d.status === 'cancelled' && !d.patient_id) return true;
+    return false;
+  };
+  const isCompleted = (d) => {
+    if (!d) return false;
+    if (d.status !== 'completed') return false;
+    if (isReturn(d)) return false;
+    return true;
+  };
+  const isBillableDelivery = (d) => {
+    if (!d) return false;
+    return (d.patient_id && (isCompleted(d) || isFailed(d) || isReturn(d))) || (d.after_hours_pickup && (d.status === 'completed' || d.status === 'cancelled'));
+  };
+
+  const storeMonthlyFees = new Map();
+  const storesPayingFeesSet = new Set();
+
+  for (const delivery of relevantDeliveries) {
+    const date = new Date(delivery.delivery_date);
+    const monthIndex = date.getMonth();
+    const dayOfMonth = date.getDate();
+
+    const isBillable = isBillableDelivery(delivery);
+    if (isBillable) {
+      metrics.monthlyData[monthIndex].billable++;
+      metrics.yearTotals.billable++;
+    } else {
+      metrics.monthlyData[monthIndex].nonBillable++;
+      metrics.yearTotals.nonBillable++;
+    }
+    metrics.monthlyData[monthIndex].total++;
+
+    if (!metrics.dailyDeliveryData[monthIndex + 1]) metrics.dailyDeliveryData[monthIndex + 1] = [];
+    const dailyEntry = metrics.dailyDeliveryData[monthIndex + 1].find(d => d.day === dayOfMonth);
+    if (dailyEntry) {
+      if (isBillable) dailyEntry.billable++;
+      else dailyEntry.nonBillable++;
+    } else {
+      metrics.dailyDeliveryData[monthIndex + 1].push({
+        day: dayOfMonth,
+        billable: isBillable ? 1 : 0,
+        nonBillable: isBillable ? 0 : 1,
+      });
+    }
+
+    if (delivery.store_id) {
+      const store = storeMap.get(delivery.store_id);
+      const storeAbbr = store?.abbreviation;
+      if (storeAbbr) {
+        const annualStoreEntry = metrics.storeData.find(s => s.storeId === delivery.store_id);
+        if (annualStoreEntry) {
+          if (isCompleted(delivery)) annualStoreEntry.completed++;
+          if (isFailed(delivery)) annualStoreEntry.failed++;
+          if (delivery.after_hours_pickup) annualStoreEntry.afterHours++;
+          if (delivery.status === 'cancelled' && !delivery.patient_id) annualStoreEntry.cancelled++;
+        }
+
+        if (!metrics.storeDataByMonth[monthIndex + 1]) metrics.storeDataByMonth[monthIndex + 1] = [];
+        let monthlyStoreEntry = metrics.storeDataByMonth[monthIndex + 1].find(s => s.storeId === delivery.store_id);
+        if (!monthlyStoreEntry) {
+          monthlyStoreEntry = { abbreviation: storeAbbr, name: store.name, storeId: delivery.store_id, completed: 0, failed: 0, afterHours: 0, cancelled: 0, color: store.color, sortOrder: store.sort_order };
+          metrics.storeDataByMonth[monthIndex + 1].push(monthlyStoreEntry);
+        }
+        if (isCompleted(delivery)) monthlyStoreEntry.completed++;
+        if (isFailed(delivery)) monthlyStoreEntry.failed++;
+        if (delivery.after_hours_pickup) monthlyStoreEntry.afterHours++;
+        if (delivery.status === 'cancelled' && !delivery.patient_id) monthlyStoreEntry.cancelled++;
+
+        if (!metrics.dailyStoreData[monthIndex + 1]) metrics.dailyStoreData[monthIndex + 1] = {};
+        if (!metrics.dailyStoreData[monthIndex + 1][delivery.store_id]) metrics.dailyStoreData[monthIndex + 1][delivery.store_id] = [];
+        let dailyStoreEntry = metrics.dailyStoreData[monthIndex + 1][delivery.store_id].find(d => d.day === dayOfMonth);
+        if (!dailyStoreEntry) {
+          dailyStoreEntry = { day: dayOfMonth, completed: 0, failed: 0, afterHours: 0, cancelled: 0 };
+          metrics.dailyStoreData[monthIndex + 1][delivery.store_id].push(dailyStoreEntry);
+        }
+        if (isCompleted(delivery)) dailyStoreEntry.completed++;
+        if (isFailed(delivery)) dailyStoreEntry.failed++;
+        if (delivery.after_hours_pickup) dailyStoreEntry.afterHours++;
+        if (delivery.status === 'cancelled' && !delivery.patient_id) dailyStoreEntry.cancelled++;
+
+        if (store?.pays_app_fees && appFeeRate > 0) {
+          storesPayingFeesSet.add(store.id);
+          if (isBillableDelivery(delivery)) {
+            if (!storeMonthlyFees.has(store.id)) storeMonthlyFees.set(store.id, Array(12).fill(0));
+            const feesByMonth = storeMonthlyFees.get(store.id);
+            feesByMonth[monthIndex] += appFeeRate;
+            metrics.storeFeeTotals.monthlyFees[monthIndex] += appFeeRate;
+            metrics.storeFeeTotals.total_fees_owed += appFeeRate;
+            metrics.storeFeeTotals.total_billable_while_paying++;
+          }
+        }
+      }
+    }
+
+    if (delivery.driver_id) {
+      const driverAppUser = appUserMap.get(delivery.driver_id);
+      const driverName = driverAppUser?.user_name || driverAppUser?.full_name || 'Unknown Driver';
+      
+      const annualDriverEntry = metrics.driverData.find(d => d.driverId === delivery.driver_id);
+      if (annualDriverEntry) {
+        if (isBillable) annualDriverEntry.billable++;
+        else annualDriverEntry.nonBillable++;
+      }
+
+      if (!metrics.driverDataByMonth[monthIndex + 1]) metrics.driverDataByMonth[monthIndex + 1] = [];
+      let monthlyDriverEntry = metrics.driverDataByMonth[monthIndex + 1].find(d => d.driverId === delivery.driver_id);
+      if (!monthlyDriverEntry) {
+        monthlyDriverEntry = { name: driverName, driverId: delivery.driver_id, billable: 0, nonBillable: 0 };
+        metrics.driverDataByMonth[monthIndex + 1].push(monthlyDriverEntry);
+      }
+      if (isBillable) monthlyDriverEntry.billable++;
+      else monthlyDriverEntry.nonBillable++;
+
+      if (delivery.store_id) {
+        if (!metrics.driverDataByStore[delivery.store_id]) metrics.driverDataByStore[delivery.store_id] = [];
+        let storeDriverEntry = metrics.driverDataByStore[delivery.store_id].find(d => d.driverId === delivery.driver_id);
+        if (!storeDriverEntry) {
+          storeDriverEntry = { name: driverName, driverId: delivery.driver_id, billable: 0, nonBillable: 0 };
+          metrics.driverDataByStore[delivery.store_id].push(storeDriverEntry);
+        }
+        if (isBillable) storeDriverEntry.billable++;
+        else storeDriverEntry.nonBillable++;
+      }
+    }
+  }
+
+  for (const [storeId, monthlyFeesArray] of storeMonthlyFees.entries()) {
+    const store = storeMap.get(storeId);
+    if (store) {
+      for (let m = 0; m < 12; m++) {
+        if (!metrics.monthlyStoreData[m + 1]) metrics.monthlyStoreData[m + 1] = [];
+        const existingEntry = metrics.monthlyStoreData[m + 1].find(s => s.storeId === storeId);
+        if (existingEntry) {
+          existingEntry.fees = monthlyFeesArray[m];
+        } else {
+          metrics.monthlyStoreData[m + 1].push({
+            abbreviation: store.abbreviation,
+            name: store.name,
+            storeId: store.id,
+            fees: monthlyFeesArray[m],
+            completed: 0,
+            color: store.color,
+            sortOrder: store.sort_order
+          });
+        }
+      }
+    }
+  }
+  
+  metrics.storeFeeTotals.stores_paying_fees = storesPayingFeesSet.size;
+  metrics.yearTotals.activeDrivers = new Set(appUsers.filter(au => au.app_roles && au.app_roles.includes('driver') && au.status === 'active').map(au => au.user_id)).size;
+
+  return metrics;
+}
+
+// Helper to calculate Envelope metrics from delivery_notes (driver notes)
+function calculateEnvelopeMetrics(deliveries, year) {
+  const envelopeMetrics = {
+    byStoreAndMonth: {},
+    yearTotals: { 
+      envelopeDeliveriesCount: 0,
+      totalEnvelopeValue: 0,
+      adjustedDeliveries: 0,
+      actualDeliveries: 0
+    }
+  };
+
+  // Regex to find 1-2 digit number immediately before "Envelope" (case insensitive)
+  const envelopeRegex = /(\d{1,2})\s*Envelope/i;
+
+  for (const delivery of deliveries) {
+    if (!delivery || !delivery.delivery_date || !delivery.store_id) continue;
+    
+    const date = new Date(delivery.delivery_date);
+    const month = date.getMonth() + 1;
+    const storeId = delivery.store_id;
+
+    if (!envelopeMetrics.byStoreAndMonth[storeId]) {
+      envelopeMetrics.byStoreAndMonth[storeId] = {};
+    }
+    if (!envelopeMetrics.byStoreAndMonth[storeId][month]) {
+      envelopeMetrics.byStoreAndMonth[storeId][month] = {
+        envelopeDeliveriesCount: 0,
+        totalEnvelopeValue: 0,
+        actualDeliveries: 0,
+        adjustedDeliveries: 0
+      };
+    }
+
+    envelopeMetrics.byStoreAndMonth[storeId][month].actualDeliveries++;
+    envelopeMetrics.yearTotals.actualDeliveries++;
+
+    // Check delivery_notes (driver notes) for envelope pattern
+    const driverNotes = delivery.delivery_notes || '';
+    const match = driverNotes.match(envelopeRegex);
+    if (match) {
+      const envelopeValue = parseInt(match[1], 10);
+      if (!isNaN(envelopeValue)) {
+        envelopeMetrics.byStoreAndMonth[storeId][month].envelopeDeliveriesCount++;
+        envelopeMetrics.byStoreAndMonth[storeId][month].totalEnvelopeValue += envelopeValue;
+        envelopeMetrics.yearTotals.envelopeDeliveriesCount++;
+        envelopeMetrics.yearTotals.totalEnvelopeValue += envelopeValue;
+      }
+    }
+  }
+  
+  // Calculate adjusted deliveries: Actual - EnvelopeCount + EnvelopeValue
+  for (const storeId in envelopeMetrics.byStoreAndMonth) {
+    for (const month in envelopeMetrics.byStoreAndMonth[storeId]) {
+      const monthData = envelopeMetrics.byStoreAndMonth[storeId][month];
+      monthData.adjustedDeliveries = monthData.actualDeliveries - monthData.envelopeDeliveriesCount + monthData.totalEnvelopeValue;
+    }
+  }
+  envelopeMetrics.yearTotals.adjustedDeliveries = envelopeMetrics.yearTotals.actualDeliveries - envelopeMetrics.yearTotals.envelopeDeliveriesCount + envelopeMetrics.yearTotals.totalEnvelopeValue;
+
+  return envelopeMetrics;
+}
