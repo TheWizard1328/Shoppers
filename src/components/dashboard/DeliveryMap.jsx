@@ -362,9 +362,9 @@ const createDeliveryIcon = (status, storeColor = '#6B7280', isActive = false, nu
     baseSize *= 0.75;
   }
 
-  // NEW: Reduce size further for other drivers' faded markers
+  // NEW: Reduce size for other drivers' faded markers (but not as small as before)
   if (isOtherDriver) {
-    baseSize *= 0.75;
+    baseSize *= 0.86; // 15% larger than previous 0.75
   }
   
   // Increase size for mobile devices
