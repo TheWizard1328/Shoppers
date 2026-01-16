@@ -436,41 +436,58 @@ export default function AdminMetrics() {
           <CardContent>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={(filteredData?.storeData || metricsData.storeData)
-                  ?.slice()
-                  .filter(item => {
-                    // Only show stores with data (same logic as Monthly Store grid)
-                    const total = (item.completed || 0) + (item.failed || 0) + (item.afterHours || 0) + (item.cancelled || 0);
-                    return total > 0 || (item.fees || 0) > 0;
-                  })
-                  .sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity))
-                  .map(item => {
-                    // Get envelope data for this store - aggregate across all months if no specific month selected
-                    let envelopeValue = 0;
-                    if (showEnvelopeAdjustedTotals && metricsData.envelopeMetrics?.byStoreAndMonth?.[item.storeId]) {
-                      if (selectedMonth) {
-                        // Specific month selected
-                        envelopeValue = metricsData.envelopeMetrics.byStoreAndMonth[item.storeId][selectedMonth]?.totalEnvelopeValue || 0;
-                      } else {
-                        // All year - sum across all months for this store
-                        const storeMonthData = metricsData.envelopeMetrics.byStoreAndMonth[item.storeId];
-                        for (const month in storeMonthData) {
-                          envelopeValue += storeMonthData[month]?.totalEnvelopeValue || 0;
+                <BarChart data={(() => {
+                  // For daily breakdown (store+month selected), use daily data directly
+                  if (filteredData?.isDailyBreakdown) {
+                    return (filteredData.storeData || [])
+                      .slice()
+                      .sort((a, b) => (a.day || 0) - (b.day || 0))
+                      .map(item => ({
+                        ...item,
+                        totalCompleted: (item.completed || 0) + (item.afterHours || 0),
+                        totalFailed: (item.failed || 0) + (item.cancelled || 0),
+                        envelopeCount: 0,
+                        fees: item.fees || 0
+                      }));
+                  }
+                  
+                  // For store breakdown (year or month view)
+                  return (filteredData?.storeData || metricsData.storeData || [])
+                    .slice()
+                    .filter(item => {
+                      // Only show stores with data (same logic as Monthly Store grid)
+                      const total = (item.completed || 0) + (item.failed || 0) + (item.afterHours || 0) + (item.cancelled || 0);
+                      return total > 0 || (item.fees || 0) > 0;
+                    })
+                    .sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity))
+                    .map(item => {
+                      // Get envelope data for this store - aggregate across all months if no specific month selected
+                      let envelopeValue = 0;
+                      if (showEnvelopeAdjustedTotals && metricsData.envelopeMetrics?.byStoreAndMonth?.[item.storeId]) {
+                        if (selectedMonth) {
+                          // Specific month selected
+                          envelopeValue = metricsData.envelopeMetrics.byStoreAndMonth[item.storeId][selectedMonth]?.totalEnvelopeValue || 0;
+                        } else {
+                          // All year - sum across all months for this store
+                          const storeMonthData = metricsData.envelopeMetrics.byStoreAndMonth[item.storeId];
+                          for (const month in storeMonthData) {
+                            envelopeValue += storeMonthData[month]?.totalEnvelopeValue || 0;
+                          }
                         }
                       }
-                    }
-                    const baseCompleted = (item.completed || 0) + (item.afterHours || 0);
-                    
-                    return {
-                      ...item,
-                      // Base completed excludes envelope additions
-                      totalCompleted: baseCompleted,
-                      // Envelope count shown as separate segment only when toggle is on and store has envelope data
-                      envelopeCount: envelopeValue,
-                      totalFailed: (item.failed || 0) + (item.cancelled || 0),
-                      fees: item.fees || 0
-                    };
-                  })}>
+                      const baseCompleted = (item.completed || 0) + (item.afterHours || 0);
+                      
+                      return {
+                        ...item,
+                        // Base completed excludes envelope additions
+                        totalCompleted: baseCompleted,
+                        // Envelope count shown as separate segment only when toggle is on and store has envelope data
+                        envelopeCount: envelopeValue,
+                        totalFailed: (item.failed || 0) + (item.cancelled || 0),
+                        fees: item.fees || 0
+                      };
+                    });
+                })()}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis 
                     dataKey={selectedStoreMonth ? "day" : "abbreviation"} 
