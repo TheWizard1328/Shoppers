@@ -37,7 +37,7 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
   const getStoreId = (storeAbbr, month) => {
     const monthData = monthlyStoreData[month] || [];
     const storeData = monthData.find((s) => s.abbreviation === storeAbbr);
-    return storeData?.id || null;
+    return storeData?.storeId || storeData?.id || null;
   };
 
   // Calculate totals and averages per store (yearly)
