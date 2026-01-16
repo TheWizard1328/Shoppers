@@ -2822,7 +2822,7 @@ export default function Layout({ children, currentPageName }) {
                                 <DropdownMenuLabel className="p-0">Settings</DropdownMenuLabel>
                                 {isAppOwner(currentUser) && (
                                   <label className="flex items-center gap-2 cursor-pointer">
-                                    <span className="text-xs font-medium" style={{ color: 'var(--text-slate-600)' }}>Admin Import</span>
+                                    <span className="text-sm font-medium" style={{ color: 'var(--text-slate-600)' }}>Admin Import</span>
                                     <Switch
                                       checked={adminImportEnabled}
                                       onCheckedChange={async (checked) => {
@@ -2891,7 +2891,7 @@ export default function Layout({ children, currentPageName }) {
                             {/* City Filter - Admin Only */}
                             {userHasRole(currentUser, 'admin') && cities && cities.length > 0 && (
                               <div className="px-2 py-2">
-                                <label className="text-xs font-medium mb-1.5 block" style={{ color: 'var(--text-slate-700)' }}>
+                                <label className="text-sm font-medium mb-1.5 block" style={{ color: 'var(--text-slate-700)' }}>
                                   City Filter
                                 </label>
                                 <Select
@@ -3330,11 +3330,11 @@ export default function Layout({ children, currentPageName }) {
                           {/* Theme Toggle - Mobile Only (for all users including drivers) */}
                           {isMobile && (
                             <>
-                              <DropdownMenuLabel className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                Display
-                              </DropdownMenuLabel>
+                              <DropdownMenuLabel className="px-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
+                                    Display
+                                  </DropdownMenuLabel>
                               <div className="px-2 py-2">
-                                <label className="text-xs font-medium mb-1.5 block" style={{ color: 'var(--text-slate-700)' }}>
+                                <label className="text-sm font-medium mb-1.5 block" style={{ color: 'var(--text-slate-700)' }}>
                                   Theme
                                 </label>
                                 <Select
@@ -3358,7 +3358,7 @@ export default function Layout({ children, currentPageName }) {
                           {/* Import Buttons - App Owner Only - Hidden on Mobile */}
                           {!isMobile && realUser && isAppOwner(realUser) && (
                           <>
-                            <DropdownMenuLabel className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                            <DropdownMenuLabel className="px-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
                               Data Importers
                             </DropdownMenuLabel>
                             <DropdownMenuItem onClick={() => setShowPatientImport(true)} className="cursor-pointer">
@@ -3380,7 +3380,7 @@ export default function Layout({ children, currentPageName }) {
                           {/* Active Stops Import - Drivers (all devices) or App Owners without full access */}
                           {(userHasRole(currentUser, 'driver') || (isAppOwner(currentUser) && !canAccessImports(currentUser, adminImportEnabled))) && (
                           <>
-                            <DropdownMenuLabel className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                            <DropdownMenuLabel className="px-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
                               Import
                             </DropdownMenuLabel>
                             <DropdownMenuItem onClick={() => setShowActiveRoutesImport(true)} className="cursor-pointer">
