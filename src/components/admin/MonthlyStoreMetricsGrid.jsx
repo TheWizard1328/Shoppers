@@ -57,8 +57,8 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
         if (totals[storeData.abbreviation] !== undefined) {
           let value;
           if (metricsViewMode === 'deliveries') {
-            // Include completed + failed + afterHours + cancelled for total billable deliveries
-            const totalDeliveries = (storeData.completed || 0) + (storeData.failed || 0) + (storeData.afterHours || 0) + (storeData.cancelled || 0);
+            // Total = Completed Deliveries + After Hours + Failed
+            const totalDeliveries = (storeData.completed || 0) + (storeData.afterHours || 0) + (storeData.failed || 0);
             // Only add envelope adjustment if toggle is on AND this store has envelope data
             const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[storeData.storeId]?.[month];
             const envelopeAdjustment = (showEnvelopeAdjustedTotals && envelopeInfo?.totalEnvelopeValue > 0) 
