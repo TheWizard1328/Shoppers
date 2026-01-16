@@ -547,37 +547,28 @@ Deno.serve(async (req) => {
             return null;
           };
           
-          // CRITICAL: Try AppUser duty tracking first (on_duty/off_duty with break deductions)
-          let totalDutyMinutes = 0;
-          if (appUser) {
-            // CRITICAL: Check if driver has logged duty time for today
-            // This would be tracked by on_duty/off_duty status changes + break tracking
-            const breakTimeMinutes = appUser.total_break_time_minutes || 0;
-            
-            // CRITICAL: Calculate duty time from completed stops if available
-            const finishedWithTimes = todayDeliveries
-              .filter(d => d.actual_delivery_time)
-              .map(d => ({ ...d, localMinutes: extractLocalTimeMinutes(d.actual_delivery_time) }))
-              .filter(d => d.localMinutes !== null)
-              .sort((a, b) => a.localMinutes - b.localMinutes);
-            
-            if (finishedWithTimes.length > 0) {
-              const firstMinutes = finishedWithTimes[0].localMinutes;
-              const lastMinutes = finishedWithTimes[finishedWithTimes.length - 1].localMinutes;
-              
-              // Calculate raw duration
-              const rawDurationMinutes = lastMinutes - firstMinutes;
-              
-              // Deduct break time from total
-              totalDutyMinutes = Math.max(0, rawDurationMinutes - breakTimeMinutes);
-              
-              console.log(`⏱️ [TIME DEBUG] First stop: ${finishedWithTimes[0].actual_delivery_time} -> ${Math.floor(firstMinutes/60)}:${String(firstMinutes%60).padStart(2,'0')}`);
-              console.log(`⏱️ [TIME DEBUG] Last stop: ${finishedWithTimes[finishedWithTimes.length - 1].actual_delivery_time} -> ${Math.floor(lastMinutes/60)}:${String(lastMinutes%60).padStart(2,'0')}`);
-              console.log(`⏱️ [TIME DEBUG] Raw duration: ${rawDurationMinutes}min, Break time: ${breakTimeMinutes}min, Final: ${totalDutyMinutes}min`);
-            }
-          }
+          // CRITICAL: Calculate time on duty from stops (first to last) minus breaks
+          const breakTimeMinutes = appUser?.total_break_time_minutes || 0;
           
-          if (totalDutyMinutes > 0) {
+          const finishedWithTimes = todayDeliveries
+            .filter(d => d.actual_delivery_time)
+            .map(d => ({ ...d, localMinutes: extractLocalTimeMinutes(d.actual_delivery_time) }))
+            .filter(d => d.localMinutes !== null)
+            .sort((a, b) => a.localMinutes - b.localMinutes);
+
+          if (finishedWithTimes.length > 0) {
+            const firstMinutes = finishedWithTimes[0].localMinutes;
+            const lastMinutes = finishedWithTimes[finishedWithTimes.length - 1].localMinutes;
+            
+            // Calculate raw duration and deduct breaks
+            const rawDurationMinutes = lastMinutes - firstMinutes;
+            const totalDutyMinutes = Math.max(0, rawDurationMinutes - breakTimeMinutes);
+            
+            console.log(`⏱️ [TIME DEBUG] First stop: ${finishedWithTimes[0].actual_delivery_time} -> ${Math.floor(firstMinutes/60)}:${String(firstMinutes%60).padStart(2,'0')}`);
+            console.log(`⏱️ [TIME DEBUG] Last stop: ${finishedWithTimes[finishedWithTimes.length - 1].actual_delivery_time} -> ${Math.floor(lastMinutes/60)}:${String(lastMinutes%60).padStart(2,'0')}`);
+            console.log(`⏱️ [TIME DEBUG] Raw: ${rawDurationMinutes}min, Breaks: ${breakTimeMinutes}min, Duty: ${totalDutyMinutes}min`);
+            
+            // CRITICAL: Even if totalDutyMinutes is 0, set it (don't leave as default)
             const hours = Math.floor(totalDutyMinutes / 60);
             const minutes = totalDutyMinutes % 60;
             performanceStats.totalTimeOnDuty = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
