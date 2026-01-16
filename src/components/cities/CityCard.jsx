@@ -1,4 +1,3 @@
-
 import React from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,7 +24,7 @@ export default function CityCard({ city, onEdit, onDelete, cityStats, dragHandle
             whileHover={{ y: -2 }}
             transition={{ duration: 0.2 }}
         >
-            <Card className="bg-white border-slate-200 shadow-sm hover:shadow-md transition-shadow duration-300 h-full">
+            <Card className="shadow-sm hover:shadow-md transition-shadow duration-300 h-full" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                 <CardContent className="p-6 flex flex-col justify-between h-full">
                     <div>
                         <div className="flex items-start justify-between mb-4">
@@ -34,15 +33,15 @@ export default function CityCard({ city, onEdit, onDelete, cityStats, dragHandle
                                     <Building2 className="w-6 h-6 text-blue-600" />
                                 </div>
                                 <div>
-                                    <h3 className="font-semibold text-slate-900 text-lg">
+                                    <h3 className="font-semibold text-lg" style={{ color: 'var(--text-slate-900)' }}>
                                         {city.name}
                                     </h3>
-                                    <p className="text-sm text-slate-600">
+                                    <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>
                                         {city.province_state}, {city.country}
                                     </p>
                                 </div>
                             </div>
-                            <div {...dragHandleProps} className="cursor-grab text-slate-400 hover:text-slate-600">
+                            <div {...dragHandleProps} className="cursor-grab" style={{ color: 'var(--text-slate-400)' }}>
                                 <GripVertical className="w-5 h-5" />
                             </div>
                         </div>
@@ -52,20 +51,20 @@ export default function CityCard({ city, onEdit, onDelete, cityStats, dragHandle
                             <div className="flex items-center justify-between text-sm">
                                 <div className="flex items-center gap-2">
                                     <Users className="w-4 h-4 text-emerald-600" />
-                                    <span className="text-slate-600 font-medium">Drivers</span>
+                                    <span className="font-medium" style={{ color: 'var(--text-slate-600)' }}>Drivers</span>
                                 </div>
-                                <span className="font-semibold text-slate-900">{cityStats?.drivers || 0}</span>
+                                <span className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{cityStats?.drivers || 0}</span>
                             </div>
                             <div className="flex items-center justify-between text-sm">
                                 <div className="flex items-center gap-2">
                                     <Building className="w-4 h-4 text-purple-600" />
-                                    <span className="text-slate-600 font-medium">Stores</span>
+                                    <span className="font-medium" style={{ color: 'var(--text-slate-600)' }}>Stores</span>
                                 </div>
-                                <span className="font-semibold text-slate-900">{cityStats?.stores || 0}</span>
+                                <span className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>{cityStats?.stores || 0}</span>
                             </div>
                         </div>
 
-                        <div className="text-xs text-slate-400 font-mono mt-3">
+                        <div className="text-xs font-mono mt-3" style={{ color: 'var(--text-slate-400)' }}>
                             {city.latitude?.toFixed(7)}, {city.longitude?.toFixed(7)}
                         </div>
                     </div>
@@ -78,15 +77,15 @@ export default function CityCard({ city, onEdit, onDelete, cityStats, dragHandle
                                     Delete
                                 </Button>
                             </AlertDialogTrigger>
-                            <AlertDialogContent>
+                            <AlertDialogContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                                 <AlertDialogHeader>
-                                    <AlertDialogTitle>Delete City</AlertDialogTitle>
-                                    <AlertDialogDescription>
+                                    <AlertDialogTitle style={{ color: 'var(--text-slate-900)' }}>Delete City</AlertDialogTitle>
+                                    <AlertDialogDescription style={{ color: 'var(--text-slate-600)' }}>
                                         Are you sure you want to delete {city.name}? This action cannot be undone.
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogCancel style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>Cancel</AlertDialogCancel>
                                     <AlertDialogAction
                                         onClick={() => onDelete(city.id)}
                                         className="bg-red-600 hover:bg-red-700"
@@ -100,6 +99,7 @@ export default function CityCard({ city, onEdit, onDelete, cityStats, dragHandle
                             variant="outline"
                             size="sm"
                             onClick={() => onEdit(city)}
+                            style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}
                         >
                             <Edit className="w-4 h-4 mr-2" />
                             Edit

@@ -217,9 +217,9 @@ export default function CityForm({ city, onSave, onCancel }) {
         exit={{ opacity: 0, scale: 0.95 }}
         className={`w-full ${isFullScreen ? 'h-full' : 'max-w-3xl'}`}
       >
-        <Card className={`bg-white border-slate-200 shadow-xl ${isFullScreen ? 'h-full rounded-none overflow-y-auto' : isNarrowScreen ? 'max-h-[90vh] overflow-y-auto' : ''}`}>
-          <CardHeader className="flex flex-row items-center justify-between px-6 py-1.5 border-b border-slate-300">
-            <CardTitle className="text-xl font-bold text-slate-900">{city ? 'Edit City' : 'Add New City'}</CardTitle>
+        <Card className={`shadow-xl ${isFullScreen ? 'h-full rounded-none overflow-y-auto' : isNarrowScreen ? 'max-h-[90vh] overflow-y-auto' : ''}`} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+          <CardHeader className="flex flex-row items-center justify-between px-6 py-1.5" style={{ borderBottom: '1px solid var(--border-slate-300)' }}>
+            <CardTitle className="text-xl font-bold" style={{ color: 'var(--text-slate-900)' }}>{city ? 'Edit City' : 'Add New City'}</CardTitle>
             <Button variant="ghost" size="icon" onClick={onCancel}><X className="w-4 h-4" /></Button>
           </CardHeader>
           <CardContent className="p-0">
@@ -227,41 +227,41 @@ export default function CityForm({ city, onSave, onCancel }) {
               <div className="p-6">
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2"><Label htmlFor="name">City Name *</Label><Input id="name" value={formData.name} onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))} required className="border-black"/></div>
-                    <div className="space-y-2"><Label htmlFor="geocode">Geocode</Label><Button id="geocode" type="button" variant="outline" onClick={handleGeocode} disabled={isGeocoding} className="w-full gap-2 border-black">{isGeocoding ? <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div> : <MapPin className="w-4 h-4" />} Geocode</Button></div>
+                    <div className="space-y-2"><Label htmlFor="name" style={{ color: 'var(--text-slate-900)' }}>City Name *</Label><Input id="name" value={formData.name} onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))} required style={{ borderColor: 'var(--menu-border)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}/></div>
+                    <div className="space-y-2"><Label htmlFor="geocode" style={{ color: 'var(--text-slate-900)' }}>Geocode</Label><Button id="geocode" type="button" variant="outline" onClick={handleGeocode} disabled={isGeocoding} className="w-full gap-2" style={{ borderColor: 'var(--menu-border)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>{isGeocoding ? <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div> : <MapPin className="w-4 h-4" />} Geocode</Button></div>
                   </div>
                   <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="country">Country *</Label>
+                      <Label htmlFor="country" style={{ color: 'var(--text-slate-900)' }}>Country *</Label>
                       <Select value={formData.country} onValueChange={(value) => setFormData(prev => ({ ...prev, country: value, province_state: "" }))}>
-                        <SelectTrigger className="border-black"><SelectValue placeholder="Select country..." /></SelectTrigger>
-                        <SelectContent>
-                          {COUNTRIES.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                        <SelectTrigger style={{ borderColor: 'var(--menu-border)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}><SelectValue placeholder="Select country..." /></SelectTrigger>
+                        <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                          {COUNTRIES.map((c) => <SelectItem key={c.value} value={c.value} style={{ color: 'var(--text-slate-900)' }}>{c.label}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="province_state">Prov/State *</Label>
+                      <Label htmlFor="province_state" style={{ color: 'var(--text-slate-900)' }}>Prov/State *</Label>
                       <Select value={formData.province_state} onValueChange={(value) => setFormData(prev => ({ ...prev, province_state: value }))} disabled={!formData.country}>
-                        <SelectTrigger className="border-black"><SelectValue placeholder={formData.country ? "Select..." : "Select country first"} /></SelectTrigger>
-                        <SelectContent>
-                          {(PROVINCES_STATES[formData.country] || []).map((ps) => <SelectItem key={ps} value={ps}>{ps}</SelectItem>)}
+                        <SelectTrigger style={{ borderColor: 'var(--menu-border)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}><SelectValue placeholder={formData.country ? "Select..." : "Select country first"} /></SelectTrigger>
+                        <SelectContent style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                          {(PROVINCES_STATES[formData.country] || []).map((ps) => <SelectItem key={ps} value={ps} style={{ color: 'var(--text-slate-900)' }}>{ps}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2"><Label htmlFor="sort_order">Sort Order</Label><Input type="number" id="sort_order" value={formData.sort_order || ""} onChange={(e) => setFormData(prev => ({ ...prev, sort_order: parseInt(e.target.value) || null }))} placeholder="0" className="border-black"/></div>
+                    <div className="space-y-2"><Label htmlFor="sort_order" style={{ color: 'var(--text-slate-900)' }}>Sort Order</Label><Input type="number" id="sort_order" value={formData.sort_order || ""} onChange={(e) => setFormData(prev => ({ ...prev, sort_order: parseInt(e.target.value) || null }))} placeholder="0" style={{ borderColor: 'var(--menu-border)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}/></div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2"><Label htmlFor="latitude">Latitude *</Label><Input type="number" step="any" id="latitude" value={formData.latitude || ""} onChange={(e) => setFormData(prev => ({ ...prev, latitude: parseFloat(e.target.value) || null }))} required className="border-black"/></div>
-                    <div className="space-y-2"><Label htmlFor="longitude">Longitude *</Label><Input type="number" step="any" id="longitude" value={formData.longitude || ""} onChange={(e) => setFormData(prev => ({ ...prev, longitude: parseFloat(e.target.value) || null }))} required className="border-black"/></div>
+                    <div className="space-y-2"><Label htmlFor="latitude" style={{ color: 'var(--text-slate-900)' }}>Latitude *</Label><Input type="number" step="any" id="latitude" value={formData.latitude || ""} onChange={(e) => setFormData(prev => ({ ...prev, latitude: parseFloat(e.target.value) || null }))} required style={{ borderColor: 'var(--menu-border)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}/></div>
+                    <div className="space-y-2"><Label htmlFor="longitude" style={{ color: 'var(--text-slate-900)' }}>Longitude *</Label><Input type="number" step="any" id="longitude" value={formData.longitude || ""} onChange={(e) => setFormData(prev => ({ ...prev, longitude: parseFloat(e.target.value) || null }))} required style={{ borderColor: 'var(--menu-border)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}/></div>
                   </div>
-                  <div className="border-t pt-4 space-y-2"><Label className="font-semibold">Associated Data</Label><div className="grid grid-cols-2 gap-4"><div className="space-y-1"><Label className="text-xs">Stores</Label><div className="text-sm font-medium">{stores.length}</div></div><div className="space-y-1"><Label className="text-xs">Drivers</Label><div className="text-sm font-medium">{drivers.length}</div></div></div></div>
-                  <div className="flex justify-end gap-3 pt-4 border-t"><Button type="button" variant="outline" onClick={onCancel} className="border-black">Cancel</Button><Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 gap-2 border-black"><Save className="w-4 h-4" />{city ? 'Update' : 'Create'}</Button></div>
+                  <div className="pt-4 space-y-2" style={{ borderTop: '1px solid var(--border-slate-200)' }}><Label className="font-semibold" style={{ color: 'var(--text-slate-900)' }}>Associated Data</Label><div className="grid grid-cols-2 gap-4"><div className="space-y-1"><Label className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Stores</Label><div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>{stores.length}</div></div><div className="space-y-1"><Label className="text-xs" style={{ color: 'var(--text-slate-600)' }}>Drivers</Label><div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>{drivers.length}</div></div></div></div>
+                  <div className="flex justify-end gap-3 pt-4" style={{ borderTop: '1px solid var(--border-slate-200)' }}><Button type="button" variant="outline" onClick={onCancel} style={{ borderColor: 'var(--menu-border)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>Cancel</Button><Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 gap-2" style={{ borderColor: 'var(--menu-border)' }}><Save className="w-4 h-4" />{city ? 'Update' : 'Create'}</Button></div>
                 </form>
               </div>
-              <div className={`p-6 ${isNarrowScreen ? 'border-t' : 'border-l'} border-slate-200`}>
-                <Label className="font-semibold text-slate-800">City Center Location</Label>
-                <div className="h-[380px] rounded-lg overflow-hidden border border-black mt-2 bg-slate-100">
+              <div className={`p-6 ${isNarrowScreen ? '' : 'border-l'}`} style={{ borderColor: 'var(--border-slate-200)', borderTop: isNarrowScreen ? '1px solid var(--border-slate-200)' : 'none' }}>
+                <Label className="font-semibold" style={{ color: 'var(--text-slate-800)' }}>City Center Location</Label>
+                <div className="h-[380px] rounded-lg overflow-hidden mt-2" style={{ border: '1px solid var(--menu-border)', background: 'var(--bg-slate-100)' }}>
                   {formData.latitude && formData.longitude ? (
                     <MapContainer
                       center={[formData.latitude, formData.longitude]}
@@ -302,8 +302,8 @@ export default function CityForm({ city, onSave, onCancel }) {
                     </MapContainer>
                   ) : (
                     <div className="h-full flex items-center justify-center">
-                      <div className="text-center text-slate-500">
-                        <MapPin className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+                      <div className="text-center" style={{ color: 'var(--text-slate-500)' }}>
+                        <MapPin className="w-12 h-12 mx-auto mb-4" style={{ color: 'var(--text-slate-300)' }} />
                         <p className="text-lg font-medium mb-2">No Coordinates Set</p>
                         <p className="text-sm">Use the Geocode button or enter coordinates manually</p>
                         <p className="text-sm mt-2">to display the map.</p>
@@ -311,7 +311,7 @@ export default function CityForm({ city, onSave, onCancel }) {
                     </div>
                   )}
                 </div>
-                <p className="text-xs text-slate-500 mt-2">
+                <p className="text-xs mt-2" style={{ color: 'var(--text-slate-500)' }}>
                   💡 Tip: Click on the map or drag the marker to adjust the city center position.
                 </p>
               </div>

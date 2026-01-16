@@ -99,13 +99,13 @@ export default function CitiesPage() {
     }, [appUsers]);
 
     return (
-        <div className="h-full overflow-y-auto bg-slate-50 p-6">
+        <div className="h-full overflow-y-auto p-6" style={{ background: 'var(--bg-slate-50)' }}>
             <div className="max-w-6xl mx-auto space-y-6">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <SmartRefreshIndicator inline={true} />
-                        <h1 className="text-3xl font-bold text-slate-900">Cities</h1>
-                        <p className="text-slate-600 mt-1">Manage cities and their locations</p>
+                        <h1 className="text-3xl font-bold" style={{ color: 'var(--text-slate-900)' }}>Cities</h1>
+                        <p className="mt-1" style={{ color: 'var(--text-slate-600)' }}>Manage cities and their locations</p>
                     </div>
                     <Button onClick={() => { setEditingCity(null); setShowForm(true); }} className="bg-emerald-600 hover:bg-emerald-700">
                         <Plus className="w-4 h-4 mr-2" />
@@ -114,15 +114,16 @@ export default function CitiesPage() {
                 </div>
 
                 {/* Search and Filter */}
-                <Card>
+                <Card style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                     <CardContent className="p-4">
                         <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-slate-400)' }} />
                             <Input
                                 placeholder="Search cities..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="pl-10"
+                                style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-300)', color: 'var(--text-slate-900)' }}
                             />
                         </div>
                     </CardContent>
@@ -132,24 +133,24 @@ export default function CitiesPage() {
                     <div className="flex justify-center items-center h-64">
                         <div className="text-center">
                             <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-                            <p>Loading cities...</p>
+                            <p style={{ color: 'var(--text-slate-600)' }}>Loading cities...</p>
                         </div>
                     </div>
                 ) : (
                     <>
                         {filteredCities.length === 0 ? (
                             <div className="text-center py-16">
-                                <h3 className="text-xl font-semibold text-slate-800">No cities found</h3>
-                                <p className="text-slate-500 mt-2">
+                                <h3 className="text-xl font-semibold" style={{ color: 'var(--text-slate-800)' }}>No cities found</h3>
+                                <p className="mt-2" style={{ color: 'var(--text-slate-500)' }}>
                                     {searchTerm ? `Your search for "${searchTerm}" did not return any results.` : 'Click "Add City" to get started.'}
                                 </p>
                             </div>
                         ) : (
                             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                                 {filteredCities.map((city) => (
-                                    <Card key={city.id} className="hover:shadow-lg transition-shadow relative">
+                                    <Card key={city.id} className="hover:shadow-lg transition-shadow relative" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                                         {city.sort_order !== undefined && (
-                                            <Badge className="absolute top-2 left-2 bg-slate-200 text-slate-700 text-xs">
+                                            <Badge className="absolute top-2 left-2 text-xs" style={{ background: 'var(--bg-slate-200)', color: 'var(--text-slate-700)' }}>
                                                 {city.sort_order}
                                             </Badge>
                                         )}
@@ -160,9 +161,9 @@ export default function CitiesPage() {
                                                         <MapPin className="w-6 h-6 text-emerald-600" />
                                                     </div>
                                                     <div>
-                                                        <h3 className="font-bold text-lg text-slate-900">{city.name}</h3>
-                                                        <p className="text-sm text-slate-500">{city.province_state}, {city.country}</p>
-                                                        <p className="text-xs text-slate-400 font-mono mt-1">ID: {city.id}</p>
+                                                        <h3 className="font-bold text-lg" style={{ color: 'var(--text-slate-900)' }}>{city.name}</h3>
+                                                        <p className="text-sm" style={{ color: 'var(--text-slate-500)' }}>{city.province_state}, {city.country}</p>
+                                                        <p className="text-xs font-mono mt-1" style={{ color: 'var(--text-slate-400)' }}>ID: {city.id}</p>
                                                     </div>
                                                 </div>
                                                 <Button
@@ -175,11 +176,11 @@ export default function CitiesPage() {
                                             </div>
 
                                             <div className="space-y-2 text-sm">
-                                                <div className="flex items-center gap-2 text-slate-600">
+                                                <div className="flex items-center gap-2" style={{ color: 'var(--text-slate-600)' }}>
                                                     <MapPin className="w-4 h-4" />
                                                     <span>Lat: {city.latitude?.toFixed(6)}, Lng: {city.longitude?.toFixed(6)}</span>
                                                 </div>
-                                                <div className="flex items-center gap-4 text-slate-600">
+                                                <div className="flex items-center gap-4" style={{ color: 'var(--text-slate-600)' }}>
                                                     <div className="flex items-center gap-1">
                                                         <Truck className="w-4 h-4 text-emerald-600" />
                                                         <span>{getCityCounts(city.id).drivers} Drivers</span>
@@ -191,7 +192,7 @@ export default function CitiesPage() {
                                                 </div>
                                             </div>
 
-                                            <div className="mt-4 pt-4 border-t border-slate-200">
+                                            <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--border-slate-200)' }}>
                                                 <Button
                                                     variant="destructive"
                                                     size="sm"
