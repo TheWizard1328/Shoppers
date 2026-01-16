@@ -203,6 +203,9 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     });
   });
 
+  // --- HELPER FUNCTIONS FOR METRICS ---
+  
+  // Check if delivery is a return (exclude from most counts)
   const isReturn = (d) => {
     if (!d) return false;
     const notes = (d.delivery_notes || '');
@@ -212,25 +215,35 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     return returnRegex.test(notes) || returnRegex.test(patientName);
   };
   
-  const isFailed = (d) => {
+  // Check if delivery is a completed delivery (has patient_id, status=completed, not a return)
+  const isCompletedDelivery = (d) => {
     if (!d) return false;
-    if (isReturn(d)) return false;
-    if (d.status === 'failed') return true;
-    if (d.status === 'cancelled' && !d.patient_id) return true;
-    return false;
-  };
-  
-  const isCompleted = (d) => {
-    if (!d) return false;
+    if (!d.patient_id) return false; // Must be a delivery, not a pickup
     if (d.status !== 'completed') return false;
     if (isReturn(d)) return false;
     return true;
   };
   
-  const isBillableDelivery = (d) => {
+  // Check if delivery is a failed delivery (has patient_id, status=failed, not a return)
+  const isFailedDelivery = (d) => {
     if (!d) return false;
-    return (d.patient_id && (isCompleted(d) || isFailed(d) || isReturn(d))) || 
-           (d.after_hours_pickup && (d.status === 'completed' || d.status === 'cancelled'));
+    if (!d.patient_id) return false; // Must be a delivery, not a pickup
+    if (isReturn(d)) return false;
+    if (d.status === 'failed') return true;
+    return false;
+  };
+  
+  // Check if it's a completed or cancelled after-hours pickup
+  const isAfterHoursPickup = (d) => {
+    if (!d) return false;
+    if (!d.after_hours_pickup) return false;
+    return d.status === 'completed' || d.status === 'cancelled';
+  };
+  
+  // Check if store pays fees
+  const storePaysFees = (storeId) => {
+    const store = storeMap.get(storeId);
+    return store?.pays_app_fees === true;
   };
 
   const storeMonthlyFees = new Map();
