@@ -179,28 +179,31 @@ export default function DriverPayroll() {
     }
   }, [selectedYear, selectedCityId, selectedDriverId, currentUser, hasInitialized]);
 
-  // Initialize defaults based on user role
+  // Initialize defaults based on user role - runs ONCE on mount
   useEffect(() => {
     if (!currentUser || hasInitialized) return;
 
     if (isDriver) {
       // Drivers default to viewing their own payroll
       setSelectedDriverId(currentUser.id);
-      
-      // Get driver's saved pay cycle type from AppUser
-      const driverAppUser = payrollData?.appUsers?.find(au => au.user_id === currentUser.id);
-      if (driverAppUser?.pay_cycle_type) {
-        setPayPeriod(driverAppUser.pay_cycle_type);
-      } else {
-        setPayPeriod('monthly');
-      }
+      setPayPeriod('monthly'); // Default, will be overwritten when payrollData loads
     } else {
       // Admins default to Semi-Monthly view with All Drivers
       setSelectedDriverId('all');
       setPayPeriod('semimonthly');
     }
     setHasInitialized(true);
-  }, [currentUser, payrollData?.appUsers, isDriver, hasInitialized]);
+  }, [currentUser, isDriver, hasInitialized]);
+
+  // Update pay period when payrollData loads (for drivers)
+  useEffect(() => {
+    if (!hasInitialized || !payrollData?.appUsers || selectedDriverId === 'all') return;
+    
+    const driverAppUser = payrollData.appUsers.find(au => au.user_id === selectedDriverId);
+    if (driverAppUser?.pay_cycle_type) {
+      setPayPeriod(driverAppUser.pay_cycle_type);
+    }
+  }, [payrollData?.appUsers, selectedDriverId, hasInitialized]);
 
   // Auto-select pay cycle type when driver selection changes
   useEffect(() => {
