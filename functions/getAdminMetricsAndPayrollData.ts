@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
     try {
       user = await base44.auth.me();
     } catch (authError) {
-      console.error('Auth error:', authError.message);
+      console.error('❌ Auth error:', authError.message);
       return Response.json({ error: 'Authentication failed: ' + authError.message }, { status: 401 });
     }
     
@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
     const fetchAdminMetrics = async (year, cityId) => {
       const metricsKey = `admin_${year}_${cityId}`;
       if (statsCache.adminMetrics.key === metricsKey && statsCache.adminMetrics.cacheDate === cacheDate) {
-        console.log('[getAdminMetricsAndPayrollData] Using CACHED AdminMetrics');
+        console.log('📊 Using CACHED AdminMetrics');
         return statsCache.adminMetrics.data;
       }
 
@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
       const metrics = processAdminMetrics(deliveries, stores, appUsers, patients, year, appFeeRate);
       
       // Add envelope metrics - checks delivery_notes (driver notes)
-      const envelopeMetrics = calculateEnvelopeMetrics(deliveries, year);
+      const envelopeMetrics = calculateEnvelopeMetrics(deliveries, stores);
       metrics.envelopeMetrics = envelopeMetrics;
 
       statsCache.adminMetrics = { data: metrics, cacheDate, key: metricsKey };
@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
     const fetchPayrollData = async (year, cityId, driverId) => {
       const payrollKey = `payroll_${year}_${cityId}_${driverId}`;
       if (statsCache.payrollData.key === payrollKey && statsCache.payrollData.cacheDate === cacheDate) {
-        console.log('[getAdminMetricsAndPayrollData] Using CACHED PayrollData');
+        console.log('📊 Using CACHED PayrollData');
         return statsCache.payrollData.data;
       }
 
@@ -135,16 +135,20 @@ Deno.serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('CRITICAL ERROR in getAdminMetricsAndPayrollData:', error);
+    console.error('❌ CRITICAL ERROR in getAdminMetricsAndPayrollData:', error);
     return Response.json({ error: error.message || 'Unknown error occurred' }, { status: 500 });
   }
 });
 
 
-// Helper to process Admin Metrics data
 function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFeeRate) {
   const metrics = {
-    monthlyData: Array(12).fill(null).map((_, i) => ({ month: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][i], billable: 0, nonBillable: 0, total: 0 })),
+    monthlyData: Array(12).fill(null).map((_, i) => ({ 
+      month: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][i], 
+      billable: 0, 
+      nonBillable: 0, 
+      total: 0 
+    })),
     yearTotals: { billable: 0, nonBillable: 0, activeDrivers: 0 },
     storeDataByMonth: {},
     driverDataByMonth: {},
@@ -176,10 +180,27 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
   const relevantDeliveries = deliveries.filter(d => d && d.delivery_date);
 
   stores.forEach(s => {
-    metrics.storeData.push({ abbreviation: s.abbreviation, name: s.name, storeId: s.id, completed: 0, failed: 0, afterHours: 0, cancelled: 0, fees: 0, color: s.color, sortOrder: s.sort_order });
+    metrics.storeData.push({ 
+      abbreviation: s.abbreviation, 
+      name: s.name, 
+      storeId: s.id, 
+      completed: 0, 
+      failed: 0, 
+      afterHours: 0, 
+      cancelled: 0, 
+      fees: 0, 
+      color: s.color, 
+      sortOrder: s.sort_order 
+    });
   });
+  
   appUsers.filter(au => au.app_roles && au.app_roles.includes('driver')).forEach(driver => {
-    metrics.driverData.push({ name: driver.user_name || driver.full_name, driverId: driver.user_id, billable: 0, nonBillable: 0 });
+    metrics.driverData.push({ 
+      name: driver.user_name || driver.full_name, 
+      driverId: driver.user_id, 
+      billable: 0, 
+      nonBillable: 0 
+    });
   });
 
   const isReturn = (d) => {
@@ -190,6 +211,7 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     const returnRegex = /\breturn\b/i;
     return returnRegex.test(notes) || returnRegex.test(patientName);
   };
+  
   const isFailed = (d) => {
     if (!d) return false;
     if (isReturn(d)) return false;
@@ -197,15 +219,18 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     if (d.status === 'cancelled' && !d.patient_id) return true;
     return false;
   };
+  
   const isCompleted = (d) => {
     if (!d) return false;
     if (d.status !== 'completed') return false;
     if (isReturn(d)) return false;
     return true;
   };
+  
   const isBillableDelivery = (d) => {
     if (!d) return false;
-    return (d.patient_id && (isCompleted(d) || isFailed(d) || isReturn(d))) || (d.after_hours_pickup && (d.status === 'completed' || d.status === 'cancelled'));
+    return (d.patient_id && (isCompleted(d) || isFailed(d) || isReturn(d))) || 
+           (d.after_hours_pickup && (d.status === 'completed' || d.status === 'cancelled'));
   };
 
   const storeMonthlyFees = new Map();
@@ -254,7 +279,17 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
         if (!metrics.storeDataByMonth[monthIndex + 1]) metrics.storeDataByMonth[monthIndex + 1] = [];
         let monthlyStoreEntry = metrics.storeDataByMonth[monthIndex + 1].find(s => s.storeId === delivery.store_id);
         if (!monthlyStoreEntry) {
-          monthlyStoreEntry = { abbreviation: storeAbbr, name: store.name, storeId: delivery.store_id, completed: 0, failed: 0, afterHours: 0, cancelled: 0, color: store.color, sortOrder: store.sort_order };
+          monthlyStoreEntry = { 
+            abbreviation: storeAbbr, 
+            name: store.name, 
+            storeId: delivery.store_id, 
+            completed: 0, 
+            failed: 0, 
+            afterHours: 0, 
+            cancelled: 0, 
+            color: store.color, 
+            sortOrder: store.sort_order 
+          };
           metrics.storeDataByMonth[monthIndex + 1].push(monthlyStoreEntry);
         }
         if (isCompleted(delivery)) monthlyStoreEntry.completed++;
@@ -325,9 +360,12 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     if (store) {
       for (let m = 0; m < 12; m++) {
         if (!metrics.monthlyStoreData[m + 1]) metrics.monthlyStoreData[m + 1] = [];
-        const existingEntry = metrics.monthlyStoreData[m + 1].find(s => s.storeId === storeId);
+        const existingEntry = metrics.storeDataByMonth[m + 1]?.find(s => s.storeId === storeId);
         if (existingEntry) {
-          existingEntry.fees = monthlyFeesArray[m];
+          metrics.monthlyStoreData[m + 1].push({
+            ...existingEntry,
+            fees: monthlyFeesArray[m]
+          });
         } else {
           metrics.monthlyStoreData[m + 1].push({
             abbreviation: store.abbreviation,
@@ -342,15 +380,32 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
       }
     }
   }
+
+  // Add stores without fees
+  for (let m = 1; m <= 12; m++) {
+    const existingStores = new Set(metrics.monthlyStoreData[m]?.map(s => s.storeId) || []);
+    const monthStoreData = metrics.storeDataByMonth[m] || [];
+    monthStoreData.forEach(storeData => {
+      if (!existingStores.has(storeData.storeId)) {
+        if (!metrics.monthlyStoreData[m]) metrics.monthlyStoreData[m] = [];
+        metrics.monthlyStoreData[m].push({
+          ...storeData,
+          fees: 0
+        });
+      }
+    });
+  }
   
   metrics.storeFeeTotals.stores_paying_fees = storesPayingFeesSet.size;
-  metrics.yearTotals.activeDrivers = new Set(appUsers.filter(au => au.app_roles && au.app_roles.includes('driver') && au.status === 'active').map(au => au.user_id)).size;
+  metrics.yearTotals.activeDrivers = new Set(
+    appUsers.filter(au => au.app_roles && au.app_roles.includes('driver') && au.status === 'active').map(au => au.user_id)
+  ).size;
 
   return metrics;
 }
 
 // Helper to calculate Envelope metrics from delivery_notes (driver notes)
-function calculateEnvelopeMetrics(deliveries, year) {
+function calculateEnvelopeMetrics(deliveries, stores) {
   const envelopeMetrics = {
     byStoreAndMonth: {},
     yearTotals: { 
@@ -407,7 +462,10 @@ function calculateEnvelopeMetrics(deliveries, year) {
       monthData.adjustedDeliveries = monthData.actualDeliveries - monthData.envelopeDeliveriesCount + monthData.totalEnvelopeValue;
     }
   }
-  envelopeMetrics.yearTotals.adjustedDeliveries = envelopeMetrics.yearTotals.actualDeliveries - envelopeMetrics.yearTotals.envelopeDeliveriesCount + envelopeMetrics.yearTotals.totalEnvelopeValue;
+  envelopeMetrics.yearTotals.adjustedDeliveries = 
+    envelopeMetrics.yearTotals.actualDeliveries - 
+    envelopeMetrics.yearTotals.envelopeDeliveriesCount + 
+    envelopeMetrics.yearTotals.totalEnvelopeValue;
 
   return envelopeMetrics;
 }

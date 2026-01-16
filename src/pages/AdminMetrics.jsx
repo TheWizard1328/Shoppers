@@ -8,7 +8,8 @@ import { base44 } from '@/api/base44Client';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { getEffectiveUser } from '@/components/utils/auth';
 import { isAppOwner, userHasRole } from '../components/utils/userRoles';
-// SmartRefreshIndicator removed - causes context issues on this page
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import MonthlyStoreMetricsGrid from '../components/admin/MonthlyStoreMetricsGrid';
 
 const MONTH_NAMES = [
@@ -30,6 +31,7 @@ export default function AdminMetrics() {
   const [selectedMonth, setSelectedMonth] = useState(null); // null = all year, 1-12 = specific month
   const [selectedStoreMonth, setSelectedStoreMonth] = useState(null); // { month, storeId, storeAbbr } for day-by-day breakdown
   const [metricsViewMode, setMetricsViewMode] = useState('deliveries'); // 'deliveries' or 'fees'
+  const [showEnvelopeAdjustedTotals, setShowEnvelopeAdjustedTotals] = useState(false);
   const [selectedCityId, setSelectedCityId] = useState(null); // Will be set to user's city
   const [cities, setCities] = useState([]);
   const [metricsData, setMetricsData] = useState(null);
@@ -81,11 +83,11 @@ export default function AdminMetrics() {
     setError(null);
     
     try {
-      const response = await base44.functions.invoke('getAdminMetrics', { 
-        year: parseInt(year),
-        cityId: cityId === 'all' ? null : cityId
+      const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', { 
+        adminMetricsYear: parseInt(year),
+        adminMetricsCityId: cityId === 'all' ? null : cityId
       });
-      const data = response?.data || response;
+      const data = response?.data?.adminMetrics || response?.adminMetrics;
       
       if (data?.error) {
         throw new Error(data.error);
@@ -286,6 +288,14 @@ export default function AdminMetrics() {
                 ))}
               </SelectContent>
             </Select>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="show-envelope-totals"
+                checked={showEnvelopeAdjustedTotals}
+                onCheckedChange={setShowEnvelopeAdjustedTotals}
+              />
+              <Label htmlFor="show-envelope-totals" className="text-xs whitespace-nowrap">Envelope Totals</Label>
+            </div>
             <Select value={selectedYear} onValueChange={handleYearChange}>
               <SelectTrigger className="w-[120px] md:w-[140px]">
                 <SelectValue />
@@ -312,11 +322,17 @@ export default function AdminMetrics() {
                   <Package className="w-6 h-6 text-emerald-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-slate-500">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'Year'} Billable</p>
+                  <p className="text-sm text-slate-500">{selectedMonth ? MONTH_NAMES[selectedMonth - 1] : 'Year'} Deliveries</p>
                   <p className="text-2xl font-bold text-slate-900">
                     {(selectedMonth 
-                      ? metricsData.monthlyData?.[selectedMonth - 1]?.billable 
-                      : metricsData.yearTotals?.billable
+                      ? (showEnvelopeAdjustedTotals && metricsData.envelopeMetrics 
+                          ? (metricsData.envelopeMetrics.yearTotals.adjustedDeliveries / 12)
+                          : metricsData.monthlyData?.[selectedMonth - 1]?.billable
+                        )
+                      : (showEnvelopeAdjustedTotals && metricsData.envelopeMetrics
+                          ? metricsData.envelopeMetrics.yearTotals.adjustedDeliveries 
+                          : metricsData.yearTotals?.billable
+                        )
                     )?.toLocaleString() || 0}
                   </p>
                 </div>
@@ -381,6 +397,8 @@ export default function AdminMetrics() {
             selectedYear={selectedYear}
             selectedMonth={selectedMonth}
             selectedStoreMonth={selectedStoreMonth}
+            metricsViewMode={metricsViewMode}
+            showEnvelopeAdjustedTotals={showEnvelopeAdjustedTotals}
             onMonthClick={(month) => {
               // If clicking same month that's already selected, just toggle month off (keep store cleared)
               // If clicking different month, set it and clear store selection
@@ -511,7 +529,11 @@ export default function AdminMetrics() {
                       labelFormatter={(label) => selectedMonth ? `Day ${label}` : label}
                     />
                     <Legend />
-                    <Bar dataKey="billable" fill={COLORS.billable} name="Billable" radius={[4, 4, 0, 0]} />
+                    {metricsViewMode === 'deliveries' && showEnvelopeAdjustedTotals ? (
+                      <Bar dataKey="adjustedDeliveries" fill="#10b981" name="Adjusted Deliveries" radius={[4, 4, 0, 0]} />
+                    ) : (
+                      <Bar dataKey="billable" fill={COLORS.billable} name="Billable" radius={[4, 4, 0, 0]} />
+                    )}
                     <Bar dataKey="nonBillable" fill={COLORS.nonBillable} name="Non-Billable" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>

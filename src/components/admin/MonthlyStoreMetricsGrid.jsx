@@ -11,13 +11,7 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
  * 1. Total deliveries per store per month
  * 2. Total payable app fees per store per month
  */
-export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onStoreMonthClick, selectedMonth, selectedStoreMonth, onResetView, onViewModeChange }) {
-  const [viewMode, setViewMode] = useState('deliveries'); // 'deliveries' or 'fees'
-
-  const handleViewModeChange = (mode) => {
-    setViewMode(mode);
-    onViewModeChange?.(mode);
-  };
+export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onMonthClick, onStoreMonthClick, selectedMonth, selectedStoreMonth, onResetView, onViewModeChange, metricsViewMode, showEnvelopeAdjustedTotals }) {
 
   if (!metricsData) return null;
 
@@ -58,7 +52,13 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
       const monthData = monthlyStoreData[month] || [];
       monthData.forEach((storeData) => {
         if (totals[storeData.abbreviation] !== undefined) {
-          const value = viewMode === 'deliveries' ? storeData.completed : storeData.fees || 0;
+          let value;
+          if (metricsViewMode === 'deliveries') {
+            const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[storeData.storeId]?.[month];
+            value = showEnvelopeAdjustedTotals && envelopeInfo ? envelopeInfo.adjustedDeliveries : storeData.completed;
+          } else {
+            value = storeData.fees || 0;
+          }
           totals[storeData.abbreviation] += value;
           if (value > 0) counts[storeData.abbreviation]++;
         }
@@ -77,7 +77,14 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
   const getMonthTotal = (month) => {
     const monthData = monthlyStoreData[month] || [];
     return monthData.reduce((sum, store) => {
-      return sum + (viewMode === 'deliveries' ? store.completed : store.fees || 0);
+      let value;
+      if (metricsViewMode === 'deliveries') {
+        const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[store.storeId]?.[month];
+        value = showEnvelopeAdjustedTotals && envelopeInfo ? envelopeInfo.adjustedDeliveries : store.completed;
+      } else {
+        value = store.fees || 0;
+      }
+      return sum + value;
     }, 0);
   };
 
@@ -86,15 +93,31 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
     const monthData = monthlyStoreData[month] || [];
     const storeData = monthData.find((s) => s.abbreviation === storeAbbr);
     if (!storeData) return null;
-    return viewMode === 'deliveries' ? storeData.completed : storeData.fees || 0;
+    
+    let value;
+    if (metricsViewMode === 'deliveries') {
+      const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[storeData.storeId]?.[month];
+      value = showEnvelopeAdjustedTotals && envelopeInfo ? envelopeInfo.adjustedDeliveries : storeData.completed;
+    } else {
+      value = storeData.fees || 0;
+    }
+    return value;
   };
 
   // Format value based on view mode
-  const formatValue = (value) => {
-    if (value === null || value === undefined || value === 0) return '';
-    if (viewMode === 'fees') {
+  const formatValue = (value, storeId = null, month = null) => {
+    if (value === null || value === undefined) return '';
+    if (metricsViewMode === 'fees') {
       return `$${value.toFixed(2)}`;
     }
+
+    if (showEnvelopeAdjustedTotals && metricsViewMode === 'deliveries' && storeId && month && month !== 'yearTotal') {
+      const envelopeInfo = metricsData.envelopeMetrics?.byStoreAndMonth?.[storeId]?.[month];
+      if (envelopeInfo && envelopeInfo.totalEnvelopeValue > 0) {
+        return `${value.toLocaleString()} (${envelopeInfo.totalEnvelopeValue})`;
+      }
+    }
+    
     return value.toLocaleString();
   };
 
@@ -108,12 +131,12 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
-            {viewMode === 'deliveries' ?
+            {metricsViewMode === 'deliveries' ?
             <Table className="w-5 h-5" /> :
 
             <DollarSign className="w-5 h-5" />
             }
-            Monthly Store {viewMode === 'deliveries' ? 'Deliveries' : 'App Fees'} ({selectedYear})
+            Monthly Store {metricsViewMode === 'deliveries' ? 'Deliveries' : 'App Fees'} ({selectedYear})
           </CardTitle>
           <div className="flex gap-2">
             {(selectedMonth || selectedStoreMonth) &&
@@ -128,16 +151,16 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
             }
             <Button
               size="sm"
-              variant={viewMode === 'deliveries' ? 'default' : 'outline'}
-              onClick={() => handleViewModeChange('deliveries')}
+              variant={metricsViewMode === 'deliveries' ? 'default' : 'outline'}
+              onClick={() => onViewModeChange?.('deliveries')}
               className="text-xs h-7 px-2">
 
               Deliveries
             </Button>
             <Button
               size="sm"
-              variant={viewMode === 'fees' ? 'default' : 'outline'}
-              onClick={() => handleViewModeChange('fees')}
+              variant={metricsViewMode === 'fees' ? 'default' : 'outline'}
+              onClick={() => onViewModeChange?.('fees')}
               className="text-xs h-7 px-2">
 
               App Fees
@@ -179,17 +202,17 @@ export default function MonthlyStoreMetricsGrid({ metricsData, selectedYear, onM
                       {monthName}
                     </td>
                     {stores.map((store) => {
-                      const value = getValue(store.abbreviation, month);
                       const storeId = getStoreId(store.abbreviation, month);
+                      const value = getValue(store.abbreviation, month);
                       const isStoreMonthSelected = selectedStoreMonth?.month === month && selectedStoreMonth?.storeId === storeId;
                       return (
                         <td
                           key={store.abbreviation}
                           className={`text-center p-2 tabular-nums cursor-pointer hover:bg-blue-100 ${isStoreMonthSelected ? 'bg-blue-200' : ''}`}
-                          style={{ color: value > 0 ? getStoreColor(store) : '#94a3b8' }}
-                          onClick={() => value > 0 && storeId && onStoreMonthClick?.(month, storeId, store.abbreviation, store.name)}>
+                          style={{ color: (value !== null && value !== undefined && value > 0) ? getStoreColor(store) : '#94a3b8' }}
+                          onClick={() => value !== null && value !== undefined && storeId && onStoreMonthClick?.(month, storeId, store.abbreviation, store.name)}>
 
-                          {formatValue(value)}
+                          {formatValue(value, storeId, month)}
                         </td>);
 
                     })}

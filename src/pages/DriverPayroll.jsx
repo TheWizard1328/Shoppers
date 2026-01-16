@@ -2,7 +2,6 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { DollarSign, ChevronLeft, ChevronRight } from "lucide-react";
-import { useAppData } from '../components/utils/AppDataContext';
 import { sortUsers, sortStores } from '../components/utils/sorting';
 import { useUser } from '../components/utils/UserContext';
 import { getDriverDisplayName } from '../components/utils/driverUtils';
@@ -142,7 +141,8 @@ const findCurrentPeriodIndex = (periods, today) => {
 
 export default function DriverPayroll() {
   const { currentUser } = useUser();
-  const { deliveries, stores, cities, drivers, appUsers, patients } = useAppData();
+  const [payrollData, setPayrollData] = useState(null);
+  const [isLoadingPayroll, setIsLoadingPayroll] = useState(true);
   
   const currentDate = new Date();
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
@@ -155,6 +155,30 @@ export default function DriverPayroll() {
   // Determine if current user is a driver (not admin)
   const isDriver = currentUser && userHasRole(currentUser, 'driver') && !userHasRole(currentUser, 'admin');
 
+  // Fetch payroll data
+  useEffect(() => {
+    const fetchPayroll = async () => {
+      if (!currentUser) return;
+      setIsLoadingPayroll(true);
+      try {
+        const response = await base44.functions.invoke('getAdminMetricsAndPayrollData', {
+          payrollYear: selectedYear,
+          payrollCityId: selectedCityId === 'all' ? null : selectedCityId,
+          payrollDriverId: selectedDriverId === 'all' ? null : selectedDriverId
+        });
+        setPayrollData(response?.data?.payrollData || response?.payrollData);
+      } catch (error) {
+        console.error('Failed to fetch payroll data:', error);
+      } finally {
+        setIsLoadingPayroll(false);
+      }
+    };
+
+    if (hasInitialized) {
+      fetchPayroll();
+    }
+  }, [selectedYear, selectedCityId, selectedDriverId, currentUser, hasInitialized]);
+
   // Initialize defaults based on user role
   useEffect(() => {
     if (!currentUser || hasInitialized) return;
@@ -164,7 +188,7 @@ export default function DriverPayroll() {
       setSelectedDriverId(currentUser.id);
       
       // Get driver's saved pay cycle type from AppUser
-      const driverAppUser = appUsers?.find(au => au.user_id === currentUser.id);
+      const driverAppUser = payrollData?.appUsers?.find(au => au.user_id === currentUser.id);
       if (driverAppUser?.pay_cycle_type) {
         setPayPeriod(driverAppUser.pay_cycle_type);
       } else {
@@ -176,7 +200,7 @@ export default function DriverPayroll() {
       setPayPeriod('semimonthly');
     }
     setHasInitialized(true);
-  }, [currentUser, appUsers, isDriver, hasInitialized]);
+  }, [currentUser, payrollData?.appUsers, isDriver, hasInitialized]);
 
   // Auto-select pay cycle type when driver selection changes
   useEffect(() => {
@@ -187,14 +211,14 @@ export default function DriverPayroll() {
       setPayPeriod('semimonthly');
     } else {
       // Load the selected driver's pay cycle type
-      const driverAppUser = appUsers?.find(au => au.user_id === selectedDriverId);
+      const driverAppUser = payrollData?.appUsers?.find(au => au.user_id === selectedDriverId);
       if (driverAppUser?.pay_cycle_type) {
         setPayPeriod(driverAppUser.pay_cycle_type);
       } else {
         setPayPeriod('monthly');
       }
     }
-  }, [selectedDriverId, appUsers, hasInitialized]);
+  }, [selectedDriverId, payrollData?.appUsers, hasInitialized]);
 
   // Save pay cycle type to driver's AppUser when changed (only if specific driver is selected)
   const handlePayPeriodChange = async (newPayPeriod) => {
@@ -202,12 +226,16 @@ export default function DriverPayroll() {
 
     // Only save if a specific driver is selected
     if (selectedDriverId && selectedDriverId !== 'all') {
-      const driverAppUser = appUsers?.find(au => au.user_id === selectedDriverId);
+      const driverAppUser = payrollData?.appUsers?.find(au => au.user_id === selectedDriverId);
       if (driverAppUser) {
         try {
           await base44.entities.AppUser.update(driverAppUser.id, {
             pay_cycle_type: newPayPeriod
           });
+          setPayrollData(prev => ({
+            ...prev,
+            appUsers: prev.appUsers.map(au => au.id === driverAppUser.id ? { ...au, pay_cycle_type: newPayPeriod } : au)
+          }));
         } catch (error) {
           console.error('Failed to save pay cycle type:', error);
         }
@@ -254,36 +282,41 @@ export default function DriverPayroll() {
     }
   };
 
-  // Sort cities
   const sortedCities = useMemo(() => {
-    if (!cities) return [];
-    return [...cities].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
-  }, [cities]);
+    if (!payrollData?.cities) return [];
+    return [...payrollData.cities].sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+  }, [payrollData?.cities]);
 
-  // Filter stores by selected city
   const filteredStores = useMemo(() => {
-    if (!stores) return [];
-    let filtered = stores;
+    if (!payrollData?.stores) return [];
+    let filtered = payrollData.stores;
     if (selectedCityId && selectedCityId !== 'all') {
-      filtered = stores.filter(s => s.city_id === selectedCityId);
+      filtered = payrollData.stores.filter(s => s.city_id === selectedCityId);
     }
     return sortStores(filtered);
-  }, [stores, selectedCityId]);
+  }, [payrollData?.stores, selectedCityId]);
 
-  // Get active drivers sorted
   const sortedDrivers = useMemo(() => {
-    if (!drivers) return [];
-    return sortUsers(drivers.filter(d => d && d.status === 'active'));
-  }, [drivers]);
+    if (!payrollData?.drivers) return [];
+    return sortUsers(payrollData.drivers.filter(d => d && d.status === 'active'));
+  }, [payrollData?.drivers]);
 
-  // Filter deliveries by city (through stores)
   const cityFilteredDeliveries = useMemo(() => {
-    if (!deliveries) return [];
-    if (selectedCityId === 'all') return deliveries;
+    if (!payrollData?.deliveries) return [];
+    if (selectedCityId === 'all') return payrollData.deliveries;
     
     const cityStoreIds = new Set(filteredStores.map(s => s.id));
-    return deliveries.filter(d => d && cityStoreIds.has(d.store_id));
-  }, [deliveries, selectedCityId, filteredStores]);
+    return payrollData.deliveries.filter(d => d && cityStoreIds.has(d.store_id));
+  }, [payrollData?.deliveries, selectedCityId, filteredStores]);
+
+  if (isLoadingPayroll) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-slate-50)' }}>
+        <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+        <span className="ml-3 text-lg text-slate-600">Loading payroll data...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6" style={{ background: 'var(--bg-slate-50)' }}>
@@ -347,8 +380,8 @@ export default function DriverPayroll() {
         <DriverPayrollGrid
           deliveries={cityFilteredDeliveries}
           stores={filteredStores}
-          patients={patients}
-          appUsers={appUsers}
+          patients={payrollData?.patients || []}
+          appUsers={payrollData?.appUsers || []}
           selectedYear={selectedYear}
           selectedDriverId={selectedDriverId}
           payPeriod={payPeriod}
@@ -364,9 +397,9 @@ export default function DriverPayroll() {
         <PayrollSummaryCard
           deliveries={cityFilteredDeliveries}
           drivers={sortedDrivers}
-          appUsers={appUsers}
-          patients={patients}
-          cities={cities}
+          appUsers={payrollData?.appUsers || []}
+          patients={payrollData?.patients || []}
+          cities={sortedCities}
           selectedYear={selectedYear}
           selectedDriverId={selectedDriverId}
           payPeriod={payPeriod}
