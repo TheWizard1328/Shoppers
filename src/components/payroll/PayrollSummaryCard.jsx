@@ -248,7 +248,7 @@ export default function PayrollSummaryCard({
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {payrollData.filter((data) => data.grandTotal > 0).map((data, idx) => {
+          {payrollData.map((data, idx) => {
           const hasTaxOrDeductions = data.taxAmount > 0 || data.deductions > 0;
           
           return (
