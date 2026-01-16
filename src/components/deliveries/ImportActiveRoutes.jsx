@@ -530,7 +530,7 @@ export default function ImportActiveRoutes({
       let deliveryStatus = 'pending';
       let actualDeliveryTime = null;
       let deliveryTimeStart = null;
-      let deliveryTimeEnd = null;
+      let deliveryTimeEnd = null; // CRITICAL: Do NOT import end time from CSV - use patient time window or leave blank
       let deliveryTimeEta = null;
 
       // RULE: Determine status based on pending indicator (col 5), stop order, times, and pickup type
@@ -541,22 +541,22 @@ export default function ImportActiveRoutes({
         deliveryStatus = 'completed';
         // CRITICAL: Save as local time string (YYYY-MM-DDTHH:MM:SS) without timezone
         actualDeliveryTime = `${currentDate}T${deliveryStartTimeStr}:00`;
-      } else if (isPendingIndicator && isPickup && deliveryStartTimeStr && deliveryEndTimeStr) {
+      } else if (isPendingIndicator && isPickup && deliveryStartTimeStr) {
         // EXCEPTION: Pickups with times should be en_route even if pending indicator is negative
         deliveryStatus = 'en_route';
         deliveryTimeStart = deliveryStartTimeStr;
-        deliveryTimeEnd = deliveryEndTimeStr;
+        // Do NOT set deliveryTimeEnd from CSV - leave blank
         deliveryTimeEta = deliveryStartTimeStr;
       } else if (isPendingIndicator) {
         // Pending indicator is negative - status is pending
         deliveryStatus = 'pending';
         deliveryTimeStart = null;
         deliveryTimeEnd = null;
-      } else if (originalStopOrder === 0 && deliveryStartTimeStr && deliveryEndTimeStr) {
-        // Active (in transit/en route) - stop order = 0, has both times, not pending
+      } else if (originalStopOrder === 0 && deliveryStartTimeStr) {
+        // Active (in transit/en route) - stop order = 0, has start time, not pending
         deliveryStatus = isPickup ? 'en_route' : 'in_transit';
         deliveryTimeStart = deliveryStartTimeStr;
-        deliveryTimeEnd = deliveryEndTimeStr;
+        // Do NOT set deliveryTimeEnd from CSV - leave blank
         deliveryTimeEta = deliveryStartTimeStr;
       } else {
         // No times or unclear - pending
