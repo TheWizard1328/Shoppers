@@ -769,7 +769,7 @@ export default function ImportActiveRoutes({
           // No changes detected - skip this delivery to reduce API calls
           skippedItems.push({
             lineNumber,
-            reason: `No changes detected (SID: ${importedDeliveryStopId})`,
+            reason: `No changes detected (SID: ${stopId})`,
             rawData: `${updatedDeliveryData.patient_name || 'Pickup'} - Status: ${updatedDeliveryData.status}`
           });
         }
