@@ -2225,12 +2225,11 @@ export default function Layout({ children, currentPageName }) {
     <ErrorBoundary>
       <style>{`
           :root {
-              /* Light mode (default) - whites, blacks, and grays */
-              --bg-white: #ffffff;
-              --bg-slate-50: #f8fafc;
-              --bg-slate-100: #f1f5f9;
-              --bg-slate-200: #e2e8f0;
-              --bg-grid: #ffffff;
+            /* Light mode (default) - whites, blacks, and grays */
+            --bg-white: #ffffff;
+            --bg-slate-50: #f8fafc;
+            --bg-slate-100: #f1f5f9;
+            --bg-slate-200: #e2e8f0;
             --text-slate-900: #0f172a;
             --text-slate-800: #1e293b;
             --text-slate-700: #334155;
@@ -2252,7 +2251,6 @@ export default function Layout({ children, currentPageName }) {
             --bg-slate-50: #1e293b;
             --bg-slate-100: #334155;
             --bg-slate-200: #475569;
-            --bg-grid: #bfbfbf;
             --text-slate-900: #f8fafc;
             --text-slate-800: #f1f5f9;
             --text-slate-700: #e2e8f0;
@@ -2274,7 +2272,6 @@ export default function Layout({ children, currentPageName }) {
               --bg-slate-50: #1e293b;
               --bg-slate-100: #334155;
               --bg-slate-200: #475569;
-              --bg-grid: #bfbfbf;
               --text-slate-900: #f8fafc;
               --text-slate-800: #f1f5f9;
               --text-slate-700: #e2e8f0;
