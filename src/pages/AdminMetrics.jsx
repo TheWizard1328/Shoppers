@@ -506,11 +506,11 @@ export default function AdminMetrics() {
                     tick={selectedStoreMonth ? { fill: '#64748b', fontSize: 11 } : (props) => {
                       const { x, y, payload } = props;
                       const storeData = (filteredData?.storeData || metricsData.storeData)?.find(s => s.abbreviation === payload.value);
-                      // Total billable = completed + failed + afterHours + cancelled
-                      const totalBillable = storeData ? (storeData.completed || 0) + (storeData.failed || 0) + (storeData.afterHours || 0) + (storeData.cancelled || 0) : 0;
+                      // Total = Completed Deliveries + After Hours + Failed
+                      const totalDeliveries = storeData ? (storeData.completed || 0) + (storeData.afterHours || 0) + (storeData.failed || 0) : 0;
                       const displayValue = metricsViewMode === 'fees' 
                         ? `$${(storeData?.fees || 0).toFixed(0)}`
-                        : totalBillable;
+                        : totalDeliveries;
                       return (
                         <g transform={`translate(${x},${y})`}>
                           <text x={0} y={0} dy={12} textAnchor="middle" fill="#64748b" fontSize={11}>
