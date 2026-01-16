@@ -31,8 +31,21 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Authentication failed: ' + authError.message }, { status: 401 });
     }
     
-    if (!user || user.role !== 'admin') {
-      return Response.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
+    if (!user) {
+      return Response.json({ error: 'Forbidden: Authentication required' }, { status: 403 });
+    }
+    
+    // Get AppUser to check app_roles
+    const appUserList = await base44.asServiceRole.entities.AppUser.filter({ user_id: user.id });
+    const appUser = appUserList[0];
+    const appRoles = appUser?.app_roles || [];
+    const isAppAdmin = user.role === 'admin'; // Platform admin (app owner)
+    const isAppRoleAdmin = appRoles.includes('admin');
+    const isDriver = appRoles.includes('driver');
+    
+    // Allow: app owners, app admins, or drivers (for their own payroll)
+    if (!isAppAdmin && !isAppRoleAdmin && !isDriver) {
+      return Response.json({ error: 'Forbidden: Access denied' }, { status: 403 });
     }
 
     let body = {};
