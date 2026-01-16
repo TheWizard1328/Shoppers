@@ -1365,11 +1365,12 @@ export default function ImportActiveRoutes({
       }));
       
       setImportResult(overallResults);
-      setProgressPercent(100);
-      setProgressMessage('Updating next delivery flags...');
+      setProgressPercent(95);
+      setProgressMessage('Sorting stops by imported stop order...');
       
-      // CRITICAL: Update isNextDelivery flags for all imported dates/drivers
-      // This runs AFTER stop reordering to use the correct stop_order values
+      // CRITICAL: Reorder stops FIRST using IMPORTED stop_order values
+      // Completed stops (stop_order > 0) come first, sorted by stop_order
+      // Then active stops (in_transit/en_route), then pending stops
       try {
         const { minDate, maxDate } = cachedDateRange;
         
