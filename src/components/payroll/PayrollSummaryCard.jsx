@@ -58,7 +58,6 @@ export default function PayrollSummaryCard({
 
       // Filter deliveries for this driver in the current period
       // Exclude pickups (no patient_id) UNLESS it's an after_hours_pickup
-      const driverId = driver.user_id || driver.id;
       const periodDeliveries = deliveries.filter((d) => {
         if (!d || !d.delivery_date) return false;
         // Count completed, failed, and cancelled (for after_hours_pickup)
