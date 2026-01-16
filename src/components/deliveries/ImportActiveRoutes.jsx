@@ -757,13 +757,22 @@ export default function ImportActiveRoutes({
         // Detect changes between existing and imported data
         const changes = detectChanges(existingDelivery, updatedDeliveryData);
 
-        // CRITICAL: Always add to updates for SID matches - import is source of truth
-        // Even if no visible changes, the import data should be applied
-        deliveriesToUpdate.push({
-          ...updatedDeliveryData,
-          _changes: changes.length > 0 ? changes : ['Re-import (data refresh)'],
-          _matchReason: matchReason
-        });
+        // CRITICAL: Only add to updates if there are ACTUAL changes
+        // This reduces API calls and prevents unnecessary rate limit hits
+        if (changes.length > 0) {
+          deliveriesToUpdate.push({
+            ...updatedDeliveryData,
+            _changes: changes,
+            _matchReason: matchReason
+          });
+        } else {
+          // No changes detected - skip this delivery to reduce API calls
+          skippedItems.push({
+            lineNumber,
+            reason: `No changes detected (SID: ${importedDeliveryStopId})`,
+            rawData: `${updatedDeliveryData.patient_name || 'Pickup'} - Status: ${updatedDeliveryData.status}`
+          });
+        }
       } else {
         // NEW DELIVERY: Assign sequential stop order only if imported value is 0 or missing
         if (stopOrder === 0 || !rawStopOrder) {
