@@ -628,15 +628,22 @@ export default function ImportActiveRoutes({
         newDeliveryData.back_door = patient.back_door || false;
         newDeliveryData.signature_needed = patient.signature_needed || false;
         
-        // CRITICAL: Override time windows from patient record FIRST (highest priority)
-        // If patient has time windows, use those. Otherwise, keep import values from CSV.
+        // CRITICAL: Set time windows from patient record ONLY if patient has them
+        // Otherwise leave blank (do NOT use CSV end time)
         if (patient.time_window_start) {
           newDeliveryData.time_window_start = patient.time_window_start;
-          newDeliveryData.delivery_time_start = patient.time_window_start;
+          // Only override delivery_time_start if not already set from import
+          if (!newDeliveryData.delivery_time_start) {
+            newDeliveryData.delivery_time_start = patient.time_window_start;
+          }
         }
         if (patient.time_window_end) {
           newDeliveryData.time_window_end = patient.time_window_end;
           newDeliveryData.delivery_time_end = patient.time_window_end;
+        } else {
+          // Patient has no time_window_end - ensure we leave it blank
+          newDeliveryData.time_window_end = null;
+          newDeliveryData.delivery_time_end = null;
         }
       } else {
         newDeliveryData.patient_id = null;
