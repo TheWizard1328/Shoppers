@@ -304,10 +304,14 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
           dailyStoreEntry = { day: dayOfMonth, completed: 0, failed: 0, afterHours: 0, cancelled: 0 };
           metrics.dailyStoreData[monthIndex + 1][delivery.store_id].push(dailyStoreEntry);
         }
-        if (isCompleted(delivery)) dailyStoreEntry.completed++;
-        if (isFailed(delivery)) dailyStoreEntry.failed++;
-        if (delivery.after_hours_pickup) dailyStoreEntry.afterHours++;
-        if (delivery.status === 'cancelled' && !delivery.patient_id) dailyStoreEntry.cancelled++;
+        // Only count deliveries (has patient_id) or after_hours_pickup for daily store breakdown
+        if (delivery.patient_id || delivery.after_hours_pickup) {
+          if (isCompleted(delivery)) dailyStoreEntry.completed++;
+          if (isFailed(delivery)) dailyStoreEntry.failed++;
+          if (delivery.after_hours_pickup) dailyStoreEntry.afterHours++;
+        }
+        // Cancelled pickups (no patient_id, not after_hours) count as failed
+        if (delivery.status === 'cancelled' && !delivery.patient_id && !delivery.after_hours_pickup) dailyStoreEntry.cancelled++;
 
         if (store?.pays_app_fees && appFeeRate > 0) {
           storesPayingFeesSet.add(store.id);
