@@ -253,40 +253,81 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
     const date = new Date(delivery.delivery_date);
     const monthIndex = date.getMonth();
     const dayOfMonth = date.getDate();
+    const store = delivery.store_id ? storeMap.get(delivery.store_id) : null;
 
-    const isBillable = isBillableDelivery(delivery);
-    if (isBillable) {
-      metrics.monthlyData[monthIndex].billable++;
-      metrics.yearTotals.billable++;
-    } else {
-      metrics.monthlyData[monthIndex].nonBillable++;
-      metrics.yearTotals.nonBillable++;
+    // --- MONTHLY DELIVERIES & DRIVER BREAKDOWN ---
+    // Billable = Completed Deliveries + After Hours Pickups from stores that pay fees
+    // Non-Billable = Completed Deliveries + After Hours Pickups from stores that DON'T pay fees
+    const isCompletedOrAfterHours = isCompletedDelivery(delivery) || isAfterHoursPickup(delivery);
+    
+    if (isCompletedOrAfterHours) {
+      if (store?.pays_app_fees) {
+        metrics.monthlyData[monthIndex].billable++;
+        metrics.yearTotals.billable++;
+      } else {
+        metrics.monthlyData[monthIndex].nonBillable++;
+        metrics.yearTotals.nonBillable++;
+      }
+      metrics.monthlyData[monthIndex].total++;
+
+      // Daily delivery data (for Monthly Deliveries chart when month is selected)
+      if (!metrics.dailyDeliveryData[monthIndex + 1]) metrics.dailyDeliveryData[monthIndex + 1] = [];
+      const dailyEntry = metrics.dailyDeliveryData[monthIndex + 1].find(d => d.day === dayOfMonth);
+      if (dailyEntry) {
+        if (store?.pays_app_fees) dailyEntry.billable++;
+        else dailyEntry.nonBillable++;
+      } else {
+        metrics.dailyDeliveryData[monthIndex + 1].push({
+          day: dayOfMonth,
+          billable: store?.pays_app_fees ? 1 : 0,
+          nonBillable: store?.pays_app_fees ? 0 : 1,
+        });
+      }
+
+      // Driver data
+      if (delivery.driver_id) {
+        const driverAppUser = appUserMap.get(delivery.driver_id);
+        const driverName = driverAppUser?.user_name || driverAppUser?.full_name || 'Unknown Driver';
+        
+        const annualDriverEntry = metrics.driverData.find(d => d.driverId === delivery.driver_id);
+        if (annualDriverEntry) {
+          if (store?.pays_app_fees) annualDriverEntry.billable++;
+          else annualDriverEntry.nonBillable++;
+        }
+
+        if (!metrics.driverDataByMonth[monthIndex + 1]) metrics.driverDataByMonth[monthIndex + 1] = [];
+        let monthlyDriverEntry = metrics.driverDataByMonth[monthIndex + 1].find(d => d.driverId === delivery.driver_id);
+        if (!monthlyDriverEntry) {
+          monthlyDriverEntry = { name: driverName, driverId: delivery.driver_id, billable: 0, nonBillable: 0 };
+          metrics.driverDataByMonth[monthIndex + 1].push(monthlyDriverEntry);
+        }
+        if (store?.pays_app_fees) monthlyDriverEntry.billable++;
+        else monthlyDriverEntry.nonBillable++;
+
+        if (delivery.store_id) {
+          if (!metrics.driverDataByStore[delivery.store_id]) metrics.driverDataByStore[delivery.store_id] = [];
+          let storeDriverEntry = metrics.driverDataByStore[delivery.store_id].find(d => d.driverId === delivery.driver_id);
+          if (!storeDriverEntry) {
+            storeDriverEntry = { name: driverName, driverId: delivery.driver_id, billable: 0, nonBillable: 0 };
+            metrics.driverDataByStore[delivery.store_id].push(storeDriverEntry);
+          }
+          if (store?.pays_app_fees) storeDriverEntry.billable++;
+          else storeDriverEntry.nonBillable++;
+        }
+      }
     }
-    metrics.monthlyData[monthIndex].total++;
 
-    if (!metrics.dailyDeliveryData[monthIndex + 1]) metrics.dailyDeliveryData[monthIndex + 1] = [];
-    const dailyEntry = metrics.dailyDeliveryData[monthIndex + 1].find(d => d.day === dayOfMonth);
-    if (dailyEntry) {
-      if (isBillable) dailyEntry.billable++;
-      else dailyEntry.nonBillable++;
-    } else {
-      metrics.dailyDeliveryData[monthIndex + 1].push({
-        day: dayOfMonth,
-        billable: isBillable ? 1 : 0,
-        nonBillable: isBillable ? 0 : 1,
-      });
-    }
-
-    if (delivery.store_id) {
-      const store = storeMap.get(delivery.store_id);
-      const storeAbbr = store?.abbreviation;
+    // --- STORE BREAKDOWN ---
+    // Completed (Green) = Completed Deliveries + Completed/Cancelled After Hours Pickups
+    // Failed (Red) = Failed Deliveries only
+    if (delivery.store_id && store) {
+      const storeAbbr = store.abbreviation;
       if (storeAbbr) {
         const annualStoreEntry = metrics.storeData.find(s => s.storeId === delivery.store_id);
         if (annualStoreEntry) {
-          if (isCompleted(delivery)) annualStoreEntry.completed++;
-          if (isFailed(delivery)) annualStoreEntry.failed++;
-          if (delivery.after_hours_pickup) annualStoreEntry.afterHours++;
-          if (delivery.status === 'cancelled' && !delivery.patient_id) annualStoreEntry.cancelled++;
+          if (isCompletedDelivery(delivery)) annualStoreEntry.completed++;
+          if (isFailedDelivery(delivery)) annualStoreEntry.failed++;
+          if (isAfterHoursPickup(delivery)) annualStoreEntry.afterHours++;
         }
 
         if (!metrics.storeDataByMonth[monthIndex + 1]) metrics.storeDataByMonth[monthIndex + 1] = [];
@@ -299,32 +340,31 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
             completed: 0, 
             failed: 0, 
             afterHours: 0, 
-            cancelled: 0, 
             color: store.color, 
             sortOrder: store.sort_order 
           };
           metrics.storeDataByMonth[monthIndex + 1].push(monthlyStoreEntry);
         }
-        if (isCompleted(delivery)) monthlyStoreEntry.completed++;
-        if (isFailed(delivery)) monthlyStoreEntry.failed++;
-        if (delivery.after_hours_pickup) monthlyStoreEntry.afterHours++;
-        if (delivery.status === 'cancelled' && !delivery.patient_id) monthlyStoreEntry.cancelled++;
+        if (isCompletedDelivery(delivery)) monthlyStoreEntry.completed++;
+        if (isFailedDelivery(delivery)) monthlyStoreEntry.failed++;
+        if (isAfterHoursPickup(delivery)) monthlyStoreEntry.afterHours++;
 
         if (!metrics.dailyStoreData[monthIndex + 1]) metrics.dailyStoreData[monthIndex + 1] = {};
         if (!metrics.dailyStoreData[monthIndex + 1][delivery.store_id]) metrics.dailyStoreData[monthIndex + 1][delivery.store_id] = [];
         let dailyStoreEntry = metrics.dailyStoreData[monthIndex + 1][delivery.store_id].find(d => d.day === dayOfMonth);
         if (!dailyStoreEntry) {
-          dailyStoreEntry = { day: dayOfMonth, completed: 0, failed: 0, afterHours: 0, cancelled: 0 };
+          dailyStoreEntry = { day: dayOfMonth, completed: 0, failed: 0, afterHours: 0 };
           metrics.dailyStoreData[monthIndex + 1][delivery.store_id].push(dailyStoreEntry);
         }
-        if (isCompleted(delivery)) dailyStoreEntry.completed++;
-        if (isFailed(delivery)) dailyStoreEntry.failed++;
-        if (delivery.after_hours_pickup) dailyStoreEntry.afterHours++;
-        if (delivery.status === 'cancelled' && !delivery.patient_id) dailyStoreEntry.cancelled++;
+        if (isCompletedDelivery(delivery)) dailyStoreEntry.completed++;
+        if (isFailedDelivery(delivery)) dailyStoreEntry.failed++;
+        if (isAfterHoursPickup(delivery)) dailyStoreEntry.afterHours++;
 
-        if (store?.pays_app_fees && appFeeRate > 0) {
+        // --- APP FEES ---
+        // Fees apply only for stores with pays_app_fees and only for completed deliveries + after hours pickups
+        if (store.pays_app_fees && appFeeRate > 0) {
           storesPayingFeesSet.add(store.id);
-          if (isBillableDelivery(delivery)) {
+          if (isCompletedDelivery(delivery) || isAfterHoursPickup(delivery)) {
             if (!storeMonthlyFees.has(store.id)) storeMonthlyFees.set(store.id, Array(12).fill(0));
             const feesByMonth = storeMonthlyFees.get(store.id);
             feesByMonth[monthIndex] += appFeeRate;
@@ -333,37 +373,6 @@ function processAdminMetrics(deliveries, stores, appUsers, patients, year, appFe
             metrics.storeFeeTotals.total_billable_while_paying++;
           }
         }
-      }
-    }
-
-    if (delivery.driver_id) {
-      const driverAppUser = appUserMap.get(delivery.driver_id);
-      const driverName = driverAppUser?.user_name || driverAppUser?.full_name || 'Unknown Driver';
-      
-      const annualDriverEntry = metrics.driverData.find(d => d.driverId === delivery.driver_id);
-      if (annualDriverEntry) {
-        if (isBillable) annualDriverEntry.billable++;
-        else annualDriverEntry.nonBillable++;
-      }
-
-      if (!metrics.driverDataByMonth[monthIndex + 1]) metrics.driverDataByMonth[monthIndex + 1] = [];
-      let monthlyDriverEntry = metrics.driverDataByMonth[monthIndex + 1].find(d => d.driverId === delivery.driver_id);
-      if (!monthlyDriverEntry) {
-        monthlyDriverEntry = { name: driverName, driverId: delivery.driver_id, billable: 0, nonBillable: 0 };
-        metrics.driverDataByMonth[monthIndex + 1].push(monthlyDriverEntry);
-      }
-      if (isBillable) monthlyDriverEntry.billable++;
-      else monthlyDriverEntry.nonBillable++;
-
-      if (delivery.store_id) {
-        if (!metrics.driverDataByStore[delivery.store_id]) metrics.driverDataByStore[delivery.store_id] = [];
-        let storeDriverEntry = metrics.driverDataByStore[delivery.store_id].find(d => d.driverId === delivery.driver_id);
-        if (!storeDriverEntry) {
-          storeDriverEntry = { name: driverName, driverId: delivery.driver_id, billable: 0, nonBillable: 0 };
-          metrics.driverDataByStore[delivery.store_id].push(storeDriverEntry);
-        }
-        if (isBillable) storeDriverEntry.billable++;
-        else storeDriverEntry.nonBillable++;
       }
     }
   }
