@@ -452,12 +452,10 @@ export default function AdminMetrics() {
                       const existing = dataByDay.get(day);
                       fullDailyData.push({
                         day,
-                        completed: existing?.completed || 0,
-                        afterHours: existing?.afterHours || 0,
-                        failed: existing?.failed || 0,
-                        cancelled: existing?.cancelled || 0,
+                        // Completed (Green) = Completed Deliveries + After Hours Pickups
                         totalCompleted: (existing?.completed || 0) + (existing?.afterHours || 0),
-                        totalFailed: (existing?.failed || 0) + (existing?.cancelled || 0),
+                        // Failed (Red) = Failed Deliveries only
+                        totalFailed: existing?.failed || 0,
                         envelopeCount: 0,
                         fees: existing?.fees || 0
                       });
@@ -469,8 +467,8 @@ export default function AdminMetrics() {
                   return (filteredData?.storeData || metricsData.storeData || [])
                     .slice()
                     .filter(item => {
-                      // Only show stores with data (same logic as Monthly Store grid)
-                      const total = (item.completed || 0) + (item.failed || 0) + (item.afterHours || 0) + (item.cancelled || 0);
+                      // Only show stores with data
+                      const total = (item.completed || 0) + (item.failed || 0) + (item.afterHours || 0);
                       return total > 0 || (item.fees || 0) > 0;
                     })
                     .sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity))
@@ -489,15 +487,15 @@ export default function AdminMetrics() {
                           }
                         }
                       }
+                      // Completed (Green) = Completed Deliveries + After Hours Pickups
                       const baseCompleted = (item.completed || 0) + (item.afterHours || 0);
                       
                       return {
                         ...item,
-                        // Base completed excludes envelope additions
                         totalCompleted: baseCompleted,
-                        // Envelope count shown as separate segment only when toggle is on and store has envelope data
                         envelopeCount: envelopeValue,
-                        totalFailed: (item.failed || 0) + (item.cancelled || 0),
+                        // Failed (Red) = Failed Deliveries only
+                        totalFailed: item.failed || 0,
                         fees: item.fees || 0
                       };
                     });
