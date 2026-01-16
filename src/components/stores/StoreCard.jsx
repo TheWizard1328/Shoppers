@@ -103,7 +103,8 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
       className="h-full">
 
       <Card
-        className={`overflow-hidden border-slate-200 hover:border-emerald-400 transition-all duration-200 bg-white hover:shadow-lg cursor-pointer h-full ${isSelected ? 'ring-2 ring-emerald-500 border-emerald-500' : ''}`}
+        className={`overflow-hidden hover:border-emerald-400 transition-all duration-200 hover:shadow-lg cursor-pointer h-full ${isSelected ? 'ring-2 ring-emerald-500 border-emerald-500' : ''}`}
+        style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}
         onClick={() => onSelect?.(store)}>
 
         <CardContent className="p-4 flex flex-col justify-between h-full">
@@ -112,11 +113,11 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
             <div className="flex items-start justify-between mb-4">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-semibold text-slate-900 text-base truncate">
+                  <h3 className="font-semibold text-base truncate" style={{ color: 'var(--text-slate-900)' }}>
                     {store.name}
                   </h3>
                   {store.abbreviation &&
-                  <Badge className="bg-primary text-primary-foreground px-2.5 py-0.5 text-xs font-semibold rounded-[10px] inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent shadow hover:bg-primary/80"
+                  <Badge className="px-2.5 py-0.5 text-xs font-semibold rounded-[10px] inline-flex items-center border transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent shadow hover:bg-primary/80"
 
                   style={{ backgroundColor: currentStoreColor, color: 'white' }}>
 
@@ -124,9 +125,9 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                     </Badge>
                   }
                 </div>
-                <p className="text-sm text-slate-600">{store.address}</p>
+                <p className="text-sm" style={{ color: 'var(--text-slate-600)' }}>{store.address}</p>
                 {store.phone &&
-                <p className="text-sm text-slate-500 mt-1">
+                <p className="text-sm mt-1" style={{ color: 'var(--text-slate-500)' }}>
                     {formatPhoneNumber(store.phone)}
                   </p>
                 }
@@ -165,7 +166,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
             {/* Coordinates display */}
             {store.latitude && store.longitude &&
-            <div className="text-xs text-slate-500 mb-4">
+            <div className="text-xs mb-4" style={{ color: 'var(--text-slate-500)' }}>
                 GPS Location: {store.latitude.toFixed(4)}, {store.longitude.toFixed(4)}
               </div>
             }
@@ -223,7 +224,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                 };
 
               return (
-                <div className="flex flex-wrap items-center gap-2 mb-4 p-2 bg-amber-50 rounded-lg border border-amber-200">
+                <div className="flex flex-wrap items-center gap-2 mb-4 p-2 rounded-lg" style={{ background: 'var(--bg-amber-50, #fffbeb)', border: '1px solid var(--border-amber-200, #fde68a)' }}>
                   <div className="flex items-center gap-2">
                     <Checkbox
                       id={`pays-fees-${store.id}`}
@@ -255,7 +256,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                       }} />
 
                     <label
-                      htmlFor={`pays-fees-${store.id}`} className="text-sm font-medium text-amber-800 cursor-pointer flex items-center gap-1">App Fees
+                      htmlFor={`pays-fees-${store.id}`} className="text-sm font-medium cursor-pointer flex items-center gap-1" style={{ color: 'var(--text-amber-800, #92400e)' }}>App Fees
 
 
 
@@ -268,16 +269,17 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                   <Popover open={showDatePicker} onOpenChange={setShowDatePicker}>
                       <PopoverTrigger asChild>
                         <button
-                        className="text-xs text-amber-700 hover:text-amber-900 flex items-center gap-1 ml-6 underline decoration-dotted"
+                        className="text-xs flex items-center gap-1 ml-6 underline decoration-dotted"
+                        style={{ color: 'var(--text-amber-700, #b45309)' }}
                         onClick={(e) => e.stopPropagation()}>
 
                           <Calendar className="w-3 h-3" />
                           (Effective: {formatEffectiveDate(currentPeriod.effective_date)} → {endPeriod ? formatEffectiveDate(endPeriod.effective_date) : 'Present'})
                         </button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-3 z-[100]" onClick={(e) => e.stopPropagation()}>
+                      <PopoverContent className="w-auto p-3 z-[100]" style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }} onClick={(e) => e.stopPropagation()}>
                         <div className="space-y-3">
-                          <div className="text-sm font-medium text-slate-700">Edit Date Range</div>
+                          <div className="text-sm font-medium" style={{ color: 'var(--text-slate-700)' }}>Edit Date Range</div>
                           <div className="flex gap-2">
                             <Button
                             variant={editingDateType === 'start' ? 'default' : 'outline'}
@@ -343,11 +345,12 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
               <button
                 onClick={(e) => {e.stopPropagation();setEditingColor(true);}}
-                className="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-800">
+                className="flex items-center gap-2 text-sm"
+                style={{ color: 'var(--text-slate-600)' }}>
 
                   <div
-                  className="w-4 h-4 rounded-full border border-slate-300"
-                  style={{ backgroundColor: currentStoreColor }}>
+                  className="w-4 h-4 rounded-full"
+                  style={{ backgroundColor: currentStoreColor, border: '1px solid var(--border-slate-300)' }}>
                   </div>
                   <Palette className="w-3 h-3" />
                   <span>Store Color</span>
@@ -356,8 +359,8 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
             </div>
 
             {/* Full Schedule Drivers - FIXED TO RESPECT ENABLED FLAGS */}
-            <div className="bg-slate-50 pt-4 space-y-4 border-t border-slate-200">
-              <h4 className="font-semibold text-slate-800 text-sm">Driver Assignments & Pickup Times</h4>
+            <div className="pt-4 space-y-4" style={{ background: 'var(--bg-slate-50)', borderTop: '1px solid var(--border-slate-200)' }}>
+              <h4 className="font-semibold text-sm" style={{ color: 'var(--text-slate-800)' }}>Driver Assignments & Pickup Times</h4>
 
               {(() => {
                 const getDriverName = (driverId, fallbackName) => {
@@ -374,29 +377,29 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                   <>
                     {/* AM ROW */}
                     <div className="bg-transparent space-y-1">
-                      <h5 className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-3">
+                      <h5 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-slate-600)' }}>
                         AM Drivers & Pickup Windows
                       </h5>
                       <div className="grid grid-cols-3 gap-4">
                         {/* Weekdays AM */}
                         <div
-                          className="bg-slate-100 p-2 rounded space-y-1 transition-all duration-200"
-                          style={getSlotBgStyle(store.weekday_am_enabled, store.weekday_am_driver_id || store.driver_weekday_am)}>
+                          className="p-2 rounded space-y-1 transition-all duration-200"
+                          style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.weekday_am_enabled, store.weekday_am_driver_id || store.driver_weekday_am) }}>
 
-                          <div className="text-xs font-medium text-slate-700">Weekdays</div>
+                          <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Weekdays</div>
                           {store.weekday_am_enabled !== false && (store.weekday_am_driver_id || store.driver_weekday_am) ?
                           <>
-                              <div className="text-sm font-medium text-slate-900">
+                              <div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
                                 {getDriverName(store.weekday_am_driver_id, store.driver_weekday_am).split(' ')[0]}
                               </div>
                               {store.weekday_am_start && store.weekday_am_end &&
-                            <div className="text-xs text-slate-500">
+                            <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
                                   {store.weekday_am_start} - {store.weekday_am_end}
                                 </div>
                             }
                             </> :
 
-                          <div className="text-xs text-slate-400 italic">
+                          <div className="text-xs italic" style={{ color: 'var(--text-slate-400)' }}>
                               {store.weekday_am_enabled === false ? 'Disabled' : 'No driver'}
                             </div>
                           }
@@ -404,23 +407,23 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
                         {/* Saturdays AM */}
                         <div
-                          className="bg-slate-100 p-2 rounded space-y-1 transition-all duration-200"
-                          style={getSlotBgStyle(store.saturday_am_enabled, store.saturday_am_driver_id || store.saturday_am_driver)}>
+                          className="p-2 rounded space-y-1 transition-all duration-200"
+                          style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.saturday_am_enabled, store.saturday_am_driver_id || store.saturday_am_driver) }}>
 
-                          <div className="text-xs font-medium text-slate-700">Saturdays</div>
+                          <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Saturdays</div>
                           {store.saturday_am_enabled !== false && (store.saturday_am_driver_id || store.saturday_am_driver) ?
                           <>
-                              <div className="text-sm font-medium text-slate-900">
+                              <div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
                                 {getDriverName(store.saturday_am_driver_id, store.saturday_am_driver).split(' ')[0]}
                               </div>
                               {store.saturday_am_start && store.saturday_am_end &&
-                            <div className="text-xs text-slate-500">
+                            <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
                                   {store.saturday_am_start} - {store.saturday_am_end}
                                 </div>
                             }
                             </> :
 
-                          <div className="text-xs text-slate-400 italic">
+                          <div className="text-xs italic" style={{ color: 'var(--text-slate-400)' }}>
                               {store.saturday_am_enabled === false ? 'Disabled' : 'No driver'}
                             </div>
                           }
@@ -428,23 +431,23 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
                         {/* Sundays AM */}
                         <div
-                          className="bg-slate-100 p-2 rounded space-y-1 transition-all duration-200"
-                          style={getSlotBgStyle(store.sunday_am_enabled, store.sunday_am_driver_id || store.driver_sunday_am)}>
+                          className="p-2 rounded space-y-1 transition-all duration-200"
+                          style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.sunday_am_enabled, store.sunday_am_driver_id || store.driver_sunday_am) }}>
 
-                          <div className="text-xs font-medium text-slate-700">Sundays</div>
+                          <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Sundays</div>
                           {store.sunday_am_enabled !== false && (store.sunday_am_driver_id || store.driver_sunday_am) ?
                           <>
-                              <div className="text-sm font-medium text-slate-900">
+                              <div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
                                 {getDriverName(store.sunday_am_driver_id, store.driver_sunday_am).split(' ')[0]}
                               </div>
                               {store.sunday_am_start && store.sunday_am_end &&
-                            <div className="text-xs text-slate-500">
+                            <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
                                   {store.sunday_am_start} - {store.sunday_am_end}
                                 </div>
                             }
                             </> :
 
-                          <div className="text-xs text-slate-400 italic">
+                          <div className="text-xs italic" style={{ color: 'var(--text-slate-400)' }}>
                               {store.sunday_am_enabled === false ? 'Disabled' : 'No driver'}
                             </div>
                           }
@@ -454,29 +457,29 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
                     {/* PM ROW */}
                     <div>
-                      <h5 className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-3">
+                      <h5 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-slate-600)' }}>
                         PM Drivers & Pickup Windows
                       </h5>
                       <div className="grid grid-cols-3 gap-4">
                         {/* Weekdays PM */}
                         <div
-                          className="bg-slate-100 p-2 rounded space-y-1 transition-all duration-200"
-                          style={getSlotBgStyle(store.weekday_pm_enabled, store.weekday_pm_driver_id || store.driver_weekday_pm)}>
+                          className="p-2 rounded space-y-1 transition-all duration-200"
+                          style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.weekday_pm_enabled, store.weekday_pm_driver_id || store.driver_weekday_pm) }}>
 
-                          <div className="text-xs font-medium text-slate-700">Weekdays</div>
+                          <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Weekdays</div>
                           {store.weekday_pm_enabled !== false && (store.weekday_pm_driver_id || store.driver_weekday_pm) ?
                           <>
-                              <div className="text-sm font-medium text-slate-900">
+                              <div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
                                 {getDriverName(store.weekday_pm_driver_id, store.driver_weekday_pm).split(' ')[0]}
                               </div>
                               {store.weekday_pm_start && store.weekday_pm_end &&
-                            <div className="text-xs text-slate-500">
+                            <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
                                   {store.weekday_pm_start} - {store.weekday_pm_end}
                                 </div>
                             }
                             </> :
 
-                          <div className="text-xs text-slate-400 italic">
+                          <div className="text-xs italic" style={{ color: 'var(--text-slate-400)' }}>
                               {store.weekday_pm_enabled === false ? 'Disabled' : 'No driver'}
                             </div>
                           }
@@ -484,23 +487,23 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
                         {/* Saturdays PM */}
                         <div
-                          className="bg-slate-100 p-2 rounded space-y-1 transition-all duration-200"
-                          style={getSlotBgStyle(store.saturday_pm_enabled, store.saturday_pm_driver_id || store.saturday_pm_driver)}>
+                          className="p-2 rounded space-y-1 transition-all duration-200"
+                          style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.saturday_pm_enabled, store.saturday_pm_driver_id || store.saturday_pm_driver) }}>
 
-                          <div className="text-xs font-medium text-slate-700">Saturdays</div>
+                          <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Saturdays</div>
                           {store.saturday_pm_enabled !== false && (store.saturday_pm_driver_id || store.saturday_pm_driver) ?
                           <>
-                              <div className="text-sm font-medium text-slate-900">
+                              <div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
                                 {getDriverName(store.saturday_pm_driver_id, store.saturday_pm_driver).split(' ')[0]}
                               </div>
                               {store.saturday_pm_start && store.saturday_pm_end &&
-                            <div className="text-xs text-slate-500">
+                            <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
                                   {store.saturday_pm_start} - {store.saturday_pm_end}
                                 </div>
                             }
                             </> :
 
-                          <div className="text-xs text-slate-400 italic">
+                          <div className="text-xs italic" style={{ color: 'var(--text-slate-400)' }}>
                               {store.saturday_pm_enabled === false ? 'Disabled' : 'No driver'}
                             </div>
                           }
@@ -508,23 +511,23 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
 
                         {/* Sundays PM */}
                         <div
-                          className="bg-slate-100 p-2 rounded space-y-1 transition-all duration-200"
-                          style={getSlotBgStyle(store.sunday_pm_enabled, store.sunday_pm_driver_id || store.driver_sunday_pm)}>
+                          className="p-2 rounded space-y-1 transition-all duration-200"
+                          style={{ background: 'var(--bg-slate-100)', ...getSlotBgStyle(store.sunday_pm_enabled, store.sunday_pm_driver_id || store.driver_sunday_pm) }}>
 
-                          <div className="text-xs font-medium text-slate-700">Sundays</div>
+                          <div className="text-xs font-medium" style={{ color: 'var(--text-slate-700)' }}>Sundays</div>
                           {store.sunday_pm_enabled !== false && (store.sunday_pm_driver_id || store.driver_sunday_pm) ?
                           <>
-                              <div className="text-sm font-medium text-slate-900">
+                              <div className="text-sm font-medium" style={{ color: 'var(--text-slate-900)' }}>
                                 {getDriverName(store.sunday_pm_driver_id, store.driver_sunday_pm).split(' ')[0]}
                               </div>
                               {store.sunday_pm_start && store.sunday_pm_end &&
-                            <div className="text-xs text-slate-500">
+                            <div className="text-xs" style={{ color: 'var(--text-slate-500)' }}>
                                   {store.sunday_pm_start} - {store.sunday_pm_end}
                                 </div>
                             }
                             </> :
 
-                          <div className="text-xs text-slate-400 italic">
+                          <div className="text-xs italic" style={{ color: 'var(--text-slate-400)' }}>
                               {store.sunday_pm_enabled === false ? 'Disabled' : 'No driver'}
                             </div>
                           }
@@ -538,11 +541,11 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
           </div>
 
           {/* Bottom Actions - Store ID, Dispatcher ID and Delete button */}
-          <div className="pt-1 border-t border-slate-100 space-y-1">
+          <div className="pt-1 space-y-1" style={{ borderTop: '1px solid var(--border-slate-100)' }}>
             {/* Store ID with Copy */}
             <div className="flex items-center">
-              <span className="text-xs text-slate-500 font-mono w-28 flex-shrink-0">Store ID:</span>
-              <span className="text-xs text-slate-500 font-mono truncate flex-1 mr-2" title={store.id}>
+              <span className="text-xs font-mono w-28 flex-shrink-0" style={{ color: 'var(--text-slate-500)' }}>Store ID:</span>
+              <span className="text-xs font-mono truncate flex-1 mr-2" style={{ color: 'var(--text-slate-500)' }} title={store.id}>
                 {store.id}
               </span>
               <Button
@@ -558,7 +561,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                 {copiedId ?
                 <Check className="w-3 h-3 text-emerald-600" /> :
 
-                <Copy className="w-3 h-3 text-slate-400" />
+                <Copy className="w-3 h-3" style={{ color: 'var(--text-slate-400)' }} />
                 }
               </Button>
             </div>
@@ -566,8 +569,8 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
             {/* Dispatcher ID with Copy */}
             {store.dispatcher_id &&
             <div className="flex items-center">
-              <span className="text-xs text-slate-500 font-mono w-28 flex-shrink-0">Dispatcher ID:</span>
-              <span className="text-xs text-slate-500 font-mono truncate flex-1 mr-2" title={store.dispatcher_id}>
+              <span className="text-xs font-mono w-28 flex-shrink-0" style={{ color: 'var(--text-slate-500)' }}>Dispatcher ID:</span>
+              <span className="text-xs font-mono truncate flex-1 mr-2" style={{ color: 'var(--text-slate-500)' }} title={store.dispatcher_id}>
                 {store.dispatcher_id}
               </span>
               <Button
@@ -583,7 +586,7 @@ export default function StoreCard({ store, onEdit, onDelete, onSave, currentUser
                 {copiedDispatcherId ?
                 <Check className="w-3 h-3 text-emerald-600" /> :
 
-                <Copy className="w-3 h-3 text-slate-400" />
+                <Copy className="w-3 h-3" style={{ color: 'var(--text-slate-400)' }} />
                 }
               </Button>
             </div>

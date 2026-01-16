@@ -291,47 +291,50 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
             <form onSubmit={handleSubmit} className="space-y-8">
                 {/* Basic Information Section */}
                 <div className="space-y-4">
-                    <h3 className="text-lg font-semibold text-slate-900 border-b pb-2">Basic Information</h3>
+                    <h3 className="text-lg font-semibold pb-2" style={{ color: 'var(--text-slate-900)', borderBottom: '1px solid var(--border-slate-200)' }}>Basic Information</h3>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <Label htmlFor="name">Store Name *</Label>
+                            <Label htmlFor="name" style={{ color: 'var(--text-slate-900)' }}>Store Name *</Label>
                             <Input
                 id="name"
                 name="name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                required />
+                required
+                style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }} />
 
                         </div>
 
                         <div>
-                            <Label htmlFor="abbreviation">Abbreviation (2 chars) *</Label>
+                            <Label htmlFor="abbreviation" style={{ color: 'var(--text-slate-900)' }}>Abbreviation (2 chars) *</Label>
                             <Input
                 id="abbreviation"
                 name="abbreviation"
                 value={formData.abbreviation || ''}
                 onChange={(e) => setFormData({ ...formData, abbreviation: e.target.value.substring(0, 2).toUpperCase() })}
                 maxLength={2}
-                required />
+                required
+                style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }} />
 
                         </div>
                     </div>
 
                     <div>
-                        <Label htmlFor="address">Address *</Label>
+                        <Label htmlFor="address" style={{ color: 'var(--text-slate-900)' }}>Address *</Label>
                         <Input
               id="address"
               name="address"
               value={formData.address}
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              required />
+              required
+              style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }} />
 
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
-                            <Label htmlFor="phone">Phone Number *</Label>
+                            <Label htmlFor="phone" style={{ color: 'var(--text-slate-900)' }}>Phone Number *</Label>
                             <PhoneInput
                 id="phone"
                 value={formData.phone}
@@ -342,18 +345,18 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                         </div>
 
                         <div>
-                            <Label htmlFor="city_id">City *</Label>
+                            <Label htmlFor="city_id" style={{ color: 'var(--text-slate-900)' }}>City *</Label>
                             <Select
                 value={formData.city_id || ''}
                 onValueChange={(value) => setFormData({ ...formData, city_id: value })}
                 required>
 
-                                <SelectTrigger>
+                                <SelectTrigger style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
                                     <SelectValue placeholder="Select city..." />
                                 </SelectTrigger>
-                                <SelectContent className="z-[10001]" position="popper" sideOffset={4}>
+                                <SelectContent className="z-[10001]" position="popper" sideOffset={4} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
                                     {sortedCities.map((city) =>
-                  <SelectItem key={city.id} value={city.id}>
+                  <SelectItem key={city.id} value={city.id} style={{ color: 'var(--text-slate-900)' }}>
                                             {city.name}
                                         </SelectItem>
                   )}
@@ -362,21 +365,22 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                         </div>
 
                         <div>
-                            <Label htmlFor="sort_order">Sort Order</Label>
+                            <Label htmlFor="sort_order" style={{ color: 'var(--text-slate-900)' }}>Sort Order</Label>
                             <Input
                 id="sort_order"
                 name="sort_order"
                 type="number"
                 value={formData.sort_order ?? ''}
                 onChange={(e) => setFormData({ ...formData, sort_order: e.target.value })}
-                placeholder="Optional" />
+                placeholder="Optional"
+                style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }} />
 
                         </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <Label htmlFor="latitude">Latitude</Label>
+                            <Label htmlFor="latitude" style={{ color: 'var(--text-slate-900)' }}>Latitude</Label>
                             <Input
                 id="latitude"
                 name="latitude"
@@ -384,12 +388,13 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                 step="any"
                 value={formData.latitude ?? ''}
                 onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
-                placeholder="e.g., 49.2827" />
+                placeholder="e.g., 49.2827"
+                style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }} />
 
                         </div>
 
                         <div>
-                            <Label htmlFor="longitude">Longitude</Label>
+                            <Label htmlFor="longitude" style={{ color: 'var(--text-slate-900)' }}>Longitude</Label>
                             <Input
                 id="longitude"
                 name="longitude"
@@ -397,30 +402,31 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                 step="any"
                 value={formData.longitude ?? ''}
                 onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
-                placeholder="e.g., -123.1207" />
+                placeholder="e.g., -123.1207"
+                style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }} />
 
                         </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <Label htmlFor="dispatcher_id">Assigned Dispatcher</Label>
+                            <Label htmlFor="dispatcher_id" style={{ color: 'var(--text-slate-900)' }}>Assigned Dispatcher</Label>
                             <Select
                               value={formData.dispatcher_id || 'null'}
                               onValueChange={handleDispatcherSelect}>
-                                <SelectTrigger>
+                                <SelectTrigger style={{ background: 'var(--bg-white)', borderColor: 'var(--menu-border)', color: 'var(--text-slate-900)' }}>
                                     <SelectValue placeholder="Select dispatcher...">
                                         {formData.dispatcher_id ?
                                           sortedUsers.find((u) => u.id === formData.dispatcher_id)?.user_name || sortedUsers.find((u) => u.id === formData.dispatcher_id)?.full_name :
                                           "Select dispatcher..."}
                                     </SelectValue>
                                 </SelectTrigger>
-                                <SelectContent className="z-[10001]" position="popper" sideOffset={4}>
-                                    <SelectItem value="null">No Dispatcher</SelectItem>
+                                <SelectContent className="z-[10001]" position="popper" sideOffset={4} style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)' }}>
+                                    <SelectItem value="null" style={{ color: 'var(--text-slate-900)' }}>No Dispatcher</SelectItem>
                                     {sortedUsers
                                         .filter((u) => u && u.app_roles && u.app_roles.includes('dispatcher'))
                                         .map((dispatcher) =>
-                                            <SelectItem key={dispatcher.id} value={dispatcher.id}>
+                                            <SelectItem key={dispatcher.id} value={dispatcher.id} style={{ color: 'var(--text-slate-900)' }}>
                                                 {dispatcher.user_name || dispatcher.full_name}
                                             </SelectItem>
                                         )}
@@ -429,7 +435,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                         </div>
 
                         <div>
-                            <Label htmlFor="status">Store Status</Label>
+                            <Label htmlFor="status" style={{ color: 'var(--text-slate-900)' }}>Store Status</Label>
                             <div className="flex items-center gap-3 h-10 mt-1">
                                 <Switch
                                     id="status"
@@ -446,20 +452,20 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
 
                 {/* Driver Assignments & Pickup Times Section - NEW TABLE LAYOUT */}
                 <div className="space-y-2">
-                    <h3 className="text-lg font-semibold text-slate-900 border-b pb-2">
+                    <h3 className="text-lg font-semibold pb-2" style={{ color: 'var(--text-slate-900)', borderBottom: '1px solid var(--border-slate-200)' }}>
                         Driver Assignments & Pickup Times
                     </h3>
 
                     {/* Table Header */}
-                    <div className="grid grid-cols-7 gap-2 text-sm font-semibold text-slate-700 pb-1 border-b">
+                    <div className="grid grid-cols-7 gap-2 text-sm font-semibold pb-1" style={{ color: 'var(--text-slate-700)', borderBottom: '1px solid var(--border-slate-200)' }}>
                         <div className="col-span-1">Day</div>
                         <div className="col-span-3 text-center">AM Shift</div>
                         <div className="col-span-3 text-center">PM Shift</div>
                     </div>
 
                     {/* Weekdays Row */}
-                    <div className="grid grid-cols-7 gap-2 items-start border-b border-slate-100">
-                        <div className="col-span-1 font-medium text-slate-700 pt-2">
+                    <div className="grid grid-cols-7 gap-2 items-start" style={{ borderBottom: '1px solid var(--border-slate-100)' }}>
+                        <div className="col-span-1 font-medium pt-2" style={{ color: 'var(--text-slate-700)' }}>
                             Mon-Fri
                         </div>
                         
@@ -577,8 +583,8 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                     </div>
 
                     {/* Saturday Row */}
-                    <div className="grid grid-cols-7 gap-2 items-start border-b border-slate-100">
-                        <div className="col-span-1 font-medium text-slate-700 pt-2">
+                    <div className="grid grid-cols-7 gap-2 items-start" style={{ borderBottom: '1px solid var(--border-slate-100)' }}>
+                        <div className="col-span-1 font-medium pt-2" style={{ color: 'var(--text-slate-700)' }}>
                             Saturday
                         </div>
                         
@@ -697,7 +703,7 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
 
                     {/* Sunday Row */}
                     <div className="grid grid-cols-7 gap-2 items-start">
-                        <div className="col-span-1 font-medium text-slate-700 pt-2">
+                        <div className="col-span-1 font-medium pt-2" style={{ color: 'var(--text-slate-700)' }}>
                             Sunday
                         </div>
                         
@@ -816,13 +822,14 @@ export default function StoreForm({ store, cities = [], drivers = [], allUsers =
                 </div>
 
                 {/* Form Actions */}
-                <div className="flex justify-end gap-3 pt-4 border-t">
-                    <Button type="button" variant="outline" onClick={onCancel}>
+                <div className="flex justify-end gap-3 pt-4" style={{ borderTop: '1px solid var(--border-slate-200)' }}>
+                    <Button type="button" variant="outline" onClick={onCancel} style={{ borderColor: 'var(--border-slate-300)', background: 'var(--bg-white)', color: 'var(--text-slate-900)' }}>
                         Cancel
                     </Button>
                     <Button
             type="submit"
-            disabled={!formData.name || !formData.address || !formData.phone || !formData.city_id}>
+            disabled={!formData.name || !formData.address || !formData.phone || !formData.city_id}
+            className="bg-emerald-600 hover:bg-emerald-700">
 
                         {store ? 'Update Store' : 'Create Store'}
                     </Button>
