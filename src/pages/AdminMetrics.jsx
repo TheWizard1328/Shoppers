@@ -449,14 +449,14 @@ export default function AdminMetrics() {
                     const envelopeData = selectedMonth 
                       ? metricsData.envelopeMetrics?.byStoreAndMonth?.[item.storeId]?.[selectedMonth]
                       : metricsData.envelopeMetrics?.byStore?.[item.storeId];
-                    const envelopeValue = envelopeData?.totalEnvelopeValue || 0;
+                    const envelopeValue = showEnvelopeAdjustedTotals ? (envelopeData?.totalEnvelopeValue || 0) : 0;
                     const baseCompleted = (item.completed || 0) + (item.afterHours || 0);
                     
                     return {
                       ...item,
                       // Base completed excludes envelope additions
                       totalCompleted: baseCompleted,
-                      // Envelope count shown as separate segment
+                      // Envelope count shown as separate segment only when toggle is on
                       envelopeCount: envelopeValue,
                       totalFailed: (item.failed || 0) + (item.cancelled || 0),
                       fees: item.fees || 0
@@ -508,8 +508,10 @@ export default function AdminMetrics() {
                     <Bar dataKey="fees" fill="#f59e0b" name="App Fees" radius={[4, 4, 0, 0]} />
                   ) : (
                     <>
-                      <Bar dataKey="totalCompleted" stackId="completed" fill="#10b981" name="Completed" radius={[0, 0, 0, 0]} />
-                      <Bar dataKey="envelopeCount" stackId="completed" fill="#3b82f6" name="Envelope" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="totalCompleted" stackId="completed" fill="#10b981" name="Completed" radius={showEnvelopeAdjustedTotals ? [0, 0, 0, 0] : [4, 4, 0, 0]} />
+                      {showEnvelopeAdjustedTotals && (
+                        <Bar dataKey="envelopeCount" stackId="completed" fill="#3b82f6" name="Envelope" radius={[4, 4, 0, 0]} />
+                      )}
                       <Bar dataKey="totalFailed" fill="#ef4444" name="Failed" radius={[4, 4, 0, 0]} />
                     </>
                   )}
