@@ -550,10 +550,26 @@ Deno.serve(async (req) => {
           // CRITICAL: Time on Duty calculation with 2-rule fallback system
           const breakTimeMinutes = appUser?.total_break_time_minutes || 0;
           
-          // RULE 1: Try to calculate from actual on_duty/off_duty toggle times
-          // TODO: This requires storing duty start/end times in AppUser - not yet implemented
-          // For now, use 0 as placeholder for Rule 1
+          // RULE 1: Calculate from actual on_duty/off_duty toggle times
           let dutyFromToggles = 0;
+          if (appUser?.duty_start_time && appUser?.duty_end_time) {
+            const dutyStart = new Date(appUser.duty_start_time).getTime();
+            const dutyEnd = new Date(appUser.duty_end_time).getTime();
+            const totalDutyMs = dutyEnd - dutyStart;
+            const totalDutyMinutes = Math.floor(totalDutyMs / 60000);
+            dutyFromToggles = Math.max(0, totalDutyMinutes - breakTimeMinutes);
+            console.log(`⏱️ [Rule 1] Duty toggles: ${appUser.duty_start_time} to ${appUser.duty_end_time}`);
+            console.log(`⏱️ [Rule 1] Total: ${totalDutyMinutes}min, Breaks: ${breakTimeMinutes}min, Final: ${dutyFromToggles}min`);
+          } else if (appUser?.duty_start_time && appUser?.driver_status === 'on_duty') {
+            // Still on duty - calculate from start to now
+            const dutyStart = new Date(appUser.duty_start_time).getTime();
+            const now = Date.now();
+            const totalDutyMs = now - dutyStart;
+            const totalDutyMinutes = Math.floor(totalDutyMs / 60000);
+            dutyFromToggles = Math.max(0, totalDutyMinutes - breakTimeMinutes);
+            console.log(`⏱️ [Rule 1 - Active] Duty started: ${appUser.duty_start_time}, still on duty`);
+            console.log(`⏱️ [Rule 1 - Active] Elapsed: ${totalDutyMinutes}min, Breaks: ${breakTimeMinutes}min, Final: ${dutyFromToggles}min`);
+          }
           
           // RULE 2: Calculate from first finished stop to last finished stop, minus breaks
           let dutyFromStops = 0;
@@ -567,19 +583,17 @@ Deno.serve(async (req) => {
             const firstMinutes = finishedWithTimes[0].localMinutes;
             const lastMinutes = finishedWithTimes[finishedWithTimes.length - 1].localMinutes;
             
-            // Calculate raw duration and deduct breaks
             const rawDurationMinutes = lastMinutes - firstMinutes;
             dutyFromStops = Math.max(0, rawDurationMinutes - breakTimeMinutes);
             
-            console.log(`⏱️ [TIME CALC] First: ${finishedWithTimes[0].actual_delivery_time} (${Math.floor(firstMinutes/60)}:${String(firstMinutes%60).padStart(2,'0')})`);
-            console.log(`⏱️ [TIME CALC] Last: ${finishedWithTimes[finishedWithTimes.length - 1].actual_delivery_time} (${Math.floor(lastMinutes/60)}:${String(lastMinutes%60).padStart(2,'0')})`);
-            console.log(`⏱️ [TIME CALC] Raw: ${rawDurationMinutes}min, Breaks: ${breakTimeMinutes}min`);
-            console.log(`⏱️ [TIME CALC] Rule 1 (toggles): ${dutyFromToggles}min, Rule 2 (stops): ${dutyFromStops}min`);
+            console.log(`⏱️ [Rule 2] First: ${finishedWithTimes[0].actual_delivery_time} (${Math.floor(firstMinutes/60)}:${String(firstMinutes%60).padStart(2,'0')})`);
+            console.log(`⏱️ [Rule 2] Last: ${finishedWithTimes[finishedWithTimes.length - 1].actual_delivery_time} (${Math.floor(lastMinutes/60)}:${String(lastMinutes%60).padStart(2,'0')})`);
+            console.log(`⏱️ [Rule 2] Raw: ${rawDurationMinutes}min, Breaks: ${breakTimeMinutes}min, Final: ${dutyFromStops}min`);
           }
           
           // Use the LARGER of the two values
           const totalDutyMinutes = Math.max(dutyFromToggles, dutyFromStops);
-          console.log(`⏱️ [TIME FINAL] Using: ${totalDutyMinutes}min (${totalDutyMinutes > 0 ? 'Rule ' + (dutyFromToggles > dutyFromStops ? '1' : '2') : 'none'})`);
+          console.log(`⏱️ [FINAL] Rule 1: ${dutyFromToggles}min, Rule 2: ${dutyFromStops}min → Using: ${totalDutyMinutes}min`);
           
           const hours = Math.floor(totalDutyMinutes / 60);
           const minutes = totalDutyMinutes % 60;
@@ -700,8 +714,22 @@ Deno.serve(async (req) => {
           // CRITICAL: Calculate time on duty for this driver using 2-rule system
           const breakTimeMinutes = driverAppUser.total_break_time_minutes || 0;
           
-          // Rule 1: Actual duty toggles (not yet implemented - placeholder)
+          // Rule 1: Actual duty toggles
           let dutyFromToggles = 0;
+          if (driverAppUser.duty_start_time && driverAppUser.duty_end_time) {
+            const dutyStart = new Date(driverAppUser.duty_start_time).getTime();
+            const dutyEnd = new Date(driverAppUser.duty_end_time).getTime();
+            const totalDutyMs = dutyEnd - dutyStart;
+            const totalDutyMinutes = Math.floor(totalDutyMs / 60000);
+            dutyFromToggles = Math.max(0, totalDutyMinutes - breakTimeMinutes);
+          } else if (driverAppUser.duty_start_time && driverAppUser.driver_status === 'on_duty') {
+            // Still on duty - calculate from start to now
+            const dutyStart = new Date(driverAppUser.duty_start_time).getTime();
+            const now = Date.now();
+            const totalDutyMs = now - dutyStart;
+            const totalDutyMinutes = Math.floor(totalDutyMs / 60000);
+            dutyFromToggles = Math.max(0, totalDutyMinutes - breakTimeMinutes);
+          }
           
           // Rule 2: First to last stop minus breaks
           const extractLocalTimeMinutesForAllDrivers = (timeStr) => {
@@ -727,7 +755,7 @@ Deno.serve(async (req) => {
             const rawDurationMinutes = driverLastMinutes - driverFirstMinutes;
             dutyFromStops = Math.max(0, rawDurationMinutes - breakTimeMinutes);
             
-            console.log(`⏱️ [All Drivers - ${driverUserId}] Raw: ${rawDurationMinutes}min, Breaks: ${breakTimeMinutes}min, From Stops: ${dutyFromStops}min`);
+            console.log(`⏱️ [All Drivers - ${driverUserId}] Rule 1: ${dutyFromToggles}min, Rule 2: ${dutyFromStops}min`);
           }
           
           // Use the larger of the two values
