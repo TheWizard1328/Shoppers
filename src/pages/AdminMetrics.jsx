@@ -563,7 +563,29 @@ export default function AdminMetrics() {
             <CardContent>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={selectedMonth ? metricsData.dailyDeliveryData?.[selectedMonth] : metricsData.monthlyData}>
+                  <BarChart data={(() => {
+                    if (!selectedMonth) return metricsData.monthlyData;
+                    
+                    // Get days in the selected month for the selected year
+                    const daysInMonth = new Date(parseInt(selectedYear), selectedMonth, 0).getDate();
+                    const rawDailyData = metricsData.dailyDeliveryData?.[selectedMonth] || [];
+                    
+                    // Create a map of existing data
+                    const dataByDay = new Map(rawDailyData.map(d => [d.day, d]));
+                    
+                    // Fill in all days of the month, sorted 1 to N
+                    const fullDailyData = [];
+                    for (let day = 1; day <= daysInMonth; day++) {
+                      const existing = dataByDay.get(day);
+                      fullDailyData.push({
+                        day,
+                        billable: existing?.billable || 0,
+                        nonBillable: existing?.nonBillable || 0,
+                        adjustedDeliveries: existing?.adjustedDeliveries || 0
+                      });
+                    }
+                    return fullDailyData;
+                  })()}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis 
                       dataKey={selectedMonth ? "day" : "month"} 
