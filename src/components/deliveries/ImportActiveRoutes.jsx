@@ -871,13 +871,27 @@ export default function ImportActiveRoutes({
         }
       }
       
-      // CRITICAL: Clear delivery_time_end unless patient has time_window_end
+      // CRITICAL: Ensure delivery_time_end is ONLY set if patient has time_window_end
       if (d.patient_id) {
         const deliveryPatient = patientsData.find(p => p.id === d.patient_id);
-        if (deliveryPatient && !deliveryPatient.time_window_end) {
-          d.delivery_time_end = null;
-          d.time_window_end = null;
+        if (deliveryPatient) {
+          // Set time windows from patient record
+          if (deliveryPatient.time_window_start) {
+            d.time_window_start = deliveryPatient.time_window_start;
+          }
+          if (deliveryPatient.time_window_end) {
+            d.time_window_end = deliveryPatient.time_window_end;
+            d.delivery_time_end = deliveryPatient.time_window_end;
+          } else {
+            // No patient time_window_end - ensure blank
+            d.delivery_time_end = null;
+            d.time_window_end = null;
+          }
         }
+      } else {
+        // Pickups - no end time
+        d.delivery_time_end = null;
+        d.time_window_end = null;
       }
     });
 
