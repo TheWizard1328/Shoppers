@@ -3144,7 +3144,7 @@ export default function DeliveryMap({
             <Marker
               key={`delivery-${delivery.id}`}
               position={markerPosition}
-              icon={delivery.useSimpleCircle ? createSimpleCircleIcon(delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, isMobile, delivery.pinColor, delivery.isOtherDriver) : createDeliveryIcon(
+              icon={delivery.useSimpleCircle || delivery.isOtherDriver ? createSimpleCircleIcon(delivery.status, delivery.status === 'pending' ? null : delivery.number, currentZoom, isMobile, delivery.pinColor, delivery.isOtherDriver) : createDeliveryIcon(
                 delivery.status,
                 delivery.pinColor,
                 isFanned,
