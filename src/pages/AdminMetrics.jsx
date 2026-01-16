@@ -439,16 +439,30 @@ export default function AdminMetrics() {
                 <BarChart data={(() => {
                   // For daily breakdown (store+month selected), use daily data directly
                   if (filteredData?.isDailyBreakdown) {
-                    return (filteredData.storeData || [])
-                      .slice()
-                      .sort((a, b) => (a.day || 0) - (b.day || 0))
-                      .map(item => ({
-                        ...item,
-                        totalCompleted: (item.completed || 0) + (item.afterHours || 0),
-                        totalFailed: (item.failed || 0) + (item.cancelled || 0),
+                    // Get days in the selected month for the selected year
+                    const daysInMonth = new Date(parseInt(selectedYear), selectedStoreMonth.month, 0).getDate();
+                    const rawDailyData = filteredData.storeData || [];
+                    
+                    // Create a map of existing data
+                    const dataByDay = new Map(rawDailyData.map(d => [d.day, d]));
+                    
+                    // Fill in all days of the month, sorted 1 to N
+                    const fullDailyData = [];
+                    for (let day = 1; day <= daysInMonth; day++) {
+                      const existing = dataByDay.get(day);
+                      fullDailyData.push({
+                        day,
+                        completed: existing?.completed || 0,
+                        afterHours: existing?.afterHours || 0,
+                        failed: existing?.failed || 0,
+                        cancelled: existing?.cancelled || 0,
+                        totalCompleted: (existing?.completed || 0) + (existing?.afterHours || 0),
+                        totalFailed: (existing?.failed || 0) + (existing?.cancelled || 0),
                         envelopeCount: 0,
-                        fees: item.fees || 0
-                      }));
+                        fees: existing?.fees || 0
+                      });
+                    }
+                    return fullDailyData;
                   }
                   
                   // For store breakdown (year or month view)
