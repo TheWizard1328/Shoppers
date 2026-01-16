@@ -514,11 +514,16 @@ function Dashboard() {
               appUserId: appUser.id
             });
             console.log('✅ [Dashboard] Location tracking started successfully');
-            
+
             // CRITICAL: Also start live distance tracker
             if (!liveDistanceTracker.isTracking) {
               liveDistanceTracker.start(currentUser);
               console.log('✅ [Dashboard] Live distance tracker started');
+
+              // CRITICAL: Immediately poll for current stats on mount/refresh
+              setTimeout(() => {
+                liveDistanceTracker.instantPoll();
+              }, 1000); // Wait 1 second for data to settle
             }
           }
         } catch (error) {

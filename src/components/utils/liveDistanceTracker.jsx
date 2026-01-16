@@ -406,6 +406,67 @@ class LiveDistanceTracker {
     const minutes = totalMinutes % 60;
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
   }
+
+  /**
+   * Instant poll - calculate and dispatch current total distance and time on duty
+   * Called on app refresh/mount to immediately show stats
+   */
+  async instantPoll() {
+    if (!this.currentUser) {
+      console.log('⏭️ [LiveDistanceTracker] Instant poll - no user');
+      return;
+    }
+
+    try {
+      console.log('⚡ [LiveDistanceTracker] INSTANT POLL - calculating current stats...');
+
+      const todayStr = new Date().toISOString().split('T')[0];
+      
+      // Fetch all today's deliveries for driver
+      const allTodayDeliveries = await base44.entities.Delivery.filter({
+        driver_id: this.currentUser.id,
+        delivery_date: todayStr
+      });
+
+      // Calculate total distance: sum of all completed deliveries + current in-progress
+      const finishedStatuses = ['completed', 'failed', 'cancelled'];
+      const completedDeliveries = allTodayDeliveries.filter(d => 
+        d && finishedStatuses.includes(d.status)
+      );
+      
+      const completedDistance = completedDeliveries.reduce((sum, d) => 
+        sum + (d.travel_dist || 0), 0
+      );
+      
+      // Find next delivery to get in-progress distance
+      const nextDelivery = allTodayDeliveries.find(d => d && d.isNextDelivery === true);
+      const inProgressDistance = nextDelivery?.travel_dist || 0;
+      
+      const totalDistance = completedDistance + inProgressDistance;
+      
+      console.log(`📊 [Instant Poll] Distance: ${completedDistance.toFixed(3)} km (completed) + ${inProgressDistance.toFixed(3)} km (in-progress) = ${totalDistance.toFixed(3)} km`);
+
+      // Dispatch distance update
+      window.dispatchEvent(new CustomEvent('travelDistUpdated', {
+        detail: {
+          deliveryId: nextDelivery?.id || null,
+          travel_dist: inProgressDistance,
+          distanceMoved: 0,
+          totalAccumulatedDistance: totalDistance,
+          completedDistance: completedDistance,
+          inProgressDistance: inProgressDistance
+        }
+      }));
+
+      // Calculate and dispatch time on duty
+      await this.updateTimeOnDuty();
+
+      console.log('✅ [Instant Poll] Stats dispatched to UI');
+
+    } catch (error) {
+      console.error('❌ [LiveDistanceTracker] Instant poll error:', error);
+    }
+  }
 }
 
 export const liveDistanceTracker = new LiveDistanceTracker();
