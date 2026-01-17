@@ -3249,6 +3249,18 @@ function Dashboard() {
         window._lastProgrammaticMapMove = Date.now();
         setMapViewTrigger((prev) => prev + 1);
 
+        // CRITICAL: Auto-center to next delivery card after map triggers
+        setTimeout(() => {
+          const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
+          if (nextCard) {
+            const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
+            if (cardElement) {
+              cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+              console.log('📍 [Date Change] Auto-centered to next delivery card');
+            }
+          }
+        }, 300);
+
         // CRITICAL: Handle timer logic - ONLY Phase 1 & 3 get timers, Phase 2 stays locked
         if (mapViewPhase === 2) {
           // Phase 2 - NO timer at all, stays locked PERMANENTLY
@@ -3386,6 +3398,18 @@ function Dashboard() {
       lastProgrammaticMapMoveRef.current = Date.now();
       window._lastProgrammaticMapMove = Date.now();
       setMapViewTrigger(nextTrigger);
+
+      // CRITICAL: Auto-center to next delivery card after map triggers
+      setTimeout(() => {
+        const nextCard = deliveriesWithStopOrder.find((d) => d && d.isNextDelivery === true);
+        if (nextCard) {
+          const cardElement = document.getElementById(`stop-card-${nextCard.id}`);
+          if (cardElement) {
+            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            console.log('📍 [Driver Change] Auto-centered to next delivery card');
+          }
+        }
+      }, 300);
 
       if (mapViewPhase === 2) {
         if (mapLockTimeoutRef.current) {
@@ -3550,13 +3574,14 @@ function Dashboard() {
         }
       }
       
-      // Auto-center card in horizontal scroll
+      // CRITICAL: Auto-center card in horizontal scroll - increased delay for reliability
       setTimeout(() => {
         const cardElement = document.getElementById(`stop-card-${delivery.id}`);
         if (cardElement) {
           cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+          console.log('📍 [Card Click] Auto-centered to expanded card');
         }
-      }, 100);
+      }, 300);
     }
   };
 
