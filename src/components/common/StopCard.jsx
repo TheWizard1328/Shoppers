@@ -1394,8 +1394,8 @@ export default function StopCard({
             {isExpanded && !isStrippedDelivery &&
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
                 <div className="pt-3 space-y-3 border-t mt-2" style={{ borderColor: 'var(--border-slate-200)' }}>
-                  {/* Phone number - moved below divider */}
-                  {finalDisplayPhone &&
+                  {/* Phone number - moved below divider - HIDE for finished patient deliveries */}
+                  {finalDisplayPhone && !(isFinishedDelivery && !isPickup) &&
                 <div className="flex items-center text-lg md:text-sm" style={{ color: 'var(--text-slate-600)' }}>
                       <Phone className="w-4 h-4 mr-2 text-slate-500" />
                       <span className="text-xl md:text-base font-medium">{formatPhoneNumber(finalDisplayPhone)}</span>
@@ -1513,7 +1513,21 @@ export default function StopCard({
                   }
                   </AnimatePresence>
 
-                  {!isPickup && patient && (patient.notes || patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door || patient.recurring) &&
+                  {/* Patient Notes - Show for finished deliveries (only notes, no preferences/recurring) */}
+                  {isFinishedDelivery && !isPickup && patient?.notes &&
+                <div className="flex items-start gap-2">
+                    <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-base md:text-xs font-semibold mb-0.5" style={{ color: 'var(--text-slate-700)' }}>Patient Notes:</p>
+                      <div className="text-base md:text-xs rounded px-2 py-1.5" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
+                        <p className="whitespace-pre-wrap break-words">{patient.notes}</p>
+                      </div>
+                    </div>
+                  </div>
+                }
+
+                  {/* Full Patient Info - Only for non-finished deliveries */}
+                  {!isFinishedDelivery && !isPickup && patient && (patient.notes || patient.mailbox_ok || patient.call_upon_arrival || patient.dont_ring_bell || patient.back_door || patient.recurring) &&
                 <div className="flex items-start gap-2">
                 <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
@@ -1564,8 +1578,8 @@ export default function StopCard({
                     </div>
                 }
 
-                  {/* Show pending pickup list for pickups that are en_route (equivalent to in_transit for deliveries) */}
-                  {isPickup && delivery.status === 'en_route' && pendingPickups && pendingPickups.length > 0 &&
+                  {/* Show pending pickup list for pickups that are en_route (equivalent to in_transit for deliveries) - HIDE for finished */}
+                  {!isFinishedDelivery && isPickup && delivery.status === 'en_route' && pendingPickups && pendingPickups.length > 0 &&
                 <div className="pt-2 border-t" style={{ borderColor: 'var(--border-slate-200)' }}>
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="text-base md:text-xs font-bold flex items-center gap-2" style={{ color: 'var(--text-slate-700)' }}>
@@ -1916,21 +1930,35 @@ export default function StopCard({
                     </div>
                 }
 
-                  <div className="space-y-1 mt-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-base md:text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>Driver Notes</Label>
+                  {/* Driver Notes - For finished deliveries, show read-only if notes exist */}
+                  {isFinishedDelivery && !isPickup ? (
+                    delivery.delivery_notes && (
+                      <div className="space-y-1 mt-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-base md:text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>Driver Notes</Label>
+                        </div>
+                        <div className="text-base md:text-xs rounded px-2 py-1.5" style={{ color: 'var(--text-slate-600)', background: 'var(--bg-slate-50)', borderWidth: '1px', borderColor: 'var(--border-slate-200)' }}>
+                          <p className="whitespace-pre-wrap break-words">{delivery.delivery_notes}</p>
+                        </div>
+                      </div>
+                    )
+                  ) : (
+                    <div className="space-y-1 mt-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-base md:text-xs font-medium flex items-center gap-1" style={{ color: 'var(--text-slate-700)' }}>Driver Notes</Label>
+                      </div>
+                      <Textarea
+                      value={notesInput}
+                      onChange={(e) => setNotesInput(e.target.value)}
+                      onBlur={handleNotesBlur}
+                      onKeyDown={handleNotesKeyDown}
+                      onClick={(e) => e.stopPropagation()}
+                      placeholder="Add driver notes..."
+                      className="text-base md:text-xs resize-none h-16"
+                      style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}
+                      disabled={isCompleted && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')} />
                     </div>
-                    <Textarea
-                    value={notesInput}
-                    onChange={(e) => setNotesInput(e.target.value)}
-                    onBlur={handleNotesBlur}
-                    onKeyDown={handleNotesKeyDown}
-                    onClick={(e) => e.stopPropagation()}
-                    placeholder="Add driver notes..."
-                    className="text-base md:text-xs resize-none h-16"
-                    style={{ background: 'var(--bg-white)', borderColor: 'var(--border-slate-200)', color: 'var(--text-slate-900)' }}
-                    disabled={isCompleted && !userHasRole(currentUser, 'admin') && !userHasRole(currentUser, 'dispatcher')} />
-                  </div>
+                  )}
                 </div>
               </motion.div>
             }
