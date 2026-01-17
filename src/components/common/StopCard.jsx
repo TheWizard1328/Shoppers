@@ -346,24 +346,33 @@ export default function StopCard({
     return driverDeliveriesForDate.every((d) => FINISHED_STATUSES.includes(d.status));
   }, [delivery, allDeliveries]);
 
+  // Check if this is an InterStore delivery (DropOff or Pickup)
+  const isInterStore = useMemo(() => {
+    if (!delivery || !patient) return false;
+    const patientName = (patient.full_name || '').toLowerCase();
+    return patientName.includes('interstore') || patientName.includes('inter-store') || patientName.includes('inter store');
+  }, [delivery, patient]);
+
   const shouldRedact = useMemo(() => {
     if (!delivery || !currentUser) return false;
+    // Never redact pickups or InterStore deliveries
+    if (isPickup || isInterStore) return false;
     // Redact completed deliveries for drivers (not admins/dispatchers)
-    if (isCompleted && !isPickup &&
+    if (isCompleted &&
     !userHasRole(currentUser, 'admin') &&
     !userHasRole(currentUser, 'dispatcher') &&
     userHasRole(currentUser, 'driver')) {
       return true;
     }
     // Redact when route is complete for drivers
-    if (isRouteCompleted && !isPickup &&
+    if (isRouteCompleted &&
     !userHasRole(currentUser, 'admin') &&
     !userHasRole(currentUser, 'dispatcher') &&
     userHasRole(currentUser, 'driver')) {
       return true;
     }
     return false;
-  }, [isCompleted, isPickup, currentUser, delivery, isRouteCompleted]);
+  }, [isCompleted, isPickup, isInterStore, currentUser, delivery, isRouteCompleted]);
 
   const shouldShowStoreBadge = useMemo(() => shouldShowStoreBadges(currentUser), [currentUser]);
 
