@@ -987,7 +987,8 @@ export default function StopCard({
                       <Phone className="w-6 h-6 md:w-5 md:h-5" />
                     </a>
                 }
-                  {finalDisplayAddress &&
+                  {/* CRITICAL: Only show GPS button for isNextDelivery cards */}
+                  {isNextDelivery && finalDisplayAddress &&
                 <a
                   href={(() => {
                     if (!shouldRedact && !isPickup && patient?.latitude && patient?.longitude) {
