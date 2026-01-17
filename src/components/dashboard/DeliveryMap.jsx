@@ -1426,7 +1426,9 @@ export default function DeliveryMap({
       const driverId = user.id || user.user_id;
       if (!driverId) return null;
 
-      const isCurrentUserMarker = driverId === currentUserId;
+      const isCurrentUserMarker = driverId === currentUserId || 
+                                  (currentUser?.user_id && driverId === currentUser.user_id) ||
+                                  (user.user_id && user.user_id === currentUserId);
 
       // CRITICAL: On mobile, ALWAYS skip current user's shared marker (blue GPS dot shows instead)
       if (isMobile && isCurrentUserMarker) {
