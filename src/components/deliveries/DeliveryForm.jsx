@@ -4277,17 +4277,16 @@ export default function DeliveryForm({
                 <Button
                   type="submit"
                   size="sm"
-                  onClick={(e) => {
+                  onClick={async (e) => {
                     e.preventDefault();
-                    // CRITICAL: Trigger immediate stats refresh BEFORE save completes
-                    window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-                    handleSubmit(e).then(() => {
-                      // Trigger again after save to ensure latest data
+                    await handleSubmit(e);
+                    // CRITICAL: Force stats refresh after update completes
+                    setTimeout(() => {
                       window.dispatchEvent(new CustomEvent('refreshDeliveryStats'));
-                      if (closeOnSave) {
-                        onCancel();
-                      }
-                    });
+                    }, 500);
+                    if (closeOnSave) {
+                      onCancel();
+                    }
                   }}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
                   disabled={isSaving || !isFormValid || isPatientFormOpen}>
