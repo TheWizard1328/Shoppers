@@ -366,9 +366,15 @@ class LiveDistanceTracker {
   async updateTimeOnDuty() {
     try {
       // CRITICAL: Only calculate live time when driver is on_duty
-      // For completed routes or when off_duty, the backend (getDeliveryStats) calculates time
+      // For completed routes or when off_duty, dispatch null to let backend value show
       if (!this.currentUser || this.currentUser.driver_status !== 'on_duty') {
-        console.log('⏭️ [LiveDistanceTracker] Driver not on_duty - skipping live time calculation');
+        console.log('⏭️ [LiveDistanceTracker] Driver not on_duty - dispatching null to use backend value');
+        window.dispatchEvent(new CustomEvent('timeOnDutyUpdated', {
+          detail: {
+            totalMinutes: null,
+            formattedTime: null
+          }
+        }));
         return;
       }
 
