@@ -1402,8 +1402,8 @@ export default function StopCard({
                     </div>
                 }
 
-                  {/* COD Information - Moved to expandable section */}
-                  {hasCODRequired && !isPickup && !FINISHED_STATUSES.includes(delivery.status) &&
+                  {/* COD Information - For active deliveries with COD required */}
+                  {hasCODRequired && !isPickup && !isFinishedDelivery &&
                 <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-md px-2 py-1">
                       <span className="text-base md:text-xs font-semibold text-amber-800">COD Required: ${codTotalRequired.toFixed(2)}</span>
                       {userHasRole(currentUser, 'driver') &&
@@ -1421,18 +1421,19 @@ export default function StopCard({
                     </div>
                 }
 
+                  {/* COD Collected - Show for active deliveries OR for finished deliveries with COD */}
                   {hasCODRequired && !isPickup && codPayments.length > 0 &&
                 <div className={`flex items-center justify-between rounded-md px-2 py-1 ${isCODComplete ? 'bg-emerald-50 border border-emerald-200' : 'bg-amber-50 border border-amber-200'}`}>
                       <span className={`text-base md:text-xs font-semibold ${isCODComplete ? 'text-emerald-800' : 'text-amber-800'}`}>
-                        {codPayments.map((payment, index) =>
+                        COD Collected: {codPayments.map((payment, index) =>
                     <span key={index}>
                             {payment.type}: ${payment.amount.toFixed(2)}
                             {index < codPayments.length - 1 && ', '}
                           </span>
                     )}
                       </span>
-                      {!FINISHED_STATUSES.includes(delivery.status) && userHasRole(currentUser, 'driver') ||
-                  FINISHED_STATUSES.includes(delivery.status) && userHasRole(currentUser, 'admin') ?
+                      {!isFinishedDelivery && userHasRole(currentUser, 'driver') ||
+                  isFinishedDelivery && userHasRole(currentUser, 'admin') ?
                   <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={(e) => {e.stopPropagation();setShowCODCollection(!showCODCollection);}}>Edit</Button> :
                   null}
                     </div>
