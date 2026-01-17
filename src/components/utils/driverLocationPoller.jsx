@@ -153,19 +153,8 @@ class DriverLocationPoller {
       // CRITICAL: Current user (self) - NEVER show on mobile (blue GPS dot shows instead)
       // Desktop: show own marker ONLY when sharing is enabled
       if (isSelf) {
-        if (isMobileDevice) {
-          // Mobile: ALWAYS block self marker - blue GPS dot is shown by the map component
-          console.log('🚫 [DriverLocationPoller] Blocking self marker on mobile');
-          return false;
-        }
-        // Desktop: ONLY show if location_tracking_enabled = true (actively sharing)
-        if (user.location_tracking_enabled === true) {
-          console.log('✅ [DriverLocationPoller] Showing self marker on desktop (sharing enabled)');
-          return true;
-        } else {
-          console.log('🚫 [DriverLocationPoller] Hiding self marker on desktop (sharing disabled)');
-          return false;
-        }
+        // Mobile: ALWAYS block self marker - blue GPS dot is shown by the map component
+        return false;
       }
 
       // RULE 4: All other drivers must be in same city
