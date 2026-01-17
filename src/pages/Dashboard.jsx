@@ -343,7 +343,7 @@ function Dashboard() {
   const [performanceStats, setPerformanceStats] = useState(null);
   const [deliveryStats, setDeliveryStats] = useState(null);
   const [liveDistance, setLiveDistance] = useState(0); // Live accumulated distance from liveDistanceTracker
-  const [liveTimeOnDuty, setLiveTimeOnDuty] = useState('00:00'); // Live time on duty
+  const [liveTimeOnDuty, setLiveTimeOnDuty] = useState(null); // Live time on duty (null = use backend value)
 
   // Listen for performance stats AND delivery stats updates from Layout (QuickStats)
   useEffect(() => {
