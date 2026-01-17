@@ -92,14 +92,23 @@ class LiveDistanceTracker {
       this.intervalId = null;
     }
 
+    // CRITICAL: Finalize time on duty before stopping
+    if (this.dutyStartTime) {
+      const elapsedMs = Date.now() - this.dutyStartTime;
+      this.totalTimeOnDuty += Math.floor(elapsedMs / 60000);
+      console.log(`⏱️ [LiveDistanceTracker] Finalized time on duty: ${this.totalTimeOnDuty} minutes`);
+      this.dutyStartTime = null;
+    }
+
     this.isTracking = false;
     this.currentUser = null;
     this.lastPosition = null;
     this.accumulatedDistance = 0;
-    this.dutyStartTime = null;
-    this.totalTimeOnDuty = 0;
+    
+    // DON'T reset totalTimeOnDuty - it should persist after route completion
+    // this.totalTimeOnDuty = 0;
 
-    console.log('🛑 [LiveDistanceTracker] Stopped tracking');
+    console.log('🛑 [LiveDistanceTracker] Stopped tracking (Time On Duty preserved)');
   }
 
   /**
