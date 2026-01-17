@@ -596,22 +596,19 @@ export default function ImportActiveRoutes({
         puid: importedPuid || null // Use imported PUID from column 13
       };
 
-      // Handle failure detection from notes (for completed stops)
+      // Handle failure detection from notes (for ANY status, not just completed)
       const notesLower = rawNotes.toLowerCase();
-      if (deliveryStatus === 'completed') {
-        if (isPickup && notesLower.includes('failed')) {
+      if (notesLower.includes('failed')) {
+        if (isPickup) {
           newDeliveryData.status = 'cancelled';
-          // For cancelled: actual_delivery_time = delivery_time_start
           newDeliveryData.actual_delivery_time = actualDeliveryTime;
-        } else if (notesLower.includes('failed')) {
+        } else {
           newDeliveryData.status = 'failed';
-          // For failed: actual_delivery_time = delivery_time_start
-          newDeliveryData.actual_delivery_time = actualDeliveryTime;
-        } else if (notesLower.includes('cancel')) {
-          newDeliveryData.status = 'cancelled';
-          // For cancelled: actual_delivery_time = delivery_time_start
           newDeliveryData.actual_delivery_time = actualDeliveryTime;
         }
+      } else if (notesLower.includes('cancel')) {
+        newDeliveryData.status = 'cancelled';
+        newDeliveryData.actual_delivery_time = actualDeliveryTime;
       }
 
       if (patientId) {
