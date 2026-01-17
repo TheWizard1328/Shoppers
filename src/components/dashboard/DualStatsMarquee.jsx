@@ -49,7 +49,7 @@ export default function DualStatsMarquee({
   isDriver,
   performanceStats, // { totalPay, totalKm, totalExtraKm, totalTimeOnDuty }
   liveDistance = 0, // Live travel_dist from current next delivery
-  liveTimeOnDuty = '00:00' // Live time on duty
+  liveTimeOnDuty = null // Live time on duty (null = use backend value)
 }) {
   // CRITICAL: For DRIVERS - basic numbers are deliveries, superscripts are pickups
   // For DISPATCHERS - basic numbers are deliveries, superscripts are unique driver counts
@@ -166,10 +166,10 @@ export default function DualStatsMarquee({
 
           <StatBadge
             icon={Clock}
-            value={liveTimeOnDuty || performanceStats?.totalTimeOnDuty || '00:00'}
+            value={liveTimeOnDuty ?? performanceStats?.totalTimeOnDuty ?? '00:00'}
             color="purple"
             label="Duty"
-            tooltip={`Time on Duty: ${liveTimeOnDuty || performanceStats?.totalTimeOnDuty || '00:00'} (first stop to now, minus breaks)`}
+            tooltip={`Time on Duty: ${liveTimeOnDuty ?? performanceStats?.totalTimeOnDuty ?? '00:00'} (first stop to now, minus breaks)`}
             small />
         </div>
       )}
