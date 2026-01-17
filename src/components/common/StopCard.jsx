@@ -1155,14 +1155,19 @@ export default function StopCard({
                 `${existingNotes}\n[${status.toUpperCase()}] ${reason}` :
                 `[${status.toUpperCase()}] ${reason}`;
 
-                // CRITICAL: Generate local timestamp with timezone offset
+                // CRITICAL: Round completion time to nearest 5-minute mark
                 const currentTime = new Date();
+                const totalMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+                const roundedMinutes = Math.round(totalMinutes / 5) * 5;
+                const roundedHours = Math.floor(roundedMinutes / 60);
+                const roundedMins = roundedMinutes % 60;
+                
                 const year = currentTime.getFullYear();
                 const month = String(currentTime.getMonth() + 1).padStart(2, '0');
                 const day = String(currentTime.getDate()).padStart(2, '0');
-                const hours = String(currentTime.getHours()).padStart(2, '0');
-                const minutes = String(currentTime.getMinutes()).padStart(2, '0');
-                const seconds = String(currentTime.getSeconds()).padStart(2, '0');
+                const hours = String(roundedHours).padStart(2, '0');
+                const minutes = String(roundedMins).padStart(2, '0');
+                const seconds = '00';
                 const offsetMinutes = -currentTime.getTimezoneOffset();
                 const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60);
                 const offsetMins = Math.abs(offsetMinutes) % 60;
@@ -1174,6 +1179,37 @@ export default function StopCard({
                   delivery_notes: updatedNotes,
                   actual_delivery_time: localTimeString
                 }, false);
+                
+                // Check if this is the FINAL stop
+                const allDriverDeliveries = allDeliveries.filter((d) =>
+                  d && d.driver_id === delivery.driver_id && d.delivery_date === delivery.delivery_date
+                );
+                const incompleteAfterThis = allDriverDeliveries.filter((d) => 
+                  d.id !== delivery.id && !FINISHED_STATUSES.includes(d.status) && d.status !== 'pending'
+                );
+                
+                if (incompleteAfterThis.length === 0) {
+                  console.log('🏁 [FAILED/CANCELLED] FINAL STOP - Activating FAB and showing route summary');
+                  fabControlEvents.notifyDoneButtonClicked();
+                  window.dispatchEvent(new CustomEvent('showRouteSummary', {
+                    detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                  }));
+                  
+                  if (currentUser?.id) {
+                    const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
+                    if (appUsers && appUsers.length > 0) {
+                      const appUser = appUsers[0];
+                      await base44.entities.AppUser.update(appUser.id, {
+                        driver_status: 'off_duty',
+                        location_tracking_enabled: false
+                      });
+                      locationTracker.stopTracking();
+                      if (onDriverStatusChange) {
+                        onDriverStatusChange('off_duty');
+                      }
+                    }
+                  }
+                }
 
                 // CRITICAL: Run recursive route optimization after failure
                 try {
@@ -2158,14 +2194,19 @@ export default function StopCard({
                           console.log('🎯 [COMPLETE] PHASE 1: Updating UI immediately...');
 
                           // Update status to completed with timestamp
-                          // CRITICAL: Use local device time in ISO format without timezone conversion
+                          // CRITICAL: Round completion time to nearest 5-minute mark
                           const currentTime = new Date();
+                          const totalMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+                          const roundedMinutes = Math.round(totalMinutes / 5) * 5;
+                          const roundedHours = Math.floor(roundedMinutes / 60);
+                          const roundedMins = roundedMinutes % 60;
+                          
                           const year = currentTime.getFullYear();
                           const month = String(currentTime.getMonth() + 1).padStart(2, '0');
                           const day = String(currentTime.getDate()).padStart(2, '0');
-                          const hours = String(currentTime.getHours()).padStart(2, '0');
-                          const minutes = String(currentTime.getMinutes()).padStart(2, '0');
-                          const seconds = String(currentTime.getSeconds()).padStart(2, '0');
+                          const hours = String(roundedHours).padStart(2, '0');
+                          const minutes = String(roundedMins).padStart(2, '0');
+                          const seconds = '00';
                           
                           // Get timezone offset in minutes and format as ±HH:MM
                           const offsetMinutes = -currentTime.getTimezoneOffset();
@@ -2199,6 +2240,41 @@ export default function StopCard({
                           if (incompleteDeliveries.length > 0) {
                             const nextStop = incompleteDeliveries[0];
                             await updateDeliveryLocal(nextStop.id, { isNextDelivery: true }, { skipSmartRefresh: true });
+                          } else {
+                            // CRITICAL: This is the FINAL stop - activate FAB phase 1 and show route summary
+                            console.log('🏁 [COMPLETE] FINAL STOP COMPLETED - Activating FAB and showing route summary');
+                            
+                            // Activate FAB phase 1
+                            fabControlEvents.notifyDoneButtonClicked();
+                            
+                            // Show route summary popup
+                            window.dispatchEvent(new CustomEvent('showRouteSummary', {
+                              detail: { driverId: delivery.driver_id, deliveryDate: delivery.delivery_date }
+                            }));
+                            
+                            // Toggle location sharing off and driver status to off_duty
+                            if (currentUser?.id) {
+                              const appUsers = await base44.entities.AppUser.filter({ user_id: currentUser.id });
+                              if (appUsers && appUsers.length > 0) {
+                                const appUser = appUsers[0];
+                                await base44.entities.AppUser.update(appUser.id, {
+                                  driver_status: 'off_duty',
+                                  location_tracking_enabled: false
+                                });
+                                
+                                // Stop location tracking
+                                try {
+                                  locationTracker.stopTracking();
+                                } catch (trackingError) {
+                                  console.warn('Could not stop location tracking:', trackingError.message);
+                                }
+                                
+                                // Notify parent to refresh UI
+                                if (onDriverStatusChange) {
+                                  onDriverStatusChange('off_duty');
+                                }
+                              }
+                            }
                           }
 
                           // Force UI refresh with new data
