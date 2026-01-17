@@ -312,9 +312,13 @@ export default function StopCard({
 
   const displayName = useMemo(() => {
     if (!delivery) return '';
+    // For InterStore pickups, show the patient name (e.g., "Shoppers Callingwood(ISP)")
+    if (isPickup && isInterStorePickup) {
+      return delivery.patient_name || patient?.full_name || `${store?.name || 'Unknown Store'} Pickup`;
+    }
     if (isPickup) return `${store?.name || 'Unknown Store'} Pickup`;
     return patient?.full_name || 'Unknown';
-  }, [delivery, isPickup, store, patient]);
+  }, [delivery, isPickup, isInterStorePickup, store, patient]);
 
   const displayAddress = useMemo(() => {
     if (!delivery) return '';
