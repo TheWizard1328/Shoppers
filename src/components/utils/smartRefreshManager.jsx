@@ -919,12 +919,16 @@ class SmartRefreshManager {
         return null;
       }
       
-      // Skip interval check if force refresh (initial load)
-      if (!forceRefresh && !this.shouldRefresh('driverLocation')) {
+      // CRITICAL: Reduce cooldown to 10 seconds for faster marker updates
+      const cooldown = 10000;
+      const now = Date.now();
+      const timeSinceLastRefresh = now - (this.lastRefreshTimes.driverLocation || 0);
+      
+      if (!forceRefresh && timeSinceLastRefresh < cooldown) {
         return null;
       }
       
-      this.markRefreshed('driverLocation');
+      this.lastRefreshTimes.driverLocation = now;
       await this.waitForRateLimit();
       
       // CRITICAL: Fetch ALL AppUsers with driver role (regardless of status)
@@ -953,7 +957,9 @@ class SmartRefreshManager {
             ...au,
             current_latitude: serverVersion.current_latitude,
             current_longitude: serverVersion.current_longitude,
-            location_updated_at: serverVersion.location_updated_at
+            location_updated_at: serverVersion.location_updated_at,
+            driver_status: serverVersion.driver_status,
+            location_tracking_enabled: serverVersion.location_tracking_enabled
           };
           
           // For other fields, prefer server if newer
@@ -973,45 +979,17 @@ class SmartRefreshManager {
         }
       });
       
-      // Check for changes
-      let hasLocationChanges = false;
-      for (let i = 0; i < currentAppUsers.length; i++) {
-        const curr = currentAppUsers[i];
-        const updated = updatedAppUsers.find(u => u.user_id === curr.user_id);
-        if (updated) {
-          if (curr.current_latitude !== updated.current_latitude ||
-              curr.current_longitude !== updated.current_longitude ||
-              curr.driver_status !== updated.driver_status ||
-              curr.location_tracking_enabled !== updated.location_tracking_enabled) {
-            hasLocationChanges = true;
-            break;
-          }
-        }
-      }
-      
-      // CRITICAL: Always dispatch event to driverLocationPoller with consistent data
-      const finalAppUsers = updatedAppUsers;
+      // CRITICAL: Always dispatch event immediately with fresh data
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('driverLocationsUpdated', {
-          detail: { appUsers: finalAppUsers }
+          detail: { appUsers: updatedAppUsers }
         }));
       }
       
-      if (!hasLocationChanges) {
-        return null;
-      }
-      
-      // CRITICAL: Sync to offline database after changes
-      try {
-        const { offlineManager } = await import('./offlineManager');
-        await offlineManager.cacheData('AppUser', finalAppUsers);
-      } catch (offlineError) {
-        // Silent fail - don't block refresh cycle
-      }
-      
+      // CRITICAL: Always return changes to trigger UI update
       return {
         hasChanges: true,
-        appUsers: finalAppUsers
+        appUsers: updatedAppUsers
       };
       
     } catch (error) {
