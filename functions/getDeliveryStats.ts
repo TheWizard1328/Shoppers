@@ -468,18 +468,44 @@ Deno.serve(async (req) => {
           const oversizedPay = oversizedDeliveries.length * oversizedRate;
 
           // Total Km: sum up travel_dist for ALL finished deliveries (completed, failed, returned)
+          // If travel_dist missing, fallback to patient's distance_from_store (as the crow flies)
           const finishedDeliveries = todayDeliveries.filter(d => {
             if (!d || !d.actual_delivery_time) return false;
             return isCompleted(d) || isFailed(d) || isReturn(d);
           });
+          
+          // Batch fetch patients for deliveries missing travel_dist
+          const deliveriesMissingDist = finishedDeliveries.filter(d => 
+            !d.travel_dist && d.patient_id
+          );
+          let patientDistanceMap = new Map();
+          
+          if (deliveriesMissingDist.length > 0) {
+            const patientIdsForDist = deliveriesMissingDist.map(d => d.patient_id).filter(Boolean);
+            if (patientIdsForDist.length > 0) {
+              const patientsForDist = await base44.asServiceRole.entities.Patient.filter({ 
+                id: { $in: patientIdsForDist } 
+              }).catch(() => []);
+              patientsForDist.forEach(p => {
+                if (p?.distance_from_store) {
+                  patientDistanceMap.set(p.id, p.distance_from_store);
+                }
+              });
+            }
+          }
           
           let totalKm = 0;
           finishedDeliveries.forEach(delivery => {
             if (delivery?.travel_dist && typeof delivery.travel_dist === 'number') {
               totalKm += delivery.travel_dist;
               console.log(`📏 [Stats] ${delivery.patient_name || delivery.delivery_notes}: ${delivery.travel_dist} km`);
+            } else if (delivery?.patient_id && patientDistanceMap.has(delivery.patient_id)) {
+              // Fallback: use patient's distance_from_store (as the crow flies)
+              const fallbackDist = patientDistanceMap.get(delivery.patient_id);
+              totalKm += fallbackDist;
+              console.log(`📏 [Stats] ${delivery.patient_name || delivery.delivery_notes}: ${fallbackDist} km (fallback from patient)`);
             } else {
-              console.log(`⚠️ [Stats] ${delivery.patient_name || delivery.delivery_notes}: NO travel_dist`);
+              console.log(`⚠️ [Stats] ${delivery.patient_name || delivery.delivery_notes}: NO travel_dist (no fallback available)`);
             }
           });
           console.log(`📏 [Stats TOTAL] Total Km: ${totalKm} km from ${finishedDeliveries.length} deliveries`);
@@ -660,11 +686,35 @@ Deno.serve(async (req) => {
             return isCompleted(d) || isFailed(d) || isReturn(d);
           });
           
+          // Batch fetch patients for deliveries missing travel_dist
+          const driverDeliveriesMissingDist = finishedDeliveries.filter(d => 
+            !d.travel_dist && d.patient_id
+          );
+          let driverPatientDistanceMap = new Map();
+          
+          if (driverDeliveriesMissingDist.length > 0) {
+            const driverPatientIdsForDist = driverDeliveriesMissingDist.map(d => d.patient_id).filter(Boolean);
+            if (driverPatientIdsForDist.length > 0) {
+              const driverPatientsForDist = await base44.asServiceRole.entities.Patient.filter({ 
+                id: { $in: driverPatientIdsForDist } 
+              }).catch(() => []);
+              driverPatientsForDist.forEach(p => {
+                if (p?.distance_from_store) {
+                  driverPatientDistanceMap.set(p.id, p.distance_from_store);
+                }
+              });
+            }
+          }
+          
           let driverTotalKm = 0;
           finishedDeliveries.forEach(delivery => {
             if (delivery?.travel_dist && typeof delivery.travel_dist === 'number') {
               driverTotalKm += delivery.travel_dist;
               console.log(`📏 [All Drivers - ${driverUserId}] ${delivery.patient_name || delivery.delivery_notes}: ${delivery.travel_dist} km`);
+            } else if (delivery?.patient_id && driverPatientDistanceMap.has(delivery.patient_id)) {
+              const fallbackDist = driverPatientDistanceMap.get(delivery.patient_id);
+              driverTotalKm += fallbackDist;
+              console.log(`📏 [All Drivers - ${driverUserId}] ${delivery.patient_name || delivery.delivery_notes}: ${fallbackDist} km (fallback)`);
             }
           });
           console.log(`📏 [All Drivers - ${driverUserId}] Total Km: ${driverTotalKm} km from ${finishedDeliveries.length} deliveries`);
